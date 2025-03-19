@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Config\Contracts;
+namespace Hypervel\Config\Contracts;
 
 use Closure;
 use Hyperf\Contract\ConfigInterface;

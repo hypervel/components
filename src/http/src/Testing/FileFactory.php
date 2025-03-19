@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Http\Testing;
+namespace Hypervel\Http\Testing;
 
 use LogicException;
 

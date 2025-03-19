@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Database\Eloquent;
+namespace Hypervel\Database\Eloquent;
 
 use Hyperf\Collection\Collection;
 use Hyperf\Database\Model\Model;
-use LaravelHyperf\Broadcasting\Contracts\ShouldBroadcast;
-use LaravelHyperf\Broadcasting\InteractsWithSockets;
-use LaravelHyperf\Broadcasting\PrivateChannel;
-use LaravelHyperf\Queue\SerializesModels;
+use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
+use Hypervel\Broadcasting\InteractsWithSockets;
+use Hypervel\Broadcasting\PrivateChannel;
+use Hypervel\Queue\SerializesModels;
 
 class BroadcastableModelEventOccurred implements ShouldBroadcast
 {

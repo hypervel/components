@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Mail\Contracts;
+namespace Hypervel\Mail\Contracts;
 
 use Closure;
-use LaravelHyperf\Mail\PendingMail;
-use LaravelHyperf\Mail\SentMessage;
+use Hypervel\Mail\PendingMail;
+use Hypervel\Mail\SentMessage;
 
 interface Mailer
 {

@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Testing;
+namespace Hypervel\Foundation\Testing;
 
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Hyperf\Coroutine\Coroutine;
-use LaravelHyperf\Foundation\Testing\Concerns\InteractsWithAuthentication;
-use LaravelHyperf\Foundation\Testing\Concerns\InteractsWithConsole;
-use LaravelHyperf\Foundation\Testing\Concerns\InteractsWithContainer;
-use LaravelHyperf\Foundation\Testing\Concerns\InteractsWithDatabase;
-use LaravelHyperf\Foundation\Testing\Concerns\InteractsWithSession;
-use LaravelHyperf\Foundation\Testing\Concerns\InteractsWithTime;
-use LaravelHyperf\Foundation\Testing\Concerns\MakesHttpRequests;
-use LaravelHyperf\Foundation\Testing\Concerns\MocksApplicationServices;
-use LaravelHyperf\Support\Facades\Facade;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithContainer;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithDatabase;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithSession;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithTime;
+use Hypervel\Foundation\Testing\Concerns\MakesHttpRequests;
+use Hypervel\Foundation\Testing\Concerns\MocksApplicationServices;
+use Hypervel\Support\Facades\Facade;
 use Mockery;
 use Throwable;
 

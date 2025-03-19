@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Mail\Contracts;
+namespace Hypervel\Mail\Contracts;
 
-use LaravelHyperf\Mail\Attachment;
+use Hypervel\Mail\Attachment;
 
 interface Attachable
 {

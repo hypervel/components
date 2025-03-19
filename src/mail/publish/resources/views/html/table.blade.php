@@ -1,3 +1,3 @@
 <div class="table">
-{{ LaravelHyperf\Mail\Markdown::parse($slot) }}
+{{ Hypervel\Mail\Markdown::parse($slot) }}
 </div>

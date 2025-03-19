@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Http;
+namespace Hypervel\Http;
 
 use DateTimeImmutable;
 use Hyperf\Codec\Json;
@@ -16,10 +16,10 @@ use Hyperf\HttpMessage\Stream\SwooleStream;
 use Hyperf\HttpServer\Response as HyperfResponse;
 use Hyperf\Support\Filesystem\Filesystem;
 use Hyperf\View\RenderInterface;
-use LaravelHyperf\Http\Contracts\ResponseContract;
-use LaravelHyperf\Http\Exceptions\FileNotFoundException;
-use LaravelHyperf\Support\Collection;
-use LaravelHyperf\Support\MimeTypeExtensionGuesser;
+use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Http\Exceptions\FileNotFoundException;
+use Hypervel\Support\Collection;
+use Hypervel\Support\MimeTypeExtensionGuesser;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
 

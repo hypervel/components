@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Broadcasting\Broadcasters;
+namespace Hypervel\Broadcasting\Broadcasters;
 
 use Closure;
 use Exception;
 use Hyperf\Collection\Arr;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use LaravelHyperf\Auth\AuthManager;
-use LaravelHyperf\Broadcasting\Contracts\Broadcaster as BroadcasterContract;
-use LaravelHyperf\Broadcasting\Contracts\HasBroadcastChannel;
-use LaravelHyperf\HttpMessage\Exceptions\AccessDeniedHttpException;
-use LaravelHyperf\Router\Contracts\UrlRoutable;
-use LaravelHyperf\Support\Collection;
-use LaravelHyperf\Support\Reflector;
+use Hypervel\Auth\AuthManager;
+use Hypervel\Broadcasting\Contracts\Broadcaster as BroadcasterContract;
+use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
+use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
+use Hypervel\Router\Contracts\UrlRoutable;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Reflector;
 use Psr\Container\ContainerInterface;
 use ReflectionClass;
 use ReflectionFunction;

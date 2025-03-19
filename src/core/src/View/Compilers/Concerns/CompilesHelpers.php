@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\View\Compilers\Concerns;
+namespace Hypervel\View\Compilers\Concerns;
 
 trait CompilesHelpers
 {

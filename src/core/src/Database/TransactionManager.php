@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Database;
+namespace Hypervel\Database;
 
 use Hyperf\Context\Context;
 use Hyperf\Database\Events\TransactionCommitted;

@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue;
+namespace Hypervel\Queue;
 
 use Closure;
+use Hypervel\Bus\Batchable;
+use Hypervel\Bus\Dispatchable;
+use Hypervel\Bus\Queueable;
+use Hypervel\Queue\Contracts\ShouldQueue;
 use Laravel\SerializableClosure\SerializableClosure;
-use LaravelHyperf\Bus\Batchable;
-use LaravelHyperf\Bus\Dispatchable;
-use LaravelHyperf\Bus\Queueable;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
 use Psr\Container\ContainerInterface;
 use ReflectionFunction;
 use Throwable;
@@ -58,7 +58,7 @@ class CallQueuedClosure implements ShouldQueue
             return;
         }
 
-        /** @var \LaravelHyperf\Container\Contracts\Container $container */
+        /** @var \Hypervel\Container\Contracts\Container $container */
         $container->call($this->closure->getClosure(), ['job' => $this]);
     }
 

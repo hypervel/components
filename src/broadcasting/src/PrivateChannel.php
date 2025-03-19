@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Broadcasting;
+namespace Hypervel\Broadcasting;
 
-use LaravelHyperf\Broadcasting\Contracts\HasBroadcastChannel;
+use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
 
 class PrivateChannel extends Channel
 {

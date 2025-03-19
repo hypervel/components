@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Mail;
+namespace Hypervel\Mail;
 
 use Hyperf\Support\Traits\ForwardsCalls;
-use LaravelHyperf\Mail\Contracts\Attachable;
+use Hypervel\Mail\Contracts\Attachable;
 
 /**
  * @mixin Message

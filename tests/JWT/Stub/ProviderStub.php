@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\JWT\Stub;
+namespace Hypervel\Tests\JWT\Stub;
 
-use LaravelHyperf\JWT\Providers\Provider;
+use Hypervel\JWT\Providers\Provider;
 
 class ProviderStub extends Provider
 {

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Connectors;
+namespace Hypervel\Queue\Connectors;
 
 use Hyperf\Database\ConnectionResolverInterface;
-use LaravelHyperf\Queue\Contracts\Queue;
-use LaravelHyperf\Queue\DatabaseQueue;
+use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Queue\DatabaseQueue;
 
 class DatabaseConnector implements ConnectorInterface
 {

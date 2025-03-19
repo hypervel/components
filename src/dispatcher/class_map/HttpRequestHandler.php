@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hyperf\Dispatcher;
 
 use Hyperf\Context\Context;
-use LaravelHyperf\Dispatcher\Pipeline;
+use Hypervel\Dispatcher\Pipeline;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Auth;
+namespace Hypervel\Foundation\Auth;
 
-use LaravelHyperf\Auth\Access\Authorizable;
-use LaravelHyperf\Auth\Authenticatable;
-use LaravelHyperf\Auth\Contracts\Authenticatable as AuthenticatableContract;
-use LaravelHyperf\Auth\Contracts\Authorizable as AuthorizableContract;
-use LaravelHyperf\Database\Eloquent\Model;
+use Hypervel\Auth\Access\Authorizable;
+use Hypervel\Auth\Authenticatable;
+use Hypervel\Auth\Contracts\Authenticatable as AuthenticatableContract;
+use Hypervel\Auth\Contracts\Authorizable as AuthorizableContract;
+use Hypervel\Database\Eloquent\Model;
 
 class User extends Model implements AuthenticatableContract, AuthorizableContract
 {

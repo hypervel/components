@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Telescope\Watchers;
+namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\ViewEngine\Contract\ViewInterface;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\Watchers\ViewWatcher;
-use LaravelHyperf\Tests\Telescope\FeatureTestCase;
-use LaravelHyperf\View\Events\ViewRendered;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Watchers\ViewWatcher;
+use Hypervel\Tests\Telescope\FeatureTestCase;
+use Hypervel\View\Events\ViewRendered;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface;
 

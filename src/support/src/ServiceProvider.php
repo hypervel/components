@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support;
+namespace Hypervel\Support;
 
 use Closure;
 use Hyperf\Contract\ConfigInterface;
@@ -10,9 +10,9 @@ use Hyperf\Contract\TranslatorLoaderInterface;
 use Hyperf\Database\Migrations\Migrator;
 use Hyperf\ViewEngine\Compiler\BladeCompiler;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactoryContract;
-use LaravelHyperf\Foundation\Contracts\Application as ApplicationContract;
-use LaravelHyperf\Router\RouteFileCollector;
-use LaravelHyperf\Support\Facades\Artisan;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Router\RouteFileCollector;
+use Hypervel\Support\Facades\Artisan;
 
 abstract class ServiceProvider
 {

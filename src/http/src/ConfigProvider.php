@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Http;
+namespace Hypervel\Http;
 
 use Hyperf\HttpServer\CoreMiddleware as HyperfCoreMiddleware;
-use LaravelHyperf\Http\Contracts\RequestContract;
-use LaravelHyperf\Http\Contracts\ResponseContract;
+use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Http\Contracts\ResponseContract;
 use Psr\Http\Message\ServerRequestInterface;
 
 class ConfigProvider

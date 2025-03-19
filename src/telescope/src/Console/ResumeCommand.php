@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Console;
+namespace Hypervel\Telescope\Console;
 
-use LaravelHyperf\Cache\Contracts\Factory as CacheFactory;
-use LaravelHyperf\Foundation\Console\Command;
+use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Foundation\Console\Command;
 
 class ResumeCommand extends Command
 {

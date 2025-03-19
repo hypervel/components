@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Broadcasting;
+namespace Hypervel\Broadcasting;
 
 use Hyperf\Collection\Arr;
 use Hyperf\Contract\Arrayable;
-use LaravelHyperf\Broadcasting\Contracts\ShouldBroadcast;
-use LaravelHyperf\Foundation\Events\Dispatchable;
+use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
+use Hypervel\Foundation\Events\Dispatchable;
 
 use function Hyperf\Collection\collect;
 

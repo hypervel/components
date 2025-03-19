@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\JWT\Validations;
+namespace Hypervel\JWT\Validations;
 
 use Carbon\Carbon;
-use LaravelHyperf\JWT\Exceptions\TokenExpiredException;
+use Hypervel\JWT\Exceptions\TokenExpiredException;
 
 class ExpiredClaim extends AbstractValidation
 {

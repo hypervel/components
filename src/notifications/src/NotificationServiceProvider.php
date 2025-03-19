@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications;
+namespace Hypervel\Notifications;
 
-use LaravelHyperf\Support\ServiceProvider;
+use Hypervel\Support\ServiceProvider;
 
 class NotificationServiceProvider extends ServiceProvider
 {

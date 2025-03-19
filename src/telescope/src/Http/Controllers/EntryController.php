@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Http\Controllers;
+namespace Hypervel\Telescope\Http\Controllers;
 
-use LaravelHyperf\Http\Request;
-use LaravelHyperf\Telescope\Contracts\EntriesRepository;
-use LaravelHyperf\Telescope\Storage\EntryQueryOptions;
+use Hypervel\Http\Request;
+use Hypervel\Telescope\Contracts\EntriesRepository;
+use Hypervel\Telescope\Storage\EntryQueryOptions;
 
-use function LaravelHyperf\Cache\cache;
-use function LaravelHyperf\Config\config;
+use function Hypervel\Cache\cache;
+use function Hypervel\Config\config;
 
 abstract class EntryController
 {

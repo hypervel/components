@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Prompts;
+namespace Hypervel\Tests\Prompts;
 
-use LaravelHyperf\Prompts\Key;
-use LaravelHyperf\Prompts\MultiSearchPrompt;
-use LaravelHyperf\Prompts\Prompt;
+use Hypervel\Prompts\Key;
+use Hypervel\Prompts\MultiSearchPrompt;
+use Hypervel\Prompts\Prompt;
 use PHPUnit\Framework\TestCase;
 
-use function LaravelHyperf\Prompts\multisearch;
+use function Hypervel\Prompts\multisearch;
 
 /**
  * @backupStaticProperties enabled

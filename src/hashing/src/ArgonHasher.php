@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Hashing;
+namespace Hypervel\Hashing;
 
-use LaravelHyperf\Hashing\Contracts\Hasher as HasherContract;
+use Hypervel\Hashing\Contracts\Hasher as HasherContract;
 use RuntimeException;
 
 class ArgonHasher extends AbstractHasher implements HasherContract

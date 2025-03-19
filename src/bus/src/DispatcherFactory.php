@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Bus;
+namespace Hypervel\Bus;
 
-use LaravelHyperf\Queue\Contracts\Factory as QueueFactoryContract;
+use Hypervel\Queue\Contracts\Factory as QueueFactoryContract;
 use Psr\Container\ContainerInterface;
 
 class DispatcherFactory

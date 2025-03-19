@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Mail;
+namespace Hypervel\Mail;
 
 use Hyperf\Stringable\Str;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
-use LaravelHyperf\Support\HtmlString;
+use Hypervel\Support\HtmlString;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\CommonMark\CommonMarkCoreExtension;
 use League\CommonMark\Extension\Table\TableExtension;

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Router\Stub;
+namespace Hypervel\Tests\Router\Stub;
 
 use Hyperf\Database\Model\Model;
-use LaravelHyperf\Router\Contracts\UrlRoutable;
+use Hypervel\Router\Contracts\UrlRoutable;
 
 class UrlRoutableStub implements UrlRoutable
 {

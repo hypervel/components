@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Router;
+namespace Hypervel\Tests\Router;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\HttpServer\Router\RouteCollector as HyperfRouteCollector;
-use LaravelHyperf\Router\DispatcherFactory;
-use LaravelHyperf\Router\RouteCollector;
-use LaravelHyperf\Router\RouteFileCollector;
-use LaravelHyperf\Router\Router;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Router\DispatcherFactory;
+use Hypervel\Router\RouteCollector;
+use Hypervel\Router\RouteFileCollector;
+use Hypervel\Router\Router;
+use Hypervel\Tests\TestCase;
 use Mockery;
 use Mockery\MockInterface;
 

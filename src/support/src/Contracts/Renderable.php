@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Contracts;
+namespace Hypervel\Support\Contracts;
 
 use Hyperf\ViewEngine\Contract\Renderable as BaseRenderable;
 

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Bus;
+namespace Hypervel\Tests\Bus;
 
-use LaravelHyperf\Bus\Queueable;
+use Hypervel\Bus\Queueable;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

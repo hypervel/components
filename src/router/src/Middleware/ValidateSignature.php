@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Router\Middleware;
+namespace Hypervel\Router\Middleware;
 
 use Hyperf\Collection\Arr;
-use LaravelHyperf\Http\Contracts\RequestContract;
-use LaravelHyperf\Router\Exceptions\InvalidSignatureException;
+use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Router\Exceptions\InvalidSignatureException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;

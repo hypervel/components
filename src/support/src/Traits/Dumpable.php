@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Traits;
+namespace Hypervel\Support\Traits;
 
 trait Dumpable
 {

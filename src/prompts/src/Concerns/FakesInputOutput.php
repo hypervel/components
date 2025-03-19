@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Prompts\Concerns;
+namespace Hypervel\Prompts\Concerns;
 
-use LaravelHyperf\Prompts\Output\BufferedConsoleOutput;
-use LaravelHyperf\Prompts\Terminal;
+use Hypervel\Prompts\Output\BufferedConsoleOutput;
+use Hypervel\Prompts\Terminal;
 use Mockery;
 use PHPUnit\Framework\Assert;
 use RuntimeException;

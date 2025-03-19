@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Http;
+namespace Hypervel\Tests\Http;
 
 use Faker\Container\ContainerInterface;
 use Hyperf\Contract\NormalizerInterface;
@@ -10,8 +10,8 @@ use Hyperf\Di\ClosureDefinitionCollectorInterface;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hyperf\Di\ReflectionType;
 use Hyperf\HttpServer\Router\Dispatched;
+use Hypervel\Http\RouteDependency;
 use InvalidArgumentException;
-use LaravelHyperf\Http\RouteDependency;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 

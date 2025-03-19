@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Auth\Access;
+namespace Hypervel\Auth\Access;
 
 use Closure;
 use Exception;
@@ -10,10 +10,10 @@ use Hyperf\Collection\Arr;
 use Hyperf\Contract\ContainerInterface;
 use Hyperf\Di\Exception\NotFoundException;
 use Hyperf\Stringable\Str;
+use Hypervel\Auth\Access\Events\GateEvaluated;
+use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Auth\Contracts\Gate as GateContract;
 use InvalidArgumentException;
-use LaravelHyperf\Auth\Access\Events\GateEvaluated;
-use LaravelHyperf\Auth\Contracts\Authenticatable;
-use LaravelHyperf\Auth\Contracts\Gate as GateContract;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use ReflectionClass;
 use ReflectionException;

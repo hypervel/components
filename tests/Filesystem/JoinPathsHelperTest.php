@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Filesystem;
+namespace Hypervel\Tests\Filesystem;
 
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\TestCase;
 
-use function LaravelHyperf\Filesystem\join_paths;
+use function Hypervel\Filesystem\join_paths;
 
 /**
  * @internal

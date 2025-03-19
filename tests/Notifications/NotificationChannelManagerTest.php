@@ -2,24 +2,24 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Notifications;
+namespace Hypervel\Tests\Notifications;
 
 use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
-use LaravelHyperf\Bus\Contracts\Dispatcher as BusDispatcherContract;
-use LaravelHyperf\Bus\Queueable;
-use LaravelHyperf\Context\ApplicationContext;
-use LaravelHyperf\Notifications\ChannelManager;
-use LaravelHyperf\Notifications\Channels\MailChannel;
-use LaravelHyperf\Notifications\Events\NotificationSending;
-use LaravelHyperf\Notifications\Events\NotificationSent;
-use LaravelHyperf\Notifications\Notifiable;
-use LaravelHyperf\Notifications\Notification;
-use LaravelHyperf\Notifications\NotificationPoolProxy;
-use LaravelHyperf\Notifications\SendQueuedNotifications;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
+use Hypervel\Bus\Contracts\Dispatcher as BusDispatcherContract;
+use Hypervel\Bus\Queueable;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Notifications\ChannelManager;
+use Hypervel\Notifications\Channels\MailChannel;
+use Hypervel\Notifications\Events\NotificationSending;
+use Hypervel\Notifications\Events\NotificationSent;
+use Hypervel\Notifications\Notifiable;
+use Hypervel\Notifications\Notification;
+use Hypervel\Notifications\NotificationPoolProxy;
+use Hypervel\Notifications\SendQueuedNotifications;
+use Hypervel\Queue\Contracts\ShouldQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;

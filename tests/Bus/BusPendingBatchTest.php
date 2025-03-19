@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Bus;
+namespace Hypervel\Tests\Bus;
 
 use Hyperf\Collection\Collection;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
-use LaravelHyperf\Bus\Batch;
-use LaravelHyperf\Bus\Batchable;
-use LaravelHyperf\Bus\Contracts\BatchRepository;
-use LaravelHyperf\Bus\PendingBatch;
+use Hypervel\Bus\Batch;
+use Hypervel\Bus\Batchable;
+use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Bus\PendingBatch;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;

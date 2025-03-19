@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Process;
+namespace Hypervel\Process;
 
-use LaravelHyperf\Process\Contracts\ProcessResult as ProcessResultContract;
-use LaravelHyperf\Process\Exceptions\ProcessFailedException;
+use Hypervel\Process\Contracts\ProcessResult as ProcessResultContract;
+use Hypervel\Process\Exceptions\ProcessFailedException;
 use Symfony\Component\Process\Process;
 
 class ProcessResult implements ProcessResultContract
@@ -86,7 +86,7 @@ class ProcessResult implements ProcessResultContract
     /**
      * Throw an exception if the process failed.
      *
-     * @throws \LaravelHyperf\Process\Exceptions\ProcessFailedException
+     * @throws \Hypervel\Process\Exceptions\ProcessFailedException
      */
     public function throw(?callable $callback = null): static
     {
@@ -106,7 +106,7 @@ class ProcessResult implements ProcessResultContract
     /**
      * Throw an exception if the process failed and the given condition is true.
      *
-     * @throws \LaravelHyperf\Process\Exceptions\ProcessFailedException
+     * @throws \Hypervel\Process\Exceptions\ProcessFailedException
      */
     public function throwIf(bool $condition, ?callable $callback = null): static
     {

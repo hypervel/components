@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Broadcasting;
+namespace Hypervel\Tests\Broadcasting;
 
 use Ably\AblyRest;
 use Hyperf\HttpServer\Request;
-use LaravelHyperf\Auth\AuthManager;
-use LaravelHyperf\Broadcasting\Broadcasters\AblyBroadcaster;
-use LaravelHyperf\HttpMessage\Exceptions\AccessDeniedHttpException;
+use Hypervel\Auth\AuthManager;
+use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
+use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;

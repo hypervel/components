@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\JWT\Validations;
+namespace Hypervel\JWT\Validations;
 
 use Carbon\Carbon;
-use LaravelHyperf\JWT\Contracts\ValidationContract;
+use Hypervel\JWT\Contracts\ValidationContract;
 
 abstract class AbstractValidation implements ValidationContract
 {

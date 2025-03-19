@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Cookie\Middleware;
+namespace Hypervel\Tests\Cookie\Middleware;
 
-use LaravelHyperf\Cookie\Contracts\Cookie as ContractsCookie;
-use LaravelHyperf\Cookie\Middleware\AddQueuedCookiesToResponse;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Cookie\Contracts\Cookie as ContractsCookie;
+use Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;

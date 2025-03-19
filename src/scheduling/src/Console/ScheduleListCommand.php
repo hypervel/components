@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Scheduling\Console;
+namespace Hypervel\Scheduling\Console;
 
 use Closure;
 use Cron\CronExpression;
@@ -10,11 +10,11 @@ use DateTimeZone;
 use Exception;
 use Hyperf\Collection\Collection;
 use Hyperf\Command\Command;
-use LaravelHyperf\Scheduling\CallbackEvent;
-use LaravelHyperf\Scheduling\Event;
-use LaravelHyperf\Scheduling\Schedule;
-use LaravelHyperf\Support\Carbon;
-use LaravelHyperf\Support\Traits\HasLaravelStyleCommand;
+use Hypervel\Scheduling\CallbackEvent;
+use Hypervel\Scheduling\Event;
+use Hypervel\Scheduling\Schedule;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Traits\HasLaravelStyleCommand;
 use ReflectionClass;
 use ReflectionFunction;
 use Symfony\Component\Console\Terminal;

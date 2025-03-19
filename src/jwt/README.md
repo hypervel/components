@@ -1,2 +1,2 @@
-JWT for Laravel Hyperf
+JWT for Hypervel
 ===

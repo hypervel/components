@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\ObjectPool;
+namespace Hypervel\ObjectPool;
 
 use Hyperf\Coroutine\Coroutine;
 use Hyperf\Engine\Channel as CoChannel;

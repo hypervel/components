@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Cache;
+namespace Hypervel\Tests\Cache;
 
 use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
+use Hypervel\Cache\CacheManager;
+use Hypervel\Cache\Contracts\Repository;
+use Hypervel\Cache\NullStore;
+use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use LaravelHyperf\Cache\CacheManager;
-use LaravelHyperf\Cache\Contracts\Repository;
-use LaravelHyperf\Cache\NullStore;
-use LaravelHyperf\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 use Psr\Container\ContainerInterface;

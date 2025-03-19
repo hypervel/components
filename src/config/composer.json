@@ -1,28 +1,28 @@
 {
-    "name": "laravel-hyperf/config",
+    "name": "hypervel/config",
     "type": "library",
-    "description": "The config package for Laravel Hyperf.",
+    "description": "The config package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
         "hyperf",
         "config",
         "swoole",
-        "laravel-hyperf"
+        "hypervel"
     ],
     "authors": [
         {
             "name": "Albert Chen",
-            "email": "albert@laravel-hyperf.com"
+            "email": "albert@hypervel.org"
         }
     ],
     "support": {
-        "issues": "https://github.com/laravel-hyperf/components/issues",
-        "source": "https://github.com/laravel-hyperf/components"
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
     },
     "autoload": {
         "psr-4": {
-            "LaravelHyperf\\Config\\": "src/"
+            "Hypervel\\Config\\": "src/"
         },
         "files": [
             "src/Functions.php"
@@ -38,7 +38,7 @@
     },
     "extra": {
         "hyperf": {
-            "config": "LaravelHyperf\\Config\\ConfigProvider"
+            "config": "Hypervel\\Config\\ConfigProvider"
         },
         "branch-alias": {
             "dev-main": "0.1-dev"

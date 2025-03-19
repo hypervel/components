@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Console\Contracts;
+namespace Hypervel\Foundation\Console\Contracts;
 
 use Closure;
 use Hyperf\Command\ClosureCommand;
-use LaravelHyperf\Foundation\Console\Contracts\Application as ApplicationContract;
-use LaravelHyperf\Scheduling\Schedule;
+use Hypervel\Foundation\Console\Contracts\Application as ApplicationContract;
+use Hypervel\Scheduling\Schedule;
 use Symfony\Component\Console\Output\OutputInterface;
 
 interface Kernel

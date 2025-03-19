@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Storage;
+namespace Hypervel\Telescope\Storage;
 
 use Hyperf\Collection\Collection;
 use Hyperf\Database\Model\Builder;
-use LaravelHyperf\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Model;
 
 class EntryModel extends Model
 {

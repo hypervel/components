@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Event;
+namespace Hypervel\Event;
 
 use Closure;
 use Hyperf\Context\ApplicationContext;

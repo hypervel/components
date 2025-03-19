@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Container;
+namespace Hypervel\Container;
 
 use Closure;
 use Hyperf\Contract\NormalizerInterface;
 use Hyperf\Di\ClosureDefinitionCollectorInterface;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
+use Hypervel\Container\Contracts\Container as ContainerContract;
 use InvalidArgumentException;
-use LaravelHyperf\Container\Contracts\Container as ContainerContract;
 use ReflectionException;
 
 class BoundMethod

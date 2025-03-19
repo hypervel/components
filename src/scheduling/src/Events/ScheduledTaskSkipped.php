@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Scheduling\Events;
+namespace Hypervel\Scheduling\Events;
 
-use LaravelHyperf\Scheduling\Event;
+use Hypervel\Scheduling\Event;
 
 class ScheduledTaskSkipped
 {

@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue;
+namespace Hypervel\Queue;
 
 use DateInterval;
 use DateTimeInterface;
-use LaravelHyperf\Database\TransactionManager;
-use LaravelHyperf\Queue\Contracts\Job as JobContract;
-use LaravelHyperf\Queue\Contracts\Queue as QueueContract;
-use LaravelHyperf\Queue\Events\JobExceptionOccurred;
-use LaravelHyperf\Queue\Events\JobProcessed;
-use LaravelHyperf\Queue\Events\JobProcessing;
-use LaravelHyperf\Queue\Jobs\SyncJob;
+use Hypervel\Database\TransactionManager;
+use Hypervel\Queue\Contracts\Job as JobContract;
+use Hypervel\Queue\Contracts\Queue as QueueContract;
+use Hypervel\Queue\Events\JobExceptionOccurred;
+use Hypervel\Queue\Events\JobProcessed;
+use Hypervel\Queue\Events\JobProcessing;
+use Hypervel\Queue\Jobs\SyncJob;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 

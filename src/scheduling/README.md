@@ -1,2 +1,2 @@
-Scheduling for Laravel Hyperf
+Scheduling for Hypervel
 ===

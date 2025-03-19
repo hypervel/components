@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Http\Resources\Json;
+namespace Hypervel\Http\Resources\Json;
 
 use Hyperf\Resource\Json\JsonResource as BaseJsonResource;
-use LaravelHyperf\Router\Contracts\UrlRoutable;
+use Hypervel\Router\Contracts\UrlRoutable;
 
 use function Hyperf\Tappable\tap;
 

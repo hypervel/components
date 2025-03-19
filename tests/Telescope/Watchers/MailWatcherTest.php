@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Telescope\Watchers;
+namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Mail\Events\MessageSent;
-use LaravelHyperf\Mail\SentMessage;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\Watchers\MailWatcher;
-use LaravelHyperf\Tests\Telescope\FeatureTestCase;
+use Hypervel\Mail\Events\MessageSent;
+use Hypervel\Mail\SentMessage;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Watchers\MailWatcher;
+use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface;
 

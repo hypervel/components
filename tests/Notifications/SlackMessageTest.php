@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Notifications;
+namespace Hypervel\Tests\Notifications;
 
 use Closure;
 use GuzzleHttp\Client as HttpClient;
 use GuzzleHttp\Psr7\Response;
 use Hyperf\Config\Config;
-use LaravelHyperf\Notifications\Channels\SlackWebApiChannel;
-use LaravelHyperf\Notifications\Notifiable;
-use LaravelHyperf\Notifications\Notification;
-use LaravelHyperf\Notifications\Slack\BlockKit\Blocks\ActionsBlock;
-use LaravelHyperf\Notifications\Slack\BlockKit\Blocks\ContextBlock;
-use LaravelHyperf\Notifications\Slack\BlockKit\Blocks\ImageBlock;
-use LaravelHyperf\Notifications\Slack\BlockKit\Blocks\SectionBlock;
-use LaravelHyperf\Notifications\Slack\SlackMessage;
-use LaravelHyperf\Notifications\Slack\SlackRoute;
+use Hypervel\Notifications\Channels\SlackWebApiChannel;
+use Hypervel\Notifications\Notifiable;
+use Hypervel\Notifications\Notification;
+use Hypervel\Notifications\Slack\BlockKit\Blocks\ActionsBlock;
+use Hypervel\Notifications\Slack\BlockKit\Blocks\ContextBlock;
+use Hypervel\Notifications\Slack\BlockKit\Blocks\ImageBlock;
+use Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock;
+use Hypervel\Notifications\Slack\SlackMessage;
+use Hypervel\Notifications\Slack\SlackRoute;
 use LogicException;
 use Mockery;
 use PHPUnit\Framework\TestCase;

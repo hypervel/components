@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Session;
+namespace Hypervel\Tests\Session;
 
 use Carbon\Carbon;
-use LaravelHyperf\Session\ArraySessionHandler;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Session\ArraySessionHandler;
+use Hypervel\Tests\TestCase;
 use SessionHandlerInterface;
 
 /**

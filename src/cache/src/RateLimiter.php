@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Cache;
+namespace Hypervel\Cache;
 
 use Closure;
 use Hyperf\Support\Traits\InteractsWithTime;
-use LaravelHyperf\Cache\Contracts\Factory as Cache;
+use Hypervel\Cache\Contracts\Factory as Cache;
 
 class RateLimiter
 {

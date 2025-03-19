@@ -11,31 +11,31 @@ use Hyperf\Stringable\Stringable;
 use Hyperf\Validation\Contract\ValidatorFactoryInterface;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
 use Hyperf\ViewEngine\Contract\ViewInterface;
-use LaravelHyperf\Auth\Contracts\FactoryContract as AuthFactoryContract;
-use LaravelHyperf\Auth\Contracts\Gate;
-use LaravelHyperf\Auth\Contracts\Guard;
-use LaravelHyperf\Broadcasting\Contracts\Factory as BroadcastFactory;
-use LaravelHyperf\Broadcasting\PendingBroadcast;
-use LaravelHyperf\Bus\PendingClosureDispatch;
-use LaravelHyperf\Bus\PendingDispatch;
-use LaravelHyperf\Container\Contracts\Container;
-use LaravelHyperf\Cookie\Contracts\Cookie as CookieContract;
-use LaravelHyperf\Foundation\Application;
-use LaravelHyperf\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
-use LaravelHyperf\Http\Contracts\RequestContract;
-use LaravelHyperf\Http\Contracts\ResponseContract;
-use LaravelHyperf\HttpMessage\Exceptions\HttpException;
-use LaravelHyperf\HttpMessage\Exceptions\HttpResponseException;
-use LaravelHyperf\HttpMessage\Exceptions\NotFoundHttpException;
-use LaravelHyperf\Router\Contracts\UrlGenerator as UrlGeneratorContract;
-use LaravelHyperf\Session\Contracts\Session as SessionContract;
-use LaravelHyperf\Support\Contracts\Responsable;
-use LaravelHyperf\Support\HtmlString;
-use LaravelHyperf\Support\Mix;
+use Hypervel\Auth\Contracts\FactoryContract as AuthFactoryContract;
+use Hypervel\Auth\Contracts\Gate;
+use Hypervel\Auth\Contracts\Guard;
+use Hypervel\Broadcasting\Contracts\Factory as BroadcastFactory;
+use Hypervel\Broadcasting\PendingBroadcast;
+use Hypervel\Bus\PendingClosureDispatch;
+use Hypervel\Bus\PendingDispatch;
+use Hypervel\Container\Contracts\Container;
+use Hypervel\Cookie\Contracts\Cookie as CookieContract;
+use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\HttpMessage\Exceptions\HttpException;
+use Hypervel\HttpMessage\Exceptions\HttpResponseException;
+use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
+use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Support\Contracts\Responsable;
+use Hypervel\Support\HtmlString;
+use Hypervel\Support\Mix;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
 
-use function LaravelHyperf\Filesystem\join_paths;
+use function Hypervel\Filesystem\join_paths;
 
 if (! function_exists('abort')) {
     /**
@@ -235,11 +235,11 @@ if (! function_exists('config')) {
      * If an array is passed as the key, we will assume you want to set an array of values.
      *
      * @param null|array<string, mixed>|string $key
-     * @return ($key is null ? \LaravelHyperf\Config\Contracts\Repository : ($key is string ? mixed : null))
+     * @return ($key is null ? \Hypervel\Config\Contracts\Repository : ($key is string ? mixed : null))
      */
     function config(mixed $key = null, mixed $default = null): mixed
     {
-        return \LaravelHyperf\Config\config($key, $default);
+        return \Hypervel\Config\config($key, $default);
     }
 }
 
@@ -251,13 +251,13 @@ if (! function_exists('cache')) {
      *
      * @param null|array<string, mixed>|string $key key|data
      * @param mixed $default default|expiration|null
-     * @return ($key is null ? \LaravelHyperf\Cache\CacheManager : ($key is string ? mixed : bool))
+     * @return ($key is null ? \Hypervel\Cache\CacheManager : ($key is string ? mixed : bool))
      *
      * @throws \InvalidArgumentException
      */
     function cache($key = null, $default = null)
     {
-        return \LaravelHyperf\Cache\cache($key, $default);
+        return \Hypervel\Cache\cache($key, $default);
     }
 }
 
@@ -286,7 +286,7 @@ if (! function_exists('csrf_token')) {
      */
     function csrf_token(): ?string
     {
-        return \LaravelHyperf\Session\csrf_token();
+        return \Hypervel\Session\csrf_token();
     }
 }
 
@@ -296,7 +296,7 @@ if (! function_exists('csrf_field')) {
      */
     function csrf_field(): HtmlString
     {
-        return \LaravelHyperf\Session\csrf_field();
+        return \Hypervel\Session\csrf_field();
     }
 }
 
@@ -344,7 +344,7 @@ if (! function_exists('dispatch')) {
      */
     function dispatch($job): PendingClosureDispatch|PendingDispatch
     {
-        return \LaravelHyperf\Bus\dispatch($job);
+        return \Hypervel\Bus\dispatch($job);
     }
 }
 
@@ -356,7 +356,7 @@ if (! function_exists('dispatch_sync')) {
      */
     function dispatch_sync(mixed $job, mixed $handler = null): mixed
     {
-        return \LaravelHyperf\Bus\dispatch_sync($job, $handler);
+        return \Hypervel\Bus\dispatch_sync($job, $handler);
     }
 }
 
@@ -372,7 +372,7 @@ if (! function_exists('event')) {
      */
     function event(object $event)
     {
-        return \LaravelHyperf\Event\event($event);
+        return \Hypervel\Event\event($event);
     }
 }
 
@@ -395,7 +395,7 @@ if (! function_exists('logger')) {
     /**
      * Log a debug message to the logs.
      *
-     * @return null|\LaravelHyperf\Log\LogManager
+     * @return null|\Hypervel\Log\LogManager
      */
     function logger(?string $message = null, array $context = []): ?LoggerInterface
     {
@@ -581,7 +581,7 @@ if (! function_exists('session')) {
      */
     function session(null|array|string $key = null, mixed $default = null): mixed
     {
-        return \LaravelHyperf\Session\session($key, $default);
+        return \Hypervel\Session\session($key, $default);
     }
 }
 
@@ -623,7 +623,7 @@ if (! function_exists('route')) {
      */
     function route(string $name, array $parameters = [], bool $absolute = true, string $server = 'http'): string
     {
-        return \LaravelHyperf\Router\route($name, $parameters, $absolute, $server);
+        return \Hypervel\Router\route($name, $parameters, $absolute, $server);
     }
 }
 
@@ -633,7 +633,7 @@ if (! function_exists('url')) {
      */
     function url(?string $path = null, array $extra = [], ?bool $secure = null): string|UrlGeneratorContract
     {
-        return \LaravelHyperf\Router\url($path, $extra, $secure);
+        return \Hypervel\Router\url($path, $extra, $secure);
     }
 }
 
@@ -643,7 +643,7 @@ if (! function_exists('secure_url')) {
      */
     function secure_url(string $path, array $extra = []): string
     {
-        return \LaravelHyperf\Router\secure_url($path, $extra);
+        return \Hypervel\Router\secure_url($path, $extra);
     }
 }
 
@@ -653,7 +653,7 @@ if (! function_exists('asset')) {
      */
     function asset(string $path, ?bool $secure = null): string
     {
-        return \LaravelHyperf\Router\asset($path, $secure);
+        return \Hypervel\Router\asset($path, $secure);
     }
 }
 
@@ -665,7 +665,7 @@ if (! function_exists('auth')) {
      */
     function auth(?string $guard = null): mixed
     {
-        return \LaravelHyperf\Auth\auth($guard);
+        return \Hypervel\Auth\auth($guard);
     }
 }
 
@@ -722,20 +722,20 @@ if (! function_exists('method_field')) {
 if (! function_exists('go')) {
     function go(callable $callable): bool|int
     {
-        return \LaravelHyperf\Coroutine\go($callable);
+        return \Hypervel\Coroutine\go($callable);
     }
 }
 
 if (! function_exists('co')) {
     function co(callable $callable): bool|int
     {
-        return \LaravelHyperf\Coroutine\co($callable);
+        return \Hypervel\Coroutine\co($callable);
     }
 }
 
 if (! function_exists('defer')) {
     function defer(callable $callable): void
     {
-        \LaravelHyperf\Coroutine\defer($callable);
+        \Hypervel\Coroutine\defer($callable);
     }
 }

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Testing;
+namespace Hypervel\Foundation\Testing;
 
 use Hyperf\Collection\Arr;
 use Hyperf\Testing\Assert;
 use Hyperf\Testing\AssertableJsonString;
-use LaravelHyperf\Foundation\Testing\Http\TestResponse;
+use Hypervel\Foundation\Testing\Http\TestResponse;
 use PHPUnit\Framework\ExpectationFailedException;
 use ReflectionProperty;
 use Throwable;

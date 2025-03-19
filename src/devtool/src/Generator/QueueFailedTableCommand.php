@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Devtool\Generator;
+namespace Hypervel\Devtool\Generator;
 
 use Carbon\Carbon;
 use Hyperf\Context\ApplicationContext;

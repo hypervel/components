@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Broadcasting;
+namespace Hypervel\Broadcasting;
 
 use Hyperf\Collection\Arr;
 use Hyperf\Contract\Arrayable;
-use LaravelHyperf\Broadcasting\Contracts\Factory as BroadcastingFactory;
-use LaravelHyperf\Bus\Queueable;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
+use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactory;
+use Hypervel\Bus\Queueable;
+use Hypervel\Queue\Contracts\ShouldQueue;
 use ReflectionClass;
 use ReflectionProperty;
 

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace %NAMESPACE%;
 
-use LaravelHyperf\Bus\Queueable;
-use LaravelHyperf\Notifications\Messages\MailMessage;
-use LaravelHyperf\Notifications\Notification;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
+use Hypervel\Bus\Queueable;
+use Hypervel\Notifications\Messages\MailMessage;
+use Hypervel\Notifications\Notification;
+use Hypervel\Queue\Contracts\ShouldQueue;
 
 class %CLASS% extends Notification
 {

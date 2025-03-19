@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope;
+namespace Hypervel\Telescope;
 
 use Psr\Container\ContainerInterface;
 

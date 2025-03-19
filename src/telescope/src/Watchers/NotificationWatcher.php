@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Watchers;
+namespace Hypervel\Telescope\Watchers;
 
 use Hyperf\Database\Model\Model;
-use LaravelHyperf\Notifications\AnonymousNotifiable;
-use LaravelHyperf\Notifications\Events\NotificationSent;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
-use LaravelHyperf\Telescope\ExtractTags;
-use LaravelHyperf\Telescope\FormatModel;
-use LaravelHyperf\Telescope\IncomingEntry;
-use LaravelHyperf\Telescope\Telescope;
+use Hypervel\Notifications\AnonymousNotifiable;
+use Hypervel\Notifications\Events\NotificationSent;
+use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Telescope\ExtractTags;
+use Hypervel\Telescope\FormatModel;
+use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\Telescope;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 

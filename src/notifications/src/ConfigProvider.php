@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications;
+namespace Hypervel\Notifications;
 
-use LaravelHyperf\Notifications\Contracts\Dispatcher as NotificationDispatcher;
+use Hypervel\Notifications\Contracts\Dispatcher as NotificationDispatcher;
 
 class ConfigProvider
 {

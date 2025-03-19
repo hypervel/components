@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\JWT\Providers;
+namespace Hypervel\Tests\JWT\Providers;
 
-use LaravelHyperf\Tests\JWT\Stub\ProviderStub;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Tests\JWT\Stub\ProviderStub;
+use Hypervel\Tests\TestCase;
 
 /**
  * @internal

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\JWT\Contracts;
+namespace Hypervel\JWT\Contracts;
 
 interface ProviderContract
 {

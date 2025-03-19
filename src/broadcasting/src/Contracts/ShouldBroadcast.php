@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Broadcasting\Contracts;
+namespace Hypervel\Broadcasting\Contracts;
 
-use LaravelHyperf\Broadcasting\Channel;
+use Hypervel\Broadcasting\Channel;
 
 interface ShouldBroadcast
 {

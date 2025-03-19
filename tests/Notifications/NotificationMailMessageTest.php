@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Notifications;
+namespace Hypervel\Tests\Notifications;
 
-use LaravelHyperf\Mail\Attachment;
-use LaravelHyperf\Mail\Contracts\Attachable;
-use LaravelHyperf\Notifications\Messages\MailMessage;
+use Hypervel\Mail\Attachment;
+use Hypervel\Mail\Contracts\Attachable;
+use Hypervel\Notifications\Messages\MailMessage;
 use PHPUnit\Framework\TestCase;
 
 /**

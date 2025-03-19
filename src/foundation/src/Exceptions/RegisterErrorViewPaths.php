@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Exceptions;
+namespace Hypervel\Foundation\Exceptions;
 
 use Hyperf\Collection\Collection;
-use LaravelHyperf\Support\Facades\View;
+use Hypervel\Support\Facades\View;
 
 class RegisterErrorViewPaths
 {

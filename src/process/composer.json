@@ -1,27 +1,27 @@
 {
-    "name": "laravel-hyperf/process",
-    "description": "The process package for Laravel Hyperf.",
+    "name": "hypervel/process",
+    "description": "The process package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
         "hyperf",
         "process",
         "swoole",
-        "laravel-hyperf"
+        "hypervel"
     ],
     "support": {
-        "issues": "https://github.com/laravel-hyperf/components/issues",
-        "source": "https://github.com/laravel-hyperf/components"
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
     },
     "authors": [
         {
             "name": "Albert Chen",
-            "email": "albert@laravel-hyperf.com"
+            "email": "albert@hypervel.org"
         }
     ],
     "require": {
         "php": "^8.2",
-        "laravel-hyperf/support": "^0.1",
+        "hypervel/support": "^0.1",
         "hyperf/collection": "^3.1",
         "hyperf/macroable": "^3.1",
         "hyperf/tappable": "^3.1",
@@ -29,7 +29,7 @@
     },
     "autoload": {
         "psr-4": {
-            "LaravelHyperf\\Process\\": "src/"
+            "Hypervel\\Process\\": "src/"
         }
     },
     "extra": {

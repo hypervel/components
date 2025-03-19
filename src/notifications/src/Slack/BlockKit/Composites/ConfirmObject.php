@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Slack\BlockKit\Composites;
+namespace Hypervel\Notifications\Slack\BlockKit\Composites;
 
-use LaravelHyperf\Notifications\Contracts\Slack\ObjectContract;
+use Hypervel\Notifications\Contracts\Slack\ObjectContract;
 
 class ConfirmObject implements ObjectContract
 {

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Facades;
+namespace Hypervel\Support\Facades;
 
-use LaravelHyperf\Encryption\Contracts\Encrypter as EncrypterContract;
+use Hypervel\Encryption\Contracts\Encrypter as EncrypterContract;
 
 /**
  * @method static bool supported(string $key, string $cipher)
@@ -16,9 +16,9 @@ use LaravelHyperf\Encryption\Contracts\Encrypter as EncrypterContract;
  * @method static string getKey()
  * @method static array getAllKeys()
  * @method static array getPreviousKeys()
- * @method static \LaravelHyperf\Encryption\Encrypter previousKeys(array $keys)
+ * @method static \Hypervel\Encryption\Encrypter previousKeys(array $keys)
  *
- * @see LaravelHyperf\Encryption\Encrypter
+ * @see Hypervel\Encryption\Encrypter
  */
 class Crypt extends Facade
 {

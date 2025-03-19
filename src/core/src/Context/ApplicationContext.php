@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Context;
+namespace Hypervel\Context;
 
 use Hyperf\Context\ApplicationContext as HyperfApplicationContext;
-use LaravelHyperf\Container\Contracts\Container as ContainerContract;
+use Hypervel\Container\Contracts\Container as ContainerContract;
 use TypeError;
 
 class ApplicationContext extends HyperfApplicationContext

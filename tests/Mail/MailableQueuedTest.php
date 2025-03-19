@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Mail;
+namespace Hypervel\Tests\Mail;
 
 use Hyperf\Config\Config;
 use Hyperf\Context\ApplicationContext;
@@ -10,15 +10,15 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\ViewEngine\Factory;
-use LaravelHyperf\Bus\Queueable;
-use LaravelHyperf\Filesystem\Filesystem;
-use LaravelHyperf\Filesystem\FilesystemManager;
-use LaravelHyperf\Mail\Contracts\Mailable as MailableContract;
-use LaravelHyperf\Mail\Mailable;
-use LaravelHyperf\Mail\Mailer;
-use LaravelHyperf\Mail\SendQueuedMailable;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
-use LaravelHyperf\Support\Testing\Fakes\QueueFake;
+use Hypervel\Bus\Queueable;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Filesystem\FilesystemManager;
+use Hypervel\Mail\Contracts\Mailable as MailableContract;
+use Hypervel\Mail\Mailable;
+use Hypervel\Mail\Mailer;
+use Hypervel\Mail\SendQueuedMailable;
+use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Support\Testing\Fakes\QueueFake;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Mailer\Transport\TransportInterface;

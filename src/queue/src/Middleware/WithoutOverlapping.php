@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Middleware;
+namespace Hypervel\Queue\Middleware;
 
 use DateInterval;
 use DateTimeInterface;
 use Hyperf\Context\ApplicationContext;
-use LaravelHyperf\Cache\Contracts\Factory as CacheFactory;
-use LaravelHyperf\Support\Traits\InteractsWithTime;
+use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Support\Traits\InteractsWithTime;
 
 class WithoutOverlapping
 {

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Console;
+namespace Hypervel\Telescope\Console;
 
-use LaravelHyperf\Foundation\Console\Command;
+use Hypervel\Foundation\Console\Command;
 
 class PublishCommand extends Command
 {

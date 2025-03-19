@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Exceptions;
+namespace Hypervel\Queue\Exceptions;
 
-use LaravelHyperf\Queue\Contracts\Job;
+use Hypervel\Queue\Contracts\Job;
 
 use function Hyperf\Tappable\tap;
 

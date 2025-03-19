@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Router;
+namespace Hypervel\Tests\Router;
 
-use LaravelHyperf\Router\RouteFileCollector;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Router\RouteFileCollector;
+use Hypervel\Tests\TestCase;
 
 /**
  * @internal

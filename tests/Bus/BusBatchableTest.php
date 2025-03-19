@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Bus;
+namespace Hypervel\Tests\Bus;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
-use LaravelHyperf\Bus\Batch;
-use LaravelHyperf\Bus\Batchable;
-use LaravelHyperf\Bus\Contracts\BatchRepository;
+use Hypervel\Bus\Batch;
+use Hypervel\Bus\Batchable;
+use Hypervel\Bus\Contracts\BatchRepository;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 

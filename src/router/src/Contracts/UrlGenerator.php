@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Router\Contracts;
+namespace Hypervel\Router\Contracts;
 
 use BackedEnum;
 use Closure;

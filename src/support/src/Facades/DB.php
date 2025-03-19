@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Facades;
+namespace Hypervel\Support\Facades;
 
 use Closure;
 use Hyperf\DbConnection\Db as HyperfDb;

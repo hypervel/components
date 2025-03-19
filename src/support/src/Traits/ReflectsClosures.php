@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Traits;
+namespace Hypervel\Support\Traits;
 
 use Closure;
 use Hyperf\Collection\Collection;
-use LaravelHyperf\Support\Reflector;
+use Hypervel\Support\Reflector;
 use ReflectionException;
 use ReflectionFunction;
 use RuntimeException;

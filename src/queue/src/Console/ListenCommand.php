@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Console;
+namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Queue\Listener;
-use LaravelHyperf\Queue\ListenerOptions;
-use LaravelHyperf\Support\Traits\HasLaravelStyleCommand;
+use Hypervel\Queue\Listener;
+use Hypervel\Queue\ListenerOptions;
+use Hypervel\Support\Traits\HasLaravelStyleCommand;
 
 class ListenCommand extends Command
 {

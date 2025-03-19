@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Watchers;
+namespace Hypervel\Telescope\Watchers;
 
 use Exception;
-use LaravelHyperf\Cache\Contracts\Factory as CacheFactory;
-use LaravelHyperf\Telescope\IncomingDumpEntry;
-use LaravelHyperf\Telescope\Telescope;
+use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Telescope\IncomingDumpEntry;
+use Hypervel\Telescope\Telescope;
 use Psr\Container\ContainerInterface;
 use Symfony\Component\VarDumper\Cloner\VarCloner;
 use Symfony\Component\VarDumper\Dumper\HtmlDumper;

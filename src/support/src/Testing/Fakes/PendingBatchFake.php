@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Testing\Fakes;
+namespace Hypervel\Support\Testing\Fakes;
 
 use Hyperf\Collection\Collection;
-use LaravelHyperf\Bus\Batch;
-use LaravelHyperf\Bus\PendingBatch;
+use Hypervel\Bus\Batch;
+use Hypervel\Bus\PendingBatch;
 
 class PendingBatchFake extends PendingBatch
 {

@@ -1,2 +1,2 @@
-Support for Laravel Hyperf
+Support for Hypervel
 ===

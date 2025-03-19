@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Telescope\Watchers;
+namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\Watchers\EventWatcher;
-use LaravelHyperf\Tests\Telescope\FeatureTestCase;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Watchers\EventWatcher;
+use Hypervel\Tests\Telescope\FeatureTestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use ReflectionMethod;
 use Telescope\Dummies\DummyEvent;

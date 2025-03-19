@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Channels;
+namespace Hypervel\Notifications\Channels;
 
 use Hyperf\Database\Model\Model;
-use LaravelHyperf\Notifications\Notification;
+use Hypervel\Notifications\Notification;
 use RuntimeException;
 
 class DatabaseChannel

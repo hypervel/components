@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Auth\Stub;
+namespace Hypervel\Tests\Auth\Stub;
 
-use LaravelHyperf\Auth\Access\AuthorizationException;
+use Hypervel\Auth\Access\AuthorizationException;
 
 class AccessGateTestPolicyThrowingAuthorizationException
 {

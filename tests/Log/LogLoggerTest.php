@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Log;
+namespace Hypervel\Tests\Log;
 
 use Hyperf\Context\Context;
-use LaravelHyperf\Log\Events\MessageLogged;
-use LaravelHyperf\Log\Logger;
+use Hypervel\Log\Events\MessageLogged;
+use Hypervel\Log\Logger;
 use Mockery as m;
 use Monolog\Logger as Monolog;
 use PHPUnit\Framework\TestCase;

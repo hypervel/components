@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Mail;
+namespace Hypervel\Tests\Mail;
 
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Mail\Attachment;
-use LaravelHyperf\Mail\Contracts\Attachable;
-use LaravelHyperf\Mail\Message;
+use Hypervel\Mail\Attachment;
+use Hypervel\Mail\Contracts\Attachable;
+use Hypervel\Mail\Message;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;

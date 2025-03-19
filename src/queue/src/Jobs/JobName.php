@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Jobs;
+namespace Hypervel\Queue\Jobs;
 
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Queue\CallQueuedHandler;
+use Hypervel\Queue\CallQueuedHandler;
 
 class JobName
 {

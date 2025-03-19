@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Mail;
+namespace Hypervel\Tests\Mail;
 
-use LaravelHyperf\Mail\Attachment;
-use LaravelHyperf\Mail\Contracts\Attachable;
-use LaravelHyperf\Mail\Mailable;
+use Hypervel\Mail\Attachment;
+use Hypervel\Mail\Contracts\Attachable;
+use Hypervel\Mail\Mailable;
 use PHPUnit\Framework\TestCase;
 
 /**

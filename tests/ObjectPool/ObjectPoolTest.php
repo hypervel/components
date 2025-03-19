@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\ObjectPool;
+namespace Hypervel\Tests\ObjectPool;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Coroutine\Coroutine;
-use LaravelHyperf\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use LaravelHyperf\Tests\ObjectPool\Stub\FooPool;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Tests\ObjectPool\Stub\FooPool;
+use Hypervel\Tests\TestCase;
 use Mockery;
 use Psr\Container\ContainerInterface;
 use RuntimeException;

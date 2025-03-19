@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Scheduling;
+namespace Hypervel\Scheduling;
 
-use LaravelHyperf\Scheduling\Console\ScheduleClearCacheCommand;
-use LaravelHyperf\Scheduling\Console\ScheduleListCommand;
-use LaravelHyperf\Scheduling\Console\ScheduleRunCommand;
-use LaravelHyperf\Scheduling\Console\ScheduleStopCommand;
-use LaravelHyperf\Scheduling\Console\ScheduleTestCommand;
+use Hypervel\Scheduling\Console\ScheduleClearCacheCommand;
+use Hypervel\Scheduling\Console\ScheduleListCommand;
+use Hypervel\Scheduling\Console\ScheduleRunCommand;
+use Hypervel\Scheduling\Console\ScheduleStopCommand;
+use Hypervel\Scheduling\Console\ScheduleTestCommand;
 
 class ConfigProvider
 {

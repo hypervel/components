@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications;
+namespace Hypervel\Notifications;
 
 use Hyperf\Collection\Collection;
 use Hyperf\Database\Model\Collection as ModelCollection;
 use Hyperf\Database\Model\Model;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Bus\Contracts\Dispatcher as BusDispatcherContract;
-use LaravelHyperf\Notifications\Events\NotificationSending;
-use LaravelHyperf\Notifications\Events\NotificationSent;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
-use LaravelHyperf\Support\Traits\Localizable;
-use LaravelHyperf\Translation\Contracts\HasLocalePreference;
+use Hypervel\Bus\Contracts\Dispatcher as BusDispatcherContract;
+use Hypervel\Notifications\Events\NotificationSending;
+use Hypervel\Notifications\Events\NotificationSent;
+use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Support\Traits\Localizable;
+use Hypervel\Translation\Contracts\HasLocalePreference;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 use function Hyperf\Support\value;

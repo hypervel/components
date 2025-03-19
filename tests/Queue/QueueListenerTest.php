@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Queue;
+namespace Hypervel\Tests\Queue;
 
-use LaravelHyperf\Queue\Listener;
-use LaravelHyperf\Queue\ListenerOptions;
+use Hypervel\Queue\Listener;
+use Hypervel\Queue\ListenerOptions;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;

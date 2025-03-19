@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Event\Hyperf\Event;
+namespace Hypervel\Tests\Event\Hyperf\Event;
 
 use Hyperf\Event\Stoppable;
 use Psr\EventDispatcher\StoppableEventInterface;

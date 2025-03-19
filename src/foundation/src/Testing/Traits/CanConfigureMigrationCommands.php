@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Testing\Traits;
+namespace Hypervel\Foundation\Testing\Traits;
 
 use Hyperf\Contract\ConfigInterface;
 

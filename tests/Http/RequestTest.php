@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Http;
+namespace Hypervel\Tests\Http;
 
 use Carbon\Carbon;
 use Hyperf\Collection\Collection;
@@ -12,9 +12,9 @@ use Hyperf\HttpMessage\Upload\UploadedFile;
 use Hyperf\HttpMessage\Uri\Uri;
 use Hyperf\Stringable\Stringable;
 use Hyperf\Validation\ValidatorFactory;
-use LaravelHyperf\Http\Request;
-use LaravelHyperf\Router\Contracts\UrlGenerator as UrlGeneratorContract;
-use LaravelHyperf\Session\Contracts\Session as SessionContract;
+use Hypervel\Http\Request;
+use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Session\Contracts\Session as SessionContract;
 use Mockery;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;

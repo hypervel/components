@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\HttpClient\Concerns;
+namespace Hypervel\HttpClient\Concerns;
 
 trait DeterminesStatusCode
 {

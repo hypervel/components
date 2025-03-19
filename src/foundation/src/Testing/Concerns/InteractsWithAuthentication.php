@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Testing\Concerns;
+namespace Hypervel\Foundation\Testing\Concerns;
 
-use LaravelHyperf\Auth\Contracts\Authenticatable as UserContract;
-use LaravelHyperf\Auth\Contracts\FactoryContract as AuthManagerContract;
+use Hypervel\Auth\Contracts\Authenticatable as UserContract;
+use Hypervel\Auth\Contracts\FactoryContract as AuthManagerContract;
 
 trait InteractsWithAuthentication
 {

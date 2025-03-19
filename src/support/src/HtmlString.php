@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support;
+namespace Hypervel\Support;
 
-use LaravelHyperf\Support\Contracts\Htmlable;
+use Hypervel\Support\Contracts\Htmlable;
 use Stringable;
 
 class HtmlString implements Htmlable, Stringable

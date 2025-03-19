@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Auth\Access;
+namespace Hypervel\Auth\Access;
 
 use Exception;
 use Throwable;

@@ -82,8 +82,8 @@ do
     echo ""
     echo "Cloning $REMOTE";
 
-    TMP_DIR="/tmp/laravel-hyperf-split"
-    REMOTE_URL="git@github.com:laravel-hyperf/${REMOTE}.git"
+    TMP_DIR="/tmp/hypervel-split"
+    REMOTE_URL="git@github.com:hypervel/${REMOTE}.git"
 
     rm -rf $TMP_DIR;
     mkdir $TMP_DIR;

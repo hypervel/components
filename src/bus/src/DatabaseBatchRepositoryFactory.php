@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Bus;
+namespace Hypervel\Bus;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Database\ConnectionResolverInterface;

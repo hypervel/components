@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Queue;
+namespace Hypervel\Tests\Queue;
 
-use LaravelHyperf\Bus\Contracts\BatchRepository;
-use LaravelHyperf\Bus\DatabaseBatchRepository;
-use LaravelHyperf\Queue\Console\PruneBatchesCommand;
-use LaravelHyperf\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Bus\DatabaseBatchRepository;
+use Hypervel\Queue\Console\PruneBatchesCommand;
+use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
 use Mockery as m;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;

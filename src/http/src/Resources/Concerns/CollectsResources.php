@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Http\Resources\Concerns;
+namespace Hypervel\Http\Resources\Concerns;
 
 use Hyperf\Resource\Value\MissingValue;
-use LaravelHyperf\Support\Collection;
+use Hypervel\Support\Collection;
 
 trait CollectsResources
 {

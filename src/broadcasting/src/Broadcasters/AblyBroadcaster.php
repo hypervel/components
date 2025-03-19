@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Broadcasting\Broadcasters;
+namespace Hypervel\Broadcasting\Broadcasters;
 
 use Ably\AblyRest;
 use Ably\Exceptions\AblyException;
 use Ably\Models\Message as AblyMessage;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Broadcasting\BroadcastException;
-use LaravelHyperf\HttpMessage\Exceptions\AccessDeniedHttpException;
+use Hypervel\Broadcasting\BroadcastException;
+use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Psr\Container\ContainerInterface;
 
 use function Hyperf\Tappable\tap;

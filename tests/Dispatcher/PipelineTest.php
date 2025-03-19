@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Dispatcher;
+namespace Hypervel\Tests\Dispatcher;
 
 use Closure;
-use LaravelHyperf\Dispatcher\ParsedMiddleware;
-use LaravelHyperf\Dispatcher\Pipeline;
-use LaravelHyperf\Tests\Foundation\Concerns\HasMockedApplication;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Dispatcher\ParsedMiddleware;
+use Hypervel\Dispatcher\Pipeline;
+use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Testing\Coroutine;
+namespace Hypervel\Foundation\Testing\Coroutine;
 
 use Closure;
 use Hyperf\Context\Context;

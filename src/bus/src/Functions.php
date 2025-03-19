@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Bus;
+namespace Hypervel\Bus;
 
 use Closure;
 use Hyperf\Context\ApplicationContext;
-use LaravelHyperf\Bus\Contracts\Dispatcher;
-use LaravelHyperf\Queue\CallQueuedClosure;
+use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Queue\CallQueuedClosure;
 
 /**
  * Dispatch a job to its appropriate handler.

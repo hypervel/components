@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Prompts\Themes\Default;
+namespace Hypervel\Prompts\Themes\Default;
 
-use LaravelHyperf\Prompts\MultiSearchPrompt;
-use LaravelHyperf\Prompts\Themes\Contracts\Scrolling;
+use Hypervel\Prompts\MultiSearchPrompt;
+use Hypervel\Prompts\Themes\Contracts\Scrolling;
 
 class MultiSearchPromptRenderer extends Renderer implements Scrolling
 {

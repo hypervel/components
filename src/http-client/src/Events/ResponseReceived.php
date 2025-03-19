@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\HttpClient\Events;
+namespace Hypervel\HttpClient\Events;
 
-use LaravelHyperf\HttpClient\Request;
-use LaravelHyperf\HttpClient\Response;
+use Hypervel\HttpClient\Request;
+use Hypervel\HttpClient\Response;
 
 class ResponseReceived
 {

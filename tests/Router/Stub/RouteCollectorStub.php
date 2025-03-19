@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Router\Stub;
+namespace Hypervel\Tests\Router\Stub;
 
 use Hyperf\HttpServer\Router\RouteCollector;
 

@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Container;
+namespace Hypervel\Tests\Container;
 
 use Closure;
 use Hyperf\Di\Exception\InvalidDefinitionException;
 use Hyperf\Di\Exception\NotFoundException;
-use LaravelHyperf\Container\Container;
-use LaravelHyperf\Container\DefinitionSource;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Container\Container;
+use Hypervel\Container\DefinitionSource;
+use Hypervel\Tests\TestCase;
 use Mockery;
 use stdClass;
 
@@ -341,7 +341,7 @@ class ContainerTest extends TestCase
     public function testBindingResolutionExceptionMessage()
     {
         $this->expectException(InvalidDefinitionException::class);
-        $this->expectExceptionMessage('Entry "LaravelHyperf\Tests\Container\IContainerContractStub" cannot be resolved: the class is not instantiable');
+        $this->expectExceptionMessage('Entry "Hypervel\Tests\Container\IContainerContractStub" cannot be resolved: the class is not instantiable');
 
         $container = $this->getContainer();
         $container->make(IContainerContractStub::class, []);
@@ -350,7 +350,7 @@ class ContainerTest extends TestCase
     public function testBindingResolutionExceptionMessageIncludesBuildStack()
     {
         $this->expectException(InvalidDefinitionException::class);
-        $this->expectExceptionMessage('Entry "LaravelHyperf\Tests\Container\ContainerDependentStub" cannot be resolved: Entry "LaravelHyperf\Tests\Container\IContainerContractStub" cannot be resolved: the class is not instantiable');
+        $this->expectExceptionMessage('Entry "Hypervel\Tests\Container\ContainerDependentStub" cannot be resolved: Entry "Hypervel\Tests\Container\IContainerContractStub" cannot be resolved: the class is not instantiable');
 
         $container = $this->getContainer();
         $container->make(ContainerDependentStub::class, []);

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Event\Contracts;
+namespace Hypervel\Event\Contracts;
 
 use Psr\EventDispatcher\ListenerProviderInterface as PsrListenerProviderInterface;
 

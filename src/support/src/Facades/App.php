@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Facades;
+namespace Hypervel\Support\Facades;
 
 /**
  * @method static string version()
@@ -10,7 +10,7 @@ namespace LaravelHyperf\Support\Facades;
  * @method static void beforeBootstrapping(string $bootstrapper, \Closure $callback)
  * @method static void afterBootstrapping(string $bootstrapper, \Closure $callback)
  * @method static bool hasBeenBootstrapped()
- * @method static \LaravelHyperf\Foundation\Application setBasePath(string $basePath)
+ * @method static \Hypervel\Foundation\Application setBasePath(string $basePath)
  * @method static string path(string $path = '')
  * @method static string basePath(string $path = '')
  * @method static string resourcePath(string $path = '')
@@ -22,10 +22,10 @@ namespace LaravelHyperf\Support\Facades;
  * @method static string detectEnvironment()
  * @method static bool runningUnitTests()
  * @method static bool hasDebugModeEnabled()
- * @method static \LaravelHyperf\Support\ServiceProvider register(\LaravelHyperf\Support\ServiceProvider|string $provider, bool $force = false)
- * @method static \LaravelHyperf\Support\ServiceProvider|null getProvider(\LaravelHyperf\Support\ServiceProvider|string $provider)
- * @method static array getProviders(\LaravelHyperf\Support\ServiceProvider|string $provider)
- * @method static \LaravelHyperf\Support\ServiceProvider resolveProvider(string $provider)
+ * @method static \Hypervel\Support\ServiceProvider register(\Hypervel\Support\ServiceProvider|string $provider, bool $force = false)
+ * @method static \Hypervel\Support\ServiceProvider|null getProvider(\Hypervel\Support\ServiceProvider|string $provider)
+ * @method static array getProviders(\Hypervel\Support\ServiceProvider|string $provider)
+ * @method static \Hypervel\Support\ServiceProvider resolveProvider(string $provider)
  * @method static bool isBooted()
  * @method static void boot()
  * @method static void abort(int $code, string $message = '', array $headers = [])
@@ -67,13 +67,13 @@ namespace LaravelHyperf\Support\Facades;
  * @method static void forgetInstance(string $abstract)
  * @method static void forgetInstances()
  * @method static void flush()
- * @method static \LaravelHyperf\Container\Contracts\Container getInstance()
- * @method static \LaravelHyperf\Container\Contracts\Container setInstance(\LaravelHyperf\Container\Contracts\Container $container)
+ * @method static \Hypervel\Container\Contracts\Container getInstance()
+ * @method static \Hypervel\Container\Contracts\Container setInstance(\Hypervel\Container\Contracts\Container $container)
  * @method static void macro(string $name, callable|object $macro)
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static bool hasMacro(string $name)
  *
- * @see \LaravelHyperf\Foundation\Application
+ * @see \Hypervel\Foundation\Application
  */
 class App extends Facade
 {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\HttpClient;
+namespace Hypervel\Tests\HttpClient;
 
 use Exception;
 use GuzzleHttp\ClientInterface;
@@ -18,23 +18,23 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\ContainerInterface;
 use Hyperf\Stringable\Str;
 use Hyperf\Stringable\Stringable;
+use Hypervel\Http\Response as HttpResponse;
+use Hypervel\HttpClient\ConnectionException;
+use Hypervel\HttpClient\Events\RequestSending;
+use Hypervel\HttpClient\Events\ResponseReceived;
+use Hypervel\HttpClient\Factory;
+use Hypervel\HttpClient\PendingRequest;
+use Hypervel\HttpClient\Request;
+use Hypervel\HttpClient\RequestException;
+use Hypervel\HttpClient\Response;
+use Hypervel\HttpClient\ResponseSequence;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Fluent;
+use Hypervel\Support\Sleep;
+use Hypervel\Tests\TestCase;
 use JsonSerializable;
-use LaravelHyperf\Http\Response as HttpResponse;
-use LaravelHyperf\HttpClient\ConnectionException;
-use LaravelHyperf\HttpClient\Events\RequestSending;
-use LaravelHyperf\HttpClient\Events\ResponseReceived;
-use LaravelHyperf\HttpClient\Factory;
-use LaravelHyperf\HttpClient\PendingRequest;
-use LaravelHyperf\HttpClient\Request;
-use LaravelHyperf\HttpClient\RequestException;
-use LaravelHyperf\HttpClient\Response;
-use LaravelHyperf\HttpClient\ResponseSequence;
-use LaravelHyperf\Support\Arr;
-use LaravelHyperf\Support\Carbon;
-use LaravelHyperf\Support\Collection;
-use LaravelHyperf\Support\Fluent;
-use LaravelHyperf\Support\Sleep;
-use LaravelHyperf\Tests\TestCase;
 use Mockery as m;
 use OutOfBoundsException;
 use PHPUnit\Framework\AssertionFailedError;
@@ -45,8 +45,8 @@ use RuntimeException;
 use Symfony\Component\VarDumper\VarDumper;
 use Throwable;
 
-use function LaravelHyperf\Coroutine\parallel;
-use function LaravelHyperf\Coroutine\run;
+use function Hypervel\Coroutine\parallel;
+use function Hypervel\Coroutine\run;
 
 /**
  * @internal

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Foundation\Testing;
+namespace Hypervel\Tests\Foundation\Testing;
 
-use LaravelHyperf\Foundation\Exceptions\Handler as BaseExceptionHandler;
-use LaravelHyperf\Http\Request;
+use Hypervel\Foundation\Exceptions\Handler as BaseExceptionHandler;
+use Hypervel\Http\Request;
 use Throwable;
 
 class ExceptionHandler extends BaseExceptionHandler

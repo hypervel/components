@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Config;
+namespace Hypervel\Tests\Config;
 
+use Hypervel\Config\Repository;
 use InvalidArgumentException;
-use LaravelHyperf\Config\Repository;
 use PHPUnit\Framework\TestCase;
 
 /**

@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Router;
+namespace Hypervel\Tests\Router;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ContainerInterface;
-use LaravelHyperf\Router\Contracts\UrlGenerator as UrlGeneratorContract;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Tests\TestCase;
 use Mockery;
 use Mockery\MockInterface;
 
-use function LaravelHyperf\Router\route;
-use function LaravelHyperf\Router\secure_url;
-use function LaravelHyperf\Router\url;
+use function Hypervel\Router\route;
+use function Hypervel\Router\secure_url;
+use function Hypervel\Router\url;
 
 /**
  * @internal

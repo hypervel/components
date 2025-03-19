@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Devtool\Generator;
+namespace Hypervel\Devtool\Generator;
 
 use Hyperf\Collection\Collection;
 use Hyperf\Devtool\Generator\GeneratorCommand;
@@ -105,7 +105,7 @@ class MailCommand extends GeneratorCommand
 
         $stub = str_replace(
             '{{ quote }}',
-            'Laravel Hyperf is a Laravel-style framework with native coroutine support for ultra-high performance.',
+            'Hypervel is a Laravel-style framework with native coroutine support for ultra-high performance.',
             file_get_contents(__DIR__ . '/stubs/view.stub')
         );
 

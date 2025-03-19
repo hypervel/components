@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Auth\Access\Events;
+namespace Hypervel\Auth\Access\Events;
 
-use LaravelHyperf\Auth\Access\Response;
-use LaravelHyperf\Auth\Contracts\Authenticatable;
+use Hypervel\Auth\Access\Response;
+use Hypervel\Auth\Contracts\Authenticatable;
 
 class GateEvaluated
 {

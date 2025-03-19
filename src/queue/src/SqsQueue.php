@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue;
+namespace Hypervel\Queue;
 
 use Aws\Sqs\SqsClient;
 use DateInterval;
 use DateTimeInterface;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Queue\Contracts\ClearableQueue;
-use LaravelHyperf\Queue\Contracts\Job as JobContract;
-use LaravelHyperf\Queue\Contracts\Queue as QueueContract;
-use LaravelHyperf\Queue\Jobs\SqsJob;
+use Hypervel\Queue\Contracts\ClearableQueue;
+use Hypervel\Queue\Contracts\Job as JobContract;
+use Hypervel\Queue\Contracts\Queue as QueueContract;
+use Hypervel\Queue\Jobs\SqsJob;
 
 use function Hyperf\Tappable\tap;
 

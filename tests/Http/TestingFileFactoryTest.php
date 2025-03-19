@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Http;
+namespace Hypervel\Tests\Http;
 
-use LaravelHyperf\Http\Testing\FileFactory;
+use Hypervel\Http\Testing\FileFactory;
 use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;

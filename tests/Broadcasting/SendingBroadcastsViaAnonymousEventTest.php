@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Broadcasting;
+namespace Hypervel\Tests\Broadcasting;
 
 use Hyperf\HttpServer\Contract\RequestInterface;
-use LaravelHyperf\Broadcasting\AnonymousEvent;
-use LaravelHyperf\Broadcasting\BroadcastManager;
-use LaravelHyperf\Broadcasting\Contracts\Factory as BroadcastingFactoryContract;
-use LaravelHyperf\Broadcasting\PresenceChannel;
-use LaravelHyperf\Broadcasting\PrivateChannel;
-use LaravelHyperf\Container\DefinitionSource;
-use LaravelHyperf\Context\ApplicationContext;
-use LaravelHyperf\Foundation\Application;
-use LaravelHyperf\Support\Facades\Broadcast;
-use LaravelHyperf\Support\Facades\Event;
-use LaravelHyperf\Support\Facades\Facade;
+use Hypervel\Broadcasting\AnonymousEvent;
+use Hypervel\Broadcasting\BroadcastManager;
+use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactoryContract;
+use Hypervel\Broadcasting\PresenceChannel;
+use Hypervel\Broadcasting\PrivateChannel;
+use Hypervel\Container\DefinitionSource;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Foundation\Application;
+use Hypervel\Support\Facades\Broadcast;
+use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Facade;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;

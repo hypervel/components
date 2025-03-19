@@ -1,5 +1,5 @@
 {
-    "name": "laravel-hyperf/broadcasting",
+    "name": "hypervel/broadcasting",
     "type": "library",
     "description": "The filesystem package for Hyperf.",
     "license": "MIT",
@@ -8,21 +8,21 @@
         "hyperf",
         "swoole",
         "broadcasting",
-        "laravel-hyperf"
+        "hypervel"
     ],
     "authors": [
         {
             "name": "Albert Chen",
-            "email": "albert@laravel-hyperf.com"
+            "email": "albert@hypervel.org"
         }
     ],
     "support": {
-        "issues": "https://github.com/laravel-hyperf/components/issues",
-        "source": "https://github.com/laravel-hyperf/components"
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
     },
     "autoload": {
         "psr-4": {
-            "LaravelHyperf\\Broadcasting\\": "src/"
+            "Hypervel\\Broadcasting\\": "src/"
         }
     },
     "require": {
@@ -31,14 +31,14 @@
         "hyperf/http-server": "~3.1.0",
         "hyperf/pool": "~3.1.0",
         "hyperf/redis": "~3.1.0",
-        "laravel-hyperf/auth": "^0.1",
-        "laravel-hyperf/bus": "^0.1",
-        "laravel-hyperf/cache": "^0.1",
-        "laravel-hyperf/foundation": "^0.1",
-        "laravel-hyperf/queue": "^0.1",
-        "laravel-hyperf/router": "^0.1",
-        "laravel-hyperf/support": "^0.1",
-        "laravel-hyperf/object-pool": "^0.1"
+        "hypervel/auth": "^0.1",
+        "hypervel/bus": "^0.1",
+        "hypervel/cache": "^0.1",
+        "hypervel/foundation": "^0.1",
+        "hypervel/queue": "^0.1",
+        "hypervel/router": "^0.1",
+        "hypervel/support": "^0.1",
+        "hypervel/object-pool": "^0.1"
     },
     "suggest": {
         "ext-hash": "Required to use the Ably and Pusher broadcast drivers.",
@@ -51,7 +51,7 @@
     },
     "extra": {
         "hyperf": {
-            "config": "LaravelHyperf\\Broadcasting\\ConfigProvider"
+            "config": "Hypervel\\Broadcasting\\ConfigProvider"
         },
         "branch-alias": {
             "dev-main": "0.1-dev"

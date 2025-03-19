@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Auth\Access;
+namespace Hypervel\Tests\Auth\Access;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ContainerInterface;
 use Hyperf\Database\Model\Model;
-use LaravelHyperf\Auth\Access\Response;
-use LaravelHyperf\Auth\Contracts\Gate;
-use LaravelHyperf\Tests\Auth\Stub\AuthorizesRequestsStub;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Auth\Access\Response;
+use Hypervel\Auth\Contracts\Gate;
+use Hypervel\Tests\Auth\Stub\AuthorizesRequestsStub;
+use Hypervel\Tests\TestCase;
 use Mockery;
 use Mockery\MockInterface;
 

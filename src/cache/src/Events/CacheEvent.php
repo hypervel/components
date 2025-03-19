@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Cache\Events;
+namespace Hypervel\Cache\Events;
 
 abstract class CacheEvent
 {

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Console;
+namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
-use LaravelHyperf\Queue\Failed\FailedJobProviderInterface;
-use LaravelHyperf\Queue\Failed\PrunableFailedJobProvider;
-use LaravelHyperf\Support\Carbon;
-use LaravelHyperf\Support\Traits\HasLaravelStyleCommand;
+use Hypervel\Queue\Failed\FailedJobProviderInterface;
+use Hypervel\Queue\Failed\PrunableFailedJobProvider;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Traits\HasLaravelStyleCommand;
 
 class PruneFailedJobsCommand extends Command
 {

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Bus\Events;
+namespace Hypervel\Bus\Events;
 
-use LaravelHyperf\Bus\Batch;
+use Hypervel\Bus\Batch;
 
 class BatchDispatched
 {

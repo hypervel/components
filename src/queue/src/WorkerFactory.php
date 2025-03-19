@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue;
+namespace Hypervel\Queue;
 
-use LaravelHyperf\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
-use LaravelHyperf\Queue\Contracts\Factory as QueueManager;
+use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Queue\Contracts\Factory as QueueManager;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 

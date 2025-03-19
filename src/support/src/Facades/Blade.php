@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Facades;
+namespace Hypervel\Support\Facades;
 
 use Hyperf\ViewEngine\Compiler\CompilerInterface;
 
@@ -42,7 +42,7 @@ use Hyperf\ViewEngine\Compiler\CompilerInterface;
  * @method static string compileEndOnce()
  * @method static string compileEchos(string $value)
  *
- * @see \LaravelHyperf\View\Compilers\BladeCompiler
+ * @see \Hypervel\View\Compilers\BladeCompiler
  */
 class Blade extends Facade
 {

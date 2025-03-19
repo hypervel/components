@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Scheduling;
+namespace Hypervel\Tests\Scheduling;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\Stringable\Str;
 use Hyperf\Support\Filesystem\Filesystem;
-use LaravelHyperf\Container\Contracts\Container;
-use LaravelHyperf\Foundation\Console\Contracts\Kernel as KernelContract;
-use LaravelHyperf\Scheduling\Contracts\EventMutex;
-use LaravelHyperf\Scheduling\Event;
-use LaravelHyperf\Tests\Foundation\Concerns\HasMockedApplication;
+use Hypervel\Container\Contracts\Container;
+use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Scheduling\Contracts\EventMutex;
+use Hypervel\Scheduling\Event;
+use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;

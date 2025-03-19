@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Foundation\Testing;
+namespace Hypervel\Tests\Foundation\Testing;
 
 use Carbon\Carbon;
-use LaravelHyperf\Foundation\Testing\Wormhole;
+use Hypervel\Foundation\Testing\Wormhole;
 use PHPUnit\Framework\TestCase;
 
 /**

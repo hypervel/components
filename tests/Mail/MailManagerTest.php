@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Mail;
+namespace Hypervel\Tests\Mail;
 
 use Hyperf\Config\Config;
 use Hyperf\Context\ApplicationContext;
@@ -10,9 +10,9 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
+use Hypervel\Mail\MailManager;
+use Hypervel\Mail\TransportPoolProxy;
 use InvalidArgumentException;
-use LaravelHyperf\Mail\MailManager;
-use LaravelHyperf\Mail\TransportPoolProxy;
 use Mockery;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;

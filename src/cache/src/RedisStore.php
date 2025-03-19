@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Cache;
+namespace Hypervel\Cache;
 
 use Hyperf\Redis\RedisFactory;
 use Hyperf\Redis\RedisProxy;
-use LaravelHyperf\Cache\Contracts\LockProvider;
+use Hypervel\Cache\Contracts\LockProvider;
 
 class RedisStore extends TaggableStore implements LockProvider
 {

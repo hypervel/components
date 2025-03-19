@@ -2,30 +2,30 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue;
+namespace Hypervel\Queue;
 
 use Closure;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\Redis\RedisFactory;
+use Hypervel\ObjectPool\Traits\HasPoolProxy;
+use Hypervel\Queue\Connectors\BeanstalkdConnector;
+use Hypervel\Queue\Connectors\ConnectorInterface;
+use Hypervel\Queue\Connectors\DatabaseConnector;
+use Hypervel\Queue\Connectors\DeferConnector;
+use Hypervel\Queue\Connectors\NullConnector;
+use Hypervel\Queue\Connectors\RedisConnector;
+use Hypervel\Queue\Connectors\SqsConnector;
+use Hypervel\Queue\Connectors\SyncConnector;
+use Hypervel\Queue\Contracts\Factory as FactoryContract;
+use Hypervel\Queue\Contracts\Monitor as MonitorContract;
+use Hypervel\Queue\Contracts\Queue;
 use InvalidArgumentException;
-use LaravelHyperf\ObjectPool\Traits\HasPoolProxy;
-use LaravelHyperf\Queue\Connectors\BeanstalkdConnector;
-use LaravelHyperf\Queue\Connectors\ConnectorInterface;
-use LaravelHyperf\Queue\Connectors\DatabaseConnector;
-use LaravelHyperf\Queue\Connectors\DeferConnector;
-use LaravelHyperf\Queue\Connectors\NullConnector;
-use LaravelHyperf\Queue\Connectors\RedisConnector;
-use LaravelHyperf\Queue\Connectors\SqsConnector;
-use LaravelHyperf\Queue\Connectors\SyncConnector;
-use LaravelHyperf\Queue\Contracts\Factory as FactoryContract;
-use LaravelHyperf\Queue\Contracts\Monitor as MonitorContract;
-use LaravelHyperf\Queue\Contracts\Queue;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
- * @mixin \LaravelHyperf\Queue\Contracts\Queue
+ * @mixin \Hypervel\Queue\Contracts\Queue
  */
 class QueueManager implements FactoryContract, MonitorContract
 {

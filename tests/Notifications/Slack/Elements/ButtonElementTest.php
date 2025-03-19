@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Notifications\Slack\Elements;
+namespace Hypervel\Tests\Notifications\Slack\Elements;
 
+use Hypervel\Notifications\Slack\BlockKit\Composites\ConfirmObject;
+use Hypervel\Notifications\Slack\BlockKit\Composites\PlainTextOnlyTextObject;
+use Hypervel\Notifications\Slack\BlockKit\Elements\ButtonElement;
 use InvalidArgumentException;
-use LaravelHyperf\Notifications\Slack\BlockKit\Composites\ConfirmObject;
-use LaravelHyperf\Notifications\Slack\BlockKit\Composites\PlainTextOnlyTextObject;
-use LaravelHyperf\Notifications\Slack\BlockKit\Elements\ButtonElement;
 use PHPUnit\Framework\TestCase;
 
 /**

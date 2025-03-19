@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Telescope\Watchers;
+namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Scheduling\Event;
-use LaravelHyperf\Scheduling\Events\ScheduledTaskFinished;
-use LaravelHyperf\Scheduling\Events\ScheduledTaskStarting;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\Watchers\ScheduleWatcher;
-use LaravelHyperf\Tests\Telescope\FeatureTestCase;
+use Hypervel\Scheduling\Event;
+use Hypervel\Scheduling\Events\ScheduledTaskFinished;
+use Hypervel\Scheduling\Events\ScheduledTaskStarting;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Watchers\ScheduleWatcher;
+use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface;
 

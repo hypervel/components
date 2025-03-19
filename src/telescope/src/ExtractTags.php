@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope;
+namespace Hypervel\Telescope;
 
 use Hyperf\Collection\Collection;
 use Hyperf\Database\Model\Model;
+use Hypervel\Broadcasting\BroadcastEvent;
+use Hypervel\Event\CallQueuedListener;
+use Hypervel\Mail\SendQueuedMailable;
+use Hypervel\Notifications\SendQueuedNotifications;
 use Illuminate\Events\CallQueuedListener as IlluminateCallQueuedListener;
-use LaravelHyperf\Broadcasting\BroadcastEvent;
-use LaravelHyperf\Event\CallQueuedListener;
-use LaravelHyperf\Mail\SendQueuedMailable;
-use LaravelHyperf\Notifications\SendQueuedNotifications;
 use ReflectionClass;
 use ReflectionException;
 use stdClass;

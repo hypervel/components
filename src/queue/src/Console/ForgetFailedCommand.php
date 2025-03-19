@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Console;
+namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
-use LaravelHyperf\Queue\Failed\FailedJobProviderInterface;
-use LaravelHyperf\Support\Traits\HasLaravelStyleCommand;
+use Hypervel\Queue\Failed\FailedJobProviderInterface;
+use Hypervel\Support\Traits\HasLaravelStyleCommand;
 
 class ForgetFailedCommand extends Command
 {

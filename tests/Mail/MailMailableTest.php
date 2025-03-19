@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Mail;
+namespace Hypervel\Tests\Mail;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
@@ -10,16 +10,16 @@ use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
 use Hyperf\ViewEngine\Contract\ViewInterface;
-use LaravelHyperf\Mail\Attachment;
-use LaravelHyperf\Mail\Contracts\Attachable;
-use LaravelHyperf\Mail\Contracts\Factory as FactoryContract;
-use LaravelHyperf\Mail\Contracts\Mailer as MailerContract;
-use LaravelHyperf\Mail\Mailable;
-use LaravelHyperf\Mail\Mailables\Envelope;
-use LaravelHyperf\Mail\Mailables\Headers;
-use LaravelHyperf\Mail\Mailer;
-use LaravelHyperf\Mail\MailManager;
-use LaravelHyperf\Mail\Transport\ArrayTransport;
+use Hypervel\Mail\Attachment;
+use Hypervel\Mail\Contracts\Attachable;
+use Hypervel\Mail\Contracts\Factory as FactoryContract;
+use Hypervel\Mail\Contracts\Mailer as MailerContract;
+use Hypervel\Mail\Mailable;
+use Hypervel\Mail\Mailables\Envelope;
+use Hypervel\Mail\Mailables\Headers;
+use Hypervel\Mail\Mailer;
+use Hypervel\Mail\MailManager;
+use Hypervel\Mail\Transport\ArrayTransport;
 use Mockery as m;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\TestCase;
@@ -575,7 +575,7 @@ class MailMailableTest extends TestCase
         $expected = [
             'first_name' => 'Taylor',
             'lastName' => 'Otwell',
-            'framework' => 'Laravel Hyperf',
+            'framework' => 'Hypervel',
         ];
 
         $this->assertSame($expected, $mailable->buildViewData());
@@ -1196,7 +1196,7 @@ class MailableHeadersStub extends Mailable
 
 class WelcomeMailableStub extends Mailable
 {
-    public $framework = 'Laravel Hyperf';
+    public $framework = 'Hypervel';
 
     protected $version = '1.0';
 

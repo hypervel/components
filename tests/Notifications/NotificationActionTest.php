@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Notifications;
+namespace Hypervel\Tests\Notifications;
 
-use LaravelHyperf\Notifications\Action;
+use Hypervel\Notifications\Action;
 use PHPUnit\Framework\TestCase;
 
 /**

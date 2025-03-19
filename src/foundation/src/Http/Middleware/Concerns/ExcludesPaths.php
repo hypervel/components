@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Http\Middleware\Concerns;
+namespace Hypervel\Foundation\Http\Middleware\Concerns;
 
 use Hyperf\Stringable\Str;
 use Psr\Http\Message\ServerRequestInterface;

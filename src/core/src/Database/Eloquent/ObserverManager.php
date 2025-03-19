@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Database\Eloquent;
+namespace Hypervel\Database\Eloquent;
 
 use Hyperf\Collection\Arr;
 use InvalidArgumentException;

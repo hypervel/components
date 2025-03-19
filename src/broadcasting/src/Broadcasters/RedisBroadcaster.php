@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Broadcasting\Broadcasters;
+namespace Hypervel\Broadcasting\Broadcasters;
 
 use Hyperf\Collection\Arr;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Pool\Exception\ConnectionException;
 use Hyperf\Redis\RedisFactory;
-use LaravelHyperf\Broadcasting\BroadcastException;
-use LaravelHyperf\HttpMessage\Exceptions\AccessDeniedHttpException;
+use Hypervel\Broadcasting\BroadcastException;
+use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Psr\Container\ContainerInterface;
 use RedisException;
 

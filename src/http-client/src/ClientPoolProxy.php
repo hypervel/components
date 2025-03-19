@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\HttpClient;
+namespace Hypervel\HttpClient;
 
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Promise\PromiseInterface;
-use LaravelHyperf\ObjectPool\PoolProxy;
+use Hypervel\ObjectPool\PoolProxy;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 

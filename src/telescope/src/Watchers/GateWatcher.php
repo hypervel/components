@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Watchers;
+namespace Hypervel\Telescope\Watchers;
 
 use Hyperf\Collection\Collection;
 use Hyperf\Database\Model\Model;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Auth\Access\Events\GateEvaluated;
-use LaravelHyperf\Auth\Access\Response;
-use LaravelHyperf\Telescope\FormatModel;
-use LaravelHyperf\Telescope\IncomingEntry;
-use LaravelHyperf\Telescope\Telescope;
-use LaravelHyperf\Telescope\Watchers\Traits\FetchesStackTrace;
+use Hypervel\Auth\Access\Events\GateEvaluated;
+use Hypervel\Auth\Access\Response;
+use Hypervel\Telescope\FormatModel;
+use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\Telescope;
+use Hypervel\Telescope\Watchers\Traits\FetchesStackTrace;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 

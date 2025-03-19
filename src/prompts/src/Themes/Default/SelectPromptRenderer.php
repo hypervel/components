@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Prompts\Themes\Default;
+namespace Hypervel\Prompts\Themes\Default;
 
-use LaravelHyperf\Prompts\SelectPrompt;
-use LaravelHyperf\Prompts\Themes\Contracts\Scrolling;
+use Hypervel\Prompts\SelectPrompt;
+use Hypervel\Prompts\Themes\Contracts\Scrolling;
 
 class SelectPromptRenderer extends Renderer implements Scrolling
 {

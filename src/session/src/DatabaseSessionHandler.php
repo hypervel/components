@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Session;
+namespace Hypervel\Session;
 
 use Carbon\Carbon;
 use Hyperf\Collection\Arr;
@@ -13,8 +13,8 @@ use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\Database\Exception\QueryException;
 use Hyperf\Database\Query\Builder;
 use Hyperf\HttpServer\Request;
-use LaravelHyperf\Auth\Contracts\Guard;
-use LaravelHyperf\Support\Traits\InteractsWithTime;
+use Hypervel\Auth\Contracts\Guard;
+use Hypervel\Support\Traits\InteractsWithTime;
 use Psr\Container\ContainerInterface;
 use SessionHandlerInterface;
 

@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Foundation\Testing;
+namespace Hypervel\Tests\Foundation\Testing;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Coordinator\Constants;
 use Hyperf\Coordinator\CoordinatorManager;
 use Hyperf\Support\Filesystem\Filesystem;
-use LaravelHyperf\Foundation\Application;
-use LaravelHyperf\Foundation\ClassLoader;
-use LaravelHyperf\Foundation\Console\Contracts\Kernel as KernelContract;
-use LaravelHyperf\Foundation\Console\Kernel as ConsoleKernel;
-use LaravelHyperf\Foundation\Contracts\Application as ApplicationContract;
-use LaravelHyperf\Foundation\Testing\TestCase;
-use LaravelHyperf\Foundation\Testing\TestScanHandler;
+use Hypervel\Foundation\Application;
+use Hypervel\Foundation\ClassLoader;
+use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Foundation\Testing\TestCase;
+use Hypervel\Foundation\Testing\TestScanHandler;
 use Swoole\Timer;
 
 /**
@@ -65,7 +65,7 @@ class ApplicationTestCase extends TestCase
         $content = [
             'packages' => [
                 [
-                    'name' => 'laravel-hyperf-testing',
+                    'name' => 'hypervel-testing',
                     'extra' => [
                         'hyperf' => [
                             'config' => BootstrapConfigProvider::get(),

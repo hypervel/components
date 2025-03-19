@@ -6,7 +6,7 @@ use function Hyperf\Support\env;
 
 /*
  * This file is for backward compatibility for Hyperf framework only.
- * If you're using Laravel Hyperf, you should set keys in `config/app.php`.
+ * If you're using Hypervel, you should set keys in `config/app.php`.
  */
 return [
     'cipher' => 'AES-256-CBC',

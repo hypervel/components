@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Session\Middleware;
+namespace Hypervel\Session\Middleware;
 
 use Carbon\Carbon;
 use DateTimeInterface;
@@ -10,10 +10,10 @@ use Hyperf\Context\Context;
 use Hyperf\Contract\SessionInterface;
 use Hyperf\HttpServer\Request;
 use Hyperf\HttpServer\Router\Dispatched;
-use LaravelHyperf\Cache\Contracts\Factory as CacheFactoryContract;
-use LaravelHyperf\Cookie\Cookie;
-use LaravelHyperf\Session\Contracts\Session;
-use LaravelHyperf\Session\SessionManager;
+use Hypervel\Cache\Contracts\Factory as CacheFactoryContract;
+use Hypervel\Cookie\Cookie;
+use Hypervel\Session\Contracts\Session;
+use Hypervel\Session\SessionManager;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -98,7 +98,7 @@ class StartSession implements MiddlewareInterface
     protected function handleStatefulRequest(ServerRequestInterface $request, Session $session, RequestHandlerInterface $handler): mixed
     {
         // If a session driver has been configured, we will need to start the session here
-        // so that the data is ready for an application. Note that the Laravel Hyperf sessions
+        // so that the data is ready for an application. Note that the Hypervel sessions
         // do not make use of PHP "native" sessions in any way since they are crappy.
         Context::set(SessionInterface::class, $session);
         $session->start();

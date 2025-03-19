@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Contracts;
+namespace Hypervel\Support\Contracts;
 
-use LaravelHyperf\Http\Request;
+use Hypervel\Http\Request;
 use Psr\Http\Message\ResponseInterface;
 
 interface Responsable

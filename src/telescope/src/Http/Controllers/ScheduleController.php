@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Http\Controllers;
+namespace Hypervel\Telescope\Http\Controllers;
 
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\Watchers\ScheduleWatcher;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Watchers\ScheduleWatcher;
 
 class ScheduleController extends EntryController
 {

@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Watchers;
+namespace Hypervel\Telescope\Watchers;
 
 use Hyperf\Collection\Collection;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Redis\Event\CommandExecuted;
 use Hyperf\Redis\Redis;
-use LaravelHyperf\Telescope\IncomingEntry;
-use LaravelHyperf\Telescope\Telescope;
+use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\Telescope;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 

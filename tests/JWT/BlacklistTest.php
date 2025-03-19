@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\JWT;
+namespace Hypervel\Tests\JWT;
 
 use Carbon\Carbon;
-use LaravelHyperf\JWT\Blacklist;
-use LaravelHyperf\JWT\Contracts\StorageContract;
-use LaravelHyperf\JWT\Exceptions\TokenInvalidException;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\JWT\Blacklist;
+use Hypervel\JWT\Contracts\StorageContract;
+use Hypervel\JWT\Exceptions\TokenInvalidException;
+use Hypervel\Tests\TestCase;
 use Mockery;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;

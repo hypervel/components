@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Dispatcher;
+namespace Hypervel\Tests\Dispatcher;
 
-use LaravelHyperf\Dispatcher\AdaptedRequestHandler;
-use LaravelHyperf\Dispatcher\Psr15AdapterMiddleware;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Dispatcher\AdaptedRequestHandler;
+use Hypervel\Dispatcher\Psr15AdapterMiddleware;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;

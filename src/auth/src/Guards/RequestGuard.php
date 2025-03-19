@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Auth\Guards;
+namespace Hypervel\Auth\Guards;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Macroable\Macroable;
-use LaravelHyperf\Auth\Contracts\Authenticatable;
-use LaravelHyperf\Auth\Contracts\Guard;
-use LaravelHyperf\Auth\Contracts\UserProvider;
+use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Auth\Contracts\Guard;
+use Hypervel\Auth\Contracts\UserProvider;
 use Throwable;
 
 class RequestGuard implements Guard

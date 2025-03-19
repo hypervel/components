@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Messages;
+namespace Hypervel\Notifications\Messages;
 
-use LaravelHyperf\Notifications\Action;
-use LaravelHyperf\Support\Contracts\Htmlable;
+use Hypervel\Notifications\Action;
+use Hypervel\Support\Contracts\Htmlable;
 
 class SimpleMessage
 {

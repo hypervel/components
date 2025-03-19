@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Mail;
+namespace Hypervel\Mail;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\ViewEngine\Contract\FactoryInterface;

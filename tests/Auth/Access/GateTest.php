@@ -2,39 +2,39 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Auth\Access;
+namespace Hypervel\Tests\Auth\Access;
 
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
+use Hypervel\Auth\Access\AuthorizationException;
+use Hypervel\Auth\Access\Gate;
+use Hypervel\Auth\Access\Response;
+use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Tests\Auth\Stub\AccessGateTestAuthenticatable;
+use Hypervel\Tests\Auth\Stub\AccessGateTestBeforeCallback;
+use Hypervel\Tests\Auth\Stub\AccessGateTestClass;
+use Hypervel\Tests\Auth\Stub\AccessGateTestClassForGuest;
+use Hypervel\Tests\Auth\Stub\AccessGateTestCustomResource;
+use Hypervel\Tests\Auth\Stub\AccessGateTestDummy;
+use Hypervel\Tests\Auth\Stub\AccessGateTestDummyInterface;
+use Hypervel\Tests\Auth\Stub\AccessGateTestGuestInvokableClass;
+use Hypervel\Tests\Auth\Stub\AccessGateTestGuestNullableInvokable;
+use Hypervel\Tests\Auth\Stub\AccessGateTestInvokableClass;
+use Hypervel\Tests\Auth\Stub\AccessGateTestPolicy;
+use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyThatAllowsGuests;
+use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyThrowingAuthorizationException;
+use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyWithAllPermissions;
+use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyWithBefore;
+use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyWithCode;
+use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyWithDeniedResponseObject;
+use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyWithMixedPermissions;
+use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyWithNonGuestBefore;
+use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyWithNoPermissions;
+use Hypervel\Tests\Auth\Stub\AccessGateTestResource;
+use Hypervel\Tests\Auth\Stub\AccessGateTestStaticClass;
+use Hypervel\Tests\Auth\Stub\AccessGateTestSubDummy;
+use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use LaravelHyperf\Auth\Access\AuthorizationException;
-use LaravelHyperf\Auth\Access\Gate;
-use LaravelHyperf\Auth\Access\Response;
-use LaravelHyperf\Auth\Contracts\Authenticatable;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestAuthenticatable;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestBeforeCallback;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestClass;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestClassForGuest;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestCustomResource;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestDummy;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestDummyInterface;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestGuestInvokableClass;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestGuestNullableInvokable;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestInvokableClass;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestPolicy;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestPolicyThatAllowsGuests;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestPolicyThrowingAuthorizationException;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestPolicyWithAllPermissions;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestPolicyWithBefore;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestPolicyWithCode;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestPolicyWithDeniedResponseObject;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestPolicyWithMixedPermissions;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestPolicyWithNonGuestBefore;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestPolicyWithNoPermissions;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestResource;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestStaticClass;
-use LaravelHyperf\Tests\Auth\Stub\AccessGateTestSubDummy;
-use LaravelHyperf\Tests\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**

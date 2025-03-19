@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Mail;
+namespace Hypervel\Mail;
 
 use Hyperf\Conditionable\Conditionable;
-use LaravelHyperf\Mail\Contracts\Mailable as MailableContract;
-use LaravelHyperf\Mail\Contracts\Mailer as MailerContract;
+use Hypervel\Mail\Contracts\Mailable as MailableContract;
+use Hypervel\Mail\Contracts\Mailer as MailerContract;
 
 use function Hyperf\Tappable\tap;
 

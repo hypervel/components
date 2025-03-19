@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Foundation\Testing\Concerns;
+namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Hyperf\Context\Context;
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Auth\Contracts\Authenticatable as UserContract;
-use LaravelHyperf\Auth\Contracts\FactoryContract as AuthManagerContract;
-use LaravelHyperf\Auth\Contracts\Guard;
-use LaravelHyperf\Foundation\Testing\Concerns\InteractsWithAuthentication;
-use LaravelHyperf\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Auth\Contracts\Authenticatable as UserContract;
+use Hypervel\Auth\Contracts\FactoryContract as AuthManagerContract;
+use Hypervel\Auth\Contracts\Guard;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
+use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
 use Mockery;
 
 /**

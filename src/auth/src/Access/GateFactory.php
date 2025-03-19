@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Auth\Access;
+namespace Hypervel\Auth\Access;
 
 use Hyperf\Contract\ContainerInterface;
-use LaravelHyperf\Auth\Contracts\FactoryContract;
+use Hypervel\Auth\Contracts\FactoryContract;
 
 use function Hyperf\Support\make;
 

@@ -11,7 +11,7 @@ declare(strict_types=1);
  * file that was distributed with this source code.
  */
 
-namespace LaravelHyperf\Support;
+namespace Hypervel\Support;
 
 use Exception;
 use finfo;

@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Http;
+namespace Hypervel\Tests\Http;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
-use LaravelHyperf\Http\Exceptions\CannotWriteFileException;
-use LaravelHyperf\Http\Exceptions\ExtensionFileException;
-use LaravelHyperf\Http\Exceptions\FileException;
-use LaravelHyperf\Http\Exceptions\FileNotFoundException;
-use LaravelHyperf\Http\Exceptions\FormSizeFileException;
-use LaravelHyperf\Http\Exceptions\IniSizeFileException;
-use LaravelHyperf\Http\Exceptions\NoFileException;
-use LaravelHyperf\Http\Exceptions\NoTmpDirFileException;
-use LaravelHyperf\Http\Exceptions\PartialFileException;
-use LaravelHyperf\Http\UploadedFile;
+use Hypervel\Http\Exceptions\CannotWriteFileException;
+use Hypervel\Http\Exceptions\ExtensionFileException;
+use Hypervel\Http\Exceptions\FileException;
+use Hypervel\Http\Exceptions\FileNotFoundException;
+use Hypervel\Http\Exceptions\FormSizeFileException;
+use Hypervel\Http\Exceptions\IniSizeFileException;
+use Hypervel\Http\Exceptions\NoFileException;
+use Hypervel\Http\Exceptions\NoTmpDirFileException;
+use Hypervel\Http\Exceptions\PartialFileException;
+use Hypervel\Http\UploadedFile;
 use PHPUnit\Framework\TestCase;
 
 /**

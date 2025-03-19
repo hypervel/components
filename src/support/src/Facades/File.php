@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Facades;
+namespace Hypervel\Support\Facades;
 
-use LaravelHyperf\Filesystem\Filesystem;
+use Hypervel\Filesystem\Filesystem;
 
 /**
  * @method static bool exists(string $path)
@@ -50,7 +50,7 @@ use LaravelHyperf\Filesystem\Filesystem;
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static bool hasMacro(string $name)
  *
- * @see \LaravelHyperf\Filesystem\Filesystem
+ * @see \Hypervel\Filesystem\Filesystem
  */
 class File extends Facade
 {

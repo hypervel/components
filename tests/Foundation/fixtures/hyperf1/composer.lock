@@ -4,9 +4,9 @@
             "name": "package-one",
             "version": "0.1",
             "extra": {
-                "laravel-hyperf": {
+                "hypervel": {
                     "providers": [
-                        "LaravelHyperf\\Tests\\Foundation\\Bootstrap\\TestOneServiceProvider"
+                        "Hypervel\\Tests\\Foundation\\Bootstrap\\TestOneServiceProvider"
                     ],
                     "dont-discover": [
                         "package-three"
@@ -21,9 +21,9 @@
             "name": "package-three",
             "version": "0.1",
             "extra": {
-                "laravel-hyperf": {
+                "hypervel": {
                     "providers": [
-                        "LaravelHyperf\\Tests\\Foundation\\Bootstrap\\TestThreeServiceProvider"
+                        "Hypervel\\Tests\\Foundation\\Bootstrap\\TestThreeServiceProvider"
                     ]
                 }
             },
@@ -35,9 +35,9 @@
             "name": "package-four",
             "version": "0.1",
             "extra": {
-                "laravel-hyperf": {
+                "hypervel": {
                     "providers": [
-                        "LaravelHyperf\\Tests\\Foundation\\Bootstrap\\TestFourServiceProvider"
+                        "Hypervel\\Tests\\Foundation\\Bootstrap\\TestFourServiceProvider"
                     ]
                 }
             },

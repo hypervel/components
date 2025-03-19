@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Encryption\Contracts;
+namespace Hypervel\Encryption\Contracts;
 
 interface StringEncrypter
 {
     /**
      * Encrypt a string without serialization.
      *
-     * @throws \LaravelHyperf\Encryption\Exceptions\EncryptException
+     * @throws \Hypervel\Encryption\Exceptions\EncryptException
      */
     public function encryptString(string $value): string;
 
     /**
      * Decrypt the given string without unserialization.
      *
-     * @throws \LaravelHyperf\Encryption\Exceptions\DecryptException
+     * @throws \Hypervel\Encryption\Exceptions\DecryptException
      */
     public function decryptString(string $payload): string;
 }

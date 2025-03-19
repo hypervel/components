@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support;
+namespace Hypervel\Support;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
 use RuntimeException;
 
 use function Hyperf\Config\config;

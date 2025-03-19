@@ -1,7 +1,7 @@
 {
-    "name": "laravel-hyperf/scheduling",
+    "name": "hypervel/scheduling",
     "type": "library",
-    "description": "The scheduling package for Laravel Hyperf.",
+    "description": "The scheduling package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
@@ -9,17 +9,17 @@
         "crontab",
         "scheduling",
         "swoole",
-        "laravel-hyperf"
+        "hypervel"
     ],
     "autoload": {
         "psr-4": {
-            "LaravelHyperf\\Scheduling\\": "src/"
+            "Hypervel\\Scheduling\\": "src/"
         }
     },
     "require": {
         "php": "^8.2",
         "ext-mbstring": "*",
-        "laravel-hyperf/support": "^0.1",
+        "hypervel/support": "^0.1",
         "dragonmantank/cron-expression": "^3.3.2",
         "symfony/console": "^5.4|^6.4|^7.0"
     },
@@ -27,12 +27,12 @@
         "mockery/mockery": "^1.5"
     },
     "suggest": {
-        "laravel-hyperf/prompt": "Required to run schedule:test command.",
+        "hypervel/prompt": "Required to run schedule:test command.",
         "friendsofhyperf/pretty-console": "Required to run schedule:run command. (~3.1.0)"
     },
     "extra": {
         "hyperf": {
-            "config": "LaravelHyperf\\Scheduling\\ConfigProvider"
+            "config": "Hypervel\\Scheduling\\ConfigProvider"
         },
         "branch-alias": {
             "dev-main": "0.1-dev"

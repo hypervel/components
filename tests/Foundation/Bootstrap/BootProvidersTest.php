@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Foundation\Bootstrap;
+namespace Hypervel\Tests\Foundation\Bootstrap;
 
 use Hyperf\Di\MethodDefinitionCollector;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
-use LaravelHyperf\Foundation\Bootstrap\BootProviders;
-use LaravelHyperf\Support\ServiceProvider;
-use LaravelHyperf\Tests\Foundation\Concerns\HasMockedApplication;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Foundation\Bootstrap\BootProviders;
+use Hypervel\Support\ServiceProvider;
+use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
+use Hypervel\Tests\TestCase;
 
 /**
  * @internal

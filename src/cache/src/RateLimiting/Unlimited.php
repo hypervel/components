@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Cache\RateLimiting;
+namespace Hypervel\Cache\RateLimiting;
 
 class Unlimited extends GlobalLimit
 {

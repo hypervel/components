@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Process;
+namespace Hypervel\Process;
 
 use Closure;
-use LaravelHyperf\Process\Contracts\InvokedProcess as InvokedProcessContract;
-use LaravelHyperf\Process\Contracts\ProcessResult as ProcessResultContract;
+use Hypervel\Process\Contracts\InvokedProcess as InvokedProcessContract;
+use Hypervel\Process\Contracts\ProcessResult as ProcessResultContract;
 
 class FakeInvokedProcess implements InvokedProcessContract
 {

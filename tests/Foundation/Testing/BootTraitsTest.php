@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Foundation\Testing;
+namespace Hypervel\Tests\Foundation\Testing;
 
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Tests\TestCase;
 use ReflectionMethod;
 
 /**

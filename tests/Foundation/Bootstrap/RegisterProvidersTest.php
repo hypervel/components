@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Foundation\Bootstrap;
+namespace Hypervel\Tests\Foundation\Bootstrap;
 
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Foundation\Bootstrap\RegisterProviders;
-use LaravelHyperf\Foundation\Support\Composer;
-use LaravelHyperf\Support\ServiceProvider;
-use LaravelHyperf\Tests\Foundation\Concerns\HasMockedApplication;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Foundation\Bootstrap\RegisterProviders;
+use Hypervel\Foundation\Support\Composer;
+use Hypervel\Support\ServiceProvider;
+use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 
 /**

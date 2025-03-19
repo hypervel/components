@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Foundation\Testing\Concerns;
+namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Hyperf\Database\Model\Factory;
-use LaravelHyperf\Database\Eloquent\Model;
-use LaravelHyperf\Foundation\Testing\RefreshDatabase;
-use LaravelHyperf\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
 
 /**
  * @internal

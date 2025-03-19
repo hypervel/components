@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Bus;
+namespace Hypervel\Bus;
 
 use BackedEnum;
 use Closure;
@@ -10,12 +10,12 @@ use DateInterval;
 use DateTimeInterface;
 use Hyperf\Collection\Arr;
 use Hyperf\Collection\Collection;
-use LaravelHyperf\Queue\CallQueuedClosure;
+use Hypervel\Queue\CallQueuedClosure;
 use PHPUnit\Framework\Assert as PHPUnit;
 use RuntimeException;
 use Throwable;
 
-use function LaravelHyperf\Support\enum_value;
+use function Hypervel\Support\enum_value;
 
 trait Queueable
 {
@@ -208,7 +208,7 @@ trait Queueable
         if ($job instanceof Closure) {
             if (! class_exists(CallQueuedClosure::class)) {
                 throw new RuntimeException(
-                    'To enable support for closure jobs, please install the laravel-hyperf/queue package.'
+                    'To enable support for closure jobs, please install the hypervel/queue package.'
                 );
             }
 

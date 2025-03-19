@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Prompts\Exceptions;
+namespace Hypervel\Prompts\Exceptions;
 
 use RuntimeException;
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Session;
+namespace Hypervel\Session;
 
 use Exception;
 

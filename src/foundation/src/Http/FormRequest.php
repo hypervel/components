@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Http;
+namespace Hypervel\Foundation\Http;
 
 use Hyperf\Collection\Arr;
 use Hyperf\Context\Context;
@@ -12,8 +12,8 @@ use Hyperf\Validation\Contract\ValidatesWhenResolved;
 use Hyperf\Validation\Contract\ValidatorFactoryInterface as ValidationFactory;
 use Hyperf\Validation\ValidatesWhenResolvedTrait;
 use Hyperf\Validation\ValidationException;
-use LaravelHyperf\Auth\Access\AuthorizationException;
-use LaravelHyperf\Http\Request;
+use Hypervel\Auth\Access\AuthorizationException;
+use Hypervel\Http\Request;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 

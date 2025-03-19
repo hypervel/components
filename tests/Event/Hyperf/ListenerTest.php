@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Event\Hyperf;
+namespace Hypervel\Tests\Event\Hyperf;
 
 use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Event\Annotation\Listener as ListenerAnnotation;
 use Hyperf\Event\ListenerData;
 use Hyperf\Stdlib\SplPriorityQueue;
-use LaravelHyperf\Event\EventDispatcher;
-use LaravelHyperf\Event\ListenerProvider;
-use LaravelHyperf\Event\ListenerProviderFactory;
-use LaravelHyperf\Tests\Event\Hyperf\Event\Alpha;
-use LaravelHyperf\Tests\Event\Hyperf\Event\Beta;
-use LaravelHyperf\Tests\Event\Hyperf\Listener\AlphaListener;
-use LaravelHyperf\Tests\Event\Hyperf\Listener\BetaListener;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Event\EventDispatcher;
+use Hypervel\Event\ListenerProvider;
+use Hypervel\Event\ListenerProviderFactory;
+use Hypervel\Tests\Event\Hyperf\Event\Alpha;
+use Hypervel\Tests\Event\Hyperf\Event\Beta;
+use Hypervel\Tests\Event\Hyperf\Listener\AlphaListener;
+use Hypervel\Tests\Event\Hyperf\Listener\BetaListener;
+use Hypervel\Tests\TestCase;
 use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use Psr\Container\ContainerInterface;

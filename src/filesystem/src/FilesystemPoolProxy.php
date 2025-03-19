@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Filesystem;
+namespace Hypervel\Filesystem;
 
 use Hyperf\HttpMessage\Upload\UploadedFile;
-use LaravelHyperf\Filesystem\Contracts\Cloud;
-use LaravelHyperf\ObjectPool\PoolProxy;
+use Hypervel\Filesystem\Contracts\Cloud;
+use Hypervel\ObjectPool\PoolProxy;
 use Psr\Http\Message\StreamInterface;
 use RuntimeException;
 

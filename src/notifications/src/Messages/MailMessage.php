@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Messages;
+namespace Hypervel\Notifications\Messages;
 
 use Hyperf\Collection\Collection;
 use Hyperf\Conditionable\Conditionable;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\Arrayable;
-use LaravelHyperf\Mail\Attachment;
-use LaravelHyperf\Mail\Contracts\Attachable;
-use LaravelHyperf\Mail\Markdown;
-use LaravelHyperf\Support\Contracts\Renderable;
+use Hypervel\Mail\Attachment;
+use Hypervel\Mail\Contracts\Attachable;
+use Hypervel\Mail\Markdown;
+use Hypervel\Support\Contracts\Renderable;
 
 class MailMessage extends SimpleMessage implements Renderable
 {

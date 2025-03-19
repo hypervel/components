@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Prompts;
+namespace Hypervel\Prompts;
 
 use Hyperf\Collection\Collection;
 

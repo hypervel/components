@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue;
+namespace Hypervel\Queue;
 
 use DateInterval;
 use DateTimeInterface;
 use Hyperf\Support\Traits\InteractsWithTime;
+use Hypervel\Queue\Contracts\Job as JobContract;
+use Hypervel\Queue\Exceptions\ManuallyFailedException;
+use Hypervel\Queue\Jobs\FakeJob;
 use InvalidArgumentException;
-use LaravelHyperf\Queue\Contracts\Job as JobContract;
-use LaravelHyperf\Queue\Exceptions\ManuallyFailedException;
-use LaravelHyperf\Queue\Jobs\FakeJob;
 use PHPUnit\Framework\Assert as PHPUnit;
 use RuntimeException;
 use Throwable;

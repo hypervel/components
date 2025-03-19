@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Queue;
+namespace Hypervel\Tests\Queue;
 
 use Exception;
-use LaravelHyperf\Queue\Contracts\Job;
-use LaravelHyperf\Queue\InteractsWithQueue;
+use Hypervel\Queue\Contracts\Job;
+use Hypervel\Queue\InteractsWithQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 

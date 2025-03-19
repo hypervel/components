@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Context;
+namespace Hypervel\Context;
 
 use Hyperf\Context\ResponseContext as HyperfResponseContext;
 

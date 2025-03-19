@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Scheduling;
+namespace Hypervel\Tests\Scheduling;
 
-use LaravelHyperf\Container\Container;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
-use LaravelHyperf\Scheduling\Contracts\EventMutex;
-use LaravelHyperf\Scheduling\Contracts\SchedulingMutex;
-use LaravelHyperf\Scheduling\Schedule;
-use LaravelHyperf\Tests\Foundation\Concerns\HasMockedApplication;
+use Hypervel\Container\Container;
+use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Scheduling\Contracts\EventMutex;
+use Hypervel\Scheduling\Contracts\SchedulingMutex;
+use Hypervel\Scheduling\Schedule;
+use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;

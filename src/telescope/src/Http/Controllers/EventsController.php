@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Http\Controllers;
+namespace Hypervel\Telescope\Http\Controllers;
 
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\Watchers\EventWatcher;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Watchers\EventWatcher;
 
 class EventsController extends EntryController
 {

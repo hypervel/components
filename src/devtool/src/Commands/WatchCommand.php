@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Devtool\Commands;
+namespace Hypervel\Devtool\Commands;
 
 use Hyperf\Command\Command as HyperfCommand;
 use Hyperf\Command\Concerns\NullDisableEventDispatcher;

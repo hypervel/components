@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Broadcasting\Contracts;
+namespace Hypervel\Broadcasting\Contracts;
 
 interface HasBroadcastChannel
 {

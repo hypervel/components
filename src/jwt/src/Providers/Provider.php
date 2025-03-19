@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\JWT\Providers;
+namespace Hypervel\JWT\Providers;
 
 use Hyperf\Collection\Arr;
 

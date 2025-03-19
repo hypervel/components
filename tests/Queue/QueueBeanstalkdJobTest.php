@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Queue;
+namespace Hypervel\Tests\Queue;
 
 use Exception;
-use LaravelHyperf\Queue\Events\JobFailed;
-use LaravelHyperf\Queue\Jobs\BeanstalkdJob;
+use Hypervel\Queue\Events\JobFailed;
+use Hypervel\Queue\Jobs\BeanstalkdJob;
 use Mockery as m;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;

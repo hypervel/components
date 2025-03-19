@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Database\Migrations;
+namespace Hypervel\Database\Migrations;
 
 use Hyperf\Database\Migrations\MigrationCreator as HyperfMigrationCreator;
 

@@ -1,22 +1,22 @@
 {
-    "name": "laravel-hyperf/queue",
-    "description": "The queue package for Laravel Hyperf.",
+    "name": "hypervel/queue",
+    "description": "The queue package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
         "hyperf",
         "queue",
         "swoole",
-        "laravel-hyperf"
+        "hypervel"
     ],
     "support": {
-        "issues": "https://github.com/laravel-hyperf/components/issues",
-        "source": "https://github.com/laravel-hyperf/components"
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
     },
     "authors": [
         {
             "name": "Albert Chen",
-            "email": "albert@laravel-hyperf.com"
+            "email": "albert@hypervel.org"
         }
     ],
     "require": {
@@ -32,17 +32,17 @@
         "laravel/serializable-closure": "^1.2.2",
         "ramsey/uuid": "^4.7",
         "symfony/process": "^7.0",
-        "laravel-hyperf/support": "^0.1",
-        "laravel-hyperf/encryption": "^0.1"
+        "hypervel/support": "^0.1",
+        "hypervel/encryption": "^0.1"
     },
     "autoload": {
         "psr-4": {
-            "LaravelHyperf\\Queue\\": "src/"
+            "Hypervel\\Queue\\": "src/"
         }
     },
     "extra": {
         "hyperf": {
-            "config": "LaravelHyperf\\Queue\\ConfigProvider"
+            "config": "Hypervel\\Queue\\ConfigProvider"
         },
         "branch-alias": {
             "dev-main": "0.1-dev"

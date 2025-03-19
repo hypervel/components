@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Foundation;
+namespace Hypervel\Tests\Foundation;
 
 use Exception;
 use Hyperf\Context\Context;
@@ -22,20 +22,20 @@ use Hyperf\Validation\Validator;
 use Hyperf\View\RenderInterface;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
 use Hyperf\ViewEngine\ViewErrorBag;
+use Hypervel\Config\Repository;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Foundation\Exceptions\Handler;
+use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Http\Request;
+use Hypervel\Http\Response;
+use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
+use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Support\Contracts\Responsable;
+use Hypervel\Support\Facades\View;
+use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
+use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use LaravelHyperf\Config\Repository;
-use LaravelHyperf\Context\ApplicationContext;
-use LaravelHyperf\Foundation\Exceptions\Handler;
-use LaravelHyperf\Http\Contracts\ResponseContract;
-use LaravelHyperf\Http\Request;
-use LaravelHyperf\Http\Response;
-use LaravelHyperf\HttpMessage\Exceptions\AccessDeniedHttpException;
-use LaravelHyperf\Router\Contracts\UrlGenerator as UrlGeneratorContract;
-use LaravelHyperf\Session\Contracts\Session as SessionContract;
-use LaravelHyperf\Support\Contracts\Responsable;
-use LaravelHyperf\Support\Facades\View;
-use LaravelHyperf\Tests\Foundation\Concerns\HasMockedApplication;
-use LaravelHyperf\Tests\TestCase;
 use Mockery as m;
 use OutOfRangeException;
 use Psr\Http\Message\ResponseInterface;

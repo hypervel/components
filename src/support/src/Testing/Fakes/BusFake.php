@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Testing\Fakes;
+namespace Hypervel\Support\Testing\Fakes;
 
 use Closure;
 use Hyperf\Collection\Arr;
 use Hyperf\Collection\Collection;
-use LaravelHyperf\Bus\Batch;
-use LaravelHyperf\Bus\ChainedBatch;
-use LaravelHyperf\Bus\Contracts\BatchRepository;
-use LaravelHyperf\Bus\Contracts\QueueingDispatcher;
-use LaravelHyperf\Bus\PendingBatch;
-use LaravelHyperf\Bus\PendingChain;
-use LaravelHyperf\Support\Traits\ReflectsClosures;
+use Hypervel\Bus\Batch;
+use Hypervel\Bus\ChainedBatch;
+use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Bus\Contracts\QueueingDispatcher;
+use Hypervel\Bus\PendingBatch;
+use Hypervel\Bus\PendingChain;
+use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
 use RuntimeException;
 

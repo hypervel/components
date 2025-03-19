@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Aspects;
+namespace Hypervel\Telescope\Aspects;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\TransferStats;
@@ -11,8 +11,8 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Aop\AbstractAspect;
 use Hyperf\Di\Aop\ProceedingJoinPoint;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Telescope\IncomingEntry;
-use LaravelHyperf\Telescope\Telescope;
+use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\Telescope;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Throwable;

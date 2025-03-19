@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Log;
+namespace Hypervel\Log;
 
 use InvalidArgumentException;
 use Monolog\Logger as Monolog;

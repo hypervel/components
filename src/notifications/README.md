@@ -1,2 +1,2 @@
-Notifications for Laravel Hyperf
+Notifications for Hypervel
 ===

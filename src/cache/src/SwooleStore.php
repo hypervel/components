@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Cache;
+namespace Hypervel\Cache;
 
 use Carbon\Carbon;
 use Closure;
+use Hypervel\Cache\Contracts\Store;
 use InvalidArgumentException;
 use Laravel\SerializableClosure\SerializableClosure;
-use LaravelHyperf\Cache\Contracts\Store;
 use Swoole\Table;
 
 class SwooleStore implements Store

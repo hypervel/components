@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Filesystem\Contracts;
+namespace Hypervel\Filesystem\Contracts;
 
 interface Cloud extends Filesystem
 {

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Mail;
+namespace Hypervel\Mail;
 
-use LaravelHyperf\Mail\Contracts\Factory as FactoryContract;
-use LaravelHyperf\Mail\Contracts\Mailer as MailerContract;
+use Hypervel\Mail\Contracts\Factory as FactoryContract;
+use Hypervel\Mail\Contracts\Mailer as MailerContract;
 
 class ConfigProvider
 {

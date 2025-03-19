@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Bus;
+namespace Hypervel\Bus;
 
-use LaravelHyperf\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Cache\Contracts\Factory as CacheFactory;
 
 class UniqueLock
 {

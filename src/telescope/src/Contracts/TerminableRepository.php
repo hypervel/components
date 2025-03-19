@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Contracts;
+namespace Hypervel\Telescope\Contracts;
 
 interface TerminableRepository
 {

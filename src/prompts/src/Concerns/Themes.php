@@ -2,39 +2,39 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Prompts\Concerns;
+namespace Hypervel\Prompts\Concerns;
 
+use Hypervel\Prompts\Clear;
+use Hypervel\Prompts\ConfirmPrompt;
+use Hypervel\Prompts\MultiSearchPrompt;
+use Hypervel\Prompts\MultiSelectPrompt;
+use Hypervel\Prompts\Note;
+use Hypervel\Prompts\PasswordPrompt;
+use Hypervel\Prompts\PausePrompt;
+use Hypervel\Prompts\Progress;
+use Hypervel\Prompts\SearchPrompt;
+use Hypervel\Prompts\SelectPrompt;
+use Hypervel\Prompts\Spinner;
+use Hypervel\Prompts\SuggestPrompt;
+use Hypervel\Prompts\Table;
+use Hypervel\Prompts\TextareaPrompt;
+use Hypervel\Prompts\TextPrompt;
+use Hypervel\Prompts\Themes\Default\ClearRenderer;
+use Hypervel\Prompts\Themes\Default\ConfirmPromptRenderer;
+use Hypervel\Prompts\Themes\Default\MultiSearchPromptRenderer;
+use Hypervel\Prompts\Themes\Default\MultiSelectPromptRenderer;
+use Hypervel\Prompts\Themes\Default\NoteRenderer;
+use Hypervel\Prompts\Themes\Default\PasswordPromptRenderer;
+use Hypervel\Prompts\Themes\Default\PausePromptRenderer;
+use Hypervel\Prompts\Themes\Default\ProgressRenderer;
+use Hypervel\Prompts\Themes\Default\SearchPromptRenderer;
+use Hypervel\Prompts\Themes\Default\SelectPromptRenderer;
+use Hypervel\Prompts\Themes\Default\SpinnerRenderer;
+use Hypervel\Prompts\Themes\Default\SuggestPromptRenderer;
+use Hypervel\Prompts\Themes\Default\TableRenderer;
+use Hypervel\Prompts\Themes\Default\TextareaPromptRenderer;
+use Hypervel\Prompts\Themes\Default\TextPromptRenderer;
 use InvalidArgumentException;
-use LaravelHyperf\Prompts\Clear;
-use LaravelHyperf\Prompts\ConfirmPrompt;
-use LaravelHyperf\Prompts\MultiSearchPrompt;
-use LaravelHyperf\Prompts\MultiSelectPrompt;
-use LaravelHyperf\Prompts\Note;
-use LaravelHyperf\Prompts\PasswordPrompt;
-use LaravelHyperf\Prompts\PausePrompt;
-use LaravelHyperf\Prompts\Progress;
-use LaravelHyperf\Prompts\SearchPrompt;
-use LaravelHyperf\Prompts\SelectPrompt;
-use LaravelHyperf\Prompts\Spinner;
-use LaravelHyperf\Prompts\SuggestPrompt;
-use LaravelHyperf\Prompts\Table;
-use LaravelHyperf\Prompts\TextareaPrompt;
-use LaravelHyperf\Prompts\TextPrompt;
-use LaravelHyperf\Prompts\Themes\Default\ClearRenderer;
-use LaravelHyperf\Prompts\Themes\Default\ConfirmPromptRenderer;
-use LaravelHyperf\Prompts\Themes\Default\MultiSearchPromptRenderer;
-use LaravelHyperf\Prompts\Themes\Default\MultiSelectPromptRenderer;
-use LaravelHyperf\Prompts\Themes\Default\NoteRenderer;
-use LaravelHyperf\Prompts\Themes\Default\PasswordPromptRenderer;
-use LaravelHyperf\Prompts\Themes\Default\PausePromptRenderer;
-use LaravelHyperf\Prompts\Themes\Default\ProgressRenderer;
-use LaravelHyperf\Prompts\Themes\Default\SearchPromptRenderer;
-use LaravelHyperf\Prompts\Themes\Default\SelectPromptRenderer;
-use LaravelHyperf\Prompts\Themes\Default\SpinnerRenderer;
-use LaravelHyperf\Prompts\Themes\Default\SuggestPromptRenderer;
-use LaravelHyperf\Prompts\Themes\Default\TableRenderer;
-use LaravelHyperf\Prompts\Themes\Default\TextareaPromptRenderer;
-use LaravelHyperf\Prompts\Themes\Default\TextPromptRenderer;
 
 trait Themes
 {
@@ -46,7 +46,7 @@ trait Themes
     /**
      * The available themes.
      *
-     * @var array<string, array<class-string<\LaravelHyperf\Prompts\Prompt>, class-string<callable&object>>>
+     * @var array<string, array<class-string<\Hypervel\Prompts\Prompt>, class-string<callable&object>>>
      */
     protected static array $themes = [
         'default' => [
@@ -89,7 +89,7 @@ trait Themes
     /**
      * Add a new theme.
      *
-     * @param array<class-string<\LaravelHyperf\Prompts\Prompt>, class-string<callable&object>> $renderers
+     * @param array<class-string<\Hypervel\Prompts\Prompt>, class-string<callable&object>> $renderers
      */
     public static function addTheme(string $name, array $renderers): void
     {

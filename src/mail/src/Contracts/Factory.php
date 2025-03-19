@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Mail\Contracts;
+namespace Hypervel\Mail\Contracts;
 
 interface Factory
 {

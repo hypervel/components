@@ -2,39 +2,39 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation;
+namespace Hypervel\Foundation;
 
 use Closure;
 use Hyperf\Collection\Arr;
 use Hyperf\Di\Definition\DefinitionSourceInterface;
 use Hyperf\Macroable\Macroable;
-use LaravelHyperf\Container\Container;
-use LaravelHyperf\Container\DefinitionSourceFactory;
-use LaravelHyperf\Foundation\Contracts\Application as ApplicationContract;
-use LaravelHyperf\Foundation\Events\LocaleUpdated;
-use LaravelHyperf\HttpMessage\Exceptions\HttpException;
-use LaravelHyperf\HttpMessage\Exceptions\NotFoundHttpException;
-use LaravelHyperf\Support\Environment;
-use LaravelHyperf\Support\ServiceProvider;
+use Hypervel\Container\Container;
+use Hypervel\Container\DefinitionSourceFactory;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Foundation\Events\LocaleUpdated;
+use Hypervel\HttpMessage\Exceptions\HttpException;
+use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
+use Hypervel\Support\Environment;
+use Hypervel\Support\ServiceProvider;
 use Psr\Container\ContainerInterface;
 use RuntimeException;
 
 use function Hyperf\Collection\data_get;
-use function LaravelHyperf\Filesystem\join_paths;
+use function Hypervel\Filesystem\join_paths;
 
 class Application extends Container implements ApplicationContract
 {
     use Macroable;
 
     /**
-     * The Laravel Hyperf framework version.
+     * The Hypervel framework version.
      *
      * @var string
      */
     public const VERSION = '0.1.18';
 
     /**
-     * The base path for the Laravel Hyperf installation.
+     * The base path for the Hypervel installation.
      */
     protected string $basePath;
 
@@ -173,7 +173,7 @@ class Application extends Container implements ApplicationContract
     }
 
     /**
-     * Get the base path of the Laravel Hyperf installation.
+     * Get the base path of the Hypervel installation.
      */
     public function basePath(string $path = ''): string
     {
@@ -510,35 +510,35 @@ class Application extends Container implements ApplicationContract
                 'app',
                 \Hyperf\Di\Container::class,
                 \Hyperf\Contract\ContainerInterface::class,
-                \LaravelHyperf\Container\Contracts\Container::class,
-                \LaravelHyperf\Container\Container::class,
-                \LaravelHyperf\Foundation\Contracts\Application::class,
-                \LaravelHyperf\Foundation\Application::class,
+                \Hypervel\Container\Contracts\Container::class,
+                \Hypervel\Container\Container::class,
+                \Hypervel\Foundation\Contracts\Application::class,
+                \Hypervel\Foundation\Application::class,
             ],
-            \LaravelHyperf\Foundation\Console\Contracts\Kernel::class => ['artisan'],
+            \Hypervel\Foundation\Console\Contracts\Kernel::class => ['artisan'],
             \Hyperf\Contract\ConfigInterface::class => ['config'],
             \Psr\EventDispatcher\EventDispatcherInterface::class => [
                 'events',
-                \LaravelHyperf\Event\Contracts\EventDispatcherContract::class,
+                \Hypervel\Event\Contracts\EventDispatcherContract::class,
             ],
             \Hyperf\HttpServer\Router\DispatcherFactory::class => ['router'],
             \Psr\Log\LoggerInterface::class => ['log'],
-            \LaravelHyperf\Encryption\Contracts\Encrypter::class => [
+            \Hypervel\Encryption\Contracts\Encrypter::class => [
                 'encrypter',
-                \LaravelHyperf\Encryption\Encrypter::class,
+                \Hypervel\Encryption\Encrypter::class,
             ],
-            \LaravelHyperf\Cache\Contracts\Factory::class => [
+            \Hypervel\Cache\Contracts\Factory::class => [
                 'cache',
-                \LaravelHyperf\Cache\CacheManager::class,
+                \Hypervel\Cache\CacheManager::class,
             ],
-            \LaravelHyperf\Cache\Contracts\Store::class => [
+            \Hypervel\Cache\Contracts\Store::class => [
                 'cache.store',
-                \LaravelHyperf\Cache\Repository::class,
+                \Hypervel\Cache\Repository::class,
             ],
-            \LaravelHyperf\Filesystem\Filesystem::class => ['files'],
-            \LaravelHyperf\Filesystem\Contracts\Factory::class => [
+            \Hypervel\Filesystem\Filesystem::class => ['files'],
+            \Hypervel\Filesystem\Contracts\Factory::class => [
                 'filesystem',
-                \LaravelHyperf\Filesystem\FilesystemManager::class,
+                \Hypervel\Filesystem\FilesystemManager::class,
             ],
             \Hyperf\Contract\TranslatorInterface::class => ['translator'],
             \Hyperf\Validation\Contract\ValidatorFactoryInterface::class => ['validator'],
@@ -552,52 +552,52 @@ class Application extends Container implements ApplicationContract
                 \Hyperf\HttpServer\Response::class,
             ],
             \Hyperf\DbConnection\Db::class => ['db'],
-            \LaravelHyperf\Database\Schema\SchemaProxy::class => ['db.schema'],
-            \LaravelHyperf\Auth\Contracts\FactoryContract::class => [
+            \Hypervel\Database\Schema\SchemaProxy::class => ['db.schema'],
+            \Hypervel\Auth\Contracts\FactoryContract::class => [
                 'auth',
-                \LaravelHyperf\Auth\AuthManager::class,
+                \Hypervel\Auth\AuthManager::class,
             ],
-            \LaravelHyperf\Auth\Contracts\Guard::class => [
+            \Hypervel\Auth\Contracts\Guard::class => [
                 'auth.driver',
             ],
-            \LaravelHyperf\Hashing\Contracts\Hasher::class => ['hash'],
-            \LaravelHyperf\Cookie\CookieManager::class => ['cookie'],
-            \LaravelHyperf\JWT\Contracts\ManagerContract::class => [
+            \Hypervel\Hashing\Contracts\Hasher::class => ['hash'],
+            \Hypervel\Cookie\CookieManager::class => ['cookie'],
+            \Hypervel\JWT\Contracts\ManagerContract::class => [
                 'jwt',
-                \LaravelHyperf\JWT\JWTManager::class,
+                \Hypervel\JWT\JWTManager::class,
             ],
             \Hyperf\Redis\Redis::class => ['redis'],
-            \LaravelHyperf\Router\Router::class => ['router'],
-            \LaravelHyperf\Router\Contracts\UrlGenerator::class => [
+            \Hypervel\Router\Router::class => ['router'],
+            \Hypervel\Router\Contracts\UrlGenerator::class => [
                 'url',
-                \LaravelHyperf\Router\UrlGenerator::class,
+                \Hypervel\Router\UrlGenerator::class,
             ],
             \Hyperf\ViewEngine\Contract\FactoryInterface::class => ['view'],
             \Hyperf\ViewEngine\Compiler\CompilerInterface::class => ['blade.compiler'],
-            \LaravelHyperf\Session\Contracts\Factory::class => ['session'],
-            \LaravelHyperf\Session\Contracts\Session::class => ['session.store'],
-            \LaravelHyperf\Foundation\Console\Contracts\Schedule::class => ['schedule'],
-            \LaravelHyperf\Mail\Contracts\Factory::class => [
+            \Hypervel\Session\Contracts\Factory::class => ['session'],
+            \Hypervel\Session\Contracts\Session::class => ['session.store'],
+            \Hypervel\Foundation\Console\Contracts\Schedule::class => ['schedule'],
+            \Hypervel\Mail\Contracts\Factory::class => [
                 'mail.manager',
-                \LaravelHyperf\Mail\MailManager::class,
+                \Hypervel\Mail\MailManager::class,
             ],
-            \LaravelHyperf\Mail\Contracts\Mailer::class => ['mailer'],
-            \LaravelHyperf\Notifications\Contracts\Dispatcher::class => [
-                \LaravelHyperf\Notifications\Contracts\Factory::class,
+            \Hypervel\Mail\Contracts\Mailer::class => ['mailer'],
+            \Hypervel\Notifications\Contracts\Dispatcher::class => [
+                \Hypervel\Notifications\Contracts\Factory::class,
             ],
-            \LaravelHyperf\Bus\Contracts\Dispatcher::class => [
-                \LaravelHyperf\Bus\Contracts\QueueingDispatcher::class,
-                \LaravelHyperf\Bus\Dispatcher::class,
+            \Hypervel\Bus\Contracts\Dispatcher::class => [
+                \Hypervel\Bus\Contracts\QueueingDispatcher::class,
+                \Hypervel\Bus\Dispatcher::class,
             ],
-            \LaravelHyperf\Queue\Contracts\Factory::class => [
+            \Hypervel\Queue\Contracts\Factory::class => [
                 'queue',
-                \LaravelHyperf\Queue\Contracts\Monitor::class,
-                \LaravelHyperf\Queue\QueueManager::class,
+                \Hypervel\Queue\Contracts\Monitor::class,
+                \Hypervel\Queue\QueueManager::class,
             ],
-            \LaravelHyperf\Queue\Contracts\Queue::class => ['queue.connection'],
-            \LaravelHyperf\Queue\Worker::class => ['queue.worker'],
-            \LaravelHyperf\Queue\Listener::class => ['queue.listener'],
-            \LaravelHyperf\Queue\Failed\FailedJobProviderInterface::class => ['queue.failer'],
+            \Hypervel\Queue\Contracts\Queue::class => ['queue.connection'],
+            \Hypervel\Queue\Worker::class => ['queue.worker'],
+            \Hypervel\Queue\Listener::class => ['queue.listener'],
+            \Hypervel\Queue\Failed\FailedJobProviderInterface::class => ['queue.failer'],
         ] as $key => $aliases) {
             foreach ($aliases as $alias) {
                 $this->alias($key, $alias);

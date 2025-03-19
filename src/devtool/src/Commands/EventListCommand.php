@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Devtool\Commands;
+namespace Hypervel\Devtool\Commands;
 
 use Closure;
 use Hyperf\Command\Command as HyperfCommand;
-use LaravelHyperf\Event\Contracts\EventDispatcherContract;
-use LaravelHyperf\Event\ListenerData;
+use Hypervel\Event\Contracts\EventDispatcherContract;
+use Hypervel\Event\ListenerData;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Helper\Table;

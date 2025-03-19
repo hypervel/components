@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Broadcasting;
+namespace Hypervel\Broadcasting;
 
 use Hyperf\Context\ApplicationContext;
-use LaravelHyperf\Cache\Contracts\Factory as Cache;
-use LaravelHyperf\Queue\Contracts\ShouldBeUnique;
+use Hypervel\Cache\Contracts\Factory as Cache;
+use Hypervel\Queue\Contracts\ShouldBeUnique;
 
 class UniqueBroadcastEvent extends BroadcastEvent implements ShouldBeUnique
 {

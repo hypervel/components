@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Queue;
+namespace Hypervel\Tests\Queue;
 
 use Aws\Sqs\SqsClient;
-use LaravelHyperf\Queue\Jobs\SqsJob;
-use LaravelHyperf\Queue\SqsQueue;
+use Hypervel\Queue\Jobs\SqsJob;
+use Hypervel\Queue\SqsQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;

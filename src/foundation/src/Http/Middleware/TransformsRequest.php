@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Http\Middleware;
+namespace Hypervel\Foundation\Http\Middleware;
 
 use Hyperf\Context\Context;
 use Psr\Http\Message\ResponseInterface;

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Prompts;
+namespace Hypervel\Tests\Prompts;
 
-use LaravelHyperf\Prompts\Concerns\Truncation;
+use Hypervel\Prompts\Concerns\Truncation;
 use PHPUnit\Framework\TestCase;
 
 /**

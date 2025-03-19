@@ -1,2 +1,2 @@
-Broadcasting for Laravel Hyperf
+Broadcasting for Hypervel
 ===

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Http\Contracts;
+namespace Hypervel\Foundation\Http\Contracts;
 
+use Hypervel\Dispatcher\ParsedMiddleware;
 use InvalidArgumentException;
-use LaravelHyperf\Dispatcher\ParsedMiddleware;
 use Psr\Http\Message\ServerRequestInterface;
 
 interface MiddlewareContract

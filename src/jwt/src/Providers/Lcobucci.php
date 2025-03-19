@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\JWT\Providers;
+namespace Hypervel\JWT\Providers;
 
 use DateTimeImmutable;
 use DateTimeInterface;
 use Exception;
 use Hyperf\Collection\Collection;
-use LaravelHyperf\JWT\Contracts\ProviderContract;
-use LaravelHyperf\JWT\Exceptions\JWTException;
-use LaravelHyperf\JWT\Exceptions\TokenInvalidException;
+use Hypervel\JWT\Contracts\ProviderContract;
+use Hypervel\JWT\Exceptions\JWTException;
+use Hypervel\JWT\Exceptions\TokenInvalidException;
 use Lcobucci\JWT\Builder;
 use Lcobucci\JWT\Configuration;
 use Lcobucci\JWT\Signer;
@@ -62,7 +62,7 @@ class Lcobucci extends Provider implements ProviderContract
     /**
      * Create a JSON Web Token.
      *
-     * @throws \LaravelHyperf\JWT\Exceptions\JWTException
+     * @throws \Hypervel\JWT\Exceptions\JWTException
      */
     public function encode(array $payload): string
     {
@@ -80,7 +80,7 @@ class Lcobucci extends Provider implements ProviderContract
     /**
      * Decode a JSON Web Token.
      *
-     * @throws \LaravelHyperf\JWT\Exceptions\JWTException
+     * @throws \Hypervel\JWT\Exceptions\JWTException
      */
     public function decode(string $token): array
     {
@@ -169,7 +169,7 @@ class Lcobucci extends Provider implements ProviderContract
     /**
      * Get the signer instance.
      *
-     * @throws \LaravelHyperf\JWT\Exceptions\JWTException
+     * @throws \Hypervel\JWT\Exceptions\JWTException
      */
     protected function getSigner(): Signer
     {
@@ -194,7 +194,7 @@ class Lcobucci extends Provider implements ProviderContract
     }
 
     /**
-     * @throws \LaravelHyperf\JWT\Exceptions\JWTException
+     * @throws \Hypervel\JWT\Exceptions\JWTException
      */
     protected function getSigningKey(): mixed
     {
@@ -214,7 +214,7 @@ class Lcobucci extends Provider implements ProviderContract
     }
 
     /**
-     * @throws \LaravelHyperf\JWT\Exceptions\JWTException
+     * @throws \Hypervel\JWT\Exceptions\JWTException
      */
     protected function getVerificationKey(): mixed
     {

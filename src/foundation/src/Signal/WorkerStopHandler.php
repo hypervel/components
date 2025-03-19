@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Signal;
+namespace Hypervel\Foundation\Signal;
 
 use Hyperf\Engine\Coroutine;
 use Hyperf\Signal\Handler\WorkerStopHandler as HyperfWorkerStopHandler;

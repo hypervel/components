@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Http\Traits;
+namespace Hypervel\Foundation\Http\Traits;
 
 use Hyperf\HttpServer\MiddlewareManager;
 use Hyperf\HttpServer\Router\Dispatched;
+use Hypervel\Dispatcher\ParsedMiddleware;
 use InvalidArgumentException;
-use LaravelHyperf\Dispatcher\ParsedMiddleware;
 use Psr\Http\Message\ServerRequestInterface;
 
 trait HasMiddleware

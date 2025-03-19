@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications;
+namespace Hypervel\Notifications;
 
 use Closure;
 use Hyperf\Context\Context;
 use Hyperf\Stringable\Str;
+use Hypervel\Bus\Contracts\Dispatcher as BusDispatcherContract;
+use Hypervel\Notifications\Channels\BroadcastChannel;
+use Hypervel\Notifications\Channels\DatabaseChannel;
+use Hypervel\Notifications\Channels\MailChannel;
+use Hypervel\Notifications\Channels\SlackNotificationRouterChannel;
+use Hypervel\Notifications\Contracts\Dispatcher as DispatcherContract;
+use Hypervel\Notifications\Contracts\Factory as FactoryContract;
+use Hypervel\ObjectPool\Traits\HasPoolProxy;
+use Hypervel\Support\Manager;
 use InvalidArgumentException;
-use LaravelHyperf\Bus\Contracts\Dispatcher as BusDispatcherContract;
-use LaravelHyperf\Notifications\Channels\BroadcastChannel;
-use LaravelHyperf\Notifications\Channels\DatabaseChannel;
-use LaravelHyperf\Notifications\Channels\MailChannel;
-use LaravelHyperf\Notifications\Channels\SlackNotificationRouterChannel;
-use LaravelHyperf\Notifications\Contracts\Dispatcher as DispatcherContract;
-use LaravelHyperf\Notifications\Contracts\Factory as FactoryContract;
-use LaravelHyperf\ObjectPool\Traits\HasPoolProxy;
-use LaravelHyperf\Support\Manager;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 class ChannelManager extends Manager implements DispatcherContract, FactoryContract

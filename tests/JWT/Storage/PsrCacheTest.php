@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\JWT\Storage;
+namespace Hypervel\Tests\JWT\Storage;
 
-use LaravelHyperf\JWT\Storage\PsrCache;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\JWT\Storage\PsrCache;
+use Hypervel\Tests\TestCase;
 use Mockery;
 use Mockery\MockInterface;
 use Psr\SimpleCache\CacheInterface;

@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Auth;
+namespace Hypervel\Auth;
 
 use Hyperf\Database\ConnectionResolverInterface;
+use Hypervel\Auth\Contracts\UserProvider;
+use Hypervel\Auth\Providers\DatabaseUserProvider;
+use Hypervel\Auth\Providers\EloquentUserProvider;
+use Hypervel\Hashing\Contracts\Hasher as HashContract;
 use InvalidArgumentException;
-use LaravelHyperf\Auth\Contracts\UserProvider;
-use LaravelHyperf\Auth\Providers\DatabaseUserProvider;
-use LaravelHyperf\Auth\Providers\EloquentUserProvider;
-use LaravelHyperf\Hashing\Contracts\Hasher as HashContract;
 
 trait CreatesUserProviders
 {

@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Broadcasting;
+namespace Hypervel\Tests\Broadcasting;
 
 use Hyperf\HttpServer\Request;
 use Hyperf\Redis\RedisFactory;
-use LaravelHyperf\Auth\AuthManager;
-use LaravelHyperf\Broadcasting\Broadcasters\RedisBroadcaster;
-use LaravelHyperf\HttpMessage\Exceptions\AccessDeniedHttpException;
-use LaravelHyperf\Support\Facades\Facade;
-use LaravelHyperf\Tests\Foundation\Concerns\HasMockedApplication;
+use Hypervel\Auth\AuthManager;
+use Hypervel\Broadcasting\Broadcasters\RedisBroadcaster;
+use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
+use Hypervel\Support\Facades\Facade;
+use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;

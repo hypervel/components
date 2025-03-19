@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\JWT\Exceptions;
+namespace Hypervel\JWT\Exceptions;
 
 class TokenExpiredException extends JWTException
 {

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Queue;
+namespace Hypervel\Tests\Queue;
 
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Queue\BeanstalkdQueue;
-use LaravelHyperf\Queue\Jobs\BeanstalkdJob;
+use Hypervel\Queue\BeanstalkdQueue;
+use Hypervel\Queue\Jobs\BeanstalkdJob;
 use Mockery as m;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;

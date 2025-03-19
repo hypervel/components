@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests;
+namespace Hypervel\Tests;
 
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;

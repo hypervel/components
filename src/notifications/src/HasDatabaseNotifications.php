@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications;
+namespace Hypervel\Notifications;
 
 use Hyperf\Database\Model\Relations\MorphMany;
 use Hyperf\Database\Query\Builder;

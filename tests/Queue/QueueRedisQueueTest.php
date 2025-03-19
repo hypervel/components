@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Queue;
+namespace Hypervel\Tests\Queue;
 
 use Hyperf\Di\Container;
 use Hyperf\Redis\RedisFactory;
 use Hyperf\Redis\RedisProxy;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Queue\LuaScripts;
-use LaravelHyperf\Queue\Queue;
-use LaravelHyperf\Queue\RedisQueue;
-use LaravelHyperf\Support\Carbon;
+use Hypervel\Queue\LuaScripts;
+use Hypervel\Queue\Queue;
+use Hypervel\Queue\RedisQueue;
+use Hypervel\Support\Carbon;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;

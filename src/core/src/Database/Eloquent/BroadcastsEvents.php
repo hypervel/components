@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Database\Eloquent;
+namespace Hypervel\Database\Eloquent;
 
 use Hyperf\Collection\Arr;
 use Hyperf\Context\ApplicationContext;
-use LaravelHyperf\Broadcasting\Channel;
-use LaravelHyperf\Broadcasting\Contracts\Factory as BroadcastFactory;
-use LaravelHyperf\Broadcasting\Contracts\HasBroadcastChannel;
-use LaravelHyperf\Broadcasting\PendingBroadcast;
+use Hypervel\Broadcasting\Channel;
+use Hypervel\Broadcasting\Contracts\Factory as BroadcastFactory;
+use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
+use Hypervel\Broadcasting\PendingBroadcast;
 
 use function Hyperf\Tappable\tap;
 

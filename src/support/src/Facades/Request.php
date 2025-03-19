@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Facades;
+namespace Hypervel\Support\Facades;
 
-use LaravelHyperf\Http\Contracts\RequestContract;
+use Hypervel\Http\Contracts\RequestContract;
 
 /**
  * @method static array allFiles()
  * @method static bool anyFilled(array|string $keys)
  * @method static bool boolean(string|null $key = null, bool $default = false)
- * @method static \LaravelHyperf\Support\Collection collect(array|string|null $key = null)
+ * @method static \Hypervel\Support\Collection collect(array|string|null $key = null)
  * @method static \Carbon\Carbon|null date(string $key, string|null $format = null, string|null $tz = null)
  * @method static null|object enum(string $key, string $enumClass)
  * @method static array except(array|mixed $keys)
@@ -30,9 +30,9 @@ use LaravelHyperf\Http\Contracts\RequestContract;
  * @method static bool isJson()
  * @method static bool isNotFilled(array|string $key)
  * @method static array keys()
- * @method static \LaravelHyperf\Http\Request merge(array $input)
- * @method static \LaravelHyperf\Http\Request replace(array $input)
- * @method static \LaravelHyperf\Http\Request mergeIfMissing(array $input)
+ * @method static \Hypervel\Http\Request merge(array $input)
+ * @method static \Hypervel\Http\Request replace(array $input)
+ * @method static \Hypervel\Http\Request mergeIfMissing(array $input)
  * @method static bool missing(array|string $key)
  * @method static array only(array|mixed $keys)
  * @method static string getSchemeAndHttpHost()
@@ -44,8 +44,8 @@ use LaravelHyperf\Http\Contracts\RequestContract;
  * @method static bool acceptsAnyContentType()
  * @method static bool acceptsJson()
  * @method static bool acceptsHtml()
- * @method static \LaravelHyperf\Http\Request|mixed whenFilled(string $key, callable $callback, callable|null $default = null)
- * @method static \LaravelHyperf\Http\Request|mixed whenHas(string $key, callable $callback, callable|null $default = null)
+ * @method static \Hypervel\Http\Request|mixed whenFilled(string $key, callable $callback, callable|null $default = null)
+ * @method static \Hypervel\Http\Request|mixed whenHas(string $key, callable $callback, callable|null $default = null)
  * @method static string|null getClientIp()
  * @method static string|null ip()
  * @method static string root()
@@ -63,10 +63,10 @@ use LaravelHyperf\Http\Contracts\RequestContract;
  * @method static bool prefetch()
  * @method static bool isRange()
  * @method static bool hasSession()
- * @method static \LaravelHyperf\Session\Contracts\Session session()
+ * @method static \Hypervel\Session\Contracts\Session session()
  * @method static array validate(array $data, array $rules, array $messages = [], array $customAttributes = [])
  * @method static \Closure getUserResolver()
- * @method static \LaravelHyperf\Http\Request setUserResolver(\Closure $callback)
+ * @method static \Hypervel\Http\Request setUserResolver(\Closure $callback)
  * @method static mixed user(string|null $guard = null)
  * @method static bool hasValidSignature(bool $absolute = true)
  * @method static bool hasValidRelativeSignature()
@@ -131,7 +131,7 @@ use LaravelHyperf\Http\Contracts\RequestContract;
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static bool hasMacro(string $name)
  *
- * @see \LaravelHyperf\Http\Request
+ * @see \Hypervel\Http\Request
  * @see \Hyperf\HttpServer\Request
  */
 class Request extends Facade

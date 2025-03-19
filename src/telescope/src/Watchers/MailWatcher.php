@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Watchers;
+namespace Hypervel\Telescope\Watchers;
 
 use Hyperf\Collection\Collection;
-use LaravelHyperf\Mail\Events\MessageSent;
-use LaravelHyperf\Telescope\IncomingEntry;
-use LaravelHyperf\Telescope\Telescope;
+use Hypervel\Mail\Events\MessageSent;
+use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\Telescope;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Mime\Address;

@@ -1,22 +1,22 @@
 {
-    "name": "laravel-hyperf/container",
-    "description": "The Container package for Laravel Hyperf.",
+    "name": "hypervel/container",
+    "description": "The Container package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
         "hyperf",
         "container",
         "swoole",
-        "laravel-hyperf"
+        "hypervel"
     ],
     "support": {
-        "issues": "https://github.com/laravel-hyperf/components/issues",
-        "source": "https://github.com/laravel-hyperf/components"
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
     },
     "authors": [
         {
             "name": "Albert Chen",
-            "email": "albert@laravel-hyperf.com"
+            "email": "albert@hypervel.org"
         }
     ],
     "require": {
@@ -26,7 +26,7 @@
     },
     "autoload": {
         "psr-4": {
-            "LaravelHyperf\\Container\\": "src/"
+            "Hypervel\\Container\\": "src/"
         }
     },
     "extra": {

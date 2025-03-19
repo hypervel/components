@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Auth;
+namespace Hypervel\Tests\Auth;
 
 use Hyperf\Database\Model\Builder;
 use Hyperf\Database\Model\Model;
-use LaravelHyperf\Auth\Authenticatable as AuthenticatableUser;
-use LaravelHyperf\Auth\Contracts\Authenticatable;
-use LaravelHyperf\Auth\Providers\EloquentUserProvider;
-use LaravelHyperf\Hashing\Contracts\Hasher;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Auth\Authenticatable as AuthenticatableUser;
+use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Auth\Providers\EloquentUserProvider;
+use Hypervel\Hashing\Contracts\Hasher;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 
 /**

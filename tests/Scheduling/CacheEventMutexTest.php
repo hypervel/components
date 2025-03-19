@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Scheduling;
+namespace Hypervel\Tests\Scheduling;
 
-use LaravelHyperf\Cache\ArrayStore;
-use LaravelHyperf\Cache\Contracts\Factory as CacheFactory;
-use LaravelHyperf\Cache\Contracts\Repository;
-use LaravelHyperf\Cache\Contracts\Store;
-use LaravelHyperf\Scheduling\CacheEventMutex;
-use LaravelHyperf\Scheduling\Event;
+use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Cache\Contracts\Repository;
+use Hypervel\Cache\Contracts\Store;
+use Hypervel\Scheduling\CacheEventMutex;
+use Hypervel\Scheduling\Event;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 

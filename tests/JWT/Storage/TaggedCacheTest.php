@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\JWT\Storage;
+namespace Hypervel\Tests\JWT\Storage;
 
-use LaravelHyperf\Cache\Contracts\Repository as CacheRepository;
-use LaravelHyperf\JWT\Storage\TaggedCache;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Cache\Contracts\Repository as CacheRepository;
+use Hypervel\JWT\Storage\TaggedCache;
+use Hypervel\Tests\TestCase;
 use Mockery;
 use Mockery\MockInterface;
 

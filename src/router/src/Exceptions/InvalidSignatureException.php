@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Router\Exceptions;
+namespace Hypervel\Router\Exceptions;
 
-use LaravelHyperf\HttpMessage\Exceptions\HttpException;
+use Hypervel\HttpMessage\Exceptions\HttpException;
 
 class InvalidSignatureException extends HttpException
 {

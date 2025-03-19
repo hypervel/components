@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Cache;
+namespace Hypervel\Tests\Cache;
 
 use Carbon\Carbon;
 use Exception;
 use Hyperf\Support\Filesystem\FileNotFoundException;
 use Hyperf\Support\Filesystem\Filesystem;
-use LaravelHyperf\Cache\FileStore;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Cache\FileStore;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 
 /**

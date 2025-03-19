@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Failed;
+namespace Hypervel\Queue\Failed;
 
 use Closure;
 use DateTimeInterface;
 use Hyperf\Collection\Collection;
-use LaravelHyperf\Support\Carbon;
+use Hypervel\Support\Carbon;
 use Throwable;
 
 class FileFailedJobProvider implements CountableFailedJobProvider, FailedJobProviderInterface, PrunableFailedJobProvider

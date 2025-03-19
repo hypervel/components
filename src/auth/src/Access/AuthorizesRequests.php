@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Auth\Access;
+namespace Hypervel\Auth\Access;
 
 use Hyperf\Context\ApplicationContext;
-use LaravelHyperf\Auth\Contracts\Authenticatable;
-use LaravelHyperf\Auth\Contracts\Gate;
+use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Auth\Contracts\Gate;
 
 trait AuthorizesRequests
 {

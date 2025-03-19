@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications;
+namespace Hypervel\Notifications;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Notifications\Contracts\Dispatcher;
+use Hypervel\Notifications\Contracts\Dispatcher;
 
 trait RoutesNotifications
 {

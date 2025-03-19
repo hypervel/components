@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Console;
+namespace Hypervel\Foundation\Console;
 
-use LaravelHyperf\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
 use Psr\Container\ContainerInterface;
 use Throwable;
 

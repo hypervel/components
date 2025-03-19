@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Scheduling;
+namespace Hypervel\Scheduling;
 
 use Closure;
 use DateTimeZone;
+use Hypervel\Support\Carbon;
 use InvalidArgumentException;
-use LaravelHyperf\Support\Carbon;
 
 trait ManagesFrequencies
 {

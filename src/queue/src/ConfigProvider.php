@@ -2,25 +2,25 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue;
+namespace Hypervel\Queue;
 
+use Hypervel\Queue\Console\ClearCommand;
+use Hypervel\Queue\Console\FlushFailedCommand;
+use Hypervel\Queue\Console\ForgetFailedCommand;
+use Hypervel\Queue\Console\ListenCommand;
+use Hypervel\Queue\Console\ListFailedCommand;
+use Hypervel\Queue\Console\MonitorCommand;
+use Hypervel\Queue\Console\PruneBatchesCommand;
+use Hypervel\Queue\Console\PruneFailedJobsCommand;
+use Hypervel\Queue\Console\RestartCommand;
+use Hypervel\Queue\Console\RetryBatchCommand;
+use Hypervel\Queue\Console\RetryCommand;
+use Hypervel\Queue\Console\WorkCommand;
+use Hypervel\Queue\Contracts\Factory as FactoryContract;
+use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Queue\Failed\FailedJobProviderFactory;
+use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Laravel\SerializableClosure\SerializableClosure;
-use LaravelHyperf\Queue\Console\ClearCommand;
-use LaravelHyperf\Queue\Console\FlushFailedCommand;
-use LaravelHyperf\Queue\Console\ForgetFailedCommand;
-use LaravelHyperf\Queue\Console\ListenCommand;
-use LaravelHyperf\Queue\Console\ListFailedCommand;
-use LaravelHyperf\Queue\Console\MonitorCommand;
-use LaravelHyperf\Queue\Console\PruneBatchesCommand;
-use LaravelHyperf\Queue\Console\PruneFailedJobsCommand;
-use LaravelHyperf\Queue\Console\RestartCommand;
-use LaravelHyperf\Queue\Console\RetryBatchCommand;
-use LaravelHyperf\Queue\Console\RetryCommand;
-use LaravelHyperf\Queue\Console\WorkCommand;
-use LaravelHyperf\Queue\Contracts\Factory as FactoryContract;
-use LaravelHyperf\Queue\Contracts\Queue;
-use LaravelHyperf\Queue\Failed\FailedJobProviderFactory;
-use LaravelHyperf\Queue\Failed\FailedJobProviderInterface;
 use Psr\Container\ContainerInterface;
 
 class ConfigProvider

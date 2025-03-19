@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Encryption;
+namespace Hypervel\Tests\Encryption;
 
-use LaravelHyperf\Encryption\Encrypter;
-use LaravelHyperf\Encryption\Exceptions\DecryptException;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Encryption\Encrypter;
+use Hypervel\Encryption\Exceptions\DecryptException;
+use Hypervel\Tests\TestCase;
 use RuntimeException;
 
 /**

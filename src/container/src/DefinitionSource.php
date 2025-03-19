@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Container;
+namespace Hypervel\Container;
 
 use Hyperf\Di\Definition\DefinitionSource as HyperfDefinitionSource;
 

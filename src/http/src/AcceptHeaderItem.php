@@ -11,7 +11,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Http;
+namespace Hypervel\Http;
 
 /**
  * Represents an Accept-* header item.

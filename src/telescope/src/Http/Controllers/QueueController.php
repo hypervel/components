@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Http\Controllers;
+namespace Hypervel\Telescope\Http\Controllers;
 
-use LaravelHyperf\Telescope\Contracts\EntriesRepository;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\Storage\EntryQueryOptions;
-use LaravelHyperf\Telescope\Watchers\JobWatcher;
+use Hypervel\Telescope\Contracts\EntriesRepository;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Storage\EntryQueryOptions;
+use Hypervel\Telescope\Watchers\JobWatcher;
 
 class QueueController extends EntryController
 {

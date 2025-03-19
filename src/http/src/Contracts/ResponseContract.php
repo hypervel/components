@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Http\Contracts;
+namespace Hypervel\Http\Contracts;
 
 use Hyperf\Contract\Arrayable;
 use Hyperf\Contract\Jsonable;

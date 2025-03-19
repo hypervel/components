@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Mail;
+namespace Hypervel\Tests\Mail;
 
 use Aws\Command;
 use Aws\Exception\AwsException;
@@ -13,8 +13,8 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
-use LaravelHyperf\Mail\MailManager;
-use LaravelHyperf\Mail\Transport\SesV2Transport;
+use Hypervel\Mail\MailManager;
+use Hypervel\Mail\Transport\SesV2Transport;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -47,7 +47,7 @@ class MailSesV2TransportTest extends TestCase
 
         $manager = new MailManager($container);
 
-        /** @var \LaravelHyperf\Mail\Transport\SesV2Transport $transport */
+        /** @var \Hypervel\Mail\Transport\SesV2Transport $transport */
         $transport = $manager->createSymfonyTransport(['transport' => 'ses-v2']);
 
         $ses = $transport->ses();
@@ -112,9 +112,9 @@ class MailSesV2TransportTest extends TestCase
                     'transport' => 'ses-v2',
                     'region' => 'eu-west-1',
                     'options' => [
-                        'ConfigurationSetName' => 'Laravel Hyperf',
+                        'ConfigurationSetName' => 'Hypervel',
                         'EmailTags' => [
-                            ['Name' => 'Laravel Hyperf', 'Value' => 'Framework'],
+                            ['Name' => 'Hypervel', 'Value' => 'Framework'],
                         ],
                     ],
                 ],
@@ -128,18 +128,18 @@ class MailSesV2TransportTest extends TestCase
 
         $manager = new MailManager($container);
 
-        /** @var \LaravelHyperf\Mail\Mailer $mailer */
+        /** @var \Hypervel\Mail\Mailer $mailer */
         $mailer = $manager->mailer('ses');
 
-        /** @var \LaravelHyperf\Mail\Transport\SesV2Transport $transport */
+        /** @var \Hypervel\Mail\Transport\SesV2Transport $transport */
         $transport = $mailer->getSymfonyTransport();
 
         $this->assertSame('eu-west-1', $transport->ses()->getRegion());
 
         $this->assertSame([
-            'ConfigurationSetName' => 'Laravel Hyperf',
+            'ConfigurationSetName' => 'Hypervel',
             'EmailTags' => [
-                ['Name' => 'Laravel Hyperf', 'Value' => 'Framework'],
+                ['Name' => 'Hypervel', 'Value' => 'Framework'],
             ],
         ], $transport->getOptions());
     }

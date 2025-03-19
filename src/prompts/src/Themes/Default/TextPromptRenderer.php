@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Prompts\Themes\Default;
+namespace Hypervel\Prompts\Themes\Default;
 
-use LaravelHyperf\Prompts\TextPrompt;
+use Hypervel\Prompts\TextPrompt;
 
 class TextPromptRenderer extends Renderer
 {

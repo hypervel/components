@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Slack\BlockKit\Blocks;
+namespace Hypervel\Notifications\Slack\BlockKit\Blocks;
 
+use Hypervel\Notifications\Contracts\Slack\BlockContract;
+use Hypervel\Notifications\Slack\BlockKit\Composites\PlainTextOnlyTextObject;
 use InvalidArgumentException;
-use LaravelHyperf\Notifications\Contracts\Slack\BlockContract;
-use LaravelHyperf\Notifications\Slack\BlockKit\Composites\PlainTextOnlyTextObject;
 use LogicException;
 
 class ImageBlock implements BlockContract

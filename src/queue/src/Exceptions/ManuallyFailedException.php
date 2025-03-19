@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Exceptions;
+namespace Hypervel\Queue\Exceptions;
 
 use RuntimeException;
 

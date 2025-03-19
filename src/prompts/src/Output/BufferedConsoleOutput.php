@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Prompts\Output;
+namespace Hypervel\Prompts\Output;
 
 use const PHP_EOL;
 

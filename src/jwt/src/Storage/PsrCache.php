@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\JWT\Storage;
+namespace Hypervel\JWT\Storage;
 
-use LaravelHyperf\JWT\Contracts\StorageContract;
+use Hypervel\JWT\Contracts\StorageContract;
 use Psr\SimpleCache\CacheInterface;
 
 class PsrCache implements StorageContract

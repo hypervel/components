@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Encryption;
+namespace Hypervel\Encryption;
 
-use LaravelHyperf\Encryption\Commands\KeyGenerateCommand;
-use LaravelHyperf\Encryption\Contracts\Encrypter;
+use Hypervel\Encryption\Commands\KeyGenerateCommand;
+use Hypervel\Encryption\Contracts\Encrypter;
 
 class ConfigProvider
 {

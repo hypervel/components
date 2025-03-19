@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Console;
+namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Foundation\Console\ConfirmableTrait;
-use LaravelHyperf\Queue\Contracts\ClearableQueue;
-use LaravelHyperf\Queue\Contracts\Factory as FactoryContract;
-use LaravelHyperf\Support\Traits\HasLaravelStyleCommand;
+use Hypervel\Foundation\Console\ConfirmableTrait;
+use Hypervel\Queue\Contracts\ClearableQueue;
+use Hypervel\Queue\Contracts\Factory as FactoryContract;
+use Hypervel\Support\Traits\HasLaravelStyleCommand;
 use ReflectionClass;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;

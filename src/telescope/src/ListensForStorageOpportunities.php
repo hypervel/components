@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope;
+namespace Hypervel\Telescope;
 
 use Closure;
 use Hyperf\Command\Event\AfterExecute as AfterExecuteCommand;
 use Hyperf\Command\Event\BeforeHandle as BeforeHandleCommand;
 use Hyperf\Context\Context;
 use Hyperf\HttpServer\Event\RequestReceived;
-use LaravelHyperf\Http\Contracts\RequestContract;
-use LaravelHyperf\Queue\Events\JobExceptionOccurred;
-use LaravelHyperf\Queue\Events\JobFailed;
-use LaravelHyperf\Queue\Events\JobProcessed;
-use LaravelHyperf\Queue\Events\JobProcessing;
-use LaravelHyperf\Telescope\Contracts\EntriesRepository;
+use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Queue\Events\JobExceptionOccurred;
+use Hypervel\Queue\Events\JobFailed;
+use Hypervel\Queue\Events\JobProcessed;
+use Hypervel\Queue\Events\JobProcessing;
+use Hypervel\Telescope\Contracts\EntriesRepository;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 

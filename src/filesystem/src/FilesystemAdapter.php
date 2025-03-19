@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Filesystem;
+namespace Hypervel\Filesystem;
 
 use BadMethodCallException;
 use Closure;
@@ -13,13 +13,13 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\HttpMessage\Upload\UploadedFile;
 use Hyperf\Macroable\Macroable;
 use Hyperf\Stringable\Str;
+use Hypervel\Filesystem\Contracts\Cloud as CloudFilesystemContract;
+use Hypervel\Filesystem\Contracts\Filesystem as FilesystemContract;
+use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Http\HeaderUtils;
+use Hypervel\Http\StreamOutput;
 use InvalidArgumentException;
-use LaravelHyperf\Filesystem\Contracts\Cloud as CloudFilesystemContract;
-use LaravelHyperf\Filesystem\Contracts\Filesystem as FilesystemContract;
-use LaravelHyperf\Http\Contracts\RequestContract;
-use LaravelHyperf\Http\Contracts\ResponseContract;
-use LaravelHyperf\Http\HeaderUtils;
-use LaravelHyperf\Http\StreamOutput;
 use League\Flysystem\FilesystemAdapter as FlysystemAdapter;
 use League\Flysystem\FilesystemOperator;
 use League\Flysystem\Ftp\FtpAdapter;

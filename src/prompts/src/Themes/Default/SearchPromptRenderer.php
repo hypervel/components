@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Prompts\Themes\Default;
+namespace Hypervel\Prompts\Themes\Default;
 
-use LaravelHyperf\Prompts\SearchPrompt;
-use LaravelHyperf\Prompts\Themes\Contracts\Scrolling;
+use Hypervel\Prompts\SearchPrompt;
+use Hypervel\Prompts\Themes\Contracts\Scrolling;
 
 class SearchPromptRenderer extends Renderer implements Scrolling
 {

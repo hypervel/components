@@ -5,7 +5,7 @@
         }
     },
     "extra": {
-        "laravel-hyperf": {
+        "hypervel": {
             "dont-discover": [
                 "package-four"
             ],

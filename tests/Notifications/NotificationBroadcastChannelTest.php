@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Notifications;
+namespace Hypervel\Tests\Notifications;
 
-use LaravelHyperf\Broadcasting\PrivateChannel;
-use LaravelHyperf\Notifications\Channels\BroadcastChannel;
-use LaravelHyperf\Notifications\Events\BroadcastNotificationCreated;
-use LaravelHyperf\Notifications\Messages\BroadcastMessage;
-use LaravelHyperf\Notifications\Notification;
+use Hypervel\Broadcasting\PrivateChannel;
+use Hypervel\Notifications\Channels\BroadcastChannel;
+use Hypervel\Notifications\Events\BroadcastNotificationCreated;
+use Hypervel\Notifications\Messages\BroadcastMessage;
+use Hypervel\Notifications\Notification;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;

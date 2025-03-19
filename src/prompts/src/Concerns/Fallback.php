@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Prompts\Concerns;
+namespace Hypervel\Prompts\Concerns;
 
 use Closure;
 use RuntimeException;

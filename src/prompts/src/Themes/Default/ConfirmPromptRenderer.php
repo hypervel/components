@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Prompts\Themes\Default;
+namespace Hypervel\Prompts\Themes\Default;
 
-use LaravelHyperf\Prompts\ConfirmPrompt;
+use Hypervel\Prompts\ConfirmPrompt;
 
 class ConfirmPromptRenderer extends Renderer
 {

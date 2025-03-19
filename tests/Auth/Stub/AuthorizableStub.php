@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Auth\Stub;
+namespace Hypervel\Tests\Auth\Stub;
 
 use Hyperf\Database\Model\Model;
-use LaravelHyperf\Auth\Access\Authorizable;
-use LaravelHyperf\Auth\Authenticatable;
-use LaravelHyperf\Auth\Contracts\Authenticatable as AuthenticatableContract;
-use LaravelHyperf\Auth\Contracts\Authorizable as AuthorizableContract;
+use Hypervel\Auth\Access\Authorizable;
+use Hypervel\Auth\Authenticatable;
+use Hypervel\Auth\Contracts\Authenticatable as AuthenticatableContract;
+use Hypervel\Auth\Contracts\Authorizable as AuthorizableContract;
 
 class AuthorizableStub extends Model implements AuthenticatableContract, AuthorizableContract
 {

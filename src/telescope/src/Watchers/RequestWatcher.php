@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Watchers;
+namespace Hypervel\Telescope\Watchers;
 
 use Hyperf\Collection\Arr;
 use Hyperf\Collection\Collection;
@@ -14,10 +14,10 @@ use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\HttpServer\Server as HttpServer;
 use Hyperf\Server\Event;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Http\Contracts\RequestContract;
-use LaravelHyperf\Telescope\Contracts\EntriesRepository;
-use LaravelHyperf\Telescope\IncomingEntry;
-use LaravelHyperf\Telescope\Telescope;
+use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Telescope\Contracts\EntriesRepository;
+use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\Telescope;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;

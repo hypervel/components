@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Database;
+namespace Hypervel\Database;
 
 use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\Database\Events;

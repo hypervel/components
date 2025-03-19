@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Exceptions;
+namespace Hypervel\Foundation\Exceptions;
 
 use Hyperf\Context\RequestContext;
-use LaravelHyperf\Context\ApplicationContext;
-use LaravelHyperf\Foundation\Exceptions\Contracts\ExceptionRenderer;
-use LaravelHyperf\Session\Contracts\Session as SessionContract;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Foundation\Exceptions\Contracts\ExceptionRenderer;
+use Hypervel\Session\Contracts\Session as SessionContract;
 use Throwable;
 use Whoops\Handler\PrettyPageHandler;
 use Whoops\Run;

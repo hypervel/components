@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Database\Eloquent\Concerns;
+namespace Hypervel\Database\Eloquent\Concerns;
 
-use LaravelHyperf\Context\ApplicationContext;
-use LaravelHyperf\Database\Eloquent\ModelListener;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Database\Eloquent\ModelListener;
 use RuntimeException;
 
 trait HasCallbacks

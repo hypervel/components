@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Middleware;
+namespace Hypervel\Queue\Middleware;
 
 use Closure;
 

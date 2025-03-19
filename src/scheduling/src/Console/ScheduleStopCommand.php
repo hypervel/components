@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Scheduling\Console;
+namespace Hypervel\Scheduling\Console;
 
 use Hyperf\Command\Command;
-use LaravelHyperf\Cache\Contracts\Factory as CacheFactory;
-use LaravelHyperf\Support\Facades\Date;
-use LaravelHyperf\Support\Traits\HasLaravelStyleCommand;
+use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Traits\HasLaravelStyleCommand;
 
 class ScheduleStopCommand extends Command
 {
@@ -43,7 +43,7 @@ class ScheduleStopCommand extends Command
     {
         /* @phpstan-ignore-next-line */
         $this->cache->put(
-            'laravel-hyperf:schedule:stop',
+            'hypervel:schedule:stop',
             true,
             Date::now()->addMinutes((int) $this->option('minutes'))
         );

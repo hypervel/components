@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Filesystem;
+namespace Hypervel\Tests\Filesystem;
 
 use Hyperf\Config\Config;
 use Hyperf\Context\ApplicationContext;
@@ -10,10 +10,10 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\ContainerInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
+use Hypervel\Filesystem\Contracts\Filesystem;
+use Hypervel\Filesystem\FilesystemManager;
+use Hypervel\Filesystem\FilesystemPoolProxy;
 use InvalidArgumentException;
-use LaravelHyperf\Filesystem\Contracts\Filesystem;
-use LaravelHyperf\Filesystem\FilesystemManager;
-use LaravelHyperf\Filesystem\FilesystemPoolProxy;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\TestCase;
 

@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Slack\BlockKit\Elements;
+namespace Hypervel\Notifications\Slack\BlockKit\Elements;
 
 use Closure;
 use Hyperf\Stringable\Str;
+use Hypervel\Notifications\Contracts\Slack\ElementContract;
+use Hypervel\Notifications\Slack\BlockKit\Composites\ConfirmObject;
+use Hypervel\Notifications\Slack\BlockKit\Composites\PlainTextOnlyTextObject;
 use InvalidArgumentException;
-use LaravelHyperf\Notifications\Contracts\Slack\ElementContract;
-use LaravelHyperf\Notifications\Slack\BlockKit\Composites\ConfirmObject;
-use LaravelHyperf\Notifications\Slack\BlockKit\Composites\PlainTextOnlyTextObject;
 
 class ButtonElement implements ElementContract
 {

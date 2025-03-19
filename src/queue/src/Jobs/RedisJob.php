@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Jobs;
+namespace Hypervel\Queue\Jobs;
 
-use LaravelHyperf\Queue\RedisQueue;
+use Hypervel\Queue\RedisQueue;
 use Psr\Container\ContainerInterface;
 
 class RedisJob extends Job

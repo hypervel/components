@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Queue;
+namespace Hypervel\Tests\Queue;
 
 use DateInterval;
 use DateTimeInterface;
@@ -10,21 +10,21 @@ use Exception;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
-use LaravelHyperf\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
-use LaravelHyperf\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use LaravelHyperf\Queue\Contracts\Job;
-use LaravelHyperf\Queue\Contracts\Job as QueueJobContract;
-use LaravelHyperf\Queue\Contracts\Queue;
-use LaravelHyperf\Queue\Events\JobExceptionOccurred;
-use LaravelHyperf\Queue\Events\JobPopped;
-use LaravelHyperf\Queue\Events\JobPopping;
-use LaravelHyperf\Queue\Events\JobProcessed;
-use LaravelHyperf\Queue\Events\JobProcessing;
-use LaravelHyperf\Queue\Exceptions\MaxAttemptsExceededException;
-use LaravelHyperf\Queue\QueueManager;
-use LaravelHyperf\Queue\Worker;
-use LaravelHyperf\Queue\WorkerOptions;
-use LaravelHyperf\Support\Carbon;
+use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Queue\Contracts\Job;
+use Hypervel\Queue\Contracts\Job as QueueJobContract;
+use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Queue\Events\JobExceptionOccurred;
+use Hypervel\Queue\Events\JobPopped;
+use Hypervel\Queue\Events\JobPopping;
+use Hypervel\Queue\Events\JobProcessed;
+use Hypervel\Queue\Events\JobProcessing;
+use Hypervel\Queue\Exceptions\MaxAttemptsExceededException;
+use Hypervel\Queue\QueueManager;
+use Hypervel\Queue\Worker;
+use Hypervel\Queue\WorkerOptions;
+use Hypervel\Support\Carbon;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;

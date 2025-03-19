@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Facades;
+namespace Hypervel\Support\Facades;
 
-use LaravelHyperf\Config\Contracts\Repository as ConfigContract;
+use Hypervel\Config\Contracts\Repository as ConfigContract;
 
 /**
  * @method static bool has(string $key)
@@ -24,7 +24,7 @@ use LaravelHyperf\Config\Contracts\Repository as ConfigContract;
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static bool hasMacro(string $name)
  *
- * @see \LaravelHyperf\Config\Repository
+ * @see \Hypervel\Config\Repository
  */
 class Config extends Facade
 {

@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Providers;
+namespace Hypervel\Foundation\Providers;
 
 use Hyperf\Command\Event\FailToHandle;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\HttpServer\MiddlewareManager;
-use LaravelHyperf\Auth\Contracts\FactoryContract as AuthFactoryContract;
-use LaravelHyperf\Foundation\Console\Kernel as ConsoleKernel;
-use LaravelHyperf\Foundation\Contracts\Application as ApplicationContract;
-use LaravelHyperf\Foundation\Http\Contracts\MiddlewareContract;
-use LaravelHyperf\Http\Contracts\RequestContract;
-use LaravelHyperf\Support\ServiceProvider;
+use Hypervel\Auth\Contracts\FactoryContract as AuthFactoryContract;
+use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
+use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Support\ServiceProvider;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;

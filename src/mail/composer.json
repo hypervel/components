@@ -1,28 +1,28 @@
 {
-    "name": "laravel-hyperf/mail",
+    "name": "hypervel/mail",
     "type": "library",
-    "description": "The mail package for Laravel Hyperf.",
+    "description": "The mail package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
         "hyperf",
         "mail",
         "swoole",
-        "laravel-hyperf"
+        "hypervel"
     ],
     "authors": [
         {
             "name": "Albert Chen",
-            "email": "albert@laravel-hyperf.com"
+            "email": "albert@hypervel.org"
         }
     ],
     "support": {
-        "issues": "https://github.com/laravel-hyperf/components/issues",
-        "source": "https://github.com/laravel-hyperf/components"
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
     },
     "autoload": {
         "psr-4": {
-            "LaravelHyperf\\Mail\\": "src/"
+            "Hypervel\\Mail\\": "src/"
         }
     },
     "require": {
@@ -32,9 +32,9 @@
         "hyperf/stringable": "~3.1.0",
         "hyperf/macroable": "~3.1.0",
         "hyperf/di": "~3.1.0",
-        "laravel-hyperf/support": "^0.1",
-        "laravel-hyperf/filesystem": "^0.1",
-        "laravel-hyperf/object-pool": "^0.1",
+        "hypervel/support": "^0.1",
+        "hypervel/filesystem": "^0.1",
+        "hypervel/object-pool": "^0.1",
         "league/commonmark": "^2.2",
         "psr/log": "^1.0|^2.0|^3.0",
         "symfony/mailer": "^6.2",
@@ -45,7 +45,7 @@
     },
     "extra": {
         "hyperf": {
-            "config": "LaravelHyperf\\Mail\\ConfigProvider"
+            "config": "Hypervel\\Mail\\ConfigProvider"
         },
         "branch-alias": {
             "dev-main": "0.1-dev"

@@ -1,28 +1,28 @@
 {
-    "name": "laravel-hyperf/session",
+    "name": "hypervel/session",
     "type": "library",
-    "description": "The session package for Laravel Hyperf.",
+    "description": "The session package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
         "hyperf",
         "session",
         "swoole",
-        "laravel-hyperf"
+        "hypervel"
     ],
     "authors": [
         {
             "name": "Albert Chen",
-            "email": "albert@laravel-hyperf.com"
+            "email": "albert@hypervel.org"
         }
     ],
     "support": {
-        "issues": "https://github.com/laravel-hyperf/components/issues",
-        "source": "https://github.com/laravel-hyperf/components"
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
     },
     "autoload": {
         "psr-4": {
-            "LaravelHyperf\\Session\\": "src/"
+            "Hypervel\\Session\\": "src/"
         },
         "files": [
             "src/Functions.php"
@@ -38,16 +38,16 @@
         "hyperf/macroable": "~3.1.0",
         "hyperf/tappable": "~3.1.0",
         "hyperf/view-engine": "~3.1.0",
-        "laravel-hyperf/cache": "^0.1",
-        "laravel-hyperf/cookie": "^0.1",
-        "laravel-hyperf/support": "^0.1"
+        "hypervel/cache": "^0.1",
+        "hypervel/cookie": "^0.1",
+        "hypervel/support": "^0.1"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
         "hyperf": {
-            "config": "LaravelHyperf\\Session\\ConfigProvider"
+            "config": "Hypervel\\Session\\ConfigProvider"
         },
         "branch-alias": {
             "dev-main": "0.1-dev"

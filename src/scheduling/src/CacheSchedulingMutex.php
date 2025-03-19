@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Scheduling;
+namespace Hypervel\Scheduling;
 
 use DateTimeInterface;
-use LaravelHyperf\Cache\Contracts\Factory as CacheFactory;
-use LaravelHyperf\Scheduling\Contracts\CacheAware;
-use LaravelHyperf\Scheduling\Contracts\SchedulingMutex;
+use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Scheduling\Contracts\CacheAware;
+use Hypervel\Scheduling\Contracts\SchedulingMutex;
 
 class CacheSchedulingMutex implements SchedulingMutex, CacheAware
 {

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Facades;
+namespace Hypervel\Support\Facades;
 
-use LaravelHyperf\Database\Schema\SchemaProxy;
+use Hypervel\Database\Schema\SchemaProxy;
 
 /**
  * @method static bool hasTable(string $table)

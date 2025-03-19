@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Prompts;
+namespace Hypervel\Prompts;
 
 use Closure;
-use LaravelHyperf\Prompts\Exceptions\FormRevertedException;
-use LaravelHyperf\Prompts\Output\ConsoleOutput;
-use LaravelHyperf\Prompts\Support\Result;
+use Hypervel\Prompts\Exceptions\FormRevertedException;
+use Hypervel\Prompts\Output\ConsoleOutput;
+use Hypervel\Prompts\Support\Result;
 use RuntimeException;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;

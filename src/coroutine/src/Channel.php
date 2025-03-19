@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Coroutine;
+namespace Hypervel\Coroutine;
 
 use Hyperf\Engine\Channel as BaseChannel;
 

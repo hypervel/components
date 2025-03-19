@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Queue;
+namespace Hypervel\Tests\Queue;
 
 use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Foundation\Testing\RefreshDatabase;
-use LaravelHyperf\Queue\Failed\DatabaseUuidFailedJobProvider;
-use LaravelHyperf\Support\Carbon;
-use LaravelHyperf\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Queue\Failed\DatabaseUuidFailedJobProvider;
+use Hypervel\Support\Carbon;
+use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
 use RuntimeException;
 
 /**

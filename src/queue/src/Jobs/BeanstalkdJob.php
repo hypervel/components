@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Jobs;
+namespace Hypervel\Queue\Jobs;
 
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;

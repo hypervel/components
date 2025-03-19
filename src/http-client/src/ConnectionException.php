@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\HttpClient;
+namespace Hypervel\HttpClient;
 
 class ConnectionException extends HttpClientException
 {

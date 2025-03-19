@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Cache;
+namespace Hypervel\Cache;
 
 use Hyperf\Stringable\Str;
 use Hyperf\Support\Traits\InteractsWithTime;
-use LaravelHyperf\Cache\Contracts\Lock as LockContract;
-use LaravelHyperf\Cache\Exceptions\LockTimeoutException;
+use Hypervel\Cache\Contracts\Lock as LockContract;
+use Hypervel\Cache\Exceptions\LockTimeoutException;
 
 abstract class Lock implements LockContract
 {

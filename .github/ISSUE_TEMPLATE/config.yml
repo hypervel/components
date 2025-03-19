@@ -1,11 +1,11 @@
 blank_issues_enabled: false
 contact_links:
   - name: Feature request
-    url: https://github.com/laravel-hyperf/components/discussions
+    url: https://github.com/hypervel/components/discussions
     about: 'For ideas or feature requests, start a new discussion'
   - name: Support Questions & Other
-    url: https://github.com/laravel-hyperf/components/discussions
+    url: https://github.com/hypervel/components/discussions
     about: 'This repository is only for reporting bugs. If you have a question or need help using the library, click:'
   - name: Documentation issue
-    url: https://github.com/laravel-hyperf/laravel-hyperf.com
-    about: For documentation issues, open a pull request at the laravel-hyperf.com repository
+    url: https://github.com/hypervel/hypervel.org
+    about: For documentation issues, open a pull request at the hypervel.org repository

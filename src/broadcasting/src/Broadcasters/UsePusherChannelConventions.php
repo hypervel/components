@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Broadcasting\Broadcasters;
+namespace Hypervel\Broadcasting\Broadcasters;
 
 use Hyperf\Stringable\Str;
 

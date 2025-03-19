@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\View\Compilers\Concerns;
+namespace Hypervel\View\Compilers\Concerns;
 
 trait CompilesAuthorization
 {
@@ -11,7 +11,7 @@ trait CompilesAuthorization
      */
     protected function compileCan(string $expression): string
     {
-        return "<?php if (app(\\LaravelHyperf\\Auth\\Contracts::class)->check{$expression}): ?>";
+        return "<?php if (app(\\Hypervel\\Auth\\Contracts::class)->check{$expression}): ?>";
     }
 
     /**
@@ -19,7 +19,7 @@ trait CompilesAuthorization
      */
     protected function compileCannot(string $expression): string
     {
-        return "<?php if (app(\\LaravelHyperf\\Auth\\Contracts::class)->denies{$expression}): ?>";
+        return "<?php if (app(\\Hypervel\\Auth\\Contracts::class)->denies{$expression}): ?>";
     }
 
     /**
@@ -27,7 +27,7 @@ trait CompilesAuthorization
      */
     protected function compileCanany(string $expression): string
     {
-        return "<?php if (app(\\LaravelHyperf\\Auth\\Contracts::class)->any{$expression}): ?>";
+        return "<?php if (app(\\Hypervel\\Auth\\Contracts::class)->any{$expression}): ?>";
     }
 
     /**
@@ -35,7 +35,7 @@ trait CompilesAuthorization
      */
     protected function compileElsecan(string $expression): string
     {
-        return "<?php elseif (app(\\LaravelHyperf\\Auth\\Contracts::class)->check{$expression}): ?>";
+        return "<?php elseif (app(\\Hypervel\\Auth\\Contracts::class)->check{$expression}): ?>";
     }
 
     /**
@@ -43,7 +43,7 @@ trait CompilesAuthorization
      */
     protected function compileElsecannot(string $expression): string
     {
-        return "<?php elseif (app(\\LaravelHyperf\\Auth\\Contracts::class)->denies{$expression}): ?>";
+        return "<?php elseif (app(\\Hypervel\\Auth\\Contracts::class)->denies{$expression}): ?>";
     }
 
     /**
@@ -51,7 +51,7 @@ trait CompilesAuthorization
      */
     protected function compileElsecanany(string $expression): string
     {
-        return "<?php elseif (app(\\LaravelHyperf\\Auth\\Contracts::class)->any{$expression}): ?>";
+        return "<?php elseif (app(\\Hypervel\\Auth\\Contracts::class)->any{$expression}): ?>";
     }
 
     /**

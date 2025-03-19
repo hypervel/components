@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Exceptions\Contracts;
+namespace Hypervel\Foundation\Exceptions\Contracts;
 
-use LaravelHyperf\Http\Request;
+use Hypervel\Http\Request;
 use Psr\Http\Message\ResponseInterface;
 use Throwable;
 

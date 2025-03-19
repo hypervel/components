@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Mail\Events;
+namespace Hypervel\Mail\Events;
 
 use Exception;
 use Hyperf\Collection\Collection;
-use LaravelHyperf\Mail\SentMessage;
+use Hypervel\Mail\SentMessage;
 
 class MessageSent
 {

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Storage;
+namespace Hypervel\Telescope\Storage;
 
-use LaravelHyperf\Http\Request;
+use Hypervel\Http\Request;
 
 class EntryQueryOptions
 {

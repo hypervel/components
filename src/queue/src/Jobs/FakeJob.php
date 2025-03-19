@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Jobs;
+namespace Hypervel\Queue\Jobs;
 
 use DateInterval;
 use DateTimeInterface;

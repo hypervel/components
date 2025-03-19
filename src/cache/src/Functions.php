@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Cache;
+namespace Hypervel\Cache;
 
 use Hyperf\Context\ApplicationContext;
-use LaravelHyperf\Cache\Exceptions\InvalidArgumentException;
+use Hypervel\Cache\Exceptions\InvalidArgumentException;
 
 /**
  * Get / set the specified cache value.
@@ -14,7 +14,7 @@ use LaravelHyperf\Cache\Exceptions\InvalidArgumentException;
  *
  * @param null|array<string, mixed>|string $key key|data
  * @param mixed $default default|expiration|null
- * @return ($key is null ? \LaravelHyperf\Cache\CacheManager : ($key is string ? mixed : bool))
+ * @return ($key is null ? \Hypervel\Cache\CacheManager : ($key is string ? mixed : bool))
  *
  * @throws InvalidArgumentException
  */

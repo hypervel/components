@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Encryption;
+namespace Hypervel\Encryption;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Stringable\Str;
+use Hypervel\Encryption\Exceptions\MissingAppKeyException;
 use Laravel\SerializableClosure\SerializableClosure;
-use LaravelHyperf\Encryption\Exceptions\MissingAppKeyException;
 use Psr\Container\ContainerInterface;
 
 use function Hyperf\Tappable\tap;
@@ -58,7 +58,7 @@ class EncryptionFactory
     /**
      * Extract the encryption key from the given configuration.
      *
-     * @throws \LaravelHyperf\Encryption\Exceptions\MissingAppKeyException
+     * @throws \Hypervel\Encryption\Exceptions\MissingAppKeyException
      */
     protected function key(array $config): string
     {

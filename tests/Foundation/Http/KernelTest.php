@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Foundation\Http;
+namespace Hypervel\Tests\Foundation\Http;
 
 use Hyperf\Dispatcher\HttpDispatcher;
 use Hyperf\ExceptionHandler\ExceptionHandlerDispatcher;
 use Hyperf\HttpMessage\Server\Request;
 use Hyperf\HttpServer\ResponseEmitter;
 use Hyperf\HttpServer\Router\Dispatched;
-use LaravelHyperf\Dispatcher\ParsedMiddleware;
-use LaravelHyperf\Foundation\Http\Kernel;
-use LaravelHyperf\Tests\Foundation\Concerns\HasMockedApplication;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Dispatcher\ParsedMiddleware;
+use Hypervel\Foundation\Http\Kernel;
+use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 
 /**

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Testing\Dispatcher;
+namespace Hypervel\Foundation\Testing\Dispatcher;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Dispatcher\HttpDispatcher as HyperfHttpDispatcher;

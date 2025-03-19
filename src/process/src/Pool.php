@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Process;
+namespace Hypervel\Process;
 
 use Closure;
 use Hyperf\Collection\Collection;
@@ -11,8 +11,8 @@ use InvalidArgumentException;
 use function Hyperf\Tappable\tap;
 
 /**
- * @mixin \LaravelHyperf\Process\Factory
- * @mixin \LaravelHyperf\Process\PendingProcess
+ * @mixin \Hypervel\Process\Factory
+ * @mixin \Hypervel\Process\PendingProcess
  */
 class Pool
 {

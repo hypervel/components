@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Event\Hyperf;
+namespace Hypervel\Tests\Event\Hyperf;
 
 use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Framework\Logger\StdoutLogger;
-use LaravelHyperf\Event\Contracts\ListenerProviderContract;
-use LaravelHyperf\Event\EventDispatcher;
-use LaravelHyperf\Event\EventDispatcherFactory;
-use LaravelHyperf\Event\ListenerProvider;
-use LaravelHyperf\Tests\Event\Hyperf\Event\Alpha;
-use LaravelHyperf\Tests\Event\Hyperf\Event\PriorityEvent;
-use LaravelHyperf\Tests\Event\Hyperf\Listener\AlphaListener;
-use LaravelHyperf\Tests\Event\Hyperf\Listener\BetaListener;
-use LaravelHyperf\Tests\Event\Hyperf\Listener\PriorityListener;
+use Hypervel\Event\Contracts\ListenerProviderContract;
+use Hypervel\Event\EventDispatcher;
+use Hypervel\Event\EventDispatcherFactory;
+use Hypervel\Event\ListenerProvider;
+use Hypervel\Tests\Event\Hyperf\Event\Alpha;
+use Hypervel\Tests\Event\Hyperf\Event\PriorityEvent;
+use Hypervel\Tests\Event\Hyperf\Listener\AlphaListener;
+use Hypervel\Tests\Event\Hyperf\Listener\BetaListener;
+use Hypervel\Tests\Event\Hyperf\Listener\PriorityListener;
 use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\TestCase;

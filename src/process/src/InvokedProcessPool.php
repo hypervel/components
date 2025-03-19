@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Process;
+namespace Hypervel\Process;
 
 use Countable;
 use Hyperf\Collection\Collection;
-use LaravelHyperf\Process\Contracts\InvokedProcess;
+use Hypervel\Process\Contracts\InvokedProcess;
 
 class InvokedProcessPool implements Countable
 {

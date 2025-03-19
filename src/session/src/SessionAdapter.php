@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Session;
+namespace Hypervel\Session;
 
 use Hyperf\Contract\SessionInterface;
-use LaravelHyperf\Session\Contracts\Session as SessionContract;
+use Hypervel\Session\Contracts\Session as SessionContract;
 use Psr\Container\ContainerInterface;
 use RuntimeException;
 

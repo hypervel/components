@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Telescope\Watchers;
+namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Cache\Contracts\Factory as FactoryContract;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\Telescope;
-use LaravelHyperf\Telescope\Watchers\CacheWatcher;
-use LaravelHyperf\Tests\Telescope\FeatureTestCase;
+use Hypervel\Cache\Contracts\Factory as FactoryContract;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Telescope;
+use Hypervel\Telescope\Watchers\CacheWatcher;
+use Hypervel\Tests\Telescope\FeatureTestCase;
 
 /**
  * @internal

@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Slack;
+namespace Hypervel\Notifications\Slack;
 
 use Closure;
 use Hyperf\Collection\Arr;
 use Hyperf\Conditionable\Conditionable;
 use Hyperf\Contract\Arrayable;
+use Hypervel\Notifications\Contracts\Slack\BlockContract;
+use Hypervel\Notifications\Slack\BlockKit\Blocks\ActionsBlock;
+use Hypervel\Notifications\Slack\BlockKit\Blocks\ContextBlock;
+use Hypervel\Notifications\Slack\BlockKit\Blocks\DividerBlock;
+use Hypervel\Notifications\Slack\BlockKit\Blocks\HeaderBlock;
+use Hypervel\Notifications\Slack\BlockKit\Blocks\ImageBlock;
+use Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock;
 use JsonException;
-use LaravelHyperf\Notifications\Contracts\Slack\BlockContract;
-use LaravelHyperf\Notifications\Slack\BlockKit\Blocks\ActionsBlock;
-use LaravelHyperf\Notifications\Slack\BlockKit\Blocks\ContextBlock;
-use LaravelHyperf\Notifications\Slack\BlockKit\Blocks\DividerBlock;
-use LaravelHyperf\Notifications\Slack\BlockKit\Blocks\HeaderBlock;
-use LaravelHyperf\Notifications\Slack\BlockKit\Blocks\ImageBlock;
-use LaravelHyperf\Notifications\Slack\BlockKit\Blocks\SectionBlock;
 use LogicException;
 
 class SlackMessage implements Arrayable

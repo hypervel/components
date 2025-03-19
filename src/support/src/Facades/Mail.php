@@ -2,33 +2,33 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Facades;
+namespace Hypervel\Support\Facades;
 
-use LaravelHyperf\Mail\Contracts\Factory as MailFactoryContract;
-use LaravelHyperf\Support\Testing\Fakes\MailFake;
+use Hypervel\Mail\Contracts\Factory as MailFactoryContract;
+use Hypervel\Support\Testing\Fakes\MailFake;
 
 /**
- * @method static \LaravelHyperf\Mail\Contracts\Mailer mailer(string|null $name = null)
- * @method static \LaravelHyperf\Mail\Contracts\Mailer driver(string|null $driver = null)
+ * @method static \Hypervel\Mail\Contracts\Mailer mailer(string|null $name = null)
+ * @method static \Hypervel\Mail\Contracts\Mailer driver(string|null $driver = null)
  * @method static \Symfony\Component\Mailer\Transport\TransportInterface createSymfonyTransport(array $config, string|null $poolName = null)
  * @method static string getDefaultDriver()
  * @method static void setDefaultDriver(string $name)
  * @method static void purge(string|null $name = null)
- * @method static \LaravelHyperf\Mail\MailManager extend(string $driver, \Closure $callback, bool $poolable = false)
+ * @method static \Hypervel\Mail\MailManager extend(string $driver, \Closure $callback, bool $poolable = false)
  * @method static \Psr\Container\ContainerInterface getApplication()
- * @method static \LaravelHyperf\Mail\MailManager setApplication(\Psr\Container\ContainerInterface $app)
- * @method static \LaravelHyperf\Mail\MailManager forgetMailers()
- * @method static \LaravelHyperf\Mail\MailManager setReleaseCallback(string $driver, \Closure $callback)
+ * @method static \Hypervel\Mail\MailManager setApplication(\Psr\Container\ContainerInterface $app)
+ * @method static \Hypervel\Mail\MailManager forgetMailers()
+ * @method static \Hypervel\Mail\MailManager setReleaseCallback(string $driver, \Closure $callback)
  * @method static \Closure|null getReleaseCallback(string $driver)
- * @method static \LaravelHyperf\Mail\MailManager addPoolable(string $driver)
- * @method static \LaravelHyperf\Mail\MailManager removePoolable(string $driver)
+ * @method static \Hypervel\Mail\MailManager addPoolable(string $driver)
+ * @method static \Hypervel\Mail\MailManager removePoolable(string $driver)
  * @method static array getPoolables()
- * @method static \LaravelHyperf\Mail\MailManager setPoolables(array $poolables)
- * @method static \LaravelHyperf\Mail\PendingMail to(mixed $users)
- * @method static \LaravelHyperf\Mail\PendingMail bcc(mixed $users)
- * @method static \LaravelHyperf\Mail\SentMessage|null raw(string $text, mixed $callback)
- * @method static \LaravelHyperf\Mail\SentMessage|null send(\LaravelHyperf\Mail\Contracts\Mailable|array|string $view, array $data = [], \Closure|string|null $callback = null)
- * @method static \LaravelHyperf\Mail\SentMessage|null sendNow(\LaravelHyperf\Mail\Contracts\Mailable|array|string $mailable, array $data = [], \Closure|string|null $callback = null)
+ * @method static \Hypervel\Mail\MailManager setPoolables(array $poolables)
+ * @method static \Hypervel\Mail\PendingMail to(mixed $users)
+ * @method static \Hypervel\Mail\PendingMail bcc(mixed $users)
+ * @method static \Hypervel\Mail\SentMessage|null raw(string $text, mixed $callback)
+ * @method static \Hypervel\Mail\SentMessage|null send(\Hypervel\Mail\Contracts\Mailable|array|string $view, array $data = [], \Closure|string|null $callback = null)
+ * @method static \Hypervel\Mail\SentMessage|null sendNow(\Hypervel\Mail\Contracts\Mailable|array|string $mailable, array $data = [], \Closure|string|null $callback = null)
  * @method static void assertSent(\Closure|string $mailable, callable|array|string|int|null $callback = null)
  * @method static void assertNotOutgoing(\Closure|string $mailable, callable|null $callback = null)
  * @method static void assertNotSent(\Closure|string $mailable, callable|array|string|null $callback = null)
@@ -44,12 +44,12 @@ use LaravelHyperf\Support\Testing\Fakes\MailFake;
  * @method static bool hasSent(string $mailable)
  * @method static \Hyperf\Collection\Collection queued(\Closure|string $mailable, callable|null $callback = null)
  * @method static bool hasQueued(string $mailable)
- * @method static \LaravelHyperf\Mail\PendingMail cc(mixed $users)
- * @method static mixed queue(\LaravelHyperf\Mail\Contracts\Mailable|array|string $view, string|null $queue = null)
- * @method static mixed later(\DateInterval|\DateTimeInterface|int $delay, \LaravelHyperf\Mail\Contracts\Mailable|array|string $view, string|null $queue = null)
+ * @method static \Hypervel\Mail\PendingMail cc(mixed $users)
+ * @method static mixed queue(\Hypervel\Mail\Contracts\Mailable|array|string $view, string|null $queue = null)
+ * @method static mixed later(\DateInterval|\DateTimeInterface|int $delay, \Hypervel\Mail\Contracts\Mailable|array|string $view, string|null $queue = null)
  *
- * @see \LaravelHyperf\Mail\MailManager
- * @see \LaravelHyperf\Support\Testing\Fakes\MailFake
+ * @see \Hypervel\Mail\MailManager
+ * @see \Hypervel\Support\Testing\Fakes\MailFake
  */
 class Mail extends Facade
 {

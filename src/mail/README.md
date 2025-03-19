@@ -1,2 +1,2 @@
-Mail for Laravel Hyperf
+Mail for Hypervel
 ===

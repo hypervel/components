@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue;
+namespace Hypervel\Queue;
 
 use DateInterval;
 use DateTimeInterface;
-use LaravelHyperf\Queue\Contracts\Job as JobContract;
-use LaravelHyperf\Queue\Contracts\Queue as QueueContract;
-use LaravelHyperf\Queue\Jobs\BeanstalkdJob;
+use Hypervel\Queue\Contracts\Job as JobContract;
+use Hypervel\Queue\Contracts\Queue as QueueContract;
+use Hypervel\Queue\Jobs\BeanstalkdJob;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
 use Pheanstalk\Pheanstalk;

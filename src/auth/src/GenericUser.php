@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Auth;
+namespace Hypervel\Auth;
 
-use LaravelHyperf\Auth\Contracts\Authenticatable;
+use Hypervel\Auth\Contracts\Authenticatable;
 
 class GenericUser implements Authenticatable
 {

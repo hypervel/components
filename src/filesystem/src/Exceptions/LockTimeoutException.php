@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Filesystem\Exceptions;
+namespace Hypervel\Filesystem\Exceptions;
 
 use Exception;
 

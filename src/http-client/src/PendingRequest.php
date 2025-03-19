@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\HttpClient;
+namespace Hypervel\HttpClient;
 
 use Closure;
 use Exception;
@@ -21,12 +21,12 @@ use Hyperf\Contract\Arrayable;
 use Hyperf\Macroable\Macroable;
 use Hyperf\Stringable\Str;
 use Hyperf\Stringable\Stringable;
+use Hypervel\HttpClient\Events\ConnectionFailed;
+use Hypervel\HttpClient\Events\RequestSending;
+use Hypervel\HttpClient\Events\ResponseReceived;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use JsonSerializable;
-use LaravelHyperf\HttpClient\Events\ConnectionFailed;
-use LaravelHyperf\HttpClient\Events\RequestSending;
-use LaravelHyperf\HttpClient\Events\ResponseReceived;
-use LaravelHyperf\Support\Arr;
-use LaravelHyperf\Support\Collection;
 use OutOfBoundsException;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;

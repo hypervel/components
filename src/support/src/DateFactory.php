@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support;
+namespace Hypervel\Support;
 
 use Carbon\Factory;
 use InvalidArgumentException;
@@ -12,20 +12,20 @@ use RuntimeException;
  * @see https://carbon.nesbot.com/docs/
  * @see https://github.com/briannesbitt/Carbon/blob/master/src/Carbon/Factory.php
  *
- * @method \LaravelHyperf\Support\Carbon create($year = 0, $month = 1, $day = 1, $hour = 0, $minute = 0, $second = 0, $tz = null)
- * @method \LaravelHyperf\Support\Carbon createFromDate($year = null, $month = null, $day = null, $tz = null)
- * @method false|\LaravelHyperf\Support\Carbon createFromFormat($format, $time, $tz = null)
- * @method \LaravelHyperf\Support\Carbon createFromTime($hour = 0, $minute = 0, $second = 0, $tz = null)
- * @method \LaravelHyperf\Support\Carbon createFromTimeString($time, $tz = null)
- * @method \LaravelHyperf\Support\Carbon createFromTimestamp($timestamp, $tz = null)
- * @method \LaravelHyperf\Support\Carbon createFromTimestampMs($timestamp, $tz = null)
- * @method \LaravelHyperf\Support\Carbon createFromTimestampUTC($timestamp)
- * @method \LaravelHyperf\Support\Carbon createMidnightDate($year = null, $month = null, $day = null, $tz = null)
- * @method false|\LaravelHyperf\Support\Carbon createSafe($year = null, $month = null, $day = null, $hour = null, $minute = null, $second = null, $tz = null)
+ * @method \Hypervel\Support\Carbon create($year = 0, $month = 1, $day = 1, $hour = 0, $minute = 0, $second = 0, $tz = null)
+ * @method \Hypervel\Support\Carbon createFromDate($year = null, $month = null, $day = null, $tz = null)
+ * @method false|\Hypervel\Support\Carbon createFromFormat($format, $time, $tz = null)
+ * @method \Hypervel\Support\Carbon createFromTime($hour = 0, $minute = 0, $second = 0, $tz = null)
+ * @method \Hypervel\Support\Carbon createFromTimeString($time, $tz = null)
+ * @method \Hypervel\Support\Carbon createFromTimestamp($timestamp, $tz = null)
+ * @method \Hypervel\Support\Carbon createFromTimestampMs($timestamp, $tz = null)
+ * @method \Hypervel\Support\Carbon createFromTimestampUTC($timestamp)
+ * @method \Hypervel\Support\Carbon createMidnightDate($year = null, $month = null, $day = null, $tz = null)
+ * @method false|\Hypervel\Support\Carbon createSafe($year = null, $month = null, $day = null, $hour = null, $minute = null, $second = null, $tz = null)
  * @method void disableHumanDiffOption($humanDiffOption)
  * @method void enableHumanDiffOption($humanDiffOption)
  * @method mixed executeWithLocale($locale, $func)
- * @method \LaravelHyperf\Support\Carbon fromSerialized($value)
+ * @method \Hypervel\Support\Carbon fromSerialized($value)
  * @method array getAvailableLocales()
  * @method array getDays()
  * @method int getHumanDiffOptions()
@@ -33,7 +33,7 @@ use RuntimeException;
  * @method array getLastErrors()
  * @method string getLocale()
  * @method int getMidDayAt()
- * @method null|\LaravelHyperf\Support\Carbon getTestNow()
+ * @method null|\Hypervel\Support\Carbon getTestNow()
  * @method \Symfony\Component\Translation\TranslatorInterface getTranslator()
  * @method int getWeekEndsAt()
  * @method int getWeekStartsAt()
@@ -42,7 +42,7 @@ use RuntimeException;
  * @method bool hasMacro($name)
  * @method bool hasRelativeKeywords($time)
  * @method bool hasTestNow()
- * @method \LaravelHyperf\Support\Carbon instance($date)
+ * @method \Hypervel\Support\Carbon instance($date)
  * @method bool isImmutable()
  * @method bool isModifiableUnit($unit)
  * @method bool isMutable()
@@ -53,12 +53,12 @@ use RuntimeException;
  * @method bool localeHasPeriodSyntax($locale)
  * @method bool localeHasShortUnits($locale)
  * @method void macro($name, $macro)
- * @method null|\LaravelHyperf\Support\Carbon make($var)
- * @method \LaravelHyperf\Support\Carbon maxValue()
- * @method \LaravelHyperf\Support\Carbon minValue()
+ * @method null|\Hypervel\Support\Carbon make($var)
+ * @method \Hypervel\Support\Carbon maxValue()
+ * @method \Hypervel\Support\Carbon minValue()
  * @method void mixin($mixin)
- * @method \LaravelHyperf\Support\Carbon now($tz = null)
- * @method \LaravelHyperf\Support\Carbon parse($time = null, $tz = null)
+ * @method \Hypervel\Support\Carbon now($tz = null)
+ * @method \Hypervel\Support\Carbon parse($time = null, $tz = null)
  * @method string pluralUnit(string $unit)
  * @method void resetMonthsOverflow()
  * @method void resetToStringFormat()
@@ -77,12 +77,12 @@ use RuntimeException;
  * @method bool shouldOverflowMonths()
  * @method bool shouldOverflowYears()
  * @method string singularUnit(string $unit)
- * @method \LaravelHyperf\Support\Carbon today($tz = null)
- * @method \LaravelHyperf\Support\Carbon tomorrow($tz = null)
+ * @method \Hypervel\Support\Carbon today($tz = null)
+ * @method \Hypervel\Support\Carbon tomorrow($tz = null)
  * @method void useMonthsOverflow($monthsOverflow = true)
  * @method void useStrictMode($strictModeEnabled = true)
  * @method void useYearsOverflow($yearsOverflow = true)
- * @method \LaravelHyperf\Support\Carbon yesterday($tz = null)
+ * @method \Hypervel\Support\Carbon yesterday($tz = null)
  */
 class DateFactory
 {

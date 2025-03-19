@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Broadcasting;
+namespace Hypervel\Broadcasting;
 
 use Ably\AblyRest;
 use Closure;
@@ -11,29 +11,29 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Router\DispatcherFactory as RouterDispatcherFactory;
 use Hyperf\Redis\RedisFactory;
+use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
+use Hypervel\Broadcasting\Broadcasters\LogBroadcaster;
+use Hypervel\Broadcasting\Broadcasters\NullBroadcaster;
+use Hypervel\Broadcasting\Broadcasters\PusherBroadcaster;
+use Hypervel\Broadcasting\Broadcasters\RedisBroadcaster;
+use Hypervel\Broadcasting\Contracts\Broadcaster;
+use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactoryContract;
+use Hypervel\Broadcasting\Contracts\ShouldBeUnique;
+use Hypervel\Broadcasting\Contracts\ShouldBroadcastNow;
+use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Bus\UniqueLock;
+use Hypervel\Cache\Contracts\Factory as Cache;
+use Hypervel\Foundation\Http\Kernel;
+use Hypervel\ObjectPool\Traits\HasPoolProxy;
+use Hypervel\Queue\Contracts\Factory as Queue;
 use InvalidArgumentException;
-use LaravelHyperf\Broadcasting\Broadcasters\AblyBroadcaster;
-use LaravelHyperf\Broadcasting\Broadcasters\LogBroadcaster;
-use LaravelHyperf\Broadcasting\Broadcasters\NullBroadcaster;
-use LaravelHyperf\Broadcasting\Broadcasters\PusherBroadcaster;
-use LaravelHyperf\Broadcasting\Broadcasters\RedisBroadcaster;
-use LaravelHyperf\Broadcasting\Contracts\Broadcaster;
-use LaravelHyperf\Broadcasting\Contracts\Factory as BroadcastingFactoryContract;
-use LaravelHyperf\Broadcasting\Contracts\ShouldBeUnique;
-use LaravelHyperf\Broadcasting\Contracts\ShouldBroadcastNow;
-use LaravelHyperf\Bus\Contracts\Dispatcher;
-use LaravelHyperf\Bus\UniqueLock;
-use LaravelHyperf\Cache\Contracts\Factory as Cache;
-use LaravelHyperf\Foundation\Http\Kernel;
-use LaravelHyperf\ObjectPool\Traits\HasPoolProxy;
-use LaravelHyperf\Queue\Contracts\Factory as Queue;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Pusher\Pusher;
 
 /**
- * @mixin \LaravelHyperf\Broadcasting\Contracts\Broadcaster
+ * @mixin \Hypervel\Broadcasting\Contracts\Broadcaster
  */
 class BroadcastManager implements BroadcastingFactoryContract
 {

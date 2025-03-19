@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Auth;
+namespace Hypervel\Tests\Auth;
 
 use Hyperf\Config\Config;
 use Hyperf\Context\Context;
@@ -13,16 +13,16 @@ use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use LaravelHyperf\Auth\AuthManager;
-use LaravelHyperf\Auth\Contracts\Authenticatable;
-use LaravelHyperf\Auth\Contracts\Guard;
-use LaravelHyperf\Auth\Contracts\UserProvider;
-use LaravelHyperf\Auth\Guards\RequestGuard;
-use LaravelHyperf\Auth\Providers\DatabaseUserProvider;
-use LaravelHyperf\Context\ApplicationContext;
-use LaravelHyperf\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use LaravelHyperf\Hashing\Contracts\Hasher as HashContract;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Auth\AuthManager;
+use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Auth\Contracts\Guard;
+use Hypervel\Auth\Contracts\UserProvider;
+use Hypervel\Auth\Guards\RequestGuard;
+use Hypervel\Auth\Providers\DatabaseUserProvider;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Hashing\Contracts\Hasher as HashContract;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 
 /**

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue;
+namespace Hypervel\Queue;
 
 use DateInterval;
 use DateTimeInterface;
@@ -11,12 +11,12 @@ use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\Database\Query\Builder;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Queue\Contracts\ClearableQueue;
-use LaravelHyperf\Queue\Contracts\Job;
-use LaravelHyperf\Queue\Contracts\Queue as QueueContract;
-use LaravelHyperf\Queue\Jobs\DatabaseJob;
-use LaravelHyperf\Queue\Jobs\DatabaseJobRecord;
-use LaravelHyperf\Support\Carbon;
+use Hypervel\Queue\Contracts\ClearableQueue;
+use Hypervel\Queue\Contracts\Job;
+use Hypervel\Queue\Contracts\Queue as QueueContract;
+use Hypervel\Queue\Jobs\DatabaseJob;
+use Hypervel\Queue\Jobs\DatabaseJobRecord;
+use Hypervel\Support\Carbon;
 use PDO;
 use Throwable;
 

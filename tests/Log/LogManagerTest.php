@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Log;
+namespace Hypervel\Tests\Log;
 
 use Hyperf\Config\Config;
 use Hyperf\Context\Context;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
-use LaravelHyperf\Log\Logger;
-use LaravelHyperf\Log\LogManager;
-use LaravelHyperf\Support\Environment;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Log\Logger;
+use Hypervel\Log\LogManager;
+use Hypervel\Support\Environment;
+use Hypervel\Tests\TestCase;
 use Monolog\Formatter\HtmlFormatter;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Formatter\NormalizerFormatter;

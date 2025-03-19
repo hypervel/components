@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Log\Adapter;
+namespace Hypervel\Log\Adapter;
 
 use Hyperf\Contract\ConfigInterface;
 use Psr\Container\ContainerInterface;

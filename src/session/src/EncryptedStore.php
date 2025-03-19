@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Session;
+namespace Hypervel\Session;
 
-use LaravelHyperf\Encryption\Contracts\Encrypter as EncrypterContract;
-use LaravelHyperf\Encryption\Exceptions\DecryptException;
+use Hypervel\Encryption\Contracts\Encrypter as EncrypterContract;
+use Hypervel\Encryption\Exceptions\DecryptException;
 use SessionHandlerInterface;
 
 class EncryptedStore extends Store

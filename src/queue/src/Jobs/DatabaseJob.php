@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Jobs;
+namespace Hypervel\Queue\Jobs;
 
-use LaravelHyperf\Queue\DatabaseQueue;
+use Hypervel\Queue\DatabaseQueue;
 use Psr\Container\ContainerInterface;
 
 class DatabaseJob extends Job

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Testing\Concerns;
+namespace Hypervel\Foundation\Testing\Concerns;
 
-use LaravelHyperf\Session\Contracts\Session as SessionContract;
+use Hypervel\Session\Contracts\Session as SessionContract;
 
 trait InteractsWithSession
 {

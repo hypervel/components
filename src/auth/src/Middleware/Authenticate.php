@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Auth\Middleware;
+namespace Hypervel\Auth\Middleware;
 
-use LaravelHyperf\Auth\AuthenticationException;
-use LaravelHyperf\Auth\AuthManager;
+use Hypervel\Auth\AuthenticationException;
+use Hypervel\Auth\AuthManager;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;

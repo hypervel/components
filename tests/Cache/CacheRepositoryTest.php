@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Cache;
+namespace Hypervel\Tests\Cache;
 
 use ArrayIterator;
 use BadMethodCallException;
@@ -11,14 +11,14 @@ use DateInterval;
 use DateTime;
 use DateTimeImmutable;
 use Hyperf\Support\Filesystem\Filesystem;
-use LaravelHyperf\Cache\ArrayStore;
-use LaravelHyperf\Cache\Contracts\Store;
-use LaravelHyperf\Cache\FileStore;
-use LaravelHyperf\Cache\RedisStore;
-use LaravelHyperf\Cache\Repository;
-use LaravelHyperf\Cache\TaggableStore;
-use LaravelHyperf\Cache\TaggedCache;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\Contracts\Store;
+use Hypervel\Cache\FileStore;
+use Hypervel\Cache\RedisStore;
+use Hypervel\Cache\Repository;
+use Hypervel\Cache\TaggableStore;
+use Hypervel\Cache\TaggedCache;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface as Dispatcher;
 

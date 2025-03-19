@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Bootstrap;
+namespace Hypervel\Foundation\Bootstrap;
 
-use LaravelHyperf\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 
 class BootProviders
 {

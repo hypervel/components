@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue;
+namespace Hypervel\Queue;
 
 use Closure;
 use DateInterval;
@@ -11,13 +11,13 @@ use Hyperf\Collection\Arr;
 use Hyperf\Collection\Collection;
 use Hyperf\Stringable\Str;
 use Hyperf\Support\Traits\InteractsWithTime;
-use LaravelHyperf\Database\TransactionManager;
-use LaravelHyperf\Encryption\Contracts\Encrypter;
-use LaravelHyperf\Queue\Contracts\ShouldBeEncrypted;
-use LaravelHyperf\Queue\Contracts\ShouldQueueAfterCommit;
-use LaravelHyperf\Queue\Events\JobQueued;
-use LaravelHyperf\Queue\Events\JobQueueing;
-use LaravelHyperf\Queue\Exceptions\InvalidPayloadException;
+use Hypervel\Database\TransactionManager;
+use Hypervel\Encryption\Contracts\Encrypter;
+use Hypervel\Queue\Contracts\ShouldBeEncrypted;
+use Hypervel\Queue\Contracts\ShouldQueueAfterCommit;
+use Hypervel\Queue\Events\JobQueued;
+use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Queue\Exceptions\InvalidPayloadException;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 

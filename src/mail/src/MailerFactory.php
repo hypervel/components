@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Mail;
+namespace Hypervel\Mail;
 
-use LaravelHyperf\Mail\Contracts\Factory;
-use LaravelHyperf\Mail\Contracts\Mailer as MailerContract;
+use Hypervel\Mail\Contracts\Factory;
+use Hypervel\Mail\Contracts\Mailer as MailerContract;
 
 class MailerFactory
 {

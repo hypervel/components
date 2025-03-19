@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Auth;
+namespace Hypervel\Auth;
 
 use Exception;
 use Psr\Http\Message\RequestInterface;

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Context;
+namespace Hypervel\Context;
 
 use Closure;
-use LaravelHyperf\Coroutine\Coroutine;
+use Hypervel\Coroutine\Coroutine;
 
 class ParentContext
 {

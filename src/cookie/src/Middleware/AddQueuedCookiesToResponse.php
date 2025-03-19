@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Cookie\Middleware;
+namespace Hypervel\Cookie\Middleware;
 
 use Hyperf\Collection\Arr;
 use Hyperf\Context\Context;
-use LaravelHyperf\Cookie\Contracts\Cookie as CookieContract;
+use Hypervel\Cookie\Contracts\Cookie as CookieContract;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;

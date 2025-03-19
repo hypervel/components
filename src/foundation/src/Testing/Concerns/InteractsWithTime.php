@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Testing\Concerns;
+namespace Hypervel\Foundation\Testing\Concerns;
 
 use Carbon\Carbon;
 use Closure;
 use DateTimeInterface;
-use LaravelHyperf\Foundation\Testing\Wormhole;
+use Hypervel\Foundation\Testing\Wormhole;
 
 trait InteractsWithTime
 {

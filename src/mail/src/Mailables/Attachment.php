@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Mail\Mailables;
+namespace Hypervel\Mail\Mailables;
 
-use LaravelHyperf\Mail\Attachment as BaseAttachment;
+use Hypervel\Mail\Attachment as BaseAttachment;
 
 class Attachment extends BaseAttachment
 {

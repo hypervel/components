@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support;
+namespace Hypervel\Support;
 
 use Hyperf\Tappable\HigherOrderTapProxy as HyperfHigherOrderTapProxy;
 

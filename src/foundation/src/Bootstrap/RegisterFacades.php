@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Bootstrap;
+namespace Hypervel\Foundation\Bootstrap;
 
 use Hyperf\Collection\Arr;
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Foundation\Contracts\Application as ApplicationContract;
-use LaravelHyperf\Foundation\Support\Composer;
-use LaravelHyperf\Support\Facades\Facade;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Foundation\Support\Composer;
+use Hypervel\Support\Facades\Facade;
 use Throwable;
 
 class RegisterFacades
@@ -22,7 +22,7 @@ class RegisterFacades
 
         $composerAliases = [];
         try {
-            $composerAliases = Arr::wrap(Composer::getJsonContent()['extra']['laravel-hyperf']['aliases']) ?? [];
+            $composerAliases = Arr::wrap(Composer::getJsonContent()['extra']['hypervel']['aliases']) ?? [];
         } catch (Throwable $e) {
             // do nothing
         }

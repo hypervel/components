@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Scheduling;
+namespace Hypervel\Scheduling;
 
 use DateTimeZone;
+use Hypervel\Container\Contracts\Container;
+use Hypervel\Scheduling\Contracts\EventMutex;
+use Hypervel\Support\Reflector;
 use InvalidArgumentException;
-use LaravelHyperf\Container\Contracts\Container;
-use LaravelHyperf\Scheduling\Contracts\EventMutex;
-use LaravelHyperf\Support\Reflector;
 use LogicException;
 use RuntimeException;
 use Throwable;

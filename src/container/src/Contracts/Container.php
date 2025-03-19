@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Container\Contracts;
+namespace Hypervel\Container\Contracts;
 
 use Closure;
 use Hyperf\Contract\ContainerInterface as HyperfContainerInterface;

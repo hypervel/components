@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\View;
+namespace Hypervel\View;
 
 use Hyperf\Support\Filesystem\Filesystem;
 use Hyperf\ViewEngine\Blade;
-use LaravelHyperf\View\Compilers\BladeCompiler;
+use Hypervel\View\Compilers\BladeCompiler;
 use Psr\Container\ContainerInterface;
 
 class CompilerFactory

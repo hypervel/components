@@ -10,7 +10,7 @@
          displayDetailsOnTestsThatTriggerWarnings="true"
          displayDetailsOnTestsThatTriggerNotices="true">
     <testsuites>
-        <testsuite name="Laravel Hyperf Packages Test Suite">
+        <testsuite name="Hypervel Packages Test Suite">
             <directory suffix="Test.php">./tests</directory>
             <exclude>./tests/Prompts</exclude>
         </testsuite>

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Cookie\Contracts;
+namespace Hypervel\Cookie\Contracts;
 
 use Hyperf\HttpMessage\Cookie\Cookie as HyperfCookie;
 

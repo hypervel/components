@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Bus;
+namespace Hypervel\Bus;
 
 use Hyperf\Collection\Collection;
 use Hyperf\Context\ApplicationContext;
-use LaravelHyperf\Bus\Contracts\Dispatcher;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
-use LaravelHyperf\Queue\InteractsWithQueue;
+use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Queue\InteractsWithQueue;
 use Throwable;
 
 class ChainedBatch implements ShouldQueue

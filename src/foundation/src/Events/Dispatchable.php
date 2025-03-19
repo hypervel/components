@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Events;
+namespace Hypervel\Foundation\Events;
 
-use LaravelHyperf\Broadcasting\PendingBroadcast;
+use Hypervel\Broadcasting\PendingBroadcast;
 
 trait Dispatchable
 {

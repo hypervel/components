@@ -2,37 +2,37 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Facades;
+namespace Hypervel\Support\Facades;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Filesystem\Filesystem;
-use LaravelHyperf\Filesystem\FilesystemManager;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Filesystem\FilesystemManager;
 
 /**
- * @method static \LaravelHyperf\Filesystem\Contracts\Filesystem drive(string|null $name = null)
- * @method static \LaravelHyperf\Filesystem\Contracts\Filesystem disk(string|null $name = null)
- * @method static \LaravelHyperf\Filesystem\Contracts\Cloud cloud()
- * @method static \LaravelHyperf\Filesystem\Contracts\Filesystem build(array|string $config)
- * @method static \LaravelHyperf\Filesystem\Contracts\Filesystem createLocalDriver(array $config, string $name = 'local')
- * @method static \LaravelHyperf\Filesystem\Contracts\Filesystem createFtpDriver(array $config)
- * @method static \LaravelHyperf\Filesystem\Contracts\Filesystem createSftpDriver(array $config)
- * @method static \LaravelHyperf\Filesystem\Contracts\Cloud createS3Driver(array $config)
- * @method static \LaravelHyperf\Filesystem\Contracts\Cloud createGcsDriver(array $config)
- * @method static \LaravelHyperf\Filesystem\Contracts\Filesystem createScopedDriver(array $config)
- * @method static \LaravelHyperf\Filesystem\FilesystemManager set(string $name, mixed $disk)
+ * @method static \Hypervel\Filesystem\Contracts\Filesystem drive(string|null $name = null)
+ * @method static \Hypervel\Filesystem\Contracts\Filesystem disk(string|null $name = null)
+ * @method static \Hypervel\Filesystem\Contracts\Cloud cloud()
+ * @method static \Hypervel\Filesystem\Contracts\Filesystem build(array|string $config)
+ * @method static \Hypervel\Filesystem\Contracts\Filesystem createLocalDriver(array $config, string $name = 'local')
+ * @method static \Hypervel\Filesystem\Contracts\Filesystem createFtpDriver(array $config)
+ * @method static \Hypervel\Filesystem\Contracts\Filesystem createSftpDriver(array $config)
+ * @method static \Hypervel\Filesystem\Contracts\Cloud createS3Driver(array $config)
+ * @method static \Hypervel\Filesystem\Contracts\Cloud createGcsDriver(array $config)
+ * @method static \Hypervel\Filesystem\Contracts\Filesystem createScopedDriver(array $config)
+ * @method static \Hypervel\Filesystem\FilesystemManager set(string $name, mixed $disk)
  * @method static string getDefaultDriver()
  * @method static string getDefaultCloudDriver()
- * @method static \LaravelHyperf\Filesystem\FilesystemManager forgetDisk(array|string $disk)
+ * @method static \Hypervel\Filesystem\FilesystemManager forgetDisk(array|string $disk)
  * @method static void purge(string|null $name = null)
- * @method static \LaravelHyperf\Filesystem\FilesystemManager extend(string $driver, \Closure $callback, bool $poolable = false)
- * @method static \LaravelHyperf\Filesystem\FilesystemManager setApplication(\Psr\Container\ContainerInterface $app)
- * @method static \LaravelHyperf\Filesystem\FilesystemManager setReleaseCallback(string $driver, \Closure $callback)
+ * @method static \Hypervel\Filesystem\FilesystemManager extend(string $driver, \Closure $callback, bool $poolable = false)
+ * @method static \Hypervel\Filesystem\FilesystemManager setApplication(\Psr\Container\ContainerInterface $app)
+ * @method static \Hypervel\Filesystem\FilesystemManager setReleaseCallback(string $driver, \Closure $callback)
  * @method static \Closure|null getReleaseCallback(string $driver)
- * @method static \LaravelHyperf\Filesystem\FilesystemManager addPoolable(string $driver)
- * @method static \LaravelHyperf\Filesystem\FilesystemManager removePoolable(string $driver)
+ * @method static \Hypervel\Filesystem\FilesystemManager addPoolable(string $driver)
+ * @method static \Hypervel\Filesystem\FilesystemManager removePoolable(string $driver)
  * @method static array getPoolables()
- * @method static \LaravelHyperf\Filesystem\FilesystemManager setPoolables(array $poolables)
+ * @method static \Hypervel\Filesystem\FilesystemManager setPoolables(array $poolables)
  * @method static bool exists(string $path)
  * @method static string get(string $path, bool $lock = false)
  * @method static string sharedGet(string $path)
@@ -75,9 +75,9 @@ use LaravelHyperf\Filesystem\FilesystemManager;
  * @method static void macro(string $name, callable|object $macro)
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static bool hasMacro(string $name)
- * @method static \LaravelHyperf\Filesystem\FilesystemAdapter assertExists(array|string $path, string|null $content = null)
- * @method static \LaravelHyperf\Filesystem\FilesystemAdapter assertMissing(array|string $path)
- * @method static \LaravelHyperf\Filesystem\FilesystemAdapter assertDirectoryEmpty(string $path)
+ * @method static \Hypervel\Filesystem\FilesystemAdapter assertExists(array|string $path, string|null $content = null)
+ * @method static \Hypervel\Filesystem\FilesystemAdapter assertMissing(array|string $path)
+ * @method static \Hypervel\Filesystem\FilesystemAdapter assertDirectoryEmpty(string $path)
  * @method static bool missing(string $path)
  * @method static bool fileExists(string $path)
  * @method static bool fileMissing(string $path)
@@ -104,8 +104,8 @@ use LaravelHyperf\Filesystem\FilesystemManager;
  * @method static \League\Flysystem\FilesystemAdapter getAdapter()
  * @method static array getConfig()
  * @method static void buildTemporaryUrlsUsing(\Closure $callback)
- * @method static \LaravelHyperf\Filesystem\FilesystemAdapter|mixed when(null|\Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null, null|\Closure|mixed $value = null)
- * @method static \LaravelHyperf\Filesystem\FilesystemAdapter|mixed unless(null|\Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null, null|\Closure|mixed $value = null)
+ * @method static \Hypervel\Filesystem\FilesystemAdapter|mixed when(null|\Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null, null|\Closure|mixed $value = null)
+ * @method static \Hypervel\Filesystem\FilesystemAdapter|mixed unless(null|\Closure|mixed $value = null, null|callable $callback = null, null|callable $default = null, null|\Closure|mixed $value = null)
  * @method static mixed macroCall(string $method, array $parameters)
  * @method static bool has(string $location)
  * @method static string read(string $location)
@@ -115,14 +115,14 @@ use LaravelHyperf\Filesystem\FilesystemManager;
  * @method static void write(string $location, string $contents, array $config = [])
  * @method static void createDirectory(string $location, array $config = [])
  *
- * @see \LaravelHyperf\Filesystem\FilesystemManager
+ * @see \Hypervel\Filesystem\FilesystemManager
  */
 class Storage extends Facade
 {
     /**
      * Replace the given disk with a local testing disk.
      *
-     * @return \LaravelHyperf\Filesystem\Contracts\Filesystem
+     * @return \Hypervel\Filesystem\Contracts\Filesystem
      */
     public static function fake(?string $disk = null, array $config = [])
     {
@@ -146,7 +146,7 @@ class Storage extends Facade
     /**
      * Replace the given disk with a persistent local testing disk.
      *
-     * @return \LaravelHyperf\Filesystem\Contracts\Filesystem
+     * @return \Hypervel\Filesystem\Contracts\Filesystem
      */
     public static function persistentFake(?string $disk = null, array $config = [])
     {

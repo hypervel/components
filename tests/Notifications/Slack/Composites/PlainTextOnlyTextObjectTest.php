@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Notifications\Slack\Composites;
+namespace Hypervel\Tests\Notifications\Slack\Composites;
 
-use LaravelHyperf\Notifications\Slack\BlockKit\Composites\PlainTextOnlyTextObject;
+use Hypervel\Notifications\Slack\BlockKit\Composites\PlainTextOnlyTextObject;
 use LogicException;
 use PHPUnit\Framework\TestCase;
 

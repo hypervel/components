@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Queue;
+namespace Hypervel\Tests\Queue;
 
 use Exception;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Queue\Failed\FileFailedJobProvider;
+use Hypervel\Queue\Failed\FileFailedJobProvider;
 use PHPUnit\Framework\TestCase;
 
 /**

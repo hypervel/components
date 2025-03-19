@@ -1,2 +1,2 @@
-Prompts for Laravel Hyperf
+Prompts for Hypervel
 ===

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Facades;
+namespace Hypervel\Support\Facades;
 
-use LaravelHyperf\Context\ApplicationContext;
-use LaravelHyperf\Queue\Contracts\Factory as FactoryContract;
-use LaravelHyperf\Queue\Worker;
-use LaravelHyperf\Support\Testing\Fakes\QueueFake;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Queue\Contracts\Factory as FactoryContract;
+use Hypervel\Queue\Worker;
+use Hypervel\Support\Testing\Fakes\QueueFake;
 
 use function Hyperf\Tappable\tap;
 
@@ -19,20 +19,20 @@ use function Hyperf\Tappable\tap;
  * @method static void failing(mixed $callback)
  * @method static void stopping(mixed $callback)
  * @method static bool connected(string|null $name = null)
- * @method static \LaravelHyperf\Queue\Contracts\Queue connection(string|null $name = null)
+ * @method static \Hypervel\Queue\Contracts\Queue connection(string|null $name = null)
  * @method static void extend(string $driver, \Closure $resolver)
  * @method static void addConnector(string $driver, \Closure $resolver)
  * @method static string getDefaultDriver()
  * @method static void setDefaultDriver(string $name)
  * @method static string getName(string|null $connection = null)
  * @method static \Psr\Container\ContainerInterface getApplication()
- * @method static \LaravelHyperf\Queue\QueueManager setApplication(\Psr\Container\ContainerInterface $app)
- * @method static \LaravelHyperf\Queue\QueueManager setReleaseCallback(string $driver, \Closure $callback)
+ * @method static \Hypervel\Queue\QueueManager setApplication(\Psr\Container\ContainerInterface $app)
+ * @method static \Hypervel\Queue\QueueManager setReleaseCallback(string $driver, \Closure $callback)
  * @method static \Closure|null getReleaseCallback(string $driver)
- * @method static \LaravelHyperf\Queue\QueueManager addPoolable(string $driver)
- * @method static \LaravelHyperf\Queue\QueueManager removePoolable(string $driver)
+ * @method static \Hypervel\Queue\QueueManager addPoolable(string $driver)
+ * @method static \Hypervel\Queue\QueueManager removePoolable(string $driver)
  * @method static array getPoolables()
- * @method static \LaravelHyperf\Queue\QueueManager setPoolables(array $poolables)
+ * @method static \Hypervel\Queue\QueueManager setPoolables(array $poolables)
  * @method static int size(string|null $queue = null)
  * @method static mixed push(object|string $job, mixed $data = '', string|null $queue = null)
  * @method static mixed pushOn(string|null $queue, object|string $job, mixed $data = '')
@@ -40,16 +40,16 @@ use function Hyperf\Tappable\tap;
  * @method static mixed later(\DateInterval|\DateTimeInterface|int $delay, object|string $job, mixed $data = '', string|null $queue = null)
  * @method static mixed laterOn(string|null $queue, \DateInterval|\DateTimeInterface|int $delay, object|string $job, mixed $data = '')
  * @method static mixed bulk(array $jobs, mixed $data = '', string|null $queue = null)
- * @method static \LaravelHyperf\Queue\Contracts\Job|null pop(string|null $queue = null)
+ * @method static \Hypervel\Queue\Contracts\Job|null pop(string|null $queue = null)
  * @method static string getConnectionName()
- * @method static \LaravelHyperf\Queue\Contracts\Queue setConnectionName(string $name)
+ * @method static \Hypervel\Queue\Contracts\Queue setConnectionName(string $name)
  * @method static mixed getJobTries(mixed $job)
  * @method static mixed getJobBackoff(mixed $job)
  * @method static mixed getJobExpiration(mixed $job)
  * @method static void createPayloadUsing(callable|null $callback)
  * @method static \Psr\Container\ContainerInterface getContainer()
  * @method static void setContainer(\Psr\Container\ContainerInterface $container)
- * @method static \LaravelHyperf\Support\Testing\Fakes\QueueFake except(array|string $jobsToBeQueued)
+ * @method static \Hypervel\Support\Testing\Fakes\QueueFake except(array|string $jobsToBeQueued)
  * @method static void assertPushed(\Closure|string $job, callable|int|null $callback = null)
  * @method static void assertPushedOn(string|null $queue, \Closure|string $job, callable|null $callback = null)
  * @method static void assertPushedWithChain(string $job, array $expectedChain = [], callable|null $callback = null)
@@ -63,11 +63,11 @@ use function Hyperf\Tappable\tap;
  * @method static bool hasPushed(string $job)
  * @method static bool shouldFakeJob(object $job)
  * @method static array pushedJobs()
- * @method static \LaravelHyperf\Support\Testing\Fakes\QueueFake serializeAndRestore(bool $serializeAndRestore = true)
+ * @method static \Hypervel\Support\Testing\Fakes\QueueFake serializeAndRestore(bool $serializeAndRestore = true)
  *
- * @see \LaravelHyperf\Queue\QueueManager
- * @see \LaravelHyperf\Queue\Queue
- * @see \LaravelHyperf\Support\Testing\Fakes\QueueFake
+ * @see \Hypervel\Queue\QueueManager
+ * @see \Hypervel\Queue\Queue
+ * @see \Hypervel\Support\Testing\Fakes\QueueFake
  */
 class Queue extends Facade
 {

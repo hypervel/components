@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Testing\Concerns;
+namespace Hypervel\Foundation\Testing\Concerns;
 
 use Closure;
 use Hyperf\Contract\ApplicationInterface;
 use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\Dispatcher\HttpDispatcher;
-use LaravelHyperf\Foundation\Contracts\Application as ApplicationContract;
-use LaravelHyperf\Foundation\Testing\DatabaseConnectionResolver;
-use LaravelHyperf\Foundation\Testing\Dispatcher\HttpDispatcher as TestingHttpDispatcher;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
+use Hypervel\Foundation\Testing\Dispatcher\HttpDispatcher as TestingHttpDispatcher;
 use Mockery;
 use Mockery\MockInterface;
 

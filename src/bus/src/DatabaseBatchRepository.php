@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Bus;
+namespace Hypervel\Bus;
 
 use Carbon\CarbonImmutable;
 use Closure;
@@ -11,7 +11,7 @@ use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\Database\Query\Expression;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Bus\Contracts\PrunableBatchRepository;
+use Hypervel\Bus\Contracts\PrunableBatchRepository;
 use Throwable;
 
 class DatabaseBatchRepository implements PrunableBatchRepository

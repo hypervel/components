@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Exceptions\Handlers;
+namespace Hypervel\Foundation\Exceptions\Handlers;
 
 use Hyperf\ExceptionHandler\ExceptionHandler;
-use LaravelHyperf\HttpMessage\Exceptions\HttpException;
-use LaravelHyperf\HttpMessage\Exceptions\HttpResponseException;
+use Hypervel\HttpMessage\Exceptions\HttpException;
+use Hypervel\HttpMessage\Exceptions\HttpResponseException;
 use Psr\Http\Message\ResponseInterface;
 use Throwable;
 

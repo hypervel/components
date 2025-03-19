@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Mail;
+namespace Hypervel\Tests\Mail;
 
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
 use Hyperf\ViewEngine\Contract\ViewInterface;
-use LaravelHyperf\Mail\Markdown;
+use Hypervel\Mail\Markdown;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 

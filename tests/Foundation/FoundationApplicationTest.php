@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Foundation;
+namespace Hypervel\Tests\Foundation;
 
 use Hyperf\Contract\TranslatorInterface;
-use LaravelHyperf\Event\EventDispatcher;
-use LaravelHyperf\Event\ListenerProvider;
-use LaravelHyperf\Foundation\Bootstrap\RegisterFacades;
-use LaravelHyperf\Foundation\Events\LocaleUpdated;
-use LaravelHyperf\HttpMessage\Exceptions\HttpException;
-use LaravelHyperf\HttpMessage\Exceptions\NotFoundHttpException;
-use LaravelHyperf\Support\Environment;
-use LaravelHyperf\Support\ServiceProvider;
-use LaravelHyperf\Tests\Foundation\Concerns\HasMockedApplication;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Event\EventDispatcher;
+use Hypervel\Event\ListenerProvider;
+use Hypervel\Foundation\Bootstrap\RegisterFacades;
+use Hypervel\Foundation\Events\LocaleUpdated;
+use Hypervel\HttpMessage\Exceptions\HttpException;
+use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
+use Hypervel\Support\Environment;
+use Hypervel\Support\ServiceProvider;
+use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use stdClass;
@@ -172,7 +172,7 @@ class FoundationApplicationTest extends TestCase
 
         $closure = function () {};
         $app->beforeBootstrapping(RegisterFacades::class, $closure);
-        $this->assertArrayHasKey(0, $app['events']->getListeners('bootstrapping: LaravelHyperf\Foundation\Bootstrap\RegisterFacades'));
+        $this->assertArrayHasKey(0, $app['events']->getListeners('bootstrapping: Hypervel\Foundation\Bootstrap\RegisterFacades'));
     }
 
     public function testAfterBootstrappingAddsClosure()
@@ -189,7 +189,7 @@ class FoundationApplicationTest extends TestCase
 
         $closure = function () {};
         $app->afterBootstrapping(RegisterFacades::class, $closure);
-        $this->assertArrayHasKey(0, $app['events']->getListeners('bootstrapped: LaravelHyperf\Foundation\Bootstrap\RegisterFacades'));
+        $this->assertArrayHasKey(0, $app['events']->getListeners('bootstrapped: Hypervel\Foundation\Bootstrap\RegisterFacades'));
     }
 
     public function testGetNamespace()

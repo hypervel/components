@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Bus;
+namespace Hypervel\Bus;
 
 use Carbon\CarbonImmutable;
-use LaravelHyperf\Bus\Contracts\BatchRepository;
-use LaravelHyperf\Queue\Contracts\Factory as QueueFactory;
+use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Queue\Contracts\Factory as QueueFactory;
 
 class BatchFactory
 {

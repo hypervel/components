@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Support;
+namespace Hypervel\Foundation\Support;
 
 use Composer\Autoload\ClassLoader;
 use Hyperf\Collection\Collection;

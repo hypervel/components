@@ -1,2 +1,2 @@
-Telescope for Laravel Hyperf
+Telescope for Hypervel
 ===

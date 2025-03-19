@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Facades;
+namespace Hypervel\Support\Facades;
 
-use LaravelHyperf\Log\LogManager;
+use Hypervel\Log\LogManager;
 
 /**
  * @method static \Psr\Log\LoggerInterface build(array $config)
  * @method static \Psr\Log\LoggerInterface stack(array $channels, string|null $channel = null)
  * @method static \Psr\Log\LoggerInterface channel(string|null $channel = null)
  * @method static \Psr\Log\LoggerInterface driver(string|null $driver = null)
- * @method static \LaravelHyperf\Log\LogManager shareContext(array $context)
+ * @method static \Hypervel\Log\LogManager shareContext(array $context)
  * @method static array sharedContext()
- * @method static \LaravelHyperf\Log\LogManager withoutContext()
- * @method static \LaravelHyperf\Log\LogManager flushSharedContext()
+ * @method static \Hypervel\Log\LogManager withoutContext()
+ * @method static \Hypervel\Log\LogManager flushSharedContext()
  * @method static string|null getDefaultDriver()
  * @method static void setDefaultDriver(string $name)
- * @method static \LaravelHyperf\Log\LogManager extend(string $driver, \Closure $callback)
+ * @method static \Hypervel\Log\LogManager extend(string $driver, \Closure $callback)
  * @method static void forgetChannel(string|null $driver = null)
  * @method static array getChannels()
  * @method static void emergency(string $message, mixed[] $context = [])
@@ -30,14 +30,14 @@ use LaravelHyperf\Log\LogManager;
  * @method static void debug(string $message, mixed[] $context = [])
  * @method static void log(mixed $level, string $message, mixed[] $context = [])
  * @method static void write(string $level, string $message, array $context = [])
- * @method static \LaravelHyperf\Log\Logger withContext(array $context = [])
+ * @method static \Hypervel\Log\Logger withContext(array $context = [])
  * @method static array getContext()
  * @method static void listen(\Closure $callback)
  * @method static \Psr\Log\LoggerInterface getLogger()
  * @method static \Psr\EventDispatcher\EventDispatcherInterface getEventDispatcher()
- * @method static \LaravelHyperf\Log\Logger setEventDispatcher(\Psr\EventDispatcher\EventDispatcherInterface $dispatcher)
+ * @method static \Hypervel\Log\Logger setEventDispatcher(\Psr\EventDispatcher\EventDispatcherInterface $dispatcher)
  *
- * @see \LaravelHyperf\Log\LogManager
+ * @see \Hypervel\Log\LogManager
  */
 class Log extends Facade
 {

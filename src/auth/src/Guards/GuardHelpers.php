@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Auth\Guards;
+namespace Hypervel\Auth\Guards;
 
-use LaravelHyperf\Auth\AuthenticationException;
-use LaravelHyperf\Auth\Contracts\Authenticatable;
-use LaravelHyperf\Auth\Contracts\UserProvider;
+use Hypervel\Auth\AuthenticationException;
+use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Auth\Contracts\UserProvider;
 
 /**
  * These methods are typically the same across all guards.
@@ -16,7 +16,7 @@ trait GuardHelpers
     /**
      * Determine if the current user is authenticated. If not, throw an exception.
      *
-     * @throws \LaravelHyperf\Auth\AuthenticationException
+     * @throws \Hypervel\Auth\AuthenticationException
      */
     public function authenticate(): Authenticatable
     {

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Facades;
+namespace Hypervel\Support\Facades;
 
-use LaravelHyperf\Bus\Contracts\BatchRepository;
-use LaravelHyperf\Bus\Contracts\Dispatcher as BusDispatcherContract;
-use LaravelHyperf\Bus\PendingChain;
-use LaravelHyperf\Bus\PendingDispatch;
-use LaravelHyperf\Support\Testing\Fakes\BusFake;
+use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Bus\Contracts\Dispatcher as BusDispatcherContract;
+use Hypervel\Bus\PendingChain;
+use Hypervel\Bus\PendingDispatch;
+use Hypervel\Support\Testing\Fakes\BusFake;
 
 use function Hyperf\Tappable\tap;
 
@@ -16,16 +16,16 @@ use function Hyperf\Tappable\tap;
  * @method static mixed dispatch(mixed $command)
  * @method static mixed dispatchSync(mixed $command, mixed $handler = null)
  * @method static mixed dispatchNow(mixed $command, mixed $handler = null)
- * @method static \LaravelHyperf\Bus\Batch|null findBatch(string $batchId)
- * @method static \LaravelHyperf\Bus\PendingBatch batch(array|\Hyperf\Collection\Collection|mixed $jobs)
- * @method static \LaravelHyperf\Bus\PendingChain chain(\Hyperf\Collection\Collection|array $jobs)
+ * @method static \Hypervel\Bus\Batch|null findBatch(string $batchId)
+ * @method static \Hypervel\Bus\PendingBatch batch(array|\Hyperf\Collection\Collection|mixed $jobs)
+ * @method static \Hypervel\Bus\PendingChain chain(\Hyperf\Collection\Collection|array $jobs)
  * @method static bool hasCommandHandler(mixed $command)
  * @method static bool|mixed getCommandHandler(mixed $command)
  * @method static mixed dispatchToQueue(mixed $command)
  * @method static void dispatchAfterResponse(mixed $command, mixed $handler = null)
- * @method static \LaravelHyperf\Bus\Dispatcher pipeThrough(array $pipes)
- * @method static \LaravelHyperf\Bus\Dispatcher map(array $map)
- * @method static \LaravelHyperf\Support\Testing\Fakes\BusFake except(array|string $jobsToDispatch)
+ * @method static \Hypervel\Bus\Dispatcher pipeThrough(array $pipes)
+ * @method static \Hypervel\Bus\Dispatcher map(array $map)
+ * @method static \Hypervel\Support\Testing\Fakes\BusFake except(array|string $jobsToDispatch)
  * @method static void assertDispatched(\Closure|string $command, callable|int|null $callback = null)
  * @method static void assertDispatchedTimes(\Closure|string $command, int $times = 1)
  * @method static void assertNotDispatched(\Closure|string $command, callable|null $callback = null)
@@ -39,7 +39,7 @@ use function Hyperf\Tappable\tap;
  * @method static void assertChained(array $expectedChain)
  * @method static void assertNothingChained()
  * @method static void assertDispatchedWithoutChain(\Closure|string $command, callable|null $callback = null)
- * @method static \LaravelHyperf\Support\Testing\Fakes\ChainedBatchTruthTest chainedBatch(\Closure $callback)
+ * @method static \Hypervel\Support\Testing\Fakes\ChainedBatchTruthTest chainedBatch(\Closure $callback)
  * @method static void assertBatched(callable $callback)
  * @method static void assertBatchCount(int $count)
  * @method static void assertNothingBatched()
@@ -51,13 +51,13 @@ use function Hyperf\Tappable\tap;
  * @method static bool hasDispatched(string $command)
  * @method static bool hasDispatchedSync(string $command)
  * @method static bool hasDispatchedAfterResponse(string $command)
- * @method static \LaravelHyperf\Bus\Batch dispatchFakeBatch(string $name = '')
- * @method static \LaravelHyperf\Bus\Batch recordPendingBatch(\LaravelHyperf\Bus\PendingBatch $pendingBatch)
- * @method static \LaravelHyperf\Support\Testing\Fakes\BusFake serializeAndRestore(bool $serializeAndRestore = true)
+ * @method static \Hypervel\Bus\Batch dispatchFakeBatch(string $name = '')
+ * @method static \Hypervel\Bus\Batch recordPendingBatch(\Hypervel\Bus\PendingBatch $pendingBatch)
+ * @method static \Hypervel\Support\Testing\Fakes\BusFake serializeAndRestore(bool $serializeAndRestore = true)
  * @method static array dispatchedBatches()
  *
- * @see \LaravelHyperf\Bus\Dispatcher
- * @see \LaravelHyperf\Support\Testing\Fakes\BusFake
+ * @see \Hypervel\Bus\Dispatcher
+ * @see \Hypervel\Support\Testing\Fakes\BusFake
  */
 class Bus extends Facade
 {

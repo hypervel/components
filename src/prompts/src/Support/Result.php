@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Prompts\Support;
+namespace Hypervel\Prompts\Support;
 
 /**
  * Result.

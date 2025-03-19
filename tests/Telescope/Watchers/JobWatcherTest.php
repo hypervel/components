@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Telescope\Watchers;
+namespace Hypervel\Tests\Telescope\Watchers;
 
 use Exception;
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Bus\Batch;
-use LaravelHyperf\Bus\Contracts\BatchRepository;
-use LaravelHyperf\Bus\Dispatchable;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
-use LaravelHyperf\Queue\Events\JobFailed;
-use LaravelHyperf\Queue\Events\JobProcessed;
-use LaravelHyperf\Queue\Jobs\FakeJob;
-use LaravelHyperf\Support\Facades\Bus;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\Jobs\ProcessPendingUpdates;
-use LaravelHyperf\Telescope\Watchers\JobWatcher;
-use LaravelHyperf\Tests\Telescope\FeatureTestCase;
+use Hypervel\Bus\Batch;
+use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Bus\Dispatchable;
+use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Queue\Events\JobFailed;
+use Hypervel\Queue\Events\JobProcessed;
+use Hypervel\Queue\Jobs\FakeJob;
+use Hypervel\Support\Facades\Bus;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Jobs\ProcessPendingUpdates;
+use Hypervel\Telescope\Watchers\JobWatcher;
+use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface;
 

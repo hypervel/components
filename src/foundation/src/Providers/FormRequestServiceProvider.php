@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Providers;
+namespace Hypervel\Foundation\Providers;
 
 use Hyperf\Validation\Contract\ValidatesWhenResolved;
-use LaravelHyperf\Http\RouteDependency;
-use LaravelHyperf\Support\ServiceProvider;
+use Hypervel\Http\RouteDependency;
+use Hypervel\Support\ServiceProvider;
 
 class FormRequestServiceProvider extends ServiceProvider
 {

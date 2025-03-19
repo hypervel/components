@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Cache;
+namespace Hypervel\Cache;
 
-use LaravelHyperf\Cache\Console\ClearCommand;
-use LaravelHyperf\Cache\Contracts\Factory;
-use LaravelHyperf\Cache\Contracts\Store;
-use LaravelHyperf\Cache\Listeners\CreateSwooleTable;
-use LaravelHyperf\Cache\Listeners\CreateTimer;
+use Hypervel\Cache\Console\ClearCommand;
+use Hypervel\Cache\Contracts\Factory;
+use Hypervel\Cache\Contracts\Store;
+use Hypervel\Cache\Listeners\CreateSwooleTable;
+use Hypervel\Cache\Listeners\CreateTimer;
 
 class ConfigProvider
 {

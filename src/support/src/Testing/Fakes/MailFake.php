@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Testing\Fakes;
+namespace Hypervel\Support\Testing\Fakes;
 
 use Closure;
 use DateInterval;
@@ -10,15 +10,15 @@ use DateTimeInterface;
 use Hyperf\Collection\Arr;
 use Hyperf\Collection\Collection;
 use Hyperf\Support\Traits\ForwardsCalls;
-use LaravelHyperf\Mail\Contracts\Factory;
-use LaravelHyperf\Mail\Contracts\Mailable;
-use LaravelHyperf\Mail\Contracts\Mailer;
-use LaravelHyperf\Mail\Contracts\MailQueue;
-use LaravelHyperf\Mail\MailManager;
-use LaravelHyperf\Mail\PendingMail;
-use LaravelHyperf\Mail\SentMessage;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
-use LaravelHyperf\Support\Traits\ReflectsClosures;
+use Hypervel\Mail\Contracts\Factory;
+use Hypervel\Mail\Contracts\Mailable;
+use Hypervel\Mail\Contracts\Mailer;
+use Hypervel\Mail\Contracts\MailQueue;
+use Hypervel\Mail\MailManager;
+use Hypervel\Mail\PendingMail;
+use Hypervel\Mail\SentMessage;
+use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
 
 class MailFake implements Factory, Fake, Mailer, MailQueue

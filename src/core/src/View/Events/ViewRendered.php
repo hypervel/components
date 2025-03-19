@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\View\Events;
+namespace Hypervel\View\Events;
 
 use Hyperf\ViewEngine\Contract\ViewInterface;
 

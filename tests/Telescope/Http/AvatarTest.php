@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Telescope\Http;
+namespace Hypervel\Tests\Telescope\Http;
 
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Auth\Contracts\Authenticatable;
-use LaravelHyperf\Database\Eloquent\Model;
-use LaravelHyperf\Telescope\Http\Middleware\Authorize;
-use LaravelHyperf\Telescope\Telescope;
-use LaravelHyperf\Telescope\Watchers\LogWatcher;
-use LaravelHyperf\Tests\Telescope\FeatureTestCase;
+use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Telescope\Http\Middleware\Authorize;
+use Hypervel\Telescope\Telescope;
+use Hypervel\Telescope\Watchers\LogWatcher;
+use Hypervel\Tests\Telescope\FeatureTestCase;
 use Psr\Log\LoggerInterface;
 
 /**

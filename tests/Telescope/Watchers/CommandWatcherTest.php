@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Telescope\Watchers;
+namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Foundation\Console\Command;
-use LaravelHyperf\Foundation\Console\Contracts\Kernel as KernelContract;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\Watchers\CommandWatcher;
-use LaravelHyperf\Tests\Telescope\FeatureTestCase;
+use Hypervel\Foundation\Console\Command;
+use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Watchers\CommandWatcher;
+use Hypervel\Tests\Telescope\FeatureTestCase;
 
 /**
  * @internal

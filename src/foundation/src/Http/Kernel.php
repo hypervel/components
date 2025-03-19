@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Http;
+namespace Hypervel\Foundation\Http;
 
 use Hyperf\Context\RequestContext;
 use Hyperf\Contract\ConfigInterface;
@@ -16,10 +16,10 @@ use Hyperf\HttpServer\Event\RequestReceived;
 use Hyperf\HttpServer\Event\RequestTerminated;
 use Hyperf\HttpServer\Server as HyperfServer;
 use Hyperf\Support\SafeCaller;
-use LaravelHyperf\Foundation\Exceptions\Handlers\HttpExceptionHandler;
-use LaravelHyperf\Foundation\Http\Contracts\MiddlewareContract;
-use LaravelHyperf\Foundation\Http\Traits\HasMiddleware;
-use LaravelHyperf\Http\UploadedFile;
+use Hypervel\Foundation\Exceptions\Handlers\HttpExceptionHandler;
+use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
+use Hypervel\Foundation\Http\Traits\HasMiddleware;
+use Hypervel\Http\UploadedFile;
 use Psr\Http\Message\ResponseInterface;
 use Throwable;
 

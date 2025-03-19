@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Database\Schema;
+namespace Hypervel\Database\Schema;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Database\ConnectionResolverInterface;

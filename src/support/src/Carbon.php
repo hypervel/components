@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support;
+namespace Hypervel\Support;
 
 use Carbon\Carbon as BaseCarbon;
 use Carbon\CarbonImmutable as BaseCarbonImmutable;
 use Hyperf\Conditionable\Conditionable;
-use LaravelHyperf\Support\Traits\Dumpable;
+use Hypervel\Support\Traits\Dumpable;
 
 class Carbon extends BaseCarbon
 {

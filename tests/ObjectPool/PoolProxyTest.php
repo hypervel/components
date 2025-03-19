@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\ObjectPool;
+namespace Hypervel\Tests\ObjectPool;
 
 use Closure;
 use Hyperf\Context\ApplicationContext;
-use LaravelHyperf\ObjectPool\ObjectPool;
-use LaravelHyperf\ObjectPool\PoolFactory;
-use LaravelHyperf\ObjectPool\PoolProxy;
+use Hypervel\ObjectPool\ObjectPool;
+use Hypervel\ObjectPool\PoolFactory;
+use Hypervel\ObjectPool\PoolProxy;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;

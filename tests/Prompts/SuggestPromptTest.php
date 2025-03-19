@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Prompts;
+namespace Hypervel\Tests\Prompts;
 
-use LaravelHyperf\Prompts\Exceptions\NonInteractiveValidationException;
-use LaravelHyperf\Prompts\Key;
-use LaravelHyperf\Prompts\Prompt;
-use LaravelHyperf\Prompts\SuggestPrompt;
+use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
+use Hypervel\Prompts\Key;
+use Hypervel\Prompts\Prompt;
+use Hypervel\Prompts\SuggestPrompt;
 use PHPUnit\Framework\TestCase;
 
-use function LaravelHyperf\Prompts\suggest;
+use function Hypervel\Prompts\suggest;
 
 /**
  * @backupStaticProperties enabled

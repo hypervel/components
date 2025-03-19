@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\HttpClient\Events;
+namespace Hypervel\HttpClient\Events;
 
-use LaravelHyperf\HttpClient\ConnectionException;
-use LaravelHyperf\HttpClient\Request;
+use Hypervel\HttpClient\ConnectionException;
+use Hypervel\HttpClient\Request;
 
 class ConnectionFailed
 {

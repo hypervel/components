@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue;
+namespace Hypervel\Queue;
 
 use __PHP_Incomplete_Class;
 use Exception;
 use Hyperf\Database\Model\ModelNotFoundException;
-use LaravelHyperf\Bus\Batchable;
-use LaravelHyperf\Bus\Contracts\Dispatcher;
-use LaravelHyperf\Bus\UniqueLock;
-use LaravelHyperf\Cache\Contracts\Factory as CacheFactory;
-use LaravelHyperf\Encryption\Contracts\Encrypter;
-use LaravelHyperf\Queue\Attributes\DeleteWhenMissingModels;
-use LaravelHyperf\Queue\Contracts\Job;
-use LaravelHyperf\Queue\Contracts\ShouldBeUnique;
-use LaravelHyperf\Queue\Contracts\ShouldBeUniqueUntilProcessing;
-use LaravelHyperf\Support\Pipeline;
+use Hypervel\Bus\Batchable;
+use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Bus\UniqueLock;
+use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Encryption\Contracts\Encrypter;
+use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
+use Hypervel\Queue\Contracts\Job;
+use Hypervel\Queue\Contracts\ShouldBeUnique;
+use Hypervel\Queue\Contracts\ShouldBeUniqueUntilProcessing;
+use Hypervel\Support\Pipeline;
 use Psr\Container\ContainerInterface;
 use ReflectionClass;
 use RuntimeException;

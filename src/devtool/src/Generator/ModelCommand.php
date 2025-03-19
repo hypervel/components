@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Devtool\Generator;
+namespace Hypervel\Devtool\Generator;
 
 use Hyperf\Devtool\Generator\GeneratorCommand;
 use Hyperf\Stringable\Str;
@@ -60,7 +60,7 @@ class ModelCommand extends GeneratorCommand
     {
         $stub = parent::replaceClass($stub, $name);
 
-        $uses = $this->getConfig()['uses'] ?? \LaravelHyperf\Database\Eloquent\Model::class;
+        $uses = $this->getConfig()['uses'] ?? \Hypervel\Database\Eloquent\Model::class;
 
         return str_replace('%USES%', $uses, $stub);
     }

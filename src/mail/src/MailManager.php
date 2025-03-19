@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Mail;
+namespace Hypervel\Mail;
 
 use Aws\Ses\SesClient;
 use Aws\SesV2\SesV2Client;
@@ -11,17 +11,17 @@ use Hyperf\Collection\Arr;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Stringable\Str;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
+use Hypervel\Log\LogManager;
+use Hypervel\Mail\Contracts\Factory as FactoryContract;
+use Hypervel\Mail\Contracts\Mailer as MailerContract;
+use Hypervel\Mail\Transport\ArrayTransport;
+use Hypervel\Mail\Transport\LogTransport;
+use Hypervel\Mail\Transport\SesTransport;
+use Hypervel\Mail\Transport\SesV2Transport;
+use Hypervel\ObjectPool\Traits\HasPoolProxy;
+use Hypervel\Queue\Contracts\Factory as QueueFactory;
+use Hypervel\Support\ConfigurationUrlParser;
 use InvalidArgumentException;
-use LaravelHyperf\Log\LogManager;
-use LaravelHyperf\Mail\Contracts\Factory as FactoryContract;
-use LaravelHyperf\Mail\Contracts\Mailer as MailerContract;
-use LaravelHyperf\Mail\Transport\ArrayTransport;
-use LaravelHyperf\Mail\Transport\LogTransport;
-use LaravelHyperf\Mail\Transport\SesTransport;
-use LaravelHyperf\Mail\Transport\SesV2Transport;
-use LaravelHyperf\ObjectPool\Traits\HasPoolProxy;
-use LaravelHyperf\Queue\Contracts\Factory as QueueFactory;
-use LaravelHyperf\Support\ConfigurationUrlParser;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
@@ -39,7 +39,7 @@ use Symfony\Component\Mailer\Transport\TransportInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
- * @mixin \LaravelHyperf\Mail\Contracts\Mailer
+ * @mixin \Hypervel\Mail\Contracts\Mailer
  */
 class MailManager implements FactoryContract
 {

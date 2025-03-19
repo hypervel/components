@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\JWT;
+namespace Hypervel\JWT;
 
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Cache\Contracts\Factory as CacheManager;
-use LaravelHyperf\JWT\Contracts\BlacklistContract;
-use LaravelHyperf\JWT\Storage\TaggedCache;
+use Hypervel\Cache\Contracts\Factory as CacheManager;
+use Hypervel\JWT\Contracts\BlacklistContract;
+use Hypervel\JWT\Storage\TaggedCache;
 use Psr\Container\ContainerInterface;
 
 class BlacklistFactory

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Mail\Mailables;
+namespace Hypervel\Mail\Mailables;
 
 use Hyperf\Conditionable\Conditionable;
 

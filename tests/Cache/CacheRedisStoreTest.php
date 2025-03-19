@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Cache;
+namespace Hypervel\Tests\Cache;
 
 use Hyperf\Redis\RedisFactory as Factory;
 use Hyperf\Redis\RedisProxy;
-use LaravelHyperf\Cache\RedisStore;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Cache\RedisStore;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 
 /**

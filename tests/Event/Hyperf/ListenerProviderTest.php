@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Event\Hyperf;
+namespace Hypervel\Tests\Event\Hyperf;
 
-use LaravelHyperf\Event\ListenerProvider;
-use LaravelHyperf\Tests\Event\Hyperf\Event\Alpha;
-use LaravelHyperf\Tests\Event\Hyperf\Event\Beta;
-use LaravelHyperf\Tests\Event\Hyperf\Listener\AlphaListener;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Event\ListenerProvider;
+use Hypervel\Tests\Event\Hyperf\Event\Alpha;
+use Hypervel\Tests\Event\Hyperf\Event\Beta;
+use Hypervel\Tests\Event\Hyperf\Listener\AlphaListener;
+use Hypervel\Tests\TestCase;
 
 /**
  * @internal

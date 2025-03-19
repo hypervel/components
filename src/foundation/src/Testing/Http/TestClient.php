@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Testing\Http;
+namespace Hypervel\Foundation\Testing\Http;
 
 use Hyperf\Collection\Arr;
 use Hyperf\Context\Context;
@@ -17,8 +17,8 @@ use Hyperf\HttpServer\Event\RequestReceived;
 use Hyperf\HttpServer\ResponseEmitter;
 use Hyperf\Support\Filesystem\Filesystem;
 use Hyperf\Testing\HttpMessage\Upload\UploadedFile;
-use LaravelHyperf\Foundation\Http\Kernel as HttpKernel;
-use LaravelHyperf\Foundation\Testing\Coroutine\Waiter;
+use Hypervel\Foundation\Http\Kernel as HttpKernel;
+use Hypervel\Foundation\Testing\Coroutine\Waiter;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;

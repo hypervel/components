@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Cache\Console;
+namespace Hypervel\Cache\Console;
 
 use Hyperf\Command\Command;
 use Hyperf\Support\Filesystem\Filesystem;
-use LaravelHyperf\Cache\Contracts\Factory as CacheContract;
-use LaravelHyperf\Cache\Contracts\Repository;
-use LaravelHyperf\Support\Traits\HasLaravelStyleCommand;
+use Hypervel\Cache\Contracts\Factory as CacheContract;
+use Hypervel\Cache\Contracts\Repository;
+use Hypervel\Support\Traits\HasLaravelStyleCommand;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;

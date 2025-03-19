@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Events;
+namespace Hypervel\Queue\Events;
 
-use LaravelHyperf\Queue\WorkerOptions;
+use Hypervel\Queue\WorkerOptions;
 
 class WorkerStopping
 {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Router;
+namespace Hypervel\Router;
 
 use BackedEnum;
 use Carbon\Carbon;
@@ -21,9 +21,9 @@ use Hyperf\HttpServer\Router\DispatcherFactory;
 use Hyperf\Macroable\Macroable;
 use Hyperf\Stringable\Str;
 use Hyperf\Support\Traits\InteractsWithTime;
+use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Router\Contracts\UrlRoutable;
 use InvalidArgumentException;
-use LaravelHyperf\Router\Contracts\UrlGenerator as UrlGeneratorContract;
-use LaravelHyperf\Router\Contracts\UrlRoutable;
 
 class UrlGenerator implements UrlGeneratorContract
 {

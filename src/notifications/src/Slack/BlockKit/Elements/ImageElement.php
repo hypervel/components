@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Slack\BlockKit\Elements;
+namespace Hypervel\Notifications\Slack\BlockKit\Elements;
 
-use LaravelHyperf\Notifications\Contracts\Slack\ElementContract;
+use Hypervel\Notifications\Contracts\Slack\ElementContract;
 use LogicException;
 
 class ImageElement implements ElementContract

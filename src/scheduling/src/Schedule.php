@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Scheduling;
+namespace Hypervel\Scheduling;
 
 use BadMethodCallException;
 use Closure;
@@ -10,20 +10,20 @@ use DateTimeInterface;
 use DateTimeZone;
 use Hyperf\Collection\Collection;
 use Hyperf\Macroable\Macroable;
-use LaravelHyperf\Bus\Contracts\Dispatcher;
-use LaravelHyperf\Bus\UniqueLock;
-use LaravelHyperf\Cache\Contracts\Factory as CacheFactory;
-use LaravelHyperf\Container\BindingResolutionException;
-use LaravelHyperf\Container\Container;
-use LaravelHyperf\Context\ApplicationContext;
-use LaravelHyperf\Foundation\Contracts\Application;
-use LaravelHyperf\Queue\CallQueuedClosure;
-use LaravelHyperf\Queue\Contracts\ShouldBeUnique;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
-use LaravelHyperf\Scheduling\Contracts\CacheAware;
-use LaravelHyperf\Scheduling\Contracts\EventMutex;
-use LaravelHyperf\Scheduling\Contracts\SchedulingMutex;
-use LaravelHyperf\Support\ProcessUtils;
+use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Bus\UniqueLock;
+use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Container\BindingResolutionException;
+use Hypervel\Container\Container;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Foundation\Contracts\Application;
+use Hypervel\Queue\CallQueuedClosure;
+use Hypervel\Queue\Contracts\ShouldBeUnique;
+use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Scheduling\Contracts\CacheAware;
+use Hypervel\Scheduling\Contracts\EventMutex;
+use Hypervel\Scheduling\Contracts\SchedulingMutex;
+use Hypervel\Support\ProcessUtils;
 use RuntimeException;
 
 /**
@@ -102,7 +102,7 @@ class Schedule
     ) {
         if (! class_exists(Container::class)) {
             throw new RuntimeException(
-                'A container implementation is required to use the scheduler. Please install the laravel-hyperf/container package.'
+                'A container implementation is required to use the scheduler. Please install the hypervel/container package.'
             );
         }
 

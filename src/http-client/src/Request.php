@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\HttpClient;
+namespace Hypervel\HttpClient;
 
 use ArrayAccess;
 use Hyperf\Collection\Arr;
 use Hyperf\Macroable\Macroable;
-use LaravelHyperf\Support\Collection;
+use Hypervel\Support\Collection;
 use LogicException;
 use Psr\Http\Message\RequestInterface;
 

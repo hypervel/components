@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Prompts\Themes\Default\Concerns;
+namespace Hypervel\Prompts\Themes\Default\Concerns;
 
 use Hyperf\Collection\Collection;
 

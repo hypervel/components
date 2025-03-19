@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Process\Contracts;
+namespace Hypervel\Process\Contracts;
 
 interface ProcessResult
 {

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Support;
+namespace Hypervel\Tests\Support;
 
-use LaravelHyperf\Foundation\Application;
-use LaravelHyperf\Support\ServiceProvider;
+use Hypervel\Foundation\Application;
+use Hypervel\Support\ServiceProvider;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;

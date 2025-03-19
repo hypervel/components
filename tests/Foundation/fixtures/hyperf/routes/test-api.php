@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 use Hyperf\HttpMessage\Stream\SwooleStream;
-use LaravelHyperf\Http\Request;
-use LaravelHyperf\Http\Response;
-use LaravelHyperf\Support\Facades\Route;
+use Hypervel\Http\Request;
+use Hypervel\Http\Response;
+use Hypervel\Support\Facades\Route;
 
 Route::get('/foo', function () {
     return 'foo';

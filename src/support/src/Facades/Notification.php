@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Facades;
+namespace Hypervel\Support\Facades;
 
-use LaravelHyperf\Notifications\AnonymousNotifiable;
-use LaravelHyperf\Notifications\Contracts\Dispatcher as NotificationDispatcher;
-use LaravelHyperf\Support\Testing\Fakes\NotificationFake;
+use Hypervel\Notifications\AnonymousNotifiable;
+use Hypervel\Notifications\Contracts\Dispatcher as NotificationDispatcher;
+use Hypervel\Support\Testing\Fakes\NotificationFake;
 
 use function Hyperf\Tappable\tap;
 
@@ -14,25 +14,25 @@ use function Hyperf\Tappable\tap;
  * @method static void send(mixed $notifiables, mixed $notification)
  * @method static void sendNow(mixed $notifiables, mixed $notification, array|null $channels = null)
  * @method static mixed channel(string|null $name = null)
- * @method static \LaravelHyperf\Notifications\ChannelManager extend(string $driver, \Closure $callback, bool $poolable = false)
- * @method static \LaravelHyperf\Notifications\ChannelManager setPoolConfig(string $driver, array $config)
+ * @method static \Hypervel\Notifications\ChannelManager extend(string $driver, \Closure $callback, bool $poolable = false)
+ * @method static \Hypervel\Notifications\ChannelManager setPoolConfig(string $driver, array $config)
  * @method static array getPoolConfig(string $driver)
  * @method static string getDefaultDriver()
  * @method static string deliversVia()
  * @method static void deliverVia(string $channel)
- * @method static \LaravelHyperf\Notifications\ChannelManager locale(string $locale)
+ * @method static \Hypervel\Notifications\ChannelManager locale(string $locale)
  * @method static string|null getLocale()
  * @method static mixed driver(string|null $driver = null)
  * @method static array getDrivers()
  * @method static \Psr\Container\ContainerInterface getContainer()
- * @method static \LaravelHyperf\Notifications\ChannelManager setContainer(\Psr\Container\ContainerInterface $container)
- * @method static \LaravelHyperf\Notifications\ChannelManager forgetDrivers()
- * @method static \LaravelHyperf\Notifications\ChannelManager setReleaseCallback(string $driver, \Closure $callback)
+ * @method static \Hypervel\Notifications\ChannelManager setContainer(\Psr\Container\ContainerInterface $container)
+ * @method static \Hypervel\Notifications\ChannelManager forgetDrivers()
+ * @method static \Hypervel\Notifications\ChannelManager setReleaseCallback(string $driver, \Closure $callback)
  * @method static \Closure|null getReleaseCallback(string $driver)
- * @method static \LaravelHyperf\Notifications\ChannelManager addPoolable(string $driver)
- * @method static \LaravelHyperf\Notifications\ChannelManager removePoolable(string $driver)
+ * @method static \Hypervel\Notifications\ChannelManager addPoolable(string $driver)
+ * @method static \Hypervel\Notifications\ChannelManager removePoolable(string $driver)
  * @method static array getPoolables()
- * @method static \LaravelHyperf\Notifications\ChannelManager setPoolables(array $poolables)
+ * @method static \Hypervel\Notifications\ChannelManager setPoolables(array $poolables)
  * @method static void assertSentOnDemand(\Closure|string $notification, callable|null $callback = null)
  * @method static void assertSentTo(mixed $notifiable, \Closure|string $notification, callable|string|int|null $callback = null)
  * @method static void assertSentOnDemandTimes(string $notification, int $times = 1)
@@ -49,8 +49,8 @@ use function Hyperf\Tappable\tap;
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static bool hasMacro(string $name)
  *
- * @see \LaravelHyperf\Notifications\ChannelManager
- * @see \LaravelHyperf\Support\Testing\Fakes\NotificationFake
+ * @see \Hypervel\Notifications\ChannelManager
+ * @see \Hypervel\Support\Testing\Fakes\NotificationFake
  */
 class Notification extends Facade
 {

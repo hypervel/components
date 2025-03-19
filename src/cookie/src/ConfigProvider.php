@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Cookie;
+namespace Hypervel\Cookie;
 
-use LaravelHyperf\Cookie\Contracts\Cookie as CookieContract;
+use Hypervel\Cookie\Contracts\Cookie as CookieContract;
 
 class ConfigProvider
 {

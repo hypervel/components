@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Scheduling\Contracts;
+namespace Hypervel\Scheduling\Contracts;
 
 use DateTimeInterface;
-use LaravelHyperf\Scheduling\Event;
+use Hypervel\Scheduling\Event;
 
 interface SchedulingMutex
 {

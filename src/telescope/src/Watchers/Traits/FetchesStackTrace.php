@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Watchers\Traits;
+namespace Hypervel\Telescope\Watchers\Traits;
 
 use Hyperf\Collection\Collection;
 use Hyperf\Stringable\Str;
@@ -10,7 +10,7 @@ use Hyperf\Stringable\Str;
 trait FetchesStackTrace
 {
     /**
-     * Find the first frame in the stack trace outside of Telescope/Laravel Hyperf.
+     * Find the first frame in the stack trace outside of Telescope/Hypervel.
      */
     protected function getCallerFromStackTrace(array $forgetLines = []): ?array
     {
@@ -34,7 +34,7 @@ trait FetchesStackTrace
         $ignoredPaths = $this->shouldIgnoredVendorPath()
             ? [
                 base_path('vendor' . DIRECTORY_SEPARATOR . 'hyperf'),
-                base_path('vendor' . DIRECTORY_SEPARATOR . 'laravel-hyperf'),
+                base_path('vendor' . DIRECTORY_SEPARATOR . 'hypervel'),
             ]
             : [];
 
@@ -45,7 +45,7 @@ trait FetchesStackTrace
     }
 
     /**
-     * Indicates if to ignore ignore Telescope / Laravel Hyperf packages.
+     * Indicates if to ignore ignore Telescope / Hypervel packages.
      */
     protected function shouldIgnoredVendorPath(): bool
     {

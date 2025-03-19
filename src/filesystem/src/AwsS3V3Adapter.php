@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Filesystem;
+namespace Hypervel\Filesystem;
 
 use Aws\S3\S3Client;
 use DateTimeInterface;

@@ -2,26 +2,26 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Scheduling\Console;
+namespace Hypervel\Scheduling\Console;
 
 use Hyperf\Collection\Collection;
 use Hyperf\Command\Command;
 use Hyperf\Coroutine\Concurrent;
 use Hyperf\Coroutine\Waiter;
-use LaravelHyperf\Cache\Contracts\Factory as CacheFactory;
-use LaravelHyperf\Container\Contracts\Container;
-use LaravelHyperf\Context\ApplicationContext;
-use LaravelHyperf\Foundation\Exceptions\Contracts\ExceptionHandler;
-use LaravelHyperf\Scheduling\CallbackEvent;
-use LaravelHyperf\Scheduling\Event;
-use LaravelHyperf\Scheduling\Events\ScheduledTaskFailed;
-use LaravelHyperf\Scheduling\Events\ScheduledTaskFinished;
-use LaravelHyperf\Scheduling\Events\ScheduledTaskSkipped;
-use LaravelHyperf\Scheduling\Events\ScheduledTaskStarting;
-use LaravelHyperf\Scheduling\Schedule;
-use LaravelHyperf\Support\Carbon;
-use LaravelHyperf\Support\Facades\Date;
-use LaravelHyperf\Support\Sleep;
+use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Container\Contracts\Container;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
+use Hypervel\Scheduling\CallbackEvent;
+use Hypervel\Scheduling\Event;
+use Hypervel\Scheduling\Events\ScheduledTaskFailed;
+use Hypervel\Scheduling\Events\ScheduledTaskFinished;
+use Hypervel\Scheduling\Events\ScheduledTaskSkipped;
+use Hypervel\Scheduling\Events\ScheduledTaskStarting;
+use Hypervel\Scheduling\Schedule;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Sleep;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 
@@ -247,7 +247,7 @@ class ScheduleRunCommand extends Command
         $this->lastChecked = Date::now();
 
         /* @phpstan-ignore-next-line */
-        return $this->shouldStop = $this->cache->get('laravel-hyperf:schedule:stop', false);
+        return $this->shouldStop = $this->cache->get('hypervel:schedule:stop', false);
     }
 
     /**
@@ -256,7 +256,7 @@ class ScheduleRunCommand extends Command
     protected function clearShouldStop(): void
     {
         /* @phpstan-ignore-next-line */
-        $this->cache->delete('laravel-hyperf:schedule:stop');
+        $this->cache->delete('hypervel:schedule:stop');
 
         $this->shouldStop = false;
     }

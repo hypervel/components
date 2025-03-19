@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Notifications\Slack\Blocks;
+namespace Hypervel\Tests\Notifications\Slack\Blocks;
 
-use LaravelHyperf\Notifications\Slack\BlockKit\Blocks\HeaderBlock;
+use Hypervel\Notifications\Slack\BlockKit\Blocks\HeaderBlock;
 use LogicException;
 use PHPUnit\Framework\TestCase;
 

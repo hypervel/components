@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Scheduling;
+namespace Hypervel\Scheduling;
 
-use LaravelHyperf\Cache\Contracts\Factory as CacheFactory;
-use LaravelHyperf\Cache\Contracts\LockProvider;
-use LaravelHyperf\Cache\Contracts\Store;
-use LaravelHyperf\Scheduling\Contracts\CacheAware;
-use LaravelHyperf\Scheduling\Contracts\EventMutex;
+use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Cache\Contracts\LockProvider;
+use Hypervel\Cache\Contracts\Store;
+use Hypervel\Scheduling\Contracts\CacheAware;
+use Hypervel\Scheduling\Contracts\EventMutex;
 
 class CacheEventMutex implements EventMutex, CacheAware
 {

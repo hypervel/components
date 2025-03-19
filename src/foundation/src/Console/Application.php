@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Console;
+namespace Hypervel\Foundation\Console;
 
 use Closure;
 use Hyperf\Command\Command;
 use Hyperf\Context\Context;
-use LaravelHyperf\Container\Contracts\Container as ContainerContract;
-use LaravelHyperf\Foundation\Console\Contracts\Application as ApplicationContract;
-use LaravelHyperf\Support\ProcessUtils;
+use Hypervel\Container\Contracts\Container as ContainerContract;
+use Hypervel\Foundation\Console\Contracts\Application as ApplicationContract;
+use Hypervel\Support\ProcessUtils;
 use Override;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Application as SymfonyApplication;
@@ -51,7 +51,7 @@ class Application extends SymfonyApplication implements ApplicationContract
         protected EventDispatcherInterface $dispatcher,
         string $version
     ) {
-        parent::__construct('Laravel Hyperf', $version);
+        parent::__construct('Hypervel', $version);
 
         if ($dispatcher instanceof EventDispatcher) {
             $this->setDispatcher($dispatcher);

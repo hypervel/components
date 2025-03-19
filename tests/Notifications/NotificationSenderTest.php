@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Notifications;
+namespace Hypervel\Tests\Notifications;
 
-use LaravelHyperf\Bus\Contracts\Dispatcher as BusDispatcherContract;
-use LaravelHyperf\Bus\Queueable;
-use LaravelHyperf\Notifications\AnonymousNotifiable;
-use LaravelHyperf\Notifications\ChannelManager;
-use LaravelHyperf\Notifications\Notifiable;
-use LaravelHyperf\Notifications\Notification;
-use LaravelHyperf\Notifications\NotificationSender;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
+use Hypervel\Bus\Contracts\Dispatcher as BusDispatcherContract;
+use Hypervel\Bus\Queueable;
+use Hypervel\Notifications\AnonymousNotifiable;
+use Hypervel\Notifications\ChannelManager;
+use Hypervel\Notifications\Notifiable;
+use Hypervel\Notifications\Notification;
+use Hypervel\Notifications\NotificationSender;
+use Hypervel\Queue\Contracts\ShouldQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface as EventDispatcher;

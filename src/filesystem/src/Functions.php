@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Filesystem;
+namespace Hypervel\Filesystem;
 
 /**
  * Join the given paths together.

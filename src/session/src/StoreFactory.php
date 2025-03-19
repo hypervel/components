@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Session;
+namespace Hypervel\Session;
 
-use LaravelHyperf\Session\Contracts\Factory;
-use LaravelHyperf\Session\Contracts\Session as SessionContract;
+use Hypervel\Session\Contracts\Factory;
+use Hypervel\Session\Contracts\Session as SessionContract;
 use Psr\Container\ContainerInterface;
 
 class StoreFactory

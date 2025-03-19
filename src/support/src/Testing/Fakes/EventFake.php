@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Testing\Fakes;
+namespace Hypervel\Support\Testing\Fakes;
 
 use Closure;
 use Hyperf\Collection\Arr;
 use Hyperf\Collection\Collection;
 use Hyperf\Stringable\Str;
 use Hyperf\Support\Traits\ForwardsCalls;
-use LaravelHyperf\Support\Traits\ReflectsClosures;
+use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use ReflectionFunction;

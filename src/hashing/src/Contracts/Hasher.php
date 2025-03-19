@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Hashing\Contracts;
+namespace Hypervel\Hashing\Contracts;
 
 interface Hasher
 {

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Testing\Fakes;
+namespace Hypervel\Support\Testing\Fakes;
 
 use Closure;
-use LaravelHyperf\Bus\PendingBatch;
+use Hypervel\Bus\PendingBatch;
 
 class ChainedBatchTruthTest
 {

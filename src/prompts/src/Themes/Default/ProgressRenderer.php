@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Prompts\Themes\Default;
+namespace Hypervel\Prompts\Themes\Default;
 
-use LaravelHyperf\Prompts\Progress;
+use Hypervel\Prompts\Progress;
 
 class ProgressRenderer extends Renderer
 {

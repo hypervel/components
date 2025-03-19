@@ -4,7 +4,7 @@
 <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
 <tr>
 <td class="panel-item">
-{{ LaravelHyperf\Mail\Markdown::parse($slot) }}
+{{ Hypervel\Mail\Markdown::parse($slot) }}
 </td>
 </tr>
 </table>

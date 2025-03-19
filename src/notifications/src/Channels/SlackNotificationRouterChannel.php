@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Channels;
+namespace Hypervel\Notifications\Channels;
 
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Notifications\Notification;
+use Hypervel\Notifications\Notification;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\UriInterface;

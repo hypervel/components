@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Bus\Contracts;
+namespace Hypervel\Bus\Contracts;
 
 use Closure;
-use LaravelHyperf\Bus\Batch;
-use LaravelHyperf\Bus\PendingBatch;
-use LaravelHyperf\Bus\UpdatedBatchJobCounts;
+use Hypervel\Bus\Batch;
+use Hypervel\Bus\PendingBatch;
+use Hypervel\Bus\UpdatedBatchJobCounts;
 
 interface BatchRepository
 {

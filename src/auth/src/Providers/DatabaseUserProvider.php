@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Auth\Providers;
+namespace Hypervel\Auth\Providers;
 
 use Closure;
 use Hyperf\Contract\Arrayable;
 use Hyperf\Database\ConnectionInterface;
-use LaravelHyperf\Auth\Contracts\Authenticatable;
-use LaravelHyperf\Auth\Contracts\UserProvider;
-use LaravelHyperf\Auth\GenericUser;
-use LaravelHyperf\Hashing\Contracts\Hasher as HashContract;
+use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Auth\Contracts\UserProvider;
+use Hypervel\Auth\GenericUser;
+use Hypervel\Hashing\Contracts\Hasher as HashContract;
 
 class DatabaseUserProvider implements UserProvider
 {

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Cache;
+namespace Hypervel\Tests\Cache;
 
-use LaravelHyperf\Cache\Contracts\Factory as Cache;
-use LaravelHyperf\Cache\RateLimiter;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Cache\Contracts\Factory as Cache;
+use Hypervel\Cache\RateLimiter;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 
 /**

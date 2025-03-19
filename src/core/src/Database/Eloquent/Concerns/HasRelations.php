@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Database\Eloquent\Concerns;
+namespace Hypervel\Database\Eloquent\Concerns;
 
 trait HasRelations
 {

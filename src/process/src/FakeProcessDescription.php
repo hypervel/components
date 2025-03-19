@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Process;
+namespace Hypervel\Process;
 
 use Hyperf\Collection\Collection;
-use LaravelHyperf\Process\Contracts\ProcessResult;
+use Hypervel\Process\Contracts\ProcessResult;
 use Symfony\Component\Process\Process;
 
 class FakeProcessDescription

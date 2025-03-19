@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Config;
+namespace Hypervel\Config;
 
 use Hyperf\Collection\Arr;
 use Hyperf\Config\ProviderConfig as HyperfProviderConfig;
@@ -35,7 +35,7 @@ class ProviderConfig extends HyperfProviderConfig
         $providers = array_map(
             fn (array $package) => array_merge(
                 Arr::wrap(($package['hyperf']['config'] ?? []) ?? []),
-                Arr::wrap(($package['laravel-hyperf']['config'] ?? []) ?? []),
+                Arr::wrap(($package['hypervel']['config'] ?? []) ?? []),
             ),
             Composer::getMergedExtra()
         );
@@ -52,10 +52,10 @@ class ProviderConfig extends HyperfProviderConfig
 
     protected static function packagesToIgnore(): array
     {
-        $packages = Composer::getMergedExtra('laravel-hyperf')['dont-discover'] ?? [];
+        $packages = Composer::getMergedExtra('hypervel')['dont-discover'] ?? [];
 
         try {
-            $project = Composer::getJsonContent()['extra']['laravel-hyperf']['dont-discover'] ?? [];
+            $project = Composer::getJsonContent()['extra']['hypervel']['dont-discover'] ?? [];
         } catch (Throwable) {
             $project = [];
         }

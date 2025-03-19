@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Log\Events;
+namespace Hypervel\Log\Events;
 
 class MessageLogged
 {

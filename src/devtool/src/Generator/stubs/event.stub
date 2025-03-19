@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace %NAMESPACE%;
 
-use LaravelHyperf\Foundation\Events\Dispatchable;
+use Hypervel\Foundation\Events\Dispatchable;
 
 class %CLASS%
 {

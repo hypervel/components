@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Mail;
+namespace Hypervel\Tests\Mail;
 
-use LaravelHyperf\Mail\Mailable;
-use LaravelHyperf\Mail\Mailables\Address;
-use LaravelHyperf\Mail\Mailables\Content;
-use LaravelHyperf\Mail\Mailables\Envelope;
+use Hypervel\Mail\Mailable;
+use Hypervel\Mail\Mailables\Address;
+use Hypervel\Mail\Mailables\Content;
+use Hypervel\Mail\Mailables\Envelope;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
 

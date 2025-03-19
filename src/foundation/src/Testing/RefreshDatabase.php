@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Testing;
+namespace Hypervel\Foundation\Testing;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Database\Connection as DatabaseConnection;
 use Hyperf\Database\Model\Booted;
 use Hyperf\DbConnection\Db;
-use LaravelHyperf\Foundation\Testing\Traits\CanConfigureMigrationCommands;
+use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 trait RefreshDatabase

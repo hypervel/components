@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Exceptions;
+namespace Hypervel\Foundation\Exceptions;
 
 use Throwable;
 

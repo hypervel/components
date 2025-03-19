@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Prompts;
+namespace Hypervel\Tests\Prompts;
 
-use LaravelHyperf\Prompts\Exceptions\NonInteractiveValidationException;
-use LaravelHyperf\Prompts\Key;
-use LaravelHyperf\Prompts\PasswordPrompt;
-use LaravelHyperf\Prompts\Prompt;
+use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
+use Hypervel\Prompts\Key;
+use Hypervel\Prompts\PasswordPrompt;
+use Hypervel\Prompts\Prompt;
 use PHPUnit\Framework\TestCase;
 
-use function LaravelHyperf\Prompts\password;
+use function Hypervel\Prompts\password;
 
 /**
  * @backupStaticProperties enabled

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Scheduling;
+namespace Hypervel\Scheduling;
 
 use Closure;
 use DateTimeZone;
-use LaravelHyperf\Support\Reflector;
+use Hypervel\Support\Reflector;
 
 trait ManagesAttributes
 {

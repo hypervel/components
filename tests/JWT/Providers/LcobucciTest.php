@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\JWT\Providers;
+namespace Hypervel\Tests\JWT\Providers;
 
 use Carbon\Carbon;
-use LaravelHyperf\JWT\Exceptions\JWTException;
-use LaravelHyperf\JWT\Exceptions\TokenInvalidException;
-use LaravelHyperf\JWT\Providers\Lcobucci;
-use LaravelHyperf\JWT\Providers\Provider;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\JWT\Exceptions\JWTException;
+use Hypervel\JWT\Exceptions\TokenInvalidException;
+use Hypervel\JWT\Providers\Lcobucci;
+use Hypervel\JWT\Providers\Provider;
+use Hypervel\Tests\TestCase;
 
 /**
  * @internal

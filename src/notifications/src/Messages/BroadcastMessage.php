@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Messages;
+namespace Hypervel\Notifications\Messages;
 
-use LaravelHyperf\Bus\Queueable;
+use Hypervel\Bus\Queueable;
 
 class BroadcastMessage
 {

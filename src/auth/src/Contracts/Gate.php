@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Auth\Contracts;
+namespace Hypervel\Auth\Contracts;
 
+use Hypervel\Auth\Access\AuthorizationException;
+use Hypervel\Auth\Access\Response;
 use InvalidArgumentException;
-use LaravelHyperf\Auth\Access\AuthorizationException;
-use LaravelHyperf\Auth\Access\Response;
 
 interface Gate
 {

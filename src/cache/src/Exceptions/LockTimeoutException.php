@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Cache\Exceptions;
+namespace Hypervel\Cache\Exceptions;
 
 use Exception;
 

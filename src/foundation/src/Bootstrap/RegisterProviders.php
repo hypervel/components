@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Bootstrap;
+namespace Hypervel\Foundation\Bootstrap;
 
 use Hyperf\Collection\Arr;
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Foundation\Contracts\Application as ApplicationContract;
-use LaravelHyperf\Foundation\Providers\FoundationServiceProvider;
-use LaravelHyperf\Foundation\Support\Composer;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Foundation\Providers\FoundationServiceProvider;
+use Hypervel\Foundation\Support\Composer;
 use Throwable;
 
 class RegisterProviders
@@ -23,7 +23,7 @@ class RegisterProviders
 
         if (! in_array('*', $packagesToIgnore)) {
             $providers = array_map(
-                fn (array $package) => Arr::wrap(($package['laravel-hyperf']['providers'] ?? []) ?? []),
+                fn (array $package) => Arr::wrap(($package['hypervel']['providers'] ?? []) ?? []),
                 Composer::getMergedExtra()
             );
             $providers = array_filter(
@@ -55,10 +55,10 @@ class RegisterProviders
 
     protected function packagesToIgnore(): array
     {
-        $packages = Composer::getMergedExtra('laravel-hyperf')['dont-discover'] ?? [];
+        $packages = Composer::getMergedExtra('hypervel')['dont-discover'] ?? [];
 
         try {
-            $project = Composer::getJsonContent()['extra']['laravel-hyperf']['dont-discover'] ?? [];
+            $project = Composer::getJsonContent()['extra']['hypervel']['dont-discover'] ?? [];
         } catch (Throwable) {
             $project = [];
         }

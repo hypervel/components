@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Http;
+namespace Hypervel\Http;
 
 use Closure;
 use FastRoute\Dispatcher;
@@ -20,11 +20,11 @@ use Hyperf\Server\Exception\ServerException;
 use Hyperf\View\RenderInterface;
 use Hyperf\ViewEngine\Contract\Renderable;
 use Hyperf\ViewEngine\Contract\ViewInterface;
-use LaravelHyperf\Context\ResponseContext;
-use LaravelHyperf\HttpMessage\Exceptions\MethodNotAllowedHttpException;
-use LaravelHyperf\HttpMessage\Exceptions\NotFoundHttpException;
-use LaravelHyperf\HttpMessage\Exceptions\ServerErrorHttpException;
-use LaravelHyperf\View\Events\ViewRendered;
+use Hypervel\Context\ResponseContext;
+use Hypervel\HttpMessage\Exceptions\MethodNotAllowedHttpException;
+use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
+use Hypervel\HttpMessage\Exceptions\ServerErrorHttpException;
+use Hypervel\View\Events\ViewRendered;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -177,7 +177,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
             $response = $this->transferToResponse($response, $request);
         }
 
-        return $response->addHeader('Server', 'Laravel Hyperf');
+        return $response->addHeader('Server', 'Hypervel');
     }
 
     /**

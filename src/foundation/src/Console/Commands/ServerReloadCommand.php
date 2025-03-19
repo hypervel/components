@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Console\Commands;
+namespace Hypervel\Foundation\Console\Commands;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Support\Filesystem\FileNotFoundException;
 use Hyperf\Support\Filesystem\Filesystem;
-use LaravelHyperf\Foundation\Console\Command;
+use Hypervel\Foundation\Console\Command;
 use Psr\Container\ContainerInterface;
 use Throwable;
 

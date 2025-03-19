@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Prompts;
+namespace Hypervel\Tests\Prompts;
 
-use LaravelHyperf\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use LaravelHyperf\Prompts\Prompt;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Prompts\Prompt;
 use PHPUnit\Framework\TestCase;
 
-use function LaravelHyperf\Prompts\spin;
+use function Hypervel\Prompts\spin;
 
 /**
  * @backupStaticProperties enabled

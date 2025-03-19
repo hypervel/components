@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Cookie;
+namespace Hypervel\Cookie;
 
 use DateTimeInterface;
 use Hyperf\HttpMessage\Cookie\Cookie as HyperfCookie;

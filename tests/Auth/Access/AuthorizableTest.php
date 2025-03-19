@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Auth\Access;
+namespace Hypervel\Tests\Auth\Access;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ContainerInterface;
-use LaravelHyperf\Auth\Contracts\Gate;
-use LaravelHyperf\Tests\Auth\Stub\AuthorizableStub;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Auth\Contracts\Gate;
+use Hypervel\Tests\Auth\Stub\AuthorizableStub;
+use Hypervel\Tests\TestCase;
 use Mockery;
 use Mockery\MockInterface;
 

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Connectors;
+namespace Hypervel\Queue\Connectors;
 
 use Aws\Sqs\SqsClient;
 use Hyperf\Collection\Arr;
-use LaravelHyperf\Queue\Contracts\Queue;
-use LaravelHyperf\Queue\SqsQueue;
+use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Queue\SqsQueue;
 
 class SqsConnector implements ConnectorInterface
 {

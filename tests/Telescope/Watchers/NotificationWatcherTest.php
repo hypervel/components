@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Telescope\Watchers;
+namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Notifications\AnonymousNotifiable;
-use LaravelHyperf\Notifications\Events\NotificationSent;
-use LaravelHyperf\Notifications\Notification;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\Watchers\NotificationWatcher;
-use LaravelHyperf\Tests\Telescope\FeatureTestCase;
+use Hypervel\Notifications\AnonymousNotifiable;
+use Hypervel\Notifications\Events\NotificationSent;
+use Hypervel\Notifications\Notification;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Watchers\NotificationWatcher;
+use Hypervel\Tests\Telescope\FeatureTestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**

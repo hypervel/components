@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Database\Eloquent\Concerns;
+namespace Hypervel\Database\Eloquent\Concerns;
 
 use Hyperf\Collection\Arr;
-use LaravelHyperf\Context\ApplicationContext;
-use LaravelHyperf\Database\Eloquent\ObserverManager;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Database\Eloquent\ObserverManager;
 use RuntimeException;
 
 trait HasObservers

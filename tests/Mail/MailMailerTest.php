@@ -2,23 +2,23 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Mail;
+namespace Hypervel\Tests\Mail;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
 use Hyperf\ViewEngine\Contract\ViewInterface;
-use LaravelHyperf\Auth\Contracts\FactoryContract;
-use LaravelHyperf\Context\ApplicationContext;
-use LaravelHyperf\Mail\Events\MessageSending;
-use LaravelHyperf\Mail\Events\MessageSent;
-use LaravelHyperf\Mail\Mailable;
-use LaravelHyperf\Mail\Mailer;
-use LaravelHyperf\Mail\MailManager;
-use LaravelHyperf\Mail\Message;
-use LaravelHyperf\Mail\Transport\ArrayTransport;
-use LaravelHyperf\Support\HtmlString;
+use Hypervel\Auth\Contracts\FactoryContract;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Mail\Events\MessageSending;
+use Hypervel\Mail\Events\MessageSent;
+use Hypervel\Mail\Mailable;
+use Hypervel\Mail\Mailer;
+use Hypervel\Mail\MailManager;
+use Hypervel\Mail\Message;
+use Hypervel\Mail\Transport\ArrayTransport;
+use Hypervel\Support\HtmlString;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -50,7 +50,7 @@ class MailMailerTest extends TestCase
         $mailer = new Mailer('array', $view, new ArrayTransport());
 
         $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
-            $message->to('taylor@laravel-hyperf.com')->from('hello@laravel-hyperf.com');
+            $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
         });
 
         $this->assertStringContainsString('rendered.view', $sentMessage->toString());
@@ -63,10 +63,10 @@ class MailMailerTest extends TestCase
         $mailer = new Mailer('array', $view, new ArrayTransport());
 
         $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
-            $message->to('taylor@laravel-hyperf.com')
-                ->cc('dries@laravel-hyperf.com')
-                ->bcc('james@laravel-hyperf.com')
-                ->from('hello@laravel-hyperf.com');
+            $message->to('taylor@hypervel.org')
+                ->cc('dries@hypervel.org')
+                ->bcc('james@hypervel.org')
+                ->from('hello@hypervel.org');
         });
 
         $recipients = collect($sentMessage->getEnvelope()->getRecipients())->map(function ($recipient) {
@@ -74,9 +74,9 @@ class MailMailerTest extends TestCase
         });
 
         $this->assertStringContainsString('rendered.view', $sentMessage->toString());
-        $this->assertStringContainsString('dries@laravel-hyperf.com', $sentMessage->toString());
-        $this->assertStringNotContainsString('james@laravel-hyperf.com', $sentMessage->toString());
-        $this->assertTrue($recipients->contains('james@laravel-hyperf.com'));
+        $this->assertStringContainsString('dries@hypervel.org', $sentMessage->toString());
+        $this->assertStringNotContainsString('james@hypervel.org', $sentMessage->toString());
+        $this->assertTrue($recipients->contains('james@hypervel.org'));
     }
 
     public function testMailerSendSendsMessageWithProperViewContentUsingHtmlStrings()
@@ -86,15 +86,15 @@ class MailMailerTest extends TestCase
         $mailer = new Mailer('array', $view, new ArrayTransport());
 
         $sentMessage = $mailer->send(
-            ['html' => new HtmlString('<p>Hello Laravel Hyperf</p>'), 'text' => new HtmlString('Hello World')],
+            ['html' => new HtmlString('<p>Hello Hypervel</p>'), 'text' => new HtmlString('Hello World')],
             ['data'],
             function (Message $message) {
-                $message->to('taylor@laravel-hyperf.com')->from('hello@laravel-hyperf.com');
+                $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
             }
         );
 
         $this->assertStringNotContainsString('rendered.view', $sentMessage->toString());
-        $this->assertStringContainsString('<p>Hello Laravel Hyperf</p>', $sentMessage->toString());
+        $this->assertStringContainsString('<p>Hello Hypervel</p>', $sentMessage->toString());
         $this->assertStringContainsString('Hello World', $sentMessage->toString());
     }
 
@@ -109,7 +109,7 @@ class MailMailerTest extends TestCase
                 'html' => function ($data) {
                     $this->assertInstanceOf(Message::class, $data['message']);
 
-                    return new HtmlString('<p>Hello Laravel Hyperf</p>');
+                    return new HtmlString('<p>Hello Hypervel</p>');
                 },
                 'text' => function ($data) {
                     $this->assertInstanceOf(Message::class, $data['message']);
@@ -119,12 +119,12 @@ class MailMailerTest extends TestCase
             ],
             [],
             function (Message $message) {
-                $message->to('taylor@laravel-hyperf.com')->from('hello@laravel-hyperf.com');
+                $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
             }
         );
 
         $this->assertStringNotContainsString('rendered.view', $sentMessage->toString());
-        $this->assertStringContainsString('<p>Hello Laravel Hyperf</p>', $sentMessage->toString());
+        $this->assertStringContainsString('<p>Hello Hypervel</p>', $sentMessage->toString());
         $this->assertStringContainsString('Hello World', $sentMessage->toString());
     }
 
@@ -135,7 +135,7 @@ class MailMailerTest extends TestCase
         $mailer = new Mailer('array', $view, new ArrayTransport());
 
         $sentMessage = $mailer->html('<p>Hello World</p>', function (Message $message) {
-            $message->to('taylor@laravel-hyperf.com')->from('hello@laravel-hyperf.com');
+            $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
         });
 
         $this->assertStringNotContainsString('rendered.view', $sentMessage->toString());
@@ -158,7 +158,7 @@ class MailMailerTest extends TestCase
         $mailer = new Mailer('array', $view, new ArrayTransport());
 
         $sentMessage = $mailer->send(['foo', 'bar'], ['data'], function (Message $message) {
-            $message->to('taylor@laravel-hyperf.com')->from('hello@laravel-hyperf.com');
+            $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
         });
 
         $expected = <<<Text
@@ -196,7 +196,7 @@ class MailMailerTest extends TestCase
         $mailer = new Mailer('array', $view, new ArrayTransport());
 
         $sentMessage = $mailer->send(['html' => 'foo', 'text' => 'bar'], ['data'], function (Message $message) {
-            $message->to('taylor@laravel-hyperf.com')->from('hello@laravel-hyperf.com');
+            $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
         });
 
         $expected = <<<Text
@@ -223,11 +223,11 @@ class MailMailerTest extends TestCase
         $view = $this->mockView();
         $mailer = new Mailer('array', $view, new ArrayTransport());
 
-        $sentMessage = $mailer->to('taylor@laravel-hyperf.com', 'Taylor Otwell')->send(new TestMail());
+        $sentMessage = $mailer->to('taylor@hypervel.org', 'Taylor Otwell')->send(new TestMail());
 
         $recipients = $sentMessage->getEnvelope()->getRecipients();
         $this->assertCount(1, $recipients);
-        $this->assertSame('taylor@laravel-hyperf.com', $recipients[0]->getAddress());
+        $this->assertSame('taylor@hypervel.org', $recipients[0]->getAddress());
         $this->assertSame('Taylor Otwell', $recipients[0]->getName());
     }
 
@@ -235,56 +235,56 @@ class MailMailerTest extends TestCase
     {
         $view = $this->mockView();
         $mailer = new Mailer('array', $view, new ArrayTransport());
-        $mailer->alwaysFrom('hello@laravel-hyperf.com');
+        $mailer->alwaysFrom('hello@hypervel.org');
 
         $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
-            $message->to('taylor@laravel-hyperf.com');
+            $message->to('taylor@hypervel.org');
         });
 
-        $this->assertSame('taylor@laravel-hyperf.com', $sentMessage->getEnvelope()->getRecipients()[0]->getAddress());
-        $this->assertSame('hello@laravel-hyperf.com', $sentMessage->getEnvelope()->getSender()->getAddress());
+        $this->assertSame('taylor@hypervel.org', $sentMessage->getEnvelope()->getRecipients()[0]->getAddress());
+        $this->assertSame('hello@hypervel.org', $sentMessage->getEnvelope()->getSender()->getAddress());
     }
 
     public function testGlobalReplyToIsRespectedOnAllMessages()
     {
         $view = $this->mockView();
         $mailer = new Mailer('array', $view, new ArrayTransport());
-        $mailer->alwaysReplyTo('taylor@laravel-hyperf.com', 'Taylor Otwell');
+        $mailer->alwaysReplyTo('taylor@hypervel.org', 'Taylor Otwell');
 
         $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
-            $message->to('dries@laravel-hyperf.com')->from('hello@laravel-hyperf.com');
+            $message->to('dries@hypervel.org')->from('hello@hypervel.org');
         });
 
-        $this->assertSame('dries@laravel-hyperf.com', $sentMessage->getEnvelope()->getRecipients()[0]->getAddress());
-        $this->assertStringContainsString('Reply-To: Taylor Otwell <taylor@laravel-hyperf.com>', $sentMessage->toString());
+        $this->assertSame('dries@hypervel.org', $sentMessage->getEnvelope()->getRecipients()[0]->getAddress());
+        $this->assertStringContainsString('Reply-To: Taylor Otwell <taylor@hypervel.org>', $sentMessage->toString());
     }
 
     public function testGlobalToIsRespectedOnAllMessages()
     {
         $view = $this->mockView();
         $mailer = new Mailer('array', $view, new ArrayTransport());
-        $mailer->alwaysTo('taylor@laravel-hyperf.com', 'Taylor Otwell');
+        $mailer->alwaysTo('taylor@hypervel.org', 'Taylor Otwell');
 
         $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
-            $message->from('hello@laravel-hyperf.com');
-            $message->to('nuno@laravel-hyperf.com');
-            $message->cc('dries@laravel-hyperf.com');
-            $message->bcc('james@laravel-hyperf.com');
+            $message->from('hello@hypervel.org');
+            $message->to('nuno@hypervel.org');
+            $message->cc('dries@hypervel.org');
+            $message->bcc('james@hypervel.org');
         });
 
         $recipients = collect($sentMessage->getEnvelope()->getRecipients())->map(function ($recipient) {
             return $recipient->getAddress();
         });
 
-        $this->assertSame('taylor@laravel-hyperf.com', $sentMessage->getEnvelope()->getRecipients()[0]->getAddress());
-        $this->assertDoesNotMatchRegularExpression('/^To: nuno@laravel-hyperf.com/m', $sentMessage->toString());
-        $this->assertDoesNotMatchRegularExpression('/^Cc: dries@laravel-hyperf.com/m', $sentMessage->toString());
-        $this->assertMatchesRegularExpression('/^X-To: nuno@laravel-hyperf.com/m', $sentMessage->toString());
-        $this->assertMatchesRegularExpression('/^X-Cc: dries@laravel-hyperf.com/m', $sentMessage->toString());
-        $this->assertMatchesRegularExpression('/^X-Bcc: james@laravel-hyperf.com/m', $sentMessage->toString());
-        $this->assertFalse($recipients->contains('nuno@laravel-hyperf.com'));
-        $this->assertFalse($recipients->contains('dries@laravel-hyperf.com'));
-        $this->assertFalse($recipients->contains('james@laravel-hyperf.com'));
+        $this->assertSame('taylor@hypervel.org', $sentMessage->getEnvelope()->getRecipients()[0]->getAddress());
+        $this->assertDoesNotMatchRegularExpression('/^To: nuno@hypervel.org/m', $sentMessage->toString());
+        $this->assertDoesNotMatchRegularExpression('/^Cc: dries@hypervel.org/m', $sentMessage->toString());
+        $this->assertMatchesRegularExpression('/^X-To: nuno@hypervel.org/m', $sentMessage->toString());
+        $this->assertMatchesRegularExpression('/^X-Cc: dries@hypervel.org/m', $sentMessage->toString());
+        $this->assertMatchesRegularExpression('/^X-Bcc: james@hypervel.org/m', $sentMessage->toString());
+        $this->assertFalse($recipients->contains('nuno@hypervel.org'));
+        $this->assertFalse($recipients->contains('dries@hypervel.org'));
+        $this->assertFalse($recipients->contains('james@hypervel.org'));
     }
 
     public function testGlobalReturnPathIsRespectedOnAllMessages()
@@ -295,7 +295,7 @@ class MailMailerTest extends TestCase
         $mailer->alwaysReturnPath('taylorotwell@gmail.com');
 
         $sentMessage = $mailer->send('foo', ['data'], function (Message $message) {
-            $message->to('taylor@laravel-hyperf.com')->from('hello@laravel-hyperf.com');
+            $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
         });
 
         $this->assertStringContainsString('Return-Path: <taylorotwell@gmail.com>', $sentMessage->toString());
@@ -312,7 +312,7 @@ class MailMailerTest extends TestCase
         $mailer = new Mailer('array', $view, new ArrayTransport(), $events);
 
         $mailer->send('foo', ['data'], function (Message $message) {
-            $message->to('taylor@laravel-hyperf.com')->from('hello@laravel-hyperf.com');
+            $message->to('taylor@hypervel.org')->from('hello@hypervel.org');
         });
     }
 
@@ -364,6 +364,6 @@ class TestMail extends Mailable
     public function build()
     {
         return $this->view('view')
-            ->from('hello@laravel-hyperf.com');
+            ->from('hello@hypervel.org');
     }
 }

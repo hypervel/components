@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Process\Exceptions;
+namespace Hypervel\Process\Exceptions;
 
-use LaravelHyperf\Process\Contracts\ProcessResult;
+use Hypervel\Process\Contracts\ProcessResult;
 use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeoutException;
 use Symfony\Component\Process\Exception\RuntimeException;
 

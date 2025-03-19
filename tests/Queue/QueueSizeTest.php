@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Queue;
+namespace Hypervel\Tests\Queue;
 
-use LaravelHyperf\Bus\Queueable;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
-use LaravelHyperf\Support\Facades\Queue;
-use LaravelHyperf\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Bus\Queueable;
+use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Support\Facades\Queue;
+use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
 
 /**
  * @internal

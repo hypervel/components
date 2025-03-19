@@ -1,28 +1,28 @@
 {
-    "name": "laravel-hyperf/hashing",
+    "name": "hypervel/hashing",
     "type": "library",
-    "description": "The hashing package for Laravel Hyperf.",
+    "description": "The hashing package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
         "hyperf",
         "hashing",
         "swoole",
-        "laravel-hyperf"
+        "hypervel"
     ],
     "authors": [
         {
             "name": "Albert Chen",
-            "email": "albert@laravel-hyperf.com"
+            "email": "albert@hypervel.org"
         }
     ],
     "support": {
-        "issues": "https://github.com/laravel-hyperf/components/issues",
-        "source": "https://github.com/laravel-hyperf/components"
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
     },
     "autoload": {
         "psr-4": {
-            "LaravelHyperf\\Hashing\\": "src/"
+            "Hypervel\\Hashing\\": "src/"
         }
     },
     "require": {
@@ -36,7 +36,7 @@
     },
     "extra": {
         "hyperf": {
-            "config": "LaravelHyperf\\Hashing\\ConfigProvider"
+            "config": "Hypervel\\Hashing\\ConfigProvider"
         },
         "branch-alias": {
             "dev-main": "0.1-dev"

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Facades;
+namespace Hypervel\Support\Facades;
 
 /**
- * @method static \LaravelHyperf\Cache\RateLimiter for(string $name, \Closure $callback)
+ * @method static \Hypervel\Cache\RateLimiter for(string $name, \Closure $callback)
  * @method static \Closure|null limiter(string $name)
  * @method static mixed attempt(string $key, int $maxAttempts, \Closure $callback, int $decaySeconds = 60)
  * @method static bool tooManyAttempts(string $key, int $maxAttempts)
@@ -18,7 +18,7 @@ namespace LaravelHyperf\Support\Facades;
  * @method static int availableIn(string $key)
  * @method static string cleanRateLimiterKey(string $key)
  *
- * @see \LaravelHyperf\Cache\RateLimiter
+ * @see \Hypervel\Cache\RateLimiter
  */
 class RateLimiter extends Facade
 {
@@ -29,6 +29,6 @@ class RateLimiter extends Facade
      */
     protected static function getFacadeAccessor()
     {
-        return \LaravelHyperf\Cache\RateLimiter::class;
+        return \Hypervel\Cache\RateLimiter::class;
     }
 }

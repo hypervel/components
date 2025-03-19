@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Scheduling\Contracts;
+namespace Hypervel\Scheduling\Contracts;
 
-use LaravelHyperf\Scheduling\Event;
+use Hypervel\Scheduling\Event;
 
 interface EventMutex
 {

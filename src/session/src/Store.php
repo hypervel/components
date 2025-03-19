@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Session;
+namespace Hypervel\Session;
 
 use Closure;
 use Hyperf\Collection\Arr;
@@ -12,7 +12,7 @@ use Hyperf\Macroable\Macroable;
 use Hyperf\Stringable\Str;
 use Hyperf\Support\MessageBag;
 use Hyperf\ViewEngine\ViewErrorBag;
-use LaravelHyperf\Session\Contracts\Session;
+use Hypervel\Session\Contracts\Session;
 use SessionHandlerInterface;
 use stdClass;
 

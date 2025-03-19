@@ -1,22 +1,22 @@
 {
-    "name": "laravel-hyperf/support",
-    "description": "The Support package for Laravel Hyperf.",
+    "name": "hypervel/support",
+    "description": "The Support package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
         "hyperf",
         "support",
         "swoole",
-        "laravel-hyperf"
+        "hypervel"
     ],
     "support": {
-        "issues": "https://github.com/laravel-hyperf/components/issues",
-        "source": "https://github.com/laravel-hyperf/components"
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
     },
     "authors": [
         {
             "name": "Albert Chen",
-            "email": "albert@laravel-hyperf.com"
+            "email": "albert@hypervel.org"
         }
     ],
     "require": {
@@ -30,7 +30,7 @@
     },
     "autoload": {
         "psr-4": {
-            "LaravelHyperf\\Support\\": "src/"
+            "Hypervel\\Support\\": "src/"
         },
         "files": [
             "src/Functions.php",

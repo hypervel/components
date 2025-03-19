@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Console;
+namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
-use LaravelHyperf\Cache\Contracts\Factory as CacheFactory;
-use LaravelHyperf\Support\Traits\HasLaravelStyleCommand;
-use LaravelHyperf\Support\Traits\InteractsWithTime;
+use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Support\Traits\HasLaravelStyleCommand;
+use Hypervel\Support\Traits\InteractsWithTime;
 
 class RestartCommand extends Command
 {

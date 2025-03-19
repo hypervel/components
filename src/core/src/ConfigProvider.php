@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf;
+namespace Hypervel;
 
 use Hyperf\Command\Concerns\Confirmable;
 use Hyperf\Database\Commands\Migrations\BaseCommand as MigrationBaseCommand;
@@ -19,10 +19,10 @@ use Hyperf\Database\Migrations\Migration;
 use Hyperf\Database\Migrations\MigrationCreator as HyperfMigrationCreator;
 use Hyperf\Database\Model\Factory as HyperfDatabaseFactory;
 use Hyperf\ViewEngine\Compiler\CompilerInterface;
-use LaravelHyperf\Database\Eloquent\Factories\FactoryInvoker as DatabaseFactoryInvoker;
-use LaravelHyperf\Database\Migrations\MigrationCreator;
-use LaravelHyperf\Database\TransactionListener;
-use LaravelHyperf\View\CompilerFactory;
+use Hypervel\Database\Eloquent\Factories\FactoryInvoker as DatabaseFactoryInvoker;
+use Hypervel\Database\Migrations\MigrationCreator;
+use Hypervel\Database\TransactionListener;
+use Hypervel\View\CompilerFactory;
 
 class ConfigProvider
 {

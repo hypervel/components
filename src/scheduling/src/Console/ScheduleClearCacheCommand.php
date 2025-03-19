@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Scheduling\Console;
+namespace Hypervel\Scheduling\Console;
 
 use Hyperf\Command\Command;
-use LaravelHyperf\Scheduling\Schedule;
-use LaravelHyperf\Support\Traits\HasLaravelStyleCommand;
+use Hypervel\Scheduling\Schedule;
+use Hypervel\Support\Traits\HasLaravelStyleCommand;
 
 class ScheduleClearCacheCommand extends Command
 {

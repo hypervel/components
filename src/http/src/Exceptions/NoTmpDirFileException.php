@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Http\Exceptions;
+namespace Hypervel\Http\Exceptions;
 
 /**
  * Thrown when an UPLOAD_ERR_NO_TMP_DIR error occurred with UploadedFile.

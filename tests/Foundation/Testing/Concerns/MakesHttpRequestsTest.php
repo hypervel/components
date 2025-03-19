@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Foundation\Testing\Concerns;
+namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Hyperf\HttpMessage\Base\Response;
 use Hyperf\Support\MessageBag;
 use Hyperf\ViewEngine\ViewErrorBag;
-use LaravelHyperf\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use LaravelHyperf\Foundation\Testing\Http\ServerResponse;
-use LaravelHyperf\Foundation\Testing\Http\TestResponse;
-use LaravelHyperf\Foundation\Testing\Stubs\FakeMiddleware;
-use LaravelHyperf\Router\RouteFileCollector;
-use LaravelHyperf\Session\ArraySessionHandler;
-use LaravelHyperf\Session\Store;
-use LaravelHyperf\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Foundation\Testing\Http\ServerResponse;
+use Hypervel\Foundation\Testing\Http\TestResponse;
+use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
+use Hypervel\Router\RouteFileCollector;
+use Hypervel\Session\ArraySessionHandler;
+use Hypervel\Session\Store;
+use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
 use PHPUnit\Framework\AssertionFailedError;
 
 /**

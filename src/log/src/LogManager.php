@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Log;
+namespace Hypervel\Log;
 
 use Closure;
 use Hyperf\Collection\Collection;
 use Hyperf\Context\Context;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Stringable\Str;
+use Hypervel\Support\Environment;
 use InvalidArgumentException;
-use LaravelHyperf\Support\Environment;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\ErrorLogHandler;
 use Monolog\Handler\FingersCrossedHandler;
@@ -31,7 +31,7 @@ use Stringable;
 use Throwable;
 
 /**
- * @mixin \LaravelHyperf\Log\Logger
+ * @mixin \Hypervel\Log\Logger
  */
 class LogManager implements LoggerInterface
 {

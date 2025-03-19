@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Container;
+namespace Hypervel\Container;
 
 use ArrayAccess;
 use Closure;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Di\Container as HyperfContainer;
 use Hyperf\Di\Definition\DefinitionSource;
+use Hypervel\Container\Contracts\Container as ContainerContract;
 use InvalidArgumentException;
-use LaravelHyperf\Container\Contracts\Container as ContainerContract;
 use LogicException;
 use TypeError;
 

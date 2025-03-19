@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Connectors;
+namespace Hypervel\Queue\Connectors;
 
-use LaravelHyperf\Queue\Contracts\Queue;
-use LaravelHyperf\Queue\DeferQueue;
+use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Queue\DeferQueue;
 
 class DeferConnector implements ConnectorInterface
 {

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Foundation\Testing\Traits;
+namespace Hypervel\Tests\Foundation\Testing\Traits;
 
 use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Foundation\Testing\Traits\CanConfigureMigrationCommands;
-use LaravelHyperf\Tests\Foundation\Concerns\HasMockedApplication;
+use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
+use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 

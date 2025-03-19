@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Http\Middleware;
+namespace Hypervel\Telescope\Http\Middleware;
 
-use LaravelHyperf\Http\Contracts\RequestContract;
-use LaravelHyperf\HttpMessage\Exceptions\HttpException;
-use LaravelHyperf\Telescope\Telescope;
+use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\HttpMessage\Exceptions\HttpException;
+use Hypervel\Telescope\Telescope;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;

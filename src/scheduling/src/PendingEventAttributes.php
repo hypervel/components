@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Scheduling;
+namespace Hypervel\Scheduling;
 
 /**
- * @mixin \LaravelHyperf\Scheduling\Schedule
+ * @mixin \Hypervel\Scheduling\Schedule
  */
 class PendingEventAttributes
 {

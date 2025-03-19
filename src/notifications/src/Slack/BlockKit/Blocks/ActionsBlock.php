@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Slack\BlockKit\Blocks;
+namespace Hypervel\Notifications\Slack\BlockKit\Blocks;
 
 use Hyperf\Contract\Arrayable;
+use Hypervel\Notifications\Contracts\Slack\BlockContract;
+use Hypervel\Notifications\Contracts\Slack\ElementContract;
+use Hypervel\Notifications\Slack\BlockKit\Elements\ButtonElement;
 use InvalidArgumentException;
-use LaravelHyperf\Notifications\Contracts\Slack\BlockContract;
-use LaravelHyperf\Notifications\Contracts\Slack\ElementContract;
-use LaravelHyperf\Notifications\Slack\BlockKit\Elements\ButtonElement;
 use LogicException;
 
 class ActionsBlock implements BlockContract

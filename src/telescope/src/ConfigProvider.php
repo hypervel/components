@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope;
+namespace Hypervel\Telescope;
 
-use LaravelHyperf\Telescope\Aspects\GuzzleHttpClientAspect;
+use Hypervel\Telescope\Aspects\GuzzleHttpClientAspect;
 
 class ConfigProvider
 {

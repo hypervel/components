@@ -1,28 +1,28 @@
 {
-    "name": "laravel-hyperf/http",
+    "name": "hypervel/http",
     "type": "library",
-    "description": "The http package for Laravel Hyperf.",
+    "description": "The http package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
         "hyperf",
         "swoole",
         "http",
-        "laravel-hyperf"
+        "hypervel"
     ],
     "authors": [
         {
             "name": "Albert Chen",
-            "email": "albert@laravel-hyperf.com"
+            "email": "albert@hypervel.org"
         }
     ],
     "support": {
-        "issues": "https://github.com/laravel-hyperf/components/issues",
-        "source": "https://github.com/laravel-hyperf/components"
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
     },
     "autoload": {
         "psr-4": {
-            "LaravelHyperf\\Http\\": "src/"
+            "Hypervel\\Http\\": "src/"
         }
     },
     "require": {
@@ -37,7 +37,7 @@
         "nesbot/carbon": "^2.72.6"
     },
     "suggest": {
-        "laravel-hyperf/session": "Required to `session` function in request.",
+        "hypervel/session": "Required to `session` function in request.",
         "hyperf/validation": "Required to `validate` function in request."
     },
     "config": {
@@ -45,7 +45,7 @@
     },
     "extra": {
         "hyperf": {
-            "config": "LaravelHyperf\\Http\\ConfigProvider"
+            "config": "Hypervel\\Http\\ConfigProvider"
         },
         "branch-alias": {
             "dev-main": "0.1-dev"

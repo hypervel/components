@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation;
+namespace Hypervel\Foundation;
 
 use Hyperf\Contract\ApplicationInterface;
 use Hyperf\Coordinator\Listener\ResumeExitCoordinatorListener;
 use Hyperf\ExceptionHandler\Listener\ErrorExceptionHandler;
-use LaravelHyperf\Foundation\Console\ApplicationFactory;
-use LaravelHyperf\Foundation\Console\Commands\ServerReloadCommand;
-use LaravelHyperf\Foundation\Console\Commands\VendorPublishCommand;
-use LaravelHyperf\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
-use LaravelHyperf\Foundation\Exceptions\Handler as ExceptionHandler;
-use LaravelHyperf\Foundation\Listeners\ReloadDotenvAndConfig;
+use Hypervel\Foundation\Console\ApplicationFactory;
+use Hypervel\Foundation\Console\Commands\ServerReloadCommand;
+use Hypervel\Foundation\Console\Commands\VendorPublishCommand;
+use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Foundation\Exceptions\Handler as ExceptionHandler;
+use Hypervel\Foundation\Listeners\ReloadDotenvAndConfig;
 
 class ConfigProvider
 {

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace App\Providers;
 
-use LaravelHyperf\Support\Facades\Gate;
-use LaravelHyperf\Telescope\IncomingEntry;
-use LaravelHyperf\Telescope\Telescope;
-use LaravelHyperf\Telescope\TelescopeApplicationServiceProvider;
+use Hypervel\Support\Facades\Gate;
+use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\Telescope;
+use Hypervel\Telescope\TelescopeApplicationServiceProvider;
 
 class TelescopeServiceProvider extends TelescopeApplicationServiceProvider
 {

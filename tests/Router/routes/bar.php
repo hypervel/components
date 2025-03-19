@@ -2,6 +2,6 @@
 
 declare(strict_types=1);
 
-use LaravelHyperf\Router\Router;
+use Hypervel\Router\Router;
 
 Router::get('/bar', 'Handler::Bar');

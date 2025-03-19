@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Cache;
+namespace Hypervel\Cache;
 
 use Hyperf\Collection\Arr;
-use LaravelHyperf\Cache\Exceptions\ValueTooLargeForColumnException;
+use Hypervel\Cache\Exceptions\ValueTooLargeForColumnException;
 use Swoole\Table;
 
 use function Hyperf\Collection\collect;

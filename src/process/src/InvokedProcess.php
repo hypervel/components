@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Process;
+namespace Hypervel\Process;
 
-use LaravelHyperf\Process\Contracts\InvokedProcess as InvokedProcessContract;
-use LaravelHyperf\Process\Contracts\ProcessResult as ProcessResultContract;
-use LaravelHyperf\Process\Exceptions\ProcessTimedOutException;
+use Hypervel\Process\Contracts\InvokedProcess as InvokedProcessContract;
+use Hypervel\Process\Contracts\ProcessResult as ProcessResultContract;
+use Hypervel\Process\Exceptions\ProcessTimedOutException;
 use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeoutException;
 use Symfony\Component\Process\Process;
 
@@ -82,7 +82,7 @@ class InvokedProcess implements InvokedProcessContract
     /**
      * Wait for the process to finish.
      *
-     * @throws \LaravelHyperf\Process\Exceptions\ProcessTimedOutException
+     * @throws \Hypervel\Process\Exceptions\ProcessTimedOutException
      */
     public function wait(?callable $output = null): ProcessResultContract
     {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\HttpClient;
+namespace Hypervel\HttpClient;
 
 use ArrayAccess;
 use Closure;
@@ -10,10 +10,10 @@ use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Psr7\StreamWrapper;
 use GuzzleHttp\TransferStats;
 use Hyperf\Macroable\Macroable;
+use Hypervel\HttpClient\Concerns\DeterminesStatusCode;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Fluent;
 use InvalidArgumentException;
-use LaravelHyperf\HttpClient\Concerns\DeterminesStatusCode;
-use LaravelHyperf\Support\Collection;
-use LaravelHyperf\Support\Fluent;
 use LogicException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\UriInterface;

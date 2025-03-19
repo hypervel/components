@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Cookie;
+namespace Hypervel\Cookie;
 
 use Hyperf\Context\Context;
 use Hyperf\Context\RequestContext;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Support\Traits\InteractsWithTime;
-use LaravelHyperf\Cookie\Contracts\Cookie as CookieContract;
+use Hypervel\Cookie\Contracts\Cookie as CookieContract;
 
 class CookieManager implements CookieContract
 {

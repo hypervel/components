@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Bus;
+namespace Hypervel\Bus;
 
 use Closure;
 use Hyperf\Collection\Collection;
 use Hyperf\Coroutine\Coroutine;
-use LaravelHyperf\Bus\Contracts\BatchRepository;
-use LaravelHyperf\Bus\Contracts\QueueingDispatcher;
-use LaravelHyperf\Queue\Contracts\Queue;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
-use LaravelHyperf\Queue\InteractsWithQueue;
-use LaravelHyperf\Queue\Jobs\SyncJob;
-use LaravelHyperf\Support\Pipeline;
+use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Bus\Contracts\QueueingDispatcher;
+use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\Jobs\SyncJob;
+use Hypervel\Support\Pipeline;
 use Psr\Container\ContainerInterface;
 use RuntimeException;
 

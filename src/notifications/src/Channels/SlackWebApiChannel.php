@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Channels;
+namespace Hypervel\Notifications\Channels;
 
 use GuzzleHttp\Client as HttpClient;
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Notifications\Notification;
-use LaravelHyperf\Notifications\Slack\SlackMessage;
-use LaravelHyperf\Notifications\Slack\SlackRoute;
+use Hypervel\Notifications\Notification;
+use Hypervel\Notifications\Slack\SlackMessage;
+use Hypervel\Notifications\Slack\SlackRoute;
 use LogicException;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;

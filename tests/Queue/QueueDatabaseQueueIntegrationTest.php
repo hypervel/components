@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Queue;
+namespace Hypervel\Tests\Queue;
 
 use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Foundation\Testing\RefreshDatabase;
-use LaravelHyperf\Queue\DatabaseQueue;
-use LaravelHyperf\Queue\Events\JobQueued;
-use LaravelHyperf\Queue\Events\JobQueueing;
-use LaravelHyperf\Support\Carbon;
-use LaravelHyperf\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Queue\DatabaseQueue;
+use Hypervel\Queue\Events\JobQueued;
+use Hypervel\Queue\Events\JobQueueing;
+use Hypervel\Support\Carbon;
+use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Ramsey\Uuid\Uuid;

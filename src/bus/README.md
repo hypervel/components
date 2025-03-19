@@ -1,2 +1,2 @@
-Bus for Laravel Hyperf
+Bus for Hypervel
 ===

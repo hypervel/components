@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Hashing;
+namespace Hypervel\Tests\Hashing;
 
 use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\ContainerInterface;
-use LaravelHyperf\Hashing\Argon2IdHasher;
-use LaravelHyperf\Hashing\ArgonHasher;
-use LaravelHyperf\Hashing\BcryptHasher;
-use LaravelHyperf\Hashing\HashManager;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Hashing\Argon2IdHasher;
+use Hypervel\Hashing\ArgonHasher;
+use Hypervel\Hashing\BcryptHasher;
+use Hypervel\Hashing\HashManager;
+use Hypervel\Tests\TestCase;
 use Mockery;
 use RuntimeException;
 

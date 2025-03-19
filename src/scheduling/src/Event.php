@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Scheduling;
+namespace Hypervel\Scheduling;
 
 use Carbon\Carbon;
 use Closure;
@@ -19,14 +19,14 @@ use Hyperf\Macroable\Macroable;
 use Hyperf\Stringable\Stringable;
 use Hyperf\Support\Filesystem\Filesystem;
 use Hyperf\Tappable\Tappable;
-use LaravelHyperf\Container\Contracts\Container;
-use LaravelHyperf\Foundation\Console\Contracts\Kernel as KernelContract;
-use LaravelHyperf\Foundation\Contracts\Application as ApplicationContract;
-use LaravelHyperf\Foundation\Exceptions\Contracts\ExceptionHandler;
-use LaravelHyperf\Mail\Contracts\Mailer;
-use LaravelHyperf\Scheduling\Contracts\EventMutex;
-use LaravelHyperf\Support\Facades\Date;
-use LaravelHyperf\Support\Traits\ReflectsClosures;
+use Hypervel\Container\Contracts\Container;
+use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
+use Hypervel\Mail\Contracts\Mailer;
+use Hypervel\Scheduling\Contracts\EventMutex;
+use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Traits\ReflectsClosures;
 use LogicException;
 use Psr\Http\Client\ClientExceptionInterface;
 use Symfony\Component\Process\Process;
@@ -185,7 +185,7 @@ class Event
      */
     protected function runProcess(Container $container): int
     {
-        /** @var \LaravelHyperf\Foundation\Contracts\Application $container */
+        /** @var \Hypervel\Foundation\Contracts\Application $container */
         $process = Process::fromShellCommandline(
             $this->command,
             $container->basePath()

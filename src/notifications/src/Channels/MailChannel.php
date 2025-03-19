@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Channels;
+namespace Hypervel\Notifications\Channels;
 
 use Closure;
 use Hyperf\Collection\Arr;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Mail\Contracts\Factory as MailFactory;
-use LaravelHyperf\Mail\Contracts\Mailable;
-use LaravelHyperf\Mail\Markdown;
-use LaravelHyperf\Mail\Message;
-use LaravelHyperf\Mail\SentMessage;
-use LaravelHyperf\Notifications\Messages\MailMessage;
-use LaravelHyperf\Notifications\Notification;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
+use Hypervel\Mail\Contracts\Factory as MailFactory;
+use Hypervel\Mail\Contracts\Mailable;
+use Hypervel\Mail\Markdown;
+use Hypervel\Mail\Message;
+use Hypervel\Mail\SentMessage;
+use Hypervel\Notifications\Messages\MailMessage;
+use Hypervel\Notifications\Notification;
+use Hypervel\Queue\Contracts\ShouldQueue;
 use RuntimeException;
 use Symfony\Component\Mailer\Header\MetadataHeader;
 use Symfony\Component\Mailer\Header\TagHeader;

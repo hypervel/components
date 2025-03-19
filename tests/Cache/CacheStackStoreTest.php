@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Cache;
+namespace Hypervel\Tests\Cache;
 
 use Carbon\Carbon;
-use LaravelHyperf\Cache\ArrayStore;
-use LaravelHyperf\Cache\RedisStore;
-use LaravelHyperf\Cache\StackStore;
-use LaravelHyperf\Cache\StackStoreProxy;
-use LaravelHyperf\Cache\SwooleStore;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\RedisStore;
+use Hypervel\Cache\StackStore;
+use Hypervel\Cache\StackStoreProxy;
+use Hypervel\Cache\SwooleStore;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 

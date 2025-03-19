@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Encryption\Exceptions;
+namespace Hypervel\Encryption\Exceptions;
 
 use RuntimeException;
 

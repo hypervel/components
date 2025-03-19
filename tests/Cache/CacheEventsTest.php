@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Cache;
+namespace Hypervel\Tests\Cache;
 
-use LaravelHyperf\Cache\ArrayStore;
-use LaravelHyperf\Cache\Contracts\Store;
-use LaravelHyperf\Cache\Events\CacheHit;
-use LaravelHyperf\Cache\Events\CacheMissed;
-use LaravelHyperf\Cache\Events\KeyForgotten;
-use LaravelHyperf\Cache\Events\KeyWritten;
-use LaravelHyperf\Cache\Repository;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\Contracts\Store;
+use Hypervel\Cache\Events\CacheHit;
+use Hypervel\Cache\Events\CacheMissed;
+use Hypervel\Cache\Events\KeyForgotten;
+use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Cache\Repository;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface as Dispatcher;
 

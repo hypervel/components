@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Translation\Contracts;
+namespace Hypervel\Translation\Contracts;
 
 interface HasLocalePreference
 {

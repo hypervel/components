@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Contracts;
+namespace Hypervel\Telescope\Contracts;
 
 use Hyperf\Collection\Collection;
-use LaravelHyperf\Telescope\EntryResult;
-use LaravelHyperf\Telescope\Storage\EntryQueryOptions;
+use Hypervel\Telescope\EntryResult;
+use Hypervel\Telescope\Storage\EntryQueryOptions;
 
 interface EntriesRepository
 {

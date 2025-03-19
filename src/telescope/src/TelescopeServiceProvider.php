@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope;
+namespace Hypervel\Telescope;
 
-use LaravelHyperf\Support\Facades\Route;
-use LaravelHyperf\Support\ServiceProvider;
-use LaravelHyperf\Telescope\Contracts\ClearableRepository;
-use LaravelHyperf\Telescope\Contracts\EntriesRepository;
-use LaravelHyperf\Telescope\Contracts\PrunableRepository;
-use LaravelHyperf\Telescope\Storage\DatabaseEntriesRepository;
-use LaravelHyperf\Telescope\Watchers\RedisWatcher;
+use Hypervel\Support\Facades\Route;
+use Hypervel\Support\ServiceProvider;
+use Hypervel\Telescope\Contracts\ClearableRepository;
+use Hypervel\Telescope\Contracts\EntriesRepository;
+use Hypervel\Telescope\Contracts\PrunableRepository;
+use Hypervel\Telescope\Storage\DatabaseEntriesRepository;
+use Hypervel\Telescope\Watchers\RedisWatcher;
 
 class TelescopeServiceProvider extends ServiceProvider
 {
@@ -42,7 +42,7 @@ class TelescopeServiceProvider extends ServiceProvider
             config('telescope.path'),
             __DIR__ . '/../routes/web.php',
             [
-                'namespace' => 'LaravelHyperf\Telescope\Http\Controllers',
+                'namespace' => 'Hypervel\Telescope\Http\Controllers',
                 'middleware' => config('telescope.middleware', []),
             ]
         );

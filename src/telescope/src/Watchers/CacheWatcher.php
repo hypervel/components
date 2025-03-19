@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Watchers;
+namespace Hypervel\Telescope\Watchers;
 
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Cache\Events\CacheHit;
-use LaravelHyperf\Cache\Events\CacheMissed;
-use LaravelHyperf\Cache\Events\KeyForgotten;
-use LaravelHyperf\Cache\Events\KeyWritten;
-use LaravelHyperf\Telescope\IncomingEntry;
-use LaravelHyperf\Telescope\Telescope;
+use Hypervel\Cache\Events\CacheHit;
+use Hypervel\Cache\Events\CacheMissed;
+use Hypervel\Cache\Events\KeyForgotten;
+use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\Telescope;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 

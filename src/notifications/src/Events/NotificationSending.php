@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Events;
+namespace Hypervel\Notifications\Events;
 
-use LaravelHyperf\Notifications\Notification;
+use Hypervel\Notifications\Notification;
 
 class NotificationSending
 {

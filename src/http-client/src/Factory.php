@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\HttpClient;
+namespace Hypervel\HttpClient;
 
 use Closure;
 use GuzzleHttp\Client;
@@ -16,9 +16,9 @@ use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\TransferStats;
 use Hyperf\Macroable\Macroable;
 use Hyperf\Stringable\Str;
+use Hypervel\ObjectPool\Traits\HasPoolProxy;
+use Hypervel\Support\Collection;
 use InvalidArgumentException;
-use LaravelHyperf\ObjectPool\Traits\HasPoolProxy;
-use LaravelHyperf\Support\Collection;
 use PHPUnit\Framework\Assert as PHPUnit;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
@@ -26,7 +26,7 @@ use Throwable;
 use function Hyperf\Tappable\tap;
 
 /**
- * @mixin \LaravelHyperf\HttpClient\PendingRequest
+ * @mixin \Hypervel\HttpClient\PendingRequest
  */
 class Factory
 {

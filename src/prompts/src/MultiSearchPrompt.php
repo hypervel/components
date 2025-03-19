@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Prompts;
+namespace Hypervel\Prompts;
 
 use Closure;
-use LaravelHyperf\Prompts\Support\Utils;
+use Hypervel\Prompts\Support\Utils;
 
 class MultiSearchPrompt extends Prompt
 {

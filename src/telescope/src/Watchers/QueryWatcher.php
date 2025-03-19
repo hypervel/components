@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Watchers;
+namespace Hypervel\Telescope\Watchers;
 
 use Hyperf\Database\Events\QueryExecuted;
-use LaravelHyperf\Telescope\IncomingEntry;
-use LaravelHyperf\Telescope\Telescope;
-use LaravelHyperf\Telescope\Watchers\Traits\FetchesStackTrace;
+use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\Telescope;
+use Hypervel\Telescope\Watchers\Traits\FetchesStackTrace;
 use PDO;
 use PDOException;
 use Psr\Container\ContainerInterface;

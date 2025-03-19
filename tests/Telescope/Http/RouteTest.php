@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Telescope\Http;
+namespace Hypervel\Tests\Telescope\Http;
 
-use LaravelHyperf\Foundation\Testing\Http\TestResponse;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\Http\Middleware\Authorize;
-use LaravelHyperf\Tests\Telescope\FeatureTestCase;
+use Hypervel\Foundation\Testing\Http\TestResponse;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Http\Middleware\Authorize;
+use Hypervel\Tests\Telescope\FeatureTestCase;
 use PHPUnit\Framework\Assert as PHPUnit;
 
 /**

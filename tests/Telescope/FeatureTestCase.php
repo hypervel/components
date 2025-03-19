@@ -2,29 +2,29 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Telescope;
+namespace Hypervel\Tests\Telescope;
 
 use Faker\Factory as FakerFactory;
 use Faker\Generator;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Database\Model\Collection;
 use Hyperf\Database\Schema\Blueprint;
-use LaravelHyperf\Cache\Contracts\Factory as CacheFactoryContract;
-use LaravelHyperf\Foundation\Contracts\Application as ApplicationContract;
-use LaravelHyperf\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use LaravelHyperf\Foundation\Testing\RefreshDatabase;
-use LaravelHyperf\Queue\Queue;
-use LaravelHyperf\Support\Environment;
-use LaravelHyperf\Support\Facades\Schema;
-use LaravelHyperf\Telescope\Contracts\EntriesRepository;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\Http\Middleware\Authorize;
-use LaravelHyperf\Telescope\Storage\DatabaseEntriesRepository;
-use LaravelHyperf\Telescope\Storage\EntryModel;
-use LaravelHyperf\Telescope\Telescope;
-use LaravelHyperf\Telescope\TelescopeApplicationServiceProvider;
-use LaravelHyperf\Telescope\TelescopeServiceProvider;
-use LaravelHyperf\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Cache\Contracts\Factory as CacheFactoryContract;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Queue\Queue;
+use Hypervel\Support\Environment;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Telescope\Contracts\EntriesRepository;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Http\Middleware\Authorize;
+use Hypervel\Telescope\Storage\DatabaseEntriesRepository;
+use Hypervel\Telescope\Storage\EntryModel;
+use Hypervel\Telescope\Telescope;
+use Hypervel\Telescope\TelescopeApplicationServiceProvider;
+use Hypervel\Telescope\TelescopeServiceProvider;
+use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
 
 /**
  * @internal

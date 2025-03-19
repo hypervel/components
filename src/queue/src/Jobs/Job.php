@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Jobs;
+namespace Hypervel\Queue\Jobs;
 
 use Hyperf\Support\Traits\InteractsWithTime;
-use LaravelHyperf\Bus\Batchable;
-use LaravelHyperf\Bus\Contracts\BatchRepository;
-use LaravelHyperf\Queue\Contracts\Job as JobContract;
-use LaravelHyperf\Queue\Events\JobFailed;
-use LaravelHyperf\Queue\Exceptions\ManuallyFailedException;
-use LaravelHyperf\Queue\Exceptions\TimeoutExceededException;
+use Hypervel\Bus\Batchable;
+use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Queue\Contracts\Job as JobContract;
+use Hypervel\Queue\Events\JobFailed;
+use Hypervel\Queue\Exceptions\ManuallyFailedException;
+use Hypervel\Queue\Exceptions\TimeoutExceededException;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;

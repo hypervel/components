@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Connectors;
+namespace Hypervel\Queue\Connectors;
 
-use LaravelHyperf\Queue\BeanstalkdQueue;
-use LaravelHyperf\Queue\Contracts\Queue;
+use Hypervel\Queue\BeanstalkdQueue;
+use Hypervel\Queue\Contracts\Queue;
 use Pheanstalk\Contract\SocketFactoryInterface;
 use Pheanstalk\Pheanstalk;
 use Pheanstalk\Values\Timeout;

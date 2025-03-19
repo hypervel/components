@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Http\Controllers;
+namespace Hypervel\Telescope\Http\Controllers;
 
-use LaravelHyperf\Cache\ArrayStore;
-use LaravelHyperf\Cache\Contracts\Factory as CacheFactory;
-use LaravelHyperf\Http\Request;
-use LaravelHyperf\Telescope\Contracts\EntriesRepository;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\Storage\EntryQueryOptions;
-use LaravelHyperf\Telescope\Watchers\DumpWatcher;
+use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Http\Request;
+use Hypervel\Telescope\Contracts\EntriesRepository;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Storage\EntryQueryOptions;
+use Hypervel\Telescope\Watchers\DumpWatcher;
 use Symfony\Component\VarDumper\Cloner\VarCloner;
 use Symfony\Component\VarDumper\Dumper\HtmlDumper;
 

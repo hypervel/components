@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Broadcasting;
+namespace Hypervel\Broadcasting;
 
-use LaravelHyperf\Support\Facades\Broadcast;
+use Hypervel\Support\Facades\Broadcast;
 
 trait InteractsWithSockets
 {

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Contracts;
+namespace Hypervel\Foundation\Contracts;
 
-use LaravelHyperf\Container\Contracts\Container;
-use LaravelHyperf\HttpMessage\Exceptions\HttpException;
-use LaravelHyperf\HttpMessage\Exceptions\NotFoundHttpException;
-use LaravelHyperf\Support\ServiceProvider;
+use Hypervel\Container\Contracts\Container;
+use Hypervel\HttpMessage\Exceptions\HttpException;
+use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
+use Hypervel\Support\ServiceProvider;
 use RuntimeException;
 
 interface Application extends Container
@@ -35,7 +35,7 @@ interface Application extends Container
     public function setBasePath(string $basePath): static;
 
     /**
-     * Get the base path of the Laravel Hyperf installation.
+     * Get the base path of the Hypervel installation.
      */
     public function basePath(string $path = ''): string;
 

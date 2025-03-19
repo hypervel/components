@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Broadcasting;
+namespace Hypervel\Tests\Broadcasting;
 
 use Exception;
 use Hyperf\Context\RequestContext;
@@ -10,12 +10,12 @@ use Hyperf\Database\Model\Booted;
 use Hyperf\HttpMessage\Server\Request as ServerRequest;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Request;
-use LaravelHyperf\Auth\AuthManager;
-use LaravelHyperf\Auth\Contracts\Authenticatable;
-use LaravelHyperf\Auth\Contracts\Guard;
-use LaravelHyperf\Broadcasting\Broadcasters\Broadcaster;
-use LaravelHyperf\Database\Eloquent\Model;
-use LaravelHyperf\HttpMessage\Exceptions\HttpException;
+use Hypervel\Auth\AuthManager;
+use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Auth\Contracts\Guard;
+use Hypervel\Broadcasting\Broadcasters\Broadcaster;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\HttpMessage\Exceptions\HttpException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;

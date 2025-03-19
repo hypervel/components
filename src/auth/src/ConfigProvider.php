@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Auth;
+namespace Hypervel\Auth;
 
-use LaravelHyperf\Auth\Access\GateFactory;
-use LaravelHyperf\Auth\Contracts\Authenticatable;
-use LaravelHyperf\Auth\Contracts\FactoryContract;
-use LaravelHyperf\Auth\Contracts\Gate as GateContract;
-use LaravelHyperf\Auth\Contracts\Guard;
+use Hypervel\Auth\Access\GateFactory;
+use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Auth\Contracts\FactoryContract;
+use Hypervel\Auth\Contracts\Gate as GateContract;
+use Hypervel\Auth\Contracts\Guard;
 
 class ConfigProvider
 {

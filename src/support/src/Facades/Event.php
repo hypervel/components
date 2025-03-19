@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Facades;
+namespace Hypervel\Support\Facades;
 
 use Hyperf\Database\Model\Register;
-use LaravelHyperf\Support\Testing\Fakes\EventFake;
+use Hypervel\Support\Testing\Fakes\EventFake;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * @method static object|string dispatch(object|string $event, mixed $payload = [], bool $halt = false)
- * @method static void listen(\Closure|\LaravelHyperf\Event\QueuedClosure|array|string $events, \Closure|\LaravelHyperf\Event\QueuedClosure|array|string|int|null $listener = null, int $priority = 0)
+ * @method static void listen(\Closure|\Hypervel\Event\QueuedClosure|array|string $events, \Closure|\Hypervel\Event\QueuedClosure|array|string|int|null $listener = null, int $priority = 0)
  * @method static object|string until(object|string $event, mixed $payload = [])
  * @method static iterable getListeners(object|string $eventName)
  * @method static void push(string $event, mixed $payload = [])
@@ -19,11 +19,11 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  * @method static void forget(string $event)
  * @method static bool hasListeners(string $eventName)
  * @method static bool hasWildcardListeners(string $eventName)
- * @method static \LaravelHyperf\Event\EventDispatcher setQueueResolver(callable $resolver)
- * @method static \LaravelHyperf\Event\EventDispatcher setTransactionManagerResolver(callable $resolver)
+ * @method static \Hypervel\Event\EventDispatcher setQueueResolver(callable $resolver)
+ * @method static \Hypervel\Event\EventDispatcher setTransactionManagerResolver(callable $resolver)
  * @method static void subscribe(object|string $subscriber)
  * @method static array getRawListeners()
- * @method static \LaravelHyperf\Support\Testing\Fakes\EventFake except(array|string $eventsToDispatch)
+ * @method static \Hypervel\Support\Testing\Fakes\EventFake except(array|string $eventsToDispatch)
  * @method static void assertListening(string $expectedEvent, string $expectedListener)
  * @method static void assertDispatched(\Closure|string $event, callable|int|null $callback = null)
  * @method static void assertDispatchedTimes(string $event, int $times = 1)
@@ -33,8 +33,8 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  * @method static bool hasDispatched(string $event)
  * @method static array dispatchedEvents()
  *
- * @see \LaravelHyperf\Event\EventDispatcher
- * @see \LaravelHyperf\Support\Testing\Fakes\EventFake
+ * @see \Hypervel\Event\EventDispatcher
+ * @see \Hypervel\Support\Testing\Fakes\EventFake
  */
 class Event extends Facade
 {

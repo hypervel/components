@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Broadcasting;
+namespace Hypervel\Broadcasting;
 
 use Hyperf\HttpServer\Contract\RequestInterface;
-use LaravelHyperf\HttpMessage\Exceptions\AccessDeniedHttpException;
-use LaravelHyperf\Support\Facades\Broadcast;
+use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
+use Hypervel\Support\Facades\Broadcast;
 
 class BroadcastController
 {

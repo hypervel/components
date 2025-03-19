@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Broadcasting;
+namespace Hypervel\Tests\Broadcasting;
 
-use LaravelHyperf\Broadcasting\BroadcastEvent;
-use LaravelHyperf\Broadcasting\Contracts\Broadcaster;
-use LaravelHyperf\Broadcasting\Contracts\Factory as BroadcastingFactory;
-use LaravelHyperf\Broadcasting\InteractsWithBroadcasting;
+use Hypervel\Broadcasting\BroadcastEvent;
+use Hypervel\Broadcasting\Contracts\Broadcaster;
+use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactory;
+use Hypervel\Broadcasting\InteractsWithBroadcasting;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 

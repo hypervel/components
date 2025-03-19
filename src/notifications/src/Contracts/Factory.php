@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Contracts;
+namespace Hypervel\Notifications\Contracts;
 
 use Hyperf\Collection\Collection;
 

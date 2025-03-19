@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Session\Contracts\Middleware;
+namespace Hypervel\Session\Contracts\Middleware;
 
 interface AuthenticatesSessions
 {

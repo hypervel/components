@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\JWT;
+namespace Hypervel\JWT;
 
 use Hyperf\Collection\Collection;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\JWT\Contracts\BlacklistContract;
-use LaravelHyperf\JWT\Contracts\ManagerContract;
-use LaravelHyperf\JWT\Contracts\ValidationContract;
-use LaravelHyperf\JWT\Exceptions\JWTException;
-use LaravelHyperf\JWT\Exceptions\TokenBlacklistedException;
-use LaravelHyperf\JWT\Providers\Lcobucci;
-use LaravelHyperf\Support\Manager;
+use Hypervel\JWT\Contracts\BlacklistContract;
+use Hypervel\JWT\Contracts\ManagerContract;
+use Hypervel\JWT\Contracts\ValidationContract;
+use Hypervel\JWT\Exceptions\JWTException;
+use Hypervel\JWT\Exceptions\TokenBlacklistedException;
+use Hypervel\JWT\Providers\Lcobucci;
+use Hypervel\Support\Manager;
 use Psr\Container\ContainerInterface;
 use RuntimeException;
 

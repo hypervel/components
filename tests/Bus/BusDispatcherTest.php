@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Bus;
+namespace Hypervel\Tests\Bus;
 
-use LaravelHyperf\Bus\Dispatcher;
-use LaravelHyperf\Bus\Queueable;
-use LaravelHyperf\Container\Contracts\Container;
-use LaravelHyperf\Queue\Contracts\Queue;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
-use LaravelHyperf\Queue\InteractsWithQueue;
+use Hypervel\Bus\Dispatcher;
+use Hypervel\Bus\Queueable;
+use Hypervel\Container\Contracts\Container;
+use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Queue\InteractsWithQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;

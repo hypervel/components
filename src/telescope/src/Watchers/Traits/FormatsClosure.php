@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Watchers\Traits;
+namespace Hypervel\Telescope\Watchers\Traits;
 
 use Closure;
 use ReflectionException;

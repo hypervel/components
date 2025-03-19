@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Mail;
+namespace Hypervel\Mail;
 
 use Hyperf\Stringable\Str;
 use Hyperf\Support\Traits\ForwardsCalls;
-use LaravelHyperf\Mail\Contracts\Attachable;
+use Hypervel\Mail\Contracts\Attachable;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;
 use Symfony\Component\Mime\Part\DataPart;

@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Queue;
+namespace Hypervel\Tests\Queue;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
-use LaravelHyperf\Bus\Contracts\Dispatcher;
-use LaravelHyperf\Bus\PendingDispatch;
-use LaravelHyperf\Bus\Queueable;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
+use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Bus\PendingDispatch;
+use Hypervel\Bus\Queueable;
+use Hypervel\Queue\Contracts\ShouldQueue;
 use Mockery;
 use PHPUnit\Framework\TestCase;
 

@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Watchers;
+namespace Hypervel\Telescope\Watchers;
 
 use Hyperf\Collection\Collection;
 use Hyperf\Context\Context;
 use Hyperf\Database\Model\Events\Event;
 use Hyperf\Database\Model\Model;
-use LaravelHyperf\Telescope\FormatModel;
-use LaravelHyperf\Telescope\IncomingEntry;
-use LaravelHyperf\Telescope\Storage\EntryModel;
-use LaravelHyperf\Telescope\Telescope;
+use Hypervel\Telescope\FormatModel;
+use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\Storage\EntryModel;
+use Hypervel\Telescope\Telescope;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 

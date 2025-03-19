@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Event;
+namespace Hypervel\Tests\Event;
 
-use LaravelHyperf\Broadcasting\Contracts\Factory as BroadcastFactory;
-use LaravelHyperf\Broadcasting\Contracts\ShouldBroadcast;
-use LaravelHyperf\Event\EventDispatcher;
-use LaravelHyperf\Event\ListenerProvider;
+use Hypervel\Broadcasting\Contracts\Factory as BroadcastFactory;
+use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
+use Hypervel\Event\EventDispatcher;
+use Hypervel\Event\ListenerProvider;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;

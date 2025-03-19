@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Process;
+namespace Hypervel\Process;
 
 use Closure;
 use Hyperf\Collection\Collection;
 use Hyperf\Conditionable\Conditionable;
-use LaravelHyperf\Process\Contracts\InvokedProcess as InvokedProcessContract;
-use LaravelHyperf\Process\Contracts\ProcessResult as ProcessResultContract;
-use LaravelHyperf\Process\Exceptions\ProcessTimedOutException;
-use LaravelHyperf\Support\Str;
+use Hypervel\Process\Contracts\InvokedProcess as InvokedProcessContract;
+use Hypervel\Process\Contracts\ProcessResult as ProcessResultContract;
+use Hypervel\Process\Exceptions\ProcessTimedOutException;
+use Hypervel\Support\Str;
 use LogicException;
 use RuntimeException;
 use Symfony\Component\Process\Exception\ProcessTimedOutException as SymfonyTimeoutException;
@@ -206,7 +206,7 @@ class PendingProcess
     /**
      * Run the process.
      *
-     * @throws \LaravelHyperf\Process\Exceptions\ProcessTimedOutException
+     * @throws \Hypervel\Process\Exceptions\ProcessTimedOutException
      * @throws RuntimeException
      */
     public function run(null|array|string $command = null, ?callable $output = null): ProcessResultContract
@@ -242,7 +242,7 @@ class PendingProcess
 
         if ($fake = $this->fakeFor($command = $process->getCommandline())) {
             return tap($this->resolveAsynchronousFake($command, $output, $fake), function (InvokedProcessContract $process) {
-                /** @var \LaravelHyperf\Process\FakeInvokedProcess $process */
+                /** @var \Hypervel\Process\FakeInvokedProcess $process */
                 $this->factory->recordIfRecording($this, $process->predictProcessResult());
             });
         } elseif ($this->factory->isRecording() && $this->factory->preventingStrayProcesses()) {

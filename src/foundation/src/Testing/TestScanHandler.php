@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Testing;
+namespace Hypervel\Foundation\Testing;
 
 use Hyperf\Di\ScanHandler\ScanHandlerInterface;
 use Hyperf\Di\ScanHandler\Scanned;

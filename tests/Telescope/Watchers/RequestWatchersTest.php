@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Telescope\Watchers;
+namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\HttpServer\Server as HttpServer;
 use Hyperf\Server\Event;
-use LaravelHyperf\Http\UploadedFile;
-use LaravelHyperf\Support\Facades\Response;
-use LaravelHyperf\Support\Facades\Route;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\Watchers\RequestWatcher;
-use LaravelHyperf\Tests\Telescope\FeatureTestCase;
+use Hypervel\Http\UploadedFile;
+use Hypervel\Support\Facades\Response;
+use Hypervel\Support\Facades\Route;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Watchers\RequestWatcher;
+use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
@@ -54,7 +54,7 @@ class RequestWatchersTest extends FeatureTestCase
 
     public function testRequestWatcherRegistersRequests()
     {
-        $result = ['email' => 'albert@laravel-hyperf.com'];
+        $result = ['email' => 'albert@hypervel.org'];
         Route::get('/emails', fn () => $result);
 
         $this->get('/emails')->assertSuccessful();
@@ -85,7 +85,7 @@ class RequestWatchersTest extends FeatureTestCase
         Route::post('/auth', fn () => 'success');
 
         $this->post('/auth', [
-            'email' => 'telescope@laravel-hyperf.com',
+            'email' => 'telescope@hypervel.org',
             'password' => 'secret',
             'password_confirmation' => 'secret',
         ]);
@@ -94,7 +94,7 @@ class RequestWatchersTest extends FeatureTestCase
 
         $this->assertSame(EntryType::REQUEST, $entry->type);
         $this->assertSame('POST', $entry->content['method']);
-        $this->assertSame('telescope@laravel-hyperf.com', $entry->content['payload']['email']);
+        $this->assertSame('telescope@hypervel.org', $entry->content['payload']['email']);
         $this->assertSame('********', $entry->content['payload']['password']);
         $this->assertSame('********', $entry->content['payload']['password_confirmation']);
     }

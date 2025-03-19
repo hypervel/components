@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Channels;
+namespace Hypervel\Notifications\Channels;
 
 use GuzzleHttp\Client as HttpClient;
 use Hyperf\Collection\Collection;
-use LaravelHyperf\Notifications\Messages\SlackAttachment;
-use LaravelHyperf\Notifications\Messages\SlackAttachmentField;
-use LaravelHyperf\Notifications\Messages\SlackMessage;
-use LaravelHyperf\Notifications\Notification;
+use Hypervel\Notifications\Messages\SlackAttachment;
+use Hypervel\Notifications\Messages\SlackAttachmentField;
+use Hypervel\Notifications\Messages\SlackMessage;
+use Hypervel\Notifications\Notification;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
 

@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Mail;
+namespace Hypervel\Mail;
 
 use Closure;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Macroable\Macroable;
-use LaravelHyperf\Filesystem\Contracts\Factory as FilesystemFactory;
-use LaravelHyperf\Filesystem\Contracts\Filesystem;
-use LaravelHyperf\Notifications\Messages\MailMessage;
+use Hypervel\Filesystem\Contracts\Factory as FilesystemFactory;
+use Hypervel\Filesystem\Contracts\Filesystem;
+use Hypervel\Notifications\Messages\MailMessage;
 use RuntimeException;
 
 use function Hyperf\Support\with;

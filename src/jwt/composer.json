@@ -1,22 +1,22 @@
 {
-    "name": "laravel-hyperf/jwt",
-    "description": "The jwt package for Laravel Hyperf.",
+    "name": "hypervel/jwt",
+    "description": "The jwt package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
         "hyperf",
         "jwt",
         "swoole",
-        "laravel-hyperf"
+        "hypervel"
     ],
     "support": {
-        "issues": "https://github.com/laravel-hyperf/components/issues",
-        "source": "https://github.com/laravel-hyperf/components"
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
     },
     "jwtors": [
         {
             "name": "Albert Chen",
-            "email": "albert@laravel-hyperf.com"
+            "email": "albert@hypervel.org"
         }
     ],
     "require": {
@@ -27,16 +27,16 @@
         "psr/simple-cache": "^3.0",
         "hyperf/stringable": "~3.1.0",
         "ramsey/uuid": "^4.7",
-        "laravel-hyperf/cache": "^0.1"
+        "hypervel/cache": "^0.1"
     },
     "autoload": {
         "psr-4": {
-            "LaravelHyperf\\JWT\\": "src/"
+            "Hypervel\\JWT\\": "src/"
         }
     },
     "extra": {
         "hyperf": {
-            "config": "LaravelHyperf\\JWT\\ConfigProvider"
+            "config": "Hypervel\\JWT\\ConfigProvider"
         },
         "branch-alias": {
             "dev-main": "0.1-dev"

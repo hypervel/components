@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Coroutine\Channel;
+namespace Hypervel\Coroutine\Channel;
 
 use Hyperf\Coroutine\Channel\Manager as BaseManager;
 

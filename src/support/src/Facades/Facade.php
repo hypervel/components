@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Facades;
+namespace Hypervel\Support\Facades;
 
 use Closure;
-use LaravelHyperf\Context\ApplicationContext;
-use LaravelHyperf\Support\Testing\Fakes\Fake;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Support\Testing\Fakes\Fake;
 use Mockery;
 use Mockery\LegacyMockInterface;
 use RuntimeException;

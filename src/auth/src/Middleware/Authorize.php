@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Auth\Middleware;
+namespace Hypervel\Auth\Middleware;
 
 use Hyperf\Collection\Collection;
 use Hyperf\Database\Model\Model;
 use Hyperf\HttpServer\Router\Dispatched;
-use LaravelHyperf\Auth\Access\AuthorizationException;
-use LaravelHyperf\Auth\Contracts\Gate;
+use Hypervel\Auth\Access\AuthorizationException;
+use Hypervel\Auth\Contracts\Gate;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;

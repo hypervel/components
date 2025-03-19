@@ -31,7 +31,7 @@ if [[ $# -eq 0 ]]; then
 fi
 
 for REPO in $REPOS ; do
-    remote $REPO git@github.com:laravel-hyperf/${REPO}.git
+    remote $REPO git@github.com:hypervel/${REPO}.git
 
     split "src/$REPO" $REPO
 done

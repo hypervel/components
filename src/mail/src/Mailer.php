@@ -2,25 +2,25 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Mail;
+namespace Hypervel\Mail;
 
 use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hyperf\Macroable\Macroable;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
+use Hypervel\Mail\Contracts\Mailable;
+use Hypervel\Mail\Contracts\Mailable as MailableContract;
+use Hypervel\Mail\Contracts\Mailer as MailerContract;
+use Hypervel\Mail\Contracts\MailQueue as MailQueueContract;
+use Hypervel\Mail\Events\MessageSending;
+use Hypervel\Mail\Events\MessageSent;
+use Hypervel\Mail\Mailables\Address;
+use Hypervel\Queue\Contracts\Factory as QueueFactory;
+use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Support\HtmlString;
 use InvalidArgumentException;
-use LaravelHyperf\Mail\Contracts\Mailable;
-use LaravelHyperf\Mail\Contracts\Mailable as MailableContract;
-use LaravelHyperf\Mail\Contracts\Mailer as MailerContract;
-use LaravelHyperf\Mail\Contracts\MailQueue as MailQueueContract;
-use LaravelHyperf\Mail\Events\MessageSending;
-use LaravelHyperf\Mail\Events\MessageSent;
-use LaravelHyperf\Mail\Mailables\Address;
-use LaravelHyperf\Queue\Contracts\Factory as QueueFactory;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
-use LaravelHyperf\Support\Contracts\Htmlable;
-use LaravelHyperf\Support\HtmlString;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\SentMessage as SymfonySentMessage;

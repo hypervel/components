@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\HttpMessage\Exceptions;
+namespace Hypervel\HttpMessage\Exceptions;
 
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;

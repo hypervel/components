@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\ViewEngine\Contract\DeferringDisplayableValue;
-use LaravelHyperf\Support\Collection;
-use LaravelHyperf\Support\Contracts\Htmlable;
-use LaravelHyperf\Support\Environment;
-use LaravelHyperf\Support\HigherOrderTapProxy;
-use LaravelHyperf\Support\Sleep;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Support\Environment;
+use Hypervel\Support\HigherOrderTapProxy;
+use Hypervel\Support\Sleep;
 
 if (! function_exists('value')) {
     /**
@@ -16,7 +16,7 @@ if (! function_exists('value')) {
      */
     function value(mixed $value, mixed ...$args)
     {
-        return \LaravelHyperf\Support\value($value, ...$args);
+        return \Hypervel\Support\value($value, ...$args);
     }
 }
 
@@ -26,7 +26,7 @@ if (! function_exists('env')) {
      */
     function env(string $key, mixed $default = null): mixed
     {
-        return \LaravelHyperf\Support\env($key, $default);
+        return \Hypervel\Support\env($key, $default);
     }
 }
 

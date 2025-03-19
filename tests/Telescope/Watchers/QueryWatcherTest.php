@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Telescope\Watchers;
+namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Database\Connection;
 use Hyperf\Database\Events\QueryExecuted;
-use LaravelHyperf\Support\Carbon;
-use LaravelHyperf\Support\Facades\DB;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\Storage\EntryModel;
-use LaravelHyperf\Telescope\Watchers\QueryWatcher;
-use LaravelHyperf\Tests\Telescope\FeatureTestCase;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Storage\EntryModel;
+use Hypervel\Telescope\Watchers\QueryWatcher;
+use Hypervel\Tests\Telescope\FeatureTestCase;
 
 /**
  * @internal

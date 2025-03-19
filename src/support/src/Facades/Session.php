@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Facades;
+namespace Hypervel\Support\Facades;
 
-use LaravelHyperf\Session\Contracts\Session as SessionContract;
+use Hypervel\Session\Contracts\Session as SessionContract;
 
 /**
- * @method static \LaravelHyperf\Session\Contracts\Session store(string|null $name = null)
+ * @method static \Hypervel\Session\Contracts\Session store(string|null $name = null)
  * @method static bool shouldBlock()
  * @method static string|null blockDriver()
  * @method static int defaultRouteBlockLockSeconds()
@@ -16,11 +16,11 @@ use LaravelHyperf\Session\Contracts\Session as SessionContract;
  * @method static string getDefaultDriver()
  * @method static void setDefaultDriver(string $name)
  * @method static mixed driver(string|null $driver = null)
- * @method static \LaravelHyperf\Session\SessionManager extend(string $driver, \Closure $callback)
+ * @method static \Hypervel\Session\SessionManager extend(string $driver, \Closure $callback)
  * @method static array getDrivers()
  * @method static \Psr\Container\ContainerInterface getContainer()
- * @method static \LaravelHyperf\Session\SessionManager setContainer(\Psr\Container\ContainerInterface $container)
- * @method static \LaravelHyperf\Session\SessionManager forgetDrivers()
+ * @method static \Hypervel\Session\SessionManager setContainer(\Psr\Container\ContainerInterface $container)
+ * @method static \Hypervel\Session\SessionManager forgetDrivers()
  * @method static bool start()
  * @method static void save()
  * @method static void ageFlashData()
@@ -72,7 +72,7 @@ use LaravelHyperf\Session\Contracts\Session as SessionContract;
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static bool hasMacro(string $name)
  *
- * @see \LaravelHyperf\Session\SessionManager
+ * @see \Hypervel\Session\SessionManager
  */
 class Session extends Facade
 {

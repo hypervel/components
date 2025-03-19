@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Scheduling;
+namespace Hypervel\Tests\Scheduling;
 
-use LaravelHyperf\Scheduling\Contracts\EventMutex;
-use LaravelHyperf\Scheduling\Event;
-use LaravelHyperf\Support\Carbon;
+use Hypervel\Scheduling\Contracts\EventMutex;
+use Hypervel\Scheduling\Event;
+use Hypervel\Support\Carbon;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 

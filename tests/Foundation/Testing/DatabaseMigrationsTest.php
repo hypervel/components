@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Foundation\Testing;
+namespace Hypervel\Tests\Foundation\Testing;
 
 use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Foundation\Console\Contracts\Kernel as KernelContract;
-use LaravelHyperf\Foundation\Testing\Concerns\InteractsWithConsole;
-use LaravelHyperf\Foundation\Testing\DatabaseMigrations;
-use LaravelHyperf\Tests\Foundation\Concerns\HasMockedApplication;
+use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
+use Hypervel\Foundation\Testing\DatabaseMigrations;
+use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 
 /**

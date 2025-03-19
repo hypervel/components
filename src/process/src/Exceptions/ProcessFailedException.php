@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Process\Exceptions;
+namespace Hypervel\Process\Exceptions;
 
-use LaravelHyperf\Process\Contracts\ProcessResult;
+use Hypervel\Process\Contracts\ProcessResult;
 use RuntimeException;
 
 class ProcessFailedException extends RuntimeException

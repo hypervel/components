@@ -2,30 +2,30 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue;
+namespace Hypervel\Queue;
 
 use Hyperf\Coordinator\Timer;
 use Hyperf\Coroutine\Concurrent;
 use Hyperf\Database\DetectsLostConnections;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Cache\Contracts\Factory as CacheFactory;
-use LaravelHyperf\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
-use LaravelHyperf\Queue\Contracts\Factory as QueueManager;
-use LaravelHyperf\Queue\Contracts\Job as JobContract;
-use LaravelHyperf\Queue\Contracts\Queue as QueueContract;
-use LaravelHyperf\Queue\Events\JobAttempted;
-use LaravelHyperf\Queue\Events\JobExceptionOccurred;
-use LaravelHyperf\Queue\Events\JobPopped;
-use LaravelHyperf\Queue\Events\JobPopping;
-use LaravelHyperf\Queue\Events\JobProcessed;
-use LaravelHyperf\Queue\Events\JobProcessing;
-use LaravelHyperf\Queue\Events\JobReleasedAfterException;
-use LaravelHyperf\Queue\Events\JobTimedOut;
-use LaravelHyperf\Queue\Events\Looping;
-use LaravelHyperf\Queue\Events\WorkerStopping;
-use LaravelHyperf\Queue\Exceptions\MaxAttemptsExceededException;
-use LaravelHyperf\Queue\Exceptions\TimeoutExceededException;
-use LaravelHyperf\Support\Carbon;
+use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Queue\Contracts\Factory as QueueManager;
+use Hypervel\Queue\Contracts\Job as JobContract;
+use Hypervel\Queue\Contracts\Queue as QueueContract;
+use Hypervel\Queue\Events\JobAttempted;
+use Hypervel\Queue\Events\JobExceptionOccurred;
+use Hypervel\Queue\Events\JobPopped;
+use Hypervel\Queue\Events\JobPopping;
+use Hypervel\Queue\Events\JobProcessed;
+use Hypervel\Queue\Events\JobProcessing;
+use Hypervel\Queue\Events\JobReleasedAfterException;
+use Hypervel\Queue\Events\JobTimedOut;
+use Hypervel\Queue\Events\Looping;
+use Hypervel\Queue\Events\WorkerStopping;
+use Hypervel\Queue\Exceptions\MaxAttemptsExceededException;
+use Hypervel\Queue\Exceptions\TimeoutExceededException;
+use Hypervel\Support\Carbon;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 

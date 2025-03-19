@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Http;
+namespace Hypervel\Http;
 
 use Hyperf\HttpMessage\Server\Chunk\Chunkable;
 

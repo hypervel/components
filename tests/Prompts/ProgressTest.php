@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Prompts;
+namespace Hypervel\Tests\Prompts;
 
 use Hyperf\Collection\Collection;
-use LaravelHyperf\Prompts\Prompt;
+use Hypervel\Prompts\Prompt;
 use PHPUnit\Framework\TestCase;
 
-use function LaravelHyperf\Prompts\progress;
+use function Hypervel\Prompts\progress;
 
 /**
  * @backupStaticProperties enabled

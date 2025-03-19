@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Session;
+namespace Hypervel\Session;
 
-use LaravelHyperf\Support\Traits\InteractsWithTime;
+use Hypervel\Support\Traits\InteractsWithTime;
 use SessionHandlerInterface;
 
 class ArraySessionHandler implements SessionHandlerInterface

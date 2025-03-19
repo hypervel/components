@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Session;
+namespace Hypervel\Session;
 
-use LaravelHyperf\Cache\Contracts\Factory as CacheContract;
-use LaravelHyperf\Cache\Contracts\Repository as RepositoryContract;
+use Hypervel\Cache\Contracts\Factory as CacheContract;
+use Hypervel\Cache\Contracts\Repository as RepositoryContract;
 use SessionHandlerInterface;
 
 class CacheBasedSessionHandler implements SessionHandlerInterface

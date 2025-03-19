@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Core;
+namespace Hypervel\Tests\Core;
 
 use Hyperf\Database\Model\Events\Created;
 use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\ModelListener;
+use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use LaravelHyperf\Database\Eloquent\ModelListener;
-use LaravelHyperf\Tests\TestCase;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface;
 

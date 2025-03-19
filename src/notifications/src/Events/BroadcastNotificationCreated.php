@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Events;
+namespace Hypervel\Notifications\Events;
 
 use Hyperf\Collection\Arr;
 use Hyperf\Collection\Collection;
-use LaravelHyperf\Broadcasting\Contracts\ShouldBroadcast;
-use LaravelHyperf\Broadcasting\PrivateChannel;
-use LaravelHyperf\Bus\Queueable;
-use LaravelHyperf\Notifications\AnonymousNotifiable;
-use LaravelHyperf\Notifications\Notification;
-use LaravelHyperf\Queue\SerializesModels;
+use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
+use Hypervel\Broadcasting\PrivateChannel;
+use Hypervel\Bus\Queueable;
+use Hypervel\Notifications\AnonymousNotifiable;
+use Hypervel\Notifications\Notification;
+use Hypervel\Queue\SerializesModels;
 
 class BroadcastNotificationCreated implements ShouldBroadcast
 {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Session\Contracts;
+namespace Hypervel\Session\Contracts;
 
 interface Factory
 {

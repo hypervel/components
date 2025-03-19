@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Router;
+namespace Hypervel\Tests\Router;
 
 use Hyperf\Config\Config;
 use Hyperf\Context\ApplicationContext;
@@ -15,12 +15,12 @@ use Hyperf\HttpMessage\Server\Request as ServerRequest;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Request;
 use Hyperf\HttpServer\Router\DispatcherFactory as HyperfDispatcherFactory;
+use Hypervel\Router\DispatcherFactory;
+use Hypervel\Router\RouteCollector;
+use Hypervel\Router\UrlGenerator;
+use Hypervel\Tests\Router\Stub\UrlRoutableStub;
+use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use LaravelHyperf\Router\DispatcherFactory;
-use LaravelHyperf\Router\RouteCollector;
-use LaravelHyperf\Router\UrlGenerator;
-use LaravelHyperf\Tests\Router\Stub\UrlRoutableStub;
-use LaravelHyperf\Tests\TestCase;
 use Mockery;
 use Mockery\MockInterface;
 use Psr\Http\Message\ServerRequestInterface;

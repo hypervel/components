@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\HttpMessage\Exceptions;
+namespace Hypervel\HttpMessage\Exceptions;
 
 use Hyperf\HttpMessage\Exception\HttpException as BaseHttpException;
 use Throwable;

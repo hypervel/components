@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Http\Resource;
+namespace Hypervel\Tests\Http\Resource;
 
-use LaravelHyperf\Http\Resources\Json\AnonymousResourceCollection;
-use LaravelHyperf\Http\Resources\Json\JsonResource;
+use Hypervel\Http\Resources\Json\AnonymousResourceCollection;
+use Hypervel\Http\Resources\Json\JsonResource;
 use PHPUnit\Framework\TestCase;
 
 /**

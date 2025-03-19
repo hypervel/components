@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Prompts;
+namespace Hypervel\Tests\Prompts;
 
-use LaravelHyperf\Prompts\Key;
-use LaravelHyperf\Prompts\Prompt;
+use Hypervel\Prompts\Key;
+use Hypervel\Prompts\Prompt;
 use PHPUnit\Framework\TestCase;
 
-use function LaravelHyperf\Prompts\confirm;
-use function LaravelHyperf\Prompts\form;
-use function LaravelHyperf\Prompts\outro;
-use function LaravelHyperf\Prompts\text;
+use function Hypervel\Prompts\confirm;
+use function Hypervel\Prompts\form;
+use function Hypervel\Prompts\outro;
+use function Hypervel\Prompts\text;
 
 /**
  * @backupStaticProperties enabled

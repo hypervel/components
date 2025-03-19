@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Storage;
+namespace Hypervel\Telescope\Storage;
 
 use DateTimeInterface;
 use Hyperf\Collection\Collection;
@@ -10,17 +10,17 @@ use Hyperf\Context\Context;
 use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\Database\Exception\UniqueConstraintViolationException;
 use Hyperf\Database\Query\Builder;
-use LaravelHyperf\Telescope\Contracts\ClearableRepository;
-use LaravelHyperf\Telescope\Contracts\EntriesRepository;
-use LaravelHyperf\Telescope\Contracts\PrunableRepository;
-use LaravelHyperf\Telescope\Contracts\TerminableRepository;
-use LaravelHyperf\Telescope\EntryResult;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\EntryUpdate;
-use LaravelHyperf\Telescope\IncomingEntry;
+use Hypervel\Telescope\Contracts\ClearableRepository;
+use Hypervel\Telescope\Contracts\EntriesRepository;
+use Hypervel\Telescope\Contracts\PrunableRepository;
+use Hypervel\Telescope\Contracts\TerminableRepository;
+use Hypervel\Telescope\EntryResult;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\EntryUpdate;
+use Hypervel\Telescope\IncomingEntry;
 use Throwable;
 
-use function LaravelHyperf\Config\config;
+use function Hypervel\Config\config;
 
 class DatabaseEntriesRepository implements EntriesRepository, ClearableRepository, PrunableRepository, TerminableRepository
 {

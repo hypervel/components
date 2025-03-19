@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Config;
+namespace Hypervel\Config;
 
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Config\Contracts\Repository as ConfigContract;
+use Hypervel\Config\Contracts\Repository as ConfigContract;
 
 class ConfigProvider
 {

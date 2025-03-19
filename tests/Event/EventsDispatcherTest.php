@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Event;
+namespace Hypervel\Tests\Event;
 
 use Error;
 use Exception;
-use LaravelHyperf\Database\TransactionManager;
-use LaravelHyperf\Event\Contracts\ShouldDispatchAfterCommit;
-use LaravelHyperf\Event\EventDispatcher;
-use LaravelHyperf\Event\ListenerProvider;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Database\TransactionManager;
+use Hypervel\Event\Contracts\ShouldDispatchAfterCommit;
+use Hypervel\Event\EventDispatcher;
+use Hypervel\Event\ListenerProvider;
+use Hypervel\Tests\TestCase;
 use Mockery;
 use Mockery\MockInterface;
 use Psr\Container\ContainerInterface;

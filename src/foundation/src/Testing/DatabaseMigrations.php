@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Testing;
+namespace Hypervel\Foundation\Testing;
 
-use LaravelHyperf\Foundation\Testing\Traits\CanConfigureMigrationCommands;
+use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
 
 trait DatabaseMigrations
 {

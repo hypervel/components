@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Attributes;
+namespace Hypervel\Queue\Attributes;
 
 use Attribute;
 

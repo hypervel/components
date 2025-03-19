@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Cache;
+namespace Hypervel\Cache;
 
 use Hyperf\Support\Traits\InteractsWithTime;
-use LaravelHyperf\Cache\Contracts\LockProvider;
+use Hypervel\Cache\Contracts\LockProvider;
 
 class ArrayStore extends TaggableStore implements LockProvider
 {

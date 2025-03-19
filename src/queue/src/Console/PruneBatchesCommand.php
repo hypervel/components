@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Console;
+namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
-use LaravelHyperf\Bus\Contracts\BatchRepository;
-use LaravelHyperf\Bus\Contracts\PrunableBatchRepository;
-use LaravelHyperf\Bus\DatabaseBatchRepository;
-use LaravelHyperf\Support\Carbon;
-use LaravelHyperf\Support\Traits\HasLaravelStyleCommand;
+use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Bus\Contracts\PrunableBatchRepository;
+use Hypervel\Bus\DatabaseBatchRepository;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Traits\HasLaravelStyleCommand;
 
 class PruneBatchesCommand extends Command
 {

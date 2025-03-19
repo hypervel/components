@@ -32,8 +32,8 @@ jobs:
       - name: Split and push
         run: |
           git config pull.rebase true
-          git config --global user.email "albert@laravel-hyperf.com"
-          git config --global user.name "Laravel Hyperf"
+          git config --global user.email "albert@hypervel.org"
+          git config --global user.name "Hypervel"
 
           if [ -z "${{ github.event.inputs.repo }}" ]; then
             bash ./bin/split.sh

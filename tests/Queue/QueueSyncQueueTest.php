@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Queue;
+namespace Hypervel\Tests\Queue;
 
 use Exception;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
-use LaravelHyperf\Bus\Contracts\Dispatcher;
-use LaravelHyperf\Database\TransactionManager;
-use LaravelHyperf\Queue\Contracts\QueueableEntity;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
-use LaravelHyperf\Queue\Contracts\ShouldQueueAfterCommit;
-use LaravelHyperf\Queue\InteractsWithQueue;
-use LaravelHyperf\Queue\Jobs\SyncJob;
-use LaravelHyperf\Queue\SyncQueue;
+use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Database\TransactionManager;
+use Hypervel\Queue\Contracts\QueueableEntity;
+use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Queue\Contracts\ShouldQueueAfterCommit;
+use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\Jobs\SyncJob;
+use Hypervel\Queue\SyncQueue;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;

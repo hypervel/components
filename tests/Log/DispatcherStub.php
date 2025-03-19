@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Log;
+namespace Hypervel\Tests\Log;
 
 use Closure;
 use Psr\EventDispatcher\EventDispatcherInterface;

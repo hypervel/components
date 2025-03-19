@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Queue;
+namespace Hypervel\Tests\Queue;
 
-use LaravelHyperf\Queue\Jobs\RedisJob;
-use LaravelHyperf\Queue\RedisQueue;
+use Hypervel\Queue\Jobs\RedisJob;
+use Hypervel\Queue\RedisQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;

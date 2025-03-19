@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Mail\Transport;
+namespace Hypervel\Mail\Transport;
 
 use Hyperf\Stringable\Str;
 use Psr\Log\LoggerInterface;

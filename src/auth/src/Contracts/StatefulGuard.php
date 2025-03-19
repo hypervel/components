@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Auth\Contracts;
+namespace Hypervel\Auth\Contracts;
 
 interface StatefulGuard extends Guard
 {

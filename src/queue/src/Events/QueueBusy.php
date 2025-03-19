@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Events;
+namespace Hypervel\Queue\Events;
 
 class QueueBusy
 {

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Process;
+namespace Hypervel\Process;
 
-use LaravelHyperf\Process\Contracts\ProcessResult as ProcessResultContract;
+use Hypervel\Process\Contracts\ProcessResult as ProcessResultContract;
 use OutOfBoundsException;
 
 class FakeProcessSequence

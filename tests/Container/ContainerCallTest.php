@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Container;
+namespace Hypervel\Tests\Container;
 
 use Hyperf\Contract\NormalizerInterface;
 use Hyperf\Di\ClosureDefinitionCollector;
@@ -10,9 +10,9 @@ use Hyperf\Di\ClosureDefinitionCollectorInterface;
 use Hyperf\Di\MethodDefinitionCollector;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hyperf\Serializer\SimpleNormalizer;
-use LaravelHyperf\Container\BindingResolutionException;
-use LaravelHyperf\Container\Container;
-use LaravelHyperf\Container\DefinitionSource;
+use Hypervel\Container\BindingResolutionException;
+use Hypervel\Container\Container;
+use Hypervel\Container\DefinitionSource;
 use PHPUnit\Framework\TestCase;
 use stdClass;
 
@@ -88,7 +88,7 @@ class ContainerCallTest extends TestCase
     public function testCallWithStaticMethodNameString()
     {
         $container = $this->getContainer();
-        $result = $container->call('LaravelHyperf\Tests\Container\ContainerStaticMethodStub::inject');
+        $result = $container->call('Hypervel\Tests\Container\ContainerStaticMethodStub::inject');
         $this->assertInstanceOf(ContainerCallConcreteStub::class, $result[0]);
         $this->assertSame('taylor', $result[1]);
     }
@@ -198,7 +198,7 @@ class ContainerCallTest extends TestCase
     public function testCallWithoutRequiredParamsThrowsException()
     {
         $this->expectException(BindingResolutionException::class);
-        $this->expectExceptionMessage('Unable to resolve dependency [Parameter #0 [ <required> $foo ]] in class LaravelHyperf\Tests\Container\ContainerTestCallStub');
+        $this->expectExceptionMessage('Unable to resolve dependency [Parameter #0 [ <required> $foo ]] in class Hypervel\Tests\Container\ContainerTestCallStub');
 
         $container = $this->getContainer();
         $container->call(ContainerTestCallStub::class . '@unresolvable');
@@ -216,7 +216,7 @@ class ContainerCallTest extends TestCase
     public function testCallWithoutRequiredParamsOnClosureThrowsException()
     {
         $this->expectException(BindingResolutionException::class);
-        $this->expectExceptionMessage('Unable to resolve dependency [Parameter #0 [ <required> $foo ]] in class LaravelHyperf\Tests\Container\ContainerCallTest');
+        $this->expectExceptionMessage('Unable to resolve dependency [Parameter #0 [ <required> $foo ]] in class Hypervel\Tests\Container\ContainerCallTest');
 
         $container = $this->getContainer();
         $container->call(function (string $foo, $bar = 'default') {

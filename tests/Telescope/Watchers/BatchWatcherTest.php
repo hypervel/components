@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Telescope\Watchers;
+namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Bus\Batch;
-use LaravelHyperf\Bus\Events\BatchDispatched;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\Watchers\BatchWatcher;
-use LaravelHyperf\Telescope\Watchers\JobWatcher;
-use LaravelHyperf\Tests\Telescope\FeatureTestCase;
+use Hypervel\Bus\Batch;
+use Hypervel\Bus\Events\BatchDispatched;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Watchers\BatchWatcher;
+use Hypervel\Telescope\Watchers\JobWatcher;
+use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface;
 

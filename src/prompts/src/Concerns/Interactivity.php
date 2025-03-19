@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Prompts\Concerns;
+namespace Hypervel\Prompts\Concerns;
 
-use LaravelHyperf\Prompts\Exceptions\NonInteractiveValidationException;
+use Hypervel\Prompts\Exceptions\NonInteractiveValidationException;
 
 trait Interactivity
 {

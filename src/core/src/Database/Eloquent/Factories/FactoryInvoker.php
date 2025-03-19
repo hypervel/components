@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Database\Eloquent\Factories;
+namespace Hypervel\Database\Eloquent\Factories;
 
 use Faker\Factory as FakerFactory;
 use Psr\Container\ContainerInterface;

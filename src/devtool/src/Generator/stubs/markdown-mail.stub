@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace %NAMESPACE%;
 
-use LaravelHyperf\Bus\Queueable;
-use LaravelHyperf\Mail\Mailable;
-use LaravelHyperf\Mail\Mailables\Content;
-use LaravelHyperf\Mail\Mailables\Envelope;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
-use LaravelHyperf\Queue\SerializesModels;
+use Hypervel\Bus\Queueable;
+use Hypervel\Mail\Mailable;
+use Hypervel\Mail\Mailables\Content;
+use Hypervel\Mail\Mailables\Envelope;
+use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Queue\SerializesModels;
 
 class %CLASS% extends Mailable
 {
@@ -46,7 +46,7 @@ class %CLASS% extends Mailable
     /**
      * Get the attachments for the message.
      *
-     * @return array<int, \LaravelHyperf\Mail\Mailables\Attachment>
+     * @return array<int, \Hypervel\Mail\Mailables\Attachment>
      */
     public function attachments(): array
     {

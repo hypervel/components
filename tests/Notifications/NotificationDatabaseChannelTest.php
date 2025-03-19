@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Notifications;
+namespace Hypervel\Tests\Notifications;
 
 use Hyperf\Database\Model\Model;
-use LaravelHyperf\Notifications\Channels\DatabaseChannel;
-use LaravelHyperf\Notifications\Messages\DatabaseMessage;
-use LaravelHyperf\Notifications\Notification;
+use Hypervel\Notifications\Channels\DatabaseChannel;
+use Hypervel\Notifications\Messages\DatabaseMessage;
+use Hypervel\Notifications\Notification;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 

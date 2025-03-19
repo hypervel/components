@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Router\Middleware;
+namespace Hypervel\Router\Middleware;
 
 use BackedEnum;
 use Closure;
@@ -12,9 +12,9 @@ use Hyperf\Di\ClosureDefinitionCollectorInterface;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hyperf\Di\ReflectionType;
 use Hyperf\HttpServer\Router\Dispatched;
-use LaravelHyperf\Router\Contracts\UrlRoutable;
-use LaravelHyperf\Router\Exceptions\BackedEnumCaseNotFoundException;
-use LaravelHyperf\Router\Exceptions\UrlRoutableNotFoundException;
+use Hypervel\Router\Contracts\UrlRoutable;
+use Hypervel\Router\Exceptions\BackedEnumCaseNotFoundException;
+use Hypervel\Router\Exceptions\UrlRoutableNotFoundException;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;

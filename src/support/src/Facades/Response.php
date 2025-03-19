@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Facades;
+namespace Hypervel\Support\Facades;
 
-use LaravelHyperf\Http\Contracts\ResponseContract;
+use Hypervel\Http\Contracts\ResponseContract;
 
 /**
  * @method static \Psr\Http\Message\ResponseInterface make(mixed $content = '', int $status = 200, array $headers = [])
@@ -15,8 +15,8 @@ use LaravelHyperf\Http\Contracts\ResponseContract;
  * @method static \Psr\Http\Message\ResponseInterface getPsr7Response()
  * @method static \Psr\Http\Message\ResponseInterface stream(callable $callback, array $headers = [])
  * @method static \Psr\Http\Message\ResponseInterface streamDownload(callable $callback, string|null $filename = null, array $headers = [], string $disposition = 'attachment')
- * @method static \LaravelHyperf\Http\Response withRangeHeaders(int|null $fileSize = null)
- * @method static \LaravelHyperf\Http\Response withoutRangeHeaders()
+ * @method static \Hypervel\Http\Response withRangeHeaders(int|null $fileSize = null)
+ * @method static \Hypervel\Http\Response withoutRangeHeaders()
  * @method static bool shouldAppendRangeHeaders()
  * @method static \Psr\Http\Message\ResponseInterface xml(array|\Hyperf\Contract\Arrayable|\Hyperf\Contract\Xmlable $data, string $root = 'root', string $charset = 'utf-8')
  * @method static \Psr\Http\Message\ResponseInterface html(string $html, string $charset = 'utf-8')
@@ -43,7 +43,7 @@ use LaravelHyperf\Http\Contracts\ResponseContract;
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static bool hasMacro(string $name)
  *
- * @see \LaravelHyperf\Http\Response
+ * @see \Hypervel\Http\Response
  */
 class Response extends Facade
 {

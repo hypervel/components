@@ -2,26 +2,26 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Bus;
+namespace Hypervel\Tests\Bus;
 
 use Carbon\CarbonImmutable;
 use Hyperf\Collection\Collection;
 use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\Database\Query\Builder;
-use LaravelHyperf\Bus\Batch;
-use LaravelHyperf\Bus\Batchable;
-use LaravelHyperf\Bus\BatchFactory;
-use LaravelHyperf\Bus\DatabaseBatchRepository;
-use LaravelHyperf\Bus\Dispatchable;
-use LaravelHyperf\Bus\PendingBatch;
-use LaravelHyperf\Bus\Queueable;
-use LaravelHyperf\Foundation\Testing\RefreshDatabase;
-use LaravelHyperf\Queue\CallQueuedClosure;
-use LaravelHyperf\Queue\Contracts\Factory;
-use LaravelHyperf\Queue\Contracts\Queue;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
-use LaravelHyperf\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Bus\Batch;
+use Hypervel\Bus\Batchable;
+use Hypervel\Bus\BatchFactory;
+use Hypervel\Bus\DatabaseBatchRepository;
+use Hypervel\Bus\Dispatchable;
+use Hypervel\Bus\PendingBatch;
+use Hypervel\Bus\Queueable;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Queue\CallQueuedClosure;
+use Hypervel\Queue\Contracts\Factory;
+use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;

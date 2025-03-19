@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Testing\Http;
+namespace Hypervel\Foundation\Testing\Http;
 
 use Hyperf\HttpMessage\Server\Response as Psr7Response;
 

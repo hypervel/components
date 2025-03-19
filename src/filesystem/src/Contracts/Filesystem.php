@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Filesystem\Contracts;
+namespace Hypervel\Filesystem\Contracts;
 
 use Hyperf\HttpMessage\Upload\UploadedFile;
 use Psr\Http\Message\StreamInterface;

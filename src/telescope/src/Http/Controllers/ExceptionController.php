@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Http\Controllers;
+namespace Hypervel\Telescope\Http\Controllers;
 
-use LaravelHyperf\Http\Request;
-use LaravelHyperf\Support\Carbon;
-use LaravelHyperf\Telescope\Contracts\EntriesRepository;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\EntryUpdate;
-use LaravelHyperf\Telescope\Storage\EntryQueryOptions;
-use LaravelHyperf\Telescope\Watchers\ExceptionWatcher;
+use Hypervel\Http\Request;
+use Hypervel\Support\Carbon;
+use Hypervel\Telescope\Contracts\EntriesRepository;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\EntryUpdate;
+use Hypervel\Telescope\Storage\EntryQueryOptions;
+use Hypervel\Telescope\Watchers\ExceptionWatcher;
 
 class ExceptionController extends EntryController
 {

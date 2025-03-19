@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Support\Providers;
+namespace Hypervel\Foundation\Support\Providers;
 
-use LaravelHyperf\Router\RouteFileCollector;
-use LaravelHyperf\Support\ServiceProvider;
+use Hypervel\Router\RouteFileCollector;
+use Hypervel\Support\ServiceProvider;
 
 class RouteServiceProvider extends ServiceProvider
 {

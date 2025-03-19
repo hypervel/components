@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Telescope\Watchers;
+namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Database\Eloquent\Model;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\Telescope;
-use LaravelHyperf\Telescope\Watchers\ModelWatcher;
-use LaravelHyperf\Tests\Telescope\FeatureTestCase;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Telescope;
+use Hypervel\Telescope\Watchers\ModelWatcher;
+use Hypervel\Tests\Telescope\FeatureTestCase;
 
 /**
  * @internal

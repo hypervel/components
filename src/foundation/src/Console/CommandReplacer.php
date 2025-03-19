@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Console;
+namespace Hypervel\Foundation\Console;
 
 use Symfony\Component\Console\Command\Command;
 
@@ -11,7 +11,7 @@ class CommandReplacer
     protected static array $commands = [
         'start' => [
             'name' => 'serve',
-            'description' => 'Start Laravel Hyperf servers',
+            'description' => 'Start Hypervel servers',
         ],
         'server:watch' => null,
         'gen:amqp-consumer' => 'make:amqp-consumer',

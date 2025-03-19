@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Router;
+namespace Hypervel\Router;
 
 use Hyperf\Contract\ContainerInterface;
 use Hyperf\Di\Annotation\AnnotationCollector;

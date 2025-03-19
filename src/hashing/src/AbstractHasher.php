@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Hashing;
+namespace Hypervel\Hashing;
 
 abstract class AbstractHasher
 {

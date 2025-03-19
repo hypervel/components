@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Testing\Fakes;
+namespace Hypervel\Support\Testing\Fakes;
 
 use BadMethodCallException;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hyperf\Collection\Collection;
-use LaravelHyperf\Queue\CallQueuedClosure;
-use LaravelHyperf\Queue\Contracts\Factory as FactoryContract;
-use LaravelHyperf\Queue\Contracts\Job;
-use LaravelHyperf\Queue\Contracts\Queue;
-use LaravelHyperf\Queue\QueueManager;
-use LaravelHyperf\Support\Traits\ReflectsClosures;
+use Hypervel\Queue\CallQueuedClosure;
+use Hypervel\Queue\Contracts\Factory as FactoryContract;
+use Hypervel\Queue\Contracts\Job;
+use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Queue\QueueManager;
+use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
 use Psr\Container\ContainerInterface;
 

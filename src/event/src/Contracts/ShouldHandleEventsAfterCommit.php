@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Event\Contracts;
+namespace Hypervel\Event\Contracts;
 
 interface ShouldHandleEventsAfterCommit
 {

@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Http\Middleware;
+namespace Hypervel\Foundation\Http\Middleware;
 
 use Hyperf\Collection\Arr;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\HttpServer\Request;
-use LaravelHyperf\Cookie\Cookie;
-use LaravelHyperf\Encryption\Contracts\Encrypter;
-use LaravelHyperf\Foundation\Contracts\Application as ApplicationContract;
-use LaravelHyperf\Foundation\Http\Middleware\Concerns\ExcludesPaths;
-use LaravelHyperf\Session\Contracts\Session as SessionContract;
-use LaravelHyperf\Session\TokenMismatchException;
-use LaravelHyperf\Support\Traits\InteractsWithTime;
+use Hypervel\Cookie\Cookie;
+use Hypervel\Encryption\Contracts\Encrypter;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Foundation\Http\Middleware\Concerns\ExcludesPaths;
+use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Session\TokenMismatchException;
+use Hypervel\Support\Traits\InteractsWithTime;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;

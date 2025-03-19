@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Facades;
+namespace Hypervel\Support\Facades;
 
-use LaravelHyperf\Router\Router;
+use Hypervel\Router\Router;
 
 /**
  * @method static void addServer(string $serverName, callable $callback)
@@ -21,7 +21,7 @@ use LaravelHyperf\Router\Router;
  * @method static array getData()
  * @method static \FastRoute\RouteParser getRouteParser()
  *
- * @see \LaravelHyperf\Router\Router
+ * @see \Hypervel\Router\Router
  */
 class Route extends Facade
 {

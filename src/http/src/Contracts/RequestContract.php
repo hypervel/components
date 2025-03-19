@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Http\Contracts;
+namespace Hypervel\Http\Contracts;
 
 use Carbon\Carbon;
 use Carbon\Exceptions\InvalidFormatException;
 use Closure;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use LaravelHyperf\Session\Contracts\Session as SessionContract;
-use LaravelHyperf\Support\Collection;
+use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Support\Collection;
 use Psr\Http\Message\ServerRequestInterface;
 use Stringable;
 

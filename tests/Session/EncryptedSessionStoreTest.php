@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Session;
+namespace Hypervel\Tests\Session;
 
-use LaravelHyperf\Encryption\Contracts\Encrypter;
-use LaravelHyperf\Session\EncryptedStore;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Encryption\Contracts\Encrypter;
+use Hypervel\Session\EncryptedStore;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 use SessionHandlerInterface;
 

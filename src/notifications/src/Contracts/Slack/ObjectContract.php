@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Contracts\Slack;
+namespace Hypervel\Notifications\Contracts\Slack;
 
 use Hyperf\Contract\Arrayable;
 

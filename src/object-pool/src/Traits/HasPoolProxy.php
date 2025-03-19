@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\ObjectPool\Traits;
+namespace Hypervel\ObjectPool\Traits;
 
 use Closure;
+use Hypervel\ObjectPool\PoolProxy;
 use InvalidArgumentException;
-use LaravelHyperf\ObjectPool\PoolProxy;
 
 trait HasPoolProxy
 {

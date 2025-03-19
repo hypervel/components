@@ -1,32 +1,32 @@
 {
-    "name": "laravel-hyperf/foundation",
-    "description": "The Support package for Laravel Hyperf.",
+    "name": "hypervel/foundation",
+    "description": "The Support package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
         "hyperf",
         "foundation",
         "swoole",
-        "laravel-hyperf"
+        "hypervel"
     ],
     "support": {
-        "issues": "https://github.com/laravel-hyperf/components/issues",
-        "source": "https://github.com/laravel-hyperf/components"
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
     },
     "authors": [
         {
             "name": "Albert Chen",
-            "email": "albert@laravel-hyperf.com"
+            "email": "albert@hypervel.org"
         }
     ],
     "require": {
         "php": "^8.2",
         "nesbot/carbon": "^2.72.6",
-        "laravel-hyperf/core": "^0.1",
-        "laravel-hyperf/filesystem": "^0.1",
-        "laravel-hyperf/scheduling": "^0.1",
-        "laravel-hyperf/support": "^0.1",
-        "laravel-hyperf/http": "^0.1",
+        "hypervel/core": "^0.1",
+        "hypervel/filesystem": "^0.1",
+        "hypervel/scheduling": "^0.1",
+        "hypervel/support": "^0.1",
+        "hypervel/http": "^0.1",
         "hyperf/config": "~3.1.0",
         "hyperf/di": "~3.1.0",
         "hyperf/support": "~3.1.0",
@@ -52,7 +52,7 @@
     },
     "autoload": {
         "psr-4": {
-            "LaravelHyperf\\Foundation\\": "src/"
+            "Hypervel\\Foundation\\": "src/"
         },
         "files": [
             "src/helpers.php"
@@ -60,11 +60,11 @@
     },
     "extra": {
         "hyperf": {
-            "config": "LaravelHyperf\\Foundation\\ConfigProvider"
+            "config": "Hypervel\\Foundation\\ConfigProvider"
         },
-        "laravel-hyperf" : {
+        "hypervel" : {
             "providers": [
-                "LaravelHyperf\\Foundation\\Providers\\FoundationServiceProvider"
+                "Hypervel\\Foundation\\Providers\\FoundationServiceProvider"
             ]
         },
         "branch-alias": {

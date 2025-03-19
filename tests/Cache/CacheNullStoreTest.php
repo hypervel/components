@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Cache;
+namespace Hypervel\Tests\Cache;
 
-use LaravelHyperf\Cache\NullStore;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Cache\NullStore;
+use Hypervel\Tests\TestCase;
 
 /**
  * @internal

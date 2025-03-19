@@ -1,2 +1,2 @@
-Devtool for Laravel Hyperf
+Devtool for Hypervel
 ===

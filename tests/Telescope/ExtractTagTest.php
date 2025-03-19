@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Telescope;
+namespace Hypervel\Tests\Telescope;
 
-use LaravelHyperf\Mail\Mailable;
-use LaravelHyperf\Telescope\ExtractTags;
-use LaravelHyperf\Telescope\FormatModel;
+use Hypervel\Mail\Mailable;
+use Hypervel\Telescope\ExtractTags;
+use Hypervel\Telescope\FormatModel;
 
 /**
  * @internal
@@ -59,8 +59,8 @@ class DummyMailableWithData extends Mailable
 
     public function build()
     {
-        return $this->from('from@laravel-hyperf.com')
-            ->to('to@laravel-hyperf.com')
+        return $this->from('from@hypervel.org')
+            ->to('to@hypervel.org')
             ->view('mail', ['raw' => 'simple text content'])
             ->with([
                 'mailData' => $this->mailData,

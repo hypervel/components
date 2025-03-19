@@ -16,7 +16,7 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Laravel Hyperf'),
+    'name' => env('APP_NAME', 'Hypervel'),
 
     /*
     |--------------------------------------------------------------------------
@@ -131,31 +131,31 @@ return [
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 
     'providers' => [
-        LaravelHyperf\Foundation\Providers\FoundationServiceProvider::class,
-        LaravelHyperf\Foundation\Providers\FormRequestServiceProvider::class,
+        Hypervel\Foundation\Providers\FoundationServiceProvider::class,
+        Hypervel\Foundation\Providers\FormRequestServiceProvider::class,
         App\Providers\RouteServiceProvider::class,
         App\Providers\AppServiceProvider::class,
         App\Providers\EventServiceProvider::class,
     ],
 
     'aliases' => [
-        'App' => LaravelHyperf\Support\Facades\App::class,
-        'Artisan' => LaravelHyperf\Support\Facades\Artisan::class,
-        'Cache' => LaravelHyperf\Support\Facades\Cache::class,
-        'Config' => LaravelHyperf\Support\Facades\Config::class,
-        'Cookie' => LaravelHyperf\Support\Facades\Cookie::class,
-        'Crypt' => LaravelHyperf\Support\Facades\Crypt::class,
-        'DB' => LaravelHyperf\Support\Facades\DB::class,
-        'File' => LaravelHyperf\Support\Facades\File::class,
-        'Log' => LaravelHyperf\Support\Facades\Log::class,
-        'Request' => LaravelHyperf\Support\Facades\Request::class,
-        'Response' => LaravelHyperf\Support\Facades\Response::class,
-        'Translator' => LaravelHyperf\Support\Facades\Translator::class,
-        'Validator' => LaravelHyperf\Support\Facades\Validator::class,
-        'JWT' => LaravelHyperf\Support\Facades\JWT::class,
-        'Auth' => LaravelHyperf\Support\Facades\Auth::class,
-        'Hash' => LaravelHyperf\Support\Facades\Hash::class,
-        'Environment' => LaravelHyperf\Support\Facades\Environment::class,
-        'Schedule' => LaravelHyperf\Support\Facades\Schedule::class,
+        'App' => Hypervel\Support\Facades\App::class,
+        'Artisan' => Hypervel\Support\Facades\Artisan::class,
+        'Cache' => Hypervel\Support\Facades\Cache::class,
+        'Config' => Hypervel\Support\Facades\Config::class,
+        'Cookie' => Hypervel\Support\Facades\Cookie::class,
+        'Crypt' => Hypervel\Support\Facades\Crypt::class,
+        'DB' => Hypervel\Support\Facades\DB::class,
+        'File' => Hypervel\Support\Facades\File::class,
+        'Log' => Hypervel\Support\Facades\Log::class,
+        'Request' => Hypervel\Support\Facades\Request::class,
+        'Response' => Hypervel\Support\Facades\Response::class,
+        'Translator' => Hypervel\Support\Facades\Translator::class,
+        'Validator' => Hypervel\Support\Facades\Validator::class,
+        'JWT' => Hypervel\Support\Facades\JWT::class,
+        'Auth' => Hypervel\Support\Facades\Auth::class,
+        'Hash' => Hypervel\Support\Facades\Hash::class,
+        'Environment' => Hypervel\Support\Facades\Environment::class,
+        'Schedule' => Hypervel\Support\Facades\Schedule::class,
     ],
 ];

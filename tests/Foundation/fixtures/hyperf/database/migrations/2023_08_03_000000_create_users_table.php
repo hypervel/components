@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use Hyperf\Database\Migrations\Migration;
 use Hyperf\Database\Schema\Blueprint;
-use LaravelHyperf\Support\Facades\Schema;
+use Hypervel\Support\Facades\Schema;
 
 class CreateUsersTable extends Migration
 {

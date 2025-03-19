@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support\Testing\Fakes;
+namespace Hypervel\Support\Testing\Fakes;
 
-use LaravelHyperf\Mail\Contracts\Mailable;
-use LaravelHyperf\Mail\PendingMail;
-use LaravelHyperf\Mail\SentMessage;
+use Hypervel\Mail\Contracts\Mailable;
+use Hypervel\Mail\PendingMail;
+use Hypervel\Mail\SentMessage;
 
 class PendingMailFake extends PendingMail
 {

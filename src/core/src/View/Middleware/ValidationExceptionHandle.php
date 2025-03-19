@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\View\Middleware;
+namespace Hypervel\View\Middleware;
 
 use Hyperf\Contract\MessageBag as MessageBagContract;
 use Hyperf\Contract\MessageProvider;
@@ -10,7 +10,7 @@ use Hyperf\Support\MessageBag;
 use Hyperf\Validation\ValidationException;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
 use Hyperf\ViewEngine\ViewErrorBag;
-use LaravelHyperf\Session\Contracts\Session as SessionContract;
+use Hypervel\Session\Contracts\Session as SessionContract;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;

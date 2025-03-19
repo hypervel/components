@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Event;
+namespace Hypervel\Event;
 
 use Hyperf\Event\ListenerData as BaseListenerData;
 

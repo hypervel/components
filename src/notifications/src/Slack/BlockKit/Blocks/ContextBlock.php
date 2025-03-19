@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Slack\BlockKit\Blocks;
+namespace Hypervel\Notifications\Slack\BlockKit\Blocks;
 
 use Hyperf\Contract\Arrayable;
+use Hypervel\Notifications\Contracts\Slack\BlockContract;
+use Hypervel\Notifications\Contracts\Slack\ElementContract;
+use Hypervel\Notifications\Slack\BlockKit\Composites\TextObject;
+use Hypervel\Notifications\Slack\BlockKit\Elements\ImageElement;
 use InvalidArgumentException;
-use LaravelHyperf\Notifications\Contracts\Slack\BlockContract;
-use LaravelHyperf\Notifications\Contracts\Slack\ElementContract;
-use LaravelHyperf\Notifications\Slack\BlockKit\Composites\TextObject;
-use LaravelHyperf\Notifications\Slack\BlockKit\Elements\ImageElement;
 use LogicException;
 
 class ContextBlock implements BlockContract

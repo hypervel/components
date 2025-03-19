@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Http\Controllers;
+namespace Hypervel\Telescope\Http\Controllers;
 
-use LaravelHyperf\Http\Request;
-use LaravelHyperf\Telescope\Contracts\EntriesRepository;
+use Hypervel\Http\Request;
+use Hypervel\Telescope\Contracts\EntriesRepository;
 
 class MonitoredTagController
 {

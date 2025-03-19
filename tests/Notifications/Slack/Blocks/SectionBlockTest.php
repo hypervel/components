@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Notifications\Slack\Blocks;
+namespace Hypervel\Tests\Notifications\Slack\Blocks;
 
-use LaravelHyperf\Notifications\Slack\BlockKit\Blocks\SectionBlock;
-use LaravelHyperf\Notifications\Slack\BlockKit\Elements\ImageElement;
+use Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock;
+use Hypervel\Notifications\Slack\BlockKit\Elements\ImageElement;
 use LogicException;
 use PHPUnit\Framework\TestCase;
 

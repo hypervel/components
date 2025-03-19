@@ -2,28 +2,28 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Event;
+namespace Hypervel\Tests\Event;
 
 use Hyperf\Config\Config;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Di\Definition\DefinitionSource;
+use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Container\Container;
+use Hypervel\Event\EventDispatcher;
+use Hypervel\Event\ListenerProvider;
+use Hypervel\Queue\Contracts\Factory as QueueFactoryContract;
+use Hypervel\Queue\Contracts\Queue as QueueContract;
+use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Support\Testing\Fakes\QueueFake;
+use Hypervel\Tests\TestCase;
 use Illuminate\Events\CallQueuedListener;
-use LaravelHyperf\Bus\Contracts\Dispatcher;
-use LaravelHyperf\Container\Container;
-use LaravelHyperf\Event\EventDispatcher;
-use LaravelHyperf\Event\ListenerProvider;
-use LaravelHyperf\Queue\Contracts\Factory as QueueFactoryContract;
-use LaravelHyperf\Queue\Contracts\Queue as QueueContract;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
-use LaravelHyperf\Support\Testing\Fakes\QueueFake;
-use LaravelHyperf\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 use Psr\Container\ContainerInterface;
 
-use function LaravelHyperf\Event\queueable;
+use function Hypervel\Event\queueable;
 
 /**
  * @internal

@@ -2,26 +2,26 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Event;
+namespace Hypervel\Event;
 
 use Closure;
 use Exception;
 use Hyperf\Collection\Arr;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Stringable\Str;
+use Hypervel\Broadcasting\Contracts\Factory as BroadcastFactory;
+use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
+use Hypervel\Database\TransactionManager;
+use Hypervel\Event\Contracts\EventDispatcherContract;
+use Hypervel\Event\Contracts\ListenerProviderContract;
+use Hypervel\Event\Contracts\ShouldDispatchAfterCommit;
+use Hypervel\Event\Contracts\ShouldHandleEventsAfterCommit;
+use Hypervel\Queue\Contracts\Factory as QueueFactoryContract;
+use Hypervel\Queue\Contracts\ShouldBeEncrypted;
+use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Queue\Contracts\ShouldQueueAfterCommit;
+use Hypervel\Support\Traits\ReflectsClosures;
 use Illuminate\Events\CallQueuedListener;
-use LaravelHyperf\Broadcasting\Contracts\Factory as BroadcastFactory;
-use LaravelHyperf\Broadcasting\Contracts\ShouldBroadcast;
-use LaravelHyperf\Database\TransactionManager;
-use LaravelHyperf\Event\Contracts\EventDispatcherContract;
-use LaravelHyperf\Event\Contracts\ListenerProviderContract;
-use LaravelHyperf\Event\Contracts\ShouldDispatchAfterCommit;
-use LaravelHyperf\Event\Contracts\ShouldHandleEventsAfterCommit;
-use LaravelHyperf\Queue\Contracts\Factory as QueueFactoryContract;
-use LaravelHyperf\Queue\Contracts\ShouldBeEncrypted;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
-use LaravelHyperf\Queue\Contracts\ShouldQueueAfterCommit;
-use LaravelHyperf\Support\Traits\ReflectsClosures;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\StoppableEventInterface;
 use Psr\Log\LoggerInterface;

@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Telescope\Http;
+namespace Hypervel\Tests\Telescope\Http;
 
-use LaravelHyperf\Auth\Access\Gate;
-use LaravelHyperf\Auth\Contracts\Authenticatable;
-use LaravelHyperf\Auth\Contracts\Gate as GateContract;
-use LaravelHyperf\Http\Contracts\RequestContract;
-use LaravelHyperf\Telescope\Telescope;
-use LaravelHyperf\Tests\Telescope\FeatureTestCase;
+use Hypervel\Auth\Access\Gate;
+use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Auth\Contracts\Gate as GateContract;
+use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Telescope\Telescope;
+use Hypervel\Tests\Telescope\FeatureTestCase;
 
 /**
  * @internal

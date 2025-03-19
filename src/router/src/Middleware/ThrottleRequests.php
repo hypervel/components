@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Router\Middleware;
+namespace Hypervel\Router\Middleware;
 
 use Closure;
 use Hyperf\Collection\Arr;
 use Hyperf\Support\Traits\InteractsWithTime;
-use LaravelHyperf\Auth\Contracts\Authenticatable;
-use LaravelHyperf\Cache\Exceptions\InvalidArgumentException;
-use LaravelHyperf\Cache\RateLimiter;
-use LaravelHyperf\Cache\RateLimiting\Unlimited;
-use LaravelHyperf\HttpMessage\Exceptions\HttpResponseException;
-use LaravelHyperf\HttpMessage\Exceptions\ThrottleRequestsException;
-use LaravelHyperf\Support\Facades\Auth;
+use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Cache\Exceptions\InvalidArgumentException;
+use Hypervel\Cache\RateLimiter;
+use Hypervel\Cache\RateLimiting\Unlimited;
+use Hypervel\HttpMessage\Exceptions\HttpResponseException;
+use Hypervel\HttpMessage\Exceptions\ThrottleRequestsException;
+use Hypervel\Support\Facades\Auth;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;

@@ -1,28 +1,28 @@
 {
-    "name": "laravel-hyperf/log",
+    "name": "hypervel/log",
     "type": "library",
-    "description": "The log package for Laravel Hyperf.",
+    "description": "The log package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
         "hyperf",
         "log",
         "swoole",
-        "laravel-hyperf"
+        "hypervel"
     ],
     "authors": [
         {
             "name": "Albert Chen",
-            "email": "albert@laravel-hyperf.com"
+            "email": "albert@hypervel.org"
         }
     ],
     "support": {
-        "issues": "https://github.com/laravel-hyperf/components/issues",
-        "source": "https://github.com/laravel-hyperf/components"
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
     },
     "autoload": {
         "psr-4": {
-            "LaravelHyperf\\Log\\": "src/"
+            "Hypervel\\Log\\": "src/"
         }
     },
     "require": {
@@ -32,14 +32,14 @@
         "hyperf/stringable": "~3.1.0",
         "hyperf/contract": "~3.1.0",
         "hyperf/collection": "~3.1.0",
-        "laravel-hyperf/support": "^0.1"
+        "hypervel/support": "^0.1"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
         "hyperf": {
-            "config": "LaravelHyperf\\Log\\ConfigProvider"
+            "config": "Hypervel\\Log\\ConfigProvider"
         },
         "branch-alias": {
             "dev-main": "0.1-dev"

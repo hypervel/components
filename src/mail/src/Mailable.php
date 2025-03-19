@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Mail;
+namespace Hypervel\Mail;
 
 use BadMethodCallException;
 use Closure;
@@ -15,19 +15,19 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Macroable\Macroable;
 use Hyperf\Stringable\Str;
 use Hyperf\Support\Traits\ForwardsCalls;
-use LaravelHyperf\Filesystem\Contracts\Factory as FilesystemFactory;
-use LaravelHyperf\Foundation\Testing\Constraints\SeeInOrder;
-use LaravelHyperf\Mail\Contracts\Attachable;
-use LaravelHyperf\Mail\Contracts\Factory;
-use LaravelHyperf\Mail\Contracts\Factory as MailFactory;
-use LaravelHyperf\Mail\Contracts\Mailable as MailableContract;
-use LaravelHyperf\Mail\Contracts\Mailer;
-use LaravelHyperf\Queue\Contracts\Factory as QueueFactory;
-use LaravelHyperf\Support\Contracts\Htmlable;
-use LaravelHyperf\Support\Contracts\Renderable;
-use LaravelHyperf\Support\HtmlString;
-use LaravelHyperf\Support\Traits\Localizable;
-use LaravelHyperf\Translation\Contracts\HasLocalePreference;
+use Hypervel\Filesystem\Contracts\Factory as FilesystemFactory;
+use Hypervel\Foundation\Testing\Constraints\SeeInOrder;
+use Hypervel\Mail\Contracts\Attachable;
+use Hypervel\Mail\Contracts\Factory;
+use Hypervel\Mail\Contracts\Factory as MailFactory;
+use Hypervel\Mail\Contracts\Mailable as MailableContract;
+use Hypervel\Mail\Contracts\Mailer;
+use Hypervel\Queue\Contracts\Factory as QueueFactory;
+use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Support\Contracts\Renderable;
+use Hypervel\Support\HtmlString;
+use Hypervel\Support\Traits\Localizable;
+use Hypervel\Translation\Contracts\HasLocalePreference;
 use PHPUnit\Framework\Assert as PHPUnit;
 use ReflectionClass;
 use ReflectionException;

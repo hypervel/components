@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Events;
+namespace Hypervel\Foundation\Events;
 
 class LocaleUpdated
 {

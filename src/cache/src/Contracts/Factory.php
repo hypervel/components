@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Cache\Contracts;
+namespace Hypervel\Cache\Contracts;
 
 interface Factory
 {

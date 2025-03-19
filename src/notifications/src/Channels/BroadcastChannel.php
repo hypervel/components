@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Channels;
+namespace Hypervel\Notifications\Channels;
 
-use LaravelHyperf\Notifications\Events\BroadcastNotificationCreated;
-use LaravelHyperf\Notifications\Messages\BroadcastMessage;
-use LaravelHyperf\Notifications\Notification;
+use Hypervel\Notifications\Events\BroadcastNotificationCreated;
+use Hypervel\Notifications\Messages\BroadcastMessage;
+use Hypervel\Notifications\Notification;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
 

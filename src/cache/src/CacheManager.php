@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Cache;
+namespace Hypervel\Cache;
 
 use Closure;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Redis\RedisFactory;
+use Hypervel\Cache\Contracts\Factory as FactoryContract;
+use Hypervel\Cache\Contracts\Repository as RepositoryContract;
+use Hypervel\Cache\Contracts\Store;
 use InvalidArgumentException;
-use LaravelHyperf\Cache\Contracts\Factory as FactoryContract;
-use LaravelHyperf\Cache\Contracts\Repository as RepositoryContract;
-use LaravelHyperf\Cache\Contracts\Store;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface as DispatcherContract;
 
@@ -18,8 +18,8 @@ use function Hyperf\Support\make;
 use function Hyperf\Tappable\tap;
 
 /**
- * @mixin \LaravelHyperf\Cache\Contracts\Repository
- * @mixin \LaravelHyperf\Cache\TaggableStore
+ * @mixin \Hypervel\Cache\Contracts\Repository
+ * @mixin \Hypervel\Cache\TaggableStore
  */
 class CacheManager implements FactoryContract
 {

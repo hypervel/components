@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Prompts\Themes\Contracts;
+namespace Hypervel\Prompts\Themes\Contracts;
 
 interface Scrolling
 {

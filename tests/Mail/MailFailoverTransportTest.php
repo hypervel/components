@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Mail;
+namespace Hypervel\Tests\Mail;
 
 use Hyperf\Config\Config;
 use Hyperf\Context\ApplicationContext;
@@ -10,8 +10,8 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewInterface;
-use LaravelHyperf\Mail\Contracts\Factory as FactoryContract;
-use LaravelHyperf\Mail\MailManager;
+use Hypervel\Mail\Contracts\Factory as FactoryContract;
+use Hypervel\Mail\MailManager;
 use Mockery;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;

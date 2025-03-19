@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use LaravelHyperf\Support\Facades\Route;
+use Hypervel\Support\Facades\Route;
 
 // Mail entries...
 Route::post('/telescope-api/mail', 'MailController@index');

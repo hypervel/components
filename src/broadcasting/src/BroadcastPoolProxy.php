@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Broadcasting;
+namespace Hypervel\Broadcasting;
 
 use Hyperf\HttpServer\Contract\RequestInterface;
-use LaravelHyperf\Broadcasting\Contracts\Broadcaster;
-use LaravelHyperf\ObjectPool\PoolProxy;
+use Hypervel\Broadcasting\Contracts\Broadcaster;
+use Hypervel\ObjectPool\PoolProxy;
 
 class BroadcastPoolProxy extends PoolProxy implements Broadcaster
 {

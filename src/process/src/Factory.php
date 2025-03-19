@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Process;
+namespace Hypervel\Process;
 
 use Closure;
 use Hyperf\Collection\Collection;
 use Hyperf\Macroable\Macroable;
-use LaravelHyperf\Process\Contracts\ProcessResult as ProcessResultContract;
+use Hypervel\Process\Contracts\ProcessResult as ProcessResultContract;
 use PHPUnit\Framework\Assert as PHPUnit;
 
 class Factory

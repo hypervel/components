@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Console;
+namespace Hypervel\Foundation\Console;
 
 use NunoMaduro\Collision\Adapters\Laravel\Inspector;
 use NunoMaduro\Collision\Provider;

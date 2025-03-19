@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue;
+namespace Hypervel\Queue;
 
 use DateInterval;
 use DateTimeInterface;
-use LaravelHyperf\Queue\Contracts\Job;
-use LaravelHyperf\Queue\Contracts\Queue as QueueContract;
+use Hypervel\Queue\Contracts\Job;
+use Hypervel\Queue\Contracts\Queue as QueueContract;
 
 class NullQueue extends Queue implements QueueContract
 {

@@ -2,23 +2,23 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Console;
+namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Cache\Contracts\Factory as CacheFactory;
-use LaravelHyperf\Queue\Contracts\Job;
-use LaravelHyperf\Queue\Events\JobFailed;
-use LaravelHyperf\Queue\Events\JobProcessed;
-use LaravelHyperf\Queue\Events\JobProcessing;
-use LaravelHyperf\Queue\Events\JobReleasedAfterException;
-use LaravelHyperf\Queue\Failed\FailedJobProviderInterface;
-use LaravelHyperf\Queue\Worker;
-use LaravelHyperf\Queue\WorkerOptions;
-use LaravelHyperf\Support\Carbon;
-use LaravelHyperf\Support\Traits\HasLaravelStyleCommand;
-use LaravelHyperf\Support\Traits\InteractsWithTime;
+use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Queue\Contracts\Job;
+use Hypervel\Queue\Events\JobFailed;
+use Hypervel\Queue\Events\JobProcessed;
+use Hypervel\Queue\Events\JobProcessing;
+use Hypervel\Queue\Events\JobReleasedAfterException;
+use Hypervel\Queue\Failed\FailedJobProviderInterface;
+use Hypervel\Queue\Worker;
+use Hypervel\Queue\WorkerOptions;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Traits\HasLaravelStyleCommand;
+use Hypervel\Support\Traits\InteractsWithTime;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;

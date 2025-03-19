@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace %NAMESPACE%;
 
-use LaravelHyperf\Auth\Access\Response;
+use Hypervel\Auth\Access\Response;
 use %NAMESPACED_MODEL%;
 use %NAMESPACED_USER_MODEL%;
 

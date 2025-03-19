@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Session;
+namespace Hypervel\Session;
 
-use LaravelHyperf\Session\Contracts\Session as SessionContract;
-use LaravelHyperf\Support\HtmlString;
+use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Support\HtmlString;
 use RuntimeException;
 
 /**

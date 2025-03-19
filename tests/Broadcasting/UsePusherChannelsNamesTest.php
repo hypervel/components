@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Broadcasting;
+namespace Hypervel\Tests\Broadcasting;
 
 use Hyperf\HttpServer\Contract\RequestInterface;
-use LaravelHyperf\Broadcasting\Broadcasters\Broadcaster;
-use LaravelHyperf\Broadcasting\Broadcasters\UsePusherChannelConventions;
+use Hypervel\Broadcasting\Broadcasters\Broadcaster;
+use Hypervel\Broadcasting\Broadcasters\UsePusherChannelConventions;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

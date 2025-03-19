@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Telescope\Watchers;
+namespace Hypervel\Tests\Telescope\Watchers;
 
 use Error;
 use ErrorException;
 use Exception;
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Foundation\Exceptions\Contracts\ExceptionHandler;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\Watchers\ExceptionWatcher;
-use LaravelHyperf\Tests\Telescope\FeatureTestCase;
+use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Watchers\ExceptionWatcher;
+use Hypervel\Tests\Telescope\FeatureTestCase;
 use ParseError;
 
 /**

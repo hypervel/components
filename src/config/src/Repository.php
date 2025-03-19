@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Config;
+namespace Hypervel\Config;
 
 use ArrayAccess;
 use Closure;
 use Hyperf\Collection\Arr;
 use Hyperf\Macroable\Macroable;
+use Hypervel\Config\Contracts\Repository as ConfigContract;
 use InvalidArgumentException;
-use LaravelHyperf\Config\Contracts\Repository as ConfigContract;
 
 class Repository implements ArrayAccess, ConfigContract
 {

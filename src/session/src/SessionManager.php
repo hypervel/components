@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Session;
+namespace Hypervel\Session;
 
 use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\HttpServer\Request;
 use Hyperf\Support\Filesystem\Filesystem;
-use LaravelHyperf\Cache\Contracts\Factory as CacheContract;
-use LaravelHyperf\Cookie\Contracts\Cookie as CookieContract;
-use LaravelHyperf\Encryption\Contracts\Encrypter;
-use LaravelHyperf\Session\Contracts\Factory;
-use LaravelHyperf\Session\Contracts\Session as SessionContract;
-use LaravelHyperf\Support\Manager;
+use Hypervel\Cache\Contracts\Factory as CacheContract;
+use Hypervel\Cookie\Contracts\Cookie as CookieContract;
+use Hypervel\Encryption\Contracts\Encrypter;
+use Hypervel\Session\Contracts\Factory;
+use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Support\Manager;
 use SessionHandlerInterface;
 
 /**
- * @mixin \LaravelHyperf\Session\Store
+ * @mixin \Hypervel\Session\Store
  */
 class SessionManager extends Manager implements Factory
 {

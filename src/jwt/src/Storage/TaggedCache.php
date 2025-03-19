@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\JWT\Storage;
+namespace Hypervel\JWT\Storage;
 
-use LaravelHyperf\Cache\Contracts\Repository as CacheContract;
-use LaravelHyperf\JWT\Contracts\StorageContract;
+use Hypervel\Cache\Contracts\Repository as CacheContract;
+use Hypervel\JWT\Contracts\StorageContract;
 
 class TaggedCache implements StorageContract
 {

@@ -1,28 +1,28 @@
 {
-    "name": "laravel-hyperf/cache",
+    "name": "hypervel/cache",
     "type": "library",
-    "description": "The cache package for Laravel Hyperf.",
+    "description": "The cache package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
         "hyperf",
         "cache",
         "swoole",
-        "laravel-hyperf"
+        "hypervel"
     ],
     "authors": [
         {
             "name": "Albert Chen",
-            "email": "albert@laravel-hyperf.com"
+            "email": "albert@hypervel.org"
         }
     ],
     "support": {
-        "issues": "https://github.com/laravel-hyperf/components/issues",
-        "source": "https://github.com/laravel-hyperf/components"
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
     },
     "autoload": {
         "psr-4": {
-            "LaravelHyperf\\Cache\\": "src/"
+            "Hypervel\\Cache\\": "src/"
         },
         "files": [
             "src/Functions.php"
@@ -37,14 +37,14 @@
     },
     "suggest": {
         "hyperf/redis": "Required to use redis driver. (~3.1.0)",
-        "laravel-hyperf/cache": "Required to use file lock. (~0.1.0)"
+        "hypervel/cache": "Required to use file lock. (~0.1.0)"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
         "hyperf": {
-            "config": "LaravelHyperf\\Cache\\ConfigProvider"
+            "config": "Hypervel\\Cache\\ConfigProvider"
         },
         "branch-alias": {
             "dev-main": "0.1-dev"

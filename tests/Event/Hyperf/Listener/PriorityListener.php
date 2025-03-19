@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Event\Hyperf\Listener;
+namespace Hypervel\Tests\Event\Hyperf\Listener;
 
 use Hyperf\Event\Contract\ListenerInterface;
-use LaravelHyperf\Tests\Event\Hyperf\Event\PriorityEvent;
+use Hypervel\Tests\Event\Hyperf\Event\PriorityEvent;
 
 class PriorityListener implements ListenerInterface
 {

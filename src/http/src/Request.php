@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Http;
+namespace Hypervel\Http;
 
 use Carbon\Carbon;
 use Carbon\Exceptions\InvalidFormatException;
@@ -14,10 +14,10 @@ use Hyperf\Context\RequestContext;
 use Hyperf\HttpServer\Request as HyperfRequest;
 use Hyperf\Stringable\Str;
 use Hyperf\Validation\ValidatorFactory;
-use LaravelHyperf\Http\Contracts\RequestContract;
-use LaravelHyperf\Router\Contracts\UrlGenerator as UrlGeneratorContract;
-use LaravelHyperf\Session\Contracts\Session as SessionContract;
-use LaravelHyperf\Support\Collection;
+use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Support\Collection;
 use Psr\Http\Message\ServerRequestInterface;
 use stdClass;
 use Stringable;

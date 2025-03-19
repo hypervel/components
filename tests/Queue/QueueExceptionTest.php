@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Queue;
+namespace Hypervel\Tests\Queue;
 
-use LaravelHyperf\Queue\Exceptions\MaxAttemptsExceededException;
-use LaravelHyperf\Queue\Exceptions\TimeoutExceededException;
-use LaravelHyperf\Queue\Jobs\RedisJob;
+use Hypervel\Queue\Exceptions\MaxAttemptsExceededException;
+use Hypervel\Queue\Exceptions\TimeoutExceededException;
+use Hypervel\Queue\Jobs\RedisJob;
 use PHPUnit\Framework\TestCase;
 
 /**

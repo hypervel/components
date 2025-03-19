@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\View\Middleware;
+namespace Hypervel\View\Middleware;
 
 use Hyperf\ViewEngine\Contract\FactoryInterface;
 use Hyperf\ViewEngine\ViewErrorBag;
-use LaravelHyperf\Session\Contracts\Session as SessionContract;
+use Hypervel\Session\Contracts\Session as SessionContract;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;

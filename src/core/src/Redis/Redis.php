@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Redis;
+namespace Hypervel\Redis;
 
 use Hyperf\Redis\Redis as HyperfRedis;
 use Hyperf\Redis\RedisFactory;
 use Hyperf\Redis\RedisProxy;
-use LaravelHyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 
 class Redis extends HyperfRedis
 {

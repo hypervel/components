@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Filesystem;
+namespace Hypervel\Filesystem;
 
 use Aws\S3\S3Client;
 use Closure;
@@ -10,11 +10,11 @@ use Google\Cloud\Storage\StorageClient as GcsClient;
 use Hyperf\Collection\Arr;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Stringable\Str;
+use Hypervel\Filesystem\Contracts\Cloud;
+use Hypervel\Filesystem\Contracts\Factory as FactoryContract;
+use Hypervel\Filesystem\Contracts\Filesystem;
+use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use InvalidArgumentException;
-use LaravelHyperf\Filesystem\Contracts\Cloud;
-use LaravelHyperf\Filesystem\Contracts\Factory as FactoryContract;
-use LaravelHyperf\Filesystem\Contracts\Filesystem;
-use LaravelHyperf\ObjectPool\Traits\HasPoolProxy;
 use League\Flysystem\AwsS3V3\AwsS3V3Adapter as S3Adapter;
 use League\Flysystem\AwsS3V3\PortableVisibilityConverter as AwsS3PortableVisibilityConverter;
 use League\Flysystem\Filesystem as Flysystem;
@@ -33,8 +33,8 @@ use League\Flysystem\Visibility;
 use Psr\Container\ContainerInterface;
 
 /**
- * @mixin \LaravelHyperf\Filesystem\Filesystem
- * @mixin \LaravelHyperf\Filesystem\FilesystemAdapter
+ * @mixin \Hypervel\Filesystem\Filesystem
+ * @mixin \Hypervel\Filesystem\FilesystemAdapter
  */
 class FilesystemManager implements FactoryContract
 {

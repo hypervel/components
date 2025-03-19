@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Auth\Stub;
+namespace Hypervel\Tests\Auth\Stub;
 
-use LaravelHyperf\Auth\Access\HandlesAuthorization;
-use LaravelHyperf\Auth\Contracts\Authenticatable;
+use Hypervel\Auth\Access\HandlesAuthorization;
+use Hypervel\Auth\Contracts\Authenticatable;
 
 class AccessGateTestPolicy
 {

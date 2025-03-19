@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Foundation\Testing;
+namespace Hypervel\Tests\Foundation\Testing;
 
 class BootstrapConfigProvider
 {
@@ -29,27 +29,27 @@ class BootstrapConfigProvider
         \Hyperf\Signal\ConfigProvider::class,
         \Hyperf\Translation\ConfigProvider::class,
         \Hyperf\Validation\ConfigProvider::class,
-        \LaravelHyperf\ConfigProvider::class,
-        \LaravelHyperf\Auth\ConfigProvider::class,
-        \LaravelHyperf\Broadcasting\ConfigProvider::class,
-        \LaravelHyperf\Bus\ConfigProvider::class,
-        \LaravelHyperf\Cache\ConfigProvider::class,
-        \LaravelHyperf\Cookie\ConfigProvider::class,
-        \LaravelHyperf\Config\ConfigProvider::class,
-        \LaravelHyperf\Dispatcher\ConfigProvider::class,
-        \LaravelHyperf\Encryption\ConfigProvider::class,
-        \LaravelHyperf\Event\ConfigProvider::class,
-        \LaravelHyperf\Foundation\ConfigProvider::class,
-        \LaravelHyperf\Hashing\ConfigProvider::class,
-        \LaravelHyperf\Http\ConfigProvider::class,
-        \LaravelHyperf\JWT\ConfigProvider::class,
-        \LaravelHyperf\Log\ConfigProvider::class,
-        \LaravelHyperf\Mail\ConfigProvider::class,
-        \LaravelHyperf\Notifications\ConfigProvider::class,
-        \LaravelHyperf\Queue\ConfigProvider::class,
-        \LaravelHyperf\Router\ConfigProvider::class,
-        \LaravelHyperf\Scheduling\ConfigProvider::class,
-        \LaravelHyperf\Session\ConfigProvider::class,
+        \Hypervel\ConfigProvider::class,
+        \Hypervel\Auth\ConfigProvider::class,
+        \Hypervel\Broadcasting\ConfigProvider::class,
+        \Hypervel\Bus\ConfigProvider::class,
+        \Hypervel\Cache\ConfigProvider::class,
+        \Hypervel\Cookie\ConfigProvider::class,
+        \Hypervel\Config\ConfigProvider::class,
+        \Hypervel\Dispatcher\ConfigProvider::class,
+        \Hypervel\Encryption\ConfigProvider::class,
+        \Hypervel\Event\ConfigProvider::class,
+        \Hypervel\Foundation\ConfigProvider::class,
+        \Hypervel\Hashing\ConfigProvider::class,
+        \Hypervel\Http\ConfigProvider::class,
+        \Hypervel\JWT\ConfigProvider::class,
+        \Hypervel\Log\ConfigProvider::class,
+        \Hypervel\Mail\ConfigProvider::class,
+        \Hypervel\Notifications\ConfigProvider::class,
+        \Hypervel\Queue\ConfigProvider::class,
+        \Hypervel\Router\ConfigProvider::class,
+        \Hypervel\Scheduling\ConfigProvider::class,
+        \Hypervel\Session\ConfigProvider::class,
     ];
 
     public static function get(): array

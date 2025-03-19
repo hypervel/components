@@ -2,33 +2,33 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Devtool;
+namespace Hypervel\Devtool;
 
 use Hyperf\Devtool\Generator\GeneratorCommand;
-use LaravelHyperf\Devtool\Commands\EventListCommand;
-use LaravelHyperf\Devtool\Commands\WatchCommand;
-use LaravelHyperf\Devtool\Generator\BatchesTableCommand;
-use LaravelHyperf\Devtool\Generator\ChannelCommand;
-use LaravelHyperf\Devtool\Generator\ComponentCommand;
-use LaravelHyperf\Devtool\Generator\ConsoleCommand;
-use LaravelHyperf\Devtool\Generator\EventCommand;
-use LaravelHyperf\Devtool\Generator\FactoryCommand;
-use LaravelHyperf\Devtool\Generator\JobCommand;
-use LaravelHyperf\Devtool\Generator\ListenerCommand;
-use LaravelHyperf\Devtool\Generator\MailCommand;
-use LaravelHyperf\Devtool\Generator\ModelCommand;
-use LaravelHyperf\Devtool\Generator\NotificationCommand;
-use LaravelHyperf\Devtool\Generator\NotificationTableCommand;
-use LaravelHyperf\Devtool\Generator\ObserverCommand;
-use LaravelHyperf\Devtool\Generator\PolicyCommand;
-use LaravelHyperf\Devtool\Generator\ProviderCommand;
-use LaravelHyperf\Devtool\Generator\QueueFailedTableCommand;
-use LaravelHyperf\Devtool\Generator\QueueTableCommand;
-use LaravelHyperf\Devtool\Generator\RequestCommand;
-use LaravelHyperf\Devtool\Generator\RuleCommand;
-use LaravelHyperf\Devtool\Generator\SeederCommand;
-use LaravelHyperf\Devtool\Generator\SessionTableCommand;
-use LaravelHyperf\Devtool\Generator\TestCommand;
+use Hypervel\Devtool\Commands\EventListCommand;
+use Hypervel\Devtool\Commands\WatchCommand;
+use Hypervel\Devtool\Generator\BatchesTableCommand;
+use Hypervel\Devtool\Generator\ChannelCommand;
+use Hypervel\Devtool\Generator\ComponentCommand;
+use Hypervel\Devtool\Generator\ConsoleCommand;
+use Hypervel\Devtool\Generator\EventCommand;
+use Hypervel\Devtool\Generator\FactoryCommand;
+use Hypervel\Devtool\Generator\JobCommand;
+use Hypervel\Devtool\Generator\ListenerCommand;
+use Hypervel\Devtool\Generator\MailCommand;
+use Hypervel\Devtool\Generator\ModelCommand;
+use Hypervel\Devtool\Generator\NotificationCommand;
+use Hypervel\Devtool\Generator\NotificationTableCommand;
+use Hypervel\Devtool\Generator\ObserverCommand;
+use Hypervel\Devtool\Generator\PolicyCommand;
+use Hypervel\Devtool\Generator\ProviderCommand;
+use Hypervel\Devtool\Generator\QueueFailedTableCommand;
+use Hypervel\Devtool\Generator\QueueTableCommand;
+use Hypervel\Devtool\Generator\RequestCommand;
+use Hypervel\Devtool\Generator\RuleCommand;
+use Hypervel\Devtool\Generator\SeederCommand;
+use Hypervel\Devtool\Generator\SessionTableCommand;
+use Hypervel\Devtool\Generator\TestCommand;
 
 class ConfigProvider
 {

@@ -16,7 +16,7 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Laravel Hyperf'),
+    'name' => env('APP_NAME', 'Hypervel'),
 
     /*
     |--------------------------------------------------------------------------
@@ -131,8 +131,8 @@ return [
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 
     'providers' => [
-        LaravelHyperf\Foundation\Providers\FoundationServiceProvider::class,
-        LaravelHyperf\Foundation\Providers\FormRequestServiceProvider::class,
+        Hypervel\Foundation\Providers\FoundationServiceProvider::class,
+        Hypervel\Foundation\Providers\FormRequestServiceProvider::class,
     ],
 
     'aliases' => [],

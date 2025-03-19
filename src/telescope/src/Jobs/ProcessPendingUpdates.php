@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Jobs;
+namespace Hypervel\Telescope\Jobs;
 
 use Hyperf\Collection\Collection;
-use LaravelHyperf\Bus\Dispatchable;
-use LaravelHyperf\Bus\Queueable;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
-use LaravelHyperf\Queue\InteractsWithQueue;
-use LaravelHyperf\Queue\SerializesModels;
-use LaravelHyperf\Telescope\Contracts\EntriesRepository;
+use Hypervel\Bus\Dispatchable;
+use Hypervel\Bus\Queueable;
+use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Queue\SerializesModels;
+use Hypervel\Telescope\Contracts\EntriesRepository;
 
-use function LaravelHyperf\Config\config;
+use function Hypervel\Config\config;
 
 class ProcessPendingUpdates implements ShouldQueue
 {
@@ -24,7 +24,7 @@ class ProcessPendingUpdates implements ShouldQueue
     /**
      * Create a new job instance.
      *
-     * @param Collection<int, \LaravelHyperf\Telescope\EntryUpdate> $pendingUpdates the pending entry updates
+     * @param Collection<int, \Hypervel\Telescope\EntryUpdate> $pendingUpdates the pending entry updates
      * @param int $attempt the number of times the job has been attempted
      */
     public function __construct(

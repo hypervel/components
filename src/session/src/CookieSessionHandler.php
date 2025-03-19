@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Session;
+namespace Hypervel\Session;
 
 use Hyperf\HttpServer\Request;
-use LaravelHyperf\Cookie\Contracts\Cookie as CookieContract;
-use LaravelHyperf\Support\Traits\InteractsWithTime;
+use Hypervel\Cookie\Contracts\Cookie as CookieContract;
+use Hypervel\Support\Traits\InteractsWithTime;
 use SessionHandlerInterface;
 
 class CookieSessionHandler implements SessionHandlerInterface

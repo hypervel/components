@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Watchers;
+namespace Hypervel\Telescope\Watchers;
 
 use Hyperf\Collection\Collection;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Broadcasting\Contracts\ShouldBroadcast;
-use LaravelHyperf\Queue\Contracts\ShouldQueue;
-use LaravelHyperf\Telescope\ExtractProperties;
-use LaravelHyperf\Telescope\ExtractTags;
-use LaravelHyperf\Telescope\IncomingEntry;
-use LaravelHyperf\Telescope\Telescope;
-use LaravelHyperf\Telescope\Watchers\Traits\FormatsClosure;
+use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
+use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Telescope\ExtractProperties;
+use Hypervel\Telescope\ExtractTags;
+use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\Telescope;
+use Hypervel\Telescope\Watchers\Traits\FormatsClosure;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use ReflectionFunction;
@@ -92,7 +92,7 @@ class EventWatcher extends Watcher
 
                 return $this->formatClosureListener($listener);
             })->reject(function ($listener) {
-                return str_starts_with($listener, 'LaravelHyperf\Telescope');
+                return str_starts_with($listener, 'Hypervel\Telescope');
             })->map(function ($listener) {
                 if (Str::contains($listener, '@')) {
                     $queued = in_array(ShouldQueue::class, class_implements(Str::beforeLast($listener, '@')));
@@ -124,7 +124,7 @@ class EventWatcher extends Watcher
         }
 
         $prefixes = [
-            'LaravelHyperf',
+            'Hypervel',
             'Hyperf',
             'FriendsOfHyperf',
             'bootstrapped',

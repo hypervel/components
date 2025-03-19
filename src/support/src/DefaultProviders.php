@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support;
+namespace Hypervel\Support;
 
 class DefaultProviders
 {
@@ -17,8 +17,8 @@ class DefaultProviders
     public function __construct(?array $providers = null)
     {
         $this->providers = $providers ?: [
-            \LaravelHyperf\Foundation\Providers\FoundationServiceProvider::class,
-            \LaravelHyperf\Foundation\Providers\FormRequestServiceProvider::class,
+            \Hypervel\Foundation\Providers\FoundationServiceProvider::class,
+            \Hypervel\Foundation\Providers\FormRequestServiceProvider::class,
         ];
     }
 

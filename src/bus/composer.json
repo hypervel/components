@@ -1,6 +1,6 @@
 {
-    "name": "laravel-hyperf/bus",
-    "description": "The bus package for Laravel Hyperf.",
+    "name": "hypervel/bus",
+    "description": "The bus package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
@@ -8,16 +8,16 @@
         "bus",
         "queue",
         "swoole",
-        "laravel-hyperf"
+        "hypervel"
     ],
     "support": {
-        "issues": "https://github.com/laravel-hyperf/components/issues",
-        "source": "https://github.com/laravel-hyperf/components"
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
     },
     "authors": [
         {
             "name": "Albert Chen",
-            "email": "albert@laravel-hyperf.com"
+            "email": "albert@hypervel.org"
         }
     ],
     "require": {
@@ -30,13 +30,13 @@
         "hyperf/support": "~3.1.0",
         "nesbot/carbon": "^2.72.6",
         "laravel/serializable-closure": "^1.3",
-        "laravel-hyperf/support": "^0.1",
-        "laravel-hyperf/cache": "^0.1"
+        "hypervel/support": "^0.1",
+        "hypervel/cache": "^0.1"
 
     },
     "autoload": {
         "psr-4": {
-            "LaravelHyperf\\Bus\\": "src/"
+            "Hypervel\\Bus\\": "src/"
         },
         "files": [
             "src/Functions.php"
@@ -44,14 +44,14 @@
     },
     "extra": {
         "hyperf": {
-            "config": "LaravelHyperf\\Bus\\ConfigProvider"
+            "config": "Hypervel\\Bus\\ConfigProvider"
         },
         "branch-alias": {
             "dev-main": "0.1-dev"
         }
     },
     "suggest": {
-        "laravel-hyperf/queue": "Required to use closures when chaining jobs."
+        "hypervel/queue": "Required to use closures when chaining jobs."
     },
     "config": {
         "sort-packages": true

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Telescope\Watchers;
+namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\Watchers\LogWatcher;
-use LaravelHyperf\Tests\Telescope\FeatureTestCase;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\Watchers\LogWatcher;
+use Hypervel\Tests\Telescope\FeatureTestCase;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
 

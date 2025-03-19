@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Prompts;
+namespace Hypervel\Tests\Prompts;
 
-use LaravelHyperf\Prompts\Key;
-use LaravelHyperf\Prompts\PausePrompt;
-use LaravelHyperf\Prompts\Prompt;
+use Hypervel\Prompts\Key;
+use Hypervel\Prompts\PausePrompt;
+use Hypervel\Prompts\Prompt;
 use PHPUnit\Framework\TestCase;
 
-use function LaravelHyperf\Prompts\pause;
+use function Hypervel\Prompts\pause;
 
 /**
  * @backupStaticProperties enabled

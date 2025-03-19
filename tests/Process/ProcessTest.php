@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Process;
+namespace Hypervel\Tests\Process;
 
-use LaravelHyperf\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use LaravelHyperf\Process\Contracts\ProcessResult;
-use LaravelHyperf\Process\Exceptions\ProcessFailedException;
-use LaravelHyperf\Process\Exceptions\ProcessTimedOutException;
-use LaravelHyperf\Process\Factory;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Process\Contracts\ProcessResult;
+use Hypervel\Process\Exceptions\ProcessFailedException;
+use Hypervel\Process\Exceptions\ProcessTimedOutException;
+use Hypervel\Process\Factory;
 use OutOfBoundsException;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\TestCase;

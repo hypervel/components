@@ -2,23 +2,23 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Core;
+namespace Hypervel\Tests\Core;
 
 use Closure;
 use Hyperf\Collection\Arr;
 use Hyperf\Database\Model\Events\Created;
 use Hyperf\Database\Model\SoftDeletes;
 use Hyperf\Database\Schema\Blueprint;
-use LaravelHyperf\Broadcasting\BroadcastEvent;
-use LaravelHyperf\Broadcasting\Contracts\Broadcaster;
-use LaravelHyperf\Broadcasting\Contracts\Factory as BroadcastingFactory;
-use LaravelHyperf\Database\Eloquent\BroadcastableModelEventOccurred;
-use LaravelHyperf\Database\Eloquent\BroadcastsEvents;
-use LaravelHyperf\Database\Eloquent\Model;
-use LaravelHyperf\Foundation\Testing\RefreshDatabase;
-use LaravelHyperf\Support\Facades\Event;
-use LaravelHyperf\Support\Facades\Schema;
-use LaravelHyperf\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Broadcasting\BroadcastEvent;
+use Hypervel\Broadcasting\Contracts\Broadcaster;
+use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactory;
+use Hypervel\Database\Eloquent\BroadcastableModelEventOccurred;
+use Hypervel\Database\Eloquent\BroadcastsEvents;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
 use Mockery;
 
 /**
@@ -60,7 +60,7 @@ class EloquentBroadcastingTest extends ApplicationTestCase
             return $event->model instanceof TestEloquentBroadcastUser
                 && count($event->broadcastOn()) === 1
                 && $event->model->name === 'Taylor'
-                && $event->broadcastOn()[0]->name == "private-LaravelHyperf.Tests.Core.TestEloquentBroadcastUser.{$event->model->id}";
+                && $event->broadcastOn()[0]->name == "private-Hypervel.Tests.Core.TestEloquentBroadcastUser.{$event->model->id}";
         });
     }
 
@@ -68,7 +68,7 @@ class EloquentBroadcastingTest extends ApplicationTestCase
     {
         $model = new TestEloquentBroadcastUser();
 
-        $this->assertSame('LaravelHyperf.Tests.Core.TestEloquentBroadcastUser.{testEloquentBroadcastUser}', $model->broadcastChannelRoute());
+        $this->assertSame('Hypervel.Tests.Core.TestEloquentBroadcastUser.{testEloquentBroadcastUser}', $model->broadcastChannelRoute());
     }
 
     public function testBroadcastingOnModelTrashing()
@@ -89,7 +89,7 @@ class EloquentBroadcastingTest extends ApplicationTestCase
                 && $event->event() == 'deleted'
                 && count($event->broadcastOn()) === 1
                 && $event->model->name === 'Bean'
-                && $event->broadcastOn()[0]->name == "private-LaravelHyperf.Tests.Core.SoftDeletableTestEloquentBroadcastUser.{$event->model->id}";
+                && $event->broadcastOn()[0]->name == "private-Hypervel.Tests.Core.SoftDeletableTestEloquentBroadcastUser.{$event->model->id}";
         });
     }
 
@@ -106,7 +106,7 @@ class EloquentBroadcastingTest extends ApplicationTestCase
                 && $event->event() == 'created'
                 && count($event->broadcastOn()) === 1
                 && $event->model->name === 'James'
-                && $event->broadcastOn()[0]->name == "private-LaravelHyperf.Tests.Core.TestEloquentBroadcastUserOnSpecificEventsOnly.{$event->model->id}";
+                && $event->broadcastOn()[0]->name == "private-Hypervel.Tests.Core.TestEloquentBroadcastUserOnSpecificEventsOnly.{$event->model->id}";
         });
 
         $model->name = 'Graham';

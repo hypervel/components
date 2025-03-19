@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Testing\Concerns;
+namespace Hypervel\Foundation\Testing\Concerns;
 
-use LaravelHyperf\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
 
 trait InteractsWithConsole
 {

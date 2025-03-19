@@ -1,22 +1,22 @@
 {
-    "name": "laravel-hyperf/devtool",
-    "description": "The devtool package for Laravel Hyperf.",
+    "name": "hypervel/devtool",
+    "description": "The devtool package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
         "hyperf",
         "devtool",
         "swoole",
-        "laravel-hyperf"
+        "hypervel"
     ],
     "support": {
-        "issues": "https://github.com/laravel-hyperf/components/issues",
-        "source": "https://github.com/laravel-hyperf/components"
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
     },
     "authors": [
         {
             "name": "Albert Chen",
-            "email": "albert@laravel-hyperf.com"
+            "email": "albert@hypervel.org"
         }
     ],
     "require": {
@@ -25,12 +25,12 @@
     },
     "autoload": {
         "psr-4": {
-            "LaravelHyperf\\Devtool\\": "src/"
+            "Hypervel\\Devtool\\": "src/"
         }
     },
     "extra": {
         "hyperf": {
-            "config": "LaravelHyperf\\Devtool\\ConfigProvider"
+            "config": "Hypervel\\Devtool\\ConfigProvider"
         },
         "branch-alias": {
             "dev-main": "0.1-dev"

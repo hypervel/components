@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Database\Eloquent;
+namespace Hypervel\Database\Eloquent;
 
 use Hyperf\DbConnection\Model\Model as BaseModel;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Broadcasting\Contracts\HasBroadcastChannel;
-use LaravelHyperf\Database\Eloquent\Concerns\HasCallbacks;
-use LaravelHyperf\Database\Eloquent\Concerns\HasObservers;
-use LaravelHyperf\Database\Eloquent\Concerns\HasRelations;
-use LaravelHyperf\Router\Contracts\UrlRoutable;
+use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
+use Hypervel\Database\Eloquent\Concerns\HasCallbacks;
+use Hypervel\Database\Eloquent\Concerns\HasObservers;
+use Hypervel\Database\Eloquent\Concerns\HasRelations;
+use Hypervel\Router\Contracts\UrlRoutable;
 
 abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChannel
 {

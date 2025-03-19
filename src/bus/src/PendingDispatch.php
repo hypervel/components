@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Bus;
+namespace Hypervel\Bus;
 
 use BackedEnum;
 use DateInterval;
 use DateTimeInterface;
 use Hyperf\Context\ApplicationContext;
-use LaravelHyperf\Bus\Contracts\Dispatcher;
-use LaravelHyperf\Cache\Contracts\Factory as CacheFactory;
-use LaravelHyperf\Queue\Contracts\ShouldBeUnique;
+use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Queue\Contracts\ShouldBeUnique;
 
 class PendingDispatch
 {

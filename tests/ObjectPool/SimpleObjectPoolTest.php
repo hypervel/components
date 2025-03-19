@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\ObjectPool;
+namespace Hypervel\Tests\ObjectPool;
 
 use Hyperf\Context\ApplicationContext;
-use LaravelHyperf\ObjectPool\SimpleObjectPool;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\ObjectPool\SimpleObjectPool;
+use Hypervel\Tests\TestCase;
 use Mockery;
 use Psr\Container\ContainerInterface;
 use stdClass;

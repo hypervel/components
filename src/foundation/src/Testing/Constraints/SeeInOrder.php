@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Testing\Constraints;
+namespace Hypervel\Foundation\Testing\Constraints;
 
 use PHPUnit\Framework\Constraint\Constraint;
 use ReflectionClass;

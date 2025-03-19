@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Listeners;
+namespace Hypervel\Foundation\Listeners;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Framework\Event\BeforeWorkerStart;
 use Hyperf\Support\DotenvManager;
-use LaravelHyperf\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 
 class ReloadDotenvAndConfig implements ListenerInterface
 {

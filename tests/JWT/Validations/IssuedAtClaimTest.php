@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\JWT\Validations;
+namespace Hypervel\Tests\JWT\Validations;
 
 use Carbon\Carbon;
-use LaravelHyperf\JWT\Exceptions\TokenInvalidException;
-use LaravelHyperf\JWT\Validations\IssuedAtClaim;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\JWT\Exceptions\TokenInvalidException;
+use Hypervel\JWT\Validations\IssuedAtClaim;
+use Hypervel\Tests\TestCase;
 
 /**
  * @internal

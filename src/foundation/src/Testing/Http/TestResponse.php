@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Testing\Http;
+namespace Hypervel\Foundation\Testing\Http;
 
 use Carbon\Carbon;
 use Closure;
@@ -11,9 +11,9 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\MessageBag;
 use Hyperf\Testing\Http\TestResponse as HyperfTestResponse;
 use Hyperf\ViewEngine\ViewErrorBag;
-use LaravelHyperf\Cookie\Cookie;
-use LaravelHyperf\Foundation\Testing\TestResponseAssert as PHPUnit;
-use LaravelHyperf\Session\Contracts\Session as SessionContract;
+use Hypervel\Cookie\Cookie;
+use Hypervel\Foundation\Testing\TestResponseAssert as PHPUnit;
+use Hypervel\Session\Contracts\Session as SessionContract;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
 
@@ -22,7 +22,7 @@ class TestResponse extends HyperfTestResponse
     public function __construct(protected ResponseInterface $response)
     {
         if (method_exists($response, 'getStreamedContent')) {
-            /** @var \LaravelHyperf\Foundation\Testing\Http\ServerResponse $response */
+            /** @var \Hypervel\Foundation\Testing\Http\ServerResponse $response */
             $this->streamedContent = $response->getStreamedContent();
         }
     }
@@ -229,7 +229,7 @@ class TestResponse extends HyperfTestResponse
     {
         $container = ApplicationContext::getContainer();
         if (! $container->has(SessionContract::class)) {
-            throw new RuntimeException('Package `laravel-hyperf/session` is not installed.');
+            throw new RuntimeException('Package `hypervel/session` is not installed.');
         }
 
         return $container->get(SessionContract::class);

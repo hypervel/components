@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Foundation\Testing\Concerns;
+namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
-use LaravelHyperf\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Validation;
+namespace Hypervel\Validation;
 
 use Hyperf\Validation\Rule as BaseRule;
 

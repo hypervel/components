@@ -1,28 +1,28 @@
 {
-    "name": "laravel-hyperf/cookie",
+    "name": "hypervel/cookie",
     "type": "library",
-    "description": "The cookie package for Laravel Hyperf.",
+    "description": "The cookie package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
         "hyperf",
         "cookie",
         "swoole",
-        "laravel-hyperf"
+        "hypervel"
     ],
     "authors": [
         {
             "name": "Albert Chen",
-            "email": "albert@laravel-hyperf.com"
+            "email": "albert@hypervel.org"
         }
     ],
     "support": {
-        "issues": "https://github.com/laravel-hyperf/components/issues",
-        "source": "https://github.com/laravel-hyperf/components"
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
     },
     "autoload": {
         "psr-4": {
-            "LaravelHyperf\\Cookie\\": "src/"
+            "Hypervel\\Cookie\\": "src/"
         }
     },
     "require": {
@@ -35,7 +35,7 @@
     },
     "extra": {
         "hyperf": {
-            "config": "LaravelHyperf\\Cookie\\ConfigProvider"
+            "config": "Hypervel\\Cookie\\ConfigProvider"
         },
         "branch-alias": {
             "dev-main": "0.1-dev"

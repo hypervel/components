@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Queue;
+namespace Hypervel\Tests\Queue;
 
 use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\Database\Query\Builder;
 use Hyperf\Di\Container;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Queue\DatabaseQueue;
-use LaravelHyperf\Queue\Queue;
+use Hypervel\Queue\DatabaseQueue;
+use Hypervel\Queue\Queue;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;

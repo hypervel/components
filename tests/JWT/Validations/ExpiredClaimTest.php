@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\JWT\Validations;
+namespace Hypervel\Tests\JWT\Validations;
 
 use Carbon\Carbon;
-use LaravelHyperf\JWT\Exceptions\TokenExpiredException;
-use LaravelHyperf\JWT\Validations\ExpiredClaim;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\JWT\Exceptions\TokenExpiredException;
+use Hypervel\JWT\Validations\ExpiredClaim;
+use Hypervel\Tests\TestCase;
 
 /**
  * @internal

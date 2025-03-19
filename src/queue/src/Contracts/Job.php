@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Queue\Contracts;
+namespace Hypervel\Queue\Contracts;
 
 use Throwable;
 

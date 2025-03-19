@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Support;
+namespace Hypervel\Support;
 
 use Hyperf\Conditionable\Conditionable;
 use Hyperf\Pipeline\Pipeline as BasePipeline;
-use LaravelHyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 
 class Pipeline extends BasePipeline
 {

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Prompts\Concerns;
+namespace Hypervel\Prompts\Concerns;
 
-use LaravelHyperf\Prompts\Output\BufferedConsoleOutput;
+use Hypervel\Prompts\Output\BufferedConsoleOutput;
 
 use function Termwind\render;
 use function Termwind\renderUsing;

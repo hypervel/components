@@ -1,2 +1,2 @@
-Config for Laravel Hyperf
+Config for Hypervel
 ===

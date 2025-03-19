@@ -2,23 +2,23 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Watchers;
+namespace Hypervel\Telescope\Watchers;
 
 use Hyperf\Collection\Arr;
 use Hyperf\Database\Model\ModelNotFoundException;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Bus\Contracts\BatchRepository;
-use LaravelHyperf\Encryption\Contracts\Encrypter;
-use LaravelHyperf\Queue\Events\JobFailed;
-use LaravelHyperf\Queue\Events\JobProcessed;
-use LaravelHyperf\Queue\Queue;
-use LaravelHyperf\Telescope\EntryType;
-use LaravelHyperf\Telescope\EntryUpdate;
-use LaravelHyperf\Telescope\ExceptionContext;
-use LaravelHyperf\Telescope\ExtractProperties;
-use LaravelHyperf\Telescope\ExtractTags;
-use LaravelHyperf\Telescope\IncomingEntry;
-use LaravelHyperf\Telescope\Telescope;
+use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Encryption\Contracts\Encrypter;
+use Hypervel\Queue\Events\JobFailed;
+use Hypervel\Queue\Events\JobProcessed;
+use Hypervel\Queue\Queue;
+use Hypervel\Telescope\EntryType;
+use Hypervel\Telescope\EntryUpdate;
+use Hypervel\Telescope\ExceptionContext;
+use Hypervel\Telescope\ExtractProperties;
+use Hypervel\Telescope\ExtractTags;
+use Hypervel\Telescope\IncomingEntry;
+use Hypervel\Telescope\Telescope;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
@@ -31,7 +31,7 @@ class JobWatcher extends Watcher
      * @var array<int, class-string>
      */
     protected $ignoredJobClasses = [
-        \LaravelHyperf\Telescope\Jobs\ProcessPendingUpdates::class,
+        \Hypervel\Telescope\Jobs\ProcessPendingUpdates::class,
     ];
 
     /**

@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Session;
+namespace Hypervel\Tests\Session;
 
 use Hyperf\Context\Context;
 use Hyperf\Stringable\Str;
 use Hyperf\Support\MessageBag;
 use Hyperf\ViewEngine\ViewErrorBag;
-use LaravelHyperf\Session\Store;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\Session\Store;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 use SessionHandlerInterface;
 

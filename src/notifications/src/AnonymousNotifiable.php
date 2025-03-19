@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications;
+namespace Hypervel\Notifications;
 
 use Hyperf\Context\ApplicationContext;
+use Hypervel\Notifications\Contracts\Dispatcher;
 use InvalidArgumentException;
-use LaravelHyperf\Notifications\Contracts\Dispatcher;
 
 class AnonymousNotifiable
 {

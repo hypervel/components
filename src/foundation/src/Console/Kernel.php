@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Console;
+namespace Hypervel\Foundation\Console;
 
 use Closure;
 use Exception;
@@ -15,18 +15,18 @@ use Hyperf\Di\Annotation\AnnotationCollector;
 use Hyperf\Di\ReflectionManager;
 use Hyperf\Framework\Event\BootApplication;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Foundation\Console\Application as ConsoleApplication;
-use LaravelHyperf\Foundation\Console\Contracts\Application as ApplicationContract;
-use LaravelHyperf\Foundation\Console\Contracts\Kernel as KernelContract;
-use LaravelHyperf\Foundation\Contracts\Application as ContainerContract;
-use LaravelHyperf\Scheduling\Schedule;
+use Hypervel\Foundation\Console\Application as ConsoleApplication;
+use Hypervel\Foundation\Console\Contracts\Application as ApplicationContract;
+use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Foundation\Contracts\Application as ContainerContract;
+use Hypervel\Scheduling\Schedule;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hyperf\Tappable\tap;
-use function LaravelHyperf\Support\env;
+use function Hypervel\Support\env;
 
 class Kernel implements KernelContract
 {
@@ -68,9 +68,9 @@ class Kernel implements KernelContract
      * The console application bootstrappers.
      */
     protected array $bootstrappers = [
-        \LaravelHyperf\Foundation\Bootstrap\RegisterFacades::class,
-        \LaravelHyperf\Foundation\Bootstrap\RegisterProviders::class,
-        \LaravelHyperf\Foundation\Bootstrap\BootProviders::class,
+        \Hypervel\Foundation\Bootstrap\RegisterFacades::class,
+        \Hypervel\Foundation\Bootstrap\RegisterProviders::class,
+        \Hypervel\Foundation\Bootstrap\BootProviders::class,
     ];
 
     public function __construct(

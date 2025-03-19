@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Cache\Listeners;
+namespace Hypervel\Cache\Listeners;
 
 use Hyperf\Collection\Collection;
 use Hyperf\Contract\ConfigInterface;

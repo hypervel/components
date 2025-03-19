@@ -1,2 +1,2 @@
-Event for Laravel Hyperf
+Event for Hypervel
 ===

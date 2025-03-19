@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Filesystem;
+namespace Hypervel\Filesystem;
 
-use LaravelHyperf\Filesystem\Contracts\Factory as FactoryContract;
-use LaravelHyperf\Filesystem\Contracts\Filesystem as FilesystemContract;
+use Hypervel\Filesystem\Contracts\Factory as FactoryContract;
+use Hypervel\Filesystem\Contracts\Filesystem as FilesystemContract;
 use Psr\Container\ContainerInterface;
 
 class FilesystemFactory

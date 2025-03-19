@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\JWT;
+namespace Hypervel\Tests\JWT;
 
 use Carbon\Carbon;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\ContainerInterface;
-use LaravelHyperf\JWT\Contracts\BlacklistContract;
-use LaravelHyperf\JWT\Exceptions\JWTException;
-use LaravelHyperf\JWT\Exceptions\TokenBlacklistedException;
-use LaravelHyperf\JWT\JWTManager;
-use LaravelHyperf\JWT\Providers\Lcobucci;
-use LaravelHyperf\Tests\JWT\Stub\ValidationStub;
-use LaravelHyperf\Tests\TestCase;
+use Hypervel\JWT\Contracts\BlacklistContract;
+use Hypervel\JWT\Exceptions\JWTException;
+use Hypervel\JWT\Exceptions\TokenBlacklistedException;
+use Hypervel\JWT\JWTManager;
+use Hypervel\JWT\Providers\Lcobucci;
+use Hypervel\Tests\JWT\Stub\ValidationStub;
+use Hypervel\Tests\TestCase;
 use Mockery;
 use Mockery\MockInterface;
 use Ramsey\Uuid\Uuid;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope;
+namespace Hypervel\Telescope;
 
 use Closure;
 use Exception;
@@ -10,21 +10,21 @@ use Hyperf\Collection\Arr;
 use Hyperf\Collection\Collection;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Stringable\Str;
-use LaravelHyperf\Context\ParentContext;
-use LaravelHyperf\Foundation\Exceptions\Contracts\ExceptionHandler;
-use LaravelHyperf\Http\Contracts\RequestContract;
-use LaravelHyperf\Log\Events\MessageLogged;
-use LaravelHyperf\Support\Facades\Auth;
-use LaravelHyperf\Telescope\Contracts\EntriesRepository;
-use LaravelHyperf\Telescope\Contracts\TerminableRepository;
-use LaravelHyperf\Telescope\Jobs\ProcessPendingUpdates;
+use Hypervel\Context\ParentContext;
+use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
+use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Log\Events\MessageLogged;
+use Hypervel\Support\Facades\Auth;
+use Hypervel\Telescope\Contracts\EntriesRepository;
+use Hypervel\Telescope\Contracts\TerminableRepository;
+use Hypervel\Telescope\Jobs\ProcessPendingUpdates;
 use Psr\Container\ContainerInterface;
 use Throwable;
 
 use function Hyperf\Coroutine\defer;
-use function LaravelHyperf\Cache\cache;
-use function LaravelHyperf\Config\config;
-use function LaravelHyperf\Event\event;
+use function Hypervel\Cache\cache;
+use function Hypervel\Config\config;
+use function Hypervel\Event\event;
 
 class Telescope
 {
@@ -92,7 +92,7 @@ class Telescope
     public static array $hiddenResponseParameters = [];
 
     /**
-     * Indicates if Telescope should ignore events fired by Laravel Hyperf.
+     * Indicates if Telescope should ignore events fired by Hypervel.
      */
     public static bool $ignoreFrameworkEvents = true;
 

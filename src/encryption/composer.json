@@ -1,28 +1,28 @@
 {
-    "name": "laravel-hyperf/encryption",
+    "name": "hypervel/encryption",
     "type": "library",
-    "description": "The encryption package for Laravel Hyperf.",
+    "description": "The encryption package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
         "hyperf",
         "encryption",
         "swoole",
-        "laravel-hyperf"
+        "hypervel"
     ],
     "authors": [
         {
             "name": "Albert Chen",
-            "email": "albert@laravel-hyperf.com"
+            "email": "albert@hypervel.org"
         }
     ],
     "support": {
-        "issues": "https://github.com/laravel-hyperf/components/issues",
-        "source": "https://github.com/laravel-hyperf/components"
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
     },
     "autoload": {
         "psr-4": {
-            "LaravelHyperf\\Encryption\\": "src/"
+            "Hypervel\\Encryption\\": "src/"
         }
     },
     "require": {
@@ -39,7 +39,7 @@
     },
     "extra": {
         "hyperf": {
-            "config": "LaravelHyperf\\Encryption\\ConfigProvider"
+            "config": "Hypervel\\Encryption\\ConfigProvider"
         },
         "branch-alias": {
             "dev-main": "0.1-dev"

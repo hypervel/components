@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Notifications\Messages;
+namespace Hypervel\Notifications\Messages;
 
 class DatabaseMessage
 {

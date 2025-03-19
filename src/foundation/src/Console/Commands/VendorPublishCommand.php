@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Console\Commands;
+namespace Hypervel\Foundation\Console\Commands;
 
 use Hyperf\Collection\Arr;
 use Hyperf\Collection\Collection;
@@ -10,8 +10,8 @@ use Hyperf\Contract\ContainerInterface;
 use Hyperf\Stringable\Str;
 use Hyperf\Support\Composer;
 use Hyperf\Support\Filesystem\Filesystem;
-use LaravelHyperf\Foundation\Console\Command;
-use LaravelHyperf\Support\ServiceProvider;
+use Hypervel\Foundation\Console\Command;
+use Hypervel\Support\ServiceProvider;
 
 class VendorPublishCommand extends Command
 {
@@ -116,7 +116,7 @@ class VendorPublishCommand extends Command
         $packages = array_map(
             fn (array $package) => array_merge(
                 Arr::wrap(($package['hyperf'] ?? []) ?? []),
-                Arr::wrap(($package['laravel-hyperf'] ?? []) ?? []),
+                Arr::wrap(($package['hypervel'] ?? []) ?? []),
             ),
             $extra
         );

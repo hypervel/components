@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Foundation\Support\Providers;
+namespace Hypervel\Foundation\Support\Providers;
 
-use LaravelHyperf\Support\Facades\Gate;
-use LaravelHyperf\Support\ServiceProvider;
+use Hypervel\Support\Facades\Gate;
+use Hypervel\Support\ServiceProvider;
 
 class AuthServiceProvider extends ServiceProvider
 {

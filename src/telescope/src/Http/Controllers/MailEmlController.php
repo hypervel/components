@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Telescope\Http\Controllers;
+namespace Hypervel\Telescope\Http\Controllers;
 
-use LaravelHyperf\Telescope\Contracts\EntriesRepository;
+use Hypervel\Telescope\Contracts\EntriesRepository;
 
 class MailEmlController
 {

@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Event;
+namespace Hypervel\Event;
 
 use Hyperf\Contract\StdoutLoggerInterface;
-use LaravelHyperf\Queue\Contracts\Factory as QueueFactoryContract;
+use Hypervel\Queue\Contracts\Factory as QueueFactoryContract;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\ListenerProviderInterface;
 

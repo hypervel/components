@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LaravelHyperf\Tests\Foundation\Concerns;
+namespace Hypervel\Tests\Foundation\Concerns;
 
-use LaravelHyperf\Container\DefinitionSource;
-use LaravelHyperf\Foundation\Application;
+use Hypervel\Container\DefinitionSource;
+use Hypervel\Foundation\Application;
 
 trait HasMockedApplication
 {
