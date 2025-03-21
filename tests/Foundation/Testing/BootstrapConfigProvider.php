@@ -36,6 +36,7 @@ class BootstrapConfigProvider
         \Hypervel\Cache\ConfigProvider::class,
         \Hypervel\Cookie\ConfigProvider::class,
         \Hypervel\Config\ConfigProvider::class,
+        \Hypervel\Console\ConfigProvider::class,
         \Hypervel\Dispatcher\ConfigProvider::class,
         \Hypervel\Encryption\ConfigProvider::class,
         \Hypervel\Event\ConfigProvider::class,
@@ -48,7 +49,6 @@ class BootstrapConfigProvider
         \Hypervel\Notifications\ConfigProvider::class,
         \Hypervel\Queue\ConfigProvider::class,
         \Hypervel\Router\ConfigProvider::class,
-        \Hypervel\Scheduling\ConfigProvider::class,
         \Hypervel\Session\ConfigProvider::class,
     ];
 
