@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Console\Command;
+use Hypervel\Console\Command;
 use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\CommandWatcher;
