@@ -8,7 +8,6 @@ use Closure;
 use Exception;
 use Hyperf\Collection\Arr;
 use Hyperf\Command\Annotation\Command as AnnotationCommand;
-use Hyperf\Command\ClosureCommand;
 use Hyperf\Contract\ApplicationInterface;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Annotation\AnnotationCollector;
@@ -305,7 +304,16 @@ class Kernel implements KernelContract
     {
         $command = new ClosureCommand($this->app, $signature, $callback);
 
-        $this->closureCommands[] = $command;
+        // If the commands have already been loaded, we will register it
+        // with the console right away. If not, we will defer the call
+        // to this registration by storing the commands closures.
+        if ($this->commandsLoaded) {
+            $closureId = spl_object_hash($command);
+            $this->app->set($commandId = "commands.{$closureId}", $command);
+            $this->registerCommand($commandId);
+        } else {
+            $this->closureCommands[] = $command;
+        }
 
         return $command;
     }
@@ -340,8 +348,6 @@ class Kernel implements KernelContract
 
     /**
      * Set the Artisan commands provided by the application.
-     *
-     * @return $this
      */
     public function addCommands(array $commands): static
     {
@@ -356,8 +362,6 @@ class Kernel implements KernelContract
 
     /**
      * Set the paths that should have their Artisan commands automatically discovered.
-     *
-     * @return $this
      */
     public function addCommandPaths(array $paths): static
     {
@@ -368,8 +372,6 @@ class Kernel implements KernelContract
 
     /**
      * Set the paths that should have their Artisan "routes" automatically discovered.
-     *
-     * @return $this
      */
     public function addCommandRoutePaths(array $paths): static
     {

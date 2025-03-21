@@ -28,6 +28,13 @@ class DatabaseMigrationsTest extends ApplicationTestCase
 
     protected ?string $seeder = null;
 
+    public function setUp(): void
+    {
+        parent::setUp();
+
+        $this->withoutMockingConsoleOutput();
+    }
+
     public function tearDown(): void
     {
         $this->dropViews = false;

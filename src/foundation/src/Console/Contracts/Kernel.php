@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Console\Contracts;
 
 use Closure;
-use Hyperf\Command\ClosureCommand;
+use Hypervel\Foundation\Console\ClosureCommand;
 use Hypervel\Foundation\Console\Contracts\Application as ApplicationContract;
 use Hypervel\Scheduling\Schedule;
 use Symfony\Component\Console\Output\OutputInterface;

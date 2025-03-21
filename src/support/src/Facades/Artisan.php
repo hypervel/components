@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
-use Hypervel\Scheduling\Schedule;
 
 /**
  * @method static void bootstrap()
  * @method static void schedule(\Hypervel\Scheduling\Schedule $schedule)
  * @method static void commands()
- * @method static \Hyperf\Command\ClosureCommand command(string $signature, \Closure $callback)
+ * @method static \Hypervel\Foundation\Console\ClosureCommand command(string $signature, \Closure $callback)
  * @method static void load(array|string $paths)
  * @method static \Hypervel\Foundation\Console\Contracts\Kernel addCommands(array $commands)
  * @method static \Hypervel\Foundation\Console\Contracts\Kernel addCommandPaths(array $paths)

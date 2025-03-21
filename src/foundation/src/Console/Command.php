@@ -12,7 +12,6 @@ use Hyperf\Command\Event\AfterHandle;
 use Hyperf\Command\Event\BeforeHandle;
 use Hyperf\Command\Event\FailToHandle;
 use Hyperf\Coroutine\Coroutine;
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
 use Swoole\ExitException;
 use Symfony\Component\Console\Input\InputInterface;
@@ -30,13 +29,14 @@ abstract class Command extends HyperfCommand
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $this->disableDispatcher($input);
+        $this->replaceOutput();
         $method = method_exists($this, 'handle') ? 'handle' : '__invoke';
 
         $callback = function () use ($method): int {
             try {
                 $this->eventDispatcher?->dispatch(new BeforeHandle($this));
-                $statusCode = ApplicationContext::getContainer()
-                    ->call([$this, $method]);
+                /* @phpstan-ignore-next-line */
+                $statusCode = $this->app->call([$this, $method]);
                 if (is_int($statusCode)) {
                     $this->exitCode = $statusCode;
                 }
@@ -70,5 +70,13 @@ abstract class Command extends HyperfCommand
         }
 
         return $this->exitCode >= 0 && $this->exitCode <= 255 ? $this->exitCode : self::INVALID;
+    }
+
+    protected function replaceOutput(): void
+    {
+        /* @phpstan-ignore-next-line */
+        if ($this->app->bound(OutputInterface::class)) {
+            $this->output = $this->app->get(OutputInterface::class);
+        }
     }
 }

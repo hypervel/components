@@ -72,6 +72,13 @@ trait RefreshDatabase
      */
     protected function refreshTestDatabase(): void
     {
+        $shouldMockOutput = true;
+        if ($hasMockConsoleOutput = property_exists($this, 'mockConsoleOutput')) {
+            $shouldMockOutput = $this->mockConsoleOutput;
+
+            $this->mockConsoleOutput = false;
+        }
+
         $migrateRefresh = property_exists($this, 'migrateRefresh') && (bool) $this->migrateRefresh;
         if ($migrateRefresh || ! RefreshDatabaseState::$migrated) {
             $this->command('migrate:fresh', $this->migrateFreshUsing());
@@ -79,6 +86,10 @@ trait RefreshDatabase
             if ($migrateRefresh) {
                 $this->migrateRefresh = false;
             }
+        }
+
+        if ($hasMockConsoleOutput) {
+            $this->mockConsoleOutput = $shouldMockOutput;
         }
 
         $this->beginDatabaseTransaction();
