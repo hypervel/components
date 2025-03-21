@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Scheduling\Event;
-use Hypervel\Scheduling\Events\ScheduledTaskFinished;
-use Hypervel\Scheduling\Events\ScheduledTaskStarting;
+use Hypervel\Console\Events\ScheduledTaskFinished;
+use Hypervel\Console\Events\ScheduledTaskStarting;
+use Hypervel\Console\Scheduling\Event;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\ScheduleWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hypervel\Scheduling\CallbackEvent;
-use Hypervel\Scheduling\Events;
+use Hypervel\Console\Events;
+use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;

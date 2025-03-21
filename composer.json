@@ -30,6 +30,7 @@
             "Hypervel\\Bus\\": "src/bus/src/",
             "Hypervel\\Cache\\": "src/cache/src/",
             "Hypervel\\Config\\": "src/config/src/",
+            "Hypervel\\Console\\": "src/console/src/",
             "Hypervel\\Container\\": "src/container/src/",
             "Hypervel\\Cookie\\": "src/cookie/src/",
             "Hypervel\\Coroutine\\": "src/coroutine/src/",
@@ -51,7 +52,6 @@
             "Hypervel\\Prompts\\": "src/prompts/src/",
             "Hypervel\\Queue\\": "src/queue/src/",
             "Hypervel\\Router\\": "src/router/src/",
-            "Hypervel\\Scheduling\\": "src/scheduling/src/",
             "Hypervel\\Session\\": "src/session/src/",
             "Hypervel\\Support\\": "src/support/src/",
             "Hypervel\\Telescope\\": "src/telescope/src/"
@@ -127,6 +127,7 @@
         "hypervel/bus": "self.version",
         "hypervel/cache": "self.version",
         "hypervel/config": "self.version",
+        "hypervel/console": "self.version",
         "hypervel/container": "self.version",
         "hypervel/cookie": "self.version",
         "hypervel/core": "self.version",
@@ -149,7 +150,6 @@
         "hypervel/prompts": "self.version",
         "hypervel/queue": "self.version",
         "hypervel/router": "self.version",
-        "hypervel/scheduling": "self.version",
         "hypervel/session": "self.version",
         "hypervel/support": "self.version",
         "hypervel/telescope": "self.version"
@@ -201,6 +201,7 @@
                 "Hypervel\\Cache\\ConfigProvider",
                 "Hypervel\\Cookie\\ConfigProvider",
                 "Hypervel\\Config\\ConfigProvider",
+                "Hypervel\\Console\\ConfigProvider",
                 "Hypervel\\Devtool\\ConfigProvider",
                 "Hypervel\\Dispatcher\\ConfigProvider",
                 "Hypervel\\Encryption\\ConfigProvider",
@@ -215,7 +216,6 @@
                 "Hypervel\\Notifications\\ConfigProvider",
                 "Hypervel\\Queue\\ConfigProvider",
                 "Hypervel\\Router\\ConfigProvider",
-                "Hypervel\\Scheduling\\ConfigProvider",
                 "Hypervel\\Session\\ConfigProvider",
                 "Hypervel\\Telescope\\ConfigProvider"
             ]

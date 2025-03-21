@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Console;
 
 use Hypervel\Cache\Contracts\Factory as CacheFactory;
-use Hypervel\Foundation\Console\Command;
+use Hypervel\Console\Command;
 
 class PauseCommand extends Command
 {
