@@ -51,7 +51,7 @@ class Application extends SymfonyApplication implements ApplicationContract
         protected EventDispatcherInterface $dispatcher,
         string $version
     ) {
-        parent::__construct('Hypervel', $version);
+        parent::__construct('Hypervel Framework', $version);
 
         if ($dispatcher instanceof EventDispatcher) {
             $this->setDispatcher($dispatcher);
