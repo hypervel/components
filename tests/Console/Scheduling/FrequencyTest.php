@@ -16,7 +16,7 @@ use PHPUnit\Framework\TestCase;
  */
 class FrequencyTest extends TestCase
 {
-    /** @var \Illuminate\Console\Scheduling\Event */
+    /** @var \Hypervel\Console\Scheduling\Event */
     protected $event;
 
     protected function setUp(): void
