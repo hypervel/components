@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\ObjectPool;
 
 use Hyperf\Coordinator\Timer;
+use Hypervel\ObjectPool\Contracts\TimeRecycleStrategyContract;
 use Psr\Container\ContainerInterface;
 use RuntimeException;
 
@@ -14,7 +15,7 @@ class PoolManager
     protected array $pools = [];
 
     /** @var int[] */
-    protected array $lastTickedTimestamps = [];
+    protected array $lastRecycledTimestamps = [];
 
     protected ?Timer $timer = null;
 
@@ -37,8 +38,18 @@ class PoolManager
 
     public function createPool(string $name, callable $callback, array $options = []): ObjectPool
     {
-        throw_if(isset($this->pools[$name]), new RuntimeException("The pool {$name} is already exists."));
-        throw_if(isset($options['recycle_time']) && $options['recycle_time'] < $this->recycleInterval, new RuntimeException('The recycle time must be greater than the recycle interval.'));
+        if (isset($this->pools[$name])) {
+            throw new RuntimeException("The pool {$name} is already exists.");
+        }
+
+        if (isset($options['recycle_strategy']) && $options['recycle_strategy'] instanceof TimeRecycleStrategyContract) {
+            $recycleTime = $options['recycle_strategy']->getRecycleTime();
+            if ($recycleTime < $this->recycleInterval) {
+                throw new RuntimeException(
+                    'The recycle time in the strategy must be greater than the recycle interval.'
+                );
+            }
+        }
 
         $pool = new SimpleObjectPool(
             $this->container,
@@ -117,7 +128,7 @@ class PoolManager
         return $this->timerId;
     }
 
-    public function startTick(): void
+    public function startRecycle(): void
     {
         $this->timerId = $this->getTimer()->tick(
             $this->recycleInterval,
@@ -125,7 +136,7 @@ class PoolManager
         );
     }
 
-    public function stopTick(): void
+    public function stopRecycle(): void
     {
         if ($this->timerId) {
             $this->getTimer()->clear($this->timerId);
@@ -133,22 +144,25 @@ class PoolManager
         $this->timerId = null;
     }
 
-    public function getLastTickedTimestamps(): array
+    public function getLastRecycledTimestamps(): array
     {
-        return $this->lastTickedTimestamps;
+        return $this->lastRecycledTimestamps;
     }
 
     protected function recycleObjects(): void
     {
         foreach ($this->pools() as $name => $pool) {
-            $interval = $pool->getOption()->getRecycleTime();
-            if ((($this->lastTickedTimestamps[$name] ?? 0) + $interval) < time()) {
-                $recycleCount = floor($this->recycleRatio * $pool->getObjectNumberInPool());
-                for ($i = 0; $i <= $recycleCount; ++$i) {
-                    $pool->flushOne();
-                }
+            $strategy = $pool->getOption()->getRecycleStrategy();
 
-                $this->lastTickedTimestamps[$name] = time();
+            $context = [
+                'last_recycled_timestamp' => $this->lastRecycledTimestamps[$name] ?? 0,
+            ];
+            if ($strategy->shouldRecycle($pool, $context)) {
+                $strategy->recycle($pool);
+
+                if ($strategy instanceof TimeRecycleStrategyContract) {
+                    $this->lastRecycledTimestamps[$name] = time();
+                }
             }
         }
     }

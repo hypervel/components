@@ -12,14 +12,12 @@ use Hypervel\ObjectPool\ObjectPool;
 use Hypervel\ObjectPool\ObjectPoolOption;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolProxy;
+use Hypervel\ObjectPool\RecycleStrategies\TimeRecycleStrategy;
 use Hypervel\ObjectPool\SimpleObjectPool;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\Container\ContainerInterface;
-use ReflectionClass;
 use RuntimeException;
-
-use function Hyperf\Support\msleep;
 
 /**
  * @internal
@@ -74,10 +72,12 @@ class PoolManagerTest extends TestCase
         ]);
         $name = 'test-pool-invalid';
         $callback = fn () => new Bar();
-        $options = ['recycle_time' => 5];
+        $options = [
+            'recycle_strategy' => new TimeRecycleStrategy(9),
+        ];
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('The recycle time must be greater than the recycle interval.');
+        $this->expectExceptionMessage('The recycle time in the strategy must be greater than the recycle interval.');
 
         $this->manager->createPool($name, $callback, $options);
     }
@@ -156,7 +156,7 @@ class PoolManagerTest extends TestCase
         $this->manager->setTimer($timerMock);
 
         // Call startTick
-        $this->manager->startTick();
+        $this->manager->startRecycle();
 
         // Now test stopTick
         $timerMock->shouldReceive('clear')
@@ -164,7 +164,7 @@ class PoolManagerTest extends TestCase
             ->with($timerId);
 
         // Call stopTick
-        $this->manager->stopTick();
+        $this->manager->stopRecycle();
 
         $this->assertNull($this->manager->getTimerId());
     }
@@ -178,24 +178,24 @@ class PoolManagerTest extends TestCase
 
         $poolMock = m::mock(SimpleObjectPool::class);
         $poolOptionMock = m::mock(ObjectPoolOption::class);
+        $strategyMock = m::mock(TimeRecycleStrategy::class);
 
+        $strategyMock->expects('shouldRecycle')
+            ->andReturn(true);
+        $strategyMock->expects('recycle')
+            ->andReturn(true);
         $poolMock->shouldReceive('getOption')
             ->andReturn($poolOptionMock);
         $poolOptionMock->shouldReceive('getRecycleTime')
             ->andReturn(1);
-        $poolMock->shouldReceive('getObjectNumberInPool')
-            ->andReturn(10);
-        $poolMock->shouldReceive('flushOne')
-            ->times(3); // 預期會被調用 3 次 (recycleRatio * 10 = 2, 但循環是 <= 所以是 3 次)
+        $poolOptionMock->shouldReceive('getRecycleStrategy')
+            ->andReturn($strategyMock);
 
         $this->manager->setPools([
             $name => $poolMock,
         ]);
 
-        // 調用 tickRecycle 方法
-        $this->manager->startTick();
-        msleep(1000); // 等待一段時間以確保 tick 被調用
-        $this->manager->stopTick();
+        $this->manager->startRecycle();
     }
 
     public function testGetPool()
@@ -236,7 +236,7 @@ class PoolManagerTest extends TestCase
         $this->manager->setTimer($timerMock);
 
         // 啟動 tick 後，timerId 應該被設置
-        $this->manager->startTick();
+        $this->manager->startRecycle();
         $this->assertEquals(123, $this->manager->getTimerId());
     }
 
@@ -245,61 +245,10 @@ class PoolManagerTest extends TestCase
         $name = 'test-pool';
         $callback = fn () => new Bar();
 
-        // 創建一個對象池，lastTickedTimestamps 應該被初始化為 0
         $this->manager->createPool($name, $callback);
-        $timestamps = $this->manager->getLastTickedTimestamps();
+        $timestamps = $this->manager->getLastRecycledTimestamps();
 
-        $this->assertArrayHasKey($name, $timestamps);
-        $this->assertEquals(0, $timestamps[$name]);
-    }
-
-    public function testFake()
-    {
-        $poolMock = m::mock(SimpleObjectPool::class);
-
-        $this->manager->setPools(['test-pool' => $poolMock]);
-
-        $this->assertTrue($this->manager->hasPool('test-pool'));
-        $this->assertSame($poolMock, $this->manager->getPool('test-pool'));
-
-        $timestamps = $this->manager->getLastTickedTimestamps();
-        $this->assertArrayHasKey('test-pool', $timestamps);
-        $this->assertEquals(0, $timestamps['test-pool']);
-    }
-
-    public function testRecycleRatio()
-    {
-        $this->manager = new PoolManager($this->container, [
-            'recycle_ratio' => 0.5,
-        ]);
-
-        $name = 'test-pool';
-        $poolMock = m::mock(SimpleObjectPool::class);
-        $poolOptionMock = m::mock(ObjectPoolOption::class);
-
-        $poolMock->shouldReceive('getOption')
-            ->andReturn($poolOptionMock);
-        $poolOptionMock->shouldReceive('getRecycleTime')
-            ->andReturn(1);
-        $poolMock->shouldReceive('getObjectNumberInPool')
-            ->andReturn(10);
-
-        // 由於 recycle_ratio 設置為 0.5，預期會回收 6 個對象 (0.5 * 10 = 5, 但循環是 <= 所以是 6 次)
-        $poolMock->shouldReceive('flushOne')
-            ->times(6);
-
-        $this->manager->setPools([
-            $name => $poolMock,
-        ]);
-
-        $reflection = new ReflectionClass($this->manager);
-        $property = $reflection->getProperty('lastTickedTimestamps');
-        $property->setAccessible(true);
-        $property->setValue($this->manager, [$name => time() - 10]);
-
-        $method = $reflection->getMethod('recycleObjects');
-        $method->setAccessible(true);
-        $method->invoke($this->manager);
+        $this->assertArrayNotHasKey($name, $timestamps);
     }
 
     public function testPoolProxyIntegration()

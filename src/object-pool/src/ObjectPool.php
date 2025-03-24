@@ -6,6 +6,7 @@ namespace Hypervel\ObjectPool;
 
 use Closure;
 use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\ObjectPool\RecycleStrategies\TimeRecycleStrategy;
 use Psr\Container\ContainerInterface;
 use RuntimeException;
 use Throwable;
@@ -32,7 +33,7 @@ abstract class ObjectPool implements ObjectPoolInterface
         array $config = []
     ) {
         $this->initOption($config);
-        $this->destroyCallback = fn () => null;
+        $this->destroyCallback = fn() => null;
 
         $this->channel = make(Channel::class, ['size' => $this->option->getMaxObjects()]);
     }
@@ -95,6 +96,7 @@ abstract class ObjectPool implements ObjectPoolInterface
 
         if ($force || $this->exceedsMaxLifetime($object)) {
             $this->destroyObject($object);
+
             return;
         }
 
@@ -123,7 +125,7 @@ abstract class ObjectPool implements ObjectPoolInterface
             maxObjects: $options['max_objects'] ?? 10,
             waitTimeout: $options['wait_timeout'] ?? 3.0,
             maxLifetime: $options['max_lifetime'] ?? 60.0,
-            recycleTime: $options['recycle_time'] ?? 10.0,
+            recycleStrategy: $options['recycle_strategy'] ?? new TimeRecycleStrategy(),
         );
     }
 
@@ -144,6 +146,7 @@ abstract class ObjectPool implements ObjectPoolInterface
                 ++$this->currentObjectNumber;
                 $object = $this->createObject();
                 $this->creationTimestamps[spl_object_hash($object)] = microtime(true);
+
                 return $object;
             }
         } catch (Throwable $throwable) {

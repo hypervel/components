@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool;
 
+use Hypervel\ObjectPool\Contracts\RecycleStrategyContract;
+use Hypervel\ObjectPool\RecycleStrategies\TimeRecycleStrategy;
+
 class ObjectPoolOption
 {
     /**
@@ -29,20 +32,23 @@ class ObjectPoolOption
      */
     protected float $maxLifetime;
 
-    protected float $recycleTime;
+    /**
+     * The strategy used for recycling objects.
+     */
+    protected ?RecycleStrategyContract $recycleStrategy = null;
 
     public function __construct(
         int $minObjects = 1,
         int $maxObjects = 10,
         float $waitTimeout = 3.0,
         float $maxLifetime = 60.0,
-        float $recycleTime = 10.0,
+        ?RecycleStrategyContract $recycleStrategy = null,
     ) {
         $this->minObjects = $minObjects;
         $this->maxObjects = $maxObjects;
         $this->waitTimeout = $waitTimeout;
         $this->maxLifetime = $maxLifetime;
-        $this->recycleTime = $recycleTime;
+        $this->recycleStrategy = $recycleStrategy;
     }
 
     public function getMaxObjects(): int
@@ -93,14 +99,14 @@ class ObjectPoolOption
         return $this;
     }
 
-    public function getRecycleTime(): float
+    public function getRecycleStrategy(): ?RecycleStrategyContract
     {
-        return $this->recycleTime;
+        return $this->recycleStrategy ??= new TimeRecycleStrategy();
     }
 
-    public function setRecycleTime(float $recycleTime): static
+    public function setRecycleStrategy(?RecycleStrategyContract $recycleStrategy): static
     {
-        $this->recycleTime = $recycleTime;
+        $this->recycleStrategy = $recycleStrategy;
 
         return $this;
     }
