@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\ObjectPool;
 
 use Closure;
-use Hyperf\Contract\FrequencyInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Psr\Container\ContainerInterface;
 use RuntimeException;
@@ -21,8 +20,6 @@ abstract class ObjectPool implements ObjectPoolInterface
     protected Channel $channel;
 
     protected ObjectPoolOption $option;
-
-    protected null|FrequencyInterface|LowFrequencyInterface $frequency = null;
 
     protected int $currentObjectNumber = 0;
 
@@ -46,8 +43,6 @@ abstract class ObjectPool implements ObjectPoolInterface
     public function get(): object
     {
         $object = $this->getObject();
-
-        $this->handleFrequency();
 
         if (! $this->option->getMaxLifetime()) {
             return $object;
@@ -128,6 +123,7 @@ abstract class ObjectPool implements ObjectPoolInterface
             maxObjects: $options['max_objects'] ?? 10,
             waitTimeout: $options['wait_timeout'] ?? 3.0,
             maxLifetime: $options['max_lifetime'] ?? 60.0,
+            recycleTime: $options['recycle_time'] ?? 10.0,
         );
     }
 
@@ -194,25 +190,6 @@ abstract class ObjectPool implements ObjectPoolInterface
         } finally {
             --$this->currentObjectNumber;
             unset($this->creationTimestamps[spl_object_hash($object)], $object);
-        }
-    }
-
-    protected function handleFrequency(): void
-    {
-        try {
-            if ($this->frequency instanceof FrequencyInterface) {
-                $this->frequency->hit();
-            }
-
-            if ($this->frequency instanceof LowFrequencyInterface) {
-                if ($this->frequency->isLowFrequency()) {
-                    $this->flush();
-                }
-            }
-        } catch (Throwable $exception) {
-            if ($logger = $this->getLogger()) {
-                $logger->error((string) $exception);
-            }
         }
     }
 

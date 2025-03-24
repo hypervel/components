@@ -18,8 +18,8 @@ class PoolProxy
         protected ?Closure $releaseCallback = null,
     ) {
         $this->pool = ApplicationContext::getContainer()
-            ->get(PoolFactory::class)
-            ->get(
+            ->get(PoolManager::class)
+            ->createPool(
                 $this->name,
                 $this->resolver,
                 $this->options

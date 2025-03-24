@@ -29,16 +29,20 @@ class ObjectPoolOption
      */
     protected float $maxLifetime;
 
+    protected float $recycleTime;
+
     public function __construct(
         int $minObjects = 1,
         int $maxObjects = 10,
         float $waitTimeout = 3.0,
-        float $maxLifetime = 60.0
+        float $maxLifetime = 60.0,
+        float $recycleTime = 10.0,
     ) {
         $this->minObjects = $minObjects;
         $this->maxObjects = $maxObjects;
         $this->waitTimeout = $waitTimeout;
         $this->maxLifetime = $maxLifetime;
+        $this->recycleTime = $recycleTime;
     }
 
     public function getMaxObjects(): int
@@ -85,6 +89,18 @@ class ObjectPoolOption
     public function setMaxLifetime(float $maxLifetime): static
     {
         $this->maxLifetime = $maxLifetime;
+
+        return $this;
+    }
+
+    public function getRecycleTime(): float
+    {
+        return $this->recycleTime;
+    }
+
+    public function setRecycleTime(float $recycleTime): static
+    {
+        $this->recycleTime = $recycleTime;
 
         return $this;
     }
