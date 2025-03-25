@@ -24,7 +24,6 @@
         "nesbot/carbon": "^2.72.6",
         "hypervel/core": "^0.1",
         "hypervel/filesystem": "^0.1",
-        "hypervel/scheduling": "^0.1",
         "hypervel/support": "^0.1",
         "hypervel/http": "^0.1",
         "hyperf/config": "~3.1.0",
