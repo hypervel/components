@@ -33,7 +33,7 @@ abstract class ObjectPool implements ObjectPoolInterface
         array $config = []
     ) {
         $this->initOption($config);
-        $this->destroyCallback = fn() => null;
+        $this->destroyCallback = fn () => null;
 
         $this->channel = make(Channel::class, ['size' => $this->option->getMaxObjects()]);
     }
