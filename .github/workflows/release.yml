@@ -73,7 +73,6 @@ jobs:
           git config pull.rebase true
           git config --global user.email "albert@hypervel.org"
           git config --global user.name "Hypervel"
-          bash ./bin/split.sh foundation
           if [ ${{ inputs.force_delete }} = true ]; then
             bash ./bin/release.sh v${{ steps.version.outputs.version }} -f
           else
