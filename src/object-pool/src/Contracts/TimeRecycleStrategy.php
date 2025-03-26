@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool\Contracts;
 
-interface TimeRecycleStrategyContract extends RecycleStrategyContract
+interface TimeRecycleStrategy extends RecycleStrategy
 {
     public function getRecycleTime(): float;
 }

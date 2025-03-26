@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool;
 
-use Hypervel\ObjectPool\Contracts\RecycleStrategyContract;
-use Hypervel\ObjectPool\RecycleStrategies\TimeRecycleStrategy;
+use Hypervel\ObjectPool\RecycleStrategies\TimeStrategy;
 
 class ObjectPoolOption
 {
@@ -32,23 +31,20 @@ class ObjectPoolOption
      */
     protected float $maxLifetime;
 
-    /**
-     * The strategy used for recycling objects.
-     */
-    protected ?RecycleStrategyContract $recycleStrategy = null;
+    protected ?string $recycledStrategy = null;
 
     public function __construct(
         int $minObjects = 1,
         int $maxObjects = 10,
         float $waitTimeout = 3.0,
         float $maxLifetime = 60.0,
-        ?RecycleStrategyContract $recycleStrategy = null,
+        string $recycleStrategy = TimeStrategy::class,
     ) {
         $this->minObjects = $minObjects;
         $this->maxObjects = $maxObjects;
         $this->waitTimeout = $waitTimeout;
         $this->maxLifetime = $maxLifetime;
-        $this->recycleStrategy = $recycleStrategy;
+        $this->recycledStrategy = $recycleStrategy;
     }
 
     public function getMaxObjects(): int
@@ -99,14 +95,14 @@ class ObjectPoolOption
         return $this;
     }
 
-    public function getRecycleStrategy(): ?RecycleStrategyContract
+    public function getStrategy(): ?string
     {
-        return $this->recycleStrategy ??= new TimeRecycleStrategy();
+        return $this->recycledStrategy ??= TimeStrategy::class;
     }
 
-    public function setRecycleStrategy(?RecycleStrategyContract $recycleStrategy): static
+    public function setStrategy(?string $strategy): static
     {
-        $this->recycleStrategy = $recycleStrategy;
+        $this->recycledStrategy = $strategy;
 
         return $this;
     }

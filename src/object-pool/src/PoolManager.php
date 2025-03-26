@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\ObjectPool;
 
 use Hyperf\Coordinator\Timer;
-use Hypervel\ObjectPool\Contracts\TimeRecycleStrategyContract;
+use Hypervel\ObjectPool\Contracts\TimeRecycleStrategy;
 use Psr\Container\ContainerInterface;
 use RuntimeException;
 
@@ -14,21 +14,15 @@ class PoolManager
     /** @var ObjectPool[] */
     protected array $pools = [];
 
-    /** @var int[] */
-    protected array $lastRecycledTimestamps = [];
-
     protected ?Timer $timer = null;
 
     protected ?int $timerId = null;
 
     protected float $recycleInterval;
 
-    protected float $recycleRatio;
-
     public function __construct(protected ContainerInterface $container, array $config = [])
     {
         $this->recycleInterval = $config['recycle_interval'] ?? 10;
-        $this->recycleRatio = $config['recycle_ratio'] ?? 0.2;
     }
 
     public function getPool(string $name): ObjectPool
@@ -42,7 +36,7 @@ class PoolManager
             throw new RuntimeException("The pool {$name} is already exists.");
         }
 
-        if (isset($options['recycle_strategy']) && $options['recycle_strategy'] instanceof TimeRecycleStrategyContract) {
+        if (isset($options['recycle_strategy']) && $options['recycle_strategy'] instanceof TimeRecycleStrategy) {
             $recycleTime = $options['recycle_strategy']->getRecycleTime();
             if ($recycleTime < $this->recycleInterval) {
                 throw new RuntimeException(
@@ -144,25 +138,28 @@ class PoolManager
         $this->timerId = null;
     }
 
+    public function getLastRecycledTimestamp(string $name): int
+    {
+        return $this->getPool($name)->getRecycleStrategy()->getLastRecycledTimestamp();
+    }
+
     public function getLastRecycledTimestamps(): array
     {
-        return $this->lastRecycledTimestamps;
+        $lastRecycledTimestamps = [];
+        foreach ($this->pools() as $name => $pool) {
+            $lastRecycledTimestamps[$name] = $this->getLastRecycledTimestamp($name);
+        }
+
+        return $lastRecycledTimestamps;
     }
 
     protected function recycleObjects(): void
     {
-        foreach ($this->pools() as $name => $pool) {
-            $strategy = $pool->getOption()->getRecycleStrategy();
+        foreach ($this->pools() as $pool) {
+            $strategy = $pool->getRecycleStrategy();
 
-            $context = [
-                'last_recycled_timestamp' => $this->lastRecycledTimestamps[$name] ?? 0,
-            ];
-            if ($strategy->shouldRecycle($pool, $context)) {
+            if ($strategy->shouldRecycle($pool)) {
                 $strategy->recycle($pool);
-
-                if ($strategy instanceof TimeRecycleStrategyContract) {
-                    $this->lastRecycledTimestamps[$name] = time();
-                }
             }
         }
     }

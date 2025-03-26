@@ -9,10 +9,9 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Coordinator\Timer;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\ObjectPool\ObjectPool;
-use Hypervel\ObjectPool\ObjectPoolOption;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolProxy;
-use Hypervel\ObjectPool\RecycleStrategies\TimeRecycleStrategy;
+use Hypervel\ObjectPool\RecycleStrategies\TimeStrategy;
 use Hypervel\ObjectPool\SimpleObjectPool;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -73,7 +72,7 @@ class PoolManagerTest extends TestCase
         $name = 'test-pool-invalid';
         $callback = fn () => new Bar();
         $options = [
-            'recycle_strategy' => new TimeRecycleStrategy(9),
+            'recycle_strategy' => new TimeStrategy(9),
         ];
 
         $this->expectException(RuntimeException::class);
@@ -177,18 +176,13 @@ class PoolManagerTest extends TestCase
         $name = 'test-pool';
 
         $poolMock = m::mock(SimpleObjectPool::class);
-        $poolOptionMock = m::mock(ObjectPoolOption::class);
-        $strategyMock = m::mock(TimeRecycleStrategy::class);
+        $strategyMock = m::mock(TimeStrategy::class);
 
         $strategyMock->expects('shouldRecycle')
             ->andReturn(true);
         $strategyMock->expects('recycle')
             ->andReturn(true);
-        $poolMock->shouldReceive('getOption')
-            ->andReturn($poolOptionMock);
-        $poolOptionMock->shouldReceive('getRecycleTime')
-            ->andReturn(1);
-        $poolOptionMock->shouldReceive('getRecycleStrategy')
+        $poolMock->shouldReceive('getRecycleStrategy')
             ->andReturn($strategyMock);
 
         $this->manager->setPools([
@@ -248,7 +242,8 @@ class PoolManagerTest extends TestCase
         $this->manager->createPool($name, $callback);
         $timestamps = $this->manager->getLastRecycledTimestamps();
 
-        $this->assertArrayNotHasKey($name, $timestamps);
+        $this->assertArrayHasKey($name, $timestamps);
+        $this->assertEquals(0, $timestamps[$name]);
     }
 
     public function testPoolProxyIntegration()

@@ -4,22 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool\RecycleStrategies;
 
-use Hypervel\ObjectPool\Contracts\TimeRecycleStrategyContract;
+use Hypervel\ObjectPool\Contracts\TimeRecycleStrategy;
 use Hypervel\ObjectPool\ObjectPool;
 
-class TimeRecycleStrategy implements TimeRecycleStrategyContract
+class TimeStrategy implements TimeRecycleStrategy
 {
     public function __construct(
         protected float $recycleTime = 10.0,
-        protected float $recycleRatio = 0.2
+        protected float $recycleRatio = 0.2,
+        protected int $lastRecycledTimestamp = 0,
     ) {
     }
 
-    public function shouldRecycle(ObjectPool $pool, array $context = []): bool
+    public function shouldRecycle(ObjectPool $pool): bool
     {
-        $lastRecycledTimestamp = $context['last_recycled_timestamp'] ?? 0;
-
-        return ($lastRecycledTimestamp + $this->getRecycleTime()) < time();
+        return ($this->lastRecycledTimestamp + $this->getRecycleTime()) < time();
     }
 
     public function recycle(ObjectPool $pool): void
@@ -28,6 +27,12 @@ class TimeRecycleStrategy implements TimeRecycleStrategyContract
         for ($i = 0; $i <= $recycleCount; ++$i) {
             $pool->flushOne();
         }
+        $this->lastRecycledTimestamp = time();
+    }
+
+    public function getLastRecycledTimestamp(): int
+    {
+        return $this->lastRecycledTimestamp;
     }
 
     public function getRecycleTime(): float

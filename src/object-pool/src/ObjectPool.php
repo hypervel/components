@@ -6,7 +6,8 @@ namespace Hypervel\ObjectPool;
 
 use Closure;
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hypervel\ObjectPool\RecycleStrategies\TimeRecycleStrategy;
+use Hypervel\ObjectPool\Contracts\RecycleStrategy;
+use Hypervel\ObjectPool\RecycleStrategies\TimeStrategy;
 use Psr\Container\ContainerInterface;
 use RuntimeException;
 use Throwable;
@@ -27,6 +28,8 @@ abstract class ObjectPool implements ObjectPoolInterface
     protected array $creationTimestamps = [];
 
     protected Closure $destroyCallback;
+
+    protected ?RecycleStrategy $recycleStrategyInstance = null;
 
     public function __construct(
         protected ContainerInterface $container,
@@ -125,7 +128,7 @@ abstract class ObjectPool implements ObjectPoolInterface
             maxObjects: $options['max_objects'] ?? 10,
             waitTimeout: $options['wait_timeout'] ?? 3.0,
             maxLifetime: $options['max_lifetime'] ?? 60.0,
-            recycleStrategy: $options['recycle_strategy'] ?? new TimeRecycleStrategy(),
+            recycleStrategy: $options['recycle_strategy'] ?? TimeStrategy::class,
         );
     }
 
@@ -209,5 +212,21 @@ abstract class ObjectPool implements ObjectPoolInterface
             'current_objects' => $this->currentObjectNumber,
             'objects_in_pool' => $this->getObjectNumberInPool(),
         ];
+    }
+
+    public function getRecycleStrategy(): RecycleStrategy
+    {
+        if ($this->recycleStrategyInstance) {
+            return $this->recycleStrategyInstance;
+        }
+        $strategyClass = $this->option->getStrategy();
+
+        return $this->recycleStrategyInstance = new $strategyClass();
+    }
+
+    public function setRecycleStrategy(RecycleStrategy $recycleStrategy): void
+    {
+        $this->option->setStrategy(get_class($recycleStrategy));
+        $this->recycleStrategyInstance = $recycleStrategy;
     }
 }
