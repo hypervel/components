@@ -11,25 +11,47 @@ use RuntimeException;
 
 class PoolManager
 {
-    /** @var ObjectPool[] */
+    /**
+     * Registered object pools managed by this manager.
+     *
+     * @var ObjectPool[]
+     */
     protected array $pools = [];
 
+    /**
+     * Timer instance for scheduling recycle operations.
+     */
     protected ?Timer $timer = null;
 
+    /**
+     * ID of the current timer for recycling.
+     */
     protected ?int $timerId = null;
 
+    /**
+     * The interval between automatic recycle checks in seconds.
+     */
     protected float $recycleInterval;
 
+    /**
+     * Creates a new pool manager with the given configuration.
+     */
     public function __construct(protected ContainerInterface $container, array $config = [])
     {
         $this->recycleInterval = $config['recycle_interval'] ?? 10;
     }
 
+    /**
+     * Gets a managed pool by name.
+     */
     public function getPool(string $name): ObjectPool
     {
         return $this->pools[$name];
     }
 
+    /**
+     * Creates and registers a new object pool.
+     */
     public function createPool(string $name, callable $callback, array $options = []): ObjectPool
     {
         if (isset($this->pools[$name])) {
@@ -54,11 +76,17 @@ class PoolManager
         return $this->pools[$name] = $pool;
     }
 
+    /**
+     * Returns all registered pools.
+     */
     public function pools(): array
     {
         return $this->pools;
     }
 
+    /**
+     * Sets a pool to be managed by this manager.
+     */
     public function setPool(string $name, ObjectPool $pool): static
     {
         $this->pools[$name] = $pool;
@@ -66,6 +94,9 @@ class PoolManager
         return $this;
     }
 
+    /**
+     * Sets multiple pools to be managed by this manager.
+     */
     public function setPools(array $pools): static
     {
         foreach ($pools as $name => $pool) {
@@ -103,6 +134,9 @@ class PoolManager
         return $this;
     }
 
+    /**
+     * Gets the timer instance for scheduling recycle operations.
+     */
     public function getTimer(): Timer
     {
         if ($this->timer) {
@@ -112,16 +146,25 @@ class PoolManager
         return $this->timer = new Timer();
     }
 
+    /**
+     * Sets the timer instance for scheduling recycle operations.
+     */
     public function setTimer(Timer $timer): void
     {
         $this->timer = $timer;
     }
 
+    /**
+     * Gets the ID of the current timer for recycling.
+     */
     public function getTimerId(): ?int
     {
         return $this->timerId;
     }
 
+    /**
+     * Starts automatic recycling of objects in managed pools.
+     */
     public function startRecycle(): void
     {
         $this->timerId = $this->getTimer()->tick(
@@ -130,6 +173,9 @@ class PoolManager
         );
     }
 
+    /**
+     * Stops automatic recycling of objects in managed pools.
+     */
     public function stopRecycle(): void
     {
         if ($this->timerId) {
@@ -138,11 +184,17 @@ class PoolManager
         $this->timerId = null;
     }
 
+    /**
+     * Gets the timestamp of the last recycling operation for a specific pool.
+     */
     public function getLastRecycledTimestamp(string $name): int
     {
         return $this->getPool($name)->getRecycleStrategy()->getLastRecycledTimestamp();
     }
 
+    /**
+     * Gets the timestamps of the last recycling operations for all managed pools.
+     */
     public function getLastRecycledTimestamps(): array
     {
         $lastRecycledTimestamps = [];
@@ -153,6 +205,9 @@ class PoolManager
         return $lastRecycledTimestamps;
     }
 
+    /**
+     * Recycles objects in all managed pools that need recycling.
+     */
     protected function recycleObjects(): void
     {
         foreach ($this->pools() as $pool) {

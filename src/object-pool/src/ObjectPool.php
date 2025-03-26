@@ -19,18 +19,39 @@ use function Hyperf\Support\make;
  */
 abstract class ObjectPool implements ObjectPoolInterface
 {
+    /**
+     * Channel for storing and retrieving objects.
+     */
     protected Channel $channel;
 
+    /**
+     * Configuration options for the pool.
+     */
     protected ObjectPoolOption $option;
 
+    /**
+     * Current number of objects managed by the pool.
+     */
     protected int $currentObjectNumber = 0;
 
+    /**
+     * Tracks creation timestamps for each object.
+     */
     protected array $creationTimestamps = [];
 
+    /**
+     * Callback that is executed when an object is destroyed.
+     */
     protected Closure $destroyCallback;
 
+    /**
+     * The recycle strategy instance used by the pool.
+     */
     protected ?RecycleStrategy $recycleStrategyInstance = null;
 
+    /**
+     * Initializes the object pool with the given configuration.
+     */
     public function __construct(
         protected ContainerInterface $container,
         array $config = []
@@ -42,6 +63,8 @@ abstract class ObjectPool implements ObjectPoolInterface
     }
 
     /**
+     * Retrieves an object from the pool.
+     *
      * @return T
      */
     public function get(): object
@@ -62,11 +85,17 @@ abstract class ObjectPool implements ObjectPoolInterface
         return $object;
     }
 
+    /**
+     * Releases an object back to the pool.
+     */
     public function release(object $object): void
     {
         $this->channel->push($object);
     }
 
+    /**
+     * Flushes excess objects from the pool down to the minimum.
+     */
     public function flush(): void
     {
         $number = $this->getObjectNumberInPool();
@@ -85,6 +114,9 @@ abstract class ObjectPool implements ObjectPoolInterface
         }
     }
 
+    /**
+     * Flushes a single object from the pool if it meets removal criteria.
+     */
     public function flushOne(bool $force = false): void
     {
         if ($this->currentObjectNumber <= $this->option->getMinObjects()) {
@@ -106,21 +138,33 @@ abstract class ObjectPool implements ObjectPoolInterface
         $this->release($object);
     }
 
+    /**
+     * Returns the current number of objects managed by the pool.
+     */
     public function getCurrentObjectNumber(): int
     {
         return $this->currentObjectNumber;
     }
 
+    /**
+     * Gets the pool's configuration options.
+     */
     public function getOption(): ObjectPoolOption
     {
         return $this->option;
     }
 
+    /**
+     * Returns the number of objects currently available in the pool.
+     */
     public function getObjectNumberInPool(): int
     {
         return $this->channel->length();
     }
 
+    /**
+     * Initializes the pool options from the provided configuration.
+     */
     protected function initOption(array $options = []): void
     {
         $this->option = new ObjectPoolOption(
@@ -133,11 +177,15 @@ abstract class ObjectPool implements ObjectPoolInterface
     }
 
     /**
+     * Creates a new object for the pool.
+     *
      * @return T
      */
     abstract protected function createObject(): object;
 
     /**
+     * Gets an object from the pool or creates a new one if needed.
+     *
      * @return T
      */
     protected function getObject(): object
@@ -165,6 +213,9 @@ abstract class ObjectPool implements ObjectPoolInterface
         return $object;
     }
 
+    /**
+     * Gets the logger instance if available.
+     */
     protected function getLogger(): ?StdoutLoggerInterface
     {
         if (! $this->container->has(StdoutLoggerInterface::class)) {
@@ -174,6 +225,9 @@ abstract class ObjectPool implements ObjectPoolInterface
         return $this->container->get(StdoutLoggerInterface::class);
     }
 
+    /**
+     * Checks if an object has exceeded its maximum lifetime.
+     */
     protected function exceedsMaxLifetime(object $object): bool
     {
         if (! $this->option->getMaxLifetime()) {
@@ -185,6 +239,9 @@ abstract class ObjectPool implements ObjectPoolInterface
         return $creationTime + $this->option->getMaxLifetime() <= microtime(true);
     }
 
+    /**
+     * Destroys an object and cleans up its resources.
+     */
     protected function destroyObject(object $object): void
     {
         try {
@@ -199,6 +256,9 @@ abstract class ObjectPool implements ObjectPoolInterface
         }
     }
 
+    /**
+     * Sets a callback to be executed when an object is destroyed.
+     */
     public function setDestroyCallback(Closure $callback): static
     {
         $this->destroyCallback = $callback;
@@ -206,6 +266,9 @@ abstract class ObjectPool implements ObjectPoolInterface
         return $this;
     }
 
+    /**
+     * Returns statistics about the pool's current state.
+     */
     public function getStats(): array
     {
         return [
@@ -214,6 +277,9 @@ abstract class ObjectPool implements ObjectPoolInterface
         ];
     }
 
+    /**
+     * Gets the recycle strategy instance for this pool.
+     */
     public function getRecycleStrategy(): RecycleStrategy
     {
         if ($this->recycleStrategyInstance) {
@@ -224,6 +290,9 @@ abstract class ObjectPool implements ObjectPoolInterface
         return $this->recycleStrategyInstance = new $strategyClass();
     }
 
+    /**
+     * Sets the recycle strategy for this pool.
+     */
     public function setRecycleStrategy(RecycleStrategy $recycleStrategy): void
     {
         $this->option->setStrategy(get_class($recycleStrategy));

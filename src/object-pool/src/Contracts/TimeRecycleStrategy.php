@@ -6,5 +6,8 @@ namespace Hypervel\ObjectPool\Contracts;
 
 interface TimeRecycleStrategy extends RecycleStrategy
 {
+    /**
+     * Gets the time interval between recycling operations.
+     */
     public function getRecycleTime(): float;
 }
