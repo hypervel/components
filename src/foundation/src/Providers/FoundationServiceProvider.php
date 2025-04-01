@@ -107,7 +107,6 @@ class FoundationServiceProvider extends ServiceProvider
             'databases.default' => $connections[$this->config->get('database.default')] ?? [],
             'databases.default.migrations' => $migration,
             'redis' => $this->getRedisConfig(),
-            'crontab.enable' => $this->config->get('crontab.enable', true),
         ];
 
         foreach ($configs as $key => $value) {
