@@ -15,6 +15,8 @@ use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Transport\SesTransport;
+use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
+use Hypervel\ObjectPool\PoolManager;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -151,6 +153,7 @@ class MailSesTransportTest extends TestCase
                 ConfigInterface::class => fn () => new Config([]),
                 ViewFactory::class => fn () => m::mock(ViewFactory::class),
                 EventDispatcherInterface::class => fn () => m::mock(EventDispatcherInterface::class),
+                PoolFactory::class => PoolManager::class,
             ])
         );
 

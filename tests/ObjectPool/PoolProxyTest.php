@@ -6,11 +6,10 @@ namespace Hypervel\Tests\ObjectPool;
 
 use Closure;
 use Hyperf\Context\ApplicationContext;
+use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\ObjectPool;
-use Hypervel\ObjectPool\PoolFactory;
 use Hypervel\ObjectPool\PoolProxy;
 use Mockery as m;
-use PHPUnit\Framework\Attributes\CoversNothing;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 
@@ -30,7 +29,7 @@ class PoolProxyTest extends TestCase
             ->once();
 
         $poolFactory = m::mock(PoolFactory::class);
-        $poolFactory->shouldReceive('get')
+        $poolFactory->shouldReceive('create')
             ->with('foo', m::type(Closure::class), ['foo' => 'bar'])
             ->once()
             ->andReturn($pool);

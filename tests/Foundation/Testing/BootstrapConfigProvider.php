@@ -47,6 +47,7 @@ class BootstrapConfigProvider
         \Hypervel\Log\ConfigProvider::class,
         \Hypervel\Mail\ConfigProvider::class,
         \Hypervel\Notifications\ConfigProvider::class,
+        \Hypervel\ObjectPool\ConfigProvider::class,
         \Hypervel\Queue\ConfigProvider::class,
         \Hypervel\Router\ConfigProvider::class,
         \Hypervel\Session\ConfigProvider::class,

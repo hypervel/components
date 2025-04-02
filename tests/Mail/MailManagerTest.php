@@ -12,6 +12,8 @@ use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\TransportPoolProxy;
+use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
+use Hypervel\ObjectPool\PoolManager;
 use InvalidArgumentException;
 use Mockery;
 use PHPUnit\Framework\TestCase;
@@ -100,6 +102,7 @@ class MailManagerTest extends TestCase
                 ConfigInterface::class => fn () => new Config([]),
                 ViewFactory::class => fn () => Mockery::mock(ViewFactory::class),
                 EventDispatcherInterface::class => fn () => Mockery::mock(EventDispatcherInterface::class),
+                PoolFactory::class => PoolManager::class,
             ])
         );
 

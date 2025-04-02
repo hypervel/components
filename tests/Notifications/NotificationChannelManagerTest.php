@@ -19,6 +19,8 @@ use Hypervel\Notifications\Notifiable;
 use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\NotificationPoolProxy;
 use Hypervel\Notifications\SendQueuedNotifications;
+use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
+use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Queue\Contracts\ShouldQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
@@ -133,6 +135,7 @@ class NotificationChannelManagerTest extends TestCase
                 ConfigInterface::class => fn () => new Config([]),
                 BusDispatcherContract::class => fn () => m::mock(BusDispatcherContract::class),
                 EventDispatcherInterface::class => fn () => m::mock(EventDispatcherInterface::class),
+                PoolFactory::class => PoolManager::class,
             ])
         );
 
