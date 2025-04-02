@@ -6,6 +6,7 @@ namespace Hypervel\ObjectPool;
 
 use DateTime;
 use Hyperf\Coordinator\Timer;
+use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\Contracts\Recycler;
 use RuntimeException;
 
@@ -24,11 +25,11 @@ class ObjectRecycler implements Recycler
     /**
      * Creates a new object recycler with the given configuration.
      *
-     * @param PoolManager $manager the pool manager instance to manage object pools
+     * @param PoolFactory $manager the pool manager instance to manage object pools
      * @param float $interval the interval between automatic recycle checks in seconds
      */
     public function __construct(
-        protected PoolManager $manager,
+        protected PoolFactory $manager,
         protected float $interval = 10.0,
     ) {
     }

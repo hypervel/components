@@ -6,9 +6,9 @@ namespace Hypervel\Tests\ObjectPool;
 
 use Carbon\Carbon;
 use Hyperf\Coordinator\Timer;
+use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\Contracts\ObjectPool;
 use Hypervel\ObjectPool\ObjectRecycler;
-use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Tests\TestCase;
 use Mockery;
 
@@ -27,7 +27,7 @@ class ObjectRecyclerTest extends TestCase
             ->andReturn($timerId = 99);
 
         $recycler = new ObjectRecycler(
-            Mockery::mock(PoolManager::class),
+            Mockery::mock(PoolFactory::class),
             $interval
         );
         $recycler->setTimer($timer);
@@ -45,7 +45,7 @@ class ObjectRecyclerTest extends TestCase
             ->andReturn($timerId = 99);
 
         $recycler = new ObjectRecycler(
-            Mockery::mock(PoolManager::class),
+            Mockery::mock(PoolFactory::class),
             $interval
         );
         $recycler->setTimer($timer);
@@ -69,8 +69,8 @@ class ObjectRecyclerTest extends TestCase
             ->once()
             ->andReturn($lastRecycledAt = Carbon::now());
 
-        $manager = Mockery::mock(PoolManager::class);
-        $manager->shouldReceive('getPool')
+        $manager = Mockery::mock(PoolFactory::class);
+        $manager->shouldReceive('get')
             ->once()
             ->with('foo')
             ->andReturn($pool);
