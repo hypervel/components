@@ -9,17 +9,12 @@ use Hypervel\ObjectPool\ObjectPool;
 interface RecycleStrategy
 {
     /**
-     * Determines if the pool should recycle objects at this time.
+     * Determine if the pool should recycle objects at this moment.
      */
     public function shouldRecycle(ObjectPool $pool): bool;
 
     /**
-     * Performs the recycling operation on the pool.
+     * Perform the recycling operation on the pool.
      */
     public function recycle(ObjectPool $pool): void;
-
-    /**
-     * Returns the timestamp of the last recycling operation.
-     */
-    public function getLastRecycledTimestamp(): int;
 }

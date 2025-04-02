@@ -4,67 +4,47 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool;
 
-use Hyperf\Coordinator\Timer;
-use Hypervel\ObjectPool\Contracts\TimeRecycleStrategy;
+use Hypervel\ObjectPool\Contracts\Factory as FactoryContract;
+use Hypervel\ObjectPool\Contracts\ObjectPool;
 use Psr\Container\ContainerInterface;
 use RuntimeException;
 
-class PoolManager
+class PoolManager implements FactoryContract
 {
     /**
-     * Registered object pools managed by this manager.
+     * Registered object pools managed by the manager.
      *
      * @var ObjectPool[]
      */
     protected array $pools = [];
 
     /**
-     * Timer instance for scheduling recycle operations.
+     * Create a new pool manager with the given configuration.
      */
-    protected ?Timer $timer = null;
-
-    /**
-     * ID of the current timer for recycling.
-     */
-    protected ?int $timerId = null;
-
-    /**
-     * The interval between automatic recycle checks in seconds.
-     */
-    protected float $recycleInterval;
-
-    /**
-     * Creates a new pool manager with the given configuration.
-     */
-    public function __construct(protected ContainerInterface $container, array $config = [])
-    {
-        $this->recycleInterval = $config['recycle_interval'] ?? 10;
+    public function __construct(
+        protected ContainerInterface $container
+    ) {
     }
 
     /**
-     * Gets a managed pool by name.
+     * Get a managed pool by name.
      */
     public function getPool(string $name): ObjectPool
     {
-        return $this->pools[$name];
+        if (! $pool = $this->pools[$name] ?? null) {
+            throw new RuntimeException("The pool name `{$name}` does not exist.");
+        }
+
+        return $pool;
     }
 
     /**
-     * Creates and registers a new object pool.
+     * Create and register a new object pool.
      */
     public function createPool(string $name, callable $callback, array $options = []): ObjectPool
     {
         if (isset($this->pools[$name])) {
-            throw new RuntimeException("The pool {$name} is already exists.");
-        }
-
-        if (isset($options['recycle_strategy']) && $options['recycle_strategy'] instanceof TimeRecycleStrategy) {
-            $recycleTime = $options['recycle_strategy']->getRecycleTime();
-            if ($recycleTime < $this->recycleInterval) {
-                throw new RuntimeException(
-                    'The recycle time in the strategy must be greater than the recycle interval.'
-                );
-            }
+            throw new RuntimeException("The pool name `{$name}` already exists.");
         }
 
         $pool = new SimpleObjectPool(
@@ -77,7 +57,7 @@ class PoolManager
     }
 
     /**
-     * Returns all registered pools.
+     * Get all registered pools.
      */
     public function pools(): array
     {
@@ -85,7 +65,7 @@ class PoolManager
     }
 
     /**
-     * Sets a pool to be managed by this manager.
+     * Set a pool to the manager.
      */
     public function setPool(string $name, ObjectPool $pool): static
     {
@@ -95,7 +75,7 @@ class PoolManager
     }
 
     /**
-     * Sets multiple pools to be managed by this manager.
+     * Set multiple pools the manager.
      */
     public function setPools(array $pools): static
     {
@@ -132,90 +112,5 @@ class PoolManager
         $this->pools = [];
 
         return $this;
-    }
-
-    /**
-     * Gets the timer instance for scheduling recycle operations.
-     */
-    public function getTimer(): Timer
-    {
-        if ($this->timer) {
-            return $this->timer;
-        }
-
-        return $this->timer = new Timer();
-    }
-
-    /**
-     * Sets the timer instance for scheduling recycle operations.
-     */
-    public function setTimer(Timer $timer): void
-    {
-        $this->timer = $timer;
-    }
-
-    /**
-     * Gets the ID of the current timer for recycling.
-     */
-    public function getTimerId(): ?int
-    {
-        return $this->timerId;
-    }
-
-    /**
-     * Starts automatic recycling of objects in managed pools.
-     */
-    public function startRecycle(): void
-    {
-        $this->timerId = $this->getTimer()->tick(
-            $this->recycleInterval,
-            fn () => $this->recycleObjects()
-        );
-    }
-
-    /**
-     * Stops automatic recycling of objects in managed pools.
-     */
-    public function stopRecycle(): void
-    {
-        if ($this->timerId) {
-            $this->getTimer()->clear($this->timerId);
-        }
-        $this->timerId = null;
-    }
-
-    /**
-     * Gets the timestamp of the last recycling operation for a specific pool.
-     */
-    public function getLastRecycledTimestamp(string $name): int
-    {
-        return $this->getPool($name)->getRecycleStrategy()->getLastRecycledTimestamp();
-    }
-
-    /**
-     * Gets the timestamps of the last recycling operations for all managed pools.
-     */
-    public function getLastRecycledTimestamps(): array
-    {
-        $lastRecycledTimestamps = [];
-        foreach ($this->pools() as $name => $pool) {
-            $lastRecycledTimestamps[$name] = $this->getLastRecycledTimestamp($name);
-        }
-
-        return $lastRecycledTimestamps;
-    }
-
-    /**
-     * Recycles objects in all managed pools that need recycling.
-     */
-    protected function recycleObjects(): void
-    {
-        foreach ($this->pools() as $pool) {
-            $strategy = $pool->getRecycleStrategy();
-
-            if ($strategy->shouldRecycle($pool)) {
-                $strategy->recycle($pool);
-            }
-        }
     }
 }

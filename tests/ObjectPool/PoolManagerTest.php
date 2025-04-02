@@ -4,15 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\ObjectPool;
 
-use Closure;
 use Hyperf\Context\ApplicationContext;
-use Hyperf\Coordinator\Timer;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\ObjectPool\ObjectPool;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolProxy;
-use Hypervel\ObjectPool\RecycleStrategies\TimeStrategy;
-use Hypervel\ObjectPool\SimpleObjectPool;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\Container\ContainerInterface;
@@ -34,20 +30,13 @@ class PoolManagerTest extends TestCase
     {
         parent::setUp();
 
-        $this->container = m::mock(ContainerInterface::class);
-        $this->manager = new PoolManager($this->container, [
-            'recycle_interval' => 1,
-        ]);
-        $this->container->shouldReceive('get')
+        $container = m::mock(ContainerInterface::class);
+        $container->shouldReceive('get')
             ->with(PoolManager::class)
-            ->andReturn($this->manager);
-        ApplicationContext::setContainer($this->container);
-    }
+            ->andReturn($this->manager = new PoolManager($container));
+        ApplicationContext::setContainer($container);
 
-    protected function tearDown(): void
-    {
-        m::close();
-        parent::tearDown();
+        $this->container = $container;
     }
 
     public function testGetCreatesNewPoolIfNotExists()
@@ -55,33 +44,15 @@ class PoolManagerTest extends TestCase
         $this->manager = new PoolManager($this->container);
         $name = 'test-pool';
         $callback = fn () => new Bar();
-        $options = ['recycle_time' => 10];
 
-        $pool = $this->manager->createPool($name, $callback, $options);
+        $pool = $this->manager->createPool($name, $callback);
 
         $this->assertInstanceOf(ObjectPool::class, $pool);
         $this->assertTrue($this->manager->hasPool($name));
         $this->assertSame($pool, $this->manager->pools()[$name]);
     }
 
-    public function testCreatePoolThrowsExceptionForInvalidRecycleTime()
-    {
-        $this->manager = new PoolManager($this->container, [
-            'recycle_interval' => 10,
-        ]);
-        $name = 'test-pool-invalid';
-        $callback = fn () => new Bar();
-        $options = [
-            'recycle_strategy' => new TimeStrategy(9),
-        ];
-
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('The recycle time in the strategy must be greater than the recycle interval.');
-
-        $this->manager->createPool($name, $callback, $options);
-    }
-
-    public function testCreatePoolThrowsExceptionForDuplicatePoolName()
+    public function testCreatePoolThrowsExceptionIfExisted()
     {
         $this->manager = new PoolManager($this->container);
         $name = 'duplicate-test-pool';
@@ -90,7 +61,7 @@ class PoolManagerTest extends TestCase
         $this->manager->createPool($name, $callback);
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage("The pool {$name} is already exists.");
+        $this->expectExceptionMessage("The pool name `{$name}` already exists.");
 
         $this->manager->createPool($name, $callback);
     }
@@ -136,62 +107,6 @@ class PoolManagerTest extends TestCase
         $this->assertEmpty($this->manager->pools());
     }
 
-    public function testStartAndStopTick()
-    {
-        // Mock the Timer class
-        $this->manager = new PoolManager($this->container, [
-            'recycle_interval' => $interval = 1,
-        ]);
-        $timerMock = m::mock(Timer::class);
-
-        // Mock the timer to expect tick method call
-        $timerMock->shouldReceive('tick')
-            ->once()
-            ->with(
-                $interval,
-                m::type(Closure::class)
-            )
-            ->andReturn($timerId = 123); // Return a fake timer ID
-        $this->manager->setTimer($timerMock);
-
-        // Call startTick
-        $this->manager->startRecycle();
-
-        // Now test stopTick
-        $timerMock->shouldReceive('clear')
-            ->once()
-            ->with($timerId);
-
-        // Call stopTick
-        $this->manager->stopRecycle();
-
-        $this->assertNull($this->manager->getTimerId());
-    }
-
-    public function testTickRecycle()
-    {
-        $this->manager = new PoolManager($this->container, [
-            'recycle_interval' => 1,
-        ]);
-        $name = 'test-pool';
-
-        $poolMock = m::mock(SimpleObjectPool::class);
-        $strategyMock = m::mock(TimeStrategy::class);
-
-        $strategyMock->expects('shouldRecycle')
-            ->andReturn(true);
-        $strategyMock->expects('recycle')
-            ->andReturn(true);
-        $poolMock->shouldReceive('getRecycleStrategy')
-            ->andReturn($strategyMock);
-
-        $this->manager->setPools([
-            $name => $poolMock,
-        ]);
-
-        $this->manager->startRecycle();
-    }
-
     public function testGetPool()
     {
         $name = 'test-pool';
@@ -200,50 +115,6 @@ class PoolManagerTest extends TestCase
         $pool = $this->manager->createPool($name, $callback);
 
         $this->assertSame($pool, $this->manager->getPool($name));
-    }
-
-    public function testGetTimer()
-    {
-        $timer = $this->manager->getTimer();
-        $this->assertInstanceOf(Timer::class, $timer);
-
-        $this->assertSame($timer, $this->manager->getTimer());
-    }
-
-    public function testSetTimer()
-    {
-        $timer = new Timer();
-
-        $this->manager->setTimer($timer);
-        $this->assertSame($timer, $this->manager->getTimer());
-    }
-
-    public function testGetTimerId()
-    {
-        $this->assertNull($this->manager->getTimerId());
-
-        // 設置一個模擬的 Timer
-        $timerMock = m::mock(Timer::class);
-        $timerMock->shouldReceive('tick')
-            ->once()
-            ->andReturn(123);
-        $this->manager->setTimer($timerMock);
-
-        // 啟動 tick 後，timerId 應該被設置
-        $this->manager->startRecycle();
-        $this->assertEquals(123, $this->manager->getTimerId());
-    }
-
-    public function testGetLastTickedTimestamps()
-    {
-        $name = 'test-pool';
-        $callback = fn () => new Bar();
-
-        $this->manager->createPool($name, $callback);
-        $timestamps = $this->manager->getLastRecycledTimestamps();
-
-        $this->assertArrayHasKey($name, $timestamps);
-        $this->assertEquals(0, $timestamps[$name]);
     }
 
     public function testPoolProxyIntegration()

@@ -26,11 +26,6 @@ class Channel
      * @param int $size The maximum size of the channel
      */
     public function __construct(
-        /**
-         * The maximum size of the channel.
-         *
-         * @var int
-         */
         protected int $size
     ) {
         $this->channel = new CoChannel($size);
@@ -38,11 +33,7 @@ class Channel
     }
 
     /**
-     * Retrieves an object from the channel.
-     *
-     * @param float $timeout The maximum time to wait for an object
-     *
-     * @return false|object The retrieved object or false on timeout
+     * Retrieve an object from the channel.
      */
     public function pop(float $timeout): false|object
     {
@@ -54,11 +45,7 @@ class Channel
     }
 
     /**
-     * Adds an object to the channel.
-     *
-     * @param object $data The object to add to the channel
-     *
-     * @return bool Whether the operation was successful
+     * Push an object to the channel.
      */
     public function push(object $data): bool
     {
@@ -71,9 +58,7 @@ class Channel
     }
 
     /**
-     * Gets the current number of objects in the channel.
-     *
-     * @return int The number of objects in the channel
+     * Get the current number of objects in the channel.
      */
     public function length(): int
     {
@@ -85,9 +70,7 @@ class Channel
     }
 
     /**
-     * Determines if the code is running in a coroutine context.
-     *
-     * @return bool Whether the current execution is in a coroutine
+     * Determine if the code is running in a coroutine context.
      */
     protected function isCoroutine(): bool
     {

@@ -15,6 +15,11 @@ class SimpleObjectPool extends ObjectPool
      */
     protected $callback;
 
+    /**
+     * Create a new SimpleObjectPool instance.
+     *
+     * @param ContainerInterface $container The container instance
+     */
     public function __construct(
         protected ContainerInterface $container,
         callable $callback,

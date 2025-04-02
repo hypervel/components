@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\ObjectPool;
 
 use Closure;
+use DateTime;
 use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\ObjectPool\Contracts\ObjectPool as ObjectPoolContract;
 use Hypervel\ObjectPool\Contracts\RecycleStrategy;
-use Hypervel\ObjectPool\RecycleStrategies\TimeStrategy;
+use Hypervel\ObjectPool\Strategies\TimeStrategy;
 use Psr\Container\ContainerInterface;
 use RuntimeException;
 use Throwable;
@@ -17,7 +19,7 @@ use function Hyperf\Support\make;
 /**
  * @template T of object
  */
-abstract class ObjectPool implements ObjectPoolInterface
+abstract class ObjectPool implements ObjectPoolContract
 {
     /**
      * Channel for storing and retrieving objects.
@@ -27,7 +29,7 @@ abstract class ObjectPool implements ObjectPoolInterface
     /**
      * Configuration options for the pool.
      */
-    protected ObjectPoolOption $option;
+    protected PoolOption $option;
 
     /**
      * Current number of objects managed by the pool.
@@ -35,7 +37,7 @@ abstract class ObjectPool implements ObjectPoolInterface
     protected int $currentObjectNumber = 0;
 
     /**
-     * Tracks creation timestamps for each object.
+     * Creation timestamps for each object.
      */
     protected array $creationTimestamps = [];
 
@@ -47,10 +49,15 @@ abstract class ObjectPool implements ObjectPoolInterface
     /**
      * The recycle strategy instance used by the pool.
      */
-    protected ?RecycleStrategy $recycleStrategyInstance = null;
+    protected ?RecycleStrategy $recycleStrategy = null;
 
     /**
-     * Initializes the object pool with the given configuration.
+     * The last time the pool was recycled.
+     */
+    protected null|DateTime|int $lastRecycledAt = null;
+
+    /**
+     * Initialize the object pool with the given configuration.
      */
     public function __construct(
         protected ContainerInterface $container,
@@ -63,7 +70,7 @@ abstract class ObjectPool implements ObjectPoolInterface
     }
 
     /**
-     * Retrieves an object from the pool.
+     * Retrieve an object from the pool.
      *
      * @return T
      */
@@ -94,7 +101,7 @@ abstract class ObjectPool implements ObjectPoolInterface
     }
 
     /**
-     * Flushes excess objects from the pool down to the minimum.
+     * Flush excess objects from the pool down to the minimum.
      */
     public function flush(): void
     {
@@ -115,7 +122,7 @@ abstract class ObjectPool implements ObjectPoolInterface
     }
 
     /**
-     * Flushes a single object from the pool if it meets removal criteria.
+     * Flush a single object from the pool if it meets removal criteria.
      */
     public function flushOne(bool $force = false): void
     {
@@ -139,7 +146,7 @@ abstract class ObjectPool implements ObjectPoolInterface
     }
 
     /**
-     * Returns the current number of objects managed by the pool.
+     * Return the current number of objects managed by the pool.
      */
     public function getCurrentObjectNumber(): int
     {
@@ -147,15 +154,15 @@ abstract class ObjectPool implements ObjectPoolInterface
     }
 
     /**
-     * Gets the pool's configuration options.
+     * Get the pool's configuration options.
      */
-    public function getOption(): ObjectPoolOption
+    public function getOption(): PoolOption
     {
         return $this->option;
     }
 
     /**
-     * Returns the number of objects currently available in the pool.
+     * Return the number of objects currently available in the pool.
      */
     public function getObjectNumberInPool(): int
     {
@@ -163,28 +170,29 @@ abstract class ObjectPool implements ObjectPoolInterface
     }
 
     /**
-     * Initializes the pool options from the provided configuration.
+     * Initialize the pool options from the provided configuration.
      */
     protected function initOption(array $options = []): void
     {
-        $this->option = new ObjectPoolOption(
+        $this->option = new PoolOption(
             minObjects: $options['min_objects'] ?? 1,
             maxObjects: $options['max_objects'] ?? 10,
             waitTimeout: $options['wait_timeout'] ?? 3.0,
             maxLifetime: $options['max_lifetime'] ?? 60.0,
+            recycleRatio: $options['recycle_ratio'] ?? 0.2,
             recycleStrategy: $options['recycle_strategy'] ?? TimeStrategy::class,
         );
     }
 
     /**
-     * Creates a new object for the pool.
+     * Create a new object for the pool.
      *
      * @return T
      */
     abstract protected function createObject(): object;
 
     /**
-     * Gets an object from the pool or creates a new one if needed.
+     * Get an object from the pool or creates a new one if needed.
      *
      * @return T
      */
@@ -214,7 +222,7 @@ abstract class ObjectPool implements ObjectPoolInterface
     }
 
     /**
-     * Gets the logger instance if available.
+     * Get the logger instance if available.
      */
     protected function getLogger(): ?StdoutLoggerInterface
     {
@@ -226,7 +234,7 @@ abstract class ObjectPool implements ObjectPoolInterface
     }
 
     /**
-     * Checks if an object has exceeded its maximum lifetime.
+     * Check if an object has exceeded its maximum lifetime.
      */
     protected function exceedsMaxLifetime(object $object): bool
     {
@@ -240,7 +248,7 @@ abstract class ObjectPool implements ObjectPoolInterface
     }
 
     /**
-     * Destroys an object and cleans up its resources.
+     * Destroy an object and cleans up its resources.
      */
     protected function destroyObject(object $object): void
     {
@@ -257,7 +265,7 @@ abstract class ObjectPool implements ObjectPoolInterface
     }
 
     /**
-     * Sets a callback to be executed when an object is destroyed.
+     * Set a callback to be executed when an object is destroyed.
      */
     public function setDestroyCallback(Closure $callback): static
     {
@@ -267,35 +275,58 @@ abstract class ObjectPool implements ObjectPoolInterface
     }
 
     /**
-     * Returns statistics about the pool's current state.
+     * Return statistics about the pool's current state.
      */
     public function getStats(): array
     {
         return [
-            'current_objects' => $this->currentObjectNumber,
+            'objects_count' => $this->currentObjectNumber,
             'objects_in_pool' => $this->getObjectNumberInPool(),
+            'last_recycled_at' => $this->lastRecycledAt,
         ];
     }
 
     /**
-     * Gets the recycle strategy instance for this pool.
+     * Get the recycle strategy instance for this pool.
      */
     public function getRecycleStrategy(): RecycleStrategy
     {
-        if ($this->recycleStrategyInstance) {
-            return $this->recycleStrategyInstance;
+        if ($this->recycleStrategy) {
+            return $this->recycleStrategy;
         }
-        $strategyClass = $this->option->getStrategy();
 
-        return $this->recycleStrategyInstance = new $strategyClass();
+        return $this->recycleStrategy = make(
+            $this->option->getStrategy(),
+            ['pool' => $this]
+        );
     }
 
     /**
-     * Sets the recycle strategy for this pool.
+     * Set the recycle strategy for this pool.
      */
-    public function setRecycleStrategy(RecycleStrategy $recycleStrategy): void
+    public function setRecycleStrategy(RecycleStrategy $recycleStrategy): static
     {
         $this->option->setStrategy(get_class($recycleStrategy));
-        $this->recycleStrategyInstance = $recycleStrategy;
+        $this->recycleStrategy = $recycleStrategy;
+
+        return $this;
+    }
+
+    /**
+     * Get the last time the pool was recycled.
+     */
+    public function getLastRecycledAt(): null|DateTime|int
+    {
+        return $this->lastRecycledAt;
+    }
+
+    /**
+     * Set the last time the pool was recycled.
+     */
+    public function setLastRecycledAt(null|DateTime|int $lastRecycledAt): static
+    {
+        $this->lastRecycledAt = $lastRecycledAt;
+
+        return $this;
     }
 }
