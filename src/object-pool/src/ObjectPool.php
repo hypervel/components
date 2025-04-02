@@ -295,10 +295,8 @@ abstract class ObjectPool implements ObjectPoolContract
             return $this->recycleStrategy;
         }
 
-        return $this->recycleStrategy = make(
-            $this->option->getStrategy(),
-            ['pool' => $this]
-        );
+        return $this->recycleStrategy = $this->container
+            ->get($this->option->getStrategy());
     }
 
     /**
