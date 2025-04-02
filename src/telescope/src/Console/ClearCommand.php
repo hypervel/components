@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Console;
 
-use Hypervel\Foundation\Console\Command;
+use Hypervel\Console\Command;
 use Hypervel\Telescope\Contracts\ClearableRepository;
 
 class ClearCommand extends Command

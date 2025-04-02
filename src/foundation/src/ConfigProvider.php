@@ -7,7 +7,7 @@ namespace Hypervel\Foundation;
 use Hyperf\Contract\ApplicationInterface;
 use Hyperf\Coordinator\Listener\ResumeExitCoordinatorListener;
 use Hyperf\ExceptionHandler\Listener\ErrorExceptionHandler;
-use Hypervel\Foundation\Console\ApplicationFactory;
+use Hypervel\Console\ApplicationFactory;
 use Hypervel\Foundation\Console\Commands\ServerReloadCommand;
 use Hypervel\Foundation\Console\Commands\VendorPublishCommand;
 use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;

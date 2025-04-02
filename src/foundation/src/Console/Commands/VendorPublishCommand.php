@@ -10,7 +10,7 @@ use Hyperf\Contract\ContainerInterface;
 use Hyperf\Stringable\Str;
 use Hyperf\Support\Composer;
 use Hyperf\Support\Filesystem\Filesystem;
-use Hypervel\Foundation\Console\Command;
+use Hypervel\Console\Command;
 use Hypervel\Support\ServiceProvider;
 
 class VendorPublishCommand extends Command

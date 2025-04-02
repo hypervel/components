@@ -7,7 +7,7 @@ namespace Hypervel\Queue\Console;
 use Hyperf\Command\Command;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Stringable\Str;
-use Hypervel\Foundation\Console\ConfirmableTrait;
+use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Queue\Contracts\ClearableQueue;
 use Hypervel\Queue\Contracts\Factory as FactoryContract;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;

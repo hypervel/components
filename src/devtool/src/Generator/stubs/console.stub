@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace %NAMESPACE%;
 
-use Hypervel\Foundation\Console\Command;
+use Hypervel\Console\Command;
 
 class %CLASS% extends Command
 {

@@ -1,0 +1,52 @@
+{
+    "name": "hypervel/console",
+    "type": "library",
+    "description": "The console package for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "hyperf",
+        "console",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Console\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.2",
+        "hyperf/command": "~3.1.0",
+        "hyperf/context": "~3.1.0",
+        "hypervel/foundation": "^0.1",
+        "dragonmantank/cron-expression": "^3.3.2",
+        "symfony/console": "^5.4|^6.4|^7.0",
+        "friendsofhyperf/command-signals": "~3.1.0"
+    },
+    "suggest": {
+        "hypervel/prompt": "Required to run schedule:test command.",
+        "friendsofhyperf/pretty-console": "Required to run schedule:run command. (~3.1.0)"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "hyperf": {
+            "config": "Hypervel\\Console\\ConfigProvider"
+        },
+        "branch-alias": {
+            "dev-main": "0.1-dev"
+        }
+    }
+}
