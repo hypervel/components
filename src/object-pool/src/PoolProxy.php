@@ -6,6 +6,7 @@ namespace Hypervel\ObjectPool;
 
 use Closure;
 use Hyperf\Context\ApplicationContext;
+use Hypervel\ObjectPool\Contracts\ObjectPool;
 
 class PoolProxy
 {
