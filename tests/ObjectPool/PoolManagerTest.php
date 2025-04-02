@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\ObjectPool;
 
 use Hyperf\Context\ApplicationContext;
+use Hyperf\Di\Container;
+use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\ObjectPool;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\ObjectPool\PoolProxy;
@@ -39,44 +42,44 @@ class PoolManagerTest extends TestCase
         $this->container = $container;
     }
 
-    public function testGetCreatesNewPoolIfNotExists()
+    public function testCreateNewPoolIfNotExists()
     {
         $this->manager = new PoolManager($this->container);
         $name = 'test-pool';
         $callback = fn () => new Bar();
 
-        $pool = $this->manager->createPool($name, $callback);
+        $pool = $this->manager->create($name, $callback);
 
         $this->assertInstanceOf(ObjectPool::class, $pool);
-        $this->assertTrue($this->manager->hasPool($name));
+        $this->assertTrue($this->manager->has($name));
         $this->assertSame($pool, $this->manager->pools()[$name]);
     }
 
-    public function testCreatePoolThrowsExceptionIfExisted()
+    public function testCreateThrowsExceptionIfExisted()
     {
         $this->manager = new PoolManager($this->container);
         $name = 'duplicate-test-pool';
         $callback = fn () => new Bar();
 
-        $this->manager->createPool($name, $callback);
+        $this->manager->create($name, $callback);
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage("The pool name `{$name}` already exists.");
 
-        $this->manager->createPool($name, $callback);
+        $this->manager->create($name, $callback);
     }
 
-    public function testHasPool()
+    public function testHas()
     {
         $this->manager = new PoolManager($this->container);
         $name = 'test-pool';
         $callback = fn () => new Bar();
 
-        $this->assertFalse($this->manager->hasPool($name));
+        $this->assertFalse($this->manager->has($name));
 
-        $this->manager->createPool($name, $callback);
+        $this->manager->create($name, $callback);
 
-        $this->assertTrue($this->manager->hasPool($name));
+        $this->assertTrue($this->manager->has($name));
     }
 
     public function testRemovePool()
@@ -85,20 +88,20 @@ class PoolManagerTest extends TestCase
         $name = 'test-pool';
         $callback = fn () => new Bar();
 
-        $this->manager->createPool($name, $callback);
-        $this->assertTrue($this->manager->hasPool($name));
+        $this->manager->create($name, $callback);
+        $this->assertTrue($this->manager->has($name));
 
-        $this->manager->removePool($name);
+        $this->manager->remove($name);
 
-        $this->assertFalse($this->manager->hasPool($name));
+        $this->assertFalse($this->manager->has($name));
         $this->assertEmpty($this->manager->pools());
     }
 
     public function testFlush()
     {
         $this->manager = new PoolManager($this->container);
-        $this->manager->createPool('pool1', fn () => new Bar());
-        $this->manager->createPool('pool2', fn () => new Bar());
+        $this->manager->create('pool1', fn () => new Bar());
+        $this->manager->create('pool2', fn () => new Bar());
 
         $this->assertCount(2, $this->manager->pools());
 
@@ -112,36 +115,48 @@ class PoolManagerTest extends TestCase
         $name = 'test-pool';
         $callback = fn () => new Bar();
 
-        $pool = $this->manager->createPool($name, $callback);
+        $pool = $this->manager->create($name, $callback);
 
-        $this->assertSame($pool, $this->manager->getPool($name));
+        $this->assertSame($pool, $this->manager->get($name));
     }
 
     public function testPoolProxyIntegration()
     {
+        $this->mockContainer();
+
         $bar = new BarPoolProxy(
             BarPoolProxy::class . ':bar',
-            fn () => new Bar(),
-            [
-                'recycle_time' => 10,
-            ]
+            fn () => new Bar()
         );
 
-        $this->assertEquals(1, $bar->tick());
+        $this->assertTrue($bar->handle());
 
         $poolName = BarPoolProxy::class . ':bar';
-        $this->assertTrue($this->manager->hasPool($poolName));
+        $this->assertTrue($this->manager->has($poolName));
 
         $pool = $this->manager->pools()[$poolName];
         $this->assertGreaterThan(0, $pool->getCurrentObjectNumber());
+    }
+
+    protected function mockContainer(): Container
+    {
+        $container = new Container(
+            new DefinitionSource([
+                PoolFactory::class => fn () => $this->manager,
+            ])
+        );
+
+        ApplicationContext::setContainer($container);
+
+        return $container;
     }
 }
 
 class Bar
 {
-    public function tick()
+    public function handle(): bool
     {
-        return 1;
+        return true;
     }
 }
 

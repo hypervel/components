@@ -29,7 +29,7 @@ class PoolManager implements FactoryContract
     /**
      * Get a managed pool by name.
      */
-    public function getPool(string $name): ObjectPool
+    public function get(string $name): ObjectPool
     {
         if (! $pool = $this->pools[$name] ?? null) {
             throw new RuntimeException("The pool name `{$name}` does not exist.");
@@ -41,7 +41,7 @@ class PoolManager implements FactoryContract
     /**
      * Create and register a new object pool.
      */
-    public function createPool(string $name, callable $callback, array $options = []): ObjectPool
+    public function create(string $name, callable $callback, array $options = []): ObjectPool
     {
         if (isset($this->pools[$name])) {
             throw new RuntimeException("The pool name `{$name}` already exists.");
@@ -67,7 +67,7 @@ class PoolManager implements FactoryContract
     /**
      * Set a pool to the manager.
      */
-    public function setPool(string $name, ObjectPool $pool): static
+    public function set(string $name, ObjectPool $pool): static
     {
         $this->pools[$name] = $pool;
 
@@ -80,7 +80,7 @@ class PoolManager implements FactoryContract
     public function setPools(array $pools): static
     {
         foreach ($pools as $name => $pool) {
-            $this->setPool($name, $pool);
+            $this->set($name, $pool);
         }
 
         return $this;
@@ -89,7 +89,7 @@ class PoolManager implements FactoryContract
     /**
      * Check if a pool exists.
      */
-    public function hasPool(string $name): bool
+    public function has(string $name): bool
     {
         return isset($this->pools[$name]);
     }
@@ -97,7 +97,7 @@ class PoolManager implements FactoryContract
     /**
      * Remove a pool from the manager.
      */
-    public function removePool(string $name): static
+    public function remove(string $name): static
     {
         unset($this->pools[$name]);
 

@@ -28,6 +28,8 @@ use Hypervel\HttpClient\Request;
 use Hypervel\HttpClient\RequestException;
 use Hypervel\HttpClient\Response;
 use Hypervel\HttpClient\ResponseSequence;
+use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
+use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
@@ -3217,6 +3219,7 @@ class HttpClientTest extends TestCase
         return new \Hyperf\Di\Container(
             new \Hyperf\Di\Definition\DefinitionSource([
                 ConfigInterface::class => fn () => $config,
+                PoolFactory::class => PoolManager::class,
             ])
         );
     }

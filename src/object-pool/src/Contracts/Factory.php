@@ -9,12 +9,12 @@ interface Factory
     /**
      * Get a managed pool by name.
      */
-    public function getPool(string $name): ObjectPool;
+    public function get(string $name): ObjectPool;
 
     /**
      * Create and register a new object pool.
      */
-    public function createPool(string $name, callable $callback, array $options = []): ObjectPool;
+    public function create(string $name, callable $callback, array $options = []): ObjectPool;
 
     /**
      * Get all registered pools.
@@ -24,5 +24,10 @@ interface Factory
     /**
      * Check if a pool exists.
      */
-    public function hasPool(string $name): bool;
+    public function has(string $name): bool;
+
+    /**
+     * Remove a pool from the manager.
+     */
+    public function remove(string $name): static;
 }

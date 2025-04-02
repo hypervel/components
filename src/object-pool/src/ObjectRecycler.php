@@ -113,7 +113,7 @@ class ObjectRecycler implements Recycler
      */
     public function getLastRecycledAt(string $name): null|DateTime|int
     {
-        return $this->manager->getPool($name)
+        return $this->manager->get($name)
             ->getLastRecycledAt();
     }
 

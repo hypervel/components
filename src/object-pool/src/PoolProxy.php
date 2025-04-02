@@ -6,6 +6,7 @@ namespace Hypervel\ObjectPool;
 
 use Closure;
 use Hyperf\Context\ApplicationContext;
+use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\Contracts\ObjectPool;
 
 class PoolProxy
@@ -30,8 +31,8 @@ class PoolProxy
         protected ?Closure $releaseCallback = null,
     ) {
         $this->pool = ApplicationContext::getContainer()
-            ->get(PoolManager::class)
-            ->createPool(
+            ->get(PoolFactory::class)
+            ->create(
                 $this->name,
                 $this->resolver,
                 $this->options
