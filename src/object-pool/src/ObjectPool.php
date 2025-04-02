@@ -93,7 +93,7 @@ abstract class ObjectPool implements ObjectPoolContract
     }
 
     /**
-     * Releases an object back to the pool.
+     * Release an object back to the pool.
      */
     public function release(object $object): void
     {
