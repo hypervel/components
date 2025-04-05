@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation;
 
-use Hyperf\Di\Annotation\ScanConfig;
 use Hyperf\Di\Annotation\Scanner as AnnotationScanner;
 use Hyperf\Di\LazyLoader\LazyLoader;
 use Hyperf\Di\ScanHandler\PcntlScanHandler;
 use Hyperf\Di\ScanHandler\ScanHandlerInterface;
 use Hyperf\Support\DotenvManager;
+use Hypervel\Container\ScanConfig;
 use Hypervel\Foundation\Support\Composer;
 
 class ClassLoader
