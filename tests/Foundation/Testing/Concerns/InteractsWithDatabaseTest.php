@@ -7,13 +7,13 @@ namespace Hypervel\Tests\Foundation\Testing\Concerns;
 use Hyperf\Database\Model\Factory;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\RefreshDatabase;
-use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Testbench\TestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-class InteractsWithDatabaseTest extends ApplicationTestCase
+class InteractsWithDatabaseTest extends TestCase
 {
     use RefreshDatabase;
 

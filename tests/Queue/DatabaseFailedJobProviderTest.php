@@ -10,14 +10,14 @@ use Hyperf\Stringable\Str;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\Failed\DatabaseFailedJobProvider;
 use Hypervel\Support\Carbon;
-use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Testbench\TestCase;
 use RuntimeException;
 
 /**
  * @internal
  * @coversNothing
  */
-class DatabaseFailedJobProviderTest extends ApplicationTestCase
+class DatabaseFailedJobProviderTest extends TestCase
 {
     use RefreshDatabase;
 

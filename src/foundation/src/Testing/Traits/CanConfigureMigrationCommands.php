@@ -10,10 +10,8 @@ trait CanConfigureMigrationCommands
 {
     /**
      * The parameters that should be used when running "migrate:fresh".
-     *
-     * @return array
      */
-    protected function migrateFreshUsing()
+    protected function migrateFreshUsing(): array
     {
         $seeder = $this->seeder();
         $connection = $this->app
@@ -31,30 +29,24 @@ trait CanConfigureMigrationCommands
 
     /**
      * Determine if views should be dropped when refreshing the database.
-     *
-     * @return bool
      */
-    protected function shouldDropViews()
+    protected function shouldDropViews(): bool
     {
         return property_exists($this, 'dropViews') ? $this->dropViews : false;
     }
 
     /**
      * Determine if the seed task should be run when refreshing the database.
-     *
-     * @return bool
      */
-    protected function shouldSeed()
+    protected function shouldSeed(): bool
     {
         return property_exists($this, 'seed') ? $this->seed : false;
     }
 
     /**
      * Determine the specific seeder class that should be used when refreshing the database.
-     *
-     * @return mixed
      */
-    protected function seeder()
+    protected function seeder(): mixed
     {
         return property_exists($this, 'seeder') ? $this->seeder : false;
     }

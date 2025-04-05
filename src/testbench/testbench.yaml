@@ -1,0 +1,19 @@
+providers:
+  - Workbench\App\Providers\WorkbenchServiceProvider
+
+env:
+  - APP_NAME="Hypervel Testbench"
+
+workbench:
+  discovers:
+    web: false
+    api: false
+    commands: false
+
+purge:
+  files:
+    - .env
+    - composer.lock
+  directories:
+    - runtime
+    - public/vendor

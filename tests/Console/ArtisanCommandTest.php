@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Console\Testing;
 
 use Hypervel\Support\Facades\Artisan;
-use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Mockery\Exception\InvalidCountException;
 use Mockery\Exception\InvalidOrderException;
@@ -15,7 +15,7 @@ use PHPUnit\Framework\AssertionFailedError;
  * @internal
  * @coversNothing
  */
-class ArtisanCommandTest extends ApplicationTestCase
+class ArtisanCommandTest extends TestCase
 {
     public function testConsoleCommandPasses()
     {

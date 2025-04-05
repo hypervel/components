@@ -24,13 +24,13 @@ use Hypervel\Telescope\Storage\EntryModel;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\TelescopeApplicationServiceProvider;
 use Hypervel\Telescope\TelescopeServiceProvider;
-use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Testbench\TestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-class FeatureTestCase extends ApplicationTestCase
+class FeatureTestCase extends TestCase
 {
     use RefreshDatabase;
     use RunTestsInCoroutine;

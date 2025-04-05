@@ -97,7 +97,6 @@ class FoundationServiceProvider extends ServiceProvider
         $configs = [
             'app_name' => $this->config->get('app.name'),
             'app_env' => $this->config->get('app.env'),
-            'scan_cacheable' => $this->config->get('app.scan_cacheable'),
             StdoutLoggerInterface::class . '.log_level' => $this->config->get('app.stdout_log_level'),
             'translation.locale' => $this->config->get('app.locale'),
             'translation.fallback_locale' => $this->config->get('app.fallback_locale'),

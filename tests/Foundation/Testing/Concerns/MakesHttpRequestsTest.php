@@ -14,14 +14,14 @@ use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
 use Hypervel\Router\RouteFileCollector;
 use Hypervel\Session\ArraySessionHandler;
 use Hypervel\Session\Store;
-use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\AssertionFailedError;
 
 /**
  * @internal
  * @coversNothing
  */
-class MakesHttpRequestsTest extends ApplicationTestCase
+class MakesHttpRequestsTest extends TestCase
 {
     use RunTestsInCoroutine;
 
@@ -121,7 +121,7 @@ class MakesHttpRequestsTest extends ApplicationTestCase
     public function testFollowingRedirects()
     {
         $this->app->get(RouteFileCollector::class)
-            ->addRouteFile(BASE_PATH . '/routes/test-api.php');
+            ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
 
         $response = (new ServerResponse())
             ->withStatus(301)
@@ -141,7 +141,7 @@ class MakesHttpRequestsTest extends ApplicationTestCase
     public function testGetFoundRoute()
     {
         $this->app->get(RouteFileCollector::class)
-            ->addRouteFile(BASE_PATH . '/routes/test-api.php');
+            ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
 
         $this->get('/foo')
             ->assertSuccessFul()
@@ -151,7 +151,7 @@ class MakesHttpRequestsTest extends ApplicationTestCase
     public function testGetFoundRouteWithTrailingSlash()
     {
         $this->app->get(RouteFileCollector::class)
-            ->addRouteFile(BASE_PATH . '/routes/test-api.php');
+            ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
 
         $this->get('/foo/')
             ->assertSuccessFul()
@@ -161,7 +161,7 @@ class MakesHttpRequestsTest extends ApplicationTestCase
     public function testGetServerParams()
     {
         $this->app->get(RouteFileCollector::class)
-            ->addRouteFile(BASE_PATH . '/routes/test-api.php');
+            ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
 
         $this->get('/server-params?foo=bar')
             ->assertSuccessful()
@@ -175,7 +175,7 @@ class MakesHttpRequestsTest extends ApplicationTestCase
     public function testGetStreamedContent()
     {
         $this->app->get(RouteFileCollector::class)
-            ->addRouteFile(BASE_PATH . '/routes/test-api.php');
+            ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
 
         $this->get('/stream')
             ->assertSuccessFul()
@@ -185,7 +185,7 @@ class MakesHttpRequestsTest extends ApplicationTestCase
     public function testWithHeaders()
     {
         $this->app->get(RouteFileCollector::class)
-            ->addRouteFile(BASE_PATH . '/routes/test-api.php');
+            ->addRouteFile(dirname(__DIR__, 2) . '/fixtures/routes/test-api.php');
 
         $this->withHeaders([
             'X-Header' => 'Value',

@@ -18,14 +18,14 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Schema;
-use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Testbench\TestCase;
 use Mockery;
 
 /**
  * @internal
  * @coversNothing
  */
-class EloquentBroadcastingTest extends ApplicationTestCase
+class EloquentBroadcastingTest extends TestCase
 {
     use RefreshDatabase;
 

@@ -12,6 +12,7 @@ use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Foundation\Testing\RefreshDatabaseState;
+use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 use PDO;
@@ -21,7 +22,7 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  * @internal
  * @coversNothing
  */
-class RefreshDatabaseTest extends ApplicationTestCase
+class RefreshDatabaseTest extends TestCase
 {
     use HasMockedApplication;
     use RefreshDatabase;

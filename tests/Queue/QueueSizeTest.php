@@ -7,13 +7,13 @@ namespace Hypervel\Tests\Queue;
 use Hypervel\Bus\Queueable;
 use Hypervel\Queue\Contracts\ShouldQueue;
 use Hypervel\Support\Facades\Queue;
-use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Testbench\TestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-class QueueSizeTest extends ApplicationTestCase
+class QueueSizeTest extends TestCase
 {
     public function testQueueSize()
     {

@@ -12,7 +12,7 @@ use Hypervel\Queue\DatabaseQueue;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Support\Carbon;
-use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Ramsey\Uuid\Uuid;
@@ -23,7 +23,7 @@ use Ramsey\Uuid\UuidFactoryInterface;
  * @internal
  * @coversNothing
  */
-class QueueDatabaseQueueIntegrationTest extends ApplicationTestCase
+class QueueDatabaseQueueIntegrationTest extends TestCase
 {
     use RefreshDatabase;
 
