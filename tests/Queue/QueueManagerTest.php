@@ -10,6 +10,8 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Encryption\Contracts\Encrypter;
+use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
+use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Queue\Connectors\ConnectorInterface;
 use Hypervel\Queue\Contracts\Queue;
 use Hypervel\Queue\QueueManager;
@@ -114,6 +116,7 @@ class QueueManagerTest extends TestCase
             new DefinitionSource([
                 ConfigInterface::class => fn () => new Config([]),
                 Encrypter::class => fn () => m::mock(Encrypter::class),
+                PoolFactory::class => PoolManager::class,
             ])
         );
 

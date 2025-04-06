@@ -13,6 +13,8 @@ use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Filesystem\Contracts\Filesystem;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Filesystem\FilesystemPoolProxy;
+use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
+use Hypervel\ObjectPool\PoolManager;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\TestCase;
@@ -197,6 +199,7 @@ class FilesystemManagerTest extends TestCase
         return new Container(
             new DefinitionSource([
                 ConfigInterface::class => fn () => $config,
+                PoolFactory::class => PoolManager::class,
             ])
         );
     }
