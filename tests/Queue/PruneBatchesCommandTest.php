@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Queue;
 use Hypervel\Bus\Contracts\BatchRepository;
 use Hypervel\Bus\DatabaseBatchRepository;
 use Hypervel\Queue\Console\PruneBatchesCommand;
-use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
@@ -16,7 +16,7 @@ use Symfony\Component\Console\Output\NullOutput;
  * @internal
  * @coversNothing
  */
-class PruneBatchesCommandTest extends ApplicationTestCase
+class PruneBatchesCommandTest extends TestCase
 {
     protected function tearDown(): void
     {

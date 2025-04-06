@@ -10,14 +10,14 @@ use Hypervel\Auth\Contracts\Authenticatable as UserContract;
 use Hypervel\Auth\Contracts\FactoryContract as AuthManagerContract;
 use Hypervel\Auth\Contracts\Guard;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
-use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Testbench\TestCase;
 use Mockery;
 
 /**
  * @internal
  * @coversNothing
  */
-class InteractsWithAuthenticationTest extends ApplicationTestCase
+class InteractsWithAuthenticationTest extends TestCase
 {
     use InteractsWithAuthentication;
 

@@ -9,6 +9,7 @@ use Hyperf\Contract\ConfigInterface;
 use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
+use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 
@@ -16,7 +17,7 @@ use Mockery as m;
  * @internal
  * @coversNothing
  */
-class DatabaseMigrationsTest extends ApplicationTestCase
+class DatabaseMigrationsTest extends TestCase
 {
     use HasMockedApplication;
     use DatabaseMigrations;

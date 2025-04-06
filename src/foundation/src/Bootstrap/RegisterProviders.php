@@ -8,7 +8,7 @@ use Hyperf\Collection\Arr;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Providers\FoundationServiceProvider;
-use Hypervel\Foundation\Support\Composer;
+use Hypervel\Support\Composer;
 use Throwable;
 
 class RegisterProviders

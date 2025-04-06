@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
-use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
 
@@ -12,7 +12,7 @@ use Mockery\MockInterface;
  * @internal
  * @coversNothing
  */
-class InteractsWithContainerTest extends ApplicationTestCase
+class InteractsWithContainerTest extends TestCase
 {
     public function testSwap()
     {

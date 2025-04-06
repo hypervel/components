@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Foundation\Testing;
+namespace Workbench\App\Exceptions;
 
 use Hypervel\Foundation\Exceptions\Handler as BaseExceptionHandler;
 use Hypervel\Http\Request;
