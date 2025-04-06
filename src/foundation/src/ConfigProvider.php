@@ -9,6 +9,7 @@ use Hyperf\Coordinator\Listener\ResumeExitCoordinatorListener;
 use Hyperf\ExceptionHandler\Listener\ErrorExceptionHandler;
 use Hypervel\Console\ApplicationFactory;
 use Hypervel\Foundation\Console\Commands\AboutCommand;
+use Hypervel\Foundation\Console\Commands\ConfigShowCommand;
 use Hypervel\Foundation\Console\Commands\ServerReloadCommand;
 use Hypervel\Foundation\Console\Commands\VendorPublishCommand;
 use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
@@ -31,6 +32,7 @@ class ConfigProvider
             ],
             'commands' => [
                 AboutCommand::class,
+                ConfigShowCommand::class,
                 ServerReloadCommand::class,
                 VendorPublishCommand::class,
             ],
