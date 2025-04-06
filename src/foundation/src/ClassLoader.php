@@ -10,7 +10,7 @@ use Hyperf\Di\LazyLoader\LazyLoader;
 use Hyperf\Di\ScanHandler\PcntlScanHandler;
 use Hyperf\Di\ScanHandler\ScanHandlerInterface;
 use Hyperf\Support\DotenvManager;
-use Hypervel\Foundation\Support\Composer;
+use Hypervel\Support\Composer;
 
 class ClassLoader
 {
