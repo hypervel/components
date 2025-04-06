@@ -204,6 +204,14 @@ class Application extends Container implements ApplicationContract
     }
 
     /**
+     * Get the path to the storage directory.
+     */
+    public function storagePath(string $path = ''): string
+    {
+        return $this->joinPaths($this->basePath('storage'), $path);
+    }
+
+    /**
      * Join the given paths together.
      */
     public function joinPaths(string $basePath, string $path = ''): string

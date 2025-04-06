@@ -187,7 +187,7 @@
         "nunomaduro/collision": "^8.5",
         "pda/pheanstalk": "v5.0.9",
         "phpstan/phpstan": "^1.11.5",
-        "phpunit/phpunit": "^10.0.7",
+        "phpunit/phpunit": "10.5.45",
         "pusher/pusher-php-server": "^7.2",
         "swoole/ide-helper": "~5.1.0",
         "symfony/yaml": "^7.3"
