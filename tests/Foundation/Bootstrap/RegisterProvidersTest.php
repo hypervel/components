@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Foundation\Bootstrap;
 
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
-use Hypervel\Foundation\Support\Composer;
+use Hypervel\Support\Composer;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;

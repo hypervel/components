@@ -2,11 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Support;
+namespace Hypervel\Support;
 
 use Composer\Autoload\ClassLoader;
 use Hyperf\Collection\Collection;
+use Hypervel\Filesystem\Filesystem;
 use RuntimeException;
+use Symfony\Component\Process\Process;
 
 class Composer
 {
@@ -179,6 +181,59 @@ class Composer
     public static function getBasePath(): string
     {
         return static::$basePath ?: BASE_PATH;
+    }
+
+    /**
+     * Get the Composer binary / command for the environment.
+     */
+    public static function findComposer(?string $composerBinary = null): array
+    {
+        $filesystem = new Filesystem();
+        if (! is_null($composerBinary) && $filesystem->exists($composerBinary)) {
+            return [static::phpBinary(), $composerBinary];
+        }
+        if ($filesystem->exists(getcwd() . '/composer.phar')) {
+            return [static::phpBinary(), 'composer.phar'];
+        }
+
+        return ['composer'];
+    }
+
+    /**
+     * Get a new Symfony process instance.
+     */
+    protected static function getProcess(array $command, array $env = []): Process
+    {
+        return (new Process($command, null, $env))
+            ->setTimeout(null);
+    }
+
+    /**
+     * Get the PHP binary.
+     */
+    protected static function phpBinary(): string
+    {
+        return php_binary();
+    }
+
+    /**
+     * Get the version of Composer.
+     */
+    public static function getVersion(): ?string
+    {
+        $command = array_merge(static::findComposer(), ['-V', '--no-ansi']);
+
+        $process = static::getProcess($command);
+
+        $process->run();
+
+        $output = $process->getOutput();
+
+        if (preg_match('/(\d+(\.\d+){2})/', $output, $version)) {
+            return $version[1];
+        }
+
+        return explode(' ', $output)[2] ?? null;
     }
 
     protected static function reset(): void

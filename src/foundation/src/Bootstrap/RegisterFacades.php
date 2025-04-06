@@ -7,7 +7,7 @@ namespace Hypervel\Foundation\Bootstrap;
 use Hyperf\Collection\Arr;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Foundation\Contracts\Application as ApplicationContract;
-use Hypervel\Foundation\Support\Composer;
+use Hypervel\Support\Composer;
 use Hypervel\Support\Facades\Facade;
 use Throwable;
 
