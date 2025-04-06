@@ -99,6 +99,17 @@ class ObjectPoolTest extends TestCase
         });
     }
 
+    public function testSetLastRecycledAt()
+    {
+        $container = $this->getContainer();
+        $pool = new FooPool($container);
+
+        $this->assertNull($pool->getLastRecycledAt());
+
+        $pool->setLastRecycledAt(1743574962);
+        $this->assertSame(1743574962, $pool->getLastRecycledAt());
+    }
+
     public function testGetStats()
     {
         $container = $this->getContainer();
@@ -110,8 +121,9 @@ class ObjectPoolTest extends TestCase
         $pool->release($pool->get());
 
         $this->assertSame([
-            'current_objects' => 3,
+            'objects_count' => 3,
             'objects_in_pool' => 1,
+            'last_recycled_at' => null,
         ], $pool->getStats());
     }
 
