@@ -57,6 +57,11 @@ interface Application extends Container
     public function viewPath(string $path = ''): string;
 
     /**
+     * Get the path to the storage directory.
+     */
+    public function storagePath(string $path = ''): string;
+
+    /**
      * Join the given paths together.
      */
     public function joinPaths(string $basePath, string $path = ''): string;
