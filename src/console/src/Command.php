@@ -41,6 +41,10 @@ abstract class Command extends HyperfCommand
                     $this->exitCode = $statusCode;
                 }
                 $this->eventDispatcher?->dispatch(new AfterHandle($this));
+            } catch (ManuallyFailedException $e) {
+                $this->components->error($e->getMessage());
+
+                return $this->exitCode = static::FAILURE;
             } catch (Throwable $exception) {
                 if (class_exists(ExitException::class) && $exception instanceof ExitException) {
                     return $this->exitCode = (int) $exception->getStatus();
@@ -78,5 +82,23 @@ abstract class Command extends HyperfCommand
         if ($this->app->bound(OutputInterface::class)) {
             $this->output = $this->app->get(OutputInterface::class);
         }
+    }
+
+    /**
+     * Fail the command manually.
+     *
+     * @throws ManuallyFailedException|Throwable
+     */
+    public function fail(null|string|Throwable $exception = null): void
+    {
+        if (is_null($exception)) {
+            $exception = 'Command failed manually.';
+        }
+
+        if (is_string($exception)) {
+            $exception = new ManuallyFailedException($exception);
+        }
+
+        throw $exception;
     }
 }

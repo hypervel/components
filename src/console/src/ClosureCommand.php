@@ -47,10 +47,16 @@ class ClosureCommand extends Command
             }
         }
 
-        return (int) $this->container->call(
-            $this->callback->bindTo($this, $this),
-            $parameters
-        );
+        try {
+            return (int) $this->container->call(
+                $this->callback->bindTo($this, $this),
+                $parameters
+            );
+        } catch (ManuallyFailedException $e) {
+            $this->components->error($e->getMessage());
+
+            return static::FAILURE;
+        }
     }
 
     /**
