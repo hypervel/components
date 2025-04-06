@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing;
 
+use Hypervel\Testbench\TestCase as TestbenchTestCase;
 use Hypervel\Tests\TestCase;
 use ReflectionMethod;
 
@@ -35,7 +36,7 @@ class BootTraitsTest extends TestCase
  * @internal
  * @coversNothing
  */
-class TestCaseWithTrait extends ApplicationTestCase
+class TestCaseWithTrait extends TestbenchTestCase
 {
     use TestTrait;
 }

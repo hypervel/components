@@ -1,0 +1,33 @@
+#!/usr/bin/env php
+<?php
+
+$workingPath = getcwd();
+
+require "{$workingPath}/vendor/autoload.php";
+
+$files = new Hypervel\Filesystem\Filesystem();
+$files->copy("{$workingPath}/vendor/hypervel/testbench/testbench.yaml", "{$workingPath}/testbench.yaml");
+
+Hypervel\Support\Collection::make([
+    ...$files->allFiles("{$workingPath}/vendor/hypervel/testbench/workbench/app/"),
+])->flatten()
+->filter(static fn ($file) => is_file($file))
+->each(static function ($file) use ($files, $workingPath) {
+    $filename = $workingPath . Hypervel\Support\Str::after((string) $file, "{$workingPath}/vendor/hypervel/testbench/workbench");
+    $files->ensureDirectoryExists(Hypervel\Support\Str::before($filename, basename($filename)));
+    $files->copy($file, $filename);
+});
+
+Hypervel\Support\Collection::make([
+    ...$files->allFiles("{$workingPath}/vendor/hypervel/testbench/workbench/config/"),
+    ...$files->allFiles("{$workingPath}/vendor/hypervel/testbench/workbench/database/"),
+    ...$files->allFiles("{$workingPath}/vendor/hypervel/testbench/workbench/lang/"),
+    ...$files->allFiles("{$workingPath}/vendor/hypervel/testbench/workbench/routes/"),
+    ...$files->allFiles("{$workingPath}/vendor/hypervel/testbench/workbench/resources/"),
+])->flatten()
+->filter(static fn ($file) => is_file($file))
+->each(static function ($file) use ($files, $workingPath) {
+    $filename = $workingPath . Hypervel\Support\Str::after((string) $file, "{$workingPath}/vendor/hypervel/testbench/workbench");
+    $files->ensureDirectoryExists(Hypervel\Support\Str::before($filename, basename($filename)));
+    $files->copy($file, $filename);
+});

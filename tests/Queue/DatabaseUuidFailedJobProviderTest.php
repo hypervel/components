@@ -9,14 +9,14 @@ use Hyperf\Stringable\Str;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\Failed\DatabaseUuidFailedJobProvider;
 use Hypervel\Support\Carbon;
-use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Testbench\TestCase;
 use RuntimeException;
 
 /**
  * @internal
  * @coversNothing
  */
-class DatabaseUuidFailedJobProviderTest extends ApplicationTestCase
+class DatabaseUuidFailedJobProviderTest extends TestCase
 {
     use RefreshDatabase;
 
