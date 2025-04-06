@@ -13,6 +13,7 @@ class CommandReplacer
             'name' => 'serve',
             'description' => 'Start Hypervel servers',
         ],
+        'info' => null,
         'server:watch' => null,
         'gen:amqp-consumer' => 'make:amqp-consumer',
         'gen:amqp-producer' => 'make:amqp-producer',
