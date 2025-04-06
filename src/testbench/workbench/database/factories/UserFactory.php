@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Faker\Generator as Faker;
 use Hypervel\Tests\Foundation\Testing\Concerns\User;
 
+/* @phpstan-ignore-next-line */
 $factory->define(User::class, function (Faker $faker) {
     return [
         'name' => $faker->unique()->name(),

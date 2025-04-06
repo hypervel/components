@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Foundation\Testing;
+namespace Hypervel\Testbench;
 
-class BootstrapConfigProvider
+use Hyperf\Collection\Arr;
+
+class ConfigProviderRegister
 {
     protected static $configProviders = [
         \Hyperf\Command\ConfigProvider::class,
@@ -55,9 +57,30 @@ class BootstrapConfigProvider
     public static function get(): array
     {
         if (class_exists($devtoolClass = \Hyperf\Devtool\ConfigProvider::class)) {
-            return array_merge(self::$configProviders, [$devtoolClass]);
+            return array_merge(static::$configProviders, [$devtoolClass]);
         }
 
-        return self::$configProviders;
+        return static::$configProviders;
+    }
+
+    public static function filter(callable $callback): array
+    {
+        return static::$configProviders = array_filter(static::get(), $callback);
+    }
+
+    public static function add(array|string $providers): void
+    {
+        static::$configProviders = array_merge(
+            static::$configProviders,
+            Arr::wrap($providers)
+        );
+    }
+
+    public static function except(array|string $providers): void
+    {
+        static::$configProviders = array_diff(
+            static::$configProviders,
+            Arr::wrap($providers)
+        );
     }
 }

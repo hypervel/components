@@ -21,7 +21,7 @@ use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Queue\Contracts\Factory;
 use Hypervel\Queue\Contracts\Queue;
 use Hypervel\Queue\Contracts\ShouldQueue;
-use Hypervel\Tests\Foundation\Testing\ApplicationTestCase;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
@@ -30,7 +30,7 @@ use RuntimeException;
  * @internal
  * @coversNothing
  */
-class BusBatchTest extends ApplicationTestCase
+class BusBatchTest extends TestCase
 {
     use RefreshDatabase;
 
