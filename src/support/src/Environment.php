@@ -25,7 +25,7 @@ class Environment
         protected ?bool $debug = null
     ) {
         $this->env = $env ?? env('APP_ENV', 'local');
-        $this->debug = $debug ?? env('APP_DEBUG', true);
+        $this->debug = $debug ?? (bool) env('APP_DEBUG', false);
     }
 
     public function __call($method, $parameters = [])
