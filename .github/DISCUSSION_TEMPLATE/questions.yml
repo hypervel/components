@@ -1,0 +1,29 @@
+labels: [question]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for your interest in Hypervel! 🚀
+
+        To maintain a high-quality experience for all users, please follow these guidelines when submitting your question:
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Check List
+      description: Please confirm and check all the following options.
+      options:
+        - label: Provide a clear and concise title and description of your question.
+          required: true
+        - label: I have searched the existing discussions and documentation to see if my question has already been answered.
+          required: true
+        - label: Include any relevant code snippets or examples to help us understand your question better.
+          required: true
+        - label: We encourage you to help others in the community by answering questions or providing feedback on existing discussions. This helps us build a strong and supportive community around Hypervel.
+          required: true
+        - label: We are all here to learn and grow together. Please be respectful and considerate in your interactions with others in the community.
+          required: true
+  - type: textarea
+    id: content
+    attributes:
+      label: Content
+      description: Ask your question here. Please provide as much detail as possible to help us understand your issue.
