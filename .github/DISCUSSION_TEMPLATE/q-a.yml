@@ -20,7 +20,7 @@ body:
           required: true
         - label: We encourage you to help others in the community by answering questions or providing feedback on existing discussions. This helps us build a strong and supportive community around Hypervel.
           required: true
-        - label: We are all here to learn and grow together. Please be respectful and considerate in your interactions with others in the community.
+        - label: Please be respectful and considerate in your interactions with others in the community.
           required: true
   - type: textarea
     id: content
