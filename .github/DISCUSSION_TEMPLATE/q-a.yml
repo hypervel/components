@@ -12,7 +12,7 @@ body:
       label: Check List
       description: Please confirm and check all the following options.
       options:
-        - label: Provide a clear and concise title and description of your question.
+        - label: Provide a clear title and detailed description of your question.
           required: true
         - label: I have searched the existing discussions and documentation to see if my question has already been answered.
           required: true
