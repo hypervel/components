@@ -29,6 +29,11 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
     protected array $arrayCache = [];
 
     /**
+     * Flag to indicate if auto-casting is enabled.
+     */
+    protected static bool $autoCasting = true;
+
+    /**
      * Create an instance of the class using the provided data array.
      */
     public static function make(array $data): static
@@ -47,7 +52,9 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
             // and convert the value to the correct type automatically
             if (array_key_exists($dataKey, $data)) {
                 $dataValue = $data[$dataKey];
-                $dataValue = static::convertValueToType($dataValue, $parameter);
+                if (static::$autoCasting) {
+                    $dataValue = static::convertValueToType($dataValue, $parameter);
+                }
             // use the default value if available
             } elseif ($parameter->isDefaultValueAvailable()) {
                 $dataValue = $parameter->getDefaultValue();
