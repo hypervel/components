@@ -69,6 +69,22 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
     }
 
     /**
+     * Enable or disable auto-casting of data values.
+     */
+    public static function enableAutoCasting(): void
+    {
+        static::$autoCasting = true;
+    }
+
+    /**
+     * Disable auto-casting of data values.
+     */
+    public static function disableAutoCasting(): void
+    {
+        static::$autoCasting = false;
+    }
+
+    /**
      * Convert the parameter name to the data key format.
      * It converts camelCase to snake_case by default.
      */
