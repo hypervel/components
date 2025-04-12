@@ -51,7 +51,7 @@ class DataObjectTest extends TestCase
     public function testMakeWithMissingConfig(): void
     {
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('Missing required property `stringValue` in `Hypervel\\Tests\\Support\\TestDataObject`');
+        $this->expectExceptionMessage('Missing required property `stringValue` in `Hypervel\Tests\Support\TestDataObject`');
 
         TestDataObject::make([]);
     }
