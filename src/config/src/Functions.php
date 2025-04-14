@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Config;
 
 use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Config\Contracts\Repository as ConfigContract;
 
 /**
  * Get / set the specified configuration value.
@@ -17,7 +17,7 @@ use Hyperf\Contract\ConfigInterface;
  */
 function config(mixed $key = null, mixed $default = null): mixed
 {
-    $config = ApplicationContext::getContainer()->get(ConfigInterface::class);
+    $config = ApplicationContext::getContainer()->get(ConfigContract::class);
 
     if (is_null($key)) {
         return $config;
