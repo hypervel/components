@@ -372,8 +372,10 @@ abstract class Queue
     /**
      * Set the IoC container instance.
      */
-    public function setContainer(ContainerInterface $container): void
+    public function setContainer(ContainerInterface $container): static
     {
         $this->container = $container;
+
+        return $this;
     }
 }
