@@ -27,7 +27,7 @@ class Subscriber
             $config['port'] ?? 6379,
             $config['auth'] ?? '',
             $config['timeout'] ?? 5,
-            '',
+            $config['options']['prefix'] ?? '',
             ApplicationContext::getContainer()->get(StdoutLoggerInterface::class),
         );
     }
