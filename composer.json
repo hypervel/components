@@ -121,7 +121,8 @@
         "symfony/mailer": "^6.2",
         "tijsverkoyen/css-to-inline-styles": "^2.2.5",
         "symfony/process": "^6.2",
-        "dragonmantank/cron-expression": "^3.3.2"
+        "dragonmantank/cron-expression": "^3.3.2",
+        "hypervel/laminas-mime": "^0.1.0"
     },
     "replace": {
         "hypervel/auth": "self.version",
@@ -155,8 +156,7 @@
         "hypervel/session": "self.version",
         "hypervel/support": "self.version",
         "hypervel/telescope": "self.version",
-        "hypervel/testbench": "self.version",
-        "hypervel/laminas-mime": "*"
+        "hypervel/testbench": "self.version"
     },
     "suggest": {
         "hyperf/redis": "Required to use redis driver. (^3.1).",
