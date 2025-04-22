@@ -139,14 +139,11 @@ class QueueManager implements FactoryContract, MonitorContract
         // If the connection has not been resolved yet we will resolve it now as all
         // of the connections are resolved when they are actually needed so we do
         // not make any unnecessary connection to the various queue end-points.
-        if (! isset($this->connections[$name])) {
-            $this->connections[$name] = $this->resolve($name);
-
-            /* @phpstan-ignore-next-line */
-            $this->connections[$name]->setContainer($this->app);
+        if ($queue = $this->connections[$name] ?? null) {
+            return $queue;
         }
 
-        return $this->connections[$name];
+        return $this->connections[$name] = $this->resolve($name);
     }
 
     /**
@@ -162,9 +159,11 @@ class QueueManager implements FactoryContract, MonitorContract
             throw new InvalidArgumentException("The [{$name}] queue connection has not been configured.");
         }
 
+        /** @phpstan-ignore-next-line */
         $resolver = fn () => $this->getConnector($config['driver'])
             ->connect($config)
-            ->setConnectionName($name);
+            ->setConnectionName($name)
+            ->setContainer($this->app);
 
         if (in_array($config['driver'], $this->poolables)) {
             return $this->createPoolProxy(
