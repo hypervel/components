@@ -41,12 +41,12 @@ class QueueManagerTest extends TestCase
         $connector = m::mock(ConnectorInterface::class);
         $queue = m::mock(Queue::class);
         $queue->shouldReceive('setConnectionName')->once()->with('sync')->andReturnSelf();
+        $queue->shouldReceive('setContainer')->once()->with($container)->andReturnSelf();
         $connector->shouldReceive('connect')->once()->with(['driver' => 'sync'])->andReturn($queue);
         $manager->addConnector('sync', function () use ($connector) {
             return $connector;
         });
 
-        $queue->shouldReceive('setContainer')->once()->with($container);
         $this->assertSame($queue, $manager->connection('sync'));
     }
 
@@ -65,7 +65,7 @@ class QueueManagerTest extends TestCase
         $manager->addConnector('bar', function () use ($connector) {
             return $connector;
         });
-        $queue->shouldReceive('setContainer')->once()->with($container);
+        $queue->shouldReceive('setContainer')->once()->with($container)->andReturnSelf();
 
         $this->assertSame($queue, $manager->connection('foo'));
     }
@@ -84,7 +84,7 @@ class QueueManagerTest extends TestCase
         $manager->addConnector('null', function () use ($connector) {
             return $connector;
         });
-        $queue->shouldReceive('setContainer')->once()->with($container);
+        $queue->shouldReceive('setContainer')->once()->with($container)->andReturnSelf();
 
         $this->assertSame($queue, $manager->connection('null'));
     }
@@ -98,14 +98,10 @@ class QueueManagerTest extends TestCase
 
         $manager = new QueueManager($container);
         $connector = m::mock(ConnectorInterface::class);
-        $queue = m::mock(Queue::class);
-        $queue->shouldReceive('setConnectionName')->once()->with('foo')->andReturnSelf();
-        $connector->shouldReceive('connect')->once()->with(['driver' => 'bar'])->andReturn($queue);
         $manager->addConnector('bar', function () use ($connector) {
             return $connector;
         });
         $manager->addPoolable('bar');
-        $queue->shouldReceive('setContainer')->once()->with($container);
 
         $this->assertInstanceOf(QueuePoolProxy::class, $manager->connection('foo'));
     }
