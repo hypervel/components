@@ -5,28 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Redis;
 
 use Closure;
-use Hyperf\Redis\Redis as HyperfRedis;
-use Hyperf\Redis\RedisProxy;
-use Hypervel\Context\ApplicationContext;
+use Hyperf\Redis\RedisProxy as HyperfRedisProxy;
 
-class Redis extends HyperfRedis
+class RedisProxy extends HyperfRedisProxy
 {
-    /**
-     * Get a Redis connection by name.
-     */
-    public function connection(string $name = 'default'): RedisProxy
-    {
-        return ApplicationContext::getContainer()
-            ->get(RedisFactory::class)
-            ->get($name);
-    }
-
     /**
      * Subscribe to a set of given channels for messages.
      */
     public function subscribe(array|string $channels, Closure $callback): void
     {
-        $this->connection()
+        $this->getSubscriber()
             ->subscribe($channels, $callback);
     }
 
@@ -35,7 +23,14 @@ class Redis extends HyperfRedis
      */
     public function psubscribe(array|string $channels, Closure $callback): void
     {
-        $this->connection()
+        $this->getSubscriber()
             ->psubscribe($channels, $callback);
+    }
+
+    protected function getSubscriber(): Subscriber
+    {
+        return new Subscriber(
+            $this->factory->getPool($this->poolName)->getConfig()
+        );
     }
 }

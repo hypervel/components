@@ -122,6 +122,7 @@
         "tijsverkoyen/css-to-inline-styles": "^2.2.5",
         "symfony/process": "^6.2",
         "dragonmantank/cron-expression": "^3.3.2",
+        "friendsofhyperf/redis-subscriber": "~3.1.0",
         "hypervel/laminas-mime": "^0.1.0"
     },
     "replace": {
