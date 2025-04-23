@@ -29,11 +29,8 @@ class RedisProxy extends HyperfRedisProxy
 
     protected function getSubscriber(): Subscriber
     {
-        $pool = $this->factory->getPool($this->poolName);
-        $connection = $pool->get();
-
         return new Subscriber(
-            (fn () => $this->config)->call($connection)  /* @phpstan-ignore-line */
+            $this->factory->getPool($this->poolName)->getConfig()
         );
     }
 }
