@@ -7,6 +7,7 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Filesystem\Filesystem;
 
 /**
+ * @method static void ensureDirectoryExists(string $path, int $mode = 0755, bool $recursive = true)
  * @method static bool exists(string $path)
  * @method static string get(string $path, bool $lock = false)
  * @method static string sharedGet(string $path)

@@ -48,7 +48,7 @@ use function Hyperf\Tappable\tap;
  * @method static mixed getJobExpiration(mixed $job)
  * @method static void createPayloadUsing(callable|null $callback)
  * @method static \Psr\Container\ContainerInterface getContainer()
- * @method static void setContainer(\Psr\Container\ContainerInterface $container)
+ * @method static \Hypervel\Queue\Queue setContainer(\Psr\Container\ContainerInterface $container)
  * @method static \Hypervel\Support\Testing\Fakes\QueueFake except(array|string $jobsToBeQueued)
  * @method static void assertPushed(\Closure|string $job, callable|int|null $callback = null)
  * @method static void assertPushedOn(string|null $queue, \Closure|string $job, callable|null $callback = null)

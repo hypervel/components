@@ -53,6 +53,7 @@ use Hypervel\Http\Contracts\RequestContract;
  * @method static string fullUrlWithQuery(array $query)
  * @method static string fullUrlWithoutQuery(array|string $keys)
  * @method static string method()
+ * @method static array headers()
  * @method static string|null bearerToken()
  * @method static string[] getAcceptableContentTypes()
  * @method static string|null getMimeType(string $format)

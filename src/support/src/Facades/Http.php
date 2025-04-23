@@ -34,7 +34,6 @@ use Hypervel\HttpClient\Factory;
  * @method static \Hypervel\HttpClient\Factory registerConnection(string $name, array $config = [])
  * @method static \GuzzleHttp\ClientInterface getClient(string|null $connection, \GuzzleHttp\HandlerStack $handlerStack, array|null $config = null)
  * @method static \GuzzleHttp\ClientInterface createClient(\GuzzleHttp\HandlerStack $handlerStack)
- * @method static array getConfig(string $name)
  * @method static array getConnectionConfigs()
  * @method static array getConnectionConfig(string $name)
  * @method static \Hypervel\HttpClient\Factory setConnectionConfig(string $name, array $config)
