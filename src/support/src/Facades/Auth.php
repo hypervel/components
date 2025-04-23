@@ -16,6 +16,7 @@ use Hypervel\Auth\Contracts\Guard;
  * @method static string getDefaultDriver()
  * @method static void shouldUse(string|null $name)
  * @method static void setDefaultDriver(string $name)
+ * @method static \Hypervel\Auth\AuthManager viaRequest(string $driver, callable $callback)
  * @method static \Closure userResolver()
  * @method static \Hypervel\Auth\AuthManager resolveUsersUsing(\Closure $userResolver)
  * @method static array getGuards()
