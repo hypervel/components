@@ -12,7 +12,7 @@ class LimitedMaxHeap extends SplMaxHeap
     {
     }
 
-    public function insert(mixed $value): bool
+    public function insert(mixed $value): true
     {
         if ($this->count() < $this->limit) {
             return parent::insert($value);
@@ -20,10 +20,8 @@ class LimitedMaxHeap extends SplMaxHeap
 
         if ($this->compare($value, $this->top()) < 0) {
             $this->extract();
-
-            return parent::insert($value);
         }
 
-        return false;
+        return parent::insert($value);
     }
 }

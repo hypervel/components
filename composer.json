@@ -172,7 +172,7 @@
     },
     "require-dev": {
         "ably/ably-php": "^1.0",
-        "fakerphp/faker": "^2.0",
+        "fakerphp/faker": "^1.24.1",
         "filp/whoops": "^2.15",
         "friendsofphp/php-cs-fixer": "^3.57.2",
         "hyperf/devtool": "~3.1.0",
@@ -184,7 +184,7 @@
         "league/flysystem-google-cloud-storage": "^3.0",
         "league/flysystem-path-prefixing": "^3.3",
         "league/flysystem-read-only": "^3.3",
-        "mockery/mockery": "^1.5.1",
+        "mockery/mockery": "1.6.x-dev",
         "nunomaduro/collision": "^8.5",
         "pda/pheanstalk": "v5.0.9",
         "phpstan/phpstan": "^1.11.5",
