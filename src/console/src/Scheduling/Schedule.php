@@ -27,7 +27,7 @@ use Hypervel\Support\ProcessUtils;
 use RuntimeException;
 
 /**
- * @mixin PendingEventAttributes
+ * @mixin \Hypervel\Console\Scheduling\PendingEventAttributes
  */
 class Schedule
 {
