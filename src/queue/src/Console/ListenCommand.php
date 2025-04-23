@@ -37,15 +37,12 @@ class ListenCommand extends Command
     protected string $description = 'Listen to a given queue';
 
     /**
-     * The queue listener instance.
-     */
-    protected Listener $listener;
-
-    /**
      * Create a new queue listen command.
      */
-    public function __construct(Listener $listener)
-    {
+    public function __construct(
+        protected ConfigInterface $config,
+        protected Listener $listener
+    ) {
         parent::__construct();
 
         $this->setOutputHandler($this->listener = $listener);
@@ -77,9 +74,9 @@ class ListenCommand extends Command
      */
     protected function getQueue(?string $connection): string
     {
-        $connection = $connection ?: $this->app->get(ConfigInterface::class)->get('queue.default');
+        $connection = $connection ?: $this->config->get('queue.default');
 
-        return $this->input->getOption('queue') ?: $this->app->get(ConfigInterface::class)->get(
+        return $this->input->getOption('queue') ?: $this->config->get(
             "queue.connections.{$connection}.queue",
             'default'
         );

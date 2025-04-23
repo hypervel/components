@@ -38,7 +38,8 @@ class MonitorCommand extends Command
      */
     public function __construct(
         protected Factory $manager,
-        protected EventDispatcherInterface $events
+        protected EventDispatcherInterface $events,
+        protected ConfigInterface $config,
     ) {
         parent::__construct();
     }
@@ -66,7 +67,7 @@ class MonitorCommand extends Command
 
             if (! isset($queue)) {
                 $queue = $connection;
-                $connection = $this->app->get(ConfigInterface::class)->get('queue.default');
+                $connection = $this->config->get('queue.default');
             }
 
             return [
