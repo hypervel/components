@@ -63,4 +63,9 @@ class Subscriber
             throw new SocketException('Redis connection is disconnected abnormally.');
         }
     }
+
+    public function __destruct()
+    {
+        $this->subscriber->close();
+    }
 }
