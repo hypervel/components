@@ -15,6 +15,7 @@ use Hyperf\HttpServer\Router\Dispatched;
 use Hypervel\Router\Contracts\UrlRoutable;
 use Hypervel\Router\Exceptions\BackedEnumCaseNotFoundException;
 use Hypervel\Router\Exceptions\UrlRoutableNotFoundException;
+use Hypervel\Router\Router;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -25,8 +26,15 @@ use function Hyperf\Support\make;
 
 class SubstituteBindings implements MiddlewareInterface
 {
-    public function __construct(protected ContainerInterface $container)
-    {
+    /**
+     * All of the resolved definitions by dispatched routes.
+     */
+    protected array $resolvedDefinitions = [];
+
+    public function __construct(
+        protected ContainerInterface $container,
+        protected Router $router
+    ) {
     }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -38,13 +46,11 @@ class SubstituteBindings implements MiddlewareInterface
             return $handler->handle($request);
         }
 
-        if (strpos($dispatched->handler->route, '{') === false) {
+        if (! $params = $dispatched->params) {
             return $handler->handle($request);
         }
 
         $definitions = $this->getDefinitions($dispatched->handler->callback);
-        $params = $dispatched->params;
-
         $dispatched->params = $this->substituteBindings($definitions, $params);
 
         return $handler->handle($request);
@@ -71,11 +77,14 @@ class SubstituteBindings implements MiddlewareInterface
      */
     protected function getClosureDefinitions(Closure $callback): array
     {
-        if (! $this->container->has(ClosureDefinitionCollectorInterface::class)) {
-            return [];
+        $signature = spl_object_hash($callback);
+        if ($definitions = $this->resolvedDefinitions[$signature] ?? null) {
+            return $definitions;
         }
 
-        return $this->container->get(ClosureDefinitionCollectorInterface::class)->getParameters($callback);
+        return $this->resolvedDefinitions[$signature] = $this->container->has(ClosureDefinitionCollectorInterface::class)
+            ? $this->container->get(ClosureDefinitionCollectorInterface::class)->getParameters($callback)
+            : [];
     }
 
     /**
@@ -86,7 +95,12 @@ class SubstituteBindings implements MiddlewareInterface
         $controller = $callback[0];
         $action = $callback[1];
 
-        return $this->container->get(MethodDefinitionCollectorInterface::class)->getParameters($controller, $action);
+        $signature = "{$controller}::{$action}";
+        if ($definitions = $this->resolvedDefinitions[$signature] ?? null) {
+            return $definitions;
+        }
+
+        return $this->resolvedDefinitions[$signature] = $this->container->get(MethodDefinitionCollectorInterface::class)->getParameters($controller, $action);
     }
 
     /**
@@ -100,7 +114,10 @@ class SubstituteBindings implements MiddlewareInterface
             if (! array_key_exists($name, $params)) {
                 continue;
             }
-
+            if ($binding = $this->router->getExplicitBinding($name)) {
+                $params[$name] = $binding($params[$name]);
+                continue;
+            }
             if ($binding = $this->resolveBinding($definition, $params, $name)) {
                 $params[$name] = $binding;
             }
@@ -113,7 +130,7 @@ class SubstituteBindings implements MiddlewareInterface
      * @throws ModelNotFoundException
      * @throws BackedEnumCaseNotFoundException
      */
-    protected function resolveBinding(ReflectionType $definition, array $params, string $name)
+    protected function resolveBinding(ReflectionType $definition, array $params, string $name): mixed
     {
         $class = $definition->getName();
 
@@ -122,12 +139,17 @@ class SubstituteBindings implements MiddlewareInterface
         }
 
         if (is_a($class, Model::class, true)) {
-            return $this->resolveModel($class, $params[$name]);
+            return $this->resolveModel(
+                $this->router->getModelBinding($name) ?: $class,
+                $params[$name]
+            );
         }
 
         if (is_a($class, BackedEnum::class, true)) {
             return $this->resolveBackedEnum($class, $params[$name]);
         }
+
+        return null;
     }
 
     /**
