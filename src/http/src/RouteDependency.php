@@ -106,6 +106,7 @@ class RouteDependency
     public function getMethodParameters(string $controller, string $action, array $arguments): array
     {
         $signature = "{$controller}::{$action}";
+
         return $this->getDependencies(
             $this->resolvedDefinitions[$signature] ?? $this->resolvedDefinitions[$signature] = $this->methodDefinitionCollector->getParameters($controller, $action),
             "{$controller}::{$action}",
@@ -121,6 +122,7 @@ class RouteDependency
     public function getClosureParameters(Closure $closure, array $arguments): array
     {
         $signature = spl_object_hash($closure);
+
         return $this->getDependencies(
             $this->resolvedDefinitions[$signature] ?? $this->resolvedDefinitions[$signature] = $this->closureDefinitionCollector->getParameters($closure),
             'Closure',
