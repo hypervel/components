@@ -16,9 +16,9 @@ use Psr\Container\ContainerInterface;
 class RouteDependency
 {
     /**
-     * All of the resolved dependencies by dispatched routes.
+     * All of the resolved definitions by dispatched routes.
      */
-    protected array $resolvedDependencies = [];
+    protected array $resolvedDefinitions = [];
 
     /**
      * All of the after resolving callbacks by class type.
@@ -105,22 +105,11 @@ class RouteDependency
      */
     public function getMethodParameters(string $controller, string $action, array $arguments): array
     {
-        $signature = "{$controller}::{$action}";
-        if (! $arguments && isset($this->resolvedDependencies[$signature])) {
-            return $this->resolvedDependencies[$signature];
-        }
-
-        $dependencies = $this->getDependencies(
-            $this->methodDefinitionCollector->getParameters($controller, $action),
+        return $this->getDependencies(
+            $this->getMethodDefinitions($controller, $action),
             "{$controller}::{$action}",
             $arguments
         );
-
-        if (! $arguments) {
-            $this->resolvedDependencies[$signature] = $dependencies;
-        }
-
-        return $dependencies;
     }
 
     /**
@@ -130,22 +119,33 @@ class RouteDependency
      */
     public function getClosureParameters(Closure $closure, array $arguments): array
     {
-        $signature = spl_object_hash($closure);
-        if (! $arguments && isset($this->resolvedDependencies[$signature])) {
-            return $this->resolvedDependencies[$signature];
-        }
-
-        $dependencies = $this->getDependencies(
-            $this->closureDefinitionCollector->getParameters($closure),
+        return $this->getDependencies(
+            $this->getClosureDefinitions($closure),
             'Closure',
             $arguments
         );
+    }
 
-        if (! $arguments) {
-            $this->resolvedDependencies[$signature] = $dependencies;
-        }
+    /**
+     * Parse the parameters of method definitions.
+     */
+    public function getMethodDefinitions(string $controller, string $action): array
+    {
+        $signature = "{$controller}::{$action}";
 
-        return $dependencies;
+        return $this->resolvedDefinitions[$signature]
+            ?? $this->resolvedDefinitions[$signature] = $this->methodDefinitionCollector->getParameters($controller, $action);
+    }
+
+    /**
+     * Parse the parameters of closure definitions.
+     */
+    public function getClosureDefinitions(Closure $closure): array
+    {
+        $signature = spl_object_hash($closure);
+
+        return $this->resolvedDefinitions[$signature]
+            ?? $this->resolvedDefinitions[$signature] = $this->closureDefinitionCollector->getParameters($closure);
     }
 
     /**
