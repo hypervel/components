@@ -6,7 +6,9 @@ namespace Hypervel\Router;
 
 use Closure;
 use Hyperf\Context\ApplicationContext;
+use Hyperf\Database\Model\Model;
 use Hyperf\HttpServer\Router\DispatcherFactory;
+use Hyperf\HttpServer\Router\RouteCollector;
 use RuntimeException;
 
 /**
@@ -15,6 +17,20 @@ use RuntimeException;
 class Router
 {
     protected string $serverName = 'http';
+
+    /**
+     * Customized route parameters for model bindings.
+     *
+     * @var array<string, class-string>
+     */
+    protected array $modelBindings = [];
+
+    /**
+     * Customized route parameters for explicit bindings.
+     *
+     * @var array<string, Closure>
+     */
+    protected array $explicitBindings = [];
 
     public function __construct(protected DispatcherFactory $dispatcherFactory)
     {
@@ -59,10 +75,38 @@ class Router
         return fn () => require $routeFile;
     }
 
-    public function getRouter()
+    public function getRouter(): RouteCollector
     {
         return $this->dispatcherFactory
             ->getRouter($this->serverName);
+    }
+
+    public function model(string $param, string $modelClass): void
+    {
+        if (! class_exists($modelClass)) {
+            throw new RuntimeException("Model class `{$modelClass}` does not exist.");
+        }
+
+        if (! is_subclass_of($modelClass, Model::class)) {
+            throw new RuntimeException("Model class `{$modelClass}` must be a subclass of `Model`.");
+        }
+
+        $this->modelBindings[$param] = $modelClass;
+    }
+
+    public function bind(string $param, Closure $callback): void
+    {
+        $this->explicitBindings[$param] = $callback;
+    }
+
+    public function getModelBinding(string $param): ?string
+    {
+        return $this->modelBindings[$param] ?? null;
+    }
+
+    public function getExplicitBinding(string $param): ?Closure
+    {
+        return $this->explicitBindings[$param] ?? null;
     }
 
     public static function __callStatic(string $name, array $arguments)
