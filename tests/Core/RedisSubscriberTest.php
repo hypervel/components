@@ -45,6 +45,9 @@ class RedisSubscriberTest extends TestCase
             ->twice()
             ->andReturn($mockChannel);
 
+        $mockRedisSubscriber->shouldReceive('close')
+            ->once();
+
         $mockRedisSubscriber->closed = true;
 
         $subscriber = new Subscriber($config, $mockRedisSubscriber);
@@ -82,6 +85,9 @@ class RedisSubscriberTest extends TestCase
         $mockRedisSubscriber->shouldReceive('channel')
             ->once()
             ->andReturn($mockChannel);
+
+        $mockRedisSubscriber->shouldReceive('close')
+            ->once();
 
         $mockRedisSubscriber->closed = false;
 
@@ -126,6 +132,9 @@ class RedisSubscriberTest extends TestCase
             ->twice()
             ->andReturn($mockChannel);
 
+        $mockRedisSubscriber->shouldReceive('close')
+            ->once();
+
         $mockRedisSubscriber->closed = true;
 
         $subscriber = new Subscriber($config, $mockRedisSubscriber);
@@ -163,6 +172,9 @@ class RedisSubscriberTest extends TestCase
         $mockRedisSubscriber->shouldReceive('channel')
             ->once()
             ->andReturn($mockChannel);
+
+        $mockRedisSubscriber->shouldReceive('close')
+            ->once();
 
         $mockRedisSubscriber->closed = false;
 
