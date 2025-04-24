@@ -8,10 +8,9 @@ use BackedEnum;
 use Closure;
 use Hyperf\Database\Model\Model;
 use Hyperf\Database\Model\ModelNotFoundException;
-use Hyperf\Di\ClosureDefinitionCollectorInterface;
-use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hyperf\Di\ReflectionType;
 use Hyperf\HttpServer\Router\Dispatched;
+use Hypervel\Http\RouteDependency;
 use Hypervel\Router\Contracts\UrlRoutable;
 use Hypervel\Router\Exceptions\BackedEnumCaseNotFoundException;
 use Hypervel\Router\Exceptions\UrlRoutableNotFoundException;
@@ -27,13 +26,14 @@ use function Hyperf\Support\make;
 class SubstituteBindings implements MiddlewareInterface
 {
     /**
-     * All of the resolved definitions by dispatched routes.
+     * All of the resolved url routables.
      */
-    protected array $resolvedDefinitions = [];
+    protected array $resolvedUrlRoutables = [];
 
     public function __construct(
         protected ContainerInterface $container,
-        protected Router $router
+        protected RouteDependency $routeDependency,
+        protected Router $router,
     ) {
     }
 
@@ -62,45 +62,14 @@ class SubstituteBindings implements MiddlewareInterface
     protected function getDefinitions(array|Closure|string $callback): array
     {
         if ($callback instanceof Closure) {
-            return $this->getClosureDefinitions($callback);
+            return $this->routeDependency->getClosureDefinitions($callback);
         }
 
         if (is_string($callback)) {
             $callback = explode('@', $callback);
         }
 
-        return $this->getMethodDefinitions($callback);
-    }
-
-    /**
-     * @return ReflectionType[]
-     */
-    protected function getClosureDefinitions(Closure $callback): array
-    {
-        $signature = spl_object_hash($callback);
-        if ($definitions = $this->resolvedDefinitions[$signature] ?? null) {
-            return $definitions;
-        }
-
-        return $this->resolvedDefinitions[$signature] = $this->container->has(ClosureDefinitionCollectorInterface::class)
-            ? $this->container->get(ClosureDefinitionCollectorInterface::class)->getParameters($callback)
-            : [];
-    }
-
-    /**
-     * @return ReflectionType[]
-     */
-    protected function getMethodDefinitions(array $callback): array
-    {
-        $controller = $callback[0];
-        $action = $callback[1];
-
-        $signature = "{$controller}::{$action}";
-        if ($definitions = $this->resolvedDefinitions[$signature] ?? null) {
-            return $definitions;
-        }
-
-        return $this->resolvedDefinitions[$signature] = $this->container->get(MethodDefinitionCollectorInterface::class)->getParameters($controller, $action);
+        return $this->routeDependency->getMethodDefinitions($callback[0], $callback[1]);
     }
 
     /**
@@ -132,17 +101,15 @@ class SubstituteBindings implements MiddlewareInterface
      */
     protected function resolveBinding(ReflectionType $definition, array $params, string $name): mixed
     {
-        $class = $definition->getName();
+        $class = $this->router->getModelBinding($name)
+            ?: $definition->getName();
 
         if (is_a($class, UrlRoutable::class, true)) {
             return $this->resolveUrlRoutable($class, $params[$name]);
         }
 
         if (is_a($class, Model::class, true)) {
-            return $this->resolveModel(
-                $this->router->getModelBinding($name) ?: $class,
-                $params[$name]
-            );
+            return $this->resolveModel($class, $params[$name]);
         }
 
         if (is_a($class, BackedEnum::class, true)) {
@@ -158,14 +125,15 @@ class SubstituteBindings implements MiddlewareInterface
      */
     protected function resolveUrlRoutable(string $class, string $routeKey): UrlRoutable
     {
-        $urlRoutable = make($class)->resolveRouteBinding($routeKey);
+        $urlRoutable = $this->resolvedUrlRoutables[$class]
+            ?? $this->resolvedUrlRoutables[$class] = make($class);
 
-        if (is_null($urlRoutable)) {
+        if (! $result = $urlRoutable->resolveRouteBinding($routeKey)) {
             throw new UrlRoutableNotFoundException($class, $routeKey);
         }
 
         /* @phpstan-ignore-next-line */
-        return $urlRoutable;
+        return $result;
     }
 
     /**
