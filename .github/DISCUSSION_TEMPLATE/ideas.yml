@@ -1,0 +1,15 @@
+labels: [feature]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for your interest in Hypervel! 🚀
+
+        If you have an idea or suggestion for a new feature, the best way to make it happen is to do it yourself! 💪
+        We encourage you to contribute to Hypervel by submitting a pull request with your proposed changes.
+        Not all the ideas will be accepted due to the considerations of the complexity and maintenance, so you may open a discussion before implementing your idea to get feedback from the community and the maintainers.
+  - type: textarea
+    id: content
+    attributes:
+      label: Content
+      description: Please provide a detailed description of your idea or suggestion for a new feature. Include any relevant context, use cases, or examples to help us understand your proposal better.
