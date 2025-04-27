@@ -101,6 +101,12 @@ if (! function_exists('base_path')) {
      */
     function base_path(string $path = ''): string
     {
+        if (! ApplicationContext::hasContainer()) {
+            return defined('BASE_PATH')
+                ? join_paths(BASE_PATH, $path)
+                : throw new RuntimeException('BASE_PATH constant is not defined.');
+        }
+
         return app()->basePath($path);
     }
 }
@@ -111,7 +117,7 @@ if (! function_exists('app_path')) {
      */
     function app_path(string $path = ''): string
     {
-        return join_paths(app()->basePath('app'), $path);
+        return join_paths(base_path('app'), $path);
     }
 }
 
@@ -131,7 +137,7 @@ if (! function_exists('database_path')) {
      */
     function database_path(string $path = ''): string
     {
-        return join_paths(app()->basePath('database'), $path);
+        return join_paths(base_path('database'), $path);
     }
 }
 
@@ -141,7 +147,7 @@ if (! function_exists('storage_path')) {
      */
     function storage_path(string $path = ''): string
     {
-        return join_paths(app()->basePath('storage'), $path);
+        return join_paths(base_path('storage'), $path);
     }
 }
 
@@ -151,7 +157,7 @@ if (! function_exists('config_path')) {
      */
     function config_path(string $path = ''): string
     {
-        return join_paths(app()->basePath('config'), $path);
+        return join_paths(base_path('config'), $path);
     }
 }
 
@@ -161,7 +167,7 @@ if (! function_exists('resource_path')) {
      */
     function resource_path(string $path = ''): string
     {
-        return app()->resourcePath($path);
+        return join_paths(base_path('resources'), $path);
     }
 }
 
@@ -171,7 +177,7 @@ if (! function_exists('lang_path')) {
      */
     function lang_path(string $path = ''): string
     {
-        return join_paths(app()->basePath('lang'), $path);
+        return join_paths(base_path('lang'), $path);
     }
 }
 
@@ -181,7 +187,7 @@ if (! function_exists('public_path')) {
      */
     function public_path(string $path = ''): string
     {
-        return join_paths(app()->basePath('public'), $path);
+        return join_paths(base_path('public'), $path);
     }
 }
 
@@ -253,7 +259,7 @@ if (! function_exists('cache')) {
      * @param mixed $default default|expiration|null
      * @return ($key is null ? \Hypervel\Cache\CacheManager : ($key is string ? mixed : bool))
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     function cache($key = null, $default = null)
     {
@@ -328,7 +334,7 @@ if (! function_exists('app')) {
         }
 
         if (is_null($abstract)) {
-            throw new \InvalidArgumentException('Invalid argument $abstract');
+            throw new InvalidArgumentException('Invalid argument $abstract');
         }
 
         return new $abstract(...array_values($parameters));
@@ -437,7 +443,7 @@ if (! function_exists('policy')) {
      * Get a policy instance for a given class.
      *
      * @return mixed|void
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     function policy(object|string $class)
     {
