@@ -18,10 +18,12 @@ use Hyperf\Database\Commands\Seeders\SeedCommand;
 use Hyperf\Database\Migrations\Migration;
 use Hyperf\Database\Migrations\MigrationCreator as HyperfMigrationCreator;
 use Hyperf\Database\Model\Factory as HyperfDatabaseFactory;
+use Hyperf\Redis\Pool\RedisPool as HyperfRedisPool;
 use Hyperf\ViewEngine\Compiler\CompilerInterface;
 use Hypervel\Database\Eloquent\Factories\FactoryInvoker as DatabaseFactoryInvoker;
 use Hypervel\Database\Migrations\MigrationCreator;
 use Hypervel\Database\TransactionListener;
+use Hypervel\Redis\RedisPool;
 use Hypervel\View\CompilerFactory;
 
 class ConfigProvider
@@ -32,6 +34,7 @@ class ConfigProvider
             'dependencies' => [
                 HyperfDatabaseFactory::class => DatabaseFactoryInvoker::class,
                 HyperfMigrationCreator::class => MigrationCreator::class,
+                HyperfRedisPool::class => RedisPool::class,
                 CompilerInterface::class => CompilerFactory::class,
             ],
             'listeners' => [
