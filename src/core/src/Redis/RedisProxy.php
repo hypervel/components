@@ -6,6 +6,7 @@ namespace Hypervel\Redis;
 
 use Closure;
 use Hyperf\Redis\RedisProxy as HyperfRedisProxy;
+use Hypervel\Support\Arr;
 
 class RedisProxy extends HyperfRedisProxy
 {
@@ -14,8 +15,9 @@ class RedisProxy extends HyperfRedisProxy
      */
     public function subscribe(array|string $channels, Closure $callback): void
     {
-        $this->getSubscriber()
-            ->subscribe($channels, $callback);
+        $callback = fn ($redis, $channel, $message) => $callback($message, $channel);
+
+        parent::subscribe(Arr::wrap($channels), $callback);
     }
 
     /**
@@ -23,14 +25,8 @@ class RedisProxy extends HyperfRedisProxy
      */
     public function psubscribe(array|string $channels, Closure $callback): void
     {
-        $this->getSubscriber()
-            ->psubscribe($channels, $callback);
-    }
+        $callback = fn ($redis, $pattern, $channel, $message) => $callback($message, $channel);
 
-    protected function getSubscriber(): Subscriber
-    {
-        return new Subscriber(
-            $this->factory->getPool($this->poolName)->getConfig()
-        );
+        parent::psubscribe(Arr::wrap($channels), $callback);
     }
 }
