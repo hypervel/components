@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Console\Testing;
+namespace Hypervel\Tests\Console;
 
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;

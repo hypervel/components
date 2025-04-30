@@ -6,7 +6,7 @@ namespace Workbench\App\Console\Commands;
 
 use Hypervel\Console\Command;
 
-class DemoCommand extends Command
+class DummyCommand extends Command
 {
     protected ?string $signature = 'sample:command';
 
