@@ -37,7 +37,6 @@ use Hypervel\Support\Contracts\Responsable;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Reflector;
 use Hypervel\Support\Traits\ReflectsClosures;
-use InvalidArgumentException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
 use Psr\Log\LogLevel;
@@ -162,10 +161,8 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
 
     /**
      * Register a renderable callback.
-     *
-     * @return $this
      */
-    public function renderable(callable $renderUsing)
+    public function renderable(callable $renderUsing): static
     {
         if (! $renderUsing instanceof Closure) {
             $renderUsing = Closure::fromCallable($renderUsing);
@@ -178,14 +175,8 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
 
     /**
      * Register a new exception mapping.
-     *
-     * @param Closure|string $from
-     * @param null|Closure|string $to
-     * @return $this
-     *
-     * @throws InvalidArgumentException
      */
-    public function map($from, $to = null): self
+    public function map(callable|string $from, null|Closure|string $to = null): static
     {
         if (is_string($to)) {
             $to = fn ($exception) => new $to('', 0, $exception);
@@ -193,10 +184,6 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
 
         if (is_callable($from) && is_null($to)) {
             $from = $this->firstClosureParameterType($to = $from);
-        }
-
-        if (! is_string($from) || ! $to instanceof Closure) {
-            throw new InvalidArgumentException('Invalid exception mapping.');
         }
 
         $this->exceptionMap[$from] = $to;
@@ -208,20 +195,16 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
      * Indicate that the given exception type should not be reported.
      *
      * Alias of "ignore".
-     *
-     * @return $this
      */
-    public function dontReport(array|string $exceptions): self
+    public function dontReport(array|string $exceptions): static
     {
         return $this->ignore($exceptions);
     }
 
     /**
      * Indicate that the given exception type should not be reported.
-     *
-     * @return $this
      */
-    public function ignore(array|string $exceptions): self
+    public function ignore(array|string $exceptions): static
     {
         $exceptions = Arr::wrap($exceptions);
 
@@ -232,10 +215,8 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
 
     /**
      * Indicate that the given attributes should never be flashed to the session on validation errors.
-     *
-     * @return $this
      */
-    public function dontFlash(array|string $attributes): self
+    public function dontFlash(array|string $attributes): static
     {
         $this->dontFlash = array_values(array_unique(
             array_merge($this->dontFlash, Arr::wrap($attributes))
@@ -246,10 +227,8 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
 
     /**
      * Remove the given exception class from the list of exceptions that should be ignored.
-     *
-     * @return $this
      */
-    public function stopIgnoring(array|string $exceptions): self
+    public function stopIgnoring(array|string $exceptions): static
     {
         $exceptions = Arr::wrap($exceptions);
 
@@ -267,9 +246,8 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
      *
      * @param class-string<Throwable> $type
      * @param \Psr\Log\LogLevel::* $level
-     * @return $this
      */
-    public function level($type, $level): self
+    public function level(string $type, string $level): static
     {
         $this->levels[$type] = $level;
 
@@ -430,10 +408,8 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
 
     /**
      * Register a closure that should be used to build exception context data.
-     *
-     * @return $this
      */
-    public function buildContextUsing(Closure $contextCallback): self
+    public function buildContextUsing(Closure $contextCallback): static
     {
         $this->contextCallbacks[] = $contextCallback;
 
@@ -616,9 +592,8 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
 
     /**
      * Get the message bag from the given provider.
-     * @param mixed $provider
      */
-    protected function getMessageBag($provider): MessageBagContract
+    protected function getMessageBag(mixed $provider): MessageBagContract
     {
         if ($provider instanceof MessageProvider) {
             return $provider->getMessageBag();
@@ -650,12 +625,8 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
 
     /**
      * Register the callable that determines if the exception handler response should be JSON.
-     *
-     * @param callable(Request $request, Throwable): bool $callback
-     * @param mixed $callback
-     * @return $this
      */
-    public function shouldRenderJsonWhen($callback): self
+    public function shouldRenderJsonWhen(callable $callback): static
     {
         $this->shouldRenderJsonWhenCallback = $callback;
 
@@ -752,11 +723,8 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
 
     /**
      * Prepare the final, rendered response for an exception using the given callback.
-     *
-     * @param callable $callback
-     * @return $this
      */
-    public function respondUsing($callback): self
+    public function respondUsing(callable $callback): static
     {
         $this->finalizeResponseCallback = $callback;
 
@@ -839,8 +807,6 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
 
     /**
      * Do not report duplicate exceptions.
-     *
-     * @return $this
      */
     public function dontReportDuplicates()
     {
