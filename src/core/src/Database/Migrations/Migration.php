@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Hyperf\Database\Migrations;
+namespace Hypervel\Database\Migrations;
 
-use Hyperf\Context\ApplicationContext;
 use Hyperf\Database\ConnectionResolverInterface;
+use Hypervel\Context\ApplicationContext;
 
 abstract class Migration
 {
