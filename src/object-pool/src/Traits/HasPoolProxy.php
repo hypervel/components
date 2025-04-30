@@ -24,7 +24,7 @@ trait HasPoolProxy
             ? $this->poolProxyClass
             : PoolProxy::class;
 
-        if (! is_subclass_of($proxyClass, PoolProxy::class)) {
+        if (! is_a($proxyClass, PoolProxy::class, true)) {
             throw new InvalidArgumentException('The pool proxy class must be an instance of ' . PoolProxy::class);
         }
 
