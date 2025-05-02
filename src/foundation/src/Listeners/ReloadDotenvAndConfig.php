@@ -53,7 +53,8 @@ class ReloadDotenvAndConfig implements ListenerInterface
 
     protected function reloadDotenv(): void
     {
-        if (! file_exists($basePath = $this->container->basePath())) {
+        $basePath = $this->container->basePath();
+        if (! file_exists($basePath . DIRECTORY_SEPARATOR . '.env')) {
             return;
         }
 
