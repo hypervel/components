@@ -14,7 +14,6 @@ use Hypervel\Container\BindingResolutionException;
 use Hypervel\Container\Container;
 use Hypervel\Container\DefinitionSource;
 use PHPUnit\Framework\TestCase;
-use stdClass;
 
 /**
  * @internal
@@ -154,26 +153,29 @@ class ContainerCallTest extends TestCase
     public function testCallWithDependencies()
     {
         $container = $this->getContainer();
-        $result = $container->call(function (stdClass $foo, $bar = []) {
+        $dependency = new ContainerCallWithDependencies();
+        $container->bind(ContainerCallWithDependenciesInterface::class, fn () => $dependency);
+
+        $result = $container->call(function (ContainerCallWithDependenciesInterface $foo, $bar = []) {
             return func_get_args();
         });
 
-        $this->assertInstanceOf(stdClass::class, $result[0]);
+        $this->assertSame($dependency, $result[0]);
         $this->assertEquals([], $result[1]);
 
-        $result = $container->call(function (stdClass $foo, $bar = []) {
+        $result = $container->call(function (ContainerCallWithDependenciesInterface $foo, $bar = []) {
             return func_get_args();
         }, ['bar' => 'taylor']);
 
-        $this->assertInstanceOf(stdClass::class, $result[0]);
+        $this->assertSame($dependency, $result[0]);
         $this->assertSame('taylor', $result[1]);
 
         $stub = new ContainerCallConcreteStub();
-        $result = $container->call(function (stdClass $foo, ContainerCallConcreteStub $bar) {
+        $result = $container->call(function (ContainerCallWithDependenciesInterface $foo, ContainerCallConcreteStub $bar) {
             return func_get_args();
         }, [ContainerCallConcreteStub::class => $stub]);
 
-        $this->assertInstanceOf(stdClass::class, $result[0]);
+        $this->assertSame($dependency, $result[0]);
         $this->assertSame($stub, $result[1]);
     }
 
@@ -279,4 +281,12 @@ class ContainerCallCallableClassStringStub
     {
         return [$this->stub, $this->default, $dependency];
     }
+}
+
+interface ContainerCallWithDependenciesInterface
+{
+}
+
+class ContainerCallWithDependencies implements ContainerCallWithDependenciesInterface
+{
 }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hyperf\Contract\TranslatorInterface;
+use Hypervel\Translation\Contracts\Translator as TranslatorContract;
 
 /**
  * @method static bool hasForLocale(string $key, string|null $locale = null)
@@ -19,9 +19,9 @@ use Hyperf\Contract\TranslatorInterface;
  * @method static void addNamespace(string $namespace, string $hint)
  * @method static void addJsonPath(string $path)
  * @method static array parseKey(string $key)
- * @method static \Hyperf\Translation\MessageSelector getSelector()
- * @method static void setSelector(\Hyperf\Translation\MessageSelector $selector)
- * @method static \Hyperf\Contract\TranslatorLoaderInterface getLoader()
+ * @method static \Hypervel\Translation\MessageSelector getSelector()
+ * @method static void setSelector(\Hypervel\Translation\MessageSelector $selector)
+ * @method static \Hypervel\Translation\Contracts\Loader getLoader()
  * @method static string locale()
  * @method static string getLocaleContextKey()
  * @method static string getLocale()
@@ -34,12 +34,12 @@ use Hyperf\Contract\TranslatorInterface;
  * @method static void mixin(object $mixin, bool $replace = true)
  * @method static bool hasMacro(string $name)
  *
- * @see \Hyperf\Translation\Translator
+ * @see \Hypervel\Translation\Translator
  */
 class Lang extends Facade
 {
     protected static function getFacadeAccessor()
     {
-        return TranslatorInterface::class;
+        return TranslatorContract::class;
     }
 }
