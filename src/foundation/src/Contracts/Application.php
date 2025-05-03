@@ -45,6 +45,26 @@ interface Application extends Container
     public function path(string $path = ''): string;
 
     /**
+     * Get the path to the application configuration files.
+     */
+    public function configPath(string $path = ''): string;
+
+    /**
+     * Get the path to the database directory.
+     */
+    public function databasePath(string $path = ''): string;
+
+    /**
+     * Get the path to the language files.
+     */
+    public function langPath(string $path = ''): string;
+
+    /**
+     * Get the path to the public directory.
+     */
+    public function publicPath(string $path = ''): string;
+
+    /**
      * Get the path to the resources directory.
      */
     public function resourcePath(string $path = ''): string;
