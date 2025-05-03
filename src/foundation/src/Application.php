@@ -181,6 +181,38 @@ class Application extends Container implements ApplicationContract
     }
 
     /**
+     * Get the path to the application configuration files.
+     */
+    public function configPath(string $path = ''): string
+    {
+        return $this->joinPaths($this->basePath('config'), $path);
+    }
+
+    /**
+     * Get the path to the database directory.
+     */
+    public function databasePath(string $path = ''): string
+    {
+        return $this->joinPaths($this->basePath('database'), $path);
+    }
+
+    /**
+     * Get the path to the language files.
+     */
+    public function langPath(string $path = ''): string
+    {
+        return $this->joinPaths($this->basePath('lang'), $path);
+    }
+
+    /**
+     * Get the path to the public directory.
+     */
+    public function publicPath(string $path = ''): string
+    {
+        return $this->joinPaths($this->basePath('public'), $path);
+    }
+
+    /**
      * Get the path to the resources directory.
      */
     public function resourcePath(string $path = ''): string
