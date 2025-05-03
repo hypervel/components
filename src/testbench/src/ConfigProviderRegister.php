@@ -29,7 +29,6 @@ class ConfigProviderRegister
         \Hyperf\Serializer\ConfigProvider::class,
         \Hyperf\Server\ConfigProvider::class,
         \Hyperf\Signal\ConfigProvider::class,
-        \Hyperf\Translation\ConfigProvider::class,
         \Hyperf\Validation\ConfigProvider::class,
         \Hypervel\ConfigProvider::class,
         \Hypervel\Auth\ConfigProvider::class,
@@ -53,6 +52,7 @@ class ConfigProviderRegister
         \Hypervel\Queue\ConfigProvider::class,
         \Hypervel\Router\ConfigProvider::class,
         \Hypervel\Session\ConfigProvider::class,
+        \Hypervel\Translation\ConfigProvider::class,
     ];
 
     public static function get(): array

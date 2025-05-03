@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
-use Hyperf\Contract\TranslatorInterface;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
@@ -15,6 +14,7 @@ use Hypervel\Support\Environment;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
+use Hypervel\Translation\Contracts\Translator as TranslatorContract;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use stdClass;
@@ -39,7 +39,7 @@ class FoundationApplicationTest extends TestCase
             ->once();
 
         $app = $this->getApplication([
-            TranslatorInterface::class => fn () => $trans,
+            TranslatorContract::class => fn () => $trans,
             EventDispatcherInterface::class => fn () => $events,
         ]);
 
