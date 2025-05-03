@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;;
+use Hypervel\Translation\Contracts\Translator as TranslatorContract;
 
 /**
  * @method static bool hasForLocale(string $key, string|null $locale = null)
