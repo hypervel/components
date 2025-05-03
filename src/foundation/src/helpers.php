@@ -32,6 +32,7 @@ use Hypervel\Session\Contracts\Session as SessionContract;
 use Hypervel\Support\Contracts\Responsable;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Mix;
+use Hypervel\Translation\Contracts\Translator as TranslatorContract;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
 
@@ -676,23 +677,34 @@ if (! function_exists('auth')) {
 }
 
 if (! function_exists('trans')) {
-    function trans(string $key, array $replace = [], ?string $locale = null)
+    /**
+     * Translate the given message.
+     *
+     * @return ($key is null ? TranslatorContract : array|string)
+     */
+    function trans(?string $key = null, array $replace = [], ?string $locale = null): array|string|TranslatorContract
     {
-        return \Hyperf\Translation\trans($key, $replace, $locale);
+        return \Hypervel\Translation\trans($key, $replace, $locale);
     }
 }
 
 if (! function_exists('trans_choice')) {
-    function trans_choice(string $key, $number, array $replace = [], ?string $locale = null): string
+    /**
+     * Translates the given message based on a count.
+     */
+    function trans_choice(string $key, array|Countable|float|int $number, array $replace = [], ?string $locale = null): string
     {
-        return \Hyperf\Translation\trans_choice($key, $number, $replace, $locale);
+        return \Hypervel\Translation\trans_choice($key, $number, $replace, $locale);
     }
 }
 
 if (! function_exists('__')) {
-    function __(string $key, array $replace = [], ?string $locale = null)
+    /**
+     * Translate the given message.
+     */
+    function __(?string $key = null, array $replace = [], ?string $locale = null): null|array|string
     {
-        return \Hyperf\Translation\trans($key, $replace, $locale);
+        return \Hypervel\Translation\trans($key, $replace, $locale);
     }
 }
 

@@ -1,0 +1,47 @@
+{
+    "name": "hypervel/translation",
+    "type": "library",
+    "description": "The translation package for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "hyperf",
+        "translation",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Translation\\": "src/"
+        },
+        "files": [
+            "src/Functions.php"
+        ]
+    },
+    "require": {
+        "php": "^8.2",
+        "hypervel/filesystem": "^0.1",
+        "hypervel/support": "^0.1"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "hyperf": {
+            "config": "Hypervel\\Translation\\ConfigProvider"
+        },
+        "branch-alias": {
+            "dev-main": "0.1-dev"
+        }
+    }
+}

@@ -56,7 +56,8 @@
             "Hypervel\\Session\\": "src/session/src/",
             "Hypervel\\Support\\": "src/support/src/",
             "Hypervel\\Telescope\\": "src/telescope/src/",
-            "Hypervel\\Testbench\\": "src/testbench/src/"
+            "Hypervel\\Testbench\\": "src/testbench/src/",
+            "Hypervel\\Translation\\": "src/translation/src/"
         },
         "files": [
             "src/auth/src/Functions.php",
@@ -71,7 +72,8 @@
             "src/router/src/Functions.php",
             "src/session/src/Functions.php",
             "src/support/src/Functions.php",
-            "src/support/src/helpers.php"
+            "src/support/src/helpers.php",
+            "src/translation/src/Functions.php"
         ]
     },
     "autoload-dev": {
@@ -107,7 +109,6 @@
         "hyperf/process": "~3.1.0",
         "hyperf/resource": "~3.1.0",
         "hyperf/signal": "~3.1.0",
-        "hyperf/translation": "~3.1.0",
         "hyperf/validation": "~3.1.0",
         "laravel/serializable-closure": "^1.3",
         "lcobucci/jwt": "^5.0",

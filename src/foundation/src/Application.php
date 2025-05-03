@@ -511,7 +511,7 @@ class Application extends Container implements ApplicationContract
      */
     public function isLocale(string $locale): bool
     {
-        return $this['translator']->getLocale() === $locale;
+        return $this->getLocale() === $locale;
     }
 
     /**
@@ -527,7 +527,7 @@ class Application extends Container implements ApplicationContract
      */
     public function getFallbackLocale(): string
     {
-        return $this['config']->get('app.fallback_locale');
+        return $this['translator']->getFallback();
     }
 
     /**
@@ -583,7 +583,8 @@ class Application extends Container implements ApplicationContract
                 'filesystem',
                 \Hypervel\Filesystem\FilesystemManager::class,
             ],
-            \Hyperf\Contract\TranslatorInterface::class => ['translator'],
+            \Hypervel\Translation\Contracts\Loader::class => ['translator.loader'],
+            \Hypervel\Translation\Contracts\Translator::class => ['translator'],
             \Hyperf\Validation\Contract\ValidatorFactoryInterface::class => ['validator'],
             \Psr\Http\Message\ServerRequestInterface::class => [
                 'request',
