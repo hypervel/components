@@ -22,8 +22,10 @@ body:
           required: true
         - label: Please be respectful and considerate in your interactions with others in the community.
           required: true
+        - label: Any questions labeled `not enough info` will be ignored and closed after 3 days.
+          required: true
   - type: textarea
     id: content
     attributes:
       label: Content
-      description: Ask your question here. Please provide as much detail as possible to help us understand your issue.
+      description: Ask your question here. Please provide **AS MUCH DETAIL AS POSSIBLE** to help us understand your question.

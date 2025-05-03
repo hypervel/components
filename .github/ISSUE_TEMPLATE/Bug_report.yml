@@ -28,7 +28,7 @@ body:
   - type: textarea
     attributes:
       label: Description
-      description: Provide a detailed description of the issue you are facing.
+      description: Provide a **DETAILED DESCRIPTION** of the issue you are facing. (Any issues labeled `not enough info` will be ignored and closed after 3 days.)
     validations:
       required: true
   - type: textarea
