@@ -15,6 +15,7 @@ use Hyperf\Database\Commands\Migrations\RollbackCommand;
 use Hyperf\Database\Commands\Migrations\StatusCommand;
 use Hyperf\Database\Commands\Seeders\BaseCommand as SeederBaseCommand;
 use Hyperf\Database\Commands\Seeders\SeedCommand;
+use Hyperf\Database\Migrations\Migration;
 use Hyperf\Database\Model\Factory as HyperfDatabaseFactory;
 use Hyperf\Redis\Pool\RedisPool as HyperfRedisPool;
 use Hyperf\ViewEngine\Compiler\CompilerInterface;
@@ -31,6 +32,7 @@ class ConfigProvider
     {
         return [
             'dependencies' => [
+                Migration::class => __DIR__ . '/../class_map/Database/Migrations/Migration.php', // TODO: this will be removed in the future version
                 HyperfDatabaseFactory::class => DatabaseFactoryInvoker::class,
                 HyperfMigrationCreator::class => MigrationCreator::class,
                 HyperfRedisPool::class => RedisPool::class,
