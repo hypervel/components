@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Foundation\Testing\Concerns;
 use Hyperf\Context\Context;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Auth\Contracts\Authenticatable as UserContract;
-use Hypervel\Auth\Contracts\FactoryContract as AuthManagerContract;
+use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
 use Hypervel\Auth\Contracts\Guard;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
 use Hypervel\Testbench\TestCase;
@@ -35,7 +35,7 @@ class InteractsWithAuthenticationTest extends TestCase
             ->twice()
             ->andReturn(false);
 
-        $this->app->get(AuthManagerContract::class)
+        $this->app->get(AuthFactoryContract::class)
             ->extend('foo', fn () => $guard);
         $this->app->get(ConfigInterface::class)
             ->set('auth.guards.foo', [
@@ -65,7 +65,7 @@ class InteractsWithAuthenticationTest extends TestCase
             ->twice()
             ->andReturn('id');
 
-        $this->app->get(AuthManagerContract::class)
+        $this->app->get(AuthFactoryContract::class)
             ->extend('foo', fn () => $guard);
         $this->app->get(ConfigInterface::class)
             ->set('auth.guards.foo', [

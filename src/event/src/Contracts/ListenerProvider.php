@@ -6,7 +6,7 @@ namespace Hypervel\Event\Contracts;
 
 use Psr\EventDispatcher\ListenerProviderInterface as PsrListenerProviderInterface;
 
-interface ListenerProviderContract extends PsrListenerProviderInterface
+interface ListenerProvider extends PsrListenerProviderInterface
 {
     /**
      * Get all of the listeners for a given event name.

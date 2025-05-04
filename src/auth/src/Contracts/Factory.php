@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Contracts;
 
-interface FactoryContract
+interface Factory
 {
     /**
      * Get a guard instance by name.

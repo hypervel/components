@@ -9,7 +9,7 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\HttpServer\MiddlewareManager;
-use Hypervel\Auth\Contracts\FactoryContract as AuthFactoryContract;
+use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
