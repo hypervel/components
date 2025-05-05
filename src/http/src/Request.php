@@ -10,17 +10,19 @@ use Closure;
 use Hyperf\Collection\Arr;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
-use Hyperf\Context\RequestContext;
 use Hyperf\HttpServer\Request as HyperfRequest;
 use Hyperf\Stringable\Str;
 use Hyperf\Validation\ValidatorFactory;
+use Hypervel\Context\RequestContext;
 use Hypervel\Http\Contracts\RequestContract;
 use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Session\Contracts\Session as SessionContract;
 use Hypervel\Support\Collection;
 use Psr\Http\Message\ServerRequestInterface;
+use RuntimeException;
 use stdClass;
 use Stringable;
+use TypeError;
 
 use function Hyperf\Collection\data_get;
 
@@ -862,5 +864,20 @@ class Request extends HyperfRequest implements RequestContract
     public function getPsr7Request(): ServerRequestInterface
     {
         return $this->getRequest();
+    }
+
+    protected function getRequest(): ServerRequestInterface
+    {
+        try {
+            return RequestContext::get();
+        } catch (TypeError $e) {
+            if (! RequestContext::has()) {
+                throw new RuntimeException(
+                    'RequestContext is not set, please use RequestContext::set() to set the request.'
+                );
+            }
+
+            throw $e;
+        }
     }
 }

@@ -19,6 +19,7 @@ use Mockery;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ServerRequestInterface;
+use RuntimeException;
 use Swow\Psr7\Message\ServerRequestPlusInterface;
 
 /**
@@ -805,6 +806,16 @@ class RequestTest extends TestCase
         ApplicationContext::setContainer($container);
 
         $this->assertTrue($request->hasValidRelativeSignatureWhileIgnoring());
+    }
+
+    public function testGetPsr7RequestWithRuntimeException()
+    {
+        Context::set(ServerRequestInterface::class, null);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('RequestContext is not set, please use RequestContext::set() to set the request.');
+
+        (new Request())->getPsr7Request();
     }
 }
 
