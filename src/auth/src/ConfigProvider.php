@@ -6,7 +6,7 @@ namespace Hypervel\Auth;
 
 use Hypervel\Auth\Access\GateFactory;
 use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\FactoryContract;
+use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
 use Hypervel\Auth\Contracts\Gate as GateContract;
 use Hypervel\Auth\Contracts\Guard;
 
@@ -16,9 +16,9 @@ class ConfigProvider
     {
         return [
             'dependencies' => [
-                FactoryContract::class => AuthManager::class,
+                AuthFactoryContract::class => AuthManager::class,
                 Authenticatable::class => UserResolver::class,
-                Guard::class => fn ($container) => $container->get(FactoryContract::class)->guard(),
+                Guard::class => fn ($container) => $container->get(Factory::class)->guard(),
                 GateContract::class => GateFactory::class,
             ],
             'publish' => [

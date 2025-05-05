@@ -8,7 +8,7 @@ use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Framework\Logger\StdoutLogger;
-use Hypervel\Event\Contracts\ListenerProviderContract;
+use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\EventDispatcherFactory;
 use Hypervel\Event\ListenerProvider;

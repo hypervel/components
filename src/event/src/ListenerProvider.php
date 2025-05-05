@@ -7,7 +7,7 @@ namespace Hypervel\Event;
 use Hyperf\Collection\Collection;
 use Hyperf\Stdlib\SplPriorityQueue;
 use Hyperf\Stringable\Str;
-use Hypervel\Event\Contracts\ListenerProviderContract;
+use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
 
 use function Hyperf\Collection\collect;
 

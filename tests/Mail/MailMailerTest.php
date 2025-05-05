@@ -9,13 +9,11 @@ use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
 use Hyperf\ViewEngine\Contract\ViewInterface;
-use Hypervel\Auth\Contracts\FactoryContract;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Mail\Events\MessageSending;
 use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\Mailer;
-use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Message;
 use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Support\HtmlString;
@@ -335,7 +333,6 @@ class MailMailerTest extends TestCase
         $container = new Container(
             new DefinitionSource([
                 ConfigInterface::class => fn () => m::mock(ConfigInterface::class),
-                FactoryContract::class => MailManager::class,
                 ViewFactory::class => ViewFactory::class,
                 EventDispatcherInterface::class => fn () => m::mock(EventDispatcherInterface::class),
             ])

@@ -8,7 +8,7 @@ use Closure;
 use Hyperf\Context\Context;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use Hypervel\Auth\Contracts\FactoryContract;
+use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
 use Hypervel\Auth\Contracts\Guard;
 use Hypervel\Auth\Contracts\StatefulGuard;
 use Hypervel\Auth\Guards\JwtGuard;
@@ -19,7 +19,7 @@ use Hypervel\Session\Contracts\Session as SessionContract;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;
 
-class AuthManager implements FactoryContract
+class AuthManager implements AuthFactoryContract
 {
     use CreatesUserProviders;
 
