@@ -9,7 +9,7 @@ use Hypervel\Event\ListenerData;
 use Hypervel\Event\QueuedClosure;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
-interface EventDispatcherContract extends EventDispatcherInterface
+interface Dispatcher extends EventDispatcherInterface
 {
     /**
      * Fire an event and call the listeners.

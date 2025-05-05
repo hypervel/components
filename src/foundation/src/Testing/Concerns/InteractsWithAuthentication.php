@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use Hypervel\Auth\Contracts\Authenticatable as UserContract;
-use Hypervel\Auth\Contracts\FactoryContract as AuthManagerContract;
+use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
 
 trait InteractsWithAuthentication
 {
@@ -26,11 +26,11 @@ trait InteractsWithAuthentication
             $user->wasRecentlyCreated = false;
         }
 
-        $this->app->get(AuthManagerContract::class)
+        $this->app->get(AuthFactoryContract::class)
             ->guard($guard)
             ->setUser($user);
 
-        $this->app->get(AuthManagerContract::class)
+        $this->app->get(AuthFactoryContract::class)
             ->shouldUse($guard);
 
         return $this;
@@ -62,7 +62,7 @@ trait InteractsWithAuthentication
     protected function isAuthenticated(?string $guard = null): bool
     {
         return $this->app
-            ->get(AuthManagerContract::class)
+            ->get(AuthFactoryContract::class)
             ->guard($guard)
             ->check();
     }
@@ -73,7 +73,7 @@ trait InteractsWithAuthentication
     public function assertAuthenticatedAs(UserContract $user, ?string $guard = null): static
     {
         $expected = $this->app
-            ->get(AuthManagerContract::class)
+            ->get(AuthFactoryContract::class)
             ->guard($guard)
             ->user();
 
@@ -126,7 +126,7 @@ trait InteractsWithAuthentication
     protected function hasCredentials(array $credentials, ?string $guard = null): bool
     {
         $provider = $this->app
-            ->get(AuthManagerContract::class)
+            ->get(AuthFactoryContract::class)
             ->guard($guard)
             ->getProvider();
 

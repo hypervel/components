@@ -562,7 +562,7 @@ class Application extends Container implements ApplicationContract
             ],
             \Psr\EventDispatcher\EventDispatcherInterface::class => [
                 'events',
-                \Hypervel\Event\Contracts\EventDispatcherContract::class,
+                \Hypervel\Event\Contracts\Dispatcher::class,
             ],
             \Hyperf\HttpServer\Router\DispatcherFactory::class => ['router'],
             \Psr\Log\LoggerInterface::class => ['log'],
@@ -592,13 +592,14 @@ class Application extends Container implements ApplicationContract
                 \Hyperf\HttpServer\Request::class,
                 \Hypervel\Http\Contracts\RequestContract::class,
             ],
-            \Hyperf\HttpServer\Contract\ResponseInterface::class => [
+            \Hypervel\Http\Contracts\ResponseContract::class => [
                 'response',
+                \Hyperf\HttpServer\Contract\ResponseInterface::class,
                 \Hyperf\HttpServer\Response::class,
             ],
             \Hyperf\DbConnection\Db::class => ['db'],
             \Hypervel\Database\Schema\SchemaProxy::class => ['db.schema'],
-            \Hypervel\Auth\Contracts\FactoryContract::class => [
+            \Hypervel\Auth\Contracts\Factory::class => [
                 'auth',
                 \Hypervel\Auth\AuthManager::class,
             ],
