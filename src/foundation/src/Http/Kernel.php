@@ -57,9 +57,9 @@ class Kernel extends HyperfServer implements MiddlewareContract
 
             // Convert Hyperf's uploaded files to Laravel style UploadedFile
             if ($uploadedFiles = $request->getUploadedFiles()) {
-                $request = $request->withUploadedFiles(array_map(function (HyperfUploadedFile $uploadedFile) {
-                    return UploadedFile::createFromBase($uploadedFile);
-                }, $uploadedFiles));
+                $request = $request->withUploadedFiles(
+                    $this->convertUploadedFiles($uploadedFiles)
+                );
 
                 RequestContext::set($request);
             }
@@ -93,6 +93,25 @@ class Kernel extends HyperfServer implements MiddlewareContract
                 $this->responseEmitter->emit($response, $swooleResponse);
             }
         }
+    }
+
+    /**
+     * Convert the given array of Hyperf UploadedFiles to custom Hypervel UploadedFiles.
+     *
+     * @param array<string, HyperfUploadedFile|HyperfUploadedFile[]> $files
+     * @return array<string, UploadedFile|UploadedFile[]>
+     */
+    protected function convertUploadedFiles(array $files): array
+    {
+        return array_map(function ($file) {
+            if (is_null($file) || (is_array($file) && empty(array_filter($file)))) {
+                return $file;
+            }
+
+            return is_array($file)
+                ? $this->convertUploadedFiles($file)
+                : UploadedFile::createFromBase($file);
+        }, $files);
     }
 
     protected function dispatchRequestReceivedEvent(Request $request, ResponseInterface $response): void
