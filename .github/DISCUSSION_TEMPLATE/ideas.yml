@@ -8,7 +8,8 @@ body:
         If you have an idea or suggestion for a new feature, the best way to make it happen is to do it yourself! 💪
         We encourage you to contribute to Hypervel by submitting a pull request with your proposed changes.
         Not all the ideas will be accepted due to the considerations of the complexity and maintenance, so you may open a discussion before implementing your idea to get feedback from the community and the maintainers.
-        For developers who want to port Laravel's packages to Hypervel, you can refer to this [guideline](https://hypervel.org/docs/packages-porting).
+
+        > For developers who want to port Laravel's packages to Hypervel, you can refer to this [guideline](https://hypervel.org/docs/packages-porting).
   - type: textarea
     id: content
     attributes:
