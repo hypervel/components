@@ -14,7 +14,7 @@ use RuntimeException;
  * @internal
  * @coversNothing
  */
-class TranslationFileLoaderTest extends TestCase
+class FileLoaderTest extends TestCase
 {
     protected function tearDown(): void
     {

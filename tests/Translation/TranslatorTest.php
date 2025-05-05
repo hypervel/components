@@ -19,7 +19,7 @@ use function Hypervel\Coroutine\run;
  * @internal
  * @coversNothing
  */
-class TranslationTranslatorTest extends TestCase
+class TranslatorTest extends TestCase
 {
     protected function tearDown(): void
     {
