@@ -32,7 +32,6 @@ class ConfigProvider
     {
         return [
             'dependencies' => [
-                Migration::class => __DIR__ . '/../class_map/Database/Migrations/Migration.php', // TODO: this will be removed in the future version
                 HyperfDatabaseFactory::class => DatabaseFactoryInvoker::class,
                 HyperfMigrationCreator::class => MigrationCreator::class,
                 HyperfRedisPool::class => RedisPool::class,
@@ -54,6 +53,7 @@ class ConfigProvider
             'annotations' => [
                 'scan' => [
                     'class_map' => [
+                        Migration::class => __DIR__ . '/../class_map/Database/Migrations/Migration.php', // TODO: this will be removed in the future version
                         MigrationBaseCommand::class => __DIR__ . '/../class_map/Database/Commands/Migrations/BaseCommand.php',
                         SeederBaseCommand::class => __DIR__ . '/../class_map/Database/Commands/Seeders/BaseCommand.php',
                         Confirmable::class => __DIR__ . '/../class_map/Command/Concerns/Confirmable.php',
