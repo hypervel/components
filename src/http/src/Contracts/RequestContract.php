@@ -369,7 +369,7 @@ interface RequestContract extends RequestInterface
      *
      * @throws \Hyperf\Validation\ValidationException
      */
-    public function validate(array $data, array $rules, array $messages = [], array $customAttributes = []): array;
+    public function validate(array $rules, array $messages = [], array $customAttributes = []): array;
 
     /**
      * Get the user resolver callback.
