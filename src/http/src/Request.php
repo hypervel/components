@@ -784,11 +784,11 @@ class Request extends HyperfRequest implements RequestContract
      *
      * @throws \Hyperf\Validation\ValidationException
      */
-    public function validate(array $data, array $rules, array $messages = [], array $customAttributes = []): array
+    public function validate(array $rules, array $messages = [], array $customAttributes = []): array
     {
         return ApplicationContext::getContainer()
             ->get(ValidatorFactory::class)
-            ->validate($data, $rules, $messages, $customAttributes);
+            ->validate($this->all(), $rules, $messages, $customAttributes);
     }
 
     /**

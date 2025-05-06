@@ -690,6 +690,8 @@ class RequestTest extends TestCase
     public function testValidate()
     {
         $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
+        $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John Doe']);
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
 
@@ -711,7 +713,6 @@ class RequestTest extends TestCase
         ApplicationContext::setContainer($container);
 
         $result = $request->validate(
-            ['name' => 'John Doe'],
             ['name' => 'required|string|max:255']
         );
 
