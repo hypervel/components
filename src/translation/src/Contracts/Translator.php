@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Translation\Contracts;
 
 use Countable;
+use Hyperf\Contract\TranslatorInterface;
 
-interface Translator
+interface Translator extends TranslatorInterface
 {
     /**
      * Get the translation for a given key.
