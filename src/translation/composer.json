@@ -30,6 +30,7 @@
     },
     "require": {
         "php": "^8.2",
+        "hyperf/contract": "~3.1.0",
         "hypervel/filesystem": "^0.1",
         "hypervel/support": "^0.1"
     },
