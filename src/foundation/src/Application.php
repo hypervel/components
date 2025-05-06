@@ -583,8 +583,14 @@ class Application extends Container implements ApplicationContract
                 'filesystem',
                 \Hypervel\Filesystem\FilesystemManager::class,
             ],
-            \Hypervel\Translation\Contracts\Loader::class => ['translator.loader'],
-            \Hypervel\Translation\Contracts\Translator::class => ['translator'],
+            \Hypervel\Translation\Contracts\Loader::class => [
+                'translator.loader',
+                \Hyperf\Contract\TranslatorLoaderInterface::class,
+            ],
+            \Hypervel\Translation\Contracts\Translator::class => [
+                'translator',
+                \Hyperf\Contract\TranslatorInterface::class,
+            ],
             \Hyperf\Validation\Contract\ValidatorFactoryInterface::class => ['validator'],
             \Psr\Http\Message\ServerRequestInterface::class => [
                 'request',
