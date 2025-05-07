@@ -26,6 +26,7 @@
         "hypervel/filesystem": "^0.1",
         "hypervel/support": "^0.1",
         "hypervel/http": "^0.1",
+        "hypervel/translation": "^0.1",
         "hyperf/config": "~3.1.0",
         "hyperf/di": "~3.1.0",
         "hyperf/support": "~3.1.0",

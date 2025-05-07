@@ -35,6 +35,7 @@
         "hypervel/support": "^0.1",
         "hypervel/filesystem": "^0.1",
         "hypervel/object-pool": "^0.1",
+        "hypervel/translation": "^0.1",
         "league/commonmark": "^2.2",
         "psr/log": "^1.0|^2.0|^3.0",
         "symfony/mailer": "^6.2",
