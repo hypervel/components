@@ -49,21 +49,39 @@ class CacheRedisTaggedCacheTest extends TestCase
         $this->redisProxy
             ->shouldReceive('zScan')
             ->once()
-            ->with('prefix:tag:people:entries', '0', '*', 1000)
-            ->andReturn(['tag:people:entries:name' => 0, 'tag:people:entries:age' => 0]);
+            ->with('prefix:tag:people:entries', null, '*', 1000)
+            ->andReturnUsing(function ($key, &$cursor) {
+                $cursor = 0;
+
+                return ['tag:people:entries:name' => 0, 'tag:people:entries:age' => 0];
+            });
         $this->redisProxy
             ->shouldReceive('zScan')
             ->once()
-            ->with('prefix:tag:author:entries', '0', '*', 1000)
-            ->andReturn(['tag:author:entries:name' => 0, 'tag:author:entries:age' => 0]);
+            ->with('prefix:tag:people:entries', 0, '*', 1000)
+            ->andReturnNull();
+        $this->redisProxy
+            ->shouldReceive('zScan')
+            ->once()
+            ->with('prefix:tag:author:entries', null, '*', 1000)
+            ->andReturnUsing(function ($key, &$cursor) {
+                $cursor = 0;
+
+                return ['tag:author:entries:name' => 0, 'tag:author:entries:age' => 0];
+            });
+        $this->redisProxy
+            ->shouldReceive('zScan')
+            ->once()
+            ->with('prefix:tag:author:entries', 0, '*', 1000)
+            ->andReturnNull();
+
         $this->redisProxy->shouldReceive('del')->once()->with(
             'prefix:tag:people:entries:name',
-            'prefix:tag:people:entries:age'
-        )->andReturn('OK');
-        $this->redisProxy->shouldReceive('del')->once()->with(
+            'prefix:tag:people:entries:age',
             'prefix:tag:author:entries:name',
             'prefix:tag:author:entries:age'
         )->andReturn('OK');
+
         $this->redisProxy->shouldReceive('del')->once()->with('prefix:tag:people:entries')->andReturn('OK');
         $this->redisProxy->shouldReceive('del')->once()->with('prefix:tag:author:entries')->andReturn('OK');
 
