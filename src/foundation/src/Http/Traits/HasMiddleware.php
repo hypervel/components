@@ -97,7 +97,17 @@ trait HasMiddleware
             $name = $parsedMiddleware->getName();
             $signature = $parsedMiddleware->getSignature();
             if (isset($this->middlewareAliases[$name])) {
-                $resolved[$signature] = $this->parseMiddleware($this->middlewareAliases[$name]);
+                // Get the actual middleware class from the alias
+                $aliasedMiddleware = $this->middlewareAliases[$name];
+                $parameters = $parsedMiddleware->getParameters();
+                if (!empty($parameters)) {
+                    // Use the original parameter string rather than imploding with commas
+                    $paramString = substr($signature, strlen($name) + 1);
+                    if ($paramString) {
+                        $aliasedMiddleware .= ':' . $paramString;
+                    }
+                }
+                $resolved[$signature] = $this->parseMiddleware($aliasedMiddleware);
                 continue;
             }
             if (isset($this->middlewareGroups[$name])) {
