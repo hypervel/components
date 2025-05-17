@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Http;
 
 use Hyperf\Context\RequestContext;
-use Hyperf\Contract\ConfigInterface;
 use Hyperf\Coordinator\Constants;
 use Hyperf\Coordinator\CoordinatorManager;
 use Hyperf\HttpMessage\Server\Request;
@@ -16,7 +15,8 @@ use Hyperf\HttpServer\Event\RequestReceived;
 use Hyperf\HttpServer\Event\RequestTerminated;
 use Hyperf\HttpServer\Server as HyperfServer;
 use Hyperf\Support\SafeCaller;
-use Hypervel\Foundation\Exceptions\Handlers\HttpExceptionHandler;
+use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Foundation\Exceptions\Handler as ExceptionHandler;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Foundation\Http\Traits\HasMiddleware;
 use Hypervel\Http\UploadedFile;
@@ -34,10 +34,16 @@ class Kernel extends HyperfServer implements MiddlewareContract
         $this->serverName = $serverName;
         $this->coreMiddleware = $this->createCoreMiddleware();
 
-        $config = $this->container->get(ConfigInterface::class);
-        $this->exceptionHandlers = $config->get('exceptions.handler.' . $serverName, $this->getDefaultExceptionHandler());
-
+        $this->initExceptionHandlers();
         $this->initOption();
+    }
+
+    protected function initExceptionHandlers(): void
+    {
+        /* @phpstan-ignore-next-line */
+        $this->exceptionHandlers = $this->container->bound(ExceptionHandlerContract::class)
+            ? [ExceptionHandlerContract::class]
+            : [ExceptionHandler::class];
     }
 
     public function onRequest($swooleRequest, $swooleResponse): void
@@ -155,12 +161,5 @@ class Kernel extends HyperfServer implements MiddlewareContract
         }, static function () {
             return (new Response())->withStatus(400);
         });
-    }
-
-    protected function getDefaultExceptionHandler(): array
-    {
-        return [
-            HttpExceptionHandler::class,
-        ];
     }
 }

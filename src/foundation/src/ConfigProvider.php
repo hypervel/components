@@ -12,8 +12,6 @@ use Hypervel\Foundation\Console\Commands\AboutCommand;
 use Hypervel\Foundation\Console\Commands\ConfigShowCommand;
 use Hypervel\Foundation\Console\Commands\ServerReloadCommand;
 use Hypervel\Foundation\Console\Commands\VendorPublishCommand;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Foundation\Exceptions\Handler as ExceptionHandler;
 use Hypervel\Foundation\Listeners\ReloadDotenvAndConfig;
 
 class ConfigProvider
@@ -23,7 +21,6 @@ class ConfigProvider
         return [
             'dependencies' => [
                 ApplicationInterface::class => ApplicationFactory::class,
-                ExceptionHandlerContract::class => ExceptionHandler::class,
             ],
             'listeners' => [
                 ErrorExceptionHandler::class,
