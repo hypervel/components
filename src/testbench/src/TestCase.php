@@ -11,8 +11,10 @@ use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Foundation\Testing\TestCase as BaseTestCase;
 use Swoole\Timer;
+use Workbench\App\Exceptions\ExceptionHandler;
 
 /**
  * @internal
@@ -41,6 +43,7 @@ class TestCase extends BaseTestCase
     {
         $app = new Application();
         $app->define(KernelContract::class, ConsoleKernel::class);
+        $app->define(ExceptionHandlerContract::class, ExceptionHandler::class);
 
         ApplicationContext::setContainer($app);
 
