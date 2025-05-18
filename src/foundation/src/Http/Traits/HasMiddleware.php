@@ -97,7 +97,10 @@ trait HasMiddleware
             $name = $parsedMiddleware->getName();
             $signature = $parsedMiddleware->getSignature();
             if (isset($this->middlewareAliases[$name])) {
-                $resolved[$signature] = $this->parseMiddleware($this->middlewareAliases[$name]);
+                $resolved[$signature] = $this->parseMiddleware(
+                    $this->middlewareAliases[$name],
+                    $parsedMiddleware->getParameters()
+                );
                 continue;
             }
             if (isset($this->middlewareGroups[$name])) {
@@ -105,7 +108,8 @@ trait HasMiddleware
                     $parsedMiddleware = $this->parseMiddleware($groupMiddleware);
                     if (isset($this->middlewareAliases[$name = $parsedMiddleware->getName()])) {
                         $parsedMiddleware = $this->parseMiddleware(
-                            $this->middlewareAliases[$name] . ':' . implode(',', $parsedMiddleware->getParameters())
+                            $this->middlewareAliases[$name],
+                            $parsedMiddleware->getParameters()
                         );
                     }
                     $resolved[$parsedMiddleware->getSignature()] = $parsedMiddleware;
@@ -169,10 +173,15 @@ trait HasMiddleware
         return $middlewares;
     }
 
-    public function parseMiddleware(string $middleware): ParsedMiddleware
+    public function parseMiddleware(string $middleware, array $parameters = []): ParsedMiddleware
     {
         if ($parsedMiddleware = $this->parsedMiddleware[$middleware] ?? null) {
             return $parsedMiddleware;
+        }
+
+        // It's only for passing parameters in alias or group.
+        if ($parameters) {
+            $middleware .= ':' . implode(',', $parameters);
         }
 
         return $this->parsedMiddleware[$middleware] = new ParsedMiddleware($middleware);

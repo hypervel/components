@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Session\Contracts\Factory as SessionManagerContract;
 
 /**
  * @method static \Hypervel\Session\Contracts\Session store(string|null $name = null)
@@ -78,6 +78,6 @@ class Session extends Facade
 {
     protected static function getFacadeAccessor()
     {
-        return SessionContract::class;
+        return SessionManagerContract::class;
     }
 }

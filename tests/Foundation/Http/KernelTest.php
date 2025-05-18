@@ -32,7 +32,7 @@ class KernelTest extends TestCase
             'a_middleware',
             'alias2',
             'c_middleware',
-            'alias1',
+            'alias1:foo,bar',
             'group1',
         ]);
         $kernel->setMiddlewareGroups([
@@ -62,7 +62,7 @@ class KernelTest extends TestCase
             'a_middleware',
             'b_middleware:foo',
             'c_middleware',
-            'alias1_middleware',
+            'alias1_middleware:foo,bar',
             'alias2_middleware',
             'group1_middleware1:bar',
             'group1_middleware2',
