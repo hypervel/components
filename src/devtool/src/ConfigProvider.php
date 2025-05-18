@@ -16,6 +16,7 @@ use Hypervel\Devtool\Generator\FactoryCommand;
 use Hypervel\Devtool\Generator\JobCommand;
 use Hypervel\Devtool\Generator\ListenerCommand;
 use Hypervel\Devtool\Generator\MailCommand;
+use Hypervel\Devtool\Generator\MiddlewareCommand;
 use Hypervel\Devtool\Generator\ModelCommand;
 use Hypervel\Devtool\Generator\NotificationCommand;
 use Hypervel\Devtool\Generator\NotificationTableCommand;
@@ -64,6 +65,7 @@ class ConfigProvider
                 NotificationCommand::class,
                 MailCommand::class,
                 PolicyCommand::class,
+                MiddlewareCommand::class,
             ],
         ];
     }
