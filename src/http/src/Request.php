@@ -12,12 +12,12 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\HttpServer\Request as HyperfRequest;
 use Hyperf\Stringable\Str;
-use Hyperf\Validation\ValidatorFactory;
 use Hypervel\Context\RequestContext;
 use Hypervel\Http\Contracts\RequestContract;
 use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Session\Contracts\Session as SessionContract;
 use Hypervel\Support\Collection;
+use Hypervel\Validation\Contracts\Factory as ValidatorFactoryContract;
 use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
 use stdClass;
@@ -787,7 +787,7 @@ class Request extends HyperfRequest implements RequestContract
     public function validate(array $rules, array $messages = [], array $customAttributes = []): array
     {
         return ApplicationContext::getContainer()
-            ->get(ValidatorFactory::class)
+            ->get(ValidatorFactoryContract::class)
             ->validate($this->all(), $rules, $messages, $customAttributes);
     }
 

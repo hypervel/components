@@ -591,7 +591,6 @@ class Application extends Container implements ApplicationContract
                 'translator',
                 \Hyperf\Contract\TranslatorInterface::class,
             ],
-            \Hyperf\Validation\Contract\ValidatorFactoryInterface::class => ['validator'],
             \Psr\Http\Message\ServerRequestInterface::class => [
                 'request',
                 \Hyperf\HttpServer\Contract\RequestInterface::class,

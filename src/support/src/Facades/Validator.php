@@ -155,7 +155,7 @@ use Hypervel\Validation\Contracts\Factory as FactoryContract;
  * @method static bool isValidFileInstance(mixed $value)
  * @method static void requireParameterCount(int $count, array $parameters, string $rule)
  *
- * @see \Hyperf\Validation\Validator
+ * @see \Hypervel\Validation\Validator
  */
 class Validator extends Facade
 {
