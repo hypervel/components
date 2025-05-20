@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hyperf\Validation\Contract\ValidatorFactoryInterface;
+use Hypervel\Validation\Contracts\Factory as FactoryContract;
 
 /**
  * @method static array parseData(array $data)
@@ -161,6 +161,6 @@ class Validator extends Facade
 {
     protected static function getFacadeAccessor()
     {
-        return ValidatorFactoryInterface::class;
+        return FactoryContract::class;
     }
 }
