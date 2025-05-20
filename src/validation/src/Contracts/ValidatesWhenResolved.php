@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Contracts\Validation;
+namespace Hypervel\Validation\Contracts;
 
 interface ValidatesWhenResolved
 {

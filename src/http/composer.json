@@ -38,7 +38,7 @@
     },
     "suggest": {
         "hypervel/session": "Required to `session` function in request.",
-        "hyperf/validation": "Required to `validate` function in request."
+        "hypervel/validation": "Required to `validate` function in request."
     },
     "config": {
         "sort-packages": true

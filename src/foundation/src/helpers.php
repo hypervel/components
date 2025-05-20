@@ -5,10 +5,8 @@ declare(strict_types=1);
 use Carbon\Carbon;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\ValidatorInterface;
 use Hyperf\HttpMessage\Cookie\Cookie;
 use Hyperf\Stringable\Stringable;
-use Hyperf\Validation\Contract\ValidatorFactoryInterface;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
 use Hyperf\ViewEngine\Contract\ViewInterface;
 use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
@@ -33,6 +31,8 @@ use Hypervel\Support\Contracts\Responsable;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Mix;
 use Hypervel\Translation\Contracts\Translator as TranslatorContract;
+use Hypervel\Validation\Contracts\Factory as ValidatorFactoryContract;
+use Hypervel\Validation\Contracts\Validator as ValidatorContract;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
 
@@ -607,12 +607,12 @@ if (! function_exists('today')) {
 if (! function_exists('validator')) {
     /**
      * Create a new Validator instance.
-     * @return ValidatorFactoryInterface|ValidatorInterface
+     * @return ValidatorContract
      * @throws TypeError
      */
     function validator(array $data = [], array $rules = [], array $messages = [], array $customAttributes = [])
     {
-        $factory = app(ValidatorFactoryInterface::class);
+        $factory = app(ValidatorFactoryContract::class);
 
         if (func_num_args() === 0) {
             return $factory;
