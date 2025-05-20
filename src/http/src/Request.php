@@ -782,7 +782,7 @@ class Request extends HyperfRequest implements RequestContract
     /**
      * Validate the given data against the provided rules.
      *
-     * @throws \Hyperf\Validation\ValidationException
+     * @throws \Hypervel\Validation\ValidationException
      */
     public function validate(array $rules, array $messages = [], array $customAttributes = []): array
     {
