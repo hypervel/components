@@ -14,6 +14,7 @@ use Hypervel\Validation\Rule;
 use Hypervel\Validation\Rules\File;
 use Hypervel\Validation\Validator;
 use InvalidArgumentException;
+use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
 /**
  * @internal
@@ -198,6 +199,7 @@ class ValidationFileRuleTest extends TestCase
         );
     }
 
+    #[RequiresPhpExtension('gd')]
     public function testImage()
     {
         $this->fails(

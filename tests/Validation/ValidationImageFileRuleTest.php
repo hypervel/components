@@ -13,11 +13,13 @@ use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Rules\File;
 use Hypervel\Validation\Validator;
+use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
 /**
  * @internal
  * @coversNothing
  */
+#[RequiresPhpExtension('gd')]
 class ValidationImageFileRuleTest extends TestCase
 {
     protected function setUp(): void

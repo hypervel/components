@@ -212,6 +212,7 @@ class ValidationEmailRuleTest extends TestCase
         );
     }
 
+    #[RequiresPhpExtension('Intl')]
     public function testPreventSpoofing()
     {
         $this->fails(
@@ -819,6 +820,7 @@ class ValidationEmailRuleTest extends TestCase
         );
     }
 
+    #[RequiresPhpExtension('Intl')]
     public function testItCanSetDefaultUsing()
     {
         $this->assertInstanceOf(Email::class, Email::default());
@@ -860,6 +862,7 @@ class ValidationEmailRuleTest extends TestCase
         );
     }
 
+    #[RequiresPhpExtension('Intl')]
     public function testValidationMessages()
     {
         Email::defaults(function () {
