@@ -147,7 +147,7 @@ class FormRequest extends Request implements ValidatesWhenResolved
      *
      * @throws ValidationException
      */
-    protected function failedValidation(Validator $validator)
+    protected function failedValidation(Validator $validator): void
     {
         throw new ValidationException($validator, $this->response());
     }
@@ -175,7 +175,7 @@ class FormRequest extends Request implements ValidatesWhenResolved
     /**
      * Handle a failed authorization attempt.
      */
-    protected function failedAuthorization()
+    protected function failedAuthorization(): void
     {
         throw new AuthorizationException();
     }
