@@ -24,7 +24,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     /**
      * The fallback locale used by the translator.
      */
-    protected ?string $fallback = null;
+    protected ?string $fallback = '';
 
     /**
      * The array of loaded translation groups.

@@ -7,13 +7,13 @@ namespace Hypervel\Foundation\Http;
 use Hyperf\Collection\Arr;
 use Hyperf\Context\Context;
 use Hyperf\Context\ResponseContext;
-use Hyperf\Contract\ValidatorInterface;
-use Hyperf\Validation\Contract\ValidatesWhenResolved;
-use Hyperf\Validation\Contract\ValidatorFactoryInterface as ValidationFactory;
-use Hyperf\Validation\ValidatesWhenResolvedTrait;
-use Hyperf\Validation\ValidationException;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Http\Request;
+use Hypervel\Validation\Contracts\Factory as ValidationFactory;
+use Hypervel\Validation\Contracts\ValidatesWhenResolved;
+use Hypervel\Validation\Contracts\Validator;
+use Hypervel\Validation\ValidatesWhenResolvedTrait;
+use Hypervel\Validation\ValidationException;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 
@@ -33,10 +33,8 @@ class FormRequest extends Request implements ValidatesWhenResolved
 
     /**
      * The input keys that should not be flashed on redirect.
-     *
-     * @var array
      */
-    protected $dontFlash = ['password', 'password_confirmation'];
+    protected array $dontFlash = ['password', 'password_confirmation'];
 
     public function __construct(protected ContainerInterface $container)
     {
@@ -45,6 +43,7 @@ class FormRequest extends Request implements ValidatesWhenResolved
     public function scene(string $scene): static
     {
         Context::set($this->getContextValidatorKey('scene'), $scene);
+
         return $this;
     }
 
@@ -103,9 +102,9 @@ class FormRequest extends Request implements ValidatesWhenResolved
     /**
      * Get the validator instance for the request.
      */
-    protected function getValidatorInstance(): ValidatorInterface
+    protected function getValidatorInstance(): Validator
     {
-        return Context::getOrSet($this->getContextValidatorKey(ValidatorInterface::class), function () {
+        return Context::getOrSet($this->getContextValidatorKey(Validator::class), function () {
             $factory = $this->container->get(ValidationFactory::class);
 
             if (method_exists($this, 'validator')) {
@@ -125,7 +124,7 @@ class FormRequest extends Request implements ValidatesWhenResolved
     /**
      * Create the default validator instance.
      */
-    protected function createDefaultValidator(ValidationFactory $factory): ValidatorInterface
+    protected function createDefaultValidator(ValidationFactory $factory): Validator
     {
         return $factory->make(
             $this->validationData(),
@@ -148,7 +147,7 @@ class FormRequest extends Request implements ValidatesWhenResolved
      *
      * @throws ValidationException
      */
-    protected function failedValidation(ValidatorInterface $validator)
+    protected function failedValidation(Validator $validator): void
     {
         throw new ValidationException($validator, $this->response());
     }
@@ -156,7 +155,7 @@ class FormRequest extends Request implements ValidatesWhenResolved
     /**
      * Format the errors from the given Validator instance.
      */
-    protected function formatErrors(ValidatorInterface $validator): array
+    protected function formatErrors(Validator $validator): array
     {
         return $validator->getMessageBag()->getMessages();
     }
@@ -176,7 +175,7 @@ class FormRequest extends Request implements ValidatesWhenResolved
     /**
      * Handle a failed authorization attempt.
      */
-    protected function failedAuthorization()
+    protected function failedAuthorization(): void
     {
         throw new AuthorizationException();
     }
@@ -199,6 +198,7 @@ class FormRequest extends Request implements ValidatesWhenResolved
         if ($scene && isset($this->scenes[$scene]) && is_array($this->scenes[$scene])) {
             return Arr::only($rules, $this->scenes[$scene]);
         }
+
         return $rules;
     }
 }
