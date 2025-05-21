@@ -33,10 +33,8 @@ class FormRequest extends Request implements ValidatesWhenResolved
 
     /**
      * The input keys that should not be flashed on redirect.
-     *
-     * @var array
      */
-    protected $dontFlash = ['password', 'password_confirmation'];
+    protected array $dontFlash = ['password', 'password_confirmation'];
 
     public function __construct(protected ContainerInterface $container)
     {
@@ -45,6 +43,7 @@ class FormRequest extends Request implements ValidatesWhenResolved
     public function scene(string $scene): static
     {
         Context::set($this->getContextValidatorKey('scene'), $scene);
+
         return $this;
     }
 
@@ -199,6 +198,7 @@ class FormRequest extends Request implements ValidatesWhenResolved
         if ($scene && isset($this->scenes[$scene]) && is_array($this->scenes[$scene])) {
             return Arr::only($rules, $this->scenes[$scene]);
         }
+
         return $rules;
     }
 }

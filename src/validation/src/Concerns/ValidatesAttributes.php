@@ -306,10 +306,10 @@ trait ValidatesAttributes
         }
 
         if (isset($parameters[0]) && $parameters[0] === 'ascii') {
-            return preg_match('/\A[a-zA-Z0-9_-]+\z/u', $value) > 0;
+            return preg_match('/\A[a-zA-Z0-9_-]+\z/u', (string) $value) > 0;
         }
 
-        return preg_match('/\A[\pL\pM\pN_-]+\z/u', $value) > 0;
+        return preg_match('/\A[\pL\pM\pN_-]+\z/u', (string) $value) > 0;
     }
 
     /**
@@ -323,10 +323,10 @@ trait ValidatesAttributes
         }
 
         if (isset($parameters[0]) && $parameters[0] === 'ascii') {
-            return preg_match('/\A[a-zA-Z0-9]+\z/u', $value) > 0;
+            return preg_match('/\A[a-zA-Z0-9]+\z/u', (string) $value) > 0;
         }
 
-        return preg_match('/\A[\pL\pM\pN]+\z/u', $value) > 0;
+        return preg_match('/\A[\pL\pM\pN]+\z/u', (string) $value) > 0;
     }
 
     /**
@@ -526,7 +526,7 @@ trait ValidatesAttributes
 
         $matches = [];
 
-        if (preg_match('/^[+-]?\d*\.?(\d*)$/', $value, $matches) !== 1) {
+        if (preg_match('/^[+-]?\d*\.?(\d*)$/', (string) $value, $matches) !== 1) {
             return false;
         }
 
@@ -621,8 +621,7 @@ trait ValidatesAttributes
 
         $parameters = $this->parseNamedParameters($parameters);
 
-        return ! (
-            $this->failsBasicDimensionChecks($parameters, $width, $height)
+        return ! ($this->failsBasicDimensionChecks($parameters, $width, $height)
             || $this->failsRatioCheck($parameters, $width, $height)
             || $this->failsMinRatioCheck($parameters, $width, $height)
             || $this->failsMaxRatioCheck($parameters, $width, $height)
@@ -897,7 +896,7 @@ trait ValidatesAttributes
      */
     protected function prepareUniqueId(mixed $id): ?int
     {
-        if (preg_match('/\[(.*)\]/', $id, $matches)) {
+        if (preg_match('/\[(.*)\]/', (string) $id, $matches)) {
             $id = $this->getValue($matches[1]);
         }
 
@@ -1184,7 +1183,7 @@ trait ValidatesAttributes
      */
     public function validateHexColor(string $attribute, mixed $value): bool
     {
-        return preg_match('/^#(?:(?:[0-9a-f]{3}){1,2}|(?:[0-9a-f]{4}){1,2})$/i', $value) === 1;
+        return preg_match('/^#(?:(?:[0-9a-f]{3}){1,2}|(?:[0-9a-f]{4}){1,2})$/i', (string) $value) === 1;
     }
 
     /**
@@ -1329,7 +1328,7 @@ trait ValidatesAttributes
     {
         $this->requireParameterCount(1, $parameters, 'max_digits');
 
-        $length = strlen((string) $value);
+        $length = strlen($value = (string) $value);
 
         return ! preg_match('/[^0-9]/', $value) && $length <= $parameters[0];
     }
