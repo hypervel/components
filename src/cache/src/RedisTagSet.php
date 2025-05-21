@@ -46,7 +46,7 @@ class RedisTagSet extends TagSet
     {
         $this->store->connection()->pipeline(function ($pipe) {
             foreach ($this->tagIds() as $tagKey) {
-                $pipe->zremrangebyscore($this->store->getPrefix() . $tagKey, 0, now()->getTimestamp());
+                $pipe->zremrangebyscore($this->store->getPrefix() . $tagKey, '0', (string) now()->getTimestamp());
             }
         });
     }
