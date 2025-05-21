@@ -11,10 +11,10 @@ use Hyperf\Context\Context;
 use Hyperf\HttpMessage\Upload\UploadedFile;
 use Hyperf\HttpMessage\Uri\Uri;
 use Hyperf\Stringable\Stringable;
-use Hyperf\Validation\ValidatorFactory;
 use Hypervel\Http\Request;
 use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Validation\Contracts\Factory as ValidatorFactoryContract;
 use Mockery;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -695,7 +695,7 @@ class RequestTest extends TestCase
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
 
-        $validatorFactory = Mockery::mock(ValidatorFactory::class);
+        $validatorFactory = Mockery::mock(ValidatorFactoryContract::class);
         $validatorFactory->shouldReceive('validate')
             ->once()
             ->with(
@@ -708,7 +708,7 @@ class RequestTest extends TestCase
 
         $container = Mockery::mock(ContainerInterface::class);
         $container->shouldReceive('get')
-            ->with(ValidatorFactory::class)
+            ->with(ValidatorFactoryContract::class)
             ->andReturn($validatorFactory);
         ApplicationContext::setContainer($container);
 

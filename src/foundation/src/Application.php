@@ -591,7 +591,6 @@ class Application extends Container implements ApplicationContract
                 'translator',
                 \Hyperf\Contract\TranslatorInterface::class,
             ],
-            \Hyperf\Validation\Contract\ValidatorFactoryInterface::class => ['validator'],
             \Psr\Http\Message\ServerRequestInterface::class => [
                 'request',
                 \Hyperf\HttpServer\Contract\RequestInterface::class,
@@ -649,6 +648,8 @@ class Application extends Container implements ApplicationContract
             \Hypervel\Queue\Worker::class => ['queue.worker'],
             \Hypervel\Queue\Listener::class => ['queue.listener'],
             \Hypervel\Queue\Failed\FailedJobProviderInterface::class => ['queue.failer'],
+            \Hypervel\Validation\Contracts\Factory::class => ['validator'],
+            \Hypervel\Validation\DatabasePresenceVerifierInterface::class => ['validation.presence'],
         ] as $key => $aliases) {
             foreach ($aliases as $alias) {
                 $this->alias($key, $alias);

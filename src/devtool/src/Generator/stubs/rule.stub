@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace %NAMESPACE%;
 
 use Closure;
-use Hyperf\Validation\Contract\Rule;
+use Hypervel\Validation\Contracts\ValidationRule;
 
-class %CLASS% implements Rule
+class %CLASS% implements ValidationRule
 {
     /**
      * Run the validation rule.
      *
-     * @param  Closure(string)  $fail
+     * @param Closure(string, ?string=): \Hypervel\Translation\PotentiallyTranslatedString $fail
      */
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {

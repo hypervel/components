@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hyperf\Validation\Contract\ValidatorFactoryInterface;
+use Hypervel\Validation\Contracts\Factory as FactoryContract;
 
 /**
  * @method static array parseData(array $data)
@@ -155,12 +155,12 @@ use Hyperf\Validation\Contract\ValidatorFactoryInterface;
  * @method static bool isValidFileInstance(mixed $value)
  * @method static void requireParameterCount(int $count, array $parameters, string $rule)
  *
- * @see \Hyperf\Validation\Validator
+ * @see \Hypervel\Validation\Validator
  */
 class Validator extends Facade
 {
     protected static function getFacadeAccessor()
     {
-        return ValidatorFactoryInterface::class;
+        return FactoryContract::class;
     }
 }
