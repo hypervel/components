@@ -38,7 +38,8 @@
         "hypervel/support": "^0.1",
         "hypervel/mail": "^0.1",
         "hypervel/queue": "^0.1",
-        "hypervel/object-pool": "^0.1"
+        "hypervel/object-pool": "^0.1",
+        "hypervel/translation": "^0.1"
     },
     "config": {
         "sort-packages": true
