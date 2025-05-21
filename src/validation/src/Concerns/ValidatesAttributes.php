@@ -621,7 +621,8 @@ trait ValidatesAttributes
 
         $parameters = $this->parseNamedParameters($parameters);
 
-        return ! ($this->failsBasicDimensionChecks($parameters, $width, $height)
+        return ! (
+            $this->failsBasicDimensionChecks($parameters, $width, $height)
             || $this->failsRatioCheck($parameters, $width, $height)
             || $this->failsMinRatioCheck($parameters, $width, $height)
             || $this->failsMaxRatioCheck($parameters, $width, $height)
