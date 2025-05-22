@@ -21,7 +21,7 @@
     ],
     "require": {
         "php": "^8.2",
-        "hypervel/framework": "^0.1",
+        "hypervel/framework": "^0.2",
         "mockery/mockery": "^1.6.10",
         "phpunit/phpunit": "^10.0.7",
         "symfony/yaml": "^7.3",
@@ -35,7 +35,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.1-dev"
+            "dev-main": "0.2-dev"
         }
     },
     "config": {

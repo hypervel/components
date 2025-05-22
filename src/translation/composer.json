@@ -31,8 +31,8 @@
     "require": {
         "php": "^8.2",
         "hyperf/contract": "~3.1.0",
-        "hypervel/filesystem": "^0.1",
-        "hypervel/support": "^0.1"
+        "hypervel/filesystem": "^0.2",
+        "hypervel/support": "^0.2"
     },
     "config": {
         "sort-packages": true
@@ -42,7 +42,7 @@
             "config": "Hypervel\\Translation\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.1-dev"
+            "dev-main": "0.2-dev"
         }
     }
 }

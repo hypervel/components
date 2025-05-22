@@ -27,7 +27,7 @@
         "psr/simple-cache": "^3.0",
         "hyperf/stringable": "~3.1.0",
         "ramsey/uuid": "^4.7",
-        "hypervel/cache": "^0.1"
+        "hypervel/cache": "^0.2"
     },
     "autoload": {
         "psr-4": {
@@ -39,7 +39,7 @@
             "config": "Hypervel\\JWT\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.1-dev"
+            "dev-main": "0.2-dev"
         }
     },
     "config": {

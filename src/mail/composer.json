@@ -32,9 +32,9 @@
         "hyperf/stringable": "~3.1.0",
         "hyperf/macroable": "~3.1.0",
         "hyperf/di": "~3.1.0",
-        "hypervel/support": "^0.1",
-        "hypervel/filesystem": "^0.1",
-        "hypervel/object-pool": "^0.1",
+        "hypervel/support": "^0.2",
+        "hypervel/filesystem": "^0.2",
+        "hypervel/object-pool": "^0.2",
         "league/commonmark": "^2.2",
         "psr/log": "^1.0|^2.0|^3.0",
         "symfony/mailer": "^6.2",
@@ -48,7 +48,7 @@
             "config": "Hypervel\\Mail\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.1-dev"
+            "dev-main": "0.2-dev"
         }
     },
     "suggest": {

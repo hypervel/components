@@ -30,14 +30,14 @@
         "hyperf/macroable": "~3.1.0",
         "guzzlehttp/guzzle": "^7.8.2",
         "guzzlehttp/uri-template": "^1.0",
-        "hypervel/support": "^0.1"
+        "hypervel/support": "^0.2"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.1-dev"
+            "dev-main": "0.2-dev"
         }
     }
 }

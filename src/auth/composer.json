@@ -29,8 +29,8 @@
         "hyperf/config": "~3.1.0",
         "hyperf/database": "~3.1.0",
         "hyperf/http-server": "~3.1.0",
-        "hypervel/hashing": "^0.1",
-        "hypervel/jwt": "^0.1"
+        "hypervel/hashing": "^0.2",
+        "hypervel/jwt": "^0.2"
     },
     "suggest": {
         "hypervel/session": "Required to use session guard. (~0.1.0)"
@@ -48,7 +48,7 @@
             "config": "Hypervel\\Auth\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.1-dev"
+            "dev-main": "0.2-dev"
         }
     },
     "config": {
