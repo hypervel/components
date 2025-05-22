@@ -81,8 +81,8 @@
         "psr-4": {
             "Hypervel\\Tests\\": "tests/"
         },
-        "exclude-from-classmap": [
-            "tests/Foundation/fixtures/hyperf/database/migrations/"
+        "classmap": [
+            "tests/Validation/Enums.php"
         ]
     },
     "require": {
@@ -160,6 +160,7 @@
         "hypervel/support": "self.version",
         "hypervel/telescope": "self.version",
         "hypervel/testbench": "self.version",
+        "hypervel/translation": "self.version",
         "hypervel/validation": "self.version"
     },
     "suggest": {
