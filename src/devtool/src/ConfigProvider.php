@@ -11,6 +11,7 @@ use Hypervel\Devtool\Generator\BatchesTableCommand;
 use Hypervel\Devtool\Generator\ChannelCommand;
 use Hypervel\Devtool\Generator\ComponentCommand;
 use Hypervel\Devtool\Generator\ConsoleCommand;
+use Hypervel\Devtool\Generator\ControllerCommand;
 use Hypervel\Devtool\Generator\EventCommand;
 use Hypervel\Devtool\Generator\FactoryCommand;
 use Hypervel\Devtool\Generator\JobCommand;
@@ -66,6 +67,7 @@ class ConfigProvider
                 MailCommand::class,
                 PolicyCommand::class,
                 MiddlewareCommand::class,
+                ControllerCommand::class,
             ],
         ];
     }
