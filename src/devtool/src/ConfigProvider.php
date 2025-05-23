@@ -27,6 +27,7 @@ use Hypervel\Devtool\Generator\ProviderCommand;
 use Hypervel\Devtool\Generator\QueueFailedTableCommand;
 use Hypervel\Devtool\Generator\QueueTableCommand;
 use Hypervel\Devtool\Generator\RequestCommand;
+use Hypervel\Devtool\Generator\ResourceCommand;
 use Hypervel\Devtool\Generator\RuleCommand;
 use Hypervel\Devtool\Generator\SeederCommand;
 use Hypervel\Devtool\Generator\SessionTableCommand;
@@ -68,6 +69,7 @@ class ConfigProvider
                 PolicyCommand::class,
                 MiddlewareCommand::class,
                 ControllerCommand::class,
+                ResourceCommand::class,
             ],
         ];
     }
