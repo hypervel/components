@@ -702,7 +702,7 @@ if (! function_exists('__')) {
     /**
      * Translate the given message.
      */
-    function __(?string $key = null, array $replace = [], ?string $locale = null): null|array|string
+    function __(?string $key = null, array $replace = [], ?string $locale = null): array|string|TranslatorContract
     {
         return \Hypervel\Translation\trans($key, $replace, $locale);
     }
