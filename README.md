@@ -6,6 +6,7 @@
 <a href="https://packagist.org/packages/hypervel/components"><img src="https://img.shields.io/packagist/v/hypervel/components" alt="Latest Stable Version"></a>
 <a href="https://packagist.org/packages/hypervel/components"><img src="https://img.shields.io/packagist/l/hypervel/components" alt="License"></a>
 </p>
+<a href="https://deepwiki.com/hypervel/components"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 
 ## Introduction
 
