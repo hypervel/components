@@ -22,10 +22,11 @@
     "require": {
         "php": "^8.2",
         "nesbot/carbon": "^2.72.6",
-        "hypervel/core": "^0.1",
-        "hypervel/filesystem": "^0.1",
-        "hypervel/support": "^0.1",
-        "hypervel/http": "^0.1",
+        "hypervel/core": "^0.2",
+        "hypervel/filesystem": "^0.2",
+        "hypervel/support": "^0.2",
+        "hypervel/http": "^0.2",
+        "hypervel/validation": "^0.2",
         "hyperf/config": "~3.1.0",
         "hyperf/di": "~3.1.0",
         "hyperf/support": "~3.1.0",
@@ -40,7 +41,6 @@
         "hyperf/signal": "~3.1.0",
         "hyperf/engine": "^2.1",
         "hyperf/db-connection": "~3.1.0",
-        "hyperf/validation": "~3.1.0",
         "hyperf/framework": "~3.1.0",
         "friendsofhyperf/pretty-console": "~3.1.0",
         "friendsofhyperf/command-signals": "~3.1.0",
@@ -67,7 +67,7 @@
             ]
         },
         "branch-alias": {
-            "dev-main": "0.1-dev"
+            "dev-main": "0.2-dev"
         }
     },
     "config": {

@@ -21,7 +21,7 @@
     ],
     "require": {
         "php": "^8.2",
-        "hypervel/support": "^0.1",
+        "hypervel/support": "^0.2",
         "hyperf/collection": "^3.1",
         "hyperf/macroable": "^3.1",
         "hyperf/tappable": "^3.1",
@@ -34,7 +34,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.1-dev"
+            "dev-main": "0.2-dev"
         }
     },
     "config": {

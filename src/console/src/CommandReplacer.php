@@ -34,7 +34,7 @@ class CommandReplacer
         'gen:observer' => null,
         'gen:process' => 'make:process',
         'gen:request' => null,
-        'gen:resource' => 'make:resource',
+        'gen:resource' => null,
         'gen:swagger' => 'make:swagger',
         'gen:migration-from-database' => 'make:migration-from-database',
         'gen:view-engine-cache' => 'view:cache',

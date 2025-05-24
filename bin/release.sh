@@ -18,7 +18,7 @@ fi
 
 # Initialize variables
 NOW=$(date +%s)
-RELEASE_BRANCH="0.1"
+RELEASE_BRANCH="0.2"
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 BASEPATH=$(cd `dirname $0`; cd ../src/; pwd)
 VERSION=$1

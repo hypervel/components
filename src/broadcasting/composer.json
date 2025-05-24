@@ -31,14 +31,14 @@
         "hyperf/http-server": "~3.1.0",
         "hyperf/pool": "~3.1.0",
         "hyperf/redis": "~3.1.0",
-        "hypervel/auth": "^0.1",
-        "hypervel/bus": "^0.1",
-        "hypervel/cache": "^0.1",
-        "hypervel/foundation": "^0.1",
-        "hypervel/queue": "^0.1",
-        "hypervel/router": "^0.1",
-        "hypervel/support": "^0.1",
-        "hypervel/object-pool": "^0.1"
+        "hypervel/auth": "^0.2",
+        "hypervel/bus": "^0.2",
+        "hypervel/cache": "^0.2",
+        "hypervel/foundation": "^0.2",
+        "hypervel/queue": "^0.2",
+        "hypervel/router": "^0.2",
+        "hypervel/support": "^0.2",
+        "hypervel/object-pool": "^0.2"
     },
     "suggest": {
         "ext-hash": "Required to use the Ably and Pusher broadcast drivers.",
@@ -54,7 +54,7 @@
             "config": "Hypervel\\Broadcasting\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.1-dev"
+            "dev-main": "0.2-dev"
         }
     }
 }

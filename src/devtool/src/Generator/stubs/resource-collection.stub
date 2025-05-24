@@ -1,0 +1,18 @@
+<?php
+
+declare(strict_types=1);
+
+namespace %NAMESPACE%;
+
+use Hypervel\Http\Resources\Json\ResourceCollection;
+
+class %CLASS% extends ResourceCollection
+{
+    /**
+     * Transform the resource collection into an array.
+     */
+    public function toArray(): array
+    {
+        return parent::toArray();
+    }
+}

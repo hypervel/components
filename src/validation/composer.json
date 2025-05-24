@@ -1,0 +1,52 @@
+{
+    "name": "hypervel/validation",
+    "type": "library",
+    "description": "The validation package for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "hyperf",
+        "validation",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Validation\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.2",
+        "ext-filter": "*",
+        "ext-mbstring": "*",
+        "brick/math": "^0.11|^0.12",
+        "egulias/email-validator": "^3.2.5|^4.0",
+        "hypervel/support": "^0.2",
+        "hypervel/translation": "^0.2"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "hyperf": {
+            "config": "Hypervel\\Validation\\ConfigProvider"
+        },
+        "branch-alias": {
+            "dev-main": "0.2-dev"
+        }
+    },
+    "suggest": {
+        "hyperf/database": "Required to use the database presence verifier (^3.1.0).",
+        "ramsey/uuid": "Required to use Validator::validateUuid() (^4.7)."
+    }
+}

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
+use Hyperf\Collection\LazyCollection;
 use Hypervel\Cache\Contracts\Store;
 
 class RedisTagSet extends TagSet
@@ -34,9 +35,43 @@ class RedisTagSet extends TagSet
     /**
      * Get all of the cache entry keys for the tag set.
      */
-    public function chunkedEntries(): RedisTaggedCacheChunkedEntries
+    public function entries(): LazyCollection
     {
-        return new RedisTaggedCacheChunkedEntries($this->store, $this->tagIds());
+        $connection = $this->store->connection();
+
+        $defaultCursorValue = match (true) {
+            version_compare(phpversion('redis'), '6.1.0', '>=') => null,
+            default => '0',
+        };
+
+        return new LazyCollection(function () use ($connection, $defaultCursorValue) {
+            foreach ($this->tagIds() as $tagKey) {
+                $cursor = $defaultCursorValue;
+
+                do {
+                    $entries = $connection->zScan(
+                        $this->store->getPrefix() . $tagKey,
+                        $cursor,
+                        '*',
+                        1000
+                    );
+
+                    if (! is_array($entries)) {
+                        break;
+                    }
+
+                    $entries = array_unique(array_keys($entries));
+
+                    if (count($entries) === 0) {
+                        continue;
+                    }
+
+                    foreach ($entries as $entry) {
+                        yield $entry;
+                    }
+                } while (((string) $cursor) !== $defaultCursorValue);
+            }
+        });
     }
 
     /**
@@ -46,7 +81,7 @@ class RedisTagSet extends TagSet
     {
         $this->store->connection()->pipeline(function ($pipe) {
             foreach ($this->tagIds() as $tagKey) {
-                $pipe->zremrangebyscore($this->store->getPrefix() . $tagKey, 0, now()->getTimestamp());
+                $pipe->zremrangebyscore($this->store->getPrefix() . $tagKey, '0', (string) now()->getTimestamp());
             }
         });
     }

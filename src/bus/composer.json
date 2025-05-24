@@ -30,8 +30,8 @@
         "hyperf/support": "~3.1.0",
         "nesbot/carbon": "^2.72.6",
         "laravel/serializable-closure": "^1.3",
-        "hypervel/support": "^0.1",
-        "hypervel/cache": "^0.1"
+        "hypervel/support": "^0.2",
+        "hypervel/cache": "^0.2"
 
     },
     "autoload": {
@@ -47,7 +47,7 @@
             "config": "Hypervel\\Bus\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.1-dev"
+            "dev-main": "0.2-dev"
         }
     },
     "suggest": {
