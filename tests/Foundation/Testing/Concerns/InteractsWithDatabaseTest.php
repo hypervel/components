@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
-use Hyperf\Database\Model\Factory;
+use Hyperf\Contract\ConfigInterface;
+use Hyperf\Database\Model\FactoryBuilder;
+use Hyperf\Testing\ModelFactory;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
+use ReflectionClass;
 
 /**
  * @internal
@@ -64,20 +68,31 @@ class InteractsWithDatabaseTest extends TestCase
         $this->assertModelMissing($user);
     }
 
-    protected function factory(string $class)
+    public function testFactoryUsesConfiguredFakerLocale()
     {
-        $factory = $this->app->get(Factory::class);
-        $arguments = func_get_args();
+        $locale = 'fr_FR';
+        $this->app->get(ConfigInterface::class)
+            ->set('app.faker_locale', $locale);
 
-        if (isset($arguments[1]) && is_string($arguments[1])) {
-            return $factory->of($arguments[0], $arguments[1])->times($arguments[2] ?? null);
-        }
+        $factory = $this->factory(User::class);
+        // Use reflection to access the protected $faker property
+        $reflectedClass = new ReflectionClass($factory);
+        $fakerProperty = $reflectedClass->getProperty('faker');
+        $fakerProperty->setAccessible(true);
+        /** @var \Faker\Generator $faker */
+        $faker = $fakerProperty->getValue($factory);
+        $providerClasses = array_map(fn ($provider) => get_class($provider), $faker->getProviders());
 
-        if (isset($arguments[1])) {
-            return $factory->of($arguments[0])->times($arguments[1]);
-        }
+        $this->assertTrue(
+            Collection::make($providerClasses)->contains(fn ($class) => str_contains($class, $locale)),
+            "Expected one of the Faker providers to contain the locale '{$locale}', but none did."
+        );
+    }
 
-        return $factory->of($arguments[0]);
+    protected function factory(string $class, mixed ...$arguments): FactoryBuilder
+    {
+        return $this->app->get(ModelFactory::class)
+            ->factory($class, ...$arguments);
     }
 }
 
