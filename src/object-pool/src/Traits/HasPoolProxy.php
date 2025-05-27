@@ -18,11 +18,13 @@ trait HasPoolProxy
     /**
      * Create a new pool proxy.
      */
-    protected function createPoolProxy(string $driver, Closure $resolver, array $config = []): mixed
+    protected function createPoolProxy(string $driver, Closure $resolver, array $config = [], ?string $proxyClass = null): mixed
     {
-        $proxyClass = property_exists($this, 'poolProxyClass')
-            ? $this->poolProxyClass
-            : PoolProxy::class;
+        if (! $proxyClass) {
+            $proxyClass = property_exists($this, 'poolProxyClass')
+                ? $this->poolProxyClass
+                : PoolProxy::class;
+        }
 
         if (! is_a($proxyClass, PoolProxy::class, true)) {
             throw new InvalidArgumentException('The pool proxy class must be an instance of ' . PoolProxy::class);
