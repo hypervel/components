@@ -88,6 +88,19 @@ class RouteCollector extends BaseRouteCollector
         return $this->namedRoutes;
     }
 
+    /**
+     * Check if the given route name exists.
+     */
+    public function has(array|string $name): bool
+    {
+        return empty(
+            array_diff_key(
+                array_flip(Arr::wrap($name)),
+                $this->getNamedRoutes()
+            )
+        );
+    }
+
     protected function mergeOptions(array $origin, array $options): array
     {
         if (isset($origin['as'])) {
