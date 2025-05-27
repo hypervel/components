@@ -20,8 +20,8 @@ class ValidatorFactory
         // The validation presence verifier is responsible for determining the existence of
         // values in a given data collection which is typically a relational database or
         // other persistent data stores. It is used to check for "uniqueness" as well.
-        if ($container->has(ConnectionResolverInterface::class) && $container->has(PresenceVerifierInterface::class)) {
-            $presenceVerifier = $container->get(PresenceVerifierInterface::class);
+        if ($container->has(ConnectionResolverInterface::class) && $container->has(DatabasePresenceVerifierInterface::class)) {
+            $presenceVerifier = $container->get(DatabasePresenceVerifierInterface::class);
             $validator->setPresenceVerifier($presenceVerifier);
         }
 
