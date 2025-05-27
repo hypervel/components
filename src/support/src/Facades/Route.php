@@ -24,8 +24,14 @@ use Hypervel\Router\Router;
  * @method static void head(string $route, null|array|callable|string $handler, array $options = [])
  * @method static array getData()
  * @method static \FastRoute\RouteParser getRouteParser()
+ * @method static void options(string $route, array|string $handler, array $options = [])
+ * @method static void match(array $methods, string $route, array|string $handler, array $options = [])
+ * @method static void any(string $route, array|string $handler, array $options = [])
+ * @method static array getNamedRoutes()
+ * @method static bool has(array|string $name)
  *
  * @see \Hypervel\Router\Router
+ * @see \Hypervel\Router\RouteCollector
  */
 class Route extends Facade
 {

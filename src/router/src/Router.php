@@ -50,20 +50,6 @@ class Router
             ->{$name}(...$arguments);
     }
 
-    public function has(string|array $name): bool
-    {
-        $names = is_array($name) ? $name : func_get_args();
-        $namedRoutes = $this->getRouter()->getNamedRoutes();
-
-        foreach ($names as $value) {
-            if (! array_key_exists($value, $namedRoutes)) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     public function group(string $prefix, callable|string $source, array $options = []): void
     {
         if (is_string($source)) {

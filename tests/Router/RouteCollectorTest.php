@@ -283,4 +283,19 @@ class RouteCollectorTest extends TestCase
         $data = $collector->getData()[0];
         $this->assertSame(['class', 'method'], $data['GET']['/']->callback);
     }
+
+    public function testHasNamedRoute()
+    {
+        $parser = new Std();
+        $generator = new DataGenerator();
+        $collector = new RouteCollector($parser, $generator);
+
+        $collector->get('/', 'Handler::Get', ['as' => 'foo']);
+        $collector->post('/', 'Handler::Post', ['as' => 'bar']);
+
+        $this->assertTrue($collector->has('foo'));
+        $this->assertTrue($collector->has(['foo', 'bar']));
+        $this->assertFalse($collector->has(['foo', 'baz']));
+        $this->assertFalse($collector->has('nonexistent'));
+    }
 }
