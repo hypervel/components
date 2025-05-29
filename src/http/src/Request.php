@@ -404,6 +404,26 @@ class Request extends HyperfRequest implements RequestContract
     }
 
     /**
+     * Get all the input and files for the request.
+     */
+    public function all(mixed $keys = null): array
+    {
+        $input = array_replace_recursive($this->getInputData(), $this->allFiles());
+
+        if (! $keys) {
+            return $input;
+        }
+
+        $results = [];
+
+        foreach (is_array($keys) ? $keys : func_get_args() as $key) {
+            Arr::set($results, $key, Arr::get($input, $key));
+        }
+
+        return $results;
+    }
+
+    /**
      * Gets the scheme and HTTP host.
      *
      * If the URL was called with basic authentication, the user
