@@ -42,8 +42,8 @@ class TestCase extends BaseTestCase
     protected function createApplication(): ApplicationContract
     {
         $app = new Application();
-        $app->define(KernelContract::class, ConsoleKernel::class);
-        $app->define(ExceptionHandlerContract::class, ExceptionHandler::class);
+        $app->bind(KernelContract::class, ConsoleKernel::class);
+        $app->bind(ExceptionHandlerContract::class, ExceptionHandler::class);
 
         ApplicationContext::setContainer($app);
 
