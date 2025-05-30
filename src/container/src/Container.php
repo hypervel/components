@@ -302,7 +302,7 @@ class Container extends HyperfContainer implements ContainerContract, ArrayAcces
     public function bindIf(string $abstract, mixed $concrete = null): void
     {
         if (! $this->bound($abstract)) {
-            $this->define($abstract, $concrete);
+            $this->bind($abstract, $concrete);
         }
     }
 

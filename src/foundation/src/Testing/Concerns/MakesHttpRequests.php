@@ -251,7 +251,7 @@ trait MakesHttpRequests
         }
 
         foreach ((array) $middleware as $abstract) {
-            $this->app->define($abstract, FakeMiddleware::class);
+            $this->app->bind($abstract, FakeMiddleware::class);
         }
 
         return $this;

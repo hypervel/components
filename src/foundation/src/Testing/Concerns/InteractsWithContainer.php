@@ -88,8 +88,8 @@ trait InteractsWithContainer
     {
         $this->app = $this->createApplication();
         /* @phpstan-ignore-next-line */
-        $this->app->define(HttpDispatcher::class, TestingHttpDispatcher::class);
-        $this->app->define(ConnectionResolverInterface::class, DatabaseConnectionResolver::class);
+        $this->app->bind(HttpDispatcher::class, TestingHttpDispatcher::class);
+        $this->app->bind(ConnectionResolverInterface::class, DatabaseConnectionResolver::class);
         $this->app->get(ApplicationInterface::class);
     }
 
