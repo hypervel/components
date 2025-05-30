@@ -127,19 +127,11 @@ class FormRequest extends Request implements ValidatesWhenResolved
     protected function createDefaultValidator(ValidationFactory $factory): Validator
     {
         return $factory->make(
-            $this->validationData(),
+            $this->all(),
             $this->getRules(),
             $this->messages(),
             $this->attributes()
         );
-    }
-
-    /**
-     * Get data to be validated from the request.
-     */
-    protected function validationData(): array
-    {
-        return array_merge_recursive($this->all(), $this->getUploadedFiles());
     }
 
     /**

@@ -59,6 +59,36 @@ class RequestTest extends TestCase
         $this->assertFalse($request->anyFilled(['age', 'email']));
     }
 
+    public function testAll()
+    {
+        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John', 'email' => '']);
+        $psrRequest->shouldReceive('getQueryParams')->andReturn(['foo' => 'bar']);
+        $psrRequest->shouldReceive('getUploadedFiles')->andReturn([
+            'file' => new UploadedFile('/tmp/tmp_name', 32, 0),
+            'avatar' => new UploadedFile('/tmp/avatar.jpg', 512, 0),
+        ]);
+        Context::set(ServerRequestInterface::class, $psrRequest);
+        $request = new Request();
+
+        $allData = $request->all();
+        $expected = [
+            'name' => 'John',
+            'email' => '',
+            'foo' => 'bar',
+            'file' => new UploadedFile('/tmp/tmp_name', 32, 0),
+            'avatar' => new UploadedFile('/tmp/avatar.jpg', 512, 0),
+        ];
+        $this->assertEquals($expected, $allData);
+
+        $specificData = $request->all(['name', 'avatar']);
+        $expectedSpecific = [
+            'name' => 'John',
+            'avatar' => new UploadedFile('/tmp/avatar.jpg', 512, 0),
+        ];
+        $this->assertEquals($expectedSpecific, $specificData);
+    }
+
     public function testBoolean()
     {
         $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
