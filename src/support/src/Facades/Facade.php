@@ -6,6 +6,7 @@ namespace Hypervel\Support\Facades;
 
 use Closure;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Testing\Fakes\Fake;
 use Mockery;
 use Mockery\LegacyMockInterface;
@@ -204,6 +205,51 @@ abstract class Facade
     public static function clearResolvedInstances(): void
     {
         static::$resolvedInstance = [];
+    }
+
+    /**
+     * Get the application default aliases.
+     */
+    public static function defaultAliases(): Collection
+    {
+        return new Collection([
+            'App' => App::class,
+            'Artisan' => Artisan::class,
+            'Auth' => Auth::class,
+            'Blade' => Blade::class,
+            'Broadcast' => Broadcast::class,
+            'Bus' => Bus::class,
+            'Cache' => Cache::class,
+            'Config' => Config::class,
+            'Cookie' => Cookie::class,
+            'Crypt' => Crypt::class,
+            'Date' => Date::class,
+            'DB' => DB::class,
+            'Environment' => Environment::class,
+            'Event' => Event::class,
+            'File' => File::class,
+            'Gate' => Gate::class,
+            'Hash' => Hash::class,
+            'Http' => Http::class,
+            'JWT' => JWT::class,
+            'Lang' => Lang::class,
+            'Log' => Log::class,
+            'Mail' => Mail::class,
+            'Notification' => Notification::class,
+            'Process' => Process::class,
+            'Queue' => Queue::class,
+            'RateLimiter' => RateLimiter::class,
+            'Redis' => Redis::class,
+            'Request' => Request::class,
+            'Response' => Response::class,
+            'Route' => Route::class,
+            'Schedule' => Schedule::class,
+            'Session' => Session::class,
+            'Storage' => Storage::class,
+            'URL' => URL::class,
+            'Validator' => Validator::class,
+            'View' => View::class,
+        ]);
     }
 
     /**

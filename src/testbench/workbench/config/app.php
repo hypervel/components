@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Hypervel\Support\Facades\Facade;
+use Hypervel\Support\ServiceProvider;
 use Psr\Log\LogLevel;
 
 return [
@@ -79,18 +81,6 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Debug Mode for Command Errors
-    |--------------------------------------------------------------------------
-    |
-    | This value determines whether the stack strace will be displayed
-    | when errors occur in the command line.
-    |
-    */
-
-    'command_debug_enabled' => env('COMMAND_DEBUG_ENABLED', false),
-
-    /*
-    |--------------------------------------------------------------------------
     | Application URL
     |--------------------------------------------------------------------------
     |
@@ -130,10 +120,7 @@ return [
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 
-    'providers' => [
-        Hypervel\Foundation\Providers\FoundationServiceProvider::class,
-        Hypervel\Foundation\Providers\FormRequestServiceProvider::class,
-    ],
+    'providers' => ServiceProvider::defaultProviders()->toArray(),
 
-    'aliases' => [],
+    'aliases' => Facade::defaultAliases()->toArray(),
 ];
