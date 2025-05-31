@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Hypervel\Support\Facades\Facade;
+use Hypervel\Support\ServiceProvider;
 use Psr\Log\LogLevel;
 
 return [
@@ -29,7 +31,7 @@ return [
     |
     */
 
-    'env' => app()->environment(),
+    'env' => env('APP_ENV', 'production'),
 
     /*
     |--------------------------------------------------------------------------
@@ -43,7 +45,7 @@ return [
     |
     */
 
-    'debug' => app()->hasDebugModeEnabled(),
+    'debug' => (bool) env('APP_DEBUG', false),
 
     /*
     |--------------------------------------------------------------------------
@@ -76,18 +78,6 @@ return [
         LogLevel::NOTICE,
         LogLevel::WARNING,
     ],
-
-    /*
-    |--------------------------------------------------------------------------
-    | Debug Mode for Command Errors
-    |--------------------------------------------------------------------------
-    |
-    | This value determines whether the stack strace will be displayed
-    | when errors occur in the command line.
-    |
-    */
-
-    'command_debug_enabled' => env('COMMAND_DEBUG_ENABLED', false),
 
     /*
     |--------------------------------------------------------------------------
@@ -130,32 +120,52 @@ return [
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 
-    'providers' => [
-        Hypervel\Foundation\Providers\FoundationServiceProvider::class,
-        Hypervel\Foundation\Providers\FormRequestServiceProvider::class,
-        App\Providers\RouteServiceProvider::class,
-        App\Providers\AppServiceProvider::class,
-        App\Providers\EventServiceProvider::class,
+    /*
+    |--------------------------------------------------------------------------
+    | Encryption Key
+    |--------------------------------------------------------------------------
+    |
+    | This key is utilized by Laravel's encryption services and should be set
+    | to a random, 32 character string to ensure that all encrypted values
+    | are secure. You should do this prior to deploying the application.
+    |
+    */
+
+    'cipher' => 'AES-256-CBC',
+
+    'key' => env('APP_KEY'),
+
+    'previous_keys' => [
+        ...array_filter(
+            explode(',', env('APP_PREVIOUS_KEYS', ''))
+        ),
     ],
 
-    'aliases' => [
-        'App' => Hypervel\Support\Facades\App::class,
-        'Artisan' => Hypervel\Support\Facades\Artisan::class,
-        'Cache' => Hypervel\Support\Facades\Cache::class,
-        'Config' => Hypervel\Support\Facades\Config::class,
-        'Cookie' => Hypervel\Support\Facades\Cookie::class,
-        'Crypt' => Hypervel\Support\Facades\Crypt::class,
-        'DB' => Hypervel\Support\Facades\DB::class,
-        'File' => Hypervel\Support\Facades\File::class,
-        'Log' => Hypervel\Support\Facades\Log::class,
-        'Request' => Hypervel\Support\Facades\Request::class,
-        'Response' => Hypervel\Support\Facades\Response::class,
-        'Translator' => Hypervel\Support\Facades\Translator::class,
-        'Validator' => Hypervel\Support\Facades\Validator::class,
-        'JWT' => Hypervel\Support\Facades\JWT::class,
-        'Auth' => Hypervel\Support\Facades\Auth::class,
-        'Hash' => Hypervel\Support\Facades\Hash::class,
-        'Environment' => Hypervel\Support\Facades\Environment::class,
-        'Schedule' => Hypervel\Support\Facades\Schedule::class,
-    ],
+    'providers' => ServiceProvider::defaultProviders()->merge([
+        /*
+         * Package Service Providers...
+         */
+
+        /*
+         * Application Service Providers...
+         */
+        App\Providers\AppServiceProvider::class,
+        // App\Providers\BroadcastServiceProvider::class,
+        App\Providers\EventServiceProvider::class,
+        App\Providers\RouteServiceProvider::class,
+    ])->toArray(),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Class Aliases
+    |--------------------------------------------------------------------------
+    |
+    | This array of class aliases will be registered when this application
+    | is started.
+    |
+    */
+
+    'aliases' => Facade::defaultAliases()->merge([
+        // 'Example' => App\Facades\Example::class,
+    ])->toArray(),
 ];
