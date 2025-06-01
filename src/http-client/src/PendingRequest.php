@@ -473,7 +473,7 @@ class PendingRequest
     /**
      * Specify the timeout (in seconds) for the request.
      */
-    public function timeout(float|int $seconds)
+    public function timeout(float|int $seconds): static
     {
         return tap($this, function () use ($seconds) {
             $this->options['timeout'] = $seconds;
