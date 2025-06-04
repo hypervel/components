@@ -16,7 +16,8 @@ use Symfony\Component\Console\Input\InputOption;
 
 class SeedCommand extends Command
 {
-    use ConfirmableTrait, Prohibitable;
+    use ConfirmableTrait;
+    use Prohibitable;
 
     /**
      * The console command name.
@@ -31,7 +32,7 @@ class SeedCommand extends Command
     /**
      * Create a new database seed command instance.
      *
-     * @param  ConnectionResolverInterface  $resolver The connection resolver instance.
+     * @param ConnectionResolverInterface $resolver the connection resolver instance
      */
     public function __construct(
         protected ConnectionResolverInterface $resolver
@@ -44,8 +45,8 @@ class SeedCommand extends Command
      */
     public function handle(): int
     {
-        if ($this->isProhibited() ||
-            ! $this->confirmToProceed()
+        if ($this->isProhibited()
+            || ! $this->confirmToProceed()
         ) {
             return Command::FAILURE;
         }
@@ -75,10 +76,10 @@ class SeedCommand extends Command
         $class = $this->input->getArgument('class') ?? $this->input->getOption('class');
 
         if (! str_contains($class, '\\')) {
-            $class = 'Database\\Seeders\\' . $class;
+            $class = 'Database\Seeders\\' . $class;
         }
 
-        if ($class === 'Database\\Seeders\\DatabaseSeeder'
+        if ($class === 'Database\Seeders\DatabaseSeeder'
             && ! class_exists($class)) {
             $class = 'DatabaseSeeder';
         }
@@ -116,7 +117,7 @@ class SeedCommand extends Command
     protected function getOptions(): array
     {
         return [
-            ['class', null, InputOption::VALUE_OPTIONAL, 'The class name of the root seeder', 'Database\\Seeders\\DatabaseSeeder'],
+            ['class', null, InputOption::VALUE_OPTIONAL, 'The class name of the root seeder', 'Database\Seeders\DatabaseSeeder'],
             ['database', null, InputOption::VALUE_OPTIONAL, 'The database connection to seed'],
             ['force', null, InputOption::VALUE_NONE, 'Force the operation to run when in production'],
         ];

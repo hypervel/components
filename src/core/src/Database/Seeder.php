@@ -57,7 +57,7 @@ abstract class Seeder
 
                 with(new TwoColumnDetail($this->command->getOutput()))->render(
                     $name,
-                    "<fg=gray>$runTime ms</> <fg=green;options=bold>DONE</>"
+                    "<fg=gray>{$runTime} ms</> <fg=green;options=bold>DONE</>"
                 );
 
                 $this->command->getOutput()->writeln('');
@@ -111,7 +111,7 @@ abstract class Seeder
 
             $instance->setContainer($this->container);
         } else {
-            $instance = new $class;
+            $instance = new $class();
         }
 
         if (isset($this->command)) {
