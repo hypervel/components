@@ -11,7 +11,7 @@ interface ShouldBroadcast
     /**
      * Get the channels the event should broadcast on.
      *
-     * @return Channel[]|string[]
+     * @return Channel|Channel[]|string[]
      */
-    public function broadcastOn(): array;
+    public function broadcastOn(): array|Channel;
 }

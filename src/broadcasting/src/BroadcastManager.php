@@ -354,7 +354,7 @@ class BroadcastManager implements BroadcastingFactoryContract
         return new RedisBroadcaster(
             $this->app,
             $this->app->get(RedisFactory::class),
-            $config['connection'] ?? null,
+            $config['connection'] ?? 'default',
             $this->app->get(ConfigInterface::class)->get('database.redis.options.prefix', ''),
         );
     }
