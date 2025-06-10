@@ -64,7 +64,7 @@ class Response implements ArrayAccess, Stringable
     public function json(?string $key = null, mixed $default = null): mixed
     {
         if (! $this->decoded) {
-            $this->decoded = json_decode($this->body(), true);
+            $this->decoded = json_decode($this->body(), true) ?? [];
         }
 
         if (is_null($key)) {
