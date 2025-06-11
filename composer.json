@@ -54,6 +54,7 @@
             "Hypervel\\Queue\\": "src/queue/src/",
             "Hypervel\\Router\\": "src/router/src/",
             "Hypervel\\Session\\": "src/session/src/",
+            "Hypervel\\Socialite\\": "src/socialite/src/",
             "Hypervel\\Support\\": "src/support/src/",
             "Hypervel\\Telescope\\": "src/telescope/src/",
             "Hypervel\\Testbench\\": "src/testbench/src/",
@@ -125,7 +126,9 @@
         "symfony/error-handler": "^6.3",
         "symfony/mailer": "^6.2",
         "symfony/process": "^6.2",
-        "tijsverkoyen/css-to-inline-styles": "^2.2.5"
+        "tijsverkoyen/css-to-inline-styles": "^2.2.5",
+        "league/oauth1-client": "^1.11",
+        "phpseclib/phpseclib": "^3.0"
     },
     "replace": {
         "hypervel/auth": "self.version",
@@ -157,6 +160,7 @@
         "hypervel/queue": "self.version",
         "hypervel/router": "self.version",
         "hypervel/session": "self.version",
+        "hypervel/socialite": "self.version",
         "hypervel/support": "self.version",
         "hypervel/telescope": "self.version",
         "hypervel/testbench": "self.version",
@@ -227,6 +231,7 @@
                 "Hypervel\\Queue\\ConfigProvider",
                 "Hypervel\\Router\\ConfigProvider",
                 "Hypervel\\Session\\ConfigProvider",
+                "Hypervel\\Socialite\\ConfigProvider",
                 "Hypervel\\Telescope\\ConfigProvider",
                 "Hypervel\\Validation\\ConfigProvider"
             ]
