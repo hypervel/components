@@ -44,7 +44,7 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
      */
     protected bool $reRequest = false;
 
-    protected function getAuthUrl(string $state): string
+    protected function getAuthUrl(?string $state): string
     {
         return $this->buildAuthUrlFromBase('https://www.facebook.com/' . $this->getGraphVersion() . '/dialog/oauth', $state);
     }
