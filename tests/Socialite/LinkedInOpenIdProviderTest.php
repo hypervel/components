@@ -27,7 +27,7 @@ class LinkedInOpenIdProviderTest extends TestCase
     {
         parent::tearDown();
 
-        Context::destroy('socialite.client.providers.' . LinkedInOpenIdProvider::class);
+        Context::destroyAll();
     }
 
     public function testResponse()
@@ -129,7 +129,7 @@ class LinkedInOpenIdProviderTest extends TestCase
         );
         $provider->stateless();
         Context::set(
-            'socialite.client.providers.' . LinkedInOpenIdProvider::class,
+            'socialite.providers.' . LinkedInOpenIdProvider::class . '.httpClient',
             $guzzle
         );
 

@@ -50,7 +50,9 @@ class TwitchProvider extends AbstractProvider implements ProviderInterface
      */
     protected function userInstance(array $response, array $user): User
     {
-        $this->user = $this->mapUserToObject($user);
+        $this->setUser(
+            $this->mapUserToObject($user)
+        );
 
         $scopes = Arr::get($response, 'scope', []);
 
@@ -58,7 +60,7 @@ class TwitchProvider extends AbstractProvider implements ProviderInterface
             $scopes = explode($this->scopeSeparator, $scopes);
         }
 
-        return $this->user->setToken(Arr::get($response, 'access_token'))
+        return $this->getUser()->setToken(Arr::get($response, 'access_token'))
             ->setRefreshToken(Arr::get($response, 'refresh_token'))
             ->setExpiresIn(Arr::get($response, 'expires_in'))
             ->setApprovedScopes($scopes);

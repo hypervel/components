@@ -26,7 +26,7 @@ class LinkedInProviderTest extends TestCase
     {
         parent::tearDown();
 
-        Context::destroy('socialite.client.providers.' . LinkedInProvider::class);
+        Context::destroyAll();
     }
 
     public function testMapUserWithoutEmailAndAddress()
@@ -84,7 +84,7 @@ class LinkedInProviderTest extends TestCase
         );
         $provider->stateless();
         Context::set(
-            'socialite.client.providers.' . LinkedInProvider::class,
+            'socialite.providers.' . LinkedInProvider::class . '.httpClient',
             $guzzle
         );
 

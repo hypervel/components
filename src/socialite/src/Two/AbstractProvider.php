@@ -6,16 +6,19 @@ namespace Hypervel\Socialite\Two;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
-use Hypervel\Context\Context;
 use Hypervel\Http\Contracts\RequestContract;
 use Hypervel\Http\Contracts\ResponseContract;
 use Hypervel\Socialite\Contracts\Provider as ProviderContract;
+use Hypervel\Socialite\HasProviderContext;
+use Hypervel\Socialite\Two\Exceptions\InvalidStateException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
 use Psr\Http\Message\ResponseInterface;
 
 abstract class AbstractProvider implements ProviderContract
 {
+    use HasProviderContext;
+
     /**
      * The custom parameters to be sent with the request.
      */
@@ -47,11 +50,6 @@ abstract class AbstractProvider implements ProviderContract
      * Indicates if PKCE should be used.
      */
     protected bool $usesPKCE = false;
-
-    /**
-     * The cached user instance.
-     */
-    protected ?User $user = null;
 
     /**
      * Create a new provider instance.
@@ -128,7 +126,7 @@ abstract class AbstractProvider implements ProviderContract
     {
         $fields = [
             'client_id' => $this->clientId,
-            'redirect_uri' => $this->redirectUrl,
+            'redirect_uri' => $this->getRedirectUrl(),
             'scope' => $this->formatScopes($this->getScopes(), $this->scopeSeparator),
             'response_type' => 'code',
         ];
@@ -142,7 +140,7 @@ abstract class AbstractProvider implements ProviderContract
             $fields['code_challenge_method'] = $this->getCodeChallengeMethod();
         }
 
-        return array_merge($fields, $this->parameters);
+        return array_merge($fields, $this->getParameters());
     }
 
     /**
@@ -155,8 +153,8 @@ abstract class AbstractProvider implements ProviderContract
 
     public function user(): User
     {
-        if ($this->user) {
-            return $this->user;
+        if ($user = $this->getUser()) {
+            return $user;
         }
 
         if ($this->hasInvalidState()) {
@@ -171,13 +169,33 @@ abstract class AbstractProvider implements ProviderContract
     }
 
     /**
+     * Get the user instance from the context.
+     */
+    protected function getUser(): ?User
+    {
+        return $this->getContext('user');
+    }
+
+    /**
+     * Set the user instance in the context.
+     */
+    protected function setUser(User $user): static
+    {
+        $this->setContext('user', $user);
+
+        return $this;
+    }
+
+    /**
      * Create a user instance from the given data.
      */
     protected function userInstance(array $response, array $user): User
     {
-        $this->user = $this->mapUserToObject($user);
+        $this->setUser(
+            $this->mapUserToObject($user)
+        );
 
-        return $this->user->setToken(Arr::get($response, 'access_token'))
+        return $this->getUser()->setToken(Arr::get($response, 'access_token'))
             ->setRefreshToken(Arr::get($response, 'refresh_token'))
             ->setExpiresIn(Arr::get($response, 'expires_in'))
             ->setApprovedScopes(explode($this->scopeSeparator, Arr::get($response, 'scope', '')));
@@ -238,14 +256,14 @@ abstract class AbstractProvider implements ProviderContract
             'client_id' => $this->clientId,
             'client_secret' => $this->clientSecret,
             'code' => $code,
-            'redirect_uri' => $this->redirectUrl,
+            'redirect_uri' => $this->getRedirectUrl(),
         ];
 
         if ($this->usesPKCE()) {
             $fields['code_verifier'] = $this->request->session()->pull('code_verifier');
         }
 
-        return array_merge($fields, $this->parameters);
+        return array_merge($fields, $this->getParameters());
     }
 
     /**
@@ -292,7 +310,9 @@ abstract class AbstractProvider implements ProviderContract
      */
     public function scopes(array|string $scopes): static
     {
-        $this->scopes = array_values(array_unique(array_merge($this->scopes, (array) $scopes)));
+        $this->setScopes(
+            array_values(array_unique(array_merge($this->getScopes(), Arr::wrap($scopes))))
+        );
 
         return $this;
     }
@@ -302,7 +322,10 @@ abstract class AbstractProvider implements ProviderContract
      */
     public function setScopes(array|string $scopes): static
     {
-        $this->scopes = array_values(array_unique((array) $scopes));
+        $this->setContext(
+            'scopes',
+            array_values(array_unique(Arr::wrap($scopes)))
+        );
 
         return $this;
     }
@@ -312,7 +335,7 @@ abstract class AbstractProvider implements ProviderContract
      */
     public function getScopes(): array
     {
-        return $this->scopes;
+        return $this->getContext('scopes', $this->scopes);
     }
 
     /**
@@ -320,9 +343,17 @@ abstract class AbstractProvider implements ProviderContract
      */
     public function redirectUrl(string $url): static
     {
-        $this->redirectUrl = $url;
+        $this->setContext('redirectUrl', $url);
 
         return $this;
+    }
+
+    /**
+     * Get the redirect URL.
+     */
+    protected function getRedirectUrl(): string
+    {
+        return $this->getContext('redirectUrl', $this->redirectUrl);
     }
 
     /**
@@ -330,10 +361,9 @@ abstract class AbstractProvider implements ProviderContract
      */
     protected function getHttpClient(): Client
     {
-        return Context::getOrSet(
-            'socialite.client.providers.' . static::class,
-            fn () => new Client($this->guzzle)
-        );
+        return $this->getOrSetContext('httpClient', function () {
+            return new Client($this->guzzle);
+        });
     }
 
     /**
@@ -351,7 +381,7 @@ abstract class AbstractProvider implements ProviderContract
      */
     protected function usesState(): bool
     {
-        return ! $this->stateless;
+        return ! $this->isStateless();
     }
 
     /**
@@ -359,7 +389,7 @@ abstract class AbstractProvider implements ProviderContract
      */
     protected function isStateless(): bool
     {
-        return $this->stateless;
+        return $this->getContext('stateless', $this->stateless);
     }
 
     /**
@@ -367,7 +397,7 @@ abstract class AbstractProvider implements ProviderContract
      */
     public function stateless(): static
     {
-        $this->stateless = true;
+        $this->setContext('stateless', true);
 
         return $this;
     }
@@ -385,7 +415,7 @@ abstract class AbstractProvider implements ProviderContract
      */
     protected function usesPKCE(): bool
     {
-        return $this->usesPKCE;
+        return $this->getContext('usesPKCE', $this->usesPKCE);
     }
 
     /**
@@ -393,7 +423,7 @@ abstract class AbstractProvider implements ProviderContract
      */
     public function enablePKCE(): static
     {
-        $this->usesPKCE = true;
+        $this->setContext('usesPKCE', true);
 
         return $this;
     }
@@ -429,8 +459,16 @@ abstract class AbstractProvider implements ProviderContract
      */
     public function with(array $parameters): static
     {
-        $this->parameters = $parameters;
+        $this->setContext('parameters', $parameters);
 
         return $this;
+    }
+
+    /**
+     * Get the custom parameters of the request.
+     */
+    protected function getParameters(): array
+    {
+        return $this->getContext('parameters', $this->parameters);
     }
 }

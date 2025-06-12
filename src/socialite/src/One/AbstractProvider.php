@@ -7,16 +7,14 @@ namespace Hypervel\Socialite\One;
 use Hypervel\Http\Contracts\RequestContract;
 use Hypervel\Http\Contracts\ResponseContract;
 use Hypervel\Socialite\Contracts\Provider as ProviderContract;
+use Hypervel\Socialite\HasProviderContext;
 use League\OAuth1\Client\Credentials\TokenCredentials;
 use League\OAuth1\Client\Server\Server;
 use Psr\Http\Message\ResponseInterface;
 
 abstract class AbstractProvider implements ProviderContract
 {
-    /**
-     * A hash representing the last requested user.
-     */
-    protected ?string $userHash = null;
+    use HasProviderContext;
 
     /**
      * Create a new provider instance.
@@ -137,15 +135,33 @@ abstract class AbstractProvider implements ProviderContract
     {
         $newHash = sha1($token . '_' . $secret);
 
-        if (! empty($this->userHash) && $newHash !== $this->userHash) {
-            $this->userHash = $newHash;
+        if (! empty($this->userHash) && $newHash !== $this->getUserHash()) {
+            $this->setUserHash($newHash);
 
             return true;
         }
 
-        $this->userHash = $this->userHash ?: $newHash;
+        $this->setUserHash($this->getUserHash() ?: $newHash);
 
         return false;
+    }
+
+    /**
+     * Get the hash representing the last requested user.
+     */
+    protected function getUserHash(): ?string
+    {
+        return $this->getContext('userHash');
+    }
+
+    /**
+     * Set the hash representing the last requested user.
+     */
+    protected function setUserHash(string $hash): static
+    {
+        $this->setContext('userHash', $hash);
+
+        return $this;
     }
 
     /**

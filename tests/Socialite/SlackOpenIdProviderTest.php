@@ -27,7 +27,7 @@ class SlackOpenIdProviderTest extends TestCase
     {
         parent::tearDown();
 
-        Context::destroy('socialite.client.providers.' . SlackOpenIdProvider::class);
+        Context::destroyAll();
     }
 
     public function testResponse()
@@ -120,7 +120,7 @@ class SlackOpenIdProviderTest extends TestCase
         );
         $provider->stateless();
         Context::set(
-            'socialite.client.providers.' . SlackOpenIdProvider::class,
+            'socialite.providers.' . SlackOpenIdProvider::class . '.httpClient',
             $guzzle
         );
 

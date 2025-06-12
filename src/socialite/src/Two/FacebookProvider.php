@@ -44,19 +44,14 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
      */
     protected bool $reRequest = false;
 
-    /**
-     * The access token that was last used to retrieve a user.
-     */
-    protected ?string $lastToken = null;
-
     protected function getAuthUrl(string $state): string
     {
-        return $this->buildAuthUrlFromBase('https://www.facebook.com/' . $this->version . '/dialog/oauth', $state);
+        return $this->buildAuthUrlFromBase('https://www.facebook.com/' . $this->getGraphVersion() . '/dialog/oauth', $state);
     }
 
     protected function getTokenUrl(): string
     {
-        return $this->graphUrl . '/' . $this->version . '/oauth/access_token';
+        return $this->graphUrl . '/' . $this->getGraphVersion() . '/oauth/access_token';
     }
 
     public function getAccessTokenResponse(string $code): array
@@ -72,7 +67,7 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
 
     protected function getUserByToken(string $token): array
     {
-        $this->lastToken = $token;
+        $this->setLastToken($token);
 
         return $this->getUserByOIDCToken($token)
             ?? $this->getUserFromAccessToken($token);
@@ -132,14 +127,14 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
     {
         $params = [
             'access_token' => $token,
-            'fields' => implode(',', $this->fields),
+            'fields' => implode(',', $this->getFields()),
         ];
 
         if (! empty($this->clientSecret)) {
             $params['appsecret_proof'] = hash_hmac('sha256', $token, $this->clientSecret);
         }
 
-        $response = $this->getHttpClient()->get($this->graphUrl . '/' . $this->version . '/me', [
+        $response = $this->getHttpClient()->get($this->graphUrl . '/' . $this->getGraphVersion() . '/me', [
             RequestOptions::HEADERS => [
                 'Accept' => 'application/json',
             ],
@@ -152,7 +147,7 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
     protected function mapUserToObject(array $user): User
     {
         if (! isset($user['sub'])) {
-            $avatarUrl = $this->graphUrl . '/' . $this->version . '/' . $user['id'] . '/picture';
+            $avatarUrl = $this->graphUrl . '/' . $this->getGraphVersion() . '/' . $user['id'] . '/picture';
 
             $avatarOriginalUrl = $avatarUrl . '?width=1920';
         }
@@ -172,11 +167,11 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
     {
         $fields = parent::getCodeFields($state);
 
-        if ($this->popup) {
+        if ($this->getPopup()) {
             $fields['display'] = 'popup';
         }
 
-        if ($this->reRequest) {
+        if ($this->getReRequest()) {
             $fields['auth_type'] = 'rerequest';
         }
 
@@ -188,9 +183,17 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
      */
     public function fields(array $fields): static
     {
-        $this->fields = $fields;
+        $this->setContext('fields', $fields);
 
         return $this;
+    }
+
+    /**
+     * Get the user fields to request from Facebook.
+     */
+    protected function getFields(): array
+    {
+        return $this->getContext('fields', $this->fields);
     }
 
     /**
@@ -198,9 +201,17 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
      */
     public function asPopup(): static
     {
-        $this->popup = true;
+        $this->setContext('popup', true);
 
         return $this;
+    }
+
+    /**
+     * Determine if the dialog should be displayed as a popup.
+     */
+    protected function getPopup(): bool
+    {
+        return $this->getContext('popup', $this->popup);
     }
 
     /**
@@ -208,9 +219,17 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
      */
     public function reRequest(): static
     {
-        $this->reRequest = true;
+        $this->setContext('reRequest', true);
 
         return $this;
+    }
+
+    /**
+     * Determine if permissions should be re-requested.
+     */
+    protected function getReRequest(): bool
+    {
+        return $this->getContext('reRequest', $this->reRequest);
     }
 
     /**
@@ -218,7 +237,17 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
      */
     public function lastToken(): ?string
     {
-        return $this->lastToken;
+        return $this->getContext('lastToken');
+    }
+
+    /**
+     * Set the last access token used.
+     */
+    protected function setLastToken(string $token): static
+    {
+        $this->setContext('lastToken', $token);
+
+        return $this;
     }
 
     /**
@@ -226,8 +255,16 @@ class FacebookProvider extends AbstractProvider implements ProviderInterface
      */
     public function usingGraphVersion(string $version): static
     {
-        $this->version = $version;
+        $this->setContext('version', $version);
 
         return $this;
+    }
+
+    /**
+     * Get the graph version being used.
+     */
+    protected function getGraphVersion(): string
+    {
+        return $this->getContext('version', $this->version);
     }
 }

@@ -24,7 +24,25 @@ class SlackProvider extends AbstractProvider implements ProviderInterface
      */
     public function asBotUser(): static
     {
-        $this->scopeKey = 'scope';
+        $this->setScopeKey('scope');
+
+        return $this;
+    }
+
+    /**
+     * Get the scope key used for the provider.
+     */
+    protected function getScopeKey(): string
+    {
+        return $this->getContext('scopeKey', $this->scopeKey);
+    }
+
+    /**
+     * Indicate that the requested token should be for a user.
+     */
+    protected function setScopeKey(string $scopeKey): static
+    {
+        $this->setContext($scopeKey, $scopeKey);
 
         return $this;
     }
@@ -63,9 +81,9 @@ class SlackProvider extends AbstractProvider implements ProviderInterface
     {
         $fields = parent::getCodeFields($state);
 
-        if ($this->scopeKey === 'user_scope') {
+        if ($this->getScopeKey() === 'user_scope') {
             $fields['scope'] = '';
-            $fields['user_scope'] = $this->formatScopes($this->scopes, $this->scopeSeparator);
+            $fields['user_scope'] = $this->formatScopes($this->getScopes(), $this->scopeSeparator);
         }
 
         return $fields;
@@ -80,7 +98,7 @@ class SlackProvider extends AbstractProvider implements ProviderInterface
 
         $result = json_decode((string) $response->getBody(), true);
 
-        if ($this->scopeKey === 'user_scope') {
+        if ($this->getScopeKey() === 'user_scope') {
             return $result['authed_user'];
         }
 

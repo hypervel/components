@@ -36,7 +36,7 @@ class GithubProvider extends AbstractProvider implements ProviderInterface
 
         $user = json_decode((string) $response->getBody(), true);
 
-        if (in_array('user:email', $this->scopes, true)) {
+        if (in_array('user:email', $this->getScopes(), true)) {
             $user['email'] = $this->getEmailByToken($token);
         }
 

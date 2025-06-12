@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Socialite;
 
 use Hyperf\Contract\ConfigInterface;
+use Hypervel\Context\Context;
 use Hypervel\Socialite\Exceptions\DriverMissingConfigurationException;
 use Hypervel\Socialite\SocialiteManager;
 use Hypervel\Socialite\Two\GithubProvider;
@@ -16,19 +17,12 @@ use Hypervel\Testbench\TestCase;
  */
 class SocialiteManagerTest extends TestCase
 {
-    // protected function getEnvironmentSetUp($app)
-    // {
-    //     $app['config']->set('services.github', [
-    //         'client_id' => 'github-client-id',
-    //         'client_secret' => 'github-client-secret',
-    //         'redirect' => 'http://your-callback-url',
-    //     ]);
-    // }
+    public function tearDown(): void
+    {
+        parent::tearDown();
 
-    // protected function getPackageProviders($app)
-    // {
-    //     return [SocialiteServiceProvider::class];
-    // }
+        Context::destroyAll();
+    }
 
     public function setUp(): void
     {

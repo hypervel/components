@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Socialite\Two;
+namespace Hypervel\Socialite\Two\Exceptions;
 
 use InvalidArgumentException;
 

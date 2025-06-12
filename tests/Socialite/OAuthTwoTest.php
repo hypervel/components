@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Socialite;
 
 use GuzzleHttp\Client;
+use Hypervel\Context\Context;
 use Hypervel\Http\Contracts\RequestContract;
 use Hypervel\Http\Contracts\ResponseContract;
 use Hypervel\Session\Contracts\Session as SessionContract;
-use Hypervel\Socialite\Two\InvalidStateException;
+use Hypervel\Socialite\Two\Exceptions\InvalidStateException;
 use Hypervel\Socialite\Two\Token;
 use Hypervel\Socialite\Two\User;
 use Hypervel\Support\Str;
@@ -27,12 +28,12 @@ use Psr\Http\Message\StreamInterface;
  */
 class OAuthTwoTest extends TestCase
 {
-    // protected function tearDown(): void
-    // {
-    //     parent::tearDown();
+    public function tearDown(): void
+    {
+        parent::tearDown();
 
-    //     m::close();
-    // }
+        Context::destroyAll();
+    }
 
     public function testRedirectGeneratesTheProperRedirectResponseWithoutPKCE()
     {
@@ -103,7 +104,7 @@ class OAuthTwoTest extends TestCase
             ->with(m::on(function ($url) use (&$state, &$codeVerifier) {
                 $codeChallenge = rtrim(strtr(base64_encode(hash('sha256', $codeVerifier, true)), '+/', '-_'), '=');
                 return $url === "http://auth.url?client_id=client_id&redirect_uri=redirect&scope=&response_type=code&state={$state}&code_challenge={$codeChallenge}&code_challenge_method=S256";
-            }))->andReturn($redirectResponse = m::mock(ResponseInterface::class));
+            }))->andReturn(m::mock(ResponseInterface::class));
 
         $session->expects('put')->twice()->withArgs($sessionPutClosure);
         $session->expects('get')->once()->with('code_verifier')->andReturnUsing(function () use (&$codeVerifier) {
