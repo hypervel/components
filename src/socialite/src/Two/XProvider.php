@@ -29,7 +29,7 @@ class XProvider extends AbstractProvider implements ProviderInterface
      */
     protected int $encodingType = PHP_QUERY_RFC3986;
 
-    public function getAuthUrl(string $state): string
+    public function getAuthUrl(?string $state): string
     {
         return $this->buildAuthUrlFromBase('https://x.com/i/oauth2/authorize', $state);
     }

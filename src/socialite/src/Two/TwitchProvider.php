@@ -19,7 +19,7 @@ class TwitchProvider extends AbstractProvider implements ProviderInterface
      */
     protected string $scopeSeparator = ' ';
 
-    protected function getAuthUrl(string $state): string
+    protected function getAuthUrl(?string $state): string
     {
         return $this->buildAuthUrlFromBase('https://id.twitch.tv/oauth2/authorize', $state);
     }

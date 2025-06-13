@@ -56,8 +56,8 @@ class OpenIdProviderTest extends TestCase
         $response = m::mock(ResponseContract::class);
         $response->shouldReceive('redirect')
             ->once()
-            ->with(m::on(function ($url) use (&$state) {
-                return $url === "http://auth.url?client_id=client_id&redirect_uri=redirect&scope=&response_type=code&state={$state}";
+            ->with(m::on(function ($url) use (&$state, &$nonce) {
+                return $url === "http://auth.url?client_id=client_id&redirect_uri=redirect&scope=&response_type=code&state={$state}&nonce={$nonce}";
             }))->andReturn($redirectResponse = m::mock(ResponseInterface::class));
 
         $session->expects('put')->twice()->withArgs($closure);
