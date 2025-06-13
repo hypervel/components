@@ -442,7 +442,7 @@ class UrlGenerator implements UrlGeneratorContract
     {
         $root = Context::getOrSet('__request.root.uri', function () {
             $requestUri = $this->getRequestUri()->toString();
-            $root = preg_replace(';^(.+://.+?)((/|\?|#).*)?$;', '\1', $requestUri);
+            $root = preg_replace(';^([^:]+://[^/?#]+).*$;', '\1', $requestUri);
 
             return new Uri($root);
         });
