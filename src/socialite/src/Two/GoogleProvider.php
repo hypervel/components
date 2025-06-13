@@ -23,7 +23,7 @@ class GoogleProvider extends AbstractProvider implements ProviderInterface
         'email',
     ];
 
-    protected function getAuthUrl(string $state): string
+    protected function getAuthUrl(?string $state): string
     {
         return $this->buildAuthUrlFromBase('https://accounts.google.com/o/oauth2/auth', $state);
     }

@@ -74,7 +74,7 @@ abstract class AbstractProvider implements ProviderContract
     /**
      * Get the authentication URL for the provider.
      */
-    abstract protected function getAuthUrl(string $state): string;
+    abstract protected function getAuthUrl(?string $state): string;
 
     /**
      * Get the token URL for the provider.
@@ -114,7 +114,7 @@ abstract class AbstractProvider implements ProviderContract
     /**
      * Build the authentication URL for the provider from the given base URL.
      */
-    protected function buildAuthUrlFromBase(string $url, string $state): string
+    protected function buildAuthUrlFromBase(string $url, ?string $state): string
     {
         return $url . '?' . http_build_query($this->getCodeFields($state), '', '&', $this->encodingType);
     }

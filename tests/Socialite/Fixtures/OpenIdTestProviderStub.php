@@ -21,9 +21,9 @@ class OpenIdTestProviderStub extends OpenIdProvider
         return 'http://base.url';
     }
 
-    protected function getAuthUrl(string $state): string
+    protected function getAuthUrl(?string $state, ?string $nonce = null): string
     {
-        return $this->buildAuthUrlFromBase('http://auth.url', $state);
+        return $this->buildAuthUrlFromBase('http://auth.url', $state, $nonce);
     }
 
     protected function getTokenUrl(): string

@@ -45,11 +45,44 @@ abstract class OpenIdProvider extends AbstractProvider
      */
     public function redirect(): ResponseInterface
     {
-        if ($this->usesNonce()) {
-            $this->request->session()->put('nonce', $this->getNonce());
+        $state = null;
+        $nonce = null;
+
+        if ($this->usesState()) {
+            $this->request->session()->put('state', $state = $this->getState());
         }
 
-        return parent::redirect();
+        if ($this->usesPKCE()) {
+            $this->request->session()->put('code_verifier', $this->getCodeVerifier());
+        }
+
+        if ($this->usesNonce()) {
+            $this->request->session()->put('nonce', $nonce = $this->getNonce());
+        }
+
+        return $this->response->redirect(
+            $this->getAuthUrl($state, $nonce)
+        );
+    }
+
+    /**
+     * Get the authentication URL for the provider.
+     */
+    protected function getAuthUrl(?string $state, ?string $nonce = null): string
+    {
+        return $this->buildAuthUrlFromBase(
+            $this->getOpenIdConfig()['authorization_endpoint'],
+            $state,
+            $nonce
+        );
+    }
+
+    /**
+     * Build the authentication URL for the provider from the given base URL.
+     */
+    protected function buildAuthUrlFromBase(string $url, ?string $state, ?string $nonce = null): string
+    {
+        return $url . '?' . http_build_query($this->getCodeFields($state, $nonce), '', '&', $this->encodingType);
     }
 
     /**
@@ -77,25 +110,14 @@ abstract class OpenIdProvider extends AbstractProvider
     }
 
     /**
-     * Get the authentication URL for the provider.
-     */
-    protected function getAuthUrl(string $state): string
-    {
-        return $this->buildAuthUrlFromBase(
-            $this->getOpenIdConfig()['authorization_endpoint'],
-            $state
-        );
-    }
-
-    /**
      * Get the GET parameters for the code request.
      */
-    protected function getCodeFields(?string $state = null): array
+    protected function getCodeFields(?string $state = null, ?string $nonce = null): array
     {
         $fields = parent::getCodeFields($state);
 
-        if ($this->usesState()) {
-            $fields['state'] = $state;
+        if ($this->usesNonce()) {
+            $fields['nonce'] = $nonce;
         }
 
         return $fields;
