@@ -272,11 +272,12 @@ if (! function_exists('cookie')) {
     /**
      * Create a new cookie instance.
      *
-     * @return Cookie|CookieContract
+     * @return ($name is null ? CookieContract : Cookie)
      */
-    function cookie(string $name, string $value, int $minutes = 0, string $path = '', string $domain = '', bool $secure = false, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null)
+    function cookie(?string $name = null, ?string $value = null, int $minutes = 0, string $path = '', string $domain = '', bool $secure = false, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null)
     {
         $cookieManager = app(CookieContract::class);
+
         if (is_null($name)) {
             return $cookieManager;
         }
