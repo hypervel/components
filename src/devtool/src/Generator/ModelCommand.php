@@ -36,6 +36,9 @@ class ModelCommand extends GeneratorCommand
             $this->input->setOption('factory', true);
             $this->input->setOption('seed', true);
             $this->input->setOption('migration', true);
+            $this->input->setOption('controller', true);
+            $this->input->setOption('policy', true);
+            $this->input->setOption('resource', true);
         }
 
         if ($this->input->getOption('factory')) {
@@ -50,6 +53,15 @@ class ModelCommand extends GeneratorCommand
             $this->createSeeder();
         }
 
+        if ($this->input->getOption('controller') || $this->input->getOption('resource') || $this->input->getOption('api')) {
+            $this->createController();
+        } elseif ($this->input->getOption('requests')) {
+            $this->createFormRequests();
+        }
+
+        if ($this->input->getOption('policy')) {
+            $this->createPolicy();
+        }
         return 0;
     }
 
@@ -84,6 +96,11 @@ class ModelCommand extends GeneratorCommand
             ['force', null, InputOption::VALUE_NONE, 'Create the class even if the model already exists'],
             ['migration', 'm', InputOption::VALUE_NONE, 'Create a new migration file for the model'],
             ['seed', 's', InputOption::VALUE_NONE, 'Create a new seeder for the model'],
+            ['controller', 'c', InputOption::VALUE_NONE, 'Create a new controller for the model'],
+            ['policy', null, InputOption::VALUE_NONE, 'Create a new policy for the model'],
+            ['resource', 'r', InputOption::VALUE_NONE, 'Indicates if the generated controller should be a resource controller'],
+            ['api', null, InputOption::VALUE_NONE, 'Indicates if the generated controller should be an API resource controller'],
+            ['requests', 'R', InputOption::VALUE_NONE, 'Create new form request classes and use them in the resource controller'],
         ];
     }
 
@@ -125,6 +142,59 @@ class ModelCommand extends GeneratorCommand
             '--force' => $this->input->getOption('force'),
         ]);
     }
+
+    /**
+     * Create a controller for the model.
+     *
+     * @return void
+     */
+    protected function createController()
+    {
+        $controller = Str::studly($this->input->getArgument('name'));
+
+        $modelName = $this->qualifyClass($this->getNameInput());
+
+        $this->call('make:controller', array_filter([
+            'name' => "{$controller}Controller",
+            '--model' => $this->input->getOption('resource') || $this->input->getOption('api') ? $modelName : null,
+            '--api' => $this->input->getOption('api'),
+            '--requests' => $this->input->getOption('requests') || $this->input->getOption('all'),
+        ]));
+    }
+
+    /**
+     * Create the form requests for the model.
+     *
+     * @return void
+     */
+    protected function createFormRequests()
+    {
+        $request = Str::studly($this->input->getArgument('name'));
+
+        $this->call('make:request', [
+            'name' => "Store{$request}Request",
+        ]);
+
+        $this->call('make:request', [
+            'name' => "Update{$request}Request",
+        ]);
+    }
+
+    /**
+     * Create a policy file for the model.
+     *
+     * @return void
+     */
+    protected function createPolicy()
+    {
+        $policy = Str::studly($this->input->getArgument('name'));
+
+        $this->call('make:policy', [
+            'name' => "{$policy}Policy",
+            '--model' => $policy,
+        ]);
+    }
+
 
     protected function call(string $command, array $parameters = []): int
     {

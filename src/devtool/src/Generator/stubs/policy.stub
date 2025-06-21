@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace %NAMESPACE%;
 
-use Hypervel\Auth\Access\Response;
-use %NAMESPACED_MODEL%;
 use %NAMESPACED_USER_MODEL%;
+use %NAMESPACED_MODEL%;
 
 class %CLASS%
 {

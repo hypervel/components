@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Devtool\Generator;
 
 use Hyperf\Devtool\Generator\GeneratorCommand;
+use Hypervel\Support\Str;
+use Symfony\Component\Console\Input\InputOption;
 
 class FactoryCommand extends GeneratorCommand
 {
@@ -29,7 +31,7 @@ class FactoryCommand extends GeneratorCommand
     {
         $namespace = $this->getConfig()['model_namespace'] ?? 'App\Models';
 
-        return "{$namespace}\\{{$name}}";
+        return "{$namespace}\\{$name}";
     }
 
     /**
@@ -37,9 +39,15 @@ class FactoryCommand extends GeneratorCommand
      */
     protected function replaceClass(string $stub, string $name): string
     {
+        $factory = Str::ucfirst(str_replace('Factory', '', $name));
+
+        $model = $this->input->getOption('model')
+            ? $this->input->getOption('model')
+            : $factory;
+
         $replace = [
-            '%CLASS%' => $name,
-            '%MODEL_NAMESPACE%' => $this->getModelNamespace($name),
+            '%CLASS%' => $model,
+            '%MODEL_NAMESPACE%' => $this->getModelNamespace($model),
         ];
 
         return str_replace(
@@ -70,5 +78,14 @@ class FactoryCommand extends GeneratorCommand
     protected function getDefaultNamespace(): string
     {
         return '';
+    }
+
+    protected function getOptions(): array
+    {
+        return [
+            ['force', 'f', InputOption::VALUE_NONE, 'Whether force to rewrite.'],
+            ['namespace', 'N', InputOption::VALUE_OPTIONAL, 'The namespace for class.', null],
+            ['model', 'm', InputOption::VALUE_OPTIONAL, 'The name of the model'],
+        ];
     }
 }
