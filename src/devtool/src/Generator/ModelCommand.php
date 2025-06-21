@@ -145,8 +145,6 @@ class ModelCommand extends GeneratorCommand
 
     /**
      * Create a controller for the model.
-     *
-     * @return void
      */
     protected function createController()
     {
@@ -164,8 +162,6 @@ class ModelCommand extends GeneratorCommand
 
     /**
      * Create the form requests for the model.
-     *
-     * @return void
      */
     protected function createFormRequests()
     {
@@ -182,8 +178,6 @@ class ModelCommand extends GeneratorCommand
 
     /**
      * Create a policy file for the model.
-     *
-     * @return void
      */
     protected function createPolicy()
     {
@@ -194,7 +188,6 @@ class ModelCommand extends GeneratorCommand
             '--model' => $policy,
         ]);
     }
-
 
     protected function call(string $command, array $parameters = []): int
     {
