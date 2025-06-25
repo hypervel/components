@@ -86,7 +86,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
      */
     public function has(string $key, ?string $locale = null, bool $fallback = true): bool
     {
-        $locale = $locale ?: $this->locale;
+        $locale = $locale ?: $this->getLocale();
 
         // We should temporarily disable the handling of missing translation keys
         // while performing the existence check. After the check, we will turn
@@ -114,7 +114,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
      */
     public function get(string $key, array $replace = [], ?string $locale = null, bool $fallback = true): array|string
     {
-        $locale = $locale ?: $this->locale;
+        $locale = $locale ?: $this->getLocale();
 
         // For JSON translations, there is only one file per locale, so we will simply load
         // that file and then we will be ready to check the array for the key. These are
@@ -193,7 +193,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
      */
     protected function localeForChoice(string $key, ?string $locale): string
     {
-        $locale = $locale ?: $this->locale;
+        $locale = $locale ?: $this->getLocale();
 
         return $this->hasForLocale($key, $locale) ? $locale : $this->fallback;
     }
@@ -375,7 +375,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
      */
     protected function localeArray(?string $locale): array
     {
-        $locales = array_filter([$locale ?: $this->locale, $this->fallback]);
+        $locales = array_filter([$locale ?: $this->getLocale(), $this->fallback]);
 
         return call_user_func($this->determineLocalesUsing ?: fn () => $locales, $locales);
     }
