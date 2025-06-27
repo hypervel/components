@@ -26,6 +26,7 @@
             "Illuminate\\Events\\": "src/event/illuminate/",
             "Workbench\\App\\": "src/testbench/workbench/app/",
             "Hypervel\\": "src/core/src/",
+            "Hypervel\\ApiClient\\": "src/api-client/src/",
             "Hypervel\\Auth\\": "src/auth/src/",
             "Hypervel\\Broadcasting\\": "src/broadcasting/src/",
             "Hypervel\\Bus\\": "src/bus/src/",
@@ -131,6 +132,7 @@
         "phpseclib/phpseclib": "^3.0"
     },
     "replace": {
+        "hypervel/api-client": "self.version",
         "hypervel/auth": "self.version",
         "hypervel/broadcasting": "self.version",
         "hypervel/bus": "self.version",
