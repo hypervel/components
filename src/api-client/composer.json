@@ -1,0 +1,42 @@
+{
+    "name": "hypervel/api-client",
+    "description": "The api client package for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "hyperf",
+        "api",
+        "client",
+        "swoole",
+        "hypervel"
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "hypervel/support": "^0.2",
+        "hypervel/api-client": "^0.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\ApiClient\\": "src/"
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.2-dev"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev"
+}
