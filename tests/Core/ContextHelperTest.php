@@ -30,7 +30,7 @@ class ContextHelperTest extends TestCase
     }
 
     /** @test */
-    public function it_returns_context_class_when_no_arguments_provided(): void
+    public function itReturnsContextClassWhenNoArgumentsProvided(): void
     {
         $result = context();
         
@@ -38,7 +38,7 @@ class ContextHelperTest extends TestCase
     }
 
     /** @test */
-    public function it_gets_single_context_value_with_default(): void
+    public function itGetsSingleContextValueWithDefault(): void
     {
         context(['test_key' => 'test_value']);
         
@@ -50,7 +50,7 @@ class ContextHelperTest extends TestCase
     }
 
     /** @test */
-    public function it_sets_multiple_context_values_when_array_provided(): void
+    public function itSetsMultipleContextValuesWhenArrayProvided(): void
     {
         $contextData = [
             'user_id' => 123,
@@ -65,7 +65,7 @@ class ContextHelperTest extends TestCase
     }
 
     /** @test */
-    public function it_returns_null_for_non_existent_key_without_default(): void
+    public function itReturnsNullForNonExistentKeyWithoutDefault(): void
     {
         $result = context('non_existent_key');
         
