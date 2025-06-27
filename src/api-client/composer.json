@@ -23,7 +23,7 @@
     "require": {
         "php": "^8.2",
         "hypervel/support": "^0.2",
-        "hypervel/api-client": "^0.2"
+        "hypervel/http-client": "^0.2"
     },
     "autoload": {
         "psr-4": {
