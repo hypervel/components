@@ -330,7 +330,7 @@ class PendingCommand
      */
     protected function mockConsoleOutput()
     {
-        // /** @var \Mockery\MockeryInterface&\Mockery\ExpectationInterface $mock */
+        /* @var \Mockery\ExpectationInterface&\Mockery\MockeryInterface $mock */
         $mock = Mockery::mock(SymfonyStyle::class . '[askQuestion]', [
             new ArrayInput($this->parameters),
             $this->createABufferedOutputMock(),

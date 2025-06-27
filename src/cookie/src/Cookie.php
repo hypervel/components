@@ -40,7 +40,7 @@ class Cookie extends HyperfCookie
     public function withExpires($expire = 0): static
     {
         $cookie = clone $this;
-        $cookie->expire = self::expiresTimestamp($expire);
+        $cookie->expire = static::expiresTimestamp($expire);
 
         return $cookie;
     }
@@ -50,7 +50,7 @@ class Cookie extends HyperfCookie
      *
      * @param DateTimeInterface|int|string $expire
      */
-    private static function expiresTimestamp($expire = 0): int
+    protected static function expiresTimestamp($expire = 0): int
     {
         // convert expiration time to a Unix timestamp
         if ($expire instanceof DateTimeInterface) {
