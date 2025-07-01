@@ -52,7 +52,14 @@ class TestCommand extends GeneratorCommand
      */
     protected function getPath(string $name): string
     {
-        $filename = str_replace($this->getNamespace($name) . '\\', '', "{$name}.php");
+        $namespace = $this->input->getOption('namespace');
+        if (empty($namespace)) {
+            $namespace = $this->getDefaultNamespace();
+        }
+
+        $filename = str_replace($namespace . '\\', '', "{$name}.php");
+        $filename = str_replace('\\', '/', $filename);
+
         $path = $this->input->getOption('path')
             ?: ($this->input->getOption('unit') ? 'tests/Unit' : 'tests/Feature');
 
