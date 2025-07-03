@@ -11,27 +11,27 @@ class NestedSet
     /**
      * The name of default lft column.
      */
-    public const string LFT = '_lft';
+    public const LFT = '_lft';
 
     /**
      * The name of default rgt column.
      */
-    public const string RGT = '_rgt';
+    public const RGT = '_rgt';
 
     /**
      * The name of default parent id column.
      */
-    public const string PARENT_ID = 'parent_id';
+    public const PARENT_ID = 'parent_id';
 
     /**
      * Insert direction.
      */
-    public const int BEFORE = 1;
+    public const BEFORE = 1;
 
     /**
      * Insert direction.
      */
-    public const int AFTER = 2;
+    public const AFTER = 2;
 
     /**
      * Add default nested set columns to the table. Also create an index.
