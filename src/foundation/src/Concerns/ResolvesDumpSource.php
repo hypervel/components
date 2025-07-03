@@ -45,14 +45,14 @@ trait ResolvesDumpSource
     /**
      * The source resolver.
      *
-     * @var (callable(): (array{0: string, 1: string, 2: int|null}|null))|null|false
+     * @var null|(callable(): (array{0: string, 1: string, 2: int|null}|null))|false
      */
     protected static $dumpSourceResolver;
 
     /**
      * Resolve the source of the dump call.
      *
-     * @return array{0: string, 1: string, 2: int|null}|null|void
+     * @return null|void|array{0: string, 1: string, 2: int|null}
      */
     public function resolveDumpSource()
     {
@@ -116,10 +116,10 @@ trait ResolvesDumpSource
     /**
      * Determine if the given file is a view compiled.
      *
-     * @param  string  $file
+     * @param string $file
      * @return bool
      */
-    protected function isCompiledViewFile($file)
+    protected function isCompiledViewFile($file): bool
     {
         return str_starts_with($file, $this->compiledViewPath) && str_ends_with($file, '.php');
     }
@@ -127,10 +127,10 @@ trait ResolvesDumpSource
     /**
      * Get the original view compiled file by the given compiled file.
      *
-     * @param  string  $file
+     * @param string $file
      * @return string
      */
-    protected function getOriginalFileForCompiledView($file)
+    protected function getOriginalFileForCompiledView($file): string
     {
         preg_match('/\/\*\*PATH\s(.*)\sENDPATH/', file_get_contents($file), $matches);
 
@@ -144,9 +144,9 @@ trait ResolvesDumpSource
     /**
      * Resolve the source href, if possible.
      *
-     * @param  string  $file
-     * @param  int|null  $line
-     * @return string|null|void
+     * @param string $file
+     * @param int|null  $line
+     * @return void|string|null
      */
     protected function resolveSourceHref($file, $line)
     {
@@ -178,10 +178,10 @@ trait ResolvesDumpSource
     /**
      * Set the resolver that resolves the source of the dump call.
      *
-     * @param  (callable(): (array{0: string, 1: string, 2: int|null}|null))|null  $callable
+     * @param null|(callable(): (array{0: string, 1: string, 2: int|null}|null)) $callable
      * @return void
      */
-    public static function resolveDumpSourceUsing($callable)
+    public static function resolveDumpSourceUsing($callable): void
     {
         static::$dumpSourceResolver = $callable;
     }
@@ -191,7 +191,7 @@ trait ResolvesDumpSource
      *
      * @return void
      */
-    public static function dontIncludeSource()
+    public static function dontIncludeSource(): void
     {
         static::$dumpSourceResolver = false;
     }

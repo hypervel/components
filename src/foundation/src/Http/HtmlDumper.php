@@ -53,8 +53,8 @@ class HtmlDumper extends BaseHtmlDumper
     /**
      * Create a new HTML dumper instance.
      *
-     * @param  string  $basePath
-     * @param  string  $compiledViewPath
+     * @param string $basePath
+     * @param string $compiledViewPath
      */
     public function __construct($basePath, $compiledViewPath)
     {
@@ -67,11 +67,11 @@ class HtmlDumper extends BaseHtmlDumper
     /**
      * Create a new HTML dumper instance and register it as the default dumper.
      *
-     * @param  string  $basePath
-     * @param  string  $compiledViewPath
+     * @param string $basePath
+     * @param string $compiledViewPath
      * @return void
      */
-    public static function register($basePath, $compiledViewPath)
+    public static function register($basePath, $compiledViewPath): void
     {
         $cloner = tap(new VarCloner())->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO);
 
@@ -83,10 +83,10 @@ class HtmlDumper extends BaseHtmlDumper
     /**
      * Dump a variable with its source file / line.
      *
-     * @param  \Symfony\Component\VarDumper\Cloner\Data  $data
+     * @param \Symfony\Component\VarDumper\Cloner\Data $data
      * @return void
      */
-    public function dumpWithSource(Data $data)
+    public function dumpWithSource(Data $data): void
     {
         if ($this->dumping) {
             $this->dump($data);
@@ -122,7 +122,7 @@ class HtmlDumper extends BaseHtmlDumper
      *
      * @return string
      */
-    protected function getDumpSourceContent()
+    protected function getDumpSourceContent(): string
     {
         if (is_null($dumpSource = $this->resolveDumpSource())) {
             return '';

@@ -47,9 +47,9 @@ class CliDumper extends BaseCliDumper
     /**
      * Create a new CLI dumper instance.
      *
-     * @param  \Symfony\Component\Console\Output\OutputInterface  $output
-     * @param  string  $basePath
-     * @param  string  $compiledViewPath
+     * @param \Symfony\Component\Console\Output\OutputInterface $output
+     * @param string $basePath
+     * @param string $compiledViewPath
      */
     public function __construct($output, $basePath, $compiledViewPath)
     {
@@ -65,11 +65,11 @@ class CliDumper extends BaseCliDumper
     /**
      * Create a new CLI dumper instance and register it as the default dumper.
      *
-     * @param  string  $basePath
-     * @param  string  $compiledViewPath
+     * @param string $basePath
+     * @param string $compiledViewPath
      * @return void
      */
-    public static function register($basePath, $compiledViewPath)
+    public static function register($basePath, $compiledViewPath): void
     {
         $cloner = tap(new VarCloner())->addCasters(ReflectionCaster::UNSET_CLOSURE_FILE_INFO);
 
@@ -81,10 +81,10 @@ class CliDumper extends BaseCliDumper
     /**
      * Dump a variable with its source file / line.
      *
-     * @param  \Symfony\Component\VarDumper\Cloner\Data  $data
+     * @param \Symfony\Component\VarDumper\Cloner\Data $data
      * @return void
      */
-    public function dumpWithSource(Data $data)
+    public function dumpWithSource(Data $data): void
     {
         if ($this->dumping) {
             $this->dump($data);
@@ -109,7 +109,7 @@ class CliDumper extends BaseCliDumper
      *
      * @return string
      */
-    protected function getDumpSourceContent()
+    protected function getDumpSourceContent(): string
     {
         if (is_null($dumpSource = $this->resolveDumpSource())) {
             return '';
@@ -121,9 +121,9 @@ class CliDumper extends BaseCliDumper
 
         return sprintf(
             ' <fg=gray>// <fg=gray%s>%s%s</></>',
-            is_null($href) ? '' : ";href=$href",
+            is_null($href) ? '' : ";href={$href}",
             $relativeFile,
-            is_null($line) ? '' : ":$line"
+            is_null($line) ? '' : ":{$line}"
         );
     }
 
