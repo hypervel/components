@@ -253,7 +253,7 @@ class QueryBuilder extends EloquentBuilder
         return $this->whereIsBeforeOrAfter($id, '<', $boolean);
     }
 
-    public function whereIsLeaf(): QueryBuilder|BaseQueryBuilder
+    public function whereIsLeaf(): BaseQueryBuilder|QueryBuilder
     {
         [$lft, $rgt] = $this->wrappedColumns();
 
