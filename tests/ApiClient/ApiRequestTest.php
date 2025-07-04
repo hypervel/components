@@ -132,4 +132,11 @@ class ApiRequestTest extends TestCase
         $psrRequest = $request->toPsrRequest();
         $this->assertSame(json_encode(['key2' => 'value2']), $psrRequest->getBody()->getContents());
     }
+
+    public function testAsForm(): void
+    {
+        $request = $this->request->asForm();
+
+        $this->assertSame(['application/x-www-form-urlencoded'], $request->toPsrRequest()->getHeader('Content-Type'));
+    }
 }
