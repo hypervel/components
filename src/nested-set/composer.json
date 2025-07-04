@@ -1,0 +1,42 @@
+{
+    "name": "hypervel/neseted-set",
+    "type": "library",
+    "description": "The nested-set package for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "hyperf",
+        "nested-set",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\NestedSet\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.2",
+        "hyperf/database": "~3.1.0",
+        "hypervel/core": "^0.2",
+        "hypervel/support": "^0.2"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.2-dev"
+        }
+    }
+}
