@@ -61,6 +61,14 @@ class ApiRequest extends HttpClientRequest
     }
 
     /**
+     * Indicate the request contains form parameters.
+     */
+    public function asForm(): static
+    {
+        return $this->withHeader('Content-Type', 'application/x-www-form-urlencoded');
+    }
+
+    /**
      * Add a request header.
      */
     public function withAddedHeader(string $key, string $value): static
