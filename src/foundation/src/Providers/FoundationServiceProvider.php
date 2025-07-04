@@ -18,6 +18,14 @@ use Hypervel\Support\ServiceProvider;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
+use Hypervel\Container\Contracts\Container;
+use Hypervel\Event\Contracts\Dispatcher;
+use Hyperf\Database\ConnectionInterface;
+use Hyperf\Database\Grammar;
+use Hypervel\Foundation\Console\CliDumper;
+use Hypervel\Foundation\Http\HtmlDumper;
+use Symfony\Component\VarDumper\Caster\StubCaster;
+use Symfony\Component\VarDumper\Cloner\AbstractCloner;
 use Throwable;
 
 class FoundationServiceProvider extends ServiceProvider
@@ -50,6 +58,8 @@ class FoundationServiceProvider extends ServiceProvider
     {
         $this->overrideHyperfConfigs();
         $this->listenCommandException();
+
+        $this->registerDumper();
 
         $this->callAfterResolving(RequestContract::class, function (RequestContract $request) {
             $request->setUserResolver(function (?string $guard = null) {
@@ -156,5 +166,27 @@ class FoundationServiceProvider extends ServiceProvider
     protected function setInternalEncoding(): void
     {
         mb_internal_encoding('UTF-8');
+    }
+
+    protected function registerDumper(): void
+    {
+        AbstractCloner::$defaultCasters[ConnectionInterface::class] ??= [StubCaster::class, 'cutInternals'];
+        AbstractCloner::$defaultCasters[Container::class] ??= [StubCaster::class, 'cutInternals'];
+        AbstractCloner::$defaultCasters[Dispatcher::class] ??= [StubCaster::class, 'cutInternals'];
+        AbstractCloner::$defaultCasters[Grammar::class] ??= [StubCaster::class, 'cutInternals'];
+
+        $basePath = $this->app->basePath();
+
+        $compiledViewPath = $this->config->get('view.config.view_path');
+
+        $format = $_SERVER['VAR_DUMPER_FORMAT'] ?? null;
+
+        match (true) {
+            'html' == $format => HtmlDumper::register($basePath, $compiledViewPath),
+            'cli' == $format => CliDumper::register($basePath, $compiledViewPath),
+            'server' == $format => null,
+            $format && 'tcp' == parse_url($format, PHP_URL_SCHEME) => null,
+            default => in_array(PHP_SAPI, ['cli', 'phpdbg']) ? CliDumper::register($basePath, $compiledViewPath) : HtmlDumper::register($basePath, $compiledViewPath),
+        };
     }
 }
