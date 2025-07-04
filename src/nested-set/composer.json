@@ -1,5 +1,5 @@
 {
-    "name": "hypervel/neseted-set",
+    "name": "hypervel/nested-set",
     "type": "library",
     "description": "The nested-set package for Hypervel.",
     "license": "MIT",
