@@ -57,6 +57,18 @@ class ApiRequest extends HttpClientRequest
             $this->request = $this->request->withHeader($key, $value);
         }
 
+        $this->dataChanged = true;
+
+        return $this;
+    }
+
+    /**
+     * Specify the request's content type.
+     */
+    public function contentType(string $contentType): static
+    {
+        $this->withHeaders(['Content-Type' => $contentType]);
+
         return $this;
     }
 
@@ -65,7 +77,47 @@ class ApiRequest extends HttpClientRequest
      */
     public function asForm(): static
     {
-        return $this->withHeader('Content-Type', 'application/x-www-form-urlencoded');
+        return $this->contentType('application/x-www-form-urlencoded');
+    }
+
+    /**
+     * Indicate the request contains JSON.
+     */
+    public function asJson(): static
+    {
+        return $this->contentType('application/json');
+    }
+
+    /**
+     * Indicate that JSON should be returned by the server.
+     */
+    public function acceptJson(): static
+    {
+        return $this->accept('application/json');
+    }
+
+    /**
+     * Indicate the type of content that should be returned by the server.
+     */
+    public function accept(string $contentType): static
+    {
+        return $this->withHeaders(['Accept' => $contentType]);
+    }
+
+    /**
+     * Specify an authorization token for the request.
+     */
+    public function withToken(string $token, string $type = 'Bearer'): static
+    {
+        return $this->withHeaders(['Authorization' => trim($type . ' ' . $token)]);
+    }
+
+    /**
+     * Specify the user agent for the request.
+     */
+    public function withUserAgent(bool|string $userAgent): static
+    {
+        return $this->withHeaders(['User-Agent' => trim($userAgent)]);
     }
 
     /**
@@ -84,6 +136,8 @@ class ApiRequest extends HttpClientRequest
         foreach ($headers as $key => $value) {
             $this->request = $this->request->withAddedHeader($key, $value);
         }
+
+        $this->dataChanged = true;
 
         return $this;
     }
@@ -104,6 +158,8 @@ class ApiRequest extends HttpClientRequest
         foreach ($headers as $header) {
             $this->request = $this->request->withoutHeader($header);
         }
+
+        $this->dataChanged = true;
 
         return $this;
     }
