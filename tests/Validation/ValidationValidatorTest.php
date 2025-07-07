@@ -4599,14 +4599,6 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    #[DataProvider('invalidUrls')]
-    public function testValidateUrlWithInvalidUrls($invalidUrl)
-    {
-        $trans = $this->getArrayTranslator();
-        $v = new Validator($trans, ['x' => $invalidUrl], ['x' => 'Url']);
-        $this->assertFalse($v->passes());
-    }
-
     public static function validUrls()
     {
         return [
@@ -4852,6 +4844,14 @@ class ValidationValidatorTest extends TestCase
             ['https://domain1/path'],
             ['https://domain.com/path/%2528failed%2526?param=1#fragment'],
         ];
+    }
+
+    #[DataProvider('invalidUrls')]
+    public function testValidateUrlWithInvalidUrls($invalidUrl)
+    {
+        $trans = $this->getArrayTranslator();
+        $v = new Validator($trans, ['x' => $invalidUrl], ['x' => 'Url']);
+        $this->assertFalse($v->passes());
     }
 
     public static function invalidUrls()
@@ -8575,22 +8575,6 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($v->passes());
     }
 
-    #[DataProvider('invalidUuidList')]
-    public function testValidateWithInvalidUuid($uuid)
-    {
-        $trans = $this->getArrayTranslator();
-        $v = new Validator($trans, ['foo' => $uuid], ['foo' => 'uuid']);
-        $this->assertFalse($v->passes());
-    }
-
-    #[DataProvider('uuidVersionList')]
-    public function testValidateWithUuidWithVersionConstraint($uuid, $rule, $passes)
-    {
-        $trans = $this->getArrayTranslator();
-        $v = new Validator($trans, ['foo' => $uuid], ['foo' => $rule]);
-        $this->assertSame($v->passes(), $passes);
-    }
-
     public static function validUuidList()
     {
         return [
@@ -8607,6 +8591,14 @@ class ValidationValidatorTest extends TestCase
         ];
     }
 
+    #[DataProvider('invalidUuidList')]
+    public function testValidateWithInvalidUuid($uuid)
+    {
+        $trans = $this->getArrayTranslator();
+        $v = new Validator($trans, ['foo' => $uuid], ['foo' => 'uuid']);
+        $this->assertFalse($v->passes());
+    }
+
     public static function invalidUuidList()
     {
         return [
@@ -8621,6 +8613,14 @@ class ValidationValidatorTest extends TestCase
             ['af6f8cb0c57d11e19b210800200c9a66'],
             ['ff6f8cb0-c57da-51e1-9b21-0800200c9a66'],
         ];
+    }
+
+    #[DataProvider('uuidVersionList')]
+    public function testValidateWithUuidWithVersionConstraint($uuid, $rule, $passes)
+    {
+        $trans = $this->getArrayTranslator();
+        $v = new Validator($trans, ['foo' => $uuid], ['foo' => $rule]);
+        $this->assertSame($v->passes(), $passes);
     }
 
     public static function uuidVersionList()
@@ -8699,6 +8699,31 @@ class ValidationValidatorTest extends TestCase
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['foo' => '01gd6r36-bp37z-17nx-55yv40'], ['foo' => 'ulid']);
         $this->assertFalse($v->passes());
+    }
+
+    #[DataProvider('providesPassingExcludeIfData')]
+    public function testExcludeIf($rules, $data, $expectedValidatedData)
+    {
+        $validator = new Validator(
+            $this->getArrayTranslator(),
+            $data,
+            $rules
+        );
+
+        $passes = $validator->passes();
+
+        if (! $passes) {
+            $message = sprintf(
+                "Validation unexpectedly failed:\nRules: %s\nData: %s\nValidation error: %s",
+                json_encode($rules, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+                json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
+                json_encode($validator->messages()->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
+            );
+        }
+
+        $this->assertTrue($passes, $message ?? '');
+
+        $this->assertSame($expectedValidatedData, $validator->validated());
     }
 
     public static function providesPassingExcludeIfData()
@@ -8911,8 +8936,8 @@ class ValidationValidatorTest extends TestCase
         ];
     }
 
-    #[DataProvider('providesPassingExcludeIfData')]
-    public function testExcludeIf($rules, $data, $expectedValidatedData)
+    #[DataProvider('providesFailingExcludeIfData')]
+    public function testExcludeIfWhenValidationFails($rules, $data, $expectedMessages)
     {
         $validator = new Validator(
             $this->getArrayTranslator(),
@@ -8920,20 +8945,19 @@ class ValidationValidatorTest extends TestCase
             $rules
         );
 
-        $passes = $validator->passes();
+        $fails = $validator->fails();
 
-        if (! $passes) {
+        if (! $fails) {
             $message = sprintf(
-                "Validation unexpectedly failed:\nRules: %s\nData: %s\nValidation error: %s",
+                "Validation unexpectedly passed:\nRules: %s\nData: %s",
                 json_encode($rules, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
-                json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
-                json_encode($validator->messages()->toArray(), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
+                json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
             );
         }
 
-        $this->assertTrue($passes, $message ?? '');
+        $this->assertTrue($fails, $message ?? '');
 
-        $this->assertSame($expectedValidatedData, $validator->validated());
+        $this->assertSame($expectedMessages, $validator->messages()->toArray());
     }
 
     public static function providesFailingExcludeIfData()
@@ -9025,47 +9049,6 @@ class ValidationValidatorTest extends TestCase
         ];
     }
 
-    #[DataProvider('providesFailingExcludeIfData')]
-    public function testExcludeIfWhenValidationFails($rules, $data, $expectedMessages)
-    {
-        $validator = new Validator(
-            $this->getArrayTranslator(),
-            $data,
-            $rules
-        );
-
-        $fails = $validator->fails();
-
-        if (! $fails) {
-            $message = sprintf(
-                "Validation unexpectedly passed:\nRules: %s\nData: %s",
-                json_encode($rules, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES),
-                json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)
-            );
-        }
-
-        $this->assertTrue($fails, $message ?? '');
-
-        $this->assertSame($expectedMessages, $validator->messages()->toArray());
-    }
-
-    public static function providesPassingExcludeData()
-    {
-        return [
-            [
-                [
-                    'has_appointment' => ['required', 'bool'],
-                    'appointment_date' => ['exclude'],
-                ], [
-                    'has_appointment' => false,
-                    'appointment_date' => 'should be excluded',
-                ], [
-                    'has_appointment' => false,
-                ],
-            ],
-        ];
-    }
-
     #[DataProvider('providesPassingExcludeData')]
     public function testExclude($rules, $data, $expectedValidatedData)
     {
@@ -9089,6 +9072,23 @@ class ValidationValidatorTest extends TestCase
         $this->assertTrue($passes, $message ?? '');
 
         $this->assertSame($expectedValidatedData, $validator->validated());
+    }
+
+    public static function providesPassingExcludeData()
+    {
+        return [
+            [
+                [
+                    'has_appointment' => ['required', 'bool'],
+                    'appointment_date' => ['exclude'],
+                ], [
+                    'has_appointment' => false,
+                    'appointment_date' => 'should be excluded',
+                ], [
+                    'has_appointment' => false,
+                ],
+            ],
+        ];
     }
 
     public function testExcludeBeforeADependentRule()

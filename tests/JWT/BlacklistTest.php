@@ -160,6 +160,17 @@ class BlacklistTest extends TestCase
         $this->assertFalse($this->blacklist->has($payload));
     }
 
+    public static function blacklistProvider(): array
+    {
+        return [
+            [null],
+            [0],
+            [''],
+            [[]],
+            [['valid_until' => strtotime('+1day')]],
+        ];
+    }
+
     public function testCheckWhetherATokenHasBeenBlacklistedForever()
     {
         $payload = [
@@ -252,16 +263,5 @@ class BlacklistTest extends TestCase
         $this->expectExceptionMessage('Claim `jti` is missing in payload for blacklist');
 
         $this->blacklist->getKey([]);
-    }
-
-    public static function blacklistProvider(): array
-    {
-        return [
-            [null],
-            [0],
-            [''],
-            [[]],
-            [['valid_until' => strtotime('+1day')]],
-        ];
     }
 }
