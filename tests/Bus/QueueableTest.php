@@ -14,16 +14,6 @@ use PHPUnit\Framework\TestCase;
  */
 class QueueableTest extends TestCase
 {
-    public static function connectionDataProvider(): array
-    {
-        return [
-            'uses string' => ['redis', 'redis'],
-            'uses BackedEnum #1' => [ConnectionEnum::SQS, 'sqs'],
-            'uses BackedEnum #2' => [ConnectionEnum::REDIS, 'redis'],
-            'uses null' => [null, null],
-        ];
-    }
-
     #[DataProvider('connectionDataProvider')]
     public function testOnConnection(mixed $connection, ?string $expected): void
     {
@@ -43,12 +33,12 @@ class QueueableTest extends TestCase
         $this->assertSame($job->chainConnection, $expected);
     }
 
-    public static function queuesDataProvider(): array
+    public static function connectionDataProvider(): array
     {
         return [
-            'uses string' => ['high', 'high'],
-            'uses BackedEnum #1' => [QueueEnum::DEFAULT, 'default'],
-            'uses BackedEnum #2' => [QueueEnum::HIGH, 'high'],
+            'uses string' => ['redis', 'redis'],
+            'uses BackedEnum #1' => [ConnectionEnum::SQS, 'sqs'],
+            'uses BackedEnum #2' => [ConnectionEnum::REDIS, 'redis'],
             'uses null' => [null, null],
         ];
     }
@@ -70,6 +60,16 @@ class QueueableTest extends TestCase
 
         $this->assertSame($job->queue, $expected);
         $this->assertSame($job->chainQueue, $expected);
+    }
+
+    public static function queuesDataProvider(): array
+    {
+        return [
+            'uses string' => ['high', 'high'],
+            'uses BackedEnum #1' => [QueueEnum::DEFAULT, 'default'],
+            'uses BackedEnum #2' => [QueueEnum::HIGH, 'high'],
+            'uses null' => [null, null],
+        ];
     }
 }
 
