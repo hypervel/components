@@ -60,7 +60,8 @@
             "Hypervel\\Telescope\\": "src/telescope/src/",
             "Hypervel\\Testbench\\": "src/testbench/src/",
             "Hypervel\\Translation\\": "src/translation/src/",
-            "Hypervel\\Validation\\": "src/validation/src/"
+            "Hypervel\\Validation\\": "src/validation/src/",
+            "Hypervel\\Permission\\": "src/permission/src/"
         },
         "files": [
             "src/auth/src/Functions.php",
@@ -167,7 +168,8 @@
         "hypervel/telescope": "self.version",
         "hypervel/testbench": "self.version",
         "hypervel/translation": "self.version",
-        "hypervel/validation": "self.version"
+        "hypervel/validation": "self.version",
+        "hypervel/permission": "self.version"
     },
     "suggest": {
         "hyperf/redis": "Required to use redis driver. (^3.1).",
@@ -235,7 +237,8 @@
                 "Hypervel\\Session\\ConfigProvider",
                 "Hypervel\\Socialite\\ConfigProvider",
                 "Hypervel\\Telescope\\ConfigProvider",
-                "Hypervel\\Validation\\ConfigProvider"
+                "Hypervel\\Validation\\ConfigProvider",
+                "Hypervel\\Permission\\ConfigProvider"
             ]
         },
         "hypervel": {
