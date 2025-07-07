@@ -7,10 +7,14 @@ namespace Hypervel\ApiClient;
 use Hypervel\Support\DataObject;
 
 /**
+ * @template TConfig of DataObject
  * @mixin PendingRequest
  */
 class ApiClient
 {
+    /**
+     * @var null|TConfig
+     */
     protected ?DataObject $config = null;
 
     protected string $resource = ApiResource::class;
@@ -28,7 +32,7 @@ class ApiClient
     protected array $responseMiddleware = [];
 
     /**
-     * Dynamically pass method calls to the underlying resource.
+     * Dynamically pass method calls to the pending request.
      */
     public function __call(string $method, array $parameters): mixed
     {
@@ -36,6 +40,9 @@ class ApiClient
             ->{$method}(...$parameters);
     }
 
+    /**
+     * @return null|TConfig
+     */
     public function getConfig(): ?DataObject
     {
         return $this->config;
