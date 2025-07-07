@@ -57,8 +57,6 @@ class ApiRequest extends HttpClientRequest
             $this->request = $this->request->withHeader($key, $value);
         }
 
-        $this->dataChanged = true;
-
         return $this;
     }
 
@@ -77,6 +75,14 @@ class ApiRequest extends HttpClientRequest
      */
     public function asForm(): static
     {
+        if ($this->isJson() || ! $this->hasHeader('Content-Type')) {
+            if (! $this->data) {
+                $this->json();
+            }
+
+            $this->dataChanged = true;
+        }
+
         return $this->contentType('application/x-www-form-urlencoded');
     }
 
@@ -85,6 +91,14 @@ class ApiRequest extends HttpClientRequest
      */
     public function asJson(): static
     {
+        if ($this->isForm()) {
+            if (! $this->data) {
+                $this->parameters();
+            }
+
+            $this->dataChanged = true;
+        }
+
         return $this->contentType('application/json');
     }
 
@@ -137,8 +151,6 @@ class ApiRequest extends HttpClientRequest
             $this->request = $this->request->withAddedHeader($key, $value);
         }
 
-        $this->dataChanged = true;
-
         return $this;
     }
 
@@ -158,8 +170,6 @@ class ApiRequest extends HttpClientRequest
         foreach ($headers as $header) {
             $this->request = $this->request->withoutHeader($header);
         }
-
-        $this->dataChanged = true;
 
         return $this;
     }
@@ -194,8 +204,6 @@ class ApiRequest extends HttpClientRequest
         foreach ($data as $key) {
             unset($this->data[$key]);
         }
-
-        $this->dataChanged = true;
 
         return $this;
     }
