@@ -14,6 +14,9 @@ use InvalidArgumentException;
 use JsonSerializable;
 use Throwable;
 
+/**
+ * @mixin ClientPendingRequest
+ */
 class PendingRequest
 {
     use Conditionable;
@@ -21,8 +24,6 @@ class PendingRequest
     protected string $resource = ApiResource::class;
 
     protected bool $enableMiddleware = true;
-
-    protected bool $enableRequestLog = true;
 
     protected array $middlewareOptions = [];
 
@@ -37,6 +38,8 @@ class PendingRequest
      * @var array<ResponseMiddleware|string>
      */
     protected array $responseMiddleware = [];
+
+    protected ?ClientPendingRequest $request = null;
 
     public function __construct(
         protected ApiClient $client,
@@ -57,20 +60,6 @@ class PendingRequest
     public function disableMiddleware(): static
     {
         $this->enableMiddleware = false;
-
-        return $this;
-    }
-
-    public function enableRequestLog(): static
-    {
-        $this->enableRequestLog = true;
-
-        return $this;
-    }
-
-    public function disableRequestLog(): static
-    {
-        $this->enableRequestLog = false;
 
         return $this;
     }
@@ -132,13 +121,6 @@ class PendingRequest
         }
 
         $this->resource = $resource;
-
-        return $this;
-    }
-
-    public function timeout(float|int $timeout): static
-    {
-        $this->guzzleOptions['timeout'] = $timeout;
 
         return $this;
     }
@@ -213,6 +195,17 @@ class PendingRequest
         return $this->sendRequest('send', $method, $url, $options);
     }
 
+    /**
+     * Provide a dynamic method to pass calls to the pending request.
+     */
+    public function __call(string $method, array $parameters): static
+    {
+        $this->getClient()
+            ->{$method}(...$parameters);
+
+        return $this;
+    }
+
     protected function sendRequest(): ApiResource
     {
         $arguments = func_get_args();
@@ -249,6 +242,10 @@ class PendingRequest
 
     protected function getClient(): ClientPendingRequest
     {
+        if ($this->request) {
+            return $this->request;
+        }
+
         $request = Http::throw();
 
         if ($this->guzzleOptions) {
@@ -267,6 +264,6 @@ class PendingRequest
             $request->withResponseMiddleware($middleware);
         }
 
-        return $request;
+        return $this->request = $request;
     }
 }
