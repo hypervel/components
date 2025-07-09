@@ -53,6 +53,7 @@ trait HasPermission
 
     /**
      * Get cached or fresh permissions for this owner.
+     *
      * @return Collection<Permission>
      */
     protected function getCachedPermissions(): Collection
@@ -102,7 +103,6 @@ trait HasPermission
     {
         $directPermissions = $this->getCachedPermissions()->toBase();
         $rolePermissions = $this->getPermissionsViaRoles();
-
 
         // Filter out forbidden permissions from direct permissions
         $filteredDirect = $directPermissions->reject(function ($permission) {
@@ -291,7 +291,7 @@ trait HasPermission
     /**
      * Revoke permission from the owner.
      */
-    public function revokePermissionTo(array|BackedEnum|int|string|UnitEnum ...$permissions): static
+    public function revokePermissionTo(array $permissions): static
     {
         $detachPermissions = $this->collectPermissions($permissions);
 

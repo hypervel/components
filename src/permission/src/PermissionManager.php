@@ -188,9 +188,7 @@ class PermissionManager implements Contracts\Factory
         $cache = $this->getCache();
 
         // Clear separate role and permission caches
-        $rolesCacheKey = $this->getOwnerRolesCacheKey($ownerType, $ownerId);
-        $cache->forget($rolesCacheKey);
-        $permissionsCacheKey = $this->getOwnerPermissionsCacheKey($ownerType, $ownerId);
-        $cache->forget($permissionsCacheKey);
+        $cache->forget($this->getOwnerRolesCacheKey($ownerType, $ownerId));
+        $cache->forget($this->getOwnerPermissionsCacheKey($ownerType, $ownerId));
     }
 }
