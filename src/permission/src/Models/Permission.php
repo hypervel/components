@@ -29,11 +29,6 @@ class Permission extends Model implements PermissionContract
     protected array $fillable = [
         'name',
         'guard_name',
-        'is_forbidden',
-    ];
-
-    protected array $casts = [
-        'is_forbidden' => 'boolean',
     ];
 
     /**

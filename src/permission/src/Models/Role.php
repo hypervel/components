@@ -42,6 +42,6 @@ class Role extends Model implements RoleContract
             config('permission.column_names.permission_pivot_key', 'permission_id'),
         )
             ->withTimestamps()
-            ->withPivot('is_forbidden');
+            ->withPivot(['is_forbidden']);
     }
 }

@@ -24,6 +24,17 @@ class PermissionTestCase extends TestCase
         parent::setUp();
 
         $this->app->get(ConfigInterface::class)
+            ->set('cache', [
+                'default' => env('CACHE_DRIVER', 'array'),
+                'stores' => [
+                    'array' => [
+                        'driver' => 'array',
+                    ],
+                ],
+                'prefix' => env('CACHE_PREFIX', 'hypervel_cache'),
+            ]);
+
+        $this->app->get(ConfigInterface::class)
             ->set('permission', [
                 'models' => [
                     'role' => \Hypervel\Permission\Models\Role::class,
@@ -31,6 +42,13 @@ class PermissionTestCase extends TestCase
                 ],
                 'cache' => [
                     'store' => env('PERMISSION_CACHE_STORE', 'default'),
+                    'expiration_seconds' => 86400, // 24 hours
+                    'keys' => [
+                        'roles' => 'hypervel.permission.roles',
+                        'owner' => 'hypervel.permission.owner',
+                        'owner_roles' => 'hypervel.permission.owner.roles',
+                        'owner_permissions' => 'hypervel.permission.owner.permissions',
+                    ],
                 ],
                 'storage' => [
                     'database' => [

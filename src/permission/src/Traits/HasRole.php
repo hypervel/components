@@ -23,6 +23,8 @@ use UnitEnum;
  */
 trait HasRole
 {
+    use HasPermission;
+
     private ?string $roleClass = null;
 
     public function getRoleClass(): string
@@ -32,6 +34,49 @@ trait HasRole
         }
 
         return $this->roleClass;
+    }
+
+    /**
+     * Get PermissionManager instance.
+     */
+    protected function getPermissionManager(): PermissionManager
+    {
+        return app(PermissionManager::class);
+    }
+
+    /**
+     * Get owner type for cache key generation.
+     */
+    protected function getOwnerType(): string
+    {
+        return static::class;
+    }
+
+    /**
+     * Get cached or fresh roles for this owner.
+     */
+    protected function getCachedRoles(): Collection
+    {
+        $manager = $this->getPermissionManager();
+        $cachedRoles = $manager->getOwnerCachedRoles($this->getOwnerType(), $this->getKey());
+
+        if ($cachedRoles !== null && ! empty($cachedRoles)) {
+            // Convert cached data back to models
+            return $this->roles()->getRelated()->hydrate($cachedRoles);
+        }
+
+        // Load from database and cache
+        $this->loadMissing('roles');
+        $roles = $this->roles;
+
+        // Cache the roles data
+        $manager->cacheOwnerRoles(
+            $this->getOwnerType(),
+            $this->getKey(),
+            $roles->toArray()
+        );
+
+        return $roles;
     }
 
     /**
@@ -53,11 +98,11 @@ trait HasRole
      */
     public function hasRole(BackedEnum|int|string|UnitEnum $role): bool
     {
-        $this->loadMissing('roles');
+        $roles = $this->getCachedRoles();
 
         [$field, $value] = $this->normalizeRoleValue($role);
 
-        return $this->roles->contains($field, $value);
+        return $roles->contains($field, $value);
     }
 
     /**
@@ -87,6 +132,8 @@ trait HasRole
 
     /**
      * Check if the role should be treated as an ID (int) rather than name (string).
+     *
+     * @throws InvalidArgumentException if the role type is unsupported
      */
     private function isRoleIdType(BackedEnum|int|string|UnitEnum $role): bool
     {
@@ -100,6 +147,8 @@ trait HasRole
 
     /**
      * Separate roles array into IDs and names collections.
+     *
+     * @param array<int, BackedEnum|int|string|UnitEnum> $roles
      */
     private function separateRolesByType(array $roles): array
     {
@@ -126,9 +175,13 @@ trait HasRole
      */
     public function hasAnyRoles(array $roles): bool
     {
-        $this->loadMissing('roles');
+        $ownerRoles = $this->getCachedRoles();
 
-        return collect($roles)->some(fn ($role) => $this->hasRole($role));
+        return collect($roles)->some(function ($role) use ($ownerRoles) {
+            [$field, $value] = $this->normalizeRoleValue($role);
+
+            return $ownerRoles->contains($field, $value);
+        });
     }
 
     /**
@@ -138,9 +191,13 @@ trait HasRole
      */
     public function hasAllRoles(array $roles): bool
     {
-        $this->loadMissing('roles');
+        $ownerRoles = $this->getCachedRoles();
 
-        return collect($roles)->every(fn ($role) => $this->hasRole($role));
+        return collect($roles)->every(function ($role) use ($ownerRoles) {
+            [$field, $value] = $this->normalizeRoleValue($role);
+
+            return $ownerRoles->contains($field, $value);
+        });
     }
 
     /**
@@ -150,19 +207,19 @@ trait HasRole
      */
     public function onlyRoles(array $roles): Collection
     {
-        $this->loadMissing('roles');
+        $ownerRoles = $this->getCachedRoles();
 
         [$inputRoleIds, $inputRoleNames] = $this->separateRolesByType($roles);
 
         $keyName = (new ($this->getRoleClass())())->getKeyName();
-        $currentRoleIds = $this->roles->pluck($keyName);
-        $currentRoleNames = $this->roles->pluck('name');
+        $currentRoleIds = $ownerRoles->pluck($keyName);
+        $currentRoleNames = $ownerRoles->pluck('name');
 
         $intersectedIds = $currentRoleIds->intersect($inputRoleIds);
         $intersectedNames = $currentRoleNames->intersect($inputRoleNames);
 
-        return $this->roles->filter(
-            fn (Role $role) => $intersectedIds->contains($role->getKey()) || $intersectedNames->contains($role->name)
+        return $ownerRoles->filter(
+            fn ($role) => $intersectedIds->contains($role->{$keyName}) || $intersectedNames->contains($role->name)
         )
             ->values();
     }
@@ -175,10 +232,14 @@ trait HasRole
         $this->loadMissing('roles');
         $roles = $this->collectRoles($roles);
 
-        $currentRoles = $this->roles->map(fn (Role $role) => $role->getKey())->toArray();
+        $keyName = (new ($this->getRoleClass())())->getKeyName();
+        $currentRoles = $this->roles->map(fn ($role) => $role->{$keyName})->toArray();
         $this->roles()->attach(array_diff($roles, $currentRoles));
 
         $this->unsetRelation('roles');
+
+        // Clear owner cache when roles are modified
+        $this->getPermissionManager()->clearOwnerCache($this->getOwnerType(), $this->getKey());
 
         return $this;
     }
@@ -192,19 +253,25 @@ trait HasRole
 
         $this->roles()->detach($detachRoles);
 
+        // Clear owner cache when roles are modified
+        $this->getPermissionManager()->clearOwnerCache($this->getOwnerType(), $this->getKey());
+
         return $this;
     }
 
     /**
      * Synchronize the owner's roles with the given role list.
      */
-    public function syncRoles(array|BackedEnum|int|string|UnitEnum ...$roles): static
+    public function syncRoles(array|BackedEnum|int|string|UnitEnum ...$roles): array
     {
         $roles = $this->collectRoles($roles);
 
-        $this->roles()->sync($roles);
+        $result = $this->roles()->sync($roles);
 
-        return $this;
+        // Clear owner cache when roles are modified
+        $this->getPermissionManager()->clearOwnerCache($this->getOwnerType(), $this->getKey());
+
+        return $result;
     }
 
     /**

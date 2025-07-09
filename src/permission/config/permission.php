@@ -17,7 +17,6 @@ return [
     */
 
     'models' => [
-
         /*
          * When using the "HasRoles" trait from this package, we need to know which
          * Eloquent model should be used to retrieve your roles. Of course, it
@@ -70,7 +69,6 @@ return [
     */
 
     'table_names' => [
-
         /*
          * When using the "HasRoles" trait from this package, we need to know which
          * table should be used to retrieve your roles. We have chosen a basic
@@ -124,7 +122,6 @@ return [
     */
 
     'column_names' => [
-
         /*
          * Change this if you want to name the related pivots other than defaults
          */
@@ -148,5 +145,52 @@ return [
          */
 
         'owner_name' => 'owner',
+    ],
+    /*
+    |--------------------------------------------------------------------------
+    | Permission Cache Configuration
+    |--------------------------------------------------------------------------
+    |
+    | By default all permissions are cached for 24 hours to speed up performance.
+    | When permissions or roles are updated the cache is flushed automatically.
+    | You may optionally indicate a specific cache driver to use for permission
+    | and role caching using any of the `store` drivers listed in the cache.php
+    | config file. Using 'default' here means to use the `default` set in cache.php.
+    |
+    */
+
+    'cache' => [
+        /*
+         * By default all permissions are cached for 24 hours to speed up performance.
+         * When permissions or roles are updated the cache is flushed automatically.
+         */
+
+        'expiration_seconds' => 86400, // 24 hours in seconds
+
+        'keys' => [
+            /*
+             * The cache key used to store all roles with their permissions.
+             * This is used for efficient role-permission lookups.
+             */
+            'roles' => 'hypervel.permission.cache.roles',
+            /*
+             * The cache key prefix used to store roles for individual owners.
+             * The actual key will be: {prefix}:{owner_type}:{owner_id}
+             */
+            'owner_roles' => 'hypervel.permission.cache.owner.roles',
+            /*
+             * The cache key prefix used to store permissions for individual owners.
+             * The actual key will be: {prefix}:{owner_type}:{owner_id}
+             */
+            'owner_permissions' => 'hypervel.permission.cache.owner.permissions',
+        ],
+
+        /*
+         * You may optionally indicate a specific cache driver to use for permission and
+         * role caching using any of the `store` drivers listed in the cache.php config
+         * file. Using 'default' here means to use the `default` set in cache.php.
+         */
+
+        'store' => env('PERMISSION_CACHE_STORE', 'default'),
     ],
 ];

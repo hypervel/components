@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Permission\Traits;
 
 use BackedEnum;
+use Hyperf\Collection\Collection as BaseCollection;
 use Hyperf\Database\Model\Relations\MorphToMany;
 use Hypervel\Database\Eloquent\Collection;
-use Hypervel\Permission\Models\Permission;
-use Hypervel\Permission\Models\Role;
+use Hypervel\Permission\Contracts\Permission;
+use Hypervel\Permission\Contracts\Role;
 use Hypervel\Permission\PermissionManager;
 use InvalidArgumentException;
 use UnitEnum;
@@ -35,6 +36,49 @@ trait HasPermission
     }
 
     /**
+     * Get PermissionManager instance.
+     */
+    protected function getPermissionManager(): PermissionManager
+    {
+        return app(PermissionManager::class);
+    }
+
+    /**
+     * Get owner type for cache key generation.
+     */
+    protected function getOwnerType(): string
+    {
+        return static::class;
+    }
+
+    /**
+     * Get cached or fresh permissions for this owner.
+     * @return Collection<Permission>
+     */
+    protected function getCachedPermissions(): Collection
+    {
+        $manager = $this->getPermissionManager();
+        $cachedPermissions = $manager->getOwnerCachedPermissions($this->getOwnerType(), $this->getKey());
+
+        if (! empty($cachedPermissions)) {
+            return $this->permissions()->getRelated()->hydrate($cachedPermissions);
+        }
+
+        // Load from database and cache
+        $this->loadMissing('permissions');
+        $permissions = $this->permissions;
+
+        // Cache the permissions data
+        $manager->cacheOwnerPermissions(
+            $this->getOwnerType(),
+            $this->getKey(),
+            $permissions->toArray()
+        );
+
+        return $permissions;
+    }
+
+    /**
      * A model may have multiple direct permissions.
      */
     public function permissions(): MorphToMany
@@ -47,6 +91,64 @@ trait HasPermission
             config('permission.column_names.permission_pivot_key', 'permission_id')
         )
             ->withPivot(['is_forbidden']);
+    }
+
+    /**
+     * Return all the permissions the model has, both direcstly and via roles.
+     *
+     * @return BaseCollection<Permission>
+     */
+    public function getAllPermissions(): BaseCollection
+    {
+        $directPermissions = $this->getCachedPermissions()->toBase();
+        $rolePermissions = $this->getPermissionsViaRoles();
+
+
+        // Filter out forbidden permissions from direct permissions
+        $filteredDirect = $directPermissions->reject(function ($permission) {
+            return isset($permission['pivot']) && $permission['pivot']['is_forbidden'] == true;
+        });
+
+        // Merge direct permissions with role permissions and remove duplicates by id
+        return $filteredDirect->merge($rolePermissions)->unique('id');
+    }
+
+    /**
+     * Get all permissions via roles.
+     * This method returns all permissions that the owner has through its roles.
+     * It does not include direct permissions.
+     *
+     * @return BaseCollection<Permission>
+     */
+    public function getPermissionsViaRoles(): BaseCollection
+    {
+        if (is_a($this->getOwnerType(), Role::class, true)) {
+            return collect();
+        }
+
+        // Use cached all roles with permissions
+        $manager = $this->getPermissionManager();
+        $allRolesWithPermissions = $manager->getAllRolesWithPermissions();
+
+        // Get cached roles (this method should be available if HasRole trait is used)
+        if (method_exists($this, 'getCachedRoles')) {
+            $ownerRoles = $this->getCachedRoles();
+        } else {
+            $this->loadMissing('roles');
+            $ownerRoles = $this->roles;
+        }
+
+        $permissions = collect();
+        foreach ($ownerRoles as $role) {
+            $roleId = is_array($role) ? $role['id'] : $role->id;
+            if (isset($allRolesWithPermissions[$roleId])) {
+                $rolePermissions = collect($allRolesWithPermissions[$roleId]['permissions'])
+                    ->where('pivot.is_forbidden', false);
+                $permissions = $permissions->merge($rolePermissions);
+            }
+        }
+
+        return $permissions;
     }
 
     /**
@@ -72,11 +174,11 @@ trait HasPermission
      */
     public function hasDirectPermission(BackedEnum|int|string|UnitEnum $permission): bool
     {
-        $this->loadMissing('permissions');
+        $ownerPermissions = $this->getCachedPermissions();
 
         [$field, $value] = $this->normalizePermissionValue($permission);
 
-        return $this->permissions
+        return $ownerPermissions
             ->where($field, $value)
             ->where('pivot.is_forbidden', false)
             ->isNotEmpty();
@@ -87,20 +189,35 @@ trait HasPermission
      */
     public function hasPermissionViaRoles(BackedEnum|int|string|UnitEnum $permission): bool
     {
-        if (is_a($this, Role::class)) {
+        if (is_a($this->getOwnerType(), Role::class, true)) {
             return false;
         }
 
-        $this->loadMissing('roles.permissions');
+        // Use cached all roles with permissions
+        $manager = $this->getPermissionManager();
+        $allRolesWithPermissions = $manager->getAllRolesWithPermissions();
+
+        // Get cached roles (this method should be available if HasRole trait is used)
+        if (method_exists($this, 'getCachedRoles')) {
+            $ownerRoles = $this->getCachedRoles();
+        } else {
+            $this->loadMissing('roles');
+            $ownerRoles = $this->roles;
+        }
 
         [$field, $value] = $this->normalizePermissionValue($permission);
 
-        return $this->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->where($field, $value)
-            ->where('pivot.is_forbidden', false)
-            ->isNotEmpty();
+        foreach ($ownerRoles as $role) {
+            $roleId = $role->id ?? $role['id'];
+            if (isset($allRolesWithPermissions[$roleId])) {
+                $rolePermissions = collect($allRolesWithPermissions[$roleId]['permissions']);
+                if ($rolePermissions->where($field, $value)->where('pivot.is_forbidden', false)->isNotEmpty()) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -119,11 +236,17 @@ trait HasPermission
         return collect($permissions)->flatten()->every(fn ($permission) => $this->hasPermission($permission));
     }
 
+    /**
+     * Check if the owner has all direct permissions.
+     */
     public function hasAllDirectPermissions(array|BackedEnum|int|string|UnitEnum ...$permissions): bool
     {
         return collect($permissions)->flatten()->every(fn ($permission) => $this->hasDirectPermission($permission));
     }
 
+    /**
+     * Check if the owner has any direct permissions.
+     */
     public function hasAnyDirectPermissions(array|BackedEnum|int|string|UnitEnum ...$permissions): bool
     {
         return collect($permissions)->flatten()->some(fn ($permission) => $this->hasDirectPermission($permission));
@@ -134,7 +257,17 @@ trait HasPermission
      */
     public function givePermissionTo(array|BackedEnum|int|string|UnitEnum ...$permissions): static
     {
-        return $this->attachPermission($permissions);
+        $result = $this->attachPermission($permissions);
+        if (is_a($this->getOwnerType(), Role::class, true)) {
+            $this->getPermissionManager()->clearAllRolesPermissionsCache();
+
+            return $result;
+        }
+
+        // Clear owner cache when permissions are modified
+        $this->getPermissionManager()->clearOwnerCache($this->getOwnerType(), $this->getKey());
+
+        return $result;
     }
 
     /**
@@ -142,7 +275,17 @@ trait HasPermission
      */
     public function giveForbiddenTo(array|BackedEnum|int|string|UnitEnum ...$permissions): static
     {
-        return $this->attachPermission($permissions, true);
+        $result = $this->attachPermission($permissions, true);
+        if (is_a($this->getOwnerType(), Role::class, true)) {
+            $this->getPermissionManager()->clearAllRolesPermissionsCache();
+
+            return $result;
+        }
+
+        // Clear owner cache when permissions are modified
+        $this->getPermissionManager()->clearOwnerCache($this->getOwnerType(), $this->getKey());
+
+        return $result;
     }
 
     /**
@@ -154,19 +297,25 @@ trait HasPermission
 
         $this->permissions()->detach($detachPermissions);
 
+        // Clear owner cache when permissions are modified
+        $this->getPermissionManager()->clearOwnerCache($this->getOwnerType(), $this->getKey());
+
         return $this;
     }
 
     /**
      * Synchronize the owner's permissions with the given permission list.
      */
-    public function syncPermissions(array|BackedEnum|int|string|UnitEnum ...$permissions): static
+    public function syncPermissions(array|BackedEnum|int|string|UnitEnum ...$permissions): array
     {
         $permissions = $this->collectPermissions($permissions);
 
-        $this->permissions()->sync($permissions);
+        $result = $this->permissions()->sync($permissions);
 
-        return $this;
+        // Clear owner cache when permissions are modified
+        $this->getPermissionManager()->clearOwnerCache($this->getOwnerType(), $this->getKey());
+
+        return $result;
     }
 
     /**
@@ -209,6 +358,8 @@ trait HasPermission
 
     /**
      * Separate permissions array into IDs and names collections.
+     *
+     * @param array<BackedEnum|int|string|UnitEnum> $permissions
      */
     private function separatePermissionsByType(array $permissions): array
     {
@@ -230,6 +381,8 @@ trait HasPermission
 
     /**
      * Attach permission to the owner.
+     *
+     * @param array<BackedEnum|int|string|UnitEnum> $permissions
      */
     private function attachPermission(array $permissions, bool $isForbidden = false): static
     {
@@ -259,11 +412,11 @@ trait HasPermission
      */
     public function hasForbiddenPermission(BackedEnum|int|string|UnitEnum $permission): bool
     {
-        $this->loadMissing('permissions');
+        $ownerPermissions = $this->getCachedPermissions();
 
         [$field, $value] = $this->normalizePermissionValue($permission);
 
-        return $this->permissions
+        return $ownerPermissions
             ->where($field, $value)
             ->where('pivot.is_forbidden', true)
             ->isNotEmpty();
@@ -274,20 +427,34 @@ trait HasPermission
      */
     public function hasForbiddenPermissionViaRoles(BackedEnum|int|string|UnitEnum $permission): bool
     {
-        if (is_a($this, Role::class)) {
+        if (is_a(static::class, Role::class, true)) {
             return false;
         }
 
-        $this->loadMissing('roles.permissions');
+        // Use cached all roles with permissions
+        $manager = $this->getPermissionManager();
+        $allRolesWithPermissions = $manager->getAllRolesWithPermissions();
 
+        // Get cached roles (this method should be available if HasRole trait is used)
+        if (method_exists($this, 'getCachedRoles')) {
+            $ownerRoles = $this->getCachedRoles();
+        } else {
+            $this->loadMissing('roles');
+            $ownerRoles = $this->roles;
+        }
         [$field, $value] = $this->normalizePermissionValue($permission);
 
-        return $this->roles
-            ->pluck('permissions')
-            ->flatten()
-            ->where($field, $value)
-            ->where('pivot.is_forbidden', true)
-            ->isNotEmpty();
+        foreach ($ownerRoles as $role) {
+            $roleId = $role->id ?? $role['id'];
+            if (isset($allRolesWithPermissions[$roleId])) {
+                $rolePermissions = collect($allRolesWithPermissions[$roleId]['permissions']);
+                if ($rolePermissions->where($field, $value)->where('pivot.is_forbidden', true)->isNotEmpty()) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**

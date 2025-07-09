@@ -21,6 +21,8 @@ class HasPermissionTest extends PermissionTestCase
 
     protected Permission $editPermission;
 
+    protected Permission $managePermission;
+
     protected Role $adminRole;
 
     protected function setUp(): void
@@ -42,6 +44,12 @@ class HasPermissionTest extends PermissionTestCase
 
         $this->editPermission = Permission::create([
             'name' => 'edit',
+            'guard_name' => 'web',
+            'is_forbidden' => false,
+        ]);
+
+        $this->managePermission = Permission::create([
+            'name' => 'manage',
             'guard_name' => 'web',
             'is_forbidden' => false,
         ]);
@@ -107,7 +115,7 @@ class HasPermissionTest extends PermissionTestCase
 
         // Check that the permission exists but is forbidden
         $this->assertTrue($this->user->permissions->contains('name', 'view'));
-        $this->assertTrue(1 == $this->user->permissions->where('name', 'view')->first()->pivot->is_forbidden);
+        $this->assertTrue($this->user->permissions->where('name', 'view')->first()->pivot->is_forbidden == 1);
     }
 
     public function testUserCanCheckIfHasAnyPermissions()
@@ -323,5 +331,125 @@ class HasPermissionTest extends PermissionTestCase
         $this->assertFalse($this->user->hasPermission('edit'));
         $this->assertTrue($this->user->hasDirectPermission('edit')); // Direct permission still exists
         $this->assertFalse($this->user->hasPermissionViaRoles('edit')); // Role has forbidden permission
+    }
+
+    public function testGetAllPermissionsReturnsDirectAndRolePermissions()
+    {
+        // Give user direct permission
+        $this->user->givePermissionTo('manage');
+
+        // Assign role with additional permissions
+        $this->user->assignRole('admin');
+
+        $allPermissions = $this->user->getAllPermissions();
+        // Should have direct permission + role permissions
+        $permissionNames = $allPermissions->pluck('name')->toArray();
+        $this->assertContains('manage', $permissionNames); // Direct permission
+        $this->assertContains('view', $permissionNames);   // Role permission
+        $this->assertContains('edit', $permissionNames);   // Role permission
+        $this->assertCount(3, $allPermissions);
+    }
+
+    public function testGetAllPermissionsWithOnlyDirectPermissions()
+    {
+        $this->user->givePermissionTo('view', 'manage');
+
+        $allPermissions = $this->user->getAllPermissions();
+
+        $permissionNames = $allPermissions->pluck('name')->toArray();
+        $this->assertContains('view', $permissionNames);
+        $this->assertContains('manage', $permissionNames);
+        $this->assertCount(2, $allPermissions);
+    }
+
+    public function testGetAllPermissionsWithOnlyRolePermissions()
+    {
+        $this->user->assignRole('admin');
+
+        $allPermissions = $this->user->getAllPermissions();
+
+        $permissionNames = $allPermissions->pluck('name')->toArray();
+        $this->assertContains('view', $permissionNames);
+        $this->assertContains('edit', $permissionNames);
+        $this->assertCount(2, $allPermissions);
+    }
+
+    public function testGetPermissionsViaRolesReturnsOnlyRolePermissions()
+    {
+        // Give user direct permission
+        $this->user->givePermissionTo('manage');
+
+        // Assign role with permissions
+        $this->user->assignRole('admin');
+
+        $rolePermissions = $this->user->getPermissionsViaRoles();
+
+        // Should only have role permissions, not direct permissions
+        $permissionNames = $rolePermissions->pluck('name')->toArray();
+        $this->assertContains('view', $permissionNames);
+        $this->assertContains('edit', $permissionNames);
+        $this->assertNotContains('manage', $permissionNames); // Direct permission should not be included
+        $this->assertCount(2, $rolePermissions);
+    }
+
+    public function testGetPermissionsViaRolesExcludesForbiddenPermissions()
+    {
+        // Create role with both normal and forbidden permissions
+        $mixedRole = Role::create([
+            'name' => 'mixed',
+            'guard_name' => 'web',
+        ]);
+        $mixedRole->givePermissionTo('view');
+        $mixedRole->giveForbiddenTo('edit');
+
+        $this->user->assignRole('mixed');
+
+        $rolePermissions = $this->user->getPermissionsViaRoles();
+
+        $permissionNames = $rolePermissions->pluck('name')->toArray();
+        $this->assertContains('view', $permissionNames);
+        $this->assertNotContains('edit', $permissionNames); // Forbidden permission should not be included
+        $this->assertCount(1, $rolePermissions);
+    }
+
+
+    public function testPermissionPriorityDirectForbiddenOverridesEverything()
+    {
+        // User has direct normal permission and role permission
+        $this->user->givePermissionTo('view');
+        $this->user->assignRole('admin');
+        $this->assertTrue($this->user->hasPermission('view'));
+
+        // Revoke the direct permission first, then add forbidden permission
+        $this->user->revokePermissionTo('view');
+        $this->user->giveForbiddenTo('view');
+        $this->user->refresh();
+
+        $this->assertFalse($this->user->hasPermission('view'));
+        $this->assertTrue($this->user->hasForbiddenPermission('view'));
+        $this->assertTrue($this->user->hasPermissionViaRoles('view')); // Role permission still exists
+    }
+
+    public function testPermissionPriorityRoleForbiddenOverridesDirectPermission()
+    {
+        // User has direct permission
+        $this->user->givePermissionTo('edit');
+        $this->assertTrue($this->user->hasPermission('edit'));
+
+        // Create role with forbidden permission
+        $restrictedRole = Role::create([
+            'name' => 'restricted',
+            'guard_name' => 'web',
+        ]);
+        $restrictedRole->giveForbiddenTo('edit');
+
+        // Assign role to user
+        $this->user->assignRole('restricted');
+        $this->user->refresh();
+
+        // Should not have permission because role has forbidden it
+        $this->assertFalse($this->user->hasPermission('edit'));
+        $this->assertTrue($this->user->hasDirectPermission('edit')); // Direct permission still exists
+        $this->assertTrue($this->user->hasForbiddenPermissionViaRoles('edit')); // Role has forbidden permission
     }
 }

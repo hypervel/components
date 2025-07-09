@@ -38,7 +38,6 @@ return new class extends Migration {
             $table->bigIncrements('id');
             $table->string('name')->unique();
             $table->string('guard_name');
-            $table->boolean('is_forbidden');
             $table->timestamps();
             $table->index(['name', 'guard_name']);
         });
