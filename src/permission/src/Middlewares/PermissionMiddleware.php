@@ -7,7 +7,6 @@ namespace Hypervel\Permission\Middlewares;
 use BackedEnum;
 use Hypervel\Permission\Exceptions\PermissionException;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
-use Hypervel\Permission\Traits\HasRole;
 use Hypervel\Support\Facades\Auth;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -22,7 +21,6 @@ class PermissionMiddleware implements MiddlewareInterface
         RequestHandlerInterface $handler,
         BackedEnum|int|string|UnitEnum ...$permissions
     ): ResponseInterface {
-        /** @var HasRole $user */
         $user = Auth::user();
         if (! $user) {
             throw new UnauthorizedException(
@@ -39,12 +37,14 @@ class PermissionMiddleware implements MiddlewareInterface
                 500,
                 sprintf(
                     'User "%s" does not have the "hasAnyPermissions" method. Cannot check permissions: %s',
+                    /* @phpstan-ignore-next-line */
                     $user->getAuthIdentifier(),
                     self::parsePermissionsToString($permissions)
                 )
             );
         }
         $permissionString = self::parsePermissionsToString($permissions);
+        /* @phpstan-ignore-next-line */
         if (! $user->hasAnyPermissions($permissions)) {
             throw new PermissionException(
                 403,

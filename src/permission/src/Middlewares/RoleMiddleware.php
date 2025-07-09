@@ -7,7 +7,6 @@ namespace Hypervel\Permission\Middlewares;
 use BackedEnum;
 use Hypervel\Permission\Exceptions\RoleException;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
-use Hypervel\Permission\Traits\HasRole;
 use Hypervel\Support\Facades\Auth;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -22,7 +21,6 @@ class RoleMiddleware implements MiddlewareInterface
         RequestHandlerInterface $handler,
         BackedEnum|int|string|UnitEnum ...$roles
     ): ResponseInterface {
-        /** @var HasRole $user */
         $user = Auth::user();
         if (! $user) {
             throw new UnauthorizedException(
@@ -39,12 +37,14 @@ class RoleMiddleware implements MiddlewareInterface
                 500,
                 sprintf(
                     'User "%s" does not have the "hasAnyRoles" method. Cannot check roles: %s',
+                    /* @phpstan-ignore-next-line */
                     $user->getAuthIdentifier(),
                     self::parseRolesToString($roles)
                 )
             );
         }
         $roleString = self::parseRolesToString($roles);
+        /* @phpstan-ignore-next-line */
         if (! $user->hasAnyRoles($roles)) {
             throw new RoleException(
                 403,

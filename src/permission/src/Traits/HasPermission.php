@@ -21,6 +21,7 @@ use UnitEnum;
  * and to manage permissions assigned to the owner.
  *
  * @property-read Collection<Permission> $permissions
+ * @property-read Collection<Role> $roles
  */
 trait HasPermission
 {
@@ -62,6 +63,7 @@ trait HasPermission
         $cachedPermissions = $manager->getOwnerCachedPermissions($this->getOwnerType(), $this->getKey());
 
         if (! empty($cachedPermissions)) {
+            /* @phpstan-ignore-next-line */
             return $this->permissions()->getRelated()->hydrate($cachedPermissions);
         }
 
@@ -96,8 +98,6 @@ trait HasPermission
 
     /**
      * Return all the permissions the model has, both direcstly and via roles.
-     *
-     * @return BaseCollection<Permission>
      */
     public function getAllPermissions(): BaseCollection
     {
@@ -110,15 +110,13 @@ trait HasPermission
         });
 
         // Merge direct permissions with role permissions and remove duplicates by id
-        return $filteredDirect->merge($rolePermissions)->unique('id');
+        return $filteredDirect->merge($rolePermissions)->unique('id')->values();
     }
 
     /**
      * Get all permissions via roles.
      * This method returns all permissions that the owner has through its roles.
      * It does not include direct permissions.
-     *
-     * @return BaseCollection<Permission>
      */
     public function getPermissionsViaRoles(): BaseCollection
     {
@@ -135,6 +133,7 @@ trait HasPermission
             $ownerRoles = $this->getCachedRoles();
         } else {
             $this->loadMissing('roles');
+            /* @phpstan-ignore-next-line */
             $ownerRoles = $this->roles;
         }
 
@@ -148,7 +147,7 @@ trait HasPermission
             }
         }
 
-        return $permissions;
+        return $permissions->values();
     }
 
     /**
@@ -291,7 +290,7 @@ trait HasPermission
     /**
      * Revoke permission from the owner.
      */
-    public function revokePermissionTo(array $permissions): static
+    public function revokePermissionTo(array|BackedEnum|int|string|UnitEnum ...$permissions): static
     {
         $detachPermissions = $this->collectPermissions($permissions);
 
