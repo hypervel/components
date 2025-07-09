@@ -11,7 +11,6 @@ class PermissionServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerPublishing();
-        
     }
 
     public function registerPublishing()

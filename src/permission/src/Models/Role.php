@@ -22,6 +22,7 @@ use Hypervel\Permission\Traits\HasPermission;
 class Role extends Model implements RoleContract
 {
     use HasPermission;
+
     /**
      * The attributes that are mass assignable.
      */
