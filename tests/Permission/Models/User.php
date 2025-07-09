@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Tests\Permission\Models;
 
 use Hypervel\Auth\Access\Authorizable;

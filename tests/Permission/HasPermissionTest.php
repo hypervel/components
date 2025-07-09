@@ -412,7 +412,6 @@ class HasPermissionTest extends PermissionTestCase
         $this->assertCount(1, $rolePermissions);
     }
 
-
     public function testPermissionPriorityDirectForbiddenOverridesEverything()
     {
         // User has direct normal permission and role permission
