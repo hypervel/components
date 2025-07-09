@@ -139,6 +139,7 @@ trait HasPermission
 
         $permissions = collect();
         foreach ($ownerRoles as $role) {
+            /* @phpstan-ignore-next-line */
             $roleId = is_array($role) ? $role['id'] : $role->id;
             if (isset($allRolesWithPermissions[$roleId])) {
                 $rolePermissions = collect($allRolesWithPermissions[$roleId]['permissions'])

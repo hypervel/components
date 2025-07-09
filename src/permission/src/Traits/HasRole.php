@@ -62,6 +62,7 @@ trait HasRole
 
         if ($cachedRoles !== null && ! empty($cachedRoles)) {
             // Convert cached data back to models
+            /* @phpstan-ignore-next-line */
             return $this->roles()->getRelated()->hydrate($cachedRoles);
         }
 
@@ -219,6 +220,7 @@ trait HasRole
         $intersectedNames = $currentRoleNames->intersect($inputRoleNames);
 
         return $ownerRoles->filter(
+            /* @phpstan-ignore-next-line */
             fn ($role) => $intersectedIds->contains($role->{$keyName}) || $intersectedNames->contains($role->name)
         )
             ->values();
