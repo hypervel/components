@@ -17,6 +17,8 @@ class PermissionTestCase extends TestCase
 {
     use RefreshDatabase;
 
+    protected bool $migrateRefresh = true;
+
     protected ?ApplicationContract $app = null;
 
     protected function setUp(): void
@@ -50,11 +52,6 @@ class PermissionTestCase extends TestCase
                         'owner_permissions' => 'hypervel.permission.owner.permissions',
                     ],
                 ],
-                'storage' => [
-                    'database' => [
-                        'connection' => env('DB_CONNECTION', 'mysql'),
-                    ],
-                ],
                 'table_names' => [
                     'roles' => 'roles',
                     'permissions' => 'permissions',
@@ -69,7 +66,19 @@ class PermissionTestCase extends TestCase
                     'owner_morph_key' => 'owner_id',
                 ],
             ]);
+        // $this->createUsersTable();
     }
+
+    // protected function createUsersTable()
+    // {
+    //    Schema::create('users', function (Blueprint $table) {
+    //        $table->id();
+    //        $table->string('name');
+    //        $table->string('email')->unique();
+    //        $table->string('password');
+    //        $table->timestamps();
+    //    });
+    // }
 
     protected function migrateFreshUsing(): array
     {
@@ -78,8 +87,8 @@ class PermissionTestCase extends TestCase
             '--database' => $this->getRefreshConnection(),
             '--realpath' => true,
             '--path' => [
-                __DIR__ . '/migrations',
                 dirname(__DIR__, 2) . '/src/permission/database/migrations',
+                __DIR__ . '/migrations',
             ],
         ];
     }
