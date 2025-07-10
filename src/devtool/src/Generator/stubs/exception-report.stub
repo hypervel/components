@@ -1,0 +1,18 @@
+<?php
+
+declare(strict_types=1);
+
+namespace %NAMESPACE%;
+
+use Exception;
+
+class %CLASS% extends Exception
+{
+    /**
+     * Report the exception.
+     */
+    public function report(): void
+    {
+        //
+    }
+}

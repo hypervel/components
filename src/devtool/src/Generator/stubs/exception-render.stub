@@ -1,0 +1,20 @@
+<?php
+
+declare(strict_types=1);
+
+namespace %NAMESPACE%;
+
+use Exception;
+use Hypervel\Http\Request;
+use Hypervel\Http\Response;
+
+class %CLASS% extends Exception
+{
+    /**
+     * Render the exception as an HTTP response.
+     */
+    public function render(Request $request): Response
+    {
+        //
+    }
+}
