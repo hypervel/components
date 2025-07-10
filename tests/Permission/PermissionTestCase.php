@@ -66,20 +66,8 @@ class PermissionTestCase extends TestCase
                     'owner_morph_key' => 'owner_id',
                 ],
             ]);
-        // $this->createUsersTable();
     }
-
-    // protected function createUsersTable()
-    // {
-    //    Schema::create('users', function (Blueprint $table) {
-    //        $table->id();
-    //        $table->string('name');
-    //        $table->string('email')->unique();
-    //        $table->string('password');
-    //        $table->timestamps();
-    //    });
-    // }
-
+    
     protected function migrateFreshUsing(): array
     {
         return [
