@@ -9,6 +9,7 @@ use Hypervel\Cache\Contracts\Factory as CacheManager;
 use Hypervel\Cache\Contracts\Repository;
 use Hypervel\Permission\Models\Permission;
 use Hypervel\Permission\Models\Role;
+use InvalidArgumentException;
 use Psr\Container\ContainerInterface;
 
 class PermissionManager implements Contracts\Factory
@@ -34,6 +35,35 @@ class PermissionManager implements Contracts\Factory
         $this->roleClass = $this->getConfig('permission.models.role') ?: Role::class;
         $this->permissionClass = $this->getConfig('permission.models.permission') ?: Permission::class;
         $this->initializeCache();
+        $this->validateModelClasses();
+    }
+
+    /**
+     * Validate that model classes implement required interfaces.
+     *
+     * @throws InvalidArgumentException When model classes do not implement required interfaces
+     */
+    protected function validateModelClasses(): void
+    {
+        if (! is_a($this->roleClass, Contracts\Role::class, true)) {
+            throw new InvalidArgumentException(
+                sprintf(
+                    'Role class "%s" must implement "%s" interface',
+                    $this->roleClass,
+                    Contracts\Role::class
+                )
+            );
+        }
+
+        if (! is_a($this->permissionClass, Contracts\Permission::class, true)) {
+            throw new InvalidArgumentException(
+                sprintf(
+                    'Permission class "%s" must implement "%s" interface',
+                    $this->permissionClass,
+                    Contracts\Permission::class
+                )
+            );
+        }
     }
 
     public function getRoleClass(): string
@@ -139,7 +169,7 @@ class PermissionManager implements Contracts\Factory
     /**
      * Cache only owner's permissions.
      *
-     * @param array<\Hypervel\Permission\Contracts\Permission> $permissions
+     * @param array<Contracts\Permission> $permissions
      */
     public function cacheOwnerPermissions(string $ownerType, int|string $ownerId, array $permissions): void
     {

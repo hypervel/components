@@ -37,10 +37,12 @@ class Permission extends Model implements PermissionContract
     public function roles(): BelongsToMany
     {
         return $this->belongsToMany(
-            config('permission.role_model', Role::class),
+            config('permission.models.role', Role::class),
             config('permission.table_names.role_has_permissions', 'role_has_permissions'),
             config('permission.column_names.permission_pivot_key', 'permission_id'),
             config('permission.column_names.role_pivot_key', 'role_id'),
-        );
+        )
+            ->withTimestamps()
+            ->withPivot(['is_forbidden']);
     }
 }

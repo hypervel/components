@@ -80,8 +80,8 @@ return new class extends Migration {
     public function down(): void
     {
         $schema = Schema::connection($this->getConnection());
-        $schema->dropIfExists('model_has_roles');
-        $schema->dropIfExists('model_has_permissions');
+        $schema->dropIfExists('owner_has_roles');
+        $schema->dropIfExists('owner_has_permissions');
         $schema->dropIfExists('role_has_permissions');
         $schema->dropIfExists('permissions');
         $schema->dropIfExists('roles');

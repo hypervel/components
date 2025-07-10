@@ -67,7 +67,7 @@ class PermissionTestCase extends TestCase
                 ],
             ]);
     }
-    
+
     protected function migrateFreshUsing(): array
     {
         return [

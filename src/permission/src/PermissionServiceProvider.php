@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Permission;
 
+use Hypervel\Permission\Contracts\Factory;
 use Hypervel\Support\ServiceProvider;
 
 class PermissionServiceProvider extends ServiceProvider
@@ -11,9 +12,29 @@ class PermissionServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerPublishing();
+        $this->registerPermissionManager();
     }
 
-    public function registerPublishing()
+    /**
+     * Register any package services.
+     */
+    public function register(): void
+    {
+        $this->mergeConfigFrom(
+            __DIR__ . '/../config/permission.php',
+            'permission'
+        );
+    }
+
+    protected function registerPermissionManager(): void
+    {
+        $this->app->bind(
+            Factory::class,
+            fn ($container) => $container->get(PermissionManager::class)
+        );
+    }
+
+    public function registerPublishing(): void
     {
         $this->publishes([
             __DIR__ . '/../config/permission.php' => config_path('permission.php'),
