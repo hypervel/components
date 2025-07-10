@@ -26,7 +26,7 @@ class Limit
     /**
      * The response generator callback.
      */
-    public Closure $responseCallback;
+    public ?Closure $responseCallback = null;
 
     /**
      * Create a new limit instance.
