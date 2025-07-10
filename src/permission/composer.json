@@ -1,0 +1,49 @@
+{
+    "name": "hypervel/permission",
+    "type": "library",
+    "description": "The permission package for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "hyperf",
+        "swoole",
+        "permission",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Permission\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.2",
+        "hyperf/macroable": "~3.1.0",
+        "hypervel/support": "^0.2"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.2-dev"
+        },
+        "hyperf": {
+            "config": "Hypervel\\Permission\\ConfigProvider"
+        },
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Permission\\PermissionServiceProvider"
+            ]
+        }
+    }
+}
