@@ -13,6 +13,7 @@ class PermissionServiceProvider extends ServiceProvider
     {
         $this->registerPublishing();
         $this->registerPermissionManager();
+        $this->registerCommands();
     }
 
     /**
@@ -45,5 +46,15 @@ class PermissionServiceProvider extends ServiceProvider
                 'migrations/2025_07_02_000000_create_permission_tables.php'
             ),
         ], 'permission-migrations');
+    }
+
+    /**
+     * Register the package's commands.
+     */
+    protected function registerCommands(): void
+    {
+        $this->commands([
+            Console\ShowCommand::class,
+        ]);
     }
 }
