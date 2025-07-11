@@ -1,0 +1,113 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Sanctum;
+
+use Hypervel\Context\Context;
+use Mockery;
+use Mockery\MockInterface;
+
+/**
+ * @template TToken of \Hypervel\Sanctum\Contracts\HasAbilities = \Hypervel\Sanctum\PersonalAccessToken
+ */
+class Sanctum
+{
+    /**
+     * The personal access client model class name.
+     *
+     * @var class-string<TToken>
+     */
+    public static string $personalAccessTokenModel = PersonalAccessToken::class;
+
+    /**
+     * A callback that can get the token from the request.
+     *
+     * @var callable|null
+     */
+    public static $accessTokenRetrievalCallback = null;
+
+    /**
+     * A callback that can add to the validation of the access token.
+     *
+     * @var callable|null
+     */
+    public static $accessTokenAuthenticationCallback = null;
+
+    /**
+     * Get the current application URL from the "APP_URL" environment variable - with port.
+     */
+    public static function currentApplicationUrlWithPort(): string
+    {
+        $appUrl = config('app.url');
+
+        return $appUrl ? ','.parse_url($appUrl, PHP_URL_HOST).(parse_url($appUrl, PHP_URL_PORT) ? ':'.parse_url($appUrl, PHP_URL_PORT) : '') : '';
+    }
+
+    /**
+     * Set the current user for the application with the given abilities.
+     *
+     * @param \Hypervel\Auth\Contracts\Authenticatable|\Hypervel\Sanctum\HasApiTokens $user
+     * @param array<string> $abilities
+     */
+    public static function actingAs($user, array $abilities = [], string $guard = 'sanctum'): mixed
+    {
+        /** @var MockInterface&\Hypervel\Sanctum\Contracts\HasAbilities $token */
+        $token = Mockery::mock(self::personalAccessTokenModel())->shouldIgnoreMissing(false);
+
+        if (in_array('*', $abilities)) {
+            $token->shouldReceive('can')->withAnyArgs()->andReturn(true);
+        } else {
+            foreach ($abilities as $ability) {
+                $token->shouldReceive('can')->with($ability)->andReturn(true);
+            }
+        }
+
+        $user->withAccessToken($token);
+
+        if (isset($user->wasRecentlyCreated) && $user->wasRecentlyCreated) {
+            $user->wasRecentlyCreated = false;
+        }
+
+        Context::set('__sanctum.acting_as_user', $user);
+        Context::set('__sanctum.acting_as_guard', $guard);
+
+        return $user;
+    }
+
+    /**
+     * Set the personal access token model name.
+     *
+     * @param class-string<TToken> $model
+     */
+    public static function usePersonalAccessTokenModel(string $model): void
+    {
+        static::$personalAccessTokenModel = $model;
+    }
+
+    /**
+     * Specify a callback that should be used to fetch the access token from the request.
+     */
+    public static function getAccessTokenFromRequestUsing(?callable $callback): void
+    {
+        static::$accessTokenRetrievalCallback = $callback;
+    }
+
+    /**
+     * Specify a callback that should be used to authenticate access tokens.
+     */
+    public static function authenticateAccessTokensUsing(callable $callback): void
+    {
+        static::$accessTokenAuthenticationCallback = $callback;
+    }
+
+    /**
+     * Get the token model class name.
+     *
+     * @return class-string<TToken>
+     */
+    public static function personalAccessTokenModel(): string
+    {
+        return static::$personalAccessTokenModel;
+    }
+}
