@@ -18,14 +18,14 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $this->app->get(\Hyperf\Contract\ConfigInterface::class)->set('sanctum.stateful', ['test.com', '*.test.com']);
     }
 
     protected function tearDown(): void
     {
         parent::tearDown();
-        
+
         Mockery::close();
     }
 

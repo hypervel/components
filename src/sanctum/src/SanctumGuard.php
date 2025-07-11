@@ -14,7 +14,6 @@ use Hypervel\Auth\Contracts\Factory as AuthFactory;
 use Hypervel\Auth\Contracts\Guard as GuardContract;
 use Hypervel\Auth\Contracts\UserProvider;
 use Hypervel\Auth\Guards\GuardHelpers;
-use Hypervel\Sanctum\Contracts\HasAbilities;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
 use Hypervel\Support\Arr;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -69,9 +68,8 @@ class SanctumGuard implements GuardContract
             $model = Sanctum::$personalAccessTokenModel;
             $accessToken = $model::findToken($token);
 
-            if ($this->isValidAccessToken($accessToken) && 
-                $this->supportsTokens($accessToken->tokenable)) {
-                
+            if ($this->isValidAccessToken($accessToken)
+                && $this->supportsTokens($accessToken->tokenable)) {
                 $user = $accessToken->tokenable->withAccessToken($accessToken);
 
                 // Dispatch event if event dispatcher is available
@@ -133,7 +131,7 @@ class SanctumGuard implements GuardContract
     protected function getBearerToken(): ?string
     {
         $header = $this->request->header('Authorization', '');
-        
+
         if (str_starts_with($header, 'Bearer ')) {
             return substr($header, 7);
         }
@@ -173,8 +171,8 @@ class SanctumGuard implements GuardContract
             return false;
         }
 
-        $isValid =
-            (! $this->expiration || $accessToken->created_at->gt(now()->subMinutes($this->expiration)))
+        $isValid
+            = (! $this->expiration || $accessToken->created_at->gt(now()->subMinutes($this->expiration)))
             && (! $accessToken->expires_at || ! $accessToken->expires_at->isPast())
             && $this->hasValidProvider($accessToken->tokenable);
 

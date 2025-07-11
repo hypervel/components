@@ -28,10 +28,10 @@ class HasApiTokensTest extends TestCase
     public function testCanCheckTokenAbilitiesWithPersonalAccessToken(): void
     {
         $user = new UserWithApiTokens();
-        
+
         $token = new PersonalAccessToken();
         $token->abilities = ['foo', 'baz'];
-        
+
         $user->withAccessToken($token);
 
         $this->assertTrue($user->tokenCan('foo'));
@@ -44,12 +44,12 @@ class HasApiTokensTest extends TestCase
     public function testCurrentAccessTokenGetter(): void
     {
         $user = new UserWithApiTokens();
-        
+
         $this->assertNull($user->currentAccessToken());
-        
+
         $token = new TransientToken();
         $user->withAccessToken($token);
-        
+
         $this->assertSame($token, $user->currentAccessToken());
     }
 }

@@ -15,20 +15,20 @@ use PHPUnit\Framework\TestCase;
 class NewAccessTokenTest extends TestCase
 {
     /**
-     * Test to array method
+     * Test to array method.
      */
     public function testToArrayMethod(): void
     {
         $accessToken = new PersonalAccessToken([
             'name' => 'Test Token',
             'token' => 'test-hash',
-            'abilities' => ['*']
+            'abilities' => ['*'],
         ]);
-        
+
         $newToken = new NewAccessToken($accessToken, 'test-plain-text-token');
-        
+
         $array = $newToken->toArray();
-        
+
         $this->assertArrayHasKey('accessToken', $array);
         $this->assertArrayHasKey('plainTextToken', $array);
         $this->assertSame($accessToken, $array['accessToken']);
@@ -36,22 +36,22 @@ class NewAccessTokenTest extends TestCase
     }
 
     /**
-     * Test to json method
+     * Test to json method.
      */
     public function testToJsonMethod(): void
     {
         $accessToken = new PersonalAccessToken([
             'name' => 'Test Token',
             'token' => 'test-hash',
-            'abilities' => ['*']
+            'abilities' => ['*'],
         ]);
-        
+
         $newToken = new NewAccessToken($accessToken, 'test-plain-text-token');
-        
+
         $json = $newToken->toJson();
-        
+
         $this->assertJson($json);
-        
+
         $decoded = json_decode($json, true);
         $this->assertArrayHasKey('accessToken', $decoded);
         $this->assertArrayHasKey('plainTextToken', $decoded);
@@ -59,20 +59,20 @@ class NewAccessTokenTest extends TestCase
     }
 
     /**
-     * Test toString method
+     * Test toString method.
      */
     public function testToStringMethod(): void
     {
         $accessToken = new PersonalAccessToken([
             'name' => 'Test Token',
             'token' => 'test-hash',
-            'abilities' => ['*']
+            'abilities' => ['*'],
         ]);
-        
+
         $newToken = new NewAccessToken($accessToken, 'test-plain-text-token');
-        
+
         $string = (string) $newToken;
-        
+
         $this->assertJson($string);
         $this->assertSame($newToken->toJson(), $string);
     }

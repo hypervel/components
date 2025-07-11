@@ -25,30 +25,33 @@ class CheckForAnyAbilityTest extends TestCase
     }
 
     /**
-     * Test request is passed along if any abilities are present on token
+     * Test request is passed along if any abilities are present on token.
      */
     public function testRequestIsPassedAlongIfAbilitiesArePresentOnToken(): void
     {
         $middleware = new CheckForAnyAbility('foo', 'bar');
-        
+
         // Create a user object with the required methods
         $user = new class {
             private $token;
-            
-            public function __construct() {
+
+            public function __construct()
+            {
                 $this->token = new class {};
             }
-            
-            public function currentAccessToken() {
+
+            public function currentAccessToken()
+            {
                 return $this->token;
             }
-            
-            public function tokenCan(string $ability): bool {
+
+            public function tokenCan(string $ability): bool
+            {
                 // Return true only for 'foo', false for others
                 return $ability === 'foo';
             }
         };
-        
+
         $request = Mockery::mock(ServerRequestInterface::class);
         $request->shouldReceive('getAttribute')->with('user')->andReturn($user);
 
@@ -66,23 +69,26 @@ class CheckForAnyAbilityTest extends TestCase
         $this->expectException(\Hypervel\Sanctum\Exceptions\MissingAbilityException::class);
 
         $middleware = new CheckForAnyAbility('foo', 'bar');
-        
+
         $user = new class {
             private $token;
-            
-            public function __construct() {
+
+            public function __construct()
+            {
                 $this->token = new class {};
             }
-            
-            public function currentAccessToken() {
+
+            public function currentAccessToken()
+            {
                 return $this->token;
             }
-            
-            public function tokenCan(string $ability): bool {
+
+            public function tokenCan(string $ability): bool
+            {
                 return false;
             }
         };
-        
+
         $request = Mockery::mock(ServerRequestInterface::class);
         $request->shouldReceive('getAttribute')->with('user')->andReturn($user);
 
@@ -96,7 +102,7 @@ class CheckForAnyAbilityTest extends TestCase
         $this->expectException(\Hypervel\Auth\AuthenticationException::class);
 
         $middleware = new CheckForAnyAbility('foo', 'bar');
-        
+
         $request = Mockery::mock(ServerRequestInterface::class);
         $request->shouldReceive('getAttribute')->with('user')->once()->andReturn(null);
 
@@ -110,17 +116,19 @@ class CheckForAnyAbilityTest extends TestCase
         $this->expectException(\Hypervel\Auth\AuthenticationException::class);
 
         $middleware = new CheckForAnyAbility('foo', 'bar');
-        
+
         $user = new class {
-            public function currentAccessToken() {
+            public function currentAccessToken()
+            {
                 return null;
             }
-            
-            public function tokenCan(string $ability): bool {
+
+            public function tokenCan(string $ability): bool
+            {
                 return false;
             }
         };
-        
+
         $request = Mockery::mock(ServerRequestInterface::class);
         $request->shouldReceive('getAttribute')->with('user')->andReturn($user);
 

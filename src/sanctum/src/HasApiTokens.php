@@ -17,7 +17,7 @@ trait HasApiTokens
     /**
      * The access token the user is using for the current request.
      *
-     * @var TToken|null
+     * @var null|TToken
      */
     protected ?HasAbilities $accessToken = null;
 
@@ -64,7 +64,7 @@ trait HasApiTokens
             'expires_at' => $expiresAt,
         ]);
 
-        return new NewAccessToken($token, $token->getKey().'|'.$plainTextToken);
+        return new NewAccessToken($token, $token->getKey() . '|' . $plainTextToken);
     }
 
     /**
@@ -83,7 +83,7 @@ trait HasApiTokens
     /**
      * Get the access token currently associated with the user.
      *
-     * @return TToken|null
+     * @return null|TToken
      */
     public function currentAccessToken(): ?HasAbilities
     {
@@ -93,7 +93,7 @@ trait HasApiTokens
     /**
      * Set the current access token for the user.
      *
-     * @param TToken|null $accessToken
+     * @param null|TToken $accessToken
      * @return $this
      */
     public function withAccessToken(?HasAbilities $accessToken): static

@@ -58,21 +58,21 @@ class PersonalAccessToken extends Model implements HasAbilities
     public static function findToken(string $token): ?static
     {
         $accessToken = null;
-        
+
         if (strpos($token, '|') === false) {
             $accessToken = static::where('token', hash('sha256', $token))->first();
         } else {
             [$id, $token] = explode('|', $token, 2);
-            
+
             if ($instance = static::find($id)) {
                 $accessToken = hash_equals($instance->token, hash('sha256', $token)) ? $instance : null;
             }
         }
-        
+
         if ($accessToken) {
             $accessToken->forceFill(['last_used_at' => now()])->save();
         }
-        
+
         return $accessToken;
     }
 
@@ -81,8 +81,8 @@ class PersonalAccessToken extends Model implements HasAbilities
      */
     public function can(string $ability): bool
     {
-        return in_array('*', $this->abilities) ||
-               array_key_exists($ability, array_flip($this->abilities));
+        return in_array('*', $this->abilities)
+               || array_key_exists($ability, array_flip($this->abilities));
     }
 
     /**

@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hyperf\Database\Schema\Blueprint;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Support\Carbon;
-use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
 
 /**

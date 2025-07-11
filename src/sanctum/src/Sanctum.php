@@ -23,16 +23,16 @@ class Sanctum
     /**
      * A callback that can get the token from the request.
      *
-     * @var callable|null
+     * @var null|callable
      */
-    public static $accessTokenRetrievalCallback = null;
+    public static $accessTokenRetrievalCallback;
 
     /**
      * A callback that can add to the validation of the access token.
      *
-     * @var callable|null
+     * @var null|callable
      */
-    public static $accessTokenAuthenticationCallback = null;
+    public static $accessTokenAuthenticationCallback;
 
     /**
      * Get the current application URL from the "APP_URL" environment variable - with port.
@@ -41,7 +41,7 @@ class Sanctum
     {
         $appUrl = config('app.url');
 
-        return $appUrl ? ','.parse_url($appUrl, PHP_URL_HOST).(parse_url($appUrl, PHP_URL_PORT) ? ':'.parse_url($appUrl, PHP_URL_PORT) : '') : '';
+        return $appUrl ? ',' . parse_url($appUrl, PHP_URL_HOST) . (parse_url($appUrl, PHP_URL_PORT) ? ':' . parse_url($appUrl, PHP_URL_PORT) : '') : '';
     }
 
     /**
@@ -52,7 +52,7 @@ class Sanctum
      */
     public static function actingAs($user, array $abilities = [], string $guard = 'sanctum'): mixed
     {
-        /** @var MockInterface&\Hypervel\Sanctum\Contracts\HasAbilities $token */
+        /** @var \Hypervel\Sanctum\Contracts\HasAbilities&MockInterface $token */
         $token = Mockery::mock(self::personalAccessTokenModel())->shouldIgnoreMissing(false);
 
         if (in_array('*', $abilities)) {

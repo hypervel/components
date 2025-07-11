@@ -42,10 +42,10 @@ class AuthenticateSession implements MiddlewareInterface
             ->filter(fn ($guard) => $guard instanceof SessionGuard);
 
         $shouldLogout = $guards->filter(
-            fn ($guard, $driver) => $this->session->has('password_hash_'.$driver)
+            fn ($guard, $driver) => $this->session->has('password_hash_' . $driver)
         )->filter(
-            fn ($guard, $driver) => $this->session->get('password_hash_'.$driver) !==
-                                    $user->getAuthPassword()
+            fn ($guard, $driver) => $this->session->get('password_hash_' . $driver)
+                                    !== $user->getAuthPassword()
         );
 
         if ($shouldLogout->isNotEmpty()) {
@@ -58,7 +58,7 @@ class AuthenticateSession implements MiddlewareInterface
 
         // Store password hash after successful request
         $response = $handler->handle($request);
-        
+
         if (! is_null($guard = $this->getFirstGuardWithUser($guards->keys()))) {
             $this->storePasswordHashInSession($guard);
         }
@@ -74,8 +74,8 @@ class AuthenticateSession implements MiddlewareInterface
         return $guards->first(function ($guard) {
             $guardInstance = $this->auth->guard($guard);
 
-            return method_exists($guardInstance, 'hasUser') &&
-                   $guardInstance->hasUser();
+            return method_exists($guardInstance, 'hasUser')
+                   && $guardInstance->hasUser();
         });
     }
 

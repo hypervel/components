@@ -26,7 +26,7 @@ class CsrfCookieController
         if (! $this->session->token()) {
             $this->session->regenerateToken();
         }
-        
+
         $config = config('session');
 
         $this->cookie->queue(
@@ -40,7 +40,7 @@ class CsrfCookieController
             false, // raw
             $config['same_site'] ?? null
         );
-        
+
         return $response->json([])->withStatus(200);
     }
 }

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum\Http\Middleware;
 
-use Closure;
 use Hypervel\Auth\AuthenticationException;
 use Hypervel\Sanctum\Exceptions\MissingAbilityException;
 use Psr\Http\Message\ResponseInterface;
@@ -23,8 +22,6 @@ class CheckForAnyAbility implements MiddlewareInterface
 
     /**
      * Create a new middleware instance.
-     *
-     * @param string ...$abilities
      */
     public function __construct(string ...$abilities)
     {

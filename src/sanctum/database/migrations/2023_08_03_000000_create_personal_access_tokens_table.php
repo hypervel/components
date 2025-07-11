@@ -6,8 +6,7 @@ use Hyperf\Database\Schema\Blueprint;
 use Hypervel\Database\Migrations\Migration;
 use Hypervel\Support\Facades\Schema;
 
-class CreatePersonalAccessTokensTable extends Migration
-{
+return new class extends Migration {
     /**
      * Run the migrations.
      */
@@ -22,7 +21,7 @@ class CreatePersonalAccessTokensTable extends Migration
             $table->timestamp('last_used_at')->nullable();
             $table->timestamp('expires_at')->nullable();
             $table->timestamps();
-        });            
+        });
     }
 
     /**

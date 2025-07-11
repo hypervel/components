@@ -41,7 +41,7 @@ class EnsureFrontendRequestsAreStateful implements MiddlewareInterface
         if (static::fromFrontend($this->request)) {
             // Mark request as stateful
             $request = $request->withAttribute('sanctum', true);
-            
+
             // Apply frontend middleware chain
             return $this->applyFrontendMiddleware($request, $handler);
         }
@@ -80,12 +80,12 @@ class EnsureFrontendRequestsAreStateful implements MiddlewareInterface
     {
         // Build middleware chain in reverse order
         $next = $handler;
-        
+
         foreach (array_reverse($this->frontendMiddleware) as $middleware) {
             if (! $middleware) {
                 continue;
             }
-            
+
             $next = new class($this->container, $middleware, $next) implements RequestHandlerInterface {
                 public function __construct(
                     private ContainerInterface $container,
@@ -113,7 +113,7 @@ class EnsureFrontendRequestsAreStateful implements MiddlewareInterface
     {
         $referer = $request->header('referer');
         $origin = $request->header('origin');
-        
+
         $domain = $referer ?: $origin;
 
         if (is_null($domain)) {
@@ -126,8 +126,8 @@ class EnsureFrontendRequestsAreStateful implements MiddlewareInterface
 
         $stateful = array_filter(config('sanctum.stateful', []));
 
-        return Str::is(Collection::make($stateful)->map(function ($uri) use ($request) {
-            return trim($uri).'/*';
+        return Str::is(Collection::make($stateful)->map(function ($uri) {
+            return trim($uri) . '/*';
         })->all(), $domain);
     }
 }
