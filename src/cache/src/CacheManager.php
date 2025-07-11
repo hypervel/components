@@ -19,6 +19,7 @@ use function Hyperf\Tappable\tap;
 
 /**
  * @mixin \Hypervel\Cache\Contracts\Repository
+ * @mixin \Hypervel\Cache\Contracts\LockProvider
  * @mixin \Hypervel\Cache\TaggableStore
  */
 class CacheManager implements FactoryContract
