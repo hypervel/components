@@ -20,37 +20,14 @@ class ConfigProvider
     public function __invoke(): array
     {
         return [
-            'dependencies' => [
-                // Register factories if needed
-            ],
-            'commands' => [
-                PruneExpired::class,
-            ],
-            'publish' => [
-                [
-                    'id' => 'config',
-                    'description' => 'The config for Sanctum.',
-                    'source' => __DIR__ . '/../publish/sanctum.php',
-                    'destination' => BASE_PATH . '/config/autoload/sanctum.php',
-                ],
-                [
-                    'id' => 'database',
-                    'description' => 'The migrations for Sanctum.',
-                    'source' => __DIR__ . '/../database/migrations',
-                    'destination' => BASE_PATH . '/migrations',
-                ],
-            ],
-            // Register middleware aliases
             'middlewares' => [
                 'http' => [
-                    // These can be used in routes
                     'sanctum' => EnsureFrontendRequestsAreStateful::class,
                     'sanctum.abilities' => CheckAbilities::class,
                     'sanctum.ability' => CheckForAnyAbility::class,
                     'sanctum.auth.session' => AuthenticateSession::class,
                 ],
             ],
-            // Register listeners
             'listeners' => [
                 \Hypervel\Sanctum\Listeners\RegisterSanctumGuard::class,
             ],
