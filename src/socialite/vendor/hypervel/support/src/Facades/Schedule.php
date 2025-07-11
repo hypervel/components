@@ -1,0 +1,95 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Support\Facades;
+
+use Hypervel\Console\Scheduling\Schedule as ScheduleAccessor;
+
+/**
+ * @method static \Hypervel\Console\Scheduling\CallbackEvent call(callable|string $callback, array $parameters = [])
+ * @method static \Hypervel\Console\Scheduling\Event command(string $command, array $parameters = [])
+ * @method static \Hypervel\Console\Scheduling\CallbackEvent job(object|string $job, string|null $queue = null, string|null $connection = null)
+ * @method static \Hypervel\Console\Scheduling\Event exec(string $command, array $parameters = [], bool $isSystem = true)
+ * @method static void group(\Closure $events)
+ * @method static string compileArrayInput(string|int $key, array $value)
+ * @method static bool serverShouldRun(\Hypervel\Console\Scheduling\Event $event, \DateTimeInterface $time)
+ * @method static \Hyperf\Collection\Collection dueEvents(\Hypervel\Foundation\Contracts\Application $app)
+ * @method static array events()
+ * @method static \Hypervel\Console\Scheduling\Schedule useCache(string|null $store)
+ * @method static mixed macroCall(string $method, array $parameters)
+ * @method static void macro(string $name, callable|object $macro)
+ * @method static void mixin(object $mixin, bool $replace = true)
+ * @method static bool hasMacro(string $name)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes withoutOverlapping(int $expiresAt = 1440)
+ * @method static void mergeAttributes(\Hypervel\Console\Scheduling\Event $event)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes user(string $user)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes environments(array|mixed $environments)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes evenInMaintenanceMode()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes onOneServer()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes runInBackground()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes when(\Closure|bool $callback)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes skip(\Closure|bool $callback)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes name(string $description)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes description(string $description)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes cron(string $expression)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes between(string $startTime, string $endTime)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes unlessBetween(string $startTime, string $endTime)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everySecond()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everyTwoSeconds()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everyFiveSeconds()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everyTenSeconds()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everyFifteenSeconds()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everyTwentySeconds()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everyThirtySeconds()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everyMinute()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everyTwoMinutes()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everyThreeMinutes()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everyFourMinutes()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everyFiveMinutes()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everyTenMinutes()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everyFifteenMinutes()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everyThirtyMinutes()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes hourly()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes hourlyAt(array|int|int[]|string $offset)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everyOddHour(array|string|int $offset = 0)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everyTwoHours(array|string|int $offset = 0)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everyThreeHours(array|string|int $offset = 0)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everyFourHours(array|string|int $offset = 0)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes everySixHours(array|string|int $offset = 0)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes daily()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes at(string $time)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes dailyAt(string $time)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes twiceDaily(int $first = 1, int $second = 13)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes twiceDailyAt(int $first = 1, int $second = 13, int $offset = 0)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes weekdays()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes weekends()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes mondays()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes tuesdays()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes wednesdays()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes thursdays()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes fridays()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes saturdays()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes sundays()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes weekly()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes weeklyOn(array|mixed $dayOfWeek, string $time = '0:0')
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes monthly()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes monthlyOn(int $dayOfMonth = 1, string $time = '0:0')
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes twiceMonthly(int $first = 1, int $second = 16, string $time = '0:0')
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes lastDayOfMonth(string $time = '0:0')
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes quarterly()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes quarterlyOn(int $dayOfQuarter = 1, string $time = '0:0')
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes yearly()
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes yearlyOn(int $month = 1, int|string $dayOfMonth = 1, string $time = '0:0')
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes days(array|mixed $days)
+ * @method static \Hypervel\Console\Scheduling\PendingEventAttributes timezone(\DateTimeZone|string $timezone)
+ *
+ * @see \Hypervel\Console\Scheduling\Schedule
+ */
+class Schedule extends Facade
+{
+    protected static function getFacadeAccessor()
+    {
+        return ScheduleAccessor::class;
+    }
+}

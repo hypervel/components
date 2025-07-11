@@ -1,0 +1,39 @@
+{
+    "name": "hyperf/macroable",
+    "description": "Hyperf Macroable package which come from illuminate/macroable",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "swoole",
+        "hyperf",
+        "macroable"
+    ],
+    "homepage": "https://hyperf.io",
+    "support": {
+        "issues": "https://github.com/hyperf/hyperf/issues",
+        "source": "https://github.com/hyperf/hyperf",
+        "docs": "https://hyperf.wiki",
+        "pull-request": "https://github.com/hyperf/hyperf/pulls"
+    },
+    "require": {
+        "php": ">=8.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hyperf\\Macroable\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "HyperfTest\\Macroable\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-master": "3.1-dev"
+        }
+    }
+}

@@ -6,7 +6,7 @@ use Hyperf\Database\Schema\Blueprint;
 use Hypervel\Database\Migrations\Migration;
 use Hypervel\Support\Facades\Schema;
 
-class CreateUsersTable extends Migration
+class CreatePersonalAccessTokensTable extends Migration
 {
     /**
      * Run the migrations.

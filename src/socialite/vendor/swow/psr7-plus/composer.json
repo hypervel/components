@@ -1,0 +1,36 @@
+{
+    "name": "swow/psr7-plus",
+    "description": "Modern strong-typed interfaces for Psr7, not only HTTP but also WebSocket",
+    "keywords": [
+        "swow",
+        "psr7",
+        "psr17",
+        "http",
+        "websocket"
+    ],
+    "license": "Apache-2.0",
+    "authors": [
+        {
+            "name": "twose",
+            "email": "twosee@php.net"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/swow/swow"
+    },
+    "require": {
+        "php": ">=8.0",
+        "psr/http-client": "^1.0",
+        "psr/http-factory": "^1.0",
+        "psr/http-message": "^1.1|^2.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Swow\\Psr7\\Message\\": "src/Message/"
+        }
+    },
+    "config": {
+        "process-timeout": 0,
+        "sort-packages": true
+    }
+}

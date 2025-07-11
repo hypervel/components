@@ -10,6 +10,8 @@ use Hypervel\Sanctum\Contracts\HasAbilities;
 
 class PersonalAccessToken extends Model implements HasAbilities
 {
+    protected ?string $table = 'personal_access_tokens';
+
     /**
      * The attributes that should be cast to native types.
      *
