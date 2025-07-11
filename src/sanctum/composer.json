@@ -13,7 +13,7 @@
         "issues": "https://github.com/hypervel/components/issues",
         "source": "https://github.com/hypervel/components"
     },
-    "jwtors": [
+    "authors": [
         {
             "name": "Albert Chen",
             "email": "albert@hypervel.org"
@@ -21,12 +21,15 @@
     ],
     "require": {
         "php": "^8.2",
-        "nesbot/carbon": "^2.72.6",
         "hyperf/collection": "~3.1.0",
-        "psr/simple-cache": "^3.0",
+        "hyperf/context": "~3.1.0",
+        "hyperf/database": "~3.1.0",
+        "hyperf/http-server": "~3.1.0",
         "hyperf/stringable": "~3.1.0",
-        "ramsey/uuid": "^4.7",
-        "hypervel/cache": "^0.2"
+        "hypervel/auth": "^0.2",
+        "hypervel/support": "^0.2",
+        "mockery/mockery": "^1.6",
+        "nesbot/carbon": "^2.72.6"
     },
     "autoload": {
         "psr-4": {
@@ -34,6 +37,9 @@
         }
     },
     "extra": {
+        "branch-alias": {
+            "dev-main": "0.2-dev"
+        },
         "hyperf": {
             "config": "Hypervel\\Sanctum\\ConfigProvider"
         },
@@ -41,9 +47,6 @@
             "providers": [
                 "Hypervel\\Sanctum\\SanctumServiceProvider"
             ]
-        },        
-        "branch-alias": {
-            "dev-main": "0.2-dev"
         }
     },
     "config": {
