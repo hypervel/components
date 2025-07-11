@@ -50,20 +50,6 @@ class ConfigProvider
                     'sanctum.auth.session' => AuthenticateSession::class,
                 ],
             ],
-            // Register routes
-            'routes' => [
-                'http' => [
-                    [
-                        'path' => '/sanctum/csrf-cookie',
-                        'method' => 'GET',
-                        'handler' => [\Hypervel\Sanctum\Http\Controllers\CsrfCookieController::class, 'show'],
-                        'options' => [
-                            'middleware' => ['web'],
-                            'name' => 'sanctum.csrf-cookie',
-                        ],
-                    ],
-                ],
-            ],
             // Register listeners
             'listeners' => [
                 \Hypervel\Sanctum\Listeners\RegisterSanctumGuard::class,
