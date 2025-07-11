@@ -42,6 +42,10 @@ class CheckForAnyAbility implements MiddlewareInterface
             throw new AuthenticationException();
         }
 
+        if (! method_exists($user, 'tokenCan')) {
+            throw new AuthenticationException();
+        }
+
         foreach ($this->abilities as $ability) {
             if ($user->tokenCan($ability)) {
                 return $handler->handle($request);

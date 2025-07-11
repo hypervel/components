@@ -8,6 +8,15 @@ use Hyperf\Database\Model\Model;
 use Hyperf\Database\Model\Relations\MorphTo;
 use Hypervel\Sanctum\Contracts\HasAbilities;
 
+/**
+ * @property array $abilities
+ * @property string $token
+ * @property string $name
+ * @property \Carbon\Carbon|null $last_used_at
+ * @property \Carbon\Carbon|null $expires_at
+ * @method static \Hyperf\Database\Model\Builder where(string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and')
+ * @method static static|null find(mixed $id, array $columns = ['*'])
+ */
 class PersonalAccessToken extends Model implements HasAbilities
 {
     protected ?string $table = 'personal_access_tokens';
@@ -60,6 +69,7 @@ class PersonalAccessToken extends Model implements HasAbilities
         $accessToken = null;
 
         if (strpos($token, '|') === false) {
+            /** @var static|null $accessToken */
             $accessToken = static::where('token', hash('sha256', $token))->first();
         } else {
             [$id, $token] = explode('|', $token, 2);

@@ -49,7 +49,11 @@ class AuthenticateSession implements MiddlewareInterface
         );
 
         if ($shouldLogout->isNotEmpty()) {
-            $shouldLogout->each->logout();
+            $shouldLogout->each(function ($guard) {
+                if (method_exists($guard, 'logout')) {
+                    $guard->logout();
+                }
+            });
 
             $this->session->flush();
 

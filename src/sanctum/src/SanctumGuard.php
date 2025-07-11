@@ -69,8 +69,8 @@ class SanctumGuard implements GuardContract
             $accessToken = $model::findToken($token);
 
             if ($this->isValidAccessToken($accessToken)
-                && $this->supportsTokens($accessToken->tokenable)) {
-                $user = $accessToken->tokenable->withAccessToken($accessToken);
+                && $this->supportsTokens($accessToken->getAttribute('tokenable'))) {
+                $user = $accessToken->getAttribute('tokenable')->withAccessToken($accessToken);
 
                 // Dispatch event if event dispatcher is available
                 if ($this->events) {
@@ -172,9 +172,9 @@ class SanctumGuard implements GuardContract
         }
 
         $isValid
-            = (! $this->expiration || $accessToken->created_at->gt(now()->subMinutes($this->expiration)))
-            && (! $accessToken->expires_at || ! $accessToken->expires_at->isPast())
-            && $this->hasValidProvider($accessToken->tokenable);
+            = (! $this->expiration || $accessToken->getAttribute('created_at')->gt(now()->subMinutes($this->expiration)))
+            && (! $accessToken->getAttribute('expires_at') || ! $accessToken->getAttribute('expires_at')?->isPast())
+            && $this->hasValidProvider($accessToken->getAttribute('tokenable'));
 
         if (is_callable(Sanctum::$accessTokenAuthenticationCallback)) {
             $isValid = (bool) (Sanctum::$accessTokenAuthenticationCallback)($accessToken, $isValid);
@@ -192,8 +192,11 @@ class SanctumGuard implements GuardContract
             return true;
         }
 
-        $model = $this->provider->getModel();
+        if (! method_exists($this->provider, 'getModel')) {
+            return true;
+        }
 
+        $model = $this->provider->getModel();
         return $tokenable instanceof $model;
     }
 

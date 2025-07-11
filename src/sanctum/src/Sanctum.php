@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
+use Hypervel\Sanctum\Contracts\HasAbilities;
 use Hypervel\Context\Context;
+use Hypervel\Sanctum\Contracts\HasApiTokens;
 use Mockery;
 use Mockery\MockInterface;
 
@@ -47,7 +49,7 @@ class Sanctum
     /**
      * Set the current user for the application with the given abilities.
      *
-     * @param \Hypervel\Auth\Contracts\Authenticatable|\Hypervel\Sanctum\HasApiTokens $user
+     * @param \Hypervel\Auth\Contracts\Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $user
      * @param array<string> $abilities
      */
     public static function actingAs($user, array $abilities = [], string $guard = 'sanctum'): mixed
@@ -56,11 +58,13 @@ class Sanctum
         $token = Mockery::mock(self::personalAccessTokenModel())->shouldIgnoreMissing(false);
 
         if (in_array('*', $abilities)) {
-            $token->shouldReceive('can')->withAnyArgs()->andReturn(true);
+            // @phpstan-ignore-next-line
+            $token->shouldReceive('can')->andReturn(true);
         } else {
-            foreach ($abilities as $ability) {
-                $token->shouldReceive('can')->with($ability)->andReturn(true);
-            }
+            // @phpstan-ignore-next-line
+            $token->shouldReceive('can')->andReturnUsing(function (string $ability) use ($abilities) {
+                return in_array($ability, $abilities);
+            });
         }
 
         $user->withAccessToken($token);

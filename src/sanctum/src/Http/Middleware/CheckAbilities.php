@@ -43,7 +43,7 @@ class CheckAbilities implements MiddlewareInterface
         }
 
         foreach ($this->abilities as $ability) {
-            if (! $user->tokenCan($ability)) {
+            if (! method_exists($user, 'tokenCan') || ! $user->tokenCan($ability)) {
                 throw new MissingAbilityException($ability);
             }
         }
