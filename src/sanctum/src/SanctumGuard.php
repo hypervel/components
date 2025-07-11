@@ -79,8 +79,6 @@ class SanctumGuard implements GuardContract
                     $this->events->dispatch(new TokenAuthenticated($accessToken));
                 }
 
-                $this->updateLastUsedAt($accessToken);
-                
                 Context::set($contextKey, $user);
                 return $user;
             }
@@ -199,14 +197,6 @@ class SanctumGuard implements GuardContract
         $model = $this->provider->getModel();
 
         return $tokenable instanceof $model;
-    }
-
-    /**
-     * Store the time the token was last used.
-     */
-    protected function updateLastUsedAt(PersonalAccessToken $accessToken): void
-    {
-        $accessToken->forceFill(['last_used_at' => now()])->save();
     }
 
     /**

@@ -55,17 +55,23 @@ class PersonalAccessToken extends Model implements HasAbilities
      */
     public static function findToken(string $token): ?static
     {
+        $accessToken = null;
+        
         if (strpos($token, '|') === false) {
-            return static::where('token', hash('sha256', $token))->first();
+            $accessToken = static::where('token', hash('sha256', $token))->first();
+        } else {
+            [$id, $token] = explode('|', $token, 2);
+            
+            if ($instance = static::find($id)) {
+                $accessToken = hash_equals($instance->token, hash('sha256', $token)) ? $instance : null;
+            }
         }
-
-        [$id, $token] = explode('|', $token, 2);
-
-        if ($instance = static::find($id)) {
-            return hash_equals($instance->token, hash('sha256', $token)) ? $instance : null;
+        
+        if ($accessToken) {
+            $accessToken->forceFill(['last_used_at' => now()])->save();
         }
-
-        return null;
+        
+        return $accessToken;
     }
 
     /**
