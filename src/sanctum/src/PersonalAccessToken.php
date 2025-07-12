@@ -12,8 +12,8 @@ use Hypervel\Sanctum\Contracts\HasAbilities;
  * @property array $abilities
  * @property string $token
  * @property string $name
- * @property \Carbon\Carbon|null $last_used_at
- * @property \Carbon\Carbon|null $expires_at
+ * @property null|\Carbon\Carbon $last_used_at
+ * @property null|\Carbon\Carbon $expires_at
  * @method static \Hyperf\Database\Model\Builder where(string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and')
  * @method static static|null find(mixed $id, array $columns = ['*'])
  */

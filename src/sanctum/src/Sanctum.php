@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
-use Hypervel\Sanctum\Contracts\HasAbilities;
 use Hypervel\Context\Context;
-use Hypervel\Sanctum\Contracts\HasApiTokens;
 use Mockery;
 use Mockery\MockInterface;
 
