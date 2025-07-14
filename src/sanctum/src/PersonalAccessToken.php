@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
-use Hyperf\Database\Model\Model;
 use Hyperf\Database\Model\Relations\MorphTo;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Sanctum\Contracts\HasAbilities;
 
 /**
