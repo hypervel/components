@@ -1,6 +1,6 @@
 The MIT License (MIT)
 
-Copyright (c) Hyperf
+Copyright (c) Spatie bvba info@spatie.be
 
 Copyright (c) Taylor Otwell
 

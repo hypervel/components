@@ -11,8 +11,8 @@ class PermissionException extends HttpException
 {
     public function __construct(
         int $statusCode,
-        $message = '',
-        $code = 0,
+        string $message = '',
+        int $code = 0,
         ?Throwable $previous = null,
         protected array $headers = [],
         protected array $permissions = []

@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Permission\Middlewares;
 
 use BackedEnum;
+use Hyperf\Collection\Collection;
+use Hyperf\Contract\ContainerInterface;
+use Hypervel\Auth\AuthManager;
 use Hypervel\Permission\Exceptions\RoleException;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
-use Hypervel\Support\Facades\Auth;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -16,12 +18,20 @@ use UnitEnum;
 
 class RoleMiddleware implements MiddlewareInterface
 {
+    /**
+     * Create a new middleware instance.
+     */
+    public function __construct(protected ContainerInterface $container)
+    {
+    }
+
     public function process(
         ServerRequestInterface $request,
         RequestHandlerInterface $handler,
         BackedEnum|int|string|UnitEnum ...$roles
     ): ResponseInterface {
-        $user = Auth::user();
+        $auth = $this->container->get(AuthManager::class);
+        $user = $auth->user();
         if (! $user) {
             throw new UnauthorizedException(
                 401,
@@ -73,13 +83,10 @@ class RoleMiddleware implements MiddlewareInterface
 
     public static function parseRolesToString(array $roles)
     {
-        $roles = collect($roles)
+        $roles = Collection::make($roles)
             ->flatten()
             ->values()
             ->all();
-        if ($roles instanceof BackedEnum) {
-            $roles = $roles->value;
-        }
 
         $role = array_map(function ($role) {
             return match (true) {

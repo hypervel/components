@@ -4,13 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Permission\Contracts;
 
+use Hypervel\Cache\Contracts\Repository;
+
 interface Factory
 {
     public function getRoleClass();
 
     public function getPermissionClass();
 
-    public function getCache(): ?\Hypervel\Cache\Contracts\Repository;
+    public function getCache(): ?Repository;
 
     public function getOwnerRolesCacheKey(string $ownerType, int|string $ownerId): string;
 

@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission\Middlewares;
 
+use Hyperf\Contract\ContainerInterface;
+use Hypervel\Auth\AuthManager;
 use Hypervel\Permission\Exceptions\RoleException;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
 use Hypervel\Permission\Middlewares\RoleMiddleware;
 use Hypervel\Permission\Models\Role;
-use Hypervel\Support\Facades\Auth;
 use Hypervel\Tests\Permission\Enums\Role as RoleEnum;
 use Hypervel\Tests\Permission\Models\User;
 use Hypervel\Tests\Permission\PermissionTestCase;
@@ -31,11 +32,21 @@ class RoleMiddlewareTest extends PermissionTestCase
 
     protected ResponseInterface $response;
 
+    protected ContainerInterface $container;
+
+    protected AuthManager $authManager;
+
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->middleware = new RoleMiddleware();
+        $this->container = m::mock(ContainerInterface::class);
+        $this->authManager = m::mock(AuthManager::class);
+        $this->container->shouldReceive('get')
+            ->with(AuthManager::class)
+            ->andReturn($this->authManager);
+
+        $this->middleware = new RoleMiddleware($this->container);
         $this->request = m::mock(ServerRequestInterface::class);
         $this->handler = m::mock(RequestHandlerInterface::class);
         $this->response = m::mock(ResponseInterface::class);
@@ -49,7 +60,7 @@ class RoleMiddlewareTest extends PermissionTestCase
 
     public function testProcessThrowsUnauthorizedExceptionWhenUserNotLoggedIn(): void
     {
-        Auth::shouldReceive('user')->once()->andReturn(null);
+        $this->authManager->shouldReceive('user')->once()->andReturn(null);
 
         $this->expectException(UnauthorizedException::class);
 
@@ -61,7 +72,7 @@ class RoleMiddlewareTest extends PermissionTestCase
         $user = m::mock();
         $user->shouldReceive('getAuthIdentifier')->andReturn('');
 
-        Auth::shouldReceive('user')->once()->andReturn($user);
+        $this->authManager->shouldReceive('user')->once()->andReturn($user);
 
         $this->expectException(UnauthorizedException::class);
         $this->expectExceptionMessage(
@@ -78,7 +89,7 @@ class RoleMiddlewareTest extends PermissionTestCase
             'email' => 'test@example.com',
         ]);
 
-        Auth::shouldReceive('user')->once()->andReturn($user);
+        $this->authManager->shouldReceive('user')->once()->andReturn($user);
 
         $this->expectException(RoleException::class);
         $this->expectExceptionMessage(
@@ -102,7 +113,7 @@ class RoleMiddlewareTest extends PermissionTestCase
 
         $user->assignRole('admin');
 
-        Auth::shouldReceive('user')->once()->andReturn($user);
+        $this->authManager->shouldReceive('user')->once()->andReturn($user);
         $this->handler->shouldReceive('handle')->once()->with($this->request)->andReturn($this->response);
 
         $result = $this->middleware->process($this->request, $this->handler, 'admin');
@@ -124,7 +135,7 @@ class RoleMiddlewareTest extends PermissionTestCase
 
         $user->assignRole('admin');
 
-        Auth::shouldReceive('user')->once()->andReturn($user);
+        $this->authManager->shouldReceive('user')->once()->andReturn($user);
         $this->handler->shouldReceive('handle')->once()->with($this->request)->andReturn($this->response);
 
         $result = $this->middleware->process($this->request, $this->handler, 'admin', 'viewer');

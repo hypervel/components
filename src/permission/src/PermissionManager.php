@@ -111,7 +111,7 @@ class PermissionManager implements Contracts\Factory
         }
 
         // if an undefined cache store is specified, fallback to 'array' which is Laravel's closest equiv to 'none'
-        if (! \array_key_exists($cacheDriver, config('cache.stores'))) {
+        if (! array_key_exists($cacheDriver, config('cache.stores'))) {
             $cacheDriver = 'array';
         }
 

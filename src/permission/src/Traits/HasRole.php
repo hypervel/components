@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Permission\Traits;
 
 use BackedEnum;
+use Hyperf\Collection\Collection as BaseCollection;
 use Hyperf\Database\Model\Builder;
 use Hyperf\Database\Model\Relations\MorphToMany;
 use Hypervel\Database\Eloquent\Collection;
@@ -153,8 +154,8 @@ trait HasRole
      */
     private function separateRolesByType(array $roles): array
     {
-        $roleIds = collect();
-        $roleNames = collect();
+        $roleIds = BaseCollection::make();
+        $roleNames = BaseCollection::make();
 
         foreach ($roles as $role) {
             $value = $this->extractRoleValue($role);
@@ -178,7 +179,7 @@ trait HasRole
     {
         $ownerRoles = $this->getCachedRoles();
 
-        return collect($roles)->some(function ($role) use ($ownerRoles) {
+        return BaseCollection::make($roles)->some(function ($role) use ($ownerRoles) {
             [$field, $value] = $this->normalizeRoleValue($role);
 
             return $ownerRoles->contains($field, $value);
@@ -194,7 +195,7 @@ trait HasRole
     {
         $ownerRoles = $this->getCachedRoles();
 
-        return collect($roles)->every(function ($role) use ($ownerRoles) {
+        return BaseCollection::make($roles)->every(function ($role) use ($ownerRoles) {
             [$field, $value] = $this->normalizeRoleValue($role);
 
             return $ownerRoles->contains($field, $value);
@@ -281,7 +282,7 @@ trait HasRole
      */
     private function collectRoles(array|BackedEnum|int|string|UnitEnum ...$roles): array
     {
-        $roles = collect($roles)
+        $roles = BaseCollection::make($roles)
             ->flatten()
             ->values()
             ->all();

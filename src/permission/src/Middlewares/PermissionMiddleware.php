@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Permission\Middlewares;
 
 use BackedEnum;
+use Hyperf\Contract\ContainerInterface;
+use Hypervel\Auth\AuthManager;
 use Hypervel\Permission\Exceptions\PermissionException;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
-use Hypervel\Support\Facades\Auth;
+use Hyperf\Collection\Collection;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -16,12 +18,20 @@ use UnitEnum;
 
 class PermissionMiddleware implements MiddlewareInterface
 {
+    /**
+     * Create a new middleware instance.
+     */
+    public function __construct(protected ContainerInterface $container)
+    {
+    }
+
     public function process(
         ServerRequestInterface $request,
         RequestHandlerInterface $handler,
         BackedEnum|int|string|UnitEnum ...$permissions
     ): ResponseInterface {
-        $user = Auth::user();
+        $auth = $this->container->get(AuthManager::class);
+        $user = $auth->user();
         if (! $user) {
             throw new UnauthorizedException(
                 401,
@@ -73,13 +83,10 @@ class PermissionMiddleware implements MiddlewareInterface
 
     public static function parsePermissionsToString(array $permissions)
     {
-        $permissions = collect($permissions)
+        $permissions = Collection::make($permissions)
             ->flatten()
             ->values()
             ->all();
-        if ($permissions instanceof BackedEnum) {
-            $permissions = $permissions->value;
-        }
 
         $permission = array_map(function ($permission) {
             return match (true) {

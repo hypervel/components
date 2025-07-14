@@ -121,7 +121,7 @@ trait HasPermission
     public function getPermissionsViaRoles(): BaseCollection
     {
         if (is_a($this->getOwnerType(), Role::class, true)) {
-            return collect();
+            return BaseCollection::make();
         }
 
         // Use cached all roles with permissions
@@ -137,12 +137,12 @@ trait HasPermission
             $ownerRoles = $this->roles;
         }
 
-        $permissions = collect();
+        $permissions = BaseCollection::make();
         foreach ($ownerRoles as $role) {
             /* @phpstan-ignore-next-line */
             $roleId = is_array($role) ? $role['id'] : $role->id;
             if (isset($allRolesWithPermissions[$roleId])) {
-                $rolePermissions = collect($allRolesWithPermissions[$roleId]['permissions'])
+                $rolePermissions = BaseCollection::make($allRolesWithPermissions[$roleId]['permissions'])
                     ->where('pivot.is_forbidden', false);
                 $permissions = $permissions->merge($rolePermissions);
             }
@@ -210,7 +210,7 @@ trait HasPermission
         foreach ($ownerRoles as $role) {
             $roleId = $role->id ?? $role['id'];
             if (isset($allRolesWithPermissions[$roleId])) {
-                $rolePermissions = collect($allRolesWithPermissions[$roleId]['permissions']);
+                $rolePermissions = BaseCollection::make($allRolesWithPermissions[$roleId]['permissions']);
                 if ($rolePermissions->where($field, $value)->where('pivot.is_forbidden', false)->isNotEmpty()) {
                     return true;
                 }
@@ -225,7 +225,7 @@ trait HasPermission
      */
     public function hasAnyPermissions(array|BackedEnum|int|string|UnitEnum ...$permissions): bool
     {
-        return collect($permissions)->flatten()->some(fn ($permission) => $this->hasPermission($permission));
+        return BaseCollection::make($permissions)->flatten()->some(fn ($permission) => $this->hasPermission($permission));
     }
 
     /**
@@ -233,7 +233,7 @@ trait HasPermission
      */
     public function hasAllPermissions(array|BackedEnum|int|string|UnitEnum ...$permissions): bool
     {
-        return collect($permissions)->flatten()->every(fn ($permission) => $this->hasPermission($permission));
+        return BaseCollection::make($permissions)->flatten()->every(fn ($permission) => $this->hasPermission($permission));
     }
 
     /**
@@ -241,7 +241,7 @@ trait HasPermission
      */
     public function hasAllDirectPermissions(array|BackedEnum|int|string|UnitEnum ...$permissions): bool
     {
-        return collect($permissions)->flatten()->every(fn ($permission) => $this->hasDirectPermission($permission));
+        return BaseCollection::make($permissions)->flatten()->every(fn ($permission) => $this->hasDirectPermission($permission));
     }
 
     /**
@@ -249,7 +249,7 @@ trait HasPermission
      */
     public function hasAnyDirectPermissions(array|BackedEnum|int|string|UnitEnum ...$permissions): bool
     {
-        return collect($permissions)->flatten()->some(fn ($permission) => $this->hasDirectPermission($permission));
+        return BaseCollection::make($permissions)->flatten()->some(fn ($permission) => $this->hasDirectPermission($permission));
     }
 
     /**
@@ -363,8 +363,8 @@ trait HasPermission
      */
     private function separatePermissionsByType(array $permissions): array
     {
-        $permissionIds = collect();
-        $permissionNames = collect();
+        $permissionIds = BaseCollection::make();
+        $permissionNames = BaseCollection::make();
 
         foreach ($permissions as $permission) {
             $value = $this->extractPermissionValue($permission);
@@ -447,7 +447,7 @@ trait HasPermission
         foreach ($ownerRoles as $role) {
             $roleId = $role->id ?? $role['id'];
             if (isset($allRolesWithPermissions[$roleId])) {
-                $rolePermissions = collect($allRolesWithPermissions[$roleId]['permissions']);
+                $rolePermissions = BaseCollection::make($allRolesWithPermissions[$roleId]['permissions']);
                 if ($rolePermissions->where($field, $value)->where('pivot.is_forbidden', true)->isNotEmpty()) {
                     return true;
                 }
@@ -462,7 +462,7 @@ trait HasPermission
      */
     private function collectPermissions(array|BackedEnum|int|string|UnitEnum ...$permissions): array
     {
-        $permissions = collect($permissions)
+        $permissions = BaseCollection::make($permissions)
             ->flatten()
             ->values()
             ->all();
