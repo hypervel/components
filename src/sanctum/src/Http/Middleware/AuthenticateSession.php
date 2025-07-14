@@ -17,9 +17,6 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 class AuthenticateSession implements MiddlewareInterface
 {
-    /**
-     * Create a new middleware instance.
-     */
     public function __construct(
         protected AuthFactory $auth,
         protected Session $session
@@ -33,13 +30,26 @@ class AuthenticateSession implements MiddlewareInterface
      */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        if (! $this->session->isStarted() || ! $user = $request->getAttribute('user')) {
+        if (! $this->session->isStarted()) {
             return $handler->handle($request);
         }
 
         $guards = Collection::make(Arr::wrap(config('sanctum.guard')))
             ->mapWithKeys(fn ($guard) => [$guard => $this->auth->guard($guard)])
             ->filter(fn ($guard) => $guard instanceof SessionGuard);
+
+        // Get the authenticated user from the guards
+        $user = null;
+        foreach ($guards as $guard) {
+            if ($guard->check()) {
+                $user = $guard->user();
+                break;
+            }
+        }
+
+        if (! $user) {
+            return $handler->handle($request);
+        }
 
         $shouldLogout = $guards->filter(
             fn ($guard, $driver) => $this->session->has('password_hash_' . $driver)
