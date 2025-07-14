@@ -71,14 +71,14 @@ return [
     |
     | When authenticating your first-party SPA with Sanctum you may need to
     | customize some of the middleware Sanctum uses while processing the
-    | request. You may change the middleware listed below as required.
+    | request. You may change the middleware below as required.
     |
     */
 
     'middleware' => [
-        'authenticate_session' => \Hypervel\Sanctum\Http\Middleware\AuthenticateSession::class,
-        'add_queued_cookies' => \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
-        'start_session' => \Hypervel\Session\Middleware\StartSession::class,
-        'verify_csrf_token' => \Hypervel\Foundation\Http\Middleware\VerifyCsrfToken::class,
+        \Hypervel\Cookie\Middleware\AddQueuedCookiesToResponse::class,
+        \Hypervel\Session\Middleware\StartSession::class,
+        \Hypervel\Foundation\Http\Middleware\VerifyCsrfToken::class,
+        \Hypervel\Sanctum\Http\Middleware\AuthenticateSession::class,
     ],
 ];
