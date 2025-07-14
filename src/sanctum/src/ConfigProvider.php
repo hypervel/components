@@ -14,9 +14,6 @@ class ConfigProvider
             'commands' => [
                 PruneExpired::class,
             ],
-            'listeners' => [
-                \Hypervel\Sanctum\Listeners\RegisterSanctumGuard::class,
-            ],
         ];
     }
 }
