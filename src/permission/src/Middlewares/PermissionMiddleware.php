@@ -60,6 +60,7 @@ class PermissionMiddleware implements MiddlewareInterface
                 403,
                 sprintf(
                     'User "%s" does not have any of the required permissions: %s',
+                    /* @phpstan-ignore-next-line */
                     $user->getAuthIdentifier(),
                     self::parsePermissionsToString($permissions)
                 ),

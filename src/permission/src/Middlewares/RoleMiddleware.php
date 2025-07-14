@@ -60,6 +60,7 @@ class RoleMiddleware implements MiddlewareInterface
                 403,
                 sprintf(
                     'User "%s" does not have any of the required roles: %s',
+                    /* @phpstan-ignore-next-line */
                     $user->getAuthIdentifier(),
                     self::parseRolesToString($roles)
                 ),
