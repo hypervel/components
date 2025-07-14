@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Permission\Middlewares;
 
 use BackedEnum;
+use Hyperf\Collection\Collection;
 use Hyperf\Contract\ContainerInterface;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Permission\Exceptions\PermissionException;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
-use Hyperf\Collection\Collection;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
