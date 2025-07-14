@@ -23,6 +23,7 @@ class EnsureFrontendRequestsAreStateful implements MiddlewareInterface
         protected HttpResponse $response,
         protected Pipeline $pipeline
     ) {
+        $this->configureSecureCookieSessions();
     }
 
     /**
@@ -30,32 +31,19 @@ class EnsureFrontendRequestsAreStateful implements MiddlewareInterface
      */
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
-        $this->configureSecureCookieSessions();
-
         if (static::fromFrontend($this->request)) {
             // Mark request as stateful
             $request = $request->withAttribute('sanctum', true);
 
             return $this->pipeline
                 ->send($request)
-                ->through(array_filter(config('sanctum.middleware')))
+                ->through(config('sanctum.middleware'))
                 ->then(function ($request) use ($handler) {
                     return $handler->handle($request);
                 });
         }
 
         return $handler->handle($request);
-    }
-
-    /**
-     * Configure secure cookie sessions.
-     */
-    protected function configureSecureCookieSessions(): void
-    {
-        config([
-            'session.http_only' => true,
-            'session.same_site' => 'lax',
-        ]);
     }
 
     /**
@@ -81,5 +69,16 @@ class EnsureFrontendRequestsAreStateful implements MiddlewareInterface
         return Str::is(Collection::make($stateful)->map(function ($uri) {
             return trim($uri) . '/*';
         })->all(), $domain);
+    }
+
+    /**
+     * Configure secure cookie sessions.
+     */
+    protected function configureSecureCookieSessions(): void
+    {
+        config([
+            'session.http_only' => true,
+            'session.same_site' => 'lax',
+        ]);
     }
 }
