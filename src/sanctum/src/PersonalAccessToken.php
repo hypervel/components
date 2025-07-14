@@ -69,7 +69,7 @@ class PersonalAccessToken extends Model implements HasAbilities
         $accessToken = null;
 
         if (strpos($token, '|') === false) {
-            /** @var static|null $accessToken */
+            /** @var null|static $accessToken */
             $accessToken = static::where('token', hash('sha256', $token))->first();
         } else {
             [$id, $token] = explode('|', $token, 2);

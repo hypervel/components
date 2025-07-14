@@ -27,7 +27,7 @@ class SanctumServiceProvider extends ServiceProvider
             '/',
             __DIR__ . '/../routes/web.php',
             [
-                'namespace' => 'Hypervel\Sanctum\Http\Controllers',
+                'middleware' => ['web'],
             ]
         );
     }
