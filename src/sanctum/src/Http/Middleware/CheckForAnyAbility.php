@@ -4,39 +4,29 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum\Http\Middleware;
 
+use Closure;
 use Hypervel\Auth\AuthenticationException;
+use Hypervel\Auth\Contracts\Factory as AuthFactory;
 use Hypervel\Sanctum\Exceptions\MissingAbilityException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\MiddlewareInterface;
-use Psr\Http\Server\RequestHandlerInterface;
 
-class CheckForAnyAbility implements MiddlewareInterface
+class CheckForAnyAbility
 {
-    /**
-     * The abilities to check.
-     *
-     * @var array<string>
-     */
-    protected array $abilities;
-
-    /**
-     * Create a new middleware instance.
-     */
-    public function __construct(string ...$abilities)
-    {
-        $this->abilities = $abilities;
+    public function __construct(
+        protected AuthFactory $auth
+    ) {
     }
 
     /**
-     * Process the incoming request.
+     * Handle an incoming request.
      *
      * @throws AuthenticationException
      * @throws MissingAbilityException
      */
-    public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
+    public function handle(ServerRequestInterface $request, Closure $next, string ...$abilities): ResponseInterface
     {
-        $user = $request->getAttribute('user');
+        $user = $this->auth->guard()->user();
 
         if (! $user || ! method_exists($user, 'currentAccessToken') || ! $user->currentAccessToken()) {
             throw new AuthenticationException();
@@ -46,12 +36,12 @@ class CheckForAnyAbility implements MiddlewareInterface
             throw new AuthenticationException();
         }
 
-        foreach ($this->abilities as $ability) {
+        foreach ($abilities as $ability) {
             if ($user->tokenCan($ability)) {
-                return $handler->handle($request);
+                return $next($request);
             }
         }
 
-        throw new MissingAbilityException($this->abilities);
+        throw new MissingAbilityException($abilities);
     }
 }
