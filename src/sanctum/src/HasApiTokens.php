@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
+use BackedEnum;
 use DateTimeInterface;
 use Hyperf\Database\Model\Relations\MorphMany;
 use Hypervel\Sanctum\Contracts\HasAbilities;
@@ -34,7 +35,7 @@ trait HasApiTokens
     /**
      * Determine if the current API token has a given ability.
      */
-    public function tokenCan(string $ability): bool
+    public function tokenCan(BackedEnum|string $ability): bool
     {
         return $this->accessToken && $this->accessToken->can($ability);
     }
@@ -42,7 +43,7 @@ trait HasApiTokens
     /**
      * Determine if the current API token does not have a given ability.
      */
-    public function tokenCant(string $ability): bool
+    public function tokenCant(BackedEnum|string $ability): bool
     {
         return ! $this->tokenCan($ability);
     }
@@ -50,10 +51,15 @@ trait HasApiTokens
     /**
      * Create a new personal access token for the user.
      *
-     * @param array<string> $abilities
+     * @param array<BackedEnum|string> $abilities
      */
     public function createToken(string $name, array $abilities = ['*'], ?DateTimeInterface $expiresAt = null): NewAccessToken
     {
+        $abilities = array_map(
+            fn ($ability) => $ability instanceof BackedEnum ? $ability->value : $ability,
+            $abilities
+        );
+
         $plainTextToken = $this->generateTokenString();
 
         /** @var PersonalAccessToken $token */

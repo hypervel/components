@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
+use BackedEnum;
 use Hyperf\Database\Model\Relations\MorphTo;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Sanctum\Contracts\HasAbilities;
@@ -89,8 +90,10 @@ class PersonalAccessToken extends Model implements HasAbilities
     /**
      * Determine if the token has a given ability.
      */
-    public function can(string $ability): bool
+    public function can(BackedEnum|string $ability): bool
     {
+        $ability = $ability instanceof BackedEnum ? $ability->value : $ability;
+
         return in_array('*', $this->abilities)
                || array_key_exists($ability, array_flip($this->abilities));
     }
@@ -98,7 +101,7 @@ class PersonalAccessToken extends Model implements HasAbilities
     /**
      * Determine if the token is missing a given ability.
      */
-    public function cant(string $ability): bool
+    public function cant(BackedEnum|string $ability): bool
     {
         return ! $this->can($ability);
     }

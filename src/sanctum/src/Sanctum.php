@@ -25,14 +25,14 @@ class Sanctum
      *
      * @var null|callable
      */
-    public static $accessTokenRetrievalCallback = null;
+    public static $accessTokenRetrievalCallback;
 
     /**
      * A callback that can add to the validation of the access token.
      *
      * @var null|callable
      */
-    public static $accessTokenAuthenticationCallback = null;
+    public static $accessTokenAuthenticationCallback;
 
     /**
      * Get the current application URL from the "APP_URL" environment variable - with port.
