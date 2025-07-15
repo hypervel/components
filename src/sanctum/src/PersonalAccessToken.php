@@ -67,7 +67,6 @@ class PersonalAccessToken extends Model implements HasAbilities
     public function updating(Updating $event): void
     {
         if (config('sanctum.cache.enabled')) {
-            dump("Updating token cache for ID: {$this->id}");
             self::clearTokenCache($this->id);
         }
     }
@@ -78,7 +77,6 @@ class PersonalAccessToken extends Model implements HasAbilities
     public function deleting(Deleting $event): void
     {
         if (config('sanctum.cache.enabled')) {
-            dump("Deleting token cache for ID: {$this->id}");
             self::clearTokenCache($this->id);
         }
     }
