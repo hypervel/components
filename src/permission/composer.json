@@ -27,13 +27,11 @@
     },
     "require": {
         "php": "^8.2",
-        "hyperf/context": "~3.1.0",
-        "hyperf/support": "~3.1.0",
-        "hyperf/collection": "~3.1.0",
-        "hyperf/command": "~3.1.0",
-        "hyperf/cache": "~3.1.0",
-        "hyperf/database": "~3.1.0",
-        "hyperf/db-connection": "~3.1.0"
+        "hypervel/auth": "^0.2",
+        "hypervel/cache": "^0.2",
+        "hypervel/console": "^0.2",
+        "hypervel/core": "^0.2",
+        "hypervel/support": "^0.2"
     },
     "config": {
         "sort-packages": true
