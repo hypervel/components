@@ -186,7 +186,9 @@ class Kernel implements KernelContract
             $commands[] = $commandId;
         }
 
-        return $commands;
+        return array_unique(
+            array_merge($this->commands, $commands)
+        );
     }
 
     protected function loadCommands(): void
