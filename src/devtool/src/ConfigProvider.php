@@ -13,6 +13,7 @@ use Hypervel\Devtool\Generator\ComponentCommand;
 use Hypervel\Devtool\Generator\ConsoleCommand;
 use Hypervel\Devtool\Generator\ControllerCommand;
 use Hypervel\Devtool\Generator\EventCommand;
+use Hypervel\Devtool\Generator\ExceptionCommand;
 use Hypervel\Devtool\Generator\FactoryCommand;
 use Hypervel\Devtool\Generator\JobCommand;
 use Hypervel\Devtool\Generator\ListenerCommand;
@@ -70,6 +71,7 @@ class ConfigProvider
                 MiddlewareCommand::class,
                 ControllerCommand::class,
                 ResourceCommand::class,
+                ExceptionCommand::class,
             ],
         ];
     }
