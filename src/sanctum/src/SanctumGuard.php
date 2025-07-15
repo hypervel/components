@@ -68,17 +68,21 @@ class SanctumGuard implements GuardContract
             $model = Sanctum::$personalAccessTokenModel;
             $accessToken = $model::findToken($token);
 
-            if ($this->isValidAccessToken($accessToken)
-                && $this->supportsTokens($accessToken->getAttribute('tokenable'))) {
-                $user = $accessToken->getAttribute('tokenable')->withAccessToken($accessToken);
+            if ($this->isValidAccessToken($accessToken)) {
+                $tokenable = $model::findTokenable($accessToken);
 
-                // Dispatch event if event dispatcher is available
-                if ($this->events) {
-                    $this->events->dispatch(new TokenAuthenticated($accessToken));
+                if ($this->supportsTokens($tokenable)) {
+                    /** @var \Hypervel\Auth\Contracts\Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $tokenable */
+                    $user = $tokenable->withAccessToken($accessToken);
+
+                    // Dispatch event if event dispatcher is available
+                    if ($this->events) {
+                        $this->events->dispatch(new TokenAuthenticated($accessToken));
+                    }
+
+                    Context::set($contextKey, $user);
+                    return $user;
                 }
-
-                Context::set($contextKey, $user);
-                return $user;
             }
         }
 

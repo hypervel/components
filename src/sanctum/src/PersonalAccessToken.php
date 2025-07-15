@@ -5,11 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Sanctum;
 
 use BackedEnum;
+use Hyperf\Database\Model\Events\Deleting;
+use Hyperf\Database\Model\Events\Updating;
 use Hyperf\Database\Model\Relations\MorphTo;
+use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Cache\CacheManager;
+use Hypervel\Cache\Contracts\Repository as CacheRepository;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Sanctum\Contracts\HasAbilities;
 
 /**
+ * @property int|string $id
  * @property array $abilities
  * @property string $token
  * @property string $name
@@ -55,6 +62,28 @@ class PersonalAccessToken extends Model implements HasAbilities
     ];
 
     /**
+     * Handle the updating event.
+     */
+    public function updating(Updating $event): void
+    {
+        if (config('sanctum.cache.enabled')) {
+            dump("Updating token cache for ID: {$this->id}");
+            self::clearTokenCache($this->id);
+        }
+    }
+
+    /**
+     * Handle the deleting event.
+     */
+    public function deleting(Deleting $event): void
+    {
+        if (config('sanctum.cache.enabled')) {
+            dump("Deleting token cache for ID: {$this->id}");
+            self::clearTokenCache($this->id);
+        }
+    }
+
+    /**
      * Get the tokenable model that the access token belongs to.
      */
     public function tokenable(): MorphTo
@@ -67,24 +96,60 @@ class PersonalAccessToken extends Model implements HasAbilities
      */
     public static function findToken(string $token): ?static
     {
-        $accessToken = null;
-
         if (strpos($token, '|') === false) {
-            /** @var null|static $accessToken */
-            $accessToken = static::where('token', hash('sha256', $token))->first();
-        } else {
-            [$id, $token] = explode('|', $token, 2);
-
-            if ($instance = static::find($id)) {
-                $accessToken = hash_equals($instance->token, hash('sha256', $token)) ? $instance : null;
-            }
+            return null;
         }
 
-        if ($accessToken) {
-            $accessToken->forceFill(['last_used_at' => now()])->save();
+        [$id, $plainToken] = explode('|', $token, 2);
+
+        $accessToken = config('sanctum.cache.enabled')
+            ? self::findTokenWithCache($id)
+            : static::find($id);
+
+        if (! $accessToken) {
+            return null;
         }
+
+        if (! hash_equals($accessToken->token, hash('sha256', $plainToken))) {
+            return null;
+        }
+
+        self::updateLastUsedAt($accessToken);
 
         return $accessToken;
+    }
+
+    /**
+     * Find token using cache.
+     */
+    private static function findTokenWithCache(string $id): ?static
+    {
+        $cache = self::getCache();
+
+        return $cache->remember(
+            self::getCacheKey($id),
+            config('sanctum.cache.ttl'),
+            fn () => static::find($id)
+        );
+    }
+
+    /**
+     * Find the tokenable model for a token with caching support.
+     */
+    public static function findTokenable(PersonalAccessToken $accessToken): ?Authenticatable
+    {
+        if (! config('sanctum.cache.enabled')) {
+            return $accessToken->getAttribute('tokenable');
+        }
+
+        $cache = self::getCache();
+        $cacheKey = self::getCacheKey($accessToken->id) . ':tokenable';
+
+        return $cache->remember(
+            $cacheKey,
+            config('sanctum.cache.ttl'),
+            fn () => $accessToken->getAttribute('tokenable')
+        );
     }
 
     /**
@@ -104,5 +169,70 @@ class PersonalAccessToken extends Model implements HasAbilities
     public function cant(BackedEnum|string $ability): bool
     {
         return ! $this->can($ability);
+    }
+
+    /**
+     * Clear token cache.
+     */
+    public static function clearTokenCache(int|string $tokenId): void
+    {
+        $cache = self::getCache();
+        $cache->forget(self::getCacheKey($tokenId));
+        $cache->forget(self::getCacheKey($tokenId) . ':tokenable');
+    }
+
+    /**
+     * Update last_used_at.
+     */
+    private static function updateLastUsedAt(self $token): void
+    {
+        // Caching disabled - update immediately
+        if (! config('sanctum.cache.enabled')) {
+            $token->forceFill(['last_used_at' => now()])->save();
+            return;
+        }
+
+        // Caching enabled - use throttling
+        $updateInterval = config('sanctum.cache.last_used_at_update_interval');
+        $shouldUpdate = false;
+
+        if (! $token->last_used_at) {
+            $shouldUpdate = true;
+        } else {
+            $secondsSinceLastUpdate = $token->last_used_at->diffInSeconds(now());
+            $shouldUpdate = $secondsSinceLastUpdate >= $updateInterval;
+        }
+
+        if ($shouldUpdate) {
+            // Update last_used_at in database
+            $token->forceFill(['last_used_at' => now()])->save();
+
+            // Update cache
+            $cache = self::getCache();
+            $cache->put(
+                self::getCacheKey($token->id),
+                $token,
+                config('sanctum.cache.ttl')
+            );
+        }
+    }
+
+    /**
+     * Get cache instance.
+     */
+    private static function getCache(): CacheRepository
+    {
+        $cacheManager = ApplicationContext::getContainer()->get(CacheManager::class);
+        $store = config('sanctum.cache.store');
+        return $store ? $cacheManager->store($store) : $cacheManager->store();
+    }
+
+    /**
+     * Get cache key for token and tokenable.
+     */
+    private static function getCacheKey(int|string $tokenId): string
+    {
+        $prefix = config('sanctum.cache.prefix');
+        return "{$prefix}:{$tokenId}";
     }
 }

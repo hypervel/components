@@ -81,4 +81,23 @@ return [
         \Hypervel\Foundation\Http\Middleware\VerifyCsrfToken::class,
         \Hypervel\Sanctum\Http\Middleware\AuthenticateSession::class,
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Token Caching
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, Sanctum will cache token and tokenable lookups to improve
+    | performance. The last_used_at timestamp will be updated at the specified
+    | interval instead of on every request to reduce database writes.
+    |
+    */
+
+    'cache' => [
+        'enabled' => env('SANCTUM_CACHE_ENABLED', false),
+        'store' => env('SANCTUM_CACHE_STORE'), // Uses default store if not set
+        'ttl' => env('SANCTUM_CACHE_TTL', 3600), // 1 hour
+        'prefix' => env('SANCTUM_CACHE_PREFIX', 'sanctum'),
+        'last_used_at_update_interval' => env('SANCTUM_LAST_USED_UPDATE_INTERVAL', 300), // 5 minutes
+    ],
 ];
