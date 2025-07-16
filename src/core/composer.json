@@ -23,7 +23,10 @@
     "autoload": {
         "psr-4": {
             "Hypervel\\": "src/"
-        }
+        },
+        "files": [
+            "src/helpers.php"
+        ]
     },
     "require": {
         "php": "^8.2",
