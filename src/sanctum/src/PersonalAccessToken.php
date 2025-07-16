@@ -120,7 +120,7 @@ class PersonalAccessToken extends Model implements HasAbilities
     /**
      * Find token using cache.
      */
-    private static function findTokenWithCache(string $id): ?static
+    protected static function findTokenWithCache(string $id): ?static
     {
         $cache = self::getCache();
 
@@ -182,7 +182,7 @@ class PersonalAccessToken extends Model implements HasAbilities
     /**
      * Update last_used_at.
      */
-    private static function updateLastUsedAt(self $token): void
+    protected static function updateLastUsedAt(self $token): void
     {
         // Caching disabled - update immediately
         if (! config('sanctum.cache.enabled')) {
@@ -218,7 +218,7 @@ class PersonalAccessToken extends Model implements HasAbilities
     /**
      * Get cache instance.
      */
-    private static function getCache(): CacheRepository
+    protected static function getCache(): CacheRepository
     {
         $cacheManager = ApplicationContext::getContainer()->get(CacheManager::class);
         $store = config('sanctum.cache.store');
@@ -228,7 +228,7 @@ class PersonalAccessToken extends Model implements HasAbilities
     /**
      * Get cache key for token and tokenable.
      */
-    private static function getCacheKey(int|string $tokenId): string
+    protected static function getCacheKey(int|string $tokenId): string
     {
         $prefix = config('sanctum.cache.prefix');
         return "{$prefix}:{$tokenId}";
