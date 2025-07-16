@@ -101,7 +101,7 @@ class PersonalAccessToken extends Model implements HasAbilities
         [$id, $plainToken] = explode('|', $token, 2);
 
         $accessToken = config('sanctum.cache.enabled')
-            ? self::findTokenWithCache($id)
+            ? self::findTokenUsingCache($id)
             : static::find($id);
 
         if (! $accessToken) {
@@ -120,7 +120,7 @@ class PersonalAccessToken extends Model implements HasAbilities
     /**
      * Find token using cache.
      */
-    protected static function findTokenWithCache(string $id): ?static
+    protected static function findTokenUsingCache(string $id): ?static
     {
         $cache = self::getCache();
 
