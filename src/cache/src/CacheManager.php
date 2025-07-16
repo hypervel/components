@@ -277,11 +277,11 @@ class CacheManager implements FactoryContract
      */
     protected function createDatabaseDriver(array $config): Repository
     {
-        $connection = $this->app->get(\Hyperf\Database\ConnectionResolverInterface::class)
-            ->connection($config['connection'] ?? 'default');
+        $connectionResolver = $this->app->get(\Hyperf\Database\ConnectionResolverInterface::class);
 
         $store = new DatabaseStore(
-            $connection,
+            $connectionResolver,
+            $config['connection'] ?? 'default',
             $config['table'],
             $this->getPrefix($config),
             $config['lock_table'] ?? 'cache_locks',

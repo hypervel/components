@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Closure;
+use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\DbConnection\Connection;
 use Hyperf\Support\Traits\InteractsWithTime;
 use Hypervel\Cache\Contracts\LockProvider;
@@ -16,9 +17,14 @@ class DatabaseStore implements Store, LockProvider
     use RetrievesMultipleKeys;
 
     /**
-     * The database connection instance.
+     * The database connection resolver.
      */
-    protected Connection $connection;
+    protected ConnectionResolverInterface $resolver;
+
+    /**
+     * The connection name.
+     */
+    protected string $connectionName;
 
     /**
      * The name of the cache table.
@@ -49,19 +55,29 @@ class DatabaseStore implements Store, LockProvider
      * Create a new database store.
      */
     public function __construct(
-        Connection $connection,
+        ConnectionResolverInterface $resolver,
+        string $connectionName,
         string $table,
         string $prefix = '',
         string $lockTable = 'cache_locks',
         array $lockLottery = [2, 100],
         int $defaultLockTimeoutInSeconds = 86400
     ) {
+        $this->resolver = $resolver;
+        $this->connectionName = $connectionName;
         $this->table = $table;
         $this->prefix = $prefix;
-        $this->connection = $connection;
         $this->lockTable = $lockTable;
         $this->lockLottery = $lockLottery;
         $this->defaultLockTimeoutInSeconds = $defaultLockTimeoutInSeconds;
+    }
+
+    /**
+     * Get a fresh connection from the pool.
+     */
+    protected function connection(): Connection
+    {
+        return $this->resolver->connection($this->connectionName);
     }
 
     /**
@@ -166,9 +182,10 @@ class DatabaseStore implements Store, LockProvider
     public function lock(string $name, int $seconds = 0, ?string $owner = null): DatabaseLock
     {
         return new DatabaseLock(
-            $this->connection,
-            $this->lockTable,
+            $this->resolver,
+            $this->connectionName,
             $this->prefix . $name,
+            $this->lockTable,
             $seconds,
             $owner,
             $this->lockLottery,
@@ -227,11 +244,13 @@ class DatabaseStore implements Store, LockProvider
      */
     protected function incrementOrDecrement(string $key, int $value, Closure $callback): int|bool
     {
-        return $this->connection->transaction(function () use ($key, $value, $callback) {
+        return $this->connection()->transaction(function ($connection) use ($key, $value, $callback) {
             $prefixed = $this->prefix . $key;
 
-            $cache = $this->table()->where('key', $prefixed)
-                ->lockForUpdate()->first();
+            $cache = $connection->table($this->table)
+                ->where('key', $prefixed)
+                ->lockForUpdate()
+                ->first();
 
             if (is_null($cache)) {
                 return false;
@@ -247,7 +266,7 @@ class DatabaseStore implements Store, LockProvider
 
             $new = $callback((int) $current, $value);
 
-            $this->table()->where('key', $prefixed)->update([
+            $connection->table($this->table)->where('key', $prefixed)->update([
                 'value' => $this->serialize($new),
             ]);
 
@@ -260,7 +279,7 @@ class DatabaseStore implements Store, LockProvider
      */
     protected function table()
     {
-        return $this->connection->table($this->table);
+        return $this->connection()->table($this->table);
     }
 
     /**

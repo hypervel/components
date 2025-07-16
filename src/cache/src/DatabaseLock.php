@@ -4,15 +4,21 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
+use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\DbConnection\Connection;
 use Hyperf\Database\Exception\QueryException;
 
 class DatabaseLock extends Lock
 {
     /**
-     * The database connection instance.
+     * The database connection resolver.
      */
-    protected Connection $connection;
+    protected ConnectionResolverInterface $resolver;
+
+    /**
+     * The connection name.
+     */
+    protected string $connectionName;
 
     /**
      * The database table name.
@@ -33,9 +39,10 @@ class DatabaseLock extends Lock
      * Create a new lock instance.
      */
     public function __construct(
-        Connection $connection,
-        string $table,
+        ConnectionResolverInterface $resolver,
+        string $connectionName,
         string $name,
+        string $table,
         int $seconds,
         ?string $owner = null,
         array $lottery = [2, 100],
@@ -43,10 +50,19 @@ class DatabaseLock extends Lock
     ) {
         parent::__construct($name, $seconds, $owner);
 
-        $this->connection = $connection;
+        $this->resolver = $resolver;
+        $this->connectionName = $connectionName;
         $this->table = $table;
         $this->lottery = $lottery;
         $this->defaultTimeoutInSeconds = $defaultTimeoutInSeconds;
+    }
+
+    /**
+     * Get a fresh connection from the pool.
+     */
+    protected function connection(): Connection
+    {
+        return $this->resolver->connection($this->connectionName);
     }
 
     /**
@@ -54,8 +70,10 @@ class DatabaseLock extends Lock
      */
     public function acquire(): bool
     {
+        $connection = $this->connection();
+        
         try {
-            $this->connection->table($this->table)->insert([
+            $connection->table($this->table)->insert([
                 'key' => $this->name,
                 'owner' => $this->owner,
                 'expiration' => $this->expiresAt(),
@@ -63,7 +81,7 @@ class DatabaseLock extends Lock
 
             $acquired = true;
         } catch (QueryException) {
-            $updated = $this->connection->table($this->table)
+            $updated = $connection->table($this->table)
                 ->where('key', $this->name)
                 ->where(function ($query) {
                     return $query->where('owner', $this->owner)->orWhere('expiration', '<=', $this->currentTime());
@@ -76,7 +94,7 @@ class DatabaseLock extends Lock
         }
 
         if (random_int(1, $this->lottery[1]) <= $this->lottery[0]) {
-            $this->connection->table($this->table)->where('expiration', '<=', $this->currentTime())->delete();
+            $connection->table($this->table)->where('expiration', '<=', $this->currentTime())->delete();
         }
 
         return $acquired;
@@ -88,7 +106,7 @@ class DatabaseLock extends Lock
     public function release(): bool
     {
         if ($this->isOwnedByCurrentProcess()) {
-            $this->connection->table($this->table)
+            $this->connection()->table($this->table)
                 ->where('key', $this->name)
                 ->where('owner', $this->owner)
                 ->delete();
@@ -104,7 +122,7 @@ class DatabaseLock extends Lock
      */
     public function forceRelease(): void
     {
-        $this->connection->table($this->table)
+        $this->connection()->table($this->table)
             ->where('key', $this->name)
             ->delete();
     }
@@ -114,7 +132,7 @@ class DatabaseLock extends Lock
      */
     protected function getCurrentOwner(): string
     {
-        return optional($this->connection->table($this->table)->where('key', $this->name)->first())->owner ?? '';
+        return optional($this->connection()->table($this->table)->where('key', $this->name)->first())->owner ?? '';
     }
 
     /**
