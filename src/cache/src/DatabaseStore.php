@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Closure;
+use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\DbConnection\Connection;
 use Hyperf\Support\Traits\InteractsWithTime;
 use Hypervel\Cache\Contracts\LockProvider;
 use Hypervel\Cache\Contracts\Store;
+use Throwable;
 
 class DatabaseStore implements Store, LockProvider
 {
@@ -75,7 +76,7 @@ class DatabaseStore implements Store, LockProvider
     /**
      * Get a fresh connection from the pool.
      */
-    protected function connection(): Connection
+    protected function connection(): ConnectionInterface
     {
         return $this->resolver->connection($this->connectionName);
     }
@@ -120,7 +121,7 @@ class DatabaseStore implements Store, LockProvider
                 compact('key', 'value', 'expiration'),
                 ['key']
             ) > 0;
-        } catch (\Throwable) {
+        } catch (Throwable) {
             return $this->table()->updateOrInsert(
                 compact('key'),
                 compact('value', 'expiration')
@@ -143,7 +144,7 @@ class DatabaseStore implements Store, LockProvider
 
         try {
             return $this->table()->insert(compact('key', 'value', 'expiration'));
-        } catch (\Throwable) {
+        } catch (Throwable) {
             return false;
         }
     }
@@ -151,7 +152,7 @@ class DatabaseStore implements Store, LockProvider
     /**
      * Increment the value of an item in the cache.
      */
-    public function increment(string $key, int $value = 1): int|bool
+    public function increment(string $key, int $value = 1): bool|int
     {
         return $this->incrementOrDecrement($key, $value, function ($current, $value) {
             return $current + $value;
@@ -161,7 +162,7 @@ class DatabaseStore implements Store, LockProvider
     /**
      * Decrement the value of an item in the cache.
      */
-    public function decrement(string $key, int $value = 1): int|bool
+    public function decrement(string $key, int $value = 1): bool|int
     {
         return $this->incrementOrDecrement($key, $value, function ($current, $value) {
             return $current - $value;
@@ -242,7 +243,7 @@ class DatabaseStore implements Store, LockProvider
     /**
      * Increment or decrement an item in the cache.
      */
-    protected function incrementOrDecrement(string $key, int $value, Closure $callback): int|bool
+    protected function incrementOrDecrement(string $key, int $value, Closure $callback): bool|int
     {
         return $this->connection()->transaction(function ($connection) use ($key, $value, $callback) {
             $prefixed = $this->prefix . $key;

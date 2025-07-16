@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
+use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\DbConnection\Connection;
 use Hyperf\Database\Exception\QueryException;
 
 class DatabaseLock extends Lock
@@ -60,7 +60,7 @@ class DatabaseLock extends Lock
     /**
      * Get a fresh connection from the pool.
      */
-    protected function connection(): Connection
+    protected function connection(): ConnectionInterface
     {
         return $this->resolver->connection($this->connectionName);
     }
@@ -71,7 +71,7 @@ class DatabaseLock extends Lock
     public function acquire(): bool
     {
         $connection = $this->connection();
-        
+
         try {
             $connection->table($this->table)->insert([
                 'key' => $this->name,

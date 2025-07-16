@@ -30,19 +30,19 @@ class PruneExpiredCommand extends Command
     public function handle(): ?int
     {
         $store = $this->argument('store');
-        
+
         $cache = $this->app->get(CacheManager::class)->store($store);
-        
+
         if (! $cache->getStore() instanceof DatabaseStore) {
             $this->error('Pruning expired entries is only necessary when using database cache.');
-            
+
             return 1;
         }
-        
+
         $deleted = $cache->getStore()->pruneExpired();
-        
+
         $this->info("Successfully pruned {$deleted} expired cache entries.");
-        
+
         return 0;
     }
 

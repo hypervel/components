@@ -78,7 +78,7 @@ return [
             'lock_table' => 'cache_locks',
             'lock_lottery' => [2, 100],
             'lock_timeout' => 86400,
-        ],        
+        ],
     ],
 
     /*
