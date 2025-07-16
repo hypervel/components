@@ -273,6 +273,26 @@ class CacheManager implements FactoryContract
     }
 
     /**
+     * Create an instance of the database cache driver.
+     */
+    protected function createDatabaseDriver(array $config): Repository
+    {
+        $connection = $this->app->get(\Hyperf\Database\ConnectionResolverInterface::class)
+            ->connection($config['connection'] ?? 'default');
+
+        $store = new DatabaseStore(
+            $connection,
+            $config['table'],
+            $this->getPrefix($config),
+            $config['lock_table'] ?? 'cache_locks',
+            $config['lock_lottery'] ?? [2, 100],
+            $config['lock_timeout'] ?? 86400
+        );
+
+        return $this->repository($store);
+    }
+
+    /**
      * Set the event dispatcher on the given repository instance.
      */
     protected function setEventDispatcher(Repository $repository): void

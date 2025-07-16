@@ -70,7 +70,22 @@ return [
                 'redis',
             ],
         ],
+
+        'database' => [
+            'driver' => 'database',
+            'connection' => env('DB_CONNECTION', 'default'),
+            'table' => 'cache',
+            'lock_table' => 'cache_locks',
+            'lock_lottery' => [2, 100],
+            'lock_timeout' => 86400,
+        ],        
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Swoole Tables Configuration
+    |--------------------------------------------------------------------------
+    */
 
     'swoole_tables' => [
         'default' => [
