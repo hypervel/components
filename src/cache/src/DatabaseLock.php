@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Hyperf\DbConnection\Connection;
-use Hyperf\DbConnection\Exception\QueryException;
+use Hyperf\Database\Exception\QueryException;
 
 class DatabaseLock extends Lock
 {
