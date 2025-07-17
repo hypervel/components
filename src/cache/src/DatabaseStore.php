@@ -5,18 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Closure;
+use Hyperf\Collection\Arr;
 use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\ConnectionResolverInterface;
+use Hyperf\Database\Query\Builder;
 use Hyperf\Support\Traits\InteractsWithTime;
 use Hypervel\Cache\Contracts\LockProvider;
 use Hypervel\Cache\Contracts\Store;
-use Hyperf\Database\Query\Builder;
 use Throwable;
 
 class DatabaseStore implements Store, LockProvider
 {
     use InteractsWithTime;
-    use RetrievesMultipleKeys;
 
     /**
      * The database connection resolver.
@@ -87,25 +87,57 @@ class DatabaseStore implements Store, LockProvider
      */
     public function get(string $key): mixed
     {
-        $prefixed = $this->prefix . $key;
+        return $this->many([$key])[$key];
+    }
 
-        $cache = $this->table()
-            ->where('key', '=', $prefixed)
-            ->first();
-
-        if (is_null($cache)) {
-            return null;
+    /**
+     * Retrieve multiple items from the cache by key.
+     *
+     * Items not found in the cache will have a null value.
+     */
+    public function many(array $keys): array
+    {
+        if (count($keys) === 0) {
+            return [];
         }
 
-        $cache = is_array($cache) ? (object) $cache : $cache;
+        $results = array_fill_keys($keys, null);
 
-        if ($this->currentTime() >= $cache->expiration) {
-            $this->forget($key);
+        // First we will retrieve all of the items from the cache using their keys and
+        // the prefix value. Then we will need to iterate through each of the items
+        // and convert them to an object when they are currently in array format.
+        $values = $this->table()
+            ->whereIn('key', array_map(function ($key) {
+                return $this->prefix . $key;
+            }, $keys))
+            ->get()
+            ->map(function ($value) {
+                return is_array($value) ? (object) $value : $value;
+            });
 
-            return null;
+        $currentTime = $this->currentTime();
+
+        // If this cache expiration date is past the current time, we will remove this
+        // item from the cache. Then we will return a null value since the cache is
+        // expired. We will use "Carbon" to make this comparison with the column.
+        [$values, $expired] = $values->partition(function ($cache) use ($currentTime) {
+            return $cache->expiration > $currentTime;
+        });
+
+        if ($expired->isNotEmpty()) {
+            $this->table()
+                ->whereIn('key', $expired->pluck('key')->all())
+                ->where('expiration', '<=', $currentTime)
+                ->delete();
         }
 
-        return $this->unserialize($cache->value);
+        return Arr::map($results, function ($value, $key) use ($values) {
+            if ($cache = $values->firstWhere('key', $this->prefix . $key)) {
+                return $this->unserialize($cache->value);
+            }
+
+            return $value;
+        });
     }
 
     /**
@@ -113,21 +145,27 @@ class DatabaseStore implements Store, LockProvider
      */
     public function put(string $key, mixed $value, int $seconds): bool
     {
-        $key = $this->prefix . $key;
-        $value = $this->serialize($value);
-        $expiration = $this->availableAt($seconds);
+        return $this->putMany([$key => $value], $seconds);
+    }
 
-        try {
-            return $this->table()->insertOrUpdate(
-                compact('key', 'value', 'expiration'),
-                ['key']
-            ) > 0;
-        } catch (Throwable) {
-            return $this->table()->updateOrInsert(
-                compact('key'),
-                compact('value', 'expiration')
-            ) > 0;
+    /**
+     * Store multiple items in the cache for a given number of seconds.
+     */
+    public function putMany(array $values, int $seconds): bool
+    {
+        $serializedValues = [];
+
+        $expiration = $this->currentTime() + $seconds;
+
+        foreach ($values as $key => $value) {
+            $serializedValues[] = [
+                'key' => $this->prefix . $key,
+                'value' => $this->serialize($value),
+                'expiration' => $expiration,
+            ];
         }
+
+        return $this->table()->upsert($serializedValues, 'key') > 0;
     }
 
     /**
@@ -141,7 +179,7 @@ class DatabaseStore implements Store, LockProvider
 
         $key = $this->prefix . $key;
         $value = $this->serialize($value);
-        $expiration = $this->availableAt($seconds);
+        $expiration = $this->currentTime() + $seconds;
 
         try {
             return $this->table()->insert(compact('key', 'value', 'expiration'));
