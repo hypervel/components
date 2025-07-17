@@ -12,7 +12,7 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::create('cache_locks', function (Blueprint $table) {
+        Schema::create('%TABLE%', function (Blueprint $table) {
             $table->string('key')->primary();
             $table->string('owner');
             $table->integer('expiration');
@@ -24,6 +24,6 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        Schema::dropIfExists('cache_locks');
+        Schema::dropIfExists('%TABLE%');
     }
 };

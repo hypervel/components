@@ -10,14 +10,14 @@ use Hypervel\Cache\DatabaseStore;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
 use Symfony\Component\Console\Input\InputArgument;
 
-class PruneExpiredCommand extends Command
+class PruneDbExpiredCommand extends Command
 {
     use HasLaravelStyleCommand;
 
     /**
      * The console command name.
      */
-    protected ?string $name = 'cache:prune-expired';
+    protected ?string $name = 'cache:prune-db-expired';
 
     /**
      * The console command description.
@@ -34,7 +34,7 @@ class PruneExpiredCommand extends Command
         $cache = $this->app->get(CacheManager::class)->store($store);
 
         if (! $cache->getStore() instanceof DatabaseStore) {
-            $this->error('Pruning expired entries is only necessary when using database cache.');
+            $this->error('Pruning expired entries is only necessary when using database cache. To specify a store, use the --store option.');
 
             return 1;
         }

@@ -8,6 +8,8 @@ use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\Database\Exception\QueryException;
 
+use function Hyperf\Support\optional;
+
 class DatabaseLock extends Lock
 {
     /**

@@ -10,6 +10,7 @@ use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\Support\Traits\InteractsWithTime;
 use Hypervel\Cache\Contracts\LockProvider;
 use Hypervel\Cache\Contracts\Store;
+use Hyperf\Database\Query\Builder;
 use Throwable;
 
 class DatabaseStore implements Store, LockProvider
@@ -278,7 +279,7 @@ class DatabaseStore implements Store, LockProvider
     /**
      * Get a query builder for the cache table.
      */
-    protected function table()
+    protected function table(): Builder
     {
         return $this->connection()->table($this->table);
     }

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Devtool\Generator;
 
 use Carbon\Carbon;
+use Hyperf\Context\ApplicationContext;
+use Hyperf\Contract\ConfigInterface;
 use Hyperf\Devtool\Generator\GeneratorCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
@@ -20,7 +22,6 @@ class CacheTableCommand extends GeneratorCommand
     public function configure()
     {
         $this->setDescription('Create a migration for the cache database table');
-        $this->setAliases(['cache:table']);
 
         parent::configure();
     }
@@ -30,7 +31,8 @@ class CacheTableCommand extends GeneratorCommand
         $this->input = $input;
         $this->output = $output;
 
-        $filename = Carbon::now()->format('Y_m_d_000000') . '_create_cache_table.php';
+        $tableName = $this->migrationTableName();
+        $filename = Carbon::now()->format('Y_m_d_000000') . "_create_{$tableName}_table.php";
         $path = $this->input->getOption('path') ?: "database/migrations/{$filename}";
 
         // First we will check to see if the class already exists. If it does, we don't want
@@ -46,13 +48,19 @@ class CacheTableCommand extends GeneratorCommand
         // stub files so that it gets the correctly formatted namespace and class name.
         $this->makeDirectory($path);
 
-        file_put_contents($path, file_get_contents($this->getStub()));
+        $stub = file_get_contents($this->getStub());
+        file_put_contents($path, $this->buildMigration($stub, $tableName));
 
         $output->writeln(sprintf('<info>%s</info>', "Migration {$filename} created successfully."));
 
         $this->openWithIde($path);
 
         return 0;
+    }
+
+    protected function buildMigration(string $stub, string $name): string
+    {
+        return str_replace('%TABLE%', $name, $stub);
     }
 
     protected function getStub(): string
@@ -80,5 +88,15 @@ class CacheTableCommand extends GeneratorCommand
     protected function getDefaultNamespace(): string
     {
         return '';
+    }
+
+    /**
+     * Get the migration table name.
+     */
+    protected function migrationTableName(): string
+    {
+        return ApplicationContext::getContainer()
+            ->get(ConfigInterface::class)
+            ->get('cache.stores.database.table', 'cache');
     }
 }
