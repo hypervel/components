@@ -30,11 +30,19 @@ class PruneDbExpiredCommand extends Command
     public function handle(): ?int
     {
         $store = $this->argument('store');
-
         $cache = $this->app->get(CacheManager::class)->store($store);
 
         if (! $cache->getStore() instanceof DatabaseStore) {
-            $this->error('Pruning expired entries is only necessary when using database cache. To specify a store, use the --store option.');
+            if (is_null($store)) {
+                $this->error('The default cache store is not using the database driver.');
+                $this->line('');
+                $this->line('To prune a specific database cache store, use:');
+                $this->line('  <info>artisan cache:prune-db-expired <store-name></info>');
+                $this->line('');
+                $this->line('Example: <info>artisan cache:prune-db-expired database</info>');
+            } else {
+                $this->error("The cache store [{$store}] is not using the database driver.");
+            }
 
             return 1;
         }
