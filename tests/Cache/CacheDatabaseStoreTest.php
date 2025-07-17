@@ -31,9 +31,9 @@ class CacheDatabaseStoreTest extends TestCase
     public function testNullIsReturnedAndItemDeletedWhenItemIsExpired()
     {
         Carbon::setTestNow($now = Carbon::now());
-        
+
         [$store, $table] = $this->getStore();
-        
+
         // First call for retrieval
         $table->shouldReceive('whereIn')->once()->with('key', ['prefixfoo'])->andReturn($table);
         $table->shouldReceive('get')->once()->andReturn(new Collection([(object) [
@@ -41,7 +41,7 @@ class CacheDatabaseStoreTest extends TestCase
             'value' => serialize('bar'),
             'expiration' => $now->subSeconds(10)->getTimestamp(),
         ]]));
-        
+
         // Second call for deletion of expired items
         $table->shouldReceive('whereIn')->once()
             ->with('key', ['prefixfoo'])
@@ -72,7 +72,7 @@ class CacheDatabaseStoreTest extends TestCase
             ->once()
             ->with('key', ['prefixfoo', 'prefixbar', 'prefixbaz'])
             ->andReturn($table);
-        
+
         $table->shouldReceive('get')->once()->andReturn(new Collection([
             (object) [
                 'key' => 'prefixfoo',
@@ -87,7 +87,7 @@ class CacheDatabaseStoreTest extends TestCase
         ]));
 
         $results = $store->many(['foo', 'bar', 'baz']);
-        
+
         $this->assertEquals([
             'foo' => 'bar',
             'bar' => null,
@@ -100,7 +100,7 @@ class CacheDatabaseStoreTest extends TestCase
         Carbon::setTestNow($now = Carbon::now());
 
         [$store, $table] = $this->getStore();
-        
+
         // First call for retrieval
         $table->shouldReceive('whereIn')->once()->with('key', ['prefixfoo'])->andReturn($table);
         $table->shouldReceive('get')->once()->andReturn(new Collection([
@@ -110,7 +110,7 @@ class CacheDatabaseStoreTest extends TestCase
                 'expiration' => $now->subSeconds(10)->getTimestamp(),
             ],
         ]));
-        
+
         // Second call for deletion
         $table->shouldReceive('whereIn')
             ->once()
@@ -126,7 +126,7 @@ class CacheDatabaseStoreTest extends TestCase
     {
         [$store, $table] = $this->getStore();
         $table->shouldReceive('upsert')->once()->with(m::on(function ($arg) {
-            return is_array($arg) 
+            return is_array($arg)
                 && count($arg) === 1
                 && $arg[0]['key'] === 'prefixfoo'
                 && $arg[0]['value'] === serialize('bar')
@@ -140,9 +140,9 @@ class CacheDatabaseStoreTest extends TestCase
     public function testManyItemsCanBeStoredAtOnce()
     {
         [$store, $table] = $this->getStore();
-        
+
         $table->shouldReceive('upsert')->once()->with(m::on(function ($arg) {
-            return is_array($arg) 
+            return is_array($arg)
                 && count($arg) === 2
                 && $arg[0]['key'] === 'prefixfoo'
                 && $arg[0]['value'] === serialize('bar')
@@ -159,15 +159,15 @@ class CacheDatabaseStoreTest extends TestCase
     public function testAddOnlyAddsIfKeyDoesntExist()
     {
         [$store, $table] = $this->getStore();
-        
+
         // Check if exists (returns null)
         $table->shouldReceive('whereIn')->once()->with('key', ['prefixfoo'])->andReturn($table);
         $table->shouldReceive('get')->once()->andReturn(new Collection());
-        
+
         // Insert
         $table->shouldReceive('insert')->once()->with(m::on(function ($arg) {
-            return is_array($arg) 
-                && $arg['key'] === 'prefixfoo' 
+            return is_array($arg)
+                && $arg['key'] === 'prefixfoo'
                 && $arg['value'] === serialize('bar')
                 && is_int($arg['expiration']);
         }))->andReturn(true);
@@ -193,11 +193,11 @@ class CacheDatabaseStoreTest extends TestCase
     public function testIncrementReturnsCorrectValues()
     {
         [$store, $table, $connection] = $this->getStore();
-        
+
         $connection->shouldReceive('transaction')->once()->andReturnUsing(function ($callback) use ($connection) {
             return $callback($connection);
         });
-        
+
         $table->shouldReceive('where')->once()->with('key', 'prefixfoo')->andReturn($table);
         $table->shouldReceive('lockForUpdate')->once()->andReturn($table);
         $table->shouldReceive('first')->once()->andReturn((object) [
@@ -205,7 +205,7 @@ class CacheDatabaseStoreTest extends TestCase
             'value' => serialize(2),
             'expiration' => 999999999999999,
         ]);
-        
+
         $table->shouldReceive('where')->once()->with('key', 'prefixfoo')->andReturn($table);
         $table->shouldReceive('update')->once()->with(['value' => serialize(3)])->andReturn(1);
 
@@ -215,11 +215,11 @@ class CacheDatabaseStoreTest extends TestCase
     public function testIncrementReturnsFalseIfItemNotNumeric()
     {
         [$store, $table, $connection] = $this->getStore();
-        
+
         $connection->shouldReceive('transaction')->once()->andReturnUsing(function ($callback) use ($connection) {
             return $callback($connection);
         });
-        
+
         $table->shouldReceive('where')->once()->with('key', 'prefixfoo')->andReturn($table);
         $table->shouldReceive('lockForUpdate')->once()->andReturn($table);
         $table->shouldReceive('first')->once()->andReturn((object) [
@@ -234,11 +234,11 @@ class CacheDatabaseStoreTest extends TestCase
     public function testDecrementReturnsCorrectValues()
     {
         [$store, $table, $connection] = $this->getStore();
-        
+
         $connection->shouldReceive('transaction')->once()->andReturnUsing(function ($callback) use ($connection) {
             return $callback($connection);
         });
-        
+
         $table->shouldReceive('where')->once()->with('key', 'prefixfoo')->andReturn($table);
         $table->shouldReceive('lockForUpdate')->once()->andReturn($table);
         $table->shouldReceive('first')->once()->andReturn((object) [
@@ -246,7 +246,7 @@ class CacheDatabaseStoreTest extends TestCase
             'value' => serialize(10),
             'expiration' => 999999999999999,
         ]);
-        
+
         $table->shouldReceive('where')->once()->with('key', 'prefixfoo')->andReturn($table);
         $table->shouldReceive('update')->once()->with(['value' => serialize(7)])->andReturn(1);
 
@@ -290,7 +290,7 @@ class CacheDatabaseStoreTest extends TestCase
     public function testPruneExpiredRemovesExpiredEntries()
     {
         Carbon::setTestNow($now = Carbon::now());
-        
+
         [$store, $table] = $this->getStore();
         $table->shouldReceive('where')->once()->with('expiration', '<=', $now->getTimestamp())->andReturn($table);
         $table->shouldReceive('delete')->once()->andReturn(5);
@@ -312,12 +312,12 @@ class CacheDatabaseStoreTest extends TestCase
         $resolver = m::mock(ConnectionResolverInterface::class);
         $connection = m::mock(ConnectionInterface::class);
         $table = m::mock(Builder::class);
-        
+
         $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
         $connection->shouldReceive('table')->with('table')->andReturn($table);
-        
+
         $store = new DatabaseStore($resolver, 'default', 'table', 'prefix');
-        
+
         return [$store, $table, $connection, $resolver];
     }
 
@@ -327,7 +327,7 @@ class CacheDatabaseStoreTest extends TestCase
     protected function getMocks(): array
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
-        
+
         return [$resolver, 'default', 'table', 'prefix'];
     }
 }
