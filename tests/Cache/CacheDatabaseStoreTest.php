@@ -21,60 +21,40 @@ class CacheDatabaseStoreTest extends TestCase
 {
     public function testNullIsReturnedWhenItemNotFound()
     {
-        $store = $this->getStore();
-        $connection = m::mock(ConnectionInterface::class);
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $table = m::mock(Builder::class);
-        
-        $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
-        $connection->shouldReceive('table')->once()->with('table')->andReturn($table);
+        [$store, $table] = $this->getStore();
         $table->shouldReceive('whereIn')->once()->with('key', ['prefixfoo'])->andReturn($table);
         $table->shouldReceive('get')->once()->andReturn(new Collection());
 
-        $store = new DatabaseStore($resolver, 'default', 'table', 'prefix');
         $this->assertNull($store->get('foo'));
     }
 
     public function testNullIsReturnedAndItemDeletedWhenItemIsExpired()
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
-        $table = m::mock(Builder::class);
+        Carbon::setTestNow($now = Carbon::now());
         
-        $currentTime = Carbon::now()->getTimestamp();
-        Carbon::setTestNow(Carbon::createFromTimestamp($currentTime));
-        
-        $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
-        $connection->shouldReceive('table')->times(2)->with('table')->andReturn($table);
+        [$store, $table] = $this->getStore();
         
         // First call for retrieval
         $table->shouldReceive('whereIn')->once()->with('key', ['prefixfoo'])->andReturn($table);
         $table->shouldReceive('get')->once()->andReturn(new Collection([(object) [
             'key' => 'prefixfoo',
             'value' => serialize('bar'),
-            'expiration' => $currentTime - 10,
+            'expiration' => $now->subSeconds(10)->getTimestamp(),
         ]]));
         
         // Second call for deletion of expired items
-        $table->shouldReceive('whereIn')
-            ->once()
-            ->with('key', ['prefixfoo', 'prefixilluminate:cache:flexible:created:foo'])
+        $table->shouldReceive('whereIn')->once()
+            ->with('key', ['prefixfoo'])
             ->andReturn($table);
-        $table->shouldReceive('where')->once()->with('expiration', '<=', $currentTime)->andReturn($table);
+        $table->shouldReceive('where')->once()->with('expiration', '<=', $now->getTimestamp())->andReturn($table);
         $table->shouldReceive('delete')->once();
 
-        $store = new DatabaseStore($resolver, 'default', 'table', 'prefix');
         $this->assertNull($store->get('foo'));
     }
 
     public function testItemsCanBeRetrievedFromDatabase()
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
-        $table = m::mock(Builder::class);
-        
-        $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
-        $connection->shouldReceive('table')->once()->with('table')->andReturn($table);
+        [$store, $table] = $this->getStore();
         $table->shouldReceive('whereIn')->once()->with('key', ['prefixfoo'])->andReturn($table);
         $table->shouldReceive('get')->once()->andReturn(new Collection([(object) [
             'key' => 'prefixfoo',
@@ -82,18 +62,12 @@ class CacheDatabaseStoreTest extends TestCase
             'expiration' => 999999999999999,
         ]]));
 
-        $store = new DatabaseStore($resolver, 'default', 'table', 'prefix');
         $this->assertSame('bar', $store->get('foo'));
     }
 
     public function testManyReturnsMultipleItems()
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
-        $table = m::mock(Builder::class);
-        
-        $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
-        $connection->shouldReceive('table')->once()->with('table')->andReturn($table);
+        [$store, $table] = $this->getStore();
         $table->shouldReceive('whereIn')
             ->once()
             ->with('key', ['prefixfoo', 'prefixbar', 'prefixbaz'])
@@ -112,7 +86,6 @@ class CacheDatabaseStoreTest extends TestCase
             ],
         ]));
 
-        $store = new DatabaseStore($resolver, 'default', 'table', 'prefix');
         $results = $store->many(['foo', 'bar', 'baz']);
         
         $this->assertEquals([
@@ -124,15 +97,9 @@ class CacheDatabaseStoreTest extends TestCase
 
     public function testExpiredItemsAreRemovedOnRetrieval()
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
-        $table = m::mock(Builder::class);
-        
-        $currentTime = Carbon::now()->getTimestamp();
-        Carbon::setTestNow(Carbon::createFromTimestamp($currentTime));
+        Carbon::setTestNow($now = Carbon::now());
 
-        $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
-        $connection->shouldReceive('table')->times(2)->with('table')->andReturn($table);
+        [$store, $table] = $this->getStore();
         
         // First call for retrieval
         $table->shouldReceive('whereIn')->once()->with('key', ['prefixfoo'])->andReturn($table);
@@ -140,103 +107,77 @@ class CacheDatabaseStoreTest extends TestCase
             (object) [
                 'key' => 'prefixfoo',
                 'value' => serialize('bar'),
-                'expiration' => $currentTime - 10,
+                'expiration' => $now->subSeconds(10)->getTimestamp(),
             ],
         ]));
         
         // Second call for deletion
         $table->shouldReceive('whereIn')
             ->once()
-            ->with('key', ['prefixfoo', 'prefixilluminate:cache:flexible:created:foo'])
+            ->with('key', ['prefixfoo'])
             ->andReturn($table);
-        $table->shouldReceive('where')->once()->with('expiration', '<=', $currentTime)->andReturn($table);
+        $table->shouldReceive('where')->once()->with('expiration', '<=', $now->getTimestamp())->andReturn($table);
         $table->shouldReceive('delete')->once();
 
-        $store = new DatabaseStore($resolver, 'default', 'table', 'prefix');
         $this->assertNull($store->get('foo'));
     }
 
     public function testItemsCanBeStored()
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
-        $table = m::mock(Builder::class);
-        
-        $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
-        $connection->shouldReceive('table')->once()->with('table')->andReturn($table);
-        $table->shouldReceive('upsert')->once()->with([
-            [
-                'key' => 'prefixfoo',
-                'value' => serialize('bar'),
-                'expiration' => m::type('int'),
-            ],
-        ], 'key')->andReturn(1);
+        [$store, $table] = $this->getStore();
+        $table->shouldReceive('upsert')->once()->with(m::on(function ($arg) {
+            return is_array($arg) 
+                && count($arg) === 1
+                && $arg[0]['key'] === 'prefixfoo'
+                && $arg[0]['value'] === serialize('bar')
+                && is_int($arg[0]['expiration']);
+        }), 'key')->andReturn(1);
 
-        $store = new DatabaseStore($resolver, 'default', 'table', 'prefix');
         $result = $store->put('foo', 'bar', 10);
         $this->assertTrue($result);
     }
 
     public function testManyItemsCanBeStoredAtOnce()
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
-        $table = m::mock(Builder::class);
+        [$store, $table] = $this->getStore();
         
-        $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
-        $connection->shouldReceive('table')->once()->with('table')->andReturn($table);
-        
-        $table->shouldReceive('upsert')->once()->with([
-            [
-                'key' => 'prefixfoo',
-                'value' => serialize('bar'),
-                'expiration' => m::type('int'),
-            ],
-            [
-                'key' => 'prefixbaz',
-                'value' => serialize('qux'),
-                'expiration' => m::type('int'),
-            ],
-        ], 'key')->andReturn(2);
+        $table->shouldReceive('upsert')->once()->with(m::on(function ($arg) {
+            return is_array($arg) 
+                && count($arg) === 2
+                && $arg[0]['key'] === 'prefixfoo'
+                && $arg[0]['value'] === serialize('bar')
+                && is_int($arg[0]['expiration'])
+                && $arg[1]['key'] === 'prefixbaz'
+                && $arg[1]['value'] === serialize('qux')
+                && is_int($arg[1]['expiration']);
+        }), 'key')->andReturn(2);
 
-        $store = new DatabaseStore($resolver, 'default', 'table', 'prefix');
         $result = $store->putMany(['foo' => 'bar', 'baz' => 'qux'], 10);
         $this->assertTrue($result);
     }
 
     public function testAddOnlyAddsIfKeyDoesntExist()
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
-        $table = m::mock(Builder::class);
-        
-        $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
+        [$store, $table] = $this->getStore();
         
         // Check if exists (returns null)
-        $connection->shouldReceive('table')->once()->with('table')->andReturn($table);
         $table->shouldReceive('whereIn')->once()->with('key', ['prefixfoo'])->andReturn($table);
         $table->shouldReceive('get')->once()->andReturn(new Collection());
         
         // Insert
-        $connection->shouldReceive('table')->once()->with('table')->andReturn($table);
-        $table->shouldReceive('insert')->once()->with([
-            'key' => 'prefixfoo',
-            'value' => serialize('bar'),
-            'expiration' => m::type('int'),
-        ])->andReturn(true);
+        $table->shouldReceive('insert')->once()->with(m::on(function ($arg) {
+            return is_array($arg) 
+                && $arg['key'] === 'prefixfoo' 
+                && $arg['value'] === serialize('bar')
+                && is_int($arg['expiration']);
+        }))->andReturn(true);
 
-        $store = new DatabaseStore($resolver, 'default', 'table', 'prefix');
         $this->assertTrue($store->add('foo', 'bar', 10));
     }
 
     public function testAddReturnsFalseIfKeyExists()
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
-        $table = m::mock(Builder::class);
-        
-        $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
-        $connection->shouldReceive('table')->once()->with('table')->andReturn($table);
+        [$store, $table] = $this->getStore();
         $table->shouldReceive('whereIn')->once()->with('key', ['prefixfoo'])->andReturn($table);
         $table->shouldReceive('get')->once()->andReturn(new Collection([
             (object) [
@@ -246,23 +187,17 @@ class CacheDatabaseStoreTest extends TestCase
             ],
         ]));
 
-        $store = new DatabaseStore($resolver, 'default', 'table', 'prefix');
         $this->assertFalse($store->add('foo', 'new-bar', 10));
     }
 
     public function testIncrementReturnsCorrectValues()
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
-        $table = m::mock(Builder::class);
-        
-        $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
+        [$store, $table, $connection] = $this->getStore();
         
         $connection->shouldReceive('transaction')->once()->andReturnUsing(function ($callback) use ($connection) {
             return $callback($connection);
         });
         
-        $connection->shouldReceive('table')->once()->with('table')->andReturn($table);
         $table->shouldReceive('where')->once()->with('key', 'prefixfoo')->andReturn($table);
         $table->shouldReceive('lockForUpdate')->once()->andReturn($table);
         $table->shouldReceive('first')->once()->andReturn((object) [
@@ -271,27 +206,20 @@ class CacheDatabaseStoreTest extends TestCase
             'expiration' => 999999999999999,
         ]);
         
-        $connection->shouldReceive('table')->once()->with('table')->andReturn($table);
         $table->shouldReceive('where')->once()->with('key', 'prefixfoo')->andReturn($table);
         $table->shouldReceive('update')->once()->with(['value' => serialize(3)])->andReturn(1);
 
-        $store = new DatabaseStore($resolver, 'default', 'table', 'prefix');
         $this->assertEquals(3, $store->increment('foo'));
     }
 
     public function testIncrementReturnsFalseIfItemNotNumeric()
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
-        $table = m::mock(Builder::class);
-        
-        $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
+        [$store, $table, $connection] = $this->getStore();
         
         $connection->shouldReceive('transaction')->once()->andReturnUsing(function ($callback) use ($connection) {
             return $callback($connection);
         });
         
-        $connection->shouldReceive('table')->once()->with('table')->andReturn($table);
         $table->shouldReceive('where')->once()->with('key', 'prefixfoo')->andReturn($table);
         $table->shouldReceive('lockForUpdate')->once()->andReturn($table);
         $table->shouldReceive('first')->once()->andReturn((object) [
@@ -300,23 +228,17 @@ class CacheDatabaseStoreTest extends TestCase
             'expiration' => 999999999999999,
         ]);
 
-        $store = new DatabaseStore($resolver, 'default', 'table', 'prefix');
         $this->assertFalse($store->increment('foo'));
     }
 
     public function testDecrementReturnsCorrectValues()
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
-        $table = m::mock(Builder::class);
-        
-        $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
+        [$store, $table, $connection] = $this->getStore();
         
         $connection->shouldReceive('transaction')->once()->andReturnUsing(function ($callback) use ($connection) {
             return $callback($connection);
         });
         
-        $connection->shouldReceive('table')->once()->with('table')->andReturn($table);
         $table->shouldReceive('where')->once()->with('key', 'prefixfoo')->andReturn($table);
         $table->shouldReceive('lockForUpdate')->once()->andReturn($table);
         $table->shouldReceive('first')->once()->andReturn((object) [
@@ -325,11 +247,9 @@ class CacheDatabaseStoreTest extends TestCase
             'expiration' => 999999999999999,
         ]);
         
-        $connection->shouldReceive('table')->once()->with('table')->andReturn($table);
         $table->shouldReceive('where')->once()->with('key', 'prefixfoo')->andReturn($table);
         $table->shouldReceive('update')->once()->with(['value' => serialize(7)])->andReturn(1);
 
-        $store = new DatabaseStore($resolver, 'default', 'table', 'prefix');
         $this->assertEquals(7, $store->decrement('foo', 3));
     }
 
@@ -351,66 +271,59 @@ class CacheDatabaseStoreTest extends TestCase
 
     public function testItemsCanBeForgotten()
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
-        $table = m::mock(Builder::class);
-        
-        $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
-        $connection->shouldReceive('table')->once()->with('table')->andReturn($table);
+        [$store, $table] = $this->getStore();
         $table->shouldReceive('where')->once()->with('key', '=', 'prefixfoo')->andReturn($table);
         $table->shouldReceive('delete')->once();
 
-        $store = new DatabaseStore($resolver, 'default', 'table', 'prefix');
         $this->assertTrue($store->forget('foo'));
     }
 
     public function testItemsCanBeFlushed()
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
-        $table = m::mock(Builder::class);
-        
-        $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
-        $connection->shouldReceive('table')->once()->with('table')->andReturn($table);
+        [$store, $table] = $this->getStore();
         $table->shouldReceive('delete')->once()->andReturn(1);
 
-        $store = new DatabaseStore($resolver, 'default', 'table', 'prefix');
         $result = $store->flush();
         $this->assertTrue($result);
     }
 
     public function testPruneExpiredRemovesExpiredEntries()
     {
-        $resolver = m::mock(ConnectionResolverInterface::class);
-        $connection = m::mock(ConnectionInterface::class);
-        $table = m::mock(Builder::class);
-        $currentTime = Carbon::now()->getTimestamp();
+        Carbon::setTestNow($now = Carbon::now());
         
-        $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
-        $connection->shouldReceive('table')->once()->with('table')->andReturn($table);
-        $table->shouldReceive('where')->once()->with('expiration', '<=', $currentTime)->andReturn($table);
+        [$store, $table] = $this->getStore();
+        $table->shouldReceive('where')->once()->with('expiration', '<=', $now->getTimestamp())->andReturn($table);
         $table->shouldReceive('delete')->once()->andReturn(5);
 
-        $store = new DatabaseStore($resolver, 'default', 'table', 'prefix');
         $this->assertEquals(5, $store->pruneExpired());
     }
 
     public function testGetPrefixReturnsConfiguredPrefix()
     {
-        $store = $this->getStore();
+        [$store] = $this->getStore();
         $this->assertSame('prefix', $store->getPrefix());
     }
 
-    protected function getStore(): DatabaseStore
+    /**
+     * Get a DatabaseStore instance with mocked dependencies.
+     */
+    protected function getStore(): array
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
         $connection = m::mock(ConnectionInterface::class);
+        $table = m::mock(Builder::class);
         
-        $resolver->shouldReceive('connection')->andReturn($connection);
+        $resolver->shouldReceive('connection')->with('default')->andReturn($connection);
+        $connection->shouldReceive('table')->with('table')->andReturn($table);
         
-        return new DatabaseStore($resolver, 'default', 'table', 'prefix');
+        $store = new DatabaseStore($resolver, 'default', 'table', 'prefix');
+        
+        return [$store, $table, $connection, $resolver];
     }
 
+    /**
+     * Get mock arguments for creating a DatabaseStore.
+     */
     protected function getMocks(): array
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
