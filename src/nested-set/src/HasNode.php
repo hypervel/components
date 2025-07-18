@@ -740,7 +740,7 @@ trait HasNode
      * Returns node that is next to current node without constraining to siblings.
      * This can be either a next sibling or a next sibling of the parent node.
      *
-     * @return TModel|null
+     * @return null|TModel
      */
     public function getNextNode(array $columns = ['*']): mixed
     {
@@ -751,7 +751,7 @@ trait HasNode
      * Returns node that is before current node without constraining to siblings.
      * This can be either a prev sibling or parent node.
      *
-     * @return TModel|null
+     * @return null|TModel
      */
     public function getPrevNode(array $columns = ['*']): mixed
     {
@@ -799,7 +799,7 @@ trait HasNode
     }
 
     /**
-     * @return TModel|null
+     * @return null|TModel
      */
     public function getNextSibling(array $columns = ['*']): mixed
     {
@@ -807,7 +807,7 @@ trait HasNode
     }
 
     /**
-     * @return TModel|null
+     * @return null|TModel
      */
     public function getPrevSibling(array $columns = ['*']): mixed
     {
