@@ -29,7 +29,7 @@ class ConfigProvider
                     'id' => 'migrations',
                     'description' => 'The migrations for permission.',
                     'source' => __DIR__ . '/../database/migrations/2025_07_02_000000_create_permission_tables.php',
-                    'destination' => BASE_PATH . '/migrations/autoload/migrations/2025_07_02_000000_create_permission_tables.php',
+                    'destination' => BASE_PATH . '/migrations/migrations/2025_07_02_000000_create_permission_tables.php',
                 ],
             ],
         ];
