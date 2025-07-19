@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
+use Hypervel\Auth\Contracts\Factory as AuthFactory;
+use Hypervel\Auth\Contracts\Guard;
 use Hypervel\Sanctum\Http\Middleware\CheckForAnyAbility;
 use Mockery;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
-use Psr\Http\Server\RequestHandlerInterface;
 
 /**
  * @internal
@@ -29,10 +30,8 @@ class CheckForAnyAbilityTest extends TestCase
      */
     public function testRequestIsPassedAlongIfAbilitiesArePresentOnToken(): void
     {
-        $middleware = new CheckForAnyAbility('foo', 'bar');
-
         // Create a user object with the required methods
-        $user = new class {
+        $user = new class implements \Hypervel\Auth\Contracts\Authenticatable {
             private $token;
 
             public function __construct()
@@ -50,16 +49,37 @@ class CheckForAnyAbilityTest extends TestCase
                 // Return true only for 'foo', false for others
                 return $ability === 'foo';
             }
+
+            public function getAuthIdentifierName(): string
+            {
+                return 'id';
+            }
+
+            public function getAuthIdentifier(): mixed
+            {
+                return 1;
+            }
+
+            public function getAuthPassword(): string
+            {
+                return 'password';
+            }
         };
 
         $request = Mockery::mock(ServerRequestInterface::class);
-        $request->shouldReceive('getAttribute')->with('user')->andReturn($user);
-
         $response = Mockery::mock(ResponseInterface::class);
-        $handler = Mockery::mock(RequestHandlerInterface::class);
-        $handler->shouldReceive('handle')->with($request)->andReturn($response);
 
-        $result = $middleware->process($request, $handler);
+        $guard = Mockery::mock(Guard::class);
+        $guard->shouldReceive('user')->andReturn($user);
+
+        $authFactory = Mockery::mock(AuthFactory::class);
+        $authFactory->shouldReceive('guard')->andReturn($guard);
+
+        $middleware = new CheckForAnyAbility($authFactory);
+
+        $result = $middleware->handle($request, function ($req) use ($response) {
+            return $response;
+        }, 'foo', 'bar');
 
         $this->assertSame($response, $result);
     }
@@ -68,9 +88,7 @@ class CheckForAnyAbilityTest extends TestCase
     {
         $this->expectException(\Hypervel\Sanctum\Exceptions\MissingAbilityException::class);
 
-        $middleware = new CheckForAnyAbility('foo', 'bar');
-
-        $user = new class {
+        $user = new class implements \Hypervel\Auth\Contracts\Authenticatable {
             private $token;
 
             public function __construct()
@@ -87,37 +105,62 @@ class CheckForAnyAbilityTest extends TestCase
             {
                 return false;
             }
+
+            public function getAuthIdentifierName(): string
+            {
+                return 'id';
+            }
+
+            public function getAuthIdentifier(): mixed
+            {
+                return 1;
+            }
+
+            public function getAuthPassword(): string
+            {
+                return 'password';
+            }
         };
 
         $request = Mockery::mock(ServerRequestInterface::class);
-        $request->shouldReceive('getAttribute')->with('user')->andReturn($user);
 
-        $handler = Mockery::mock(RequestHandlerInterface::class);
+        $guard = Mockery::mock(Guard::class);
+        $guard->shouldReceive('user')->andReturn($user);
 
-        $middleware->process($request, $handler);
+        $authFactory = Mockery::mock(AuthFactory::class);
+        $authFactory->shouldReceive('guard')->andReturn($guard);
+
+        $middleware = new CheckForAnyAbility($authFactory);
+
+        $middleware->handle($request, function ($req) {
+            // Handler
+        }, 'foo', 'bar');
     }
 
     public function testExceptionIsThrownIfNoAuthenticatedUser(): void
     {
         $this->expectException(\Hypervel\Auth\AuthenticationException::class);
 
-        $middleware = new CheckForAnyAbility('foo', 'bar');
-
         $request = Mockery::mock(ServerRequestInterface::class);
-        $request->shouldReceive('getAttribute')->with('user')->once()->andReturn(null);
 
-        $handler = Mockery::mock(RequestHandlerInterface::class);
+        $guard = Mockery::mock(Guard::class);
+        $guard->shouldReceive('user')->once()->andReturn(null);
 
-        $middleware->process($request, $handler);
+        $authFactory = Mockery::mock(AuthFactory::class);
+        $authFactory->shouldReceive('guard')->andReturn($guard);
+
+        $middleware = new CheckForAnyAbility($authFactory);
+
+        $middleware->handle($request, function ($req) {
+            // Handler
+        }, 'foo', 'bar');
     }
 
     public function testExceptionIsThrownIfNoToken(): void
     {
         $this->expectException(\Hypervel\Auth\AuthenticationException::class);
 
-        $middleware = new CheckForAnyAbility('foo', 'bar');
-
-        $user = new class {
+        $user = new class implements \Hypervel\Auth\Contracts\Authenticatable {
             public function currentAccessToken()
             {
                 return null;
@@ -127,13 +170,35 @@ class CheckForAnyAbilityTest extends TestCase
             {
                 return false;
             }
+
+            public function getAuthIdentifierName(): string
+            {
+                return 'id';
+            }
+
+            public function getAuthIdentifier(): mixed
+            {
+                return 1;
+            }
+
+            public function getAuthPassword(): string
+            {
+                return 'password';
+            }
         };
 
         $request = Mockery::mock(ServerRequestInterface::class);
-        $request->shouldReceive('getAttribute')->with('user')->andReturn($user);
 
-        $handler = Mockery::mock(RequestHandlerInterface::class);
+        $guard = Mockery::mock(Guard::class);
+        $guard->shouldReceive('user')->andReturn($user);
 
-        $middleware->process($request, $handler);
+        $authFactory = Mockery::mock(AuthFactory::class);
+        $authFactory->shouldReceive('guard')->andReturn($guard);
+
+        $middleware = new CheckForAnyAbility($authFactory);
+
+        $middleware->handle($request, function ($req) {
+            // Handler
+        }, 'foo', 'bar');
     }
 }

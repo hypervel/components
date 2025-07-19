@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Sanctum\Console\Commands\PruneExpired;
 use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Support\Carbon;
 use Hypervel\Testbench\TestCase;
+use Symfony\Component\Console\Input\ArrayInput;
+use Symfony\Component\Console\Output\BufferedOutput;
 
 /**
  * @internal
@@ -29,12 +32,28 @@ class PruneExpiredTest extends TestCase
         ];
     }
 
+    /**
+     * Run the command directly without going through artisan.
+     */
+    protected function runCommand(array $parameters = []): string
+    {
+        $command = new PruneExpired();
+        $command->setLaravel($this->app);
+
+        $input = new ArrayInput($parameters);
+        $output = new BufferedOutput();
+
+        $command->run($input, $output);
+
+        return $output->fetch();
+    }
+
     public function testCanDeleteExpiredTokensWithIntegerExpiration(): void
     {
         config(['sanctum.expiration' => 60]);
 
         // Create tokens with different expiration times
-        $token1 = PersonalAccessToken::forceCreate([
+        PersonalAccessToken::forceCreate([
             'tokenable_type' => 'App\Models\User',
             'tokenable_id' => 1,
             'name' => 'Test_1',
@@ -42,7 +61,7 @@ class PruneExpiredTest extends TestCase
             'created_at' => Carbon::now()->subMinutes(181),
         ]);
 
-        $token2 = PersonalAccessToken::forceCreate([
+        PersonalAccessToken::forceCreate([
             'tokenable_type' => 'App\Models\User',
             'tokenable_id' => 1,
             'name' => 'Test_2',
@@ -50,7 +69,7 @@ class PruneExpiredTest extends TestCase
             'created_at' => Carbon::now()->subMinutes(179),
         ]);
 
-        $token3 = PersonalAccessToken::forceCreate([
+        PersonalAccessToken::forceCreate([
             'tokenable_type' => 'App\Models\User',
             'tokenable_id' => 1,
             'name' => 'Test_3',
@@ -58,10 +77,9 @@ class PruneExpiredTest extends TestCase
             'created_at' => Carbon::now()->subMinutes(121),
         ]);
 
-        $this->artisan('sanctum:prune-expired', ['--hours' => 2])
-            ->expectsOutputToContain('Tokens expired for more than [2 hours] pruned successfully.')
-            ->assertSuccessful();
+        $output = $this->runCommand(['--hours' => 2]);
 
+        $this->assertStringContainsString('Tokens expired for more than [2 hours] pruned successfully.', $output);
         $this->assertDatabaseMissing('personal_access_tokens', ['name' => 'Test_1']);
         $this->assertDatabaseHas('personal_access_tokens', ['name' => 'Test_2']);
         $this->assertDatabaseHas('personal_access_tokens', ['name' => 'Test_3']);
@@ -71,7 +89,7 @@ class PruneExpiredTest extends TestCase
     {
         config(['sanctum.expiration' => null]);
 
-        $token = PersonalAccessToken::forceCreate([
+        PersonalAccessToken::forceCreate([
             'tokenable_type' => 'App\Models\User',
             'tokenable_id' => 1,
             'name' => 'Test',
@@ -79,10 +97,9 @@ class PruneExpiredTest extends TestCase
             'created_at' => Carbon::now()->subMinutes(70),
         ]);
 
-        $this->artisan('sanctum:prune-expired', ['--hours' => 2])
-            ->expectsOutputToContain('Expiration value not specified in configuration file.')
-            ->assertSuccessful();
+        $output = $this->runCommand(['--hours' => 2]);
 
+        $this->assertStringContainsString('Expiration value not specified in configuration file.', $output);
         $this->assertDatabaseHas('personal_access_tokens', ['name' => 'Test']);
     }
 
@@ -90,7 +107,7 @@ class PruneExpiredTest extends TestCase
     {
         config(['sanctum.expiration' => 60]);
 
-        $token1 = PersonalAccessToken::forceCreate([
+        PersonalAccessToken::forceCreate([
             'tokenable_type' => 'App\Models\User',
             'tokenable_id' => 1,
             'name' => 'Test_1',
@@ -98,7 +115,7 @@ class PruneExpiredTest extends TestCase
             'expires_at' => Carbon::now()->subMinutes(121),
         ]);
 
-        $token2 = PersonalAccessToken::forceCreate([
+        PersonalAccessToken::forceCreate([
             'tokenable_type' => 'App\Models\User',
             'tokenable_id' => 1,
             'name' => 'Test_2',
@@ -106,7 +123,7 @@ class PruneExpiredTest extends TestCase
             'expires_at' => Carbon::now()->subMinutes(119),
         ]);
 
-        $token3 = PersonalAccessToken::forceCreate([
+        PersonalAccessToken::forceCreate([
             'tokenable_type' => 'App\Models\User',
             'tokenable_id' => 1,
             'name' => 'Test_3',
@@ -114,10 +131,9 @@ class PruneExpiredTest extends TestCase
             'expires_at' => null,
         ]);
 
-        $this->artisan('sanctum:prune-expired', ['--hours' => 2])
-            ->expectsOutputToContain('Tokens expired for more than [2 hours] pruned successfully.')
-            ->assertSuccessful();
+        $output = $this->runCommand(['--hours' => 2]);
 
+        $this->assertStringContainsString('Tokens expired for more than [2 hours] pruned successfully.', $output);
         $this->assertDatabaseMissing('personal_access_tokens', ['name' => 'Test_1']);
         $this->assertDatabaseHas('personal_access_tokens', ['name' => 'Test_2']);
         $this->assertDatabaseHas('personal_access_tokens', ['name' => 'Test_3']);

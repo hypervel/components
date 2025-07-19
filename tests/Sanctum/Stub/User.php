@@ -13,6 +13,8 @@ class User implements Authenticatable
 
     public int $id = 1;
 
+    public bool $wasRecentlyCreated = false;
+
     public function getAuthIdentifierName(): string
     {
         return 'id';
