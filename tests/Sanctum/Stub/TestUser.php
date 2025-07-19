@@ -9,16 +9,16 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Sanctum\HasApiTokens;
 
 /**
- * Test user model for authentication tests
+ * Test user model for authentication tests.
  */
 class TestUser extends Model implements Authenticatable
 {
     use HasApiTokens;
-    
+
     protected ?string $table = 'users';
-    
+
     protected array $fillable = ['name', 'email', 'password'];
-    
+
     public function getAuthIdentifierName(): string
     {
         return 'id';

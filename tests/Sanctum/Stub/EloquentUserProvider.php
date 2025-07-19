@@ -8,7 +8,7 @@ use Hypervel\Auth\Contracts\Authenticatable;
 use Hypervel\Auth\Contracts\UserProvider;
 
 /**
- * Simple user provider for testing
+ * Simple user provider for testing.
  */
 class EloquentUserProvider implements UserProvider
 {
@@ -32,9 +32,9 @@ class EloquentUserProvider implements UserProvider
     {
         return false;
     }
-    
+
     /**
-     * Get the model class name
+     * Get the model class name.
      */
     public function getModel(): string
     {

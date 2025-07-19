@@ -12,13 +12,13 @@ class User implements Authenticatable
     use HasApiTokens;
 
     public int $id = 1;
-    
+
     public bool $wasRecentlyCreated = false;
-    
+
     public string $email = 'test@example.com';
-    
+
     public string $password = '';
-    
+
     public string $name = 'Test User';
 
     public function getAuthIdentifierName(): string

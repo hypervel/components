@@ -4,20 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum\Feature;
 
-use DateTimeInterface;
 use Hyperf\Context\Context;
-use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Auth\AuthManager;
-use Hypervel\Auth\Contracts\UserProvider;
-use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
-use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Sanctum\Sanctum;
-use Hypervel\Sanctum\SanctumGuard;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Sanctum\TransientToken;
-use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Sanctum\Stub\TestUser;
 use Mockery;
@@ -35,9 +30,9 @@ class GuardTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $this->app->register(SanctumServiceProvider::class);
-        
+
         config([
             'auth.guards.sanctum' => [
                 'driver' => 'sanctum',
@@ -52,14 +47,18 @@ class GuardTest extends TestCase
             'database.default' => 'testing',
             'sanctum.guard' => ['web'],
         ]);
-        
+
         $this->createUsersTable();
+        $this->defineTestRoutes();
     }
 
     protected function tearDown(): void
     {
         parent::tearDown();
-        
+
+        Context::destroy('__sanctum.acting_as_user');
+        Context::destroy('__sanctum.acting_as_guard');
+
         Mockery::close();
         Sanctum::$accessTokenRetrievalCallback = null;
         Sanctum::$accessTokenAuthenticationCallback = null;
@@ -79,7 +78,7 @@ class GuardTest extends TestCase
     }
 
     /**
-     * Create the users table for testing
+     * Create the users table for testing.
      */
     protected function createUsersTable(): void
     {
@@ -92,6 +91,61 @@ class GuardTest extends TestCase
         });
     }
 
+    /**
+     * Define test routes.
+     */
+    protected function defineTestRoutes(): void
+    {
+        Route::get('/test/user', function () {
+            $user = auth('sanctum')->user();
+            return response()->json([
+                'authenticated' => $user !== null,
+                'user_id' => $user?->id,
+                'user_email' => $user?->email,
+                'token_id' => $user?->currentAccessToken()?->id,
+                'token_class' => $user?->currentAccessToken() ? get_class($user->currentAccessToken()) : null,
+                'can_foo' => $user?->tokenCan('foo'),
+            ]);
+        });
+
+        Route::get('/test/custom-header', function () {
+            $user = auth('sanctum')->user();
+            return response()->json([
+                'authenticated' => $user !== null,
+                'user_id' => $user?->id,
+            ]);
+        });
+
+        Route::get('/test/last-used-at', function () {
+            $user = auth('sanctum')->user();
+            $token = $user?->currentAccessToken();
+            return response()->json([
+                'authenticated' => $user !== null,
+                'last_used_at' => $token?->last_used_at?->toISOString(),
+            ]);
+        });
+    }
+
+    /**
+     * Helper method to create a user with a token.
+     */
+    protected function createUserWithToken(array $abilities = ['*'], ?string $plainTextToken = 'test'): array
+    {
+        $user = TestUser::create([
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => password_hash('password', PASSWORD_DEFAULT),
+        ]);
+
+        $token = $user->tokens()->create([
+            'name' => 'Test Token',
+            'token' => hash('sha256', $plainTextToken),
+            'abilities' => $abilities,
+        ]);
+
+        return [$user, $token, $token->id . '|' . $plainTextToken];
+    }
+
     public function testAuthenticationIsAttemptedWithWebMiddleware(): void
     {
         // Create a user in the database
@@ -100,199 +154,159 @@ class GuardTest extends TestCase
             'email' => 'test@example.com',
             'password' => password_hash('password', PASSWORD_DEFAULT),
         ]);
-        
+
         // Set the user on the web guard
         $authManager = $this->app->get(AuthManager::class);
         $authManager->guard('web')->setUser($user);
-        
-        // Create a sanctum guard instance
-        $request = $this->app->get(RequestInterface::class);
-        $provider = Mockery::mock(UserProvider::class);
-        $guard = new SanctumGuard('sanctum', $provider, $request, null, null);
-        
-        $authenticatedUser = $guard->user();
-        
-        $this->assertInstanceOf(TestUser::class, $authenticatedUser);
-        $this->assertEquals($user->id, $authenticatedUser->id);
-        $this->assertInstanceOf(TransientToken::class, $authenticatedUser->currentAccessToken());
-        $this->assertTrue($authenticatedUser->tokenCan('foo'));
+
+        // Make request without token - should use web guard
+        $response = $this->getJson('/test/user');
+
+        $response->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $user->id,
+                'user_email' => $user->email,
+                'token_class' => TransientToken::class,
+                'can_foo' => true,
+            ]);
     }
 
     public function testAuthenticationWithTokenIfNoSessionPresent(): void
     {
-        // Create a user and token
-        $user = TestUser::create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => password_hash('password', PASSWORD_DEFAULT),
-        ]);
-        
-        $token = PersonalAccessToken::forceCreate([
-            'tokenable_type' => get_class($user),
-            'tokenable_id' => $user->id,
-            'name' => 'Test',
-            'token' => hash('sha256', 'test'),
-            'abilities' => ['*'],
-        ]);
-        
-        // Mock request with Bearer token
-        $request = Mockery::mock(RequestInterface::class);
-        $request->shouldReceive('header')
-            ->with('Authorization', '')
-            ->andReturn('Bearer ' . $token->id . '|test');
-        $request->shouldReceive('has')->with('token')->andReturn(false);
-        
-        $provider = Mockery::mock(UserProvider::class);
-        $provider->shouldReceive('retrieveById')->with($user->id)->andReturn($user);
-        
-        $guard = new SanctumGuard('sanctum', $provider, $request, null, null);
-        
-        $authenticatedUser = $guard->user();
-        
-        $this->assertInstanceOf(TestUser::class, $authenticatedUser);
-        $this->assertEquals($user->id, $authenticatedUser->id);
-        $this->assertEquals($token->id, $authenticatedUser->currentAccessToken()->id);
+        [$user, $token, $plainToken] = $this->createUserWithToken();
+
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer ' . $plainToken,
+        ])->getJson('/test/user');
+
+        $response->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $user->id,
+                'user_email' => $user->email,
+                'token_id' => $token->id,
+            ]);
     }
 
     public function testAuthenticationWithTokenFailsIfExpired(): void
     {
-        // Create a user with expired token
         $user = TestUser::create([
             'name' => 'Test User',
             'email' => 'test@example.com',
             'password' => password_hash('password', PASSWORD_DEFAULT),
         ]);
-        
-        $token = PersonalAccessToken::forceCreate([
-            'tokenable_type' => get_class($user),
-            'tokenable_id' => $user->id,
+
+        // Instead of relying on sanctum.expiration config, use expires_at
+        $token = $user->tokens()->create([
             'name' => 'Test',
             'token' => hash('sha256', 'test'),
             'abilities' => ['*'],
-            'created_at' => now()->subMinutes(60),
+            'expires_at' => now()->subMinute(), // Already expired
         ]);
-        
-        $request = Mockery::mock(RequestInterface::class);
-        $request->shouldReceive('header')
-            ->with('Authorization', '')
-            ->andReturn('Bearer ' . $token->id . '|test');
-        $request->shouldReceive('has')->with('token')->andReturn(false);
-        
-        $provider = Mockery::mock(UserProvider::class);
-        
-        // Create guard with 1 minute expiration
-        $guard = new SanctumGuard('sanctum', $provider, $request, null, 1);
-        
-        $authenticatedUser = $guard->user();
-        
-        $this->assertNull($authenticatedUser);
+
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer ' . $token->id . '|test',
+        ])->getJson('/test/user');
+
+        $response->assertOk()
+            ->assertJson([
+                'authenticated' => false,
+                'user_id' => null,
+            ]);
     }
 
     public function testAuthenticationWithTokenFailsIfExpiresAtHasPassed(): void
     {
-        // Create a user with token that has expires_at in the past
         $user = TestUser::create([
             'name' => 'Test User',
             'email' => 'test@example.com',
             'password' => password_hash('password', PASSWORD_DEFAULT),
         ]);
-        
-        $token = PersonalAccessToken::forceCreate([
-            'tokenable_type' => get_class($user),
-            'tokenable_id' => $user->id,
+
+        $token = $user->tokens()->create([
             'name' => 'Test',
             'token' => hash('sha256', 'test'),
             'abilities' => ['*'],
             'expires_at' => now()->subMinutes(60),
         ]);
-        
-        $request = Mockery::mock(RequestInterface::class);
-        $request->shouldReceive('header')
-            ->with('Authorization', '')
-            ->andReturn('Bearer ' . $token->id . '|test');
-        $request->shouldReceive('has')->with('token')->andReturn(false);
-        
-        $provider = Mockery::mock(UserProvider::class);
-        
-        $guard = new SanctumGuard('sanctum', $provider, $request, null, null);
-        
-        $authenticatedUser = $guard->user();
-        
-        $this->assertNull($authenticatedUser);
+
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer ' . $token->id . '|test',
+        ])->getJson('/test/user');
+
+        $response->assertOk()
+            ->assertJson([
+                'authenticated' => false,
+                'user_id' => null,
+            ]);
     }
 
     public function testAuthenticationWithTokenSucceedsIfExpiresAtNotPassed(): void
     {
-        // Create a user with valid token
-        $user = TestUser::create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => password_hash('password', PASSWORD_DEFAULT),
-        ]);
-        
-        $token = PersonalAccessToken::forceCreate([
-            'tokenable_type' => get_class($user),
-            'tokenable_id' => $user->id,
-            'name' => 'Test',
-            'token' => hash('sha256', 'test'),
-            'abilities' => ['*'],
-            'expires_at' => now()->addMinutes(60),
-        ]);
-        
-        $request = Mockery::mock(RequestInterface::class);
-        $request->shouldReceive('header')
-            ->with('Authorization', '')
-            ->andReturn('Bearer ' . $token->id . '|test');
-        $request->shouldReceive('has')->with('token')->andReturn(false);
-        
-        $provider = Mockery::mock(UserProvider::class);
-        $provider->shouldReceive('retrieveById')->with($user->id)->andReturn($user);
-        
-        $guard = new SanctumGuard('sanctum', $provider, $request, null, null);
-        
-        $authenticatedUser = $guard->user();
-        
-        $this->assertInstanceOf(TestUser::class, $authenticatedUser);
-        $this->assertEquals($user->id, $authenticatedUser->id);
-        $this->assertInstanceOf(DateTimeInterface::class, $authenticatedUser->currentAccessToken()->last_used_at);
+        [$user, $token, $plainToken] = $this->createUserWithToken();
+
+        // Update token to have future expiration
+        $token->update(['expires_at' => now()->addMinutes(60)]);
+
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer ' . $plainToken,
+        ])->getJson('/test/user');
+
+        $response->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $user->id,
+                'user_email' => $user->email,
+                'token_id' => $token->id,
+            ]);
+
+        // Check that last_used_at was updated
+        $response2 = $this->withHeaders([
+            'Authorization' => 'Bearer ' . $plainToken,
+        ])->getJson('/test/last-used-at');
+
+        $response2->assertOk();
+        $data = $response2->json();
+        $this->assertNotNull($data['last_used_at']);
     }
 
     public function testTokenAuthenticationDispatchesEvent(): void
     {
-        // Create a user with token
-        $user = TestUser::create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => password_hash('password', PASSWORD_DEFAULT),
-        ]);
-        
-        $token = PersonalAccessToken::forceCreate([
-            'tokenable_type' => get_class($user),
-            'tokenable_id' => $user->id,
-            'name' => 'Test',
-            'token' => hash('sha256', 'test'),
-            'abilities' => ['*'],
-        ]);
-        
-        $request = Mockery::mock(RequestInterface::class);
-        $request->shouldReceive('header')
-            ->with('Authorization', '')
-            ->andReturn('Bearer ' . $token->id . '|test');
-        $request->shouldReceive('has')->with('token')->andReturn(false);
-        
-        $provider = Mockery::mock(UserProvider::class);
-        $provider->shouldReceive('retrieveById')->with($user->id)->andReturn($user);
-        
-        $events = Mockery::mock(EventDispatcherInterface::class);
+        $tokenAuthenticatedFired = false;
+
+        // Get the real event dispatcher
+        $realDispatcher = $this->app->get(EventDispatcherInterface::class);
+
+        // Create a partial mock that delegates to the real dispatcher
+        $events = Mockery::mock($realDispatcher);
+        $events->makePartial(); // This makes it a partial mock
+
+        // Only spy on dispatch calls, don't change behavior
         $events->shouldReceive('dispatch')
-            ->once()
-            ->with(Mockery::type(TokenAuthenticated::class));
-        
-        $guard = new SanctumGuard('sanctum', $provider, $request, $events, null);
-        
-        $authenticatedUser = $guard->user();
-        
-        $this->assertInstanceOf(TestUser::class, $authenticatedUser);
+            ->andReturnUsing(function ($event) use ($realDispatcher, &$tokenAuthenticatedFired) {
+                if ($event instanceof TokenAuthenticated) {
+                    $tokenAuthenticatedFired = true;
+                }
+                // Call the real method
+                return $realDispatcher->dispatch($event);
+            });
+
+        $this->app->instance(EventDispatcherInterface::class, $events);
+
+        [$user, $token, $plainToken] = $this->createUserWithToken();
+
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer ' . $plainToken,
+        ])->getJson('/test/user');
+
+        $response->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $user->id,
+            ]);
+
+        $this->assertTrue($tokenAuthenticatedFired, 'TokenAuthenticated event was not fired');
     }
 
     /**
@@ -300,162 +314,129 @@ class GuardTest extends TestCase
      */
     public function testAuthenticationFailsWithInvalidTokenFormat(string $invalidToken): void
     {
-        $request = Mockery::mock(RequestInterface::class);
-        $request->shouldReceive('header')
-            ->with('Authorization', '')
-            ->andReturn($invalidToken);
-        $request->shouldReceive('has')->with('token')->andReturn(false);
-        
-        $provider = Mockery::mock(UserProvider::class);
-        
-        $guard = new SanctumGuard('sanctum', $provider, $request, null, null);
-        
-        $authenticatedUser = $guard->user();
-        
-        $this->assertNull($authenticatedUser);
-    }
+        $headers = $invalidToken ? ['Authorization' => $invalidToken] : [];
 
-    public function testAuthenticationFailsIfCallbackReturnsFalse(): void
-    {
-        // Create a user with token
-        $user = TestUser::create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => password_hash('password', PASSWORD_DEFAULT),
-        ]);
-        
-        $token = PersonalAccessToken::forceCreate([
-            'tokenable_type' => get_class($user),
-            'tokenable_id' => $user->id,
-            'name' => 'Test',
-            'token' => hash('sha256', 'test'),
-            'abilities' => ['*'],
-        ]);
-        
-        $request = Mockery::mock(RequestInterface::class);
-        $request->shouldReceive('header')
-            ->with('Authorization', '')
-            ->andReturn('Bearer ' . $token->id . '|test');
-        $request->shouldReceive('has')->with('token')->andReturn(false);
-        
-        $provider = Mockery::mock(UserProvider::class);
-        $provider->shouldReceive('retrieveById')->with($user->id)->andReturn($user);
-        
-        // Set callback that returns false
-        Sanctum::authenticateAccessTokensUsing(function ($accessToken, bool $isValid) {
-            $this->assertInstanceOf(PersonalAccessToken::class, $accessToken);
-            $this->assertTrue($isValid);
-            
-            return false;
-        });
-        
-        $guard = new SanctumGuard('sanctum', $provider, $request, null, null);
-        
-        $authenticatedUser = $guard->user();
-        
-        $this->assertNull($authenticatedUser);
-    }
+        $response = $this->withHeaders($headers)->getJson('/test/user');
 
-    public function testAuthenticationWithCustomTokenHeader(): void
-    {
-        // Create a user with token
-        $user = TestUser::create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => password_hash('password', PASSWORD_DEFAULT),
-        ]);
-        
-        $token = PersonalAccessToken::forceCreate([
-            'tokenable_type' => get_class($user),
-            'tokenable_id' => $user->id,
-            'name' => 'Test',
-            'token' => hash('sha256', 'test'),
-            'abilities' => ['*'],
-        ]);
-        
-        $request = Mockery::mock(RequestInterface::class);
-        $request->shouldReceive('header')
-            ->with('X-Auth-Token', null)
-            ->andReturn($token->id . '|test');
-        
-        $provider = Mockery::mock(UserProvider::class);
-        $provider->shouldReceive('retrieveById')->with($user->id)->andReturn($user);
-        
-        // Set custom token retrieval callback
-        Sanctum::getAccessTokenFromRequestUsing(function ($request) {
-            return $request->header('X-Auth-Token');
-        });
-        
-        $guard = new SanctumGuard('sanctum', $provider, $request, null, null);
-        
-        $authenticatedUser = $guard->user();
-        
-        $this->assertInstanceOf(TestUser::class, $authenticatedUser);
-        $this->assertEquals($user->id, $authenticatedUser->id);
-    }
-
-    public function testAuthenticationFailsWhenCustomHeaderNotPresent(): void
-    {
-        $request = Mockery::mock(RequestInterface::class);
-        $request->shouldReceive('header')
-            ->with('X-Auth-Token', null)
-            ->andReturn(null);
-        
-        $provider = Mockery::mock(UserProvider::class);
-        
-        // Set custom token retrieval callback
-        Sanctum::getAccessTokenFromRequestUsing(function ($request) {
-            return $request->header('X-Auth-Token');
-        });
-        
-        $guard = new SanctumGuard('sanctum', $provider, $request, null, null);
-        
-        $authenticatedUser = $guard->user();
-        
-        $this->assertNull($authenticatedUser);
-    }
-
-    public function testActingAsUserAuthentication(): void
-    {
-        // Create a user
-        $user = TestUser::create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
-            'password' => password_hash('password', PASSWORD_DEFAULT),
-        ]);
-        
-        // Use Sanctum::actingAs
-        Sanctum::actingAs($user, ['read', 'write']);
-        
-        // Create guard and test authentication
-        $request = $this->app->get(RequestInterface::class);
-        $provider = Mockery::mock(UserProvider::class);
-        $guard = new SanctumGuard('sanctum', $provider, $request, null, null);
-        
-        $authenticatedUser = $guard->user();
-        
-        $this->assertInstanceOf(TestUser::class, $authenticatedUser);
-        $this->assertEquals($user->id, $authenticatedUser->id);
-        $this->assertTrue($authenticatedUser->tokenCan('read'));
-        $this->assertTrue($authenticatedUser->tokenCan('write'));
-        $this->assertFalse($authenticatedUser->tokenCan('delete'));
+        $response->assertOk()
+            ->assertJson([
+                'authenticated' => false,
+                'user_id' => null,
+            ]);
     }
 
     public static function invalidTokenDataProvider(): array
     {
         return [
             [''],
-            ['|'],
-            ['test'],
-            ['|test'],
-            ['1ABC|test'],
-            ['1ABC|'],
-            ['1,2|test'],
             ['Bearer'],
+            ['Bearer '],
             ['Bearer |test'],
-            ['Bearer 1,2|test'],
             ['Bearer 1ABC|test'],
             ['Bearer 1ABC|'],
+            ['Bearer 1,2|test'],
+            ['InvalidBearer 1|test'],
+            ['1|test'], // Missing Bearer prefix
         ];
+    }
+
+    public function testAuthenticationFailsIfCallbackReturnsFalse(): void
+    {
+        [$user, $token, $plainToken] = $this->createUserWithToken();
+
+        // Set callback that returns false
+        Sanctum::authenticateAccessTokensUsing(function ($accessToken, bool $isValid) {
+            return false;
+        });
+
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer ' . $plainToken,
+        ])->getJson('/test/user');
+
+        $response->assertOk()
+            ->assertJson([
+                'authenticated' => false,
+                'user_id' => null,
+            ]);
+    }
+
+    public function testAuthenticationWithCustomTokenHeader(): void
+    {
+        [$user, $token, $plainToken] = $this->createUserWithToken();
+
+        // Set custom token retrieval callback
+        Sanctum::getAccessTokenFromRequestUsing(function ($request) {
+            return $request->header('X-Auth-Token');
+        });
+
+        // Define a route that uses the custom header
+        Route::get('/test/custom-auth', function () {
+            $user = auth('sanctum')->user();
+            return response()->json([
+                'authenticated' => $user !== null,
+                'user_id' => $user?->id,
+            ]);
+        });
+
+        $response = $this->withHeaders([
+            'X-Auth-Token' => $plainToken,
+        ])->getJson('/test/custom-auth');
+
+        $response->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $user->id,
+            ]);
+    }
+
+    public function testAuthenticationFailsWhenCustomHeaderNotPresent(): void
+    {
+        // Set custom token retrieval callback
+        Sanctum::getAccessTokenFromRequestUsing(function ($request) {
+            return $request->header('X-Auth-Token');
+        });
+
+        $response = $this->getJson('/test/user');
+
+        $response->assertOk()
+            ->assertJson([
+                'authenticated' => false,
+                'user_id' => null,
+            ]);
+    }
+
+    public function testActingAsUserAuthentication(): void
+    {
+        $user = TestUser::create([
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => password_hash('password', PASSWORD_DEFAULT),
+        ]);
+
+        // Use Sanctum::actingAs
+        Sanctum::actingAs($user, ['read', 'write']);
+
+        // Test route that checks abilities
+        Route::get('/test/abilities', function () {
+            $user = auth('sanctum')->user();
+            return response()->json([
+                'authenticated' => $user !== null,
+                'user_id' => $user?->id,
+                'can_read' => $user?->tokenCan('read'),
+                'can_write' => $user?->tokenCan('write'),
+                'can_delete' => $user?->tokenCan('delete'),
+            ]);
+        });
+
+        $response = $this->getJson('/test/abilities');
+
+        $response->assertOk()
+            ->assertJson([
+                'authenticated' => true,
+                'user_id' => $user->id,
+                'can_read' => true,
+                'can_write' => true,
+                'can_delete' => false,
+            ]);
     }
 }

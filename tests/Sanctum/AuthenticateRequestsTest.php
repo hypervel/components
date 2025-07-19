@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum\Controller;
 
 use Hyperf\Context\Context;
-use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
@@ -26,9 +26,9 @@ class AuthenticateRequestsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $this->app->register(SanctumServiceProvider::class);
-        
+
         // Configure test environment
         config([
             'app.key' => 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF',
@@ -46,7 +46,7 @@ class AuthenticateRequestsTest extends TestCase
             'sanctum.stateful' => ['localhost', '127.0.0.1'],
             'sanctum.guard' => ['web'],
         ]);
-        
+
         $this->defineRoutes();
         $this->createUsersTable();
     }
@@ -54,7 +54,7 @@ class AuthenticateRequestsTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-        
+
         Context::destroy('__sanctum.acting_as_user');
         Context::destroy('__sanctum.acting_as_guard');
     }
@@ -73,7 +73,7 @@ class AuthenticateRequestsTest extends TestCase
     }
 
     /**
-     * Create the users table for testing
+     * Create the users table for testing.
      */
     protected function createUsersTable(): void
     {
@@ -90,7 +90,7 @@ class AuthenticateRequestsTest extends TestCase
     {
         Route::get('/sanctum/api/user', function () {
             $user = auth('sanctum')->user();
-            
+
             if (! $user) {
                 abort(401);
             }
@@ -100,7 +100,7 @@ class AuthenticateRequestsTest extends TestCase
 
         Route::get('/sanctum/web/user', function () {
             $user = auth('sanctum')->user();
-            
+
             if (! $user) {
                 abort(401);
             }
@@ -117,7 +117,7 @@ class AuthenticateRequestsTest extends TestCase
             'email' => 'test@example.com',
             'password' => password_hash('password', PASSWORD_DEFAULT),
         ]);
-        
+
         // Create token
         $token = PersonalAccessToken::forceCreate([
             'tokenable_type' => get_class($user),
@@ -126,11 +126,11 @@ class AuthenticateRequestsTest extends TestCase
             'token' => hash('sha256', 'test'),
             'abilities' => ['*'],
         ]);
-        
+
         $response = $this->withHeaders([
             'Authorization' => 'Bearer ' . $token->id . '|test',
         ])->getJson('/sanctum/api/user');
-        
+
         $response->assertOk()
             ->assertJson(['email' => $user->email]);
     }
@@ -146,13 +146,21 @@ class AuthenticateRequestsTest extends TestCase
             'email' => 'test@example.com',
             'password' => password_hash('password', PASSWORD_DEFAULT),
         ]);
-        
+
         Sanctum::actingAs($user, ['*'], $guard ?? 'sanctum');
-        
+
         $response = $this->getJson('/sanctum/api/user');
-        
+
         $response->assertOk()
             ->assertJson(['email' => $user->email]);
+    }
+
+    public static function sanctumGuardsDataProvider(): array
+    {
+        return [
+            [null],
+            ['web'],
+        ];
     }
 
     public function testCannotAuthorizeWithInvalidToken(): void
@@ -163,7 +171,7 @@ class AuthenticateRequestsTest extends TestCase
             'email' => 'test@example.com',
             'password' => password_hash('password', PASSWORD_DEFAULT),
         ]);
-        
+
         // Create token
         $token = PersonalAccessToken::forceCreate([
             'tokenable_type' => get_class($user),
@@ -172,12 +180,12 @@ class AuthenticateRequestsTest extends TestCase
             'token' => hash('sha256', 'test'),
             'abilities' => ['*'],
         ]);
-        
+
         // Try with wrong token secret
         $response = $this->withHeaders([
             'Authorization' => 'Bearer ' . $token->id . '|wrong-token',
         ])->getJson('/sanctum/api/user');
-        
+
         $response->assertUnauthorized();
     }
 
@@ -187,7 +195,7 @@ class AuthenticateRequestsTest extends TestCase
         $response = $this->withHeaders([
             'Authorization' => 'Bearer 999|some-random-token',
         ])->getJson('/sanctum/api/user');
-        
+
         $response->assertUnauthorized();
     }
 
@@ -195,7 +203,7 @@ class AuthenticateRequestsTest extends TestCase
     {
         // Try without any authorization header
         $response = $this->getJson('/sanctum/api/user');
-        
+
         $response->assertUnauthorized();
     }
 
@@ -209,12 +217,12 @@ class AuthenticateRequestsTest extends TestCase
             'InvalidBearer 1|test',
             '',
         ];
-        
+
         foreach ($malformedTokens as $token) {
             $headers = $token ? ['Authorization' => $token] : [];
-            
+
             $response = $this->withHeaders($headers)->getJson('/sanctum/api/user');
-            
+
             $response->assertUnauthorized();
         }
     }
@@ -227,7 +235,7 @@ class AuthenticateRequestsTest extends TestCase
             'email' => 'test@example.com',
             'password' => password_hash('password', PASSWORD_DEFAULT),
         ]);
-        
+
         // Create an expired token
         $token = PersonalAccessToken::forceCreate([
             'tokenable_type' => get_class($user),
@@ -237,19 +245,11 @@ class AuthenticateRequestsTest extends TestCase
             'abilities' => ['*'],
             'expires_at' => now()->subHour(), // Expired 1 hour ago
         ]);
-        
+
         $response = $this->withHeaders([
             'Authorization' => 'Bearer ' . $token->id . '|test',
         ])->getJson('/sanctum/api/user');
-        
-        $response->assertUnauthorized();
-    }
 
-    public static function sanctumGuardsDataProvider(): array
-    {
-        return [
-            [null],
-            ['web'],
-        ];
+        $response->assertUnauthorized();
     }
 }
