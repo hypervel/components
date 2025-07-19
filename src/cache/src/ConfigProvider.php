@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Hypervel\Cache\Console\ClearCommand;
+use Hypervel\Cache\Console\PruneDbExpiredCommand;
 use Hypervel\Cache\Contracts\Factory;
 use Hypervel\Cache\Contracts\Store;
 use Hypervel\Cache\Listeners\CreateSwooleTable;
@@ -25,6 +26,7 @@ class ConfigProvider
             ],
             'commands' => [
                 ClearCommand::class,
+                PruneDbExpiredCommand::class,
             ],
             'publish' => [
                 [
