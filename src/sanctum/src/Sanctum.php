@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
+use Hypervel\Auth\AuthManager;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
 use Mockery;
 use Mockery\MockInterface;
@@ -56,10 +58,8 @@ class Sanctum
         $token = Mockery::mock(self::personalAccessTokenModel())->shouldIgnoreMissing(false);
 
         if (in_array('*', $abilities)) {
-            // @phpstan-ignore-next-line
             $token->shouldReceive('can')->andReturn(true);
         } else {
-            // @phpstan-ignore-next-line
             $token->shouldReceive('can')->andReturnUsing(function (string $ability) use ($abilities) {
                 return in_array($ability, $abilities);
             });
@@ -70,6 +70,10 @@ class Sanctum
         if (isset($user->wasRecentlyCreated) && $user->wasRecentlyCreated) {
             $user->wasRecentlyCreated = false;
         }
+
+        // Set the user on the guard
+        $authManager = ApplicationContext::getContainer()->get(AuthManager::class);
+        $authManager->guard($guard)->setUser($user);
 
         Context::set('__sanctum.acting_as_user', $user);
         Context::set('__sanctum.acting_as_guard', $guard);

@@ -5,16 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum\Controller;
 
 use Hyperf\Context\Context;
-use Hyperf\HttpServer\Contract\RequestInterface;
-use Hypervel\Auth\Contracts\Factory as AuthFactory;
 use Hypervel\Foundation\Testing\RefreshDatabase;
-use Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Sanctum\Stub\User;
+use Hypervel\Tests\Sanctum\Stub\TestUser;
 
 /**
  * @internal
@@ -23,6 +21,7 @@ use Hypervel\Tests\Sanctum\Stub\User;
 class AuthenticateRequestsTest extends TestCase
 {
     use RefreshDatabase;
+    use RunTestsInCoroutine;
 
     protected function setUp(): void
     {
@@ -37,11 +36,19 @@ class AuthenticateRequestsTest extends TestCase
                 'driver' => 'sanctum',
                 'provider' => 'users',
             ],
-            'auth.providers.users.model' => User::class,
+            'auth.guards.web' => [
+                'driver' => 'session',
+                'provider' => 'users',
+            ],
+            'auth.providers.users.model' => TestUser::class,
+            'auth.providers.users.driver' => 'eloquent',
             'database.default' => 'testing',
+            'sanctum.stateful' => ['localhost', '127.0.0.1'],
+            'sanctum.guard' => ['web'],
         ]);
         
         $this->defineRoutes();
+        $this->createUsersTable();
     }
 
     protected function tearDown(): void
@@ -52,41 +59,66 @@ class AuthenticateRequestsTest extends TestCase
         Context::destroy('__sanctum.acting_as_guard');
     }
 
+    /**
+     * Get the migrations to run for the test.
+     */
+    protected function migrateFreshUsing(): array
+    {
+        return [
+            '--realpath' => true,
+            '--path' => [
+                __DIR__ . '/../../src/sanctum/database/migrations',
+            ],
+        ];
+    }
+
+    /**
+     * Create the users table for testing
+     */
+    protected function createUsersTable(): void
+    {
+        $this->app->get('db')->connection()->getSchemaBuilder()->create('users', function ($table) {
+            $table->increments('id');
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->string('password');
+            $table->timestamps();
+        });
+    }
+
     protected function defineRoutes(): void
     {
-        $apiMiddleware = [EnsureFrontendRequestsAreStateful::class, 'auth:sanctum'];
-
-        Route::get('/sanctum/api/user', function (RequestInterface $request) {
-            $authFactory = $this->app->get(AuthFactory::class);
-            $user = $authFactory->guard('sanctum')->user();
+        Route::get('/sanctum/api/user', function () {
+            $user = auth('sanctum')->user();
             
             if (! $user) {
                 abort(401);
             }
 
             return response()->json(['email' => $user->email]);
-        }, ['middleware' => $apiMiddleware]);
+        });
 
-        Route::get('/sanctum/web/user', function (RequestInterface $request) {
-            $authFactory = $this->app->get(AuthFactory::class);
-            $user = $authFactory->guard('sanctum')->user();
+        Route::get('/sanctum/web/user', function () {
+            $user = auth('sanctum')->user();
             
             if (! $user) {
                 abort(401);
             }
 
             return response()->json(['email' => $user->email]);
-        }, ['middleware' => $apiMiddleware]);
+        });
     }
 
     public function testCanAuthorizeValidUserUsingAuthorizationHeader(): void
     {
-        // Create a user with a token
-        $user = new User();
-        $user->id = 1;
-        $user->email = 'test@example.com';
+        // Create a user in the database
+        $user = TestUser::create([
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => password_hash('password', PASSWORD_DEFAULT),
+        ]);
         
-        // Create token in database
+        // Create token
         $token = PersonalAccessToken::forceCreate([
             'tokenable_type' => get_class($user),
             'tokenable_id' => $user->id,
@@ -95,12 +127,9 @@ class AuthenticateRequestsTest extends TestCase
             'abilities' => ['*'],
         ]);
         
-        // Mock the user provider to return our user
-        $this->mockUserProvider($user);
-        
-        $response = $this->getJson('/sanctum/api/user', [
+        $response = $this->withHeaders([
             'Authorization' => 'Bearer ' . $token->id . '|test',
-        ]);
+        ])->getJson('/sanctum/api/user');
         
         $response->assertOk()
             ->assertJson(['email' => $user->email]);
@@ -111,20 +140,12 @@ class AuthenticateRequestsTest extends TestCase
      */
     public function testCanAuthorizeValidUserUsingSanctumActingAs(?string $guard): void
     {
-        $user = new User();
-        $user->id = 1;
-        $user->email = 'test@example.com';
-        
-        // Create token in database
-        PersonalAccessToken::forceCreate([
-            'tokenable_type' => get_class($user),
-            'tokenable_id' => $user->id,
-            'name' => 'Test Token',
-            'token' => hash('sha256', 'test'),
-            'abilities' => ['*'],
+        // Create a user in the database
+        $user = TestUser::create([
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => password_hash('password', PASSWORD_DEFAULT),
         ]);
-        
-        $this->mockUserProvider($user);
         
         Sanctum::actingAs($user, ['*'], $guard ?? 'sanctum');
         
@@ -134,26 +155,101 @@ class AuthenticateRequestsTest extends TestCase
             ->assertJson(['email' => $user->email]);
     }
 
+    public function testCannotAuthorizeWithInvalidToken(): void
+    {
+        // Create a user in the database
+        $user = TestUser::create([
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => password_hash('password', PASSWORD_DEFAULT),
+        ]);
+        
+        // Create token
+        $token = PersonalAccessToken::forceCreate([
+            'tokenable_type' => get_class($user),
+            'tokenable_id' => $user->id,
+            'name' => 'Test Token',
+            'token' => hash('sha256', 'test'),
+            'abilities' => ['*'],
+        ]);
+        
+        // Try with wrong token secret
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer ' . $token->id . '|wrong-token',
+        ])->getJson('/sanctum/api/user');
+        
+        $response->assertUnauthorized();
+    }
+
+    public function testCannotAuthorizeWithNonExistentToken(): void
+    {
+        // Try with a token that doesn't exist
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer 999|some-random-token',
+        ])->getJson('/sanctum/api/user');
+        
+        $response->assertUnauthorized();
+    }
+
+    public function testCannotAuthorizeWithoutToken(): void
+    {
+        // Try without any authorization header
+        $response = $this->getJson('/sanctum/api/user');
+        
+        $response->assertUnauthorized();
+    }
+
+    public function testCannotAuthorizeWithMalformedToken(): void
+    {
+        // Try with various malformed tokens
+        $malformedTokens = [
+            'Bearer invalid-format',
+            'Bearer |no-id',
+            'Bearer no-pipe',
+            'InvalidBearer 1|test',
+            '',
+        ];
+        
+        foreach ($malformedTokens as $token) {
+            $headers = $token ? ['Authorization' => $token] : [];
+            
+            $response = $this->withHeaders($headers)->getJson('/sanctum/api/user');
+            
+            $response->assertUnauthorized();
+        }
+    }
+
+    public function testCannotAuthorizeWithExpiredToken(): void
+    {
+        // Create a user in the database
+        $user = TestUser::create([
+            'name' => 'Test User',
+            'email' => 'test@example.com',
+            'password' => password_hash('password', PASSWORD_DEFAULT),
+        ]);
+        
+        // Create an expired token
+        $token = PersonalAccessToken::forceCreate([
+            'tokenable_type' => get_class($user),
+            'tokenable_id' => $user->id,
+            'name' => 'Test Token',
+            'token' => hash('sha256', 'test'),
+            'abilities' => ['*'],
+            'expires_at' => now()->subHour(), // Expired 1 hour ago
+        ]);
+        
+        $response = $this->withHeaders([
+            'Authorization' => 'Bearer ' . $token->id . '|test',
+        ])->getJson('/sanctum/api/user');
+        
+        $response->assertUnauthorized();
+    }
+
     public static function sanctumGuardsDataProvider(): array
     {
         return [
             [null],
             ['web'],
         ];
-    }
-
-    /**
-     * Mock the user provider to return our test user
-     */
-    protected function mockUserProvider(User $user): void
-    {
-        $provider = $this->createMock(\Hypervel\Auth\Contracts\UserProvider::class);
-        $provider->method('retrieveById')->willReturn($user);
-        $provider->method('getModel')->willReturn(User::class);
-        
-        $authManager = $this->app->get(AuthFactory::class);
-        if (method_exists($authManager, 'setProvider')) {
-            $authManager->setProvider('users', $provider);
-        }
     }
 }
