@@ -73,13 +73,13 @@ class CacheDatabaseLockTest extends TestCase
             $query = m::mock(Builder::class);
             $query->shouldReceive('where')->once()->with('owner', $lock->owner())->andReturn($query);
             $query->shouldReceive('orWhere')->once()->with('expiration', '<=', m::type('int'))->andReturn($query);
-            
+
             // The callback should return the query
             $result = $callback($query);
-            
+
             // Verify the callback returned the query as expected
             $this->assertSame($query, $result);
-            
+
             return $table;
         });
         $table->shouldReceive('update')->once()->andReturn(0);
