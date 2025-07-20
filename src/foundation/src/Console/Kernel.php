@@ -194,14 +194,18 @@ class Kernel implements KernelContract
     protected function loadCommands(): void
     {
         $commands = $this->collectCommands();
+        // Split and merge commands by namespace to make sure override commands work.
+        $hyperfCommands = [];
+        $otherCommands = [];
 
-        // Sort commands by namespace to make sure override commands work.
         foreach ($commands as $key => $command) {
             if (Str::startsWith($command, 'Hyperf\\')) {
-                unset($commands[$key]);
-                array_unshift($commands, $command);
+                $hyperfCommands[] = $command;
+                continue;
             }
+            $otherCommands[] = $command;
         }
+        $commands = array_merge($hyperfCommands, $otherCommands);
 
         // Register commands to application.
         foreach ($commands as $command) {
