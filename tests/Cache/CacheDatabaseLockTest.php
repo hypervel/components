@@ -167,7 +167,7 @@ class CacheDatabaseLockTest extends TestCase
     /**
      * Get a DatabaseLock instance with mocked dependencies.
      */
-    protected function getLock(int $seconds = 10, array $lockLottery = [2, 100]): array
+    protected function getLock(int $seconds = 10, array $lockLottery = [0, 1]): array
     {
         $resolver = m::mock(ConnectionResolverInterface::class);
         $connection = m::mock(ConnectionInterface::class);
