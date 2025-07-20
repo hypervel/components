@@ -56,11 +56,24 @@ class SessionGuard implements StatefulGuard
         return false;
     }
 
+    /**
+     * Log a user into the application.
+     */
     public function login(Authenticatable $user): void
     {
-        $this->session->put($this->sessionKey(), $user->getAuthIdentifier());
+        $this->updateSession($user->getAuthIdentifier());
 
         $this->setUser($user);
+    }
+
+    /**
+     * Update the session with the given ID.
+     */
+    protected function updateSession(int|string $id): void
+    {
+        $this->session->put($this->sessionKey(), $id);
+
+        $this->session->migrate(true);
     }
 
     /**
