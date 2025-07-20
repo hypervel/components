@@ -27,6 +27,7 @@ use Swoole\Http\Request;
 use Swoole\Http\Response as SwooleResponse;
 use Swow\Psr7\Server\ServerConnection as SwowServerConnection;
 use Throwable;
+
 use function Hyperf\Support\make;
 
 class WebsocketKernel extends WebSocketServer implements MiddlewareContract
