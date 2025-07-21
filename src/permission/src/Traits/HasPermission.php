@@ -225,7 +225,9 @@ trait HasPermission
      */
     public function hasAnyPermissions(array|BackedEnum|int|string|UnitEnum ...$permissions): bool
     {
-        return BaseCollection::make($permissions)->flatten()->some(fn ($permission) => $this->hasPermission($permission));
+        return BaseCollection::make($permissions)->flatten()->some(
+            fn ($permission) => $this->hasPermission($permission)
+        );
     }
 
     /**
@@ -233,7 +235,9 @@ trait HasPermission
      */
     public function hasAllPermissions(array|BackedEnum|int|string|UnitEnum ...$permissions): bool
     {
-        return BaseCollection::make($permissions)->flatten()->every(fn ($permission) => $this->hasPermission($permission));
+        return BaseCollection::make($permissions)->flatten()->every(
+            fn ($permission) => $this->hasPermission($permission)
+        );
     }
 
     /**
@@ -241,7 +245,9 @@ trait HasPermission
      */
     public function hasAllDirectPermissions(array|BackedEnum|int|string|UnitEnum ...$permissions): bool
     {
-        return BaseCollection::make($permissions)->flatten()->every(fn ($permission) => $this->hasDirectPermission($permission));
+        return BaseCollection::make($permissions)->flatten()->every(
+            fn ($permission) => $this->hasDirectPermission($permission)
+        );
     }
 
     /**
@@ -249,7 +255,9 @@ trait HasPermission
      */
     public function hasAnyDirectPermissions(array|BackedEnum|int|string|UnitEnum ...$permissions): bool
     {
-        return BaseCollection::make($permissions)->flatten()->some(fn ($permission) => $this->hasDirectPermission($permission));
+        return BaseCollection::make($permissions)->flatten()->some(
+            fn ($permission) => $this->hasDirectPermission($permission)
+        );
     }
 
     /**
@@ -305,12 +313,32 @@ trait HasPermission
 
     /**
      * Synchronize the owner's permissions with the given permission list.
+     *
+     * @param array<BackedEnum|int|string|UnitEnum> $allowPermissions
+     * @param array<BackedEnum|int|string|UnitEnum> $forbiddenPermissions
      */
-    public function syncPermissions(array|BackedEnum|int|string|UnitEnum ...$permissions): array
+    public function syncPermissions(array $allowPermissions = [], array $forbiddenPermissions = []): array
     {
-        $permissions = $this->collectPermissions($permissions);
+        $allowedIds = $this->collectPermissions(...$allowPermissions);
+        $forbiddenIds = $this->collectPermissions(...$forbiddenPermissions);
+        // Prepare sync data with allowed permissions (is_forbidden = false)
+        $syncData = [];
+        foreach ($allowedIds as $permissionId) {
+            $syncData[$permissionId] = ['is_forbidden' => false];
+        }
 
-        $result = $this->permissions()->sync($permissions);
+        // Add forbidden permissions (is_forbidden = true)
+        foreach ($forbiddenIds as $permissionId) {
+            // If a permission is in both arrays, forbidden takes precedence
+            $syncData[$permissionId] = ['is_forbidden' => true];
+        }
+
+        $result = $this->permissions()->sync($syncData);
+        if (is_a($this->getOwnerType(), Role::class, true)) {
+            $this->getPermissionManager()->clearAllRolesPermissionsCache();
+
+            return $result;
+        }
 
         // Clear owner cache when permissions are modified
         $this->getPermissionManager()->clearOwnerCache($this->getOwnerType(), $this->getKey());
@@ -462,6 +490,9 @@ trait HasPermission
      */
     private function collectPermissions(array|BackedEnum|int|string|UnitEnum ...$permissions): array
     {
+        if (empty($permissions)) {
+            return [];
+        }
         $permissions = BaseCollection::make($permissions)
             ->flatten()
             ->values()
