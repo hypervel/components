@@ -28,7 +28,7 @@ class PermissionMiddleware implements MiddlewareInterface
     public function process(
         ServerRequestInterface $request,
         RequestHandlerInterface $handler,
-        BackedEnum|int|string|UnitEnum ...$permissions
+        string ...$permissions
     ): ResponseInterface {
         $auth = $this->container->get(AuthManager::class);
         $user = $auth->user();
@@ -53,7 +53,7 @@ class PermissionMiddleware implements MiddlewareInterface
                 )
             );
         }
-        $permissionString = self::parsePermissionsToString($permissions);
+        $permissions = explode('|', self::parsePermissionsToString($permissions));
         /* @phpstan-ignore-next-line */
         if (! $user->hasAnyPermissions($permissions)) {
             throw new PermissionException(
@@ -67,7 +67,7 @@ class PermissionMiddleware implements MiddlewareInterface
                 0,
                 null,
                 [],
-                explode(',', $permissionString)
+                $permissions
             );
         }
 
@@ -97,6 +97,6 @@ class PermissionMiddleware implements MiddlewareInterface
             };
         }, $permissions);
 
-        return implode(',', $permission);
+        return implode('|', $permission);
     }
 }
