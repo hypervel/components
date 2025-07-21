@@ -17,6 +17,12 @@ use Hypervel\NestedSet\Eloquent\QueryBuilder;
 use Hypervel\Support\Arr;
 use LogicException;
 
+/**
+ * @template TModel of Model
+ *
+ * @property int $parent_id
+ * @property ?static $parent
+ */
 trait HasNode
 {
     /**
@@ -238,6 +244,8 @@ trait HasNode
 
     /**
      * Get query for the node siblings and the node itself.
+     *
+     * @return Collection<int, TModel>
      */
     public function getSiblingsAndSelf(array $columns = ['*']): Collection
     {
@@ -588,6 +596,9 @@ trait HasNode
         return $instance->newScopedQuery();
     }
 
+    /**
+     * @return Collection<int, TModel>
+     */
     public function newCollection(array $models = []): Collection
     {
         return new Collection($models);
@@ -728,6 +739,8 @@ trait HasNode
     /**
      * Returns node that is next to current node without constraining to siblings.
      * This can be either a next sibling or a next sibling of the parent node.
+     *
+     * @return null|TModel
      */
     public function getNextNode(array $columns = ['*']): mixed
     {
@@ -737,42 +750,65 @@ trait HasNode
     /**
      * Returns node that is before current node without constraining to siblings.
      * This can be either a prev sibling or parent node.
+     *
+     * @return null|TModel
      */
     public function getPrevNode(array $columns = ['*']): mixed
     {
         return $this->prevNodes()->defaultOrder('desc')->first($columns);
     }
 
+    /**
+     * @return Collection<int, TModel>
+     */
     public function getAncestors(array $columns = ['*']): Collection
     {
         return $this->ancestors()->get($columns);
     }
 
+    /**
+     * @return Collection<int, TModel>
+     */
     public function getDescendants(array $columns = ['*']): Collection
     {
         return $this->descendants()->get($columns);
     }
 
+    /**
+     * @return Collection<int, TModel>
+     */
     public function getSiblings(array $columns = ['*']): Collection
     {
         return $this->siblings()->get($columns);
     }
 
+    /**
+     * @return Collection<int, TModel>
+     */
     public function getNextSiblings(array $columns = ['*']): Collection
     {
         return $this->nextSiblings()->get($columns);
     }
 
+    /**
+     * @return Collection<int, TModel>
+     */
     public function getPrevSiblings(array $columns = ['*']): Collection
     {
         return $this->prevSiblings()->get($columns);
     }
 
+    /**
+     * @return null|TModel
+     */
     public function getNextSibling(array $columns = ['*']): mixed
     {
         return $this->nextSiblings()->defaultOrder()->first($columns);
     }
 
+    /**
+     * @return null|TModel
+     */
     public function getPrevSibling(array $columns = ['*']): mixed
     {
         return $this->prevSiblings()->defaultOrder('desc')->first($columns);
@@ -854,6 +890,9 @@ trait HasNode
         return ! $this->usesSoftDelete() || $this->forceDeleting;
     }
 
+    /**
+     * @return array{?int, ?int}
+     */
     public function getBounds(): array
     {
         return [$this->getLft(), $this->getRgt()];
