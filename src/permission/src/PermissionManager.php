@@ -32,8 +32,8 @@ class PermissionManager implements Contracts\Factory
         protected ContainerInterface $app,
         protected CacheManager $cacheManager
     ) {
-        $this->roleClass = $this->getConfig('permission.models.role') ?: Role::class;
-        $this->permissionClass = $this->getConfig('permission.models.permission') ?: Permission::class;
+        $this->roleClass = $this->getConfig('models.role') ?: Role::class;
+        $this->permissionClass = $this->getConfig('models.permission') ?: Permission::class;
         $this->initializeCache();
         $this->validateModelClasses();
     }
@@ -103,7 +103,7 @@ class PermissionManager implements Contracts\Factory
     {
         // the 'default' fallback here is from the permission.php config file,
         // where 'default' means to use config(cache.default)
-        $cacheDriver = $this->getConfig('permission.cache.store') ?? 'default';
+        $cacheDriver = $this->getConfig('cache.store') ?? 'default';
 
         // when 'default' is specified, no action is required since we already have the default instance
         if ($cacheDriver === 'default') {

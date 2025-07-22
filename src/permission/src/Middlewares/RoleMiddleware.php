@@ -28,7 +28,7 @@ class RoleMiddleware implements MiddlewareInterface
     public function process(
         ServerRequestInterface $request,
         RequestHandlerInterface $handler,
-        BackedEnum|int|string|UnitEnum ...$roles
+        string ...$roles
     ): ResponseInterface {
         $auth = $this->container->get(AuthManager::class);
         $user = $auth->user();
@@ -53,7 +53,7 @@ class RoleMiddleware implements MiddlewareInterface
                 )
             );
         }
-        $roleString = self::parseRolesToString($roles);
+        $roles = explode('|', self::parseRolesToString($roles));
         /* @phpstan-ignore-next-line */
         if (! $user->hasAnyRoles($roles)) {
             throw new RoleException(
@@ -67,7 +67,7 @@ class RoleMiddleware implements MiddlewareInterface
                 0,
                 null,
                 [],
-                explode(',', $roleString)
+                $roles
             );
         }
 
@@ -97,6 +97,6 @@ class RoleMiddleware implements MiddlewareInterface
             };
         }, $roles);
 
-        return implode(',', $role);
+        return implode('|', $role);
     }
 }
