@@ -58,9 +58,6 @@ class AuthenticateRequestsTest extends TestCase
         parent::tearDown();
 
         Context::destroyAll();
-
-        // Context::destroy('__sanctum.acting_as_user');
-        // Context::destroy('__sanctum.acting_as_guard');
     }
 
     /**
