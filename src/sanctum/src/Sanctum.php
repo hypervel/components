@@ -60,6 +60,7 @@ class Sanctum
         if (in_array('*', $abilities)) {
             $token->shouldReceive('can')->andReturn(true);
         } else {
+            /* @phpstan-ignore-next-line */
             $token->shouldReceive('can')->andReturnUsing(function (string $ability) use ($abilities) {
                 return in_array($ability, $abilities);
             });
