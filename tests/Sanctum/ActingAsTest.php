@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Testbench\TestCase;
@@ -44,8 +44,7 @@ class ActingAsTest extends TestCase
     {
         parent::tearDown();
 
-        Context::destroy('__sanctum.acting_as_user');
-        Context::destroy('__sanctum.acting_as_guard');
+        Context::destroyAll();
     }
 
     public function testActingAsSetsUserInContext(): void

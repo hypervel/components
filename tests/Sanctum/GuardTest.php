@@ -27,6 +27,8 @@ class GuardTest extends TestCase
     use RefreshDatabase;
     use RunTestsInCoroutine;
 
+    protected bool $migrateRefresh = true;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -102,7 +104,7 @@ class GuardTest extends TestCase
                 'authenticated' => $user !== null,
                 'user_id' => $user?->id,
                 'user_email' => $user?->email,
-                'token_id' => $user?->currentAccessToken()?->id,
+                'token_id' => $user?->currentAccessToken()?->id ?? null,
                 'token_class' => $user?->currentAccessToken() ? get_class($user->currentAccessToken()) : null,
                 'can_foo' => $user?->tokenCan('foo'),
             ]);

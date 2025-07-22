@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum\Controller;
 
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\PersonalAccessToken;
@@ -22,6 +22,8 @@ class AuthenticateRequestsTest extends TestCase
 {
     use RefreshDatabase;
     use RunTestsInCoroutine;
+
+    protected bool $migrateRefresh = true;
 
     protected function setUp(): void
     {
@@ -55,8 +57,10 @@ class AuthenticateRequestsTest extends TestCase
     {
         parent::tearDown();
 
-        Context::destroy('__sanctum.acting_as_user');
-        Context::destroy('__sanctum.acting_as_guard');
+        Context::destroyAll();
+
+        // Context::destroy('__sanctum.acting_as_user');
+        // Context::destroy('__sanctum.acting_as_guard');
     }
 
     /**

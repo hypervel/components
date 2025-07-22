@@ -20,6 +20,8 @@ class SimpleGuardTest extends TestCase
     use RefreshDatabase;
     use RunTestsInCoroutine;
 
+    protected bool $migrateRefresh = true;
+
     protected function setUp(): void
     {
         parent::setUp();
