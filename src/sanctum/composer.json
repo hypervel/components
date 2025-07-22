@@ -35,9 +35,6 @@
         "branch-alias": {
             "dev-main": "0.2-dev"
         },
-        "hyperf": {
-            "config": "Hypervel\\Sanctum\\ConfigProvider"
-        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Sanctum\\SanctumServiceProvider"

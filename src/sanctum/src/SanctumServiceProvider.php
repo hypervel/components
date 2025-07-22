@@ -7,6 +7,7 @@ namespace Hypervel\Sanctum;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Auth\AuthManager;
+use Hypervel\Sanctum\Console\Commands\PruneExpired;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -32,6 +33,7 @@ class SanctumServiceProvider extends ServiceProvider
         $this->registerSanctumGuard();
         $this->registerPublishing();
         $this->registerRoutes();
+        $this->registerCommands();
     }
 
     /**
@@ -92,5 +94,15 @@ class SanctumServiceProvider extends ServiceProvider
         $this->publishes([
             __DIR__ . '/../database/migrations' => database_path('migrations'),
         ], 'sanctum-migrations');
+    }
+
+    /**
+     * Register the console commands for the package.
+     */
+    protected function registerCommands(): void
+    {
+        $this->commands([
+            PruneExpired::class,
+        ]);
     }
 }
