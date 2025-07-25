@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
+use Hyperf\Contract\ConfigInterface;
 use Hypervel\Context\Context;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
@@ -24,20 +25,21 @@ class ActingAsTest extends TestCase
         $this->app->register(SanctumServiceProvider::class);
 
         // Configure auth guards
-        config([
-            'auth.guards.sanctum' => [
-                'driver' => 'sanctum',
-                'provider' => 'users',
-            ],
-            'auth.guards.api' => [
-                'driver' => 'sanctum',
-                'provider' => 'users',
-            ],
-            'auth.providers.users' => [
-                'driver' => 'eloquent',
-                'model' => User::class,
-            ],
-        ]);
+        $this->app->get(ConfigInterface::class)
+            ->set([
+                'auth.guards.sanctum' => [
+                    'driver' => 'sanctum',
+                    'provider' => 'users',
+                ],
+                'auth.guards.api' => [
+                    'driver' => 'sanctum',
+                    'provider' => 'users',
+                ],
+                'auth.providers.users' => [
+                    'driver' => 'eloquent',
+                    'model' => User::class,
+                ],
+            ]);
     }
 
     protected function tearDown(): void

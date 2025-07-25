@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
+use Hyperf\Contract\ConfigInterface;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Support\Carbon;
@@ -31,7 +32,8 @@ class PruneExpiredTest extends TestCase
 
     public function testCanDeleteExpiredTokensWithIntegerExpiration(): void
     {
-        config(['sanctum.expiration' => 60]);
+        $this->app->get(ConfigInterface::class)
+            ->set(['sanctum.expiration' => 60]);
 
         // Create tokens with different expiration times
         PersonalAccessToken::forceCreate([
@@ -63,11 +65,12 @@ class PruneExpiredTest extends TestCase
 
         // This is what the command does
         $model = PersonalAccessToken::class;
-        $expiredCount = $model::where('expires_at', '<', now()->subHours($hours))->delete();
+        $model::where('expires_at', '<', now()->subHours($hours))->delete();
 
-        $expiration = config('sanctum.expiration');
+        $expiration = $this->app->get(ConfigInterface::class)
+            ->get('sanctum.expiration');
         if ($expiration) {
-            $configExpiredCount = $model::where('created_at', '<', now()->subMinutes($expiration + ($hours * 60)))->delete();
+            $model::where('created_at', '<', now()->subMinutes($expiration + ($hours * 60)))->delete();
         }
 
         $this->assertDatabaseMissing('personal_access_tokens', ['name' => 'Test_1']);
@@ -77,7 +80,8 @@ class PruneExpiredTest extends TestCase
 
     public function testCantDeleteExpiredTokensWithNullExpiration(): void
     {
-        config(['sanctum.expiration' => null]);
+        $this->app->get(ConfigInterface::class)
+            ->set(['sanctum.expiration' => null]);
 
         PersonalAccessToken::forceCreate([
             'tokenable_type' => 'App\Models\User',
@@ -92,10 +96,11 @@ class PruneExpiredTest extends TestCase
 
         // This is what the command does
         $model = PersonalAccessToken::class;
-        $expiredCount = $model::where('expires_at', '<', now()->subHours($hours))->delete();
+        $model::where('expires_at', '<', now()->subHours($hours))->delete();
 
         // With null expiration, no config-based deletion happens
-        $expiration = config('sanctum.expiration');
+        $expiration = $this->app->get(ConfigInterface::class)
+            ->get('sanctum.expiration');
         $this->assertNull($expiration);
 
         $this->assertDatabaseHas('personal_access_tokens', ['name' => 'Test']);
@@ -103,7 +108,8 @@ class PruneExpiredTest extends TestCase
 
     public function testCanDeleteExpiredTokensWithExpiresAtExpiration(): void
     {
-        config(['sanctum.expiration' => 60]);
+        $this->app->get(ConfigInterface::class)
+            ->set(['sanctum.expiration' => 60]);
 
         PersonalAccessToken::forceCreate([
             'tokenable_type' => 'App\Models\User',
@@ -134,11 +140,12 @@ class PruneExpiredTest extends TestCase
 
         // This is what the command does
         $model = PersonalAccessToken::class;
-        $expiredCount = $model::where('expires_at', '<', now()->subHours($hours))->delete();
+        $model::where('expires_at', '<', now()->subHours($hours))->delete();
 
-        $expiration = config('sanctum.expiration');
+        $expiration = $this->app->get(ConfigInterface::class)
+            ->get('sanctum.expiration');
         if ($expiration) {
-            $configExpiredCount = $model::where('created_at', '<', now()->subMinutes($expiration + ($hours * 60)))->delete();
+            $model::where('created_at', '<', now()->subMinutes($expiration + ($hours * 60)))->delete();
         }
 
         $this->assertDatabaseMissing('personal_access_tokens', ['name' => 'Test_1']);

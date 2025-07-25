@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum\Feature;
 
 use Hyperf\Context\Context;
+use Hyperf\Contract\ConfigInterface;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -35,20 +36,21 @@ class GuardTest extends TestCase
 
         $this->app->register(SanctumServiceProvider::class);
 
-        config([
-            'auth.guards.sanctum' => [
-                'driver' => 'sanctum',
-                'provider' => 'users',
-            ],
-            'auth.guards.web' => [
-                'driver' => 'session',
-                'provider' => 'users',
-            ],
-            'auth.providers.users.model' => TestUser::class,
-            'auth.providers.users.driver' => 'eloquent',
-            'database.default' => 'testing',
-            'sanctum.guard' => ['web'],
-        ]);
+        $this->app->get(ConfigInterface::class)
+            ->set([
+                'auth.guards.sanctum' => [
+                    'driver' => 'sanctum',
+                    'provider' => 'users',
+                ],
+                'auth.guards.web' => [
+                    'driver' => 'session',
+                    'provider' => 'users',
+                ],
+                'auth.providers.users.model' => TestUser::class,
+                'auth.providers.users.driver' => 'eloquent',
+                'database.default' => 'testing',
+                'sanctum.guard' => ['web'],
+            ]);
 
         $this->createUsersTable();
         $this->defineTestRoutes();

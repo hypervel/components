@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum\Controller;
 
+use Hyperf\Contract\ConfigInterface;
 use Hypervel\Context\Context;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -32,22 +33,23 @@ class AuthenticateRequestsTest extends TestCase
         $this->app->register(SanctumServiceProvider::class);
 
         // Configure test environment
-        config([
-            'app.key' => 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF',
-            'auth.guards.sanctum' => [
-                'driver' => 'sanctum',
-                'provider' => 'users',
-            ],
-            'auth.guards.web' => [
-                'driver' => 'session',
-                'provider' => 'users',
-            ],
-            'auth.providers.users.model' => TestUser::class,
-            'auth.providers.users.driver' => 'eloquent',
-            'database.default' => 'testing',
-            'sanctum.stateful' => ['localhost', '127.0.0.1'],
-            'sanctum.guard' => ['web'],
-        ]);
+        $this->app->get(ConfigInterface::class)
+            ->set([
+                'app.key' => 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF',
+                'auth.guards.sanctum' => [
+                    'driver' => 'sanctum',
+                    'provider' => 'users',
+                ],
+                'auth.guards.web' => [
+                    'driver' => 'session',
+                    'provider' => 'users',
+                ],
+                'auth.providers.users.model' => TestUser::class,
+                'auth.providers.users.driver' => 'eloquent',
+                'database.default' => 'testing',
+                'sanctum.stateful' => ['localhost', '127.0.0.1'],
+                'sanctum.guard' => ['web'],
+            ]);
 
         $this->defineRoutes();
         $this->createUsersTable();

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
+use Hyperf\Contract\ConfigInterface;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful;
 use Hypervel\Testbench\TestCase;
@@ -19,14 +20,7 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->get(\Hyperf\Contract\ConfigInterface::class)->set('sanctum.stateful', ['test.com', '*.test.com']);
-    }
-
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        Mockery::close();
+        $this->app->get(ConfigInterface::class)->set('sanctum.stateful', ['test.com', '*.test.com']);
     }
 
     public function testRequestFromFrontendIsIdentified(): void
