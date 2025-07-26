@@ -95,11 +95,21 @@ class SessionGuard implements StatefulGuard
         return "auth.guards.{$this->name}.result:" . $this->session->getId();
     }
 
+    protected function getUnstartedContextKey(): string
+    {
+        return "auth.guards.{$this->name}.unstarted";
+    }
+
     public function user(): ?Authenticatable
     {
         // cache user in context
         if (Context::has($contextKey = $this->getContextKey())) {
             return Context::get($contextKey);
+        }
+
+        // cache user in context if session is not started but user is set
+        if (Context::has($unstartedContextKey = $this->getUnstartedContextKey())) {
+            return Context::get($unstartedContextKey);
         }
 
         $user = null;
@@ -117,12 +127,18 @@ class SessionGuard implements StatefulGuard
 
     public function logout(): void
     {
-        Context::set($this->getContextKey(), null);
+        Context::destroy($this->getUnstartedContextKey());
+        Context::destroy($this->getContextKey());
         $this->session->remove($this->sessionKey());
     }
 
     public function setUser(Authenticatable $user): void
     {
+        if (! $this->session->isStarted()) {
+            Context::set($this->getUnstartedContextKey(), $user);
+            return;
+        }
+
         Context::set($this->getContextKey(), $user);
     }
 
