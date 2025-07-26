@@ -7,4 +7,5 @@ return [
     'lifetime' => 120,
     'store' => 'array',
     'cookie' => 'testing_session',
+    'lottery' => [0, 2],
 ];

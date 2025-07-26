@@ -224,7 +224,7 @@ class StartSession implements MiddlewareInterface
     {
         $config = $this->manager->getSessionConfig();
 
-        return $config['expire_on_close']
+        return ($config['expire_on_close'] ?? null)
             ? 0
             : Carbon::now()->addRealMinutes($config['lifetime']);
     }
