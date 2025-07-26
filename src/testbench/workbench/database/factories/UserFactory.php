@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use Carbon\Carbon;
 use Faker\Generator as Faker;
-use Hypervel\Tests\Foundation\Testing\Concerns\User;
+use Workbench\App\Models\User;
 
 /* @phpstan-ignore-next-line */
 $factory->define(User::class, function (Faker $faker) {
