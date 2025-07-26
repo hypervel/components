@@ -12,6 +12,8 @@ use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
+use function Hypervel\Config\config;
+
 class SanctumServiceProvider extends ServiceProvider
 {
     /**
@@ -77,7 +79,7 @@ class SanctumServiceProvider extends ServiceProvider
             '/',
             __DIR__ . '/../routes/web.php',
             [
-                'middleware' => ['web'],
+                'middleware' => config('sanctum.middleware', 'web'),
             ]
         );
     }
