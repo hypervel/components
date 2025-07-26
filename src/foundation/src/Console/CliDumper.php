@@ -11,53 +11,28 @@ use Symfony\Component\VarDumper\Cloner\Data;
 use Symfony\Component\VarDumper\Cloner\VarCloner;
 use Symfony\Component\VarDumper\Dumper\CliDumper as BaseCliDumper;
 use Symfony\Component\VarDumper\VarDumper;
+use \Symfony\Component\Console\Output\OutputInterface;
 
 class CliDumper extends BaseCliDumper
 {
     use ResolvesDumpSource;
 
     /**
-     * The base path of the application.
-     *
-     * @var string
-     */
-    protected $basePath;
-
-    /**
-     * The output instance.
-     *
-     * @var \Symfony\Component\Console\Output\OutputInterface
-     */
-    protected $output;
-
-    /**
-     * The compiled view path for the application.
-     *
-     * @var string
-     */
-    protected $compiledViewPath;
-
-    /**
      * If the dumper is currently dumping.
      *
      * @var bool
      */
-    protected $dumping = false;
+    protected bool $dumping = false;
 
     /**
      * Create a new CLI dumper instance.
-     *
-     * @param \Symfony\Component\Console\Output\OutputInterface $output
-     * @param string $basePath
-     * @param string $compiledViewPath
      */
-    public function __construct($output, $basePath, $compiledViewPath)
-    {
+    public function __construct(
+        protected OutputInterface $output,
+        protected string $basePath,
+        protected ?string $compiledViewPath,
+    ) {
         parent::__construct();
-
-        $this->basePath = $basePath;
-        $this->output = $output;
-        $this->compiledViewPath = $compiledViewPath;
 
         $this->setColors($this->supportsColors());
     }

@@ -186,7 +186,12 @@ class FoundationServiceProvider extends ServiceProvider
             'cli' == $format => CliDumper::register($basePath, $compiledViewPath),
             'server' == $format => null,
             $format && 'tcp' == parse_url($format, PHP_URL_SCHEME) => null,
-            default => in_array(PHP_SAPI, ['cli', 'phpdbg']) ? CliDumper::register($basePath, $compiledViewPath) : HtmlDumper::register($basePath, $compiledViewPath),
+            /**
+             * Regarding this, I am following the example of the UploadedFile class
+             * 
+             * @see \Hypervel\Http\UploadedFile::move()
+             */
+            default => php_sapi_name() === 'cli' ? CliDumper::register($basePath, $compiledViewPath) : HtmlDumper::register($basePath, $compiledViewPath),
         };
     }
 }

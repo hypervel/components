@@ -30,38 +30,20 @@ class HtmlDumper extends BaseHtmlDumper
     const NON_EXPANDED_SEPARATOR = "\n</pre><script>";
 
     /**
-     * The base path of the application.
-     *
-     * @var string
-     */
-    protected $basePath;
-
-    /**
-     * The compiled view path of the application.
-     *
-     * @var string
-     */
-    protected $compiledViewPath;
-
-    /**
      * If the dumper is currently dumping.
      *
      * @var bool
      */
-    protected $dumping = false;
+    protected bool $dumping = false;
 
     /**
      * Create a new HTML dumper instance.
-     *
-     * @param string $basePath
-     * @param string $compiledViewPath
      */
-    public function __construct($basePath, $compiledViewPath)
-    {
+    public function __construct(
+        protected string $basePath,
+        protected string $compiledViewPath,
+    ) {
         parent::__construct();
-
-        $this->basePath = $basePath;
-        $this->compiledViewPath = $compiledViewPath;
     }
 
     /**

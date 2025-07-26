@@ -13,7 +13,7 @@ trait ResolvesDumpSource
      *
      * @var array<string, string>
      */
-    protected $editorHrefs = [
+    protected array $editorHrefs = [
         'atom' => 'atom://core/open/file?filename={file}&line={line}',
         'cursor' => 'cursor://file/{file}:{line}',
         'emacs' => 'emacs://open?url=file://{file}&line={line}',
@@ -37,9 +37,8 @@ trait ResolvesDumpSource
      *
      * @var array<string, int>
      */
-    protected static $adjustableTraces = [
+    protected static array $adjustableTraces = [
         'symfony/var-dumper/Resources/functions/dump.php' => 1,
-        'Illuminate/Collections/Traits/EnumeratesValues.php' => 4,
     ];
 
     /**
@@ -47,14 +46,14 @@ trait ResolvesDumpSource
      *
      * @var null|(callable(): (array{0: string, 1: string, 2: int|null}|null))|false
      */
-    protected static $dumpSourceResolver;
+    protected static $dumpSourceResolver = null;
 
     /**
      * Resolve the source of the dump call.
      *
-     * @return null|void|array{0: string, 1: string, 2: int|null}
+     * @return null|array{0: string, 1: string, 2: int|null}
      */
-    public function resolveDumpSource()
+    public function resolveDumpSource(): ?array
     {
         if (static::$dumpSourceResolver === false) {
             return null;
@@ -89,14 +88,14 @@ trait ResolvesDumpSource
         }
 
         if (is_null($sourceKey)) {
-            return;
+            return null;
         }
 
         $file = $trace[$sourceKey]['file'] ?? null;
         $line = $trace[$sourceKey]['line'] ?? null;
 
         if (is_null($file) || is_null($line)) {
-            return;
+            return null;
         }
 
         $relativeFile = $file;
