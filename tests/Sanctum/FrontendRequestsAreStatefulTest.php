@@ -35,7 +35,6 @@ class FrontendRequestsAreStatefulTest extends TestCase
         parent::setUp();
 
         $this->app->get(ConfigInterface::class)->set([
-            'app.key' => 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF',
             'auth.guards.sanctum.driver' => 'sanctum',
             'auth.guards.sanctum.provider' => 'users',
             'auth.providers.users.model' => User::class,
