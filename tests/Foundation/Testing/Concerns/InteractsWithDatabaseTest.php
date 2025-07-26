@@ -7,11 +7,11 @@ namespace Hypervel\Tests\Foundation\Testing\Concerns;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Database\Model\FactoryBuilder;
 use Hyperf\Testing\ModelFactory;
-use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
 use ReflectionClass;
+use Workbench\App\Models\User;
 
 /**
  * @internal
@@ -94,9 +94,4 @@ class InteractsWithDatabaseTest extends TestCase
         return $this->app->get(ModelFactory::class)
             ->factory($class, ...$arguments);
     }
-}
-
-class User extends Model
-{
-    protected array $guarded = [];
 }
