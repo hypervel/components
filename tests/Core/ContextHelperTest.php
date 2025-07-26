@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Core;
 
+use ArrayObject;
 use PHPUnit\Framework\TestCase;
 use Hypervel\Context\Context;
 
@@ -30,11 +31,14 @@ class ContextHelperTest extends TestCase
     }
 
     /** @test */
-    public function itReturnsContextClassWhenNoArgumentsProvided(): void
+    public function itReturnsContextInstanceObjectWhenNoArgumentsProvided(): void
     {
         $result = context();
         
-        $this->assertEquals(Context::class, $result);
+        // is an object that has all methods of Context class
+        $this->isInstanceOf(ArrayObject::class, $result);
+        $result->set('test_key', 'test_value');
+        $this->assertEquals('test_value', $result->get('test_key'));
     }
 
     /** @test */
@@ -58,10 +62,15 @@ class ContextHelperTest extends TestCase
         ];
         
         $result = context($contextData);
-        
-        $this->assertEquals(Context::class, $result);
+
+        $this->isInstanceOf(ArrayObject::class, $result);
         $this->assertEquals(123, context('user_id'));
         $this->assertEquals('abc123', context('session_id'));
+
+        // Check if the context is set correctly
+        foreach ($contextData as $key => $value) {
+            $this->assertEquals($value, context($key));
+        }
     }
 
     /** @test */
