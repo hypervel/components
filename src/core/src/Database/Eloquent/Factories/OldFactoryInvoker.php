@@ -8,13 +8,17 @@ use Faker\Factory as FakerFactory;
 use Hyperf\Contract\ConfigInterface;
 use Psr\Container\ContainerInterface;
 
-class FactoryInvoker
+/**
+ * @deprecated Use `Hypervel\Database\Eloquent\Factories\Factory` instead.
+ * This class is kept for backward compatibility with older versions of Hypervel.
+ */
+class OldFactoryInvoker
 {
     public function __invoke(ContainerInterface $container)
     {
         $config = $container->get(ConfigInterface::class);
 
-        $factory = new Factory(
+        $factory = new OldFactory(
             FakerFactory::create($config->get('app.faker_locale', 'en_US'))
         );
 

@@ -4,81 +4,872 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Factories;
 
+use Carbon\Carbon;
+use Closure;
+use Faker\Generator;
+use Hyperf\Collection\Collection;
+use Hyperf\Collection\Enumerable;
 use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Database\Model\Factory as BaseFactory;
+use Hyperf\Database\Model\Collection as EloquentCollection;
+use Hyperf\Database\Model\Model;
+use Hyperf\Database\Model\SoftDeletes;
+use Hyperf\Stringable\Str;
+use Hyperf\Support\Traits\ForwardsCalls;
+use Hypervel\Foundation\Contracts\Application;
+use Hypervel\Support\Traits\Conditionable;
+use Hypervel\Support\Traits\Macroable;
+use Throwable;
 
-class Factory extends BaseFactory
+/**
+ * @template TModel of Model
+ */
+abstract class Factory
 {
-    /**
-     * Define a class with a given set of attributes.
-     *
-     * @param string $class
-     * @return $this
-     */
-    public function define($class, callable $attributes, ?string $name = null)
-    {
-        $name = $name ?: $this->getConnection();
-
-        return parent::define($class, $attributes, $name);
+    use Conditionable, ForwardsCalls, Macroable {
+        __call as macroCall;
     }
 
     /**
-     * Define a callback to run after making a model.
+     * The name of the factory's corresponding model.
      *
-     * @param string $class
-     * @return $this
+     * @var class-string<TModel>
      */
-    public function afterMaking($class, callable $callback, ?string $name = null)
-    {
-        $name = $name ?: $this->getConnection();
+    protected $model;
 
-        return parent::afterMaking($class, $callback, $name);
+    /**
+     * The number of models that should be generated.
+     */
+    protected ?int $count;
+
+    /**
+     * The state transformations that will be applied to the model.
+     */
+    protected Collection $states;
+
+    /**
+     * The parent relationships that will be applied to the model.
+     */
+    protected Collection $has;
+
+    /**
+     * The child relationships that will be applied to the model.
+     */
+    protected Collection $for;
+
+    /**
+     * The model instances to always use when creating relationships.
+     */
+    protected Collection $recycle;
+
+    /**
+     * The "after making" callbacks that will be applied to the model.
+     */
+    protected Collection $afterMaking;
+
+    /**
+     * The "after creating" callbacks that will be applied to the model.
+     */
+    protected Collection $afterCreating;
+
+    /**
+     * Whether relationships should not be automatically created.
+     */
+    protected bool $expandRelationships = true;
+
+    /**
+     * The name of the database connection that will be used to create the models.
+     */
+    protected ?string $connection;
+
+    /**
+     * The current Faker instance.
+     */
+    protected Generator $faker;
+
+    /**
+     * The default namespace where factories reside.
+     */
+    public static $namespace = 'Database\Factories\\';
+
+    /**
+     * The default model name resolver.
+     *
+     * @var callable(self): class-string<TModel>
+     */
+    protected static $modelNameResolver;
+
+    /**
+     * The factory name resolver.
+     *
+     * @var callable(class-string<Model>): class-string<Factory>
+     */
+    protected static $factoryNameResolver;
+
+    /**
+     * Create a new factory instance.
+     */
+    public function __construct(
+        ?int $count = null,
+        ?Collection $states = null,
+        ?Collection $has = null,
+        ?Collection $for = null,
+        ?Collection $afterMaking = null,
+        ?Collection $afterCreating = null,
+        ?string $connection = null,
+        ?Collection $recycle = null,
+        bool $expandRelationships = true
+    ) {
+        $this->count = $count;
+        $this->states = $states ?? new Collection();
+        $this->has = $has ?? new Collection();
+        $this->for = $for ?? new Collection();
+        $this->afterMaking = $afterMaking ?? new Collection();
+        $this->afterCreating = $afterCreating ?? new Collection();
+        $this->connection = $connection;
+        $this->recycle = $recycle ?? new Collection();
+        $this->faker = $this->withFaker();
+        $this->expandRelationships = $expandRelationships;
     }
 
     /**
-     * Define a callback to run after creating a model.
+     * Define the model's default state.
      *
-     * @param string $class
-     * @return $this
+     * @return array<string, mixed>
      */
-    public function afterCreating($class, callable $callback, ?string $name = null)
-    {
-        $name = $name ?: $this->getConnection();
+    abstract public function definition();
 
-        return parent::afterCreating($class, $callback, $name);
+    /**
+     * Get a new factory instance for the given attributes.
+     *
+     * @param array<string, mixed>|(callable(array<string, mixed>): array<string, mixed>) $attributes
+     */
+    public static function new($attributes = []): self
+    {
+        return (new static())->state($attributes)->configure();
     }
 
     /**
-     * Get the raw attribute array for a given model.
-     *
-     * @param string $class
+     * Get a new factory instance for the given number of models.
      */
-    public function raw($class, array $attributes = [], ?string $name = null): array
+    public static function times(int $count): self
     {
-        $name = $name ?: $this->getConnection();
-
-        return parent::raw($class, $attributes, $name);
+        return static::new()->count($count);
     }
 
     /**
-     * Create a builder for the given model.
-     *
-     * @param string $class
-     * @return \Hyperf\Database\Model\FactoryBuilder
+     * Configure the factory.
      */
-    public function of($class, ?string $name = null)
+    public function configure(): self
     {
-        $name = $name ?: $this->getConnection();
-
-        return parent::of($class, $name)
-            ->connection($name);
+        return $this;
     }
 
-    protected function getConnection(): string
+    /**
+     * Get the raw attributes generated by the factory.
+     *
+     * @param array<string, mixed>|(callable(array<string, mixed>): array<string, mixed>) $attributes
+     * @return array<int|string, mixed>
+     */
+    public function raw(array|callable $attributes = [], ?Model $parent = null): array
     {
-        return ApplicationContext::getContainer()
-            ->get(ConfigInterface::class)
-            ->get('database.default');
+        if ($this->count === null) {
+            return $this->state($attributes)->getExpandedAttributes($parent);
+        }
+
+        return array_map(
+            fn () => $this->state($attributes)->getExpandedAttributes($parent),
+            range(1, $this->count),
+        );
+    }
+
+    /**
+     * Create a single model and persist it to the database.
+     *
+     * @param array<string, mixed>|(callable(array<string, mixed>): array<string, mixed>) $attributes
+     * @return TModel
+     */
+    public function createOne(array|callable $attributes = []): Model
+    {
+        return $this->count(null)->create($attributes);
+    }
+
+    /**
+     * Create a single model and persist it to the database without dispatching any model events.
+     *
+     * @return TModel
+     */
+    // withoutEvents not supported in Hyperf
+    // public function createOneQuietly(array|callable $attributes = []): Model
+    // {
+    //     return $this->count(null)->createQuietly($attributes);
+    // }
+
+    /**
+     * Create a collection of models and persist them to the database.
+     *
+     * @param null|int|iterable<int, array<string, mixed>> $records
+     * @return EloquentCollection<int, TModel>
+     */
+    public function createMany(null|int|iterable $records = null): EloquentCollection
+    {
+        $records ??= ($this->count ?? 1);
+
+        $this->count = null;
+
+        if (is_numeric($records)) {
+            $records = array_fill(0, $records, []);
+        }
+
+        /** @var EloquentCollection<int, TModel> */
+        return new EloquentCollection(
+            (new Collection($records))->map(function ($record) {
+                return $this->state($record)->create();
+            })
+        );
+    }
+
+    /**
+     * Create a collection of models and persist them to the database without dispatching any model events.
+     *
+     * @return EloquentCollection<int, TModel>
+     */
+    // withoutEvents not supported in Hyperf
+    // public function createManyQuietly(null|int|iterable $records = null)
+    // {
+    //     return Model::withoutEvents(fn () => $this->createMany($records));
+    // }
+
+    /**
+     * Create a collection of models and persist them to the database.
+     *
+     * @param array<string, mixed>|(callable(array<string, mixed>): array<string, mixed>) $attributes
+     * @param null|TModel $parent
+     * @return EloquentCollection<int, TModel>|TModel
+     */
+    public function create(array|callable $attributes = [], ?Model $parent = null): EloquentCollection|Model
+    {
+        if (! empty($attributes)) {
+            return $this->state($attributes)->create([], $parent);
+        }
+
+        $results = $this->make($attributes, $parent);
+
+        if ($results instanceof Model) {
+            $this->store(new Collection([$results]));
+
+            $this->callAfterCreating(new Collection([$results]), $parent);
+        } else {
+            $this->store($results);
+
+            $this->callAfterCreating($results, $parent);
+        }
+
+        return $results;
+    }
+
+    /**
+     * Create a collection of models and persist them to the database without dispatching any model events.
+     *
+     * @param array<string, mixed>|(callable(array<string, mixed>): array<string, mixed>) $attributes
+     * @param null|TModel $parent
+     * @return EloquentCollection<int, TModel>|TModel
+     */
+    // withoutEvents not supported in Hyperf
+    // public function createQuietly(array|callable $attributes = [], ?Model $parent = null): EloquentCollection|Model
+    // {
+    //     return Model::withoutEvents(fn () => $this->create($attributes, $parent));
+    // }
+
+    /**
+     * Create a callback that persists a model in the database when invoked.
+     *
+     * @param array<string, mixed>|(callable(array<string, mixed>): array<string, mixed>) $attributes
+     * @return Closure(): (EloquentCollection<int, TModel>|TModel)
+     */
+    public function lazy(array|callable $attributes = [], ?Model $parent = null)
+    {
+        return fn () => $this->create($attributes, $parent);
+    }
+
+    /**
+     * Set the connection name on the results and store them.
+     *
+     * @param Collection<int, TModel> $results
+     */
+    protected function store(Collection $results): void
+    {
+        $results->each(function ($model) {
+            if (! isset($this->connection)) {
+                /* @phpstan-ignore-next-line */
+                $model->setConnection($model->newQueryWithoutScopes()->getConnection()->getName());
+            }
+
+            $model->save();
+
+            foreach ($model->getRelations() as $name => $items) {
+                if ($items instanceof Enumerable && $items->isEmpty()) {
+                    $model->unsetRelation($name);
+                }
+            }
+
+            $this->createChildren($model);
+        });
+    }
+
+    /**
+     * Create the children for the given model.
+     *
+     * @param TModel $model
+     */
+    protected function createChildren(Model $model): void
+    {
+        Model::unguarded(function () use ($model) {
+            $this->has->each(function ($has) use ($model) {
+                $has->recycle($this->recycle)->createFor($model);
+            });
+        });
+    }
+
+    /**
+     * Make a single instance of the model.
+     *
+     * @param array<string, mixed>|(callable(array<string, mixed>): array<string, mixed>) $attributes
+     * @return TModel
+     */
+    public function makeOne(array|callable $attributes = []): Model
+    {
+        return $this->count(null)->make($attributes);
+    }
+
+    /**
+     * Create a collection of models.
+     *
+     * @param array<string, mixed>|(callable(array<string, mixed>): array<string, mixed>) $attributes
+     * @return EloquentCollection<int, TModel>|TModel
+     */
+    public function make(array|callable $attributes = [], ?Model $parent = null): EloquentCollection|Model
+    {
+        if (! empty($attributes)) {
+            return $this->state($attributes)->make([], $parent);
+        }
+
+        if ($this->count === null) {
+            return tap($this->makeInstance($parent), function ($instance) {
+                $this->callAfterMaking(new Collection([$instance]));
+            });
+        }
+
+        if ($this->count < 1) {
+            return $this->newModel()->newCollection();
+        }
+
+        $instances = $this->newModel()->newCollection(array_map(function () use ($parent) {
+            return $this->makeInstance($parent);
+        }, range(1, $this->count)));
+
+        $this->callAfterMaking($instances);
+
+        return $instances;
+    }
+
+    /**
+     * Make an instance of the model with the given attributes.
+     *
+     * @return TModel
+     */
+    protected function makeInstance(?Model $parent): Model
+    {
+        return Model::unguarded(function () use ($parent) {
+            return tap($this->newModel($this->getExpandedAttributes($parent)), function ($instance) {
+                if (isset($this->connection)) {
+                    $instance->setConnection($this->connection);
+                }
+            });
+        });
+    }
+
+    /**
+     * Get a raw attributes array for the model.
+     *
+     * @return array<string, mixed>
+     */
+    protected function getExpandedAttributes(?Model $parent): array
+    {
+        return $this->expandAttributes($this->getRawAttributes($parent));
+    }
+
+    /**
+     * Get the raw attributes for the model as an array.
+     *
+     * @return array<string, mixed>
+     */
+    protected function getRawAttributes(?Model $parent): array
+    {
+        return $this->states->pipe(function ($states) {
+            return $this->for->isEmpty() ? $states : new Collection(array_merge([function () {
+                return $this->parentResolvers();
+            }], $states->all()));
+        })->reduce(function ($carry, $state) use ($parent) {
+            return array_merge($carry, $state($carry, $parent));
+        }, $this->definition());
+    }
+
+    /**
+     * Create the parent relationship resolvers (as deferred Closures).
+     *
+     * @return array<string, Closure|string>
+     */
+    protected function parentResolvers(): array
+    {
+        return $this->for
+            ->map(fn (BelongsToRelationship $for) => $for->recycle($this->recycle)->attributesFor($this->newModel()))
+            ->collapse()
+            ->all();
+    }
+
+    /**
+     * Expand all attributes to their underlying values.
+     *
+     * @param array<string, mixed> $definition
+     * @return array<string, mixed>
+     */
+    protected function expandAttributes(array $definition): array
+    {
+        return (new Collection($definition))
+            ->map($evaluateRelations = function ($attribute) {
+                if (! $this->expandRelationships && $attribute instanceof self) {
+                    $attribute = null;
+                } elseif ($attribute instanceof self) {
+                    $attribute = $this->getRandomRecycledModel($attribute->modelName())?->getKey()
+                        ?? $attribute->recycle($this->recycle)->create()->getKey();
+                } elseif ($attribute instanceof Model) {
+                    $attribute = $attribute->getKey();
+                }
+
+                return $attribute;
+            })
+            ->map(function ($attribute, $key) use (&$definition, $evaluateRelations) {
+                if (is_callable($attribute) && ! is_string($attribute) && ! is_array($attribute)) {
+                    $attribute = $attribute($definition);
+                }
+
+                $attribute = $evaluateRelations($attribute);
+
+                $definition[$key] = $attribute;
+
+                return $attribute;
+            })
+            ->all();
+    }
+
+    /**
+     * Add a new state transformation to the model definition.
+     *
+     * @param array<string, mixed>|(callable(array<string, mixed>, ?Model): array<string, mixed>) $state
+     */
+    public function state(array|callable $state): self
+    {
+        return $this->newInstance([
+            'states' => $this->states->concat([
+                is_callable($state) ? $state : fn () => $state,
+            ]),
+        ]);
+    }
+
+    /**
+     * Set a single model attribute.
+     */
+    public function set(int|string $key, mixed $value): self
+    {
+        return $this->state([$key => $value]);
+    }
+
+    /**
+     * Add a new sequenced state transformation to the model definition.
+     *
+     * @param array<string, mixed>|callable(Sequence): array<string, mixed> ...$sequence
+     */
+    public function sequence(...$sequence): self
+    {
+        return $this->state(new Sequence(...$sequence));
+    }
+
+    /**
+     * Add a new sequenced state transformation to the model definition and update the pending creation count to the size of the sequence.
+     *
+     * @param array<string, mixed>|callable(Sequence): array<string, mixed> ...$sequence
+     */
+    public function forEachSequence(...$sequence): self
+    {
+        return $this->state(new Sequence(...$sequence))->count(count($sequence));
+    }
+
+    /**
+     * Add a new cross joined sequenced state transformation to the model definition.
+     */
+    public function crossJoinSequence(...$sequence): self
+    {
+        return $this->state(new CrossJoinSequence(...$sequence));
+    }
+
+    /**
+     * Define a child relationship for the model.
+     */
+    public function has(self $factory, ?string $relationship = null): self
+    {
+        return $this->newInstance([
+            'has' => $this->has->concat([new Relationship(
+                $factory,
+                $relationship ?? $this->guessRelationship($factory->modelName())
+            )]),
+        ]);
+    }
+
+    /**
+     * Attempt to guess the relationship name for a "has" relationship.
+     */
+    protected function guessRelationship(string $related): string
+    {
+        $guess = Str::camel(Str::plural(class_basename($related)));
+
+        return method_exists($this->modelName(), $guess) ? $guess : Str::singular($guess);
+    }
+
+    /**
+     * Define an attached relationship for the model.
+     *
+     * @param array<string, mixed>|(callable(): array<string, mixed>) $pivot
+     */
+    public function hasAttached(array|Collection|Factory|Model $factory, array|callable $pivot = [], ?string $relationship = null): self
+    {
+        return $this->newInstance([
+            'has' => $this->has->concat([new BelongsToManyRelationship(
+                $factory,
+                $pivot,
+                $relationship ?? Str::camel(Str::plural(class_basename(
+                    $factory instanceof Factory
+                        ? $factory->modelName()
+                        : Collection::wrap($factory)->first()
+                )))
+            )]),
+        ]);
+    }
+
+    /**
+     * Define a parent relationship for the model.
+     */
+    public function for(Factory|Model $factory, ?string $relationship = null): self
+    {
+        return $this->newInstance(['for' => $this->for->concat([new BelongsToRelationship(
+            $factory,
+            $relationship ?? Str::camel(class_basename(
+                $factory instanceof Factory ? $factory->modelName() : $factory
+            ))
+        )])]);
+    }
+
+    /**
+     * Provide model instances to use instead of any nested factory calls when creating relationships.
+     */
+    public function recycle(array|Collection|Model $model): self
+    {
+        // Group provided models by the type and merge them into existing recycle collection
+        return $this->newInstance([
+            'recycle' => $this->recycle
+                ->flatten()
+                ->merge(
+                    Collection::wrap($model instanceof Model ? func_get_args() : $model)
+                        ->flatten()
+                )->groupBy(fn ($model) => get_class($model)),
+        ]);
+    }
+
+    /**
+     * Retrieve a random model of a given type from previously provided models to recycle.
+     *
+     * @template TClass of Model
+     *
+     * @param class-string<TClass> $modelClassName
+     * @return null|TClass
+     */
+    public function getRandomRecycledModel(string $modelClassName): ?Model
+    {
+        return $this->recycle->get($modelClassName)?->random();
+    }
+
+    /**
+     * Add a new "after making" callback to the model definition.
+     *
+     * @param Closure(TModel): mixed $callback
+     */
+    public function afterMaking(Closure $callback): self
+    {
+        return $this->newInstance(['afterMaking' => $this->afterMaking->concat([$callback])]);
+    }
+
+    /**
+     * Add a new "after creating" callback to the model definition.
+     *
+     * @param Closure(TModel, null|Model): mixed $callback
+     */
+    public function afterCreating(Closure $callback): self
+    {
+        return $this->newInstance(['afterCreating' => $this->afterCreating->concat([$callback])]);
+    }
+
+    /**
+     * Call the "after making" callbacks for the given model instances.
+     */
+    protected function callAfterMaking(Collection $instances): void
+    {
+        $instances->each(function ($model) {
+            $this->afterMaking->each(function ($callback) use ($model) {
+                $callback($model);
+            });
+        });
+    }
+
+    /**
+     * Call the "after creating" callbacks for the given model instances.
+     */
+    protected function callAfterCreating(Collection $instances, ?Model $parent = null): void
+    {
+        $instances->each(function ($model) use ($parent) {
+            $this->afterCreating->each(function ($callback) use ($model, $parent) {
+                $callback($model, $parent);
+            });
+        });
+    }
+
+    /**
+     * Specify how many models should be generated.
+     */
+    public function count(?int $count): self
+    {
+        return $this->newInstance(['count' => $count]);
+    }
+
+    /**
+     * Indicate that related parent models should not be created.
+     */
+    public function withoutParents(): self
+    {
+        return $this->newInstance(['expandRelationships' => false]);
+    }
+
+    /**
+     * Get the name of the database connection that is used to generate models.
+     */
+    public function getConnectionName(): string
+    {
+        return $this->connection;
+    }
+
+    /**
+     * Specify the database connection that should be used to generate models.
+     */
+    public function connection(string $connection): self
+    {
+        return $this->newInstance(['connection' => $connection]);
+    }
+
+    /**
+     * Create a new instance of the factory builder with the given mutated properties.
+     *
+     * @param array<string, mixed> $arguments
+     */
+    protected function newInstance(array $arguments = []): self
+    {
+        return new static(...array_values(array_merge([
+            'count' => $this->count,
+            'states' => $this->states,
+            'has' => $this->has,
+            'for' => $this->for,
+            'afterMaking' => $this->afterMaking,
+            'afterCreating' => $this->afterCreating,
+            'connection' => $this->connection,
+            'recycle' => $this->recycle,
+            'expandRelationships' => $this->expandRelationships,
+        ], $arguments)));
+    }
+
+    /**
+     * Get a new model instance.
+     *
+     * @param array<string, mixed> $attributes
+     * @return TModel
+     */
+    public function newModel(array $attributes = []): Model
+    {
+        $model = $this->modelName();
+
+        return new $model($attributes);
+    }
+
+    /**
+     * Get the name of the model that is generated by the factory.
+     *
+     * @return class-string<TModel>
+     */
+    public function modelName(): string
+    {
+        if ($this->model !== null) {
+            return $this->model;
+        }
+
+        $resolver = static::$modelNameResolver ?? function (self $factory) {
+            $namespacedFactoryBasename = Str::replaceLast(
+                'Factory',
+                '',
+                Str::replaceFirst(static::$namespace, '', get_class($factory))
+            );
+
+            $factoryBasename = Str::replaceLast('Factory', '', class_basename($factory));
+
+            $appNamespace = static::appNamespace();
+
+            return class_exists($appNamespace . 'Models\\' . $namespacedFactoryBasename)
+                        ? $appNamespace . 'Models\\' . $namespacedFactoryBasename
+                        : $appNamespace . $factoryBasename;
+        };
+
+        return $resolver($this);
+    }
+
+    /**
+     * Specify the callback that should be invoked to guess model names based on factory names.
+     *
+     * @param callable(self): class-string<TModel> $callback
+     */
+    public static function guessModelNamesUsing(callable $callback): void
+    {
+        static::$modelNameResolver = $callback;
+    }
+
+    /**
+     * Specify the default namespace that contains the application's model factories.
+     */
+    public static function useNamespace(string $namespace): void
+    {
+        static::$namespace = $namespace;
+    }
+
+    /**
+     * Get a new factory instance for the given model name.
+     *
+     * @template TClass of Model
+     *
+     * @param class-string<TClass> $modelName
+     * @return Factory<TClass>
+     */
+    public static function factoryForModel(string $modelName): Factory
+    {
+        $factory = static::resolveFactoryName($modelName);
+
+        return $factory::new();
+    }
+
+    /**
+     * Specify the callback that should be invoked to guess factory names based on dynamic relationship names.
+     *
+     * @param callable(class-string<Model>): class-string<Factory> $callback
+     */
+    public static function guessFactoryNamesUsing(callable $callback): void
+    {
+        static::$factoryNameResolver = $callback;
+    }
+
+    /**
+     * Get a new Faker instance.
+     */
+    protected function withFaker(): Generator
+    {
+        return ApplicationContext::getContainer()->get(Generator::class);
+    }
+
+    /**
+     * Get the factory name for the given model name.
+     *
+     * @template TClass of Model
+     *
+     * @param class-string<TClass> $modelName
+     * @return class-string<Factory<TClass>>
+     */
+    public static function resolveFactoryName(string $modelName): string
+    {
+        $resolver = static::$factoryNameResolver ?? function (string $modelName) {
+            $appNamespace = static::appNamespace();
+
+            $modelName = Str::startsWith($modelName, $appNamespace . 'Models\\')
+                ? Str::after($modelName, $appNamespace . 'Models\\')
+                : Str::after($modelName, $appNamespace);
+
+            return static::$namespace . $modelName . 'Factory';
+        };
+
+        return $resolver($modelName);
+    }
+
+    /**
+     * Get the application namespace for the application.
+     *
+     * @return string
+     */
+    protected static function appNamespace()
+    {
+        try {
+            return ApplicationContext::getContainer()
+                ->get(Application::class)
+                ->getNamespace();
+        } catch (Throwable $e) {
+            return 'App\\';
+        }
+    }
+
+    /**
+     * Proxy dynamic factory methods onto their proper methods.
+     *
+     * @param string $method
+     * @param array $parameters
+     * @return mixed
+     */
+    public function __call($method, $parameters)
+    {
+        if (static::hasMacro($method)) {
+            return $this->macroCall($method, $parameters);
+        }
+
+        if ($method === 'trashed' && in_array(SoftDeletes::class, class_uses_recursive($this->modelName()))) {
+            return $this->state([
+                /* @phpstan-ignore-next-line */
+                $this->newModel()->getDeletedAtColumn() => $parameters[0] ?? Carbon::now()->subDay(),
+            ]);
+        }
+
+        if (! Str::startsWith($method, ['for', 'has'])) {
+            static::throwBadMethodCallException($method);
+        }
+
+        $relationship = Str::camel(Str::substr($method, 3));
+
+        $relatedModel = get_class($this->newModel()->{$relationship}()->getRelated());
+
+        if (method_exists($relatedModel, 'newFactory')) {
+            $factory = $relatedModel::newFactory() ?? static::factoryForModel($relatedModel);
+        } else {
+            $factory = static::factoryForModel($relatedModel);
+        }
+
+        if (str_starts_with($method, 'for')) {
+            return $this->for($factory->state($parameters[0] ?? []), $relationship);
+        }
+        if (str_starts_with($method, 'has')) {
+            return $this->has(
+                $factory
+                    ->count(is_numeric($parameters[0] ?? null) ? $parameters[0] : 1)
+                    ->state((is_callable($parameters[0] ?? null) || is_array($parameters[0] ?? null)) ? $parameters[0] : ($parameters[1] ?? [])),
+                $relationship
+            );
+        }
     }
 }
