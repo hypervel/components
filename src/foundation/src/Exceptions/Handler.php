@@ -32,6 +32,7 @@ use Hypervel\HttpMessage\Exceptions\HttpResponseException;
 use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
 use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Session\TokenMismatchException;
 use Hypervel\Support\Contracts\Responsable;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Reflector;
@@ -112,6 +113,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
         HyperfHttpException::class,
         HttpResponseException::class,
         ModelNotFoundException::class,
+        TokenMismatchException::class,
         ValidationException::class,
     ];
 
