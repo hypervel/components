@@ -28,4 +28,9 @@ interface ExceptionHandler
      * @throws Throwable
      */
     public function render(Request $request, Throwable $e): ResponseInterface;
+
+    /**
+     * Register a callback to be called after an HTTP error response is rendered.
+     */
+    public function afterErrorResponse(callable $callback): void;
 }
