@@ -997,7 +997,6 @@ class RequestTest extends TestCase
 
     public function testFullUrlIs()
     {
-        Context::destroy(ServerRequestInterface::class);
         $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getQueryParams')->andReturn(['key' => 'value']);
         $psrRequest->shouldReceive('getServerParams')->andReturn(['query_string' => 'key=value', 'request_uri' => '/api/users?key=value']);
@@ -1019,7 +1018,6 @@ class RequestTest extends TestCase
 
     public function testFullUrlIsWithoutQuery()
     {
-        Context::destroy(ServerRequestInterface::class);
         $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         $psrRequest->shouldReceive('getServerParams')->andReturn(['query_string' => '', 'request_uri' => '/api/users']);
