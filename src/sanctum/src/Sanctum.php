@@ -6,7 +6,6 @@ namespace Hypervel\Sanctum;
 
 use Hypervel\Auth\AuthManager;
 use Hypervel\Context\ApplicationContext;
-use Hypervel\Context\Context;
 use Mockery;
 use Mockery\MockInterface;
 
@@ -75,9 +74,6 @@ class Sanctum
         // Set the user on the guard
         $authManager = ApplicationContext::getContainer()->get(AuthManager::class);
         $authManager->guard($guard)->setUser($user);
-
-        Context::set('__sanctum.acting_as_user', $user);
-        Context::set('__sanctum.acting_as_guard', $guard);
 
         return $user;
     }

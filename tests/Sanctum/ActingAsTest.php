@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hyperf\Contract\ConfigInterface;
+use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
 use Hypervel\Context\Context;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
@@ -57,8 +58,6 @@ class ActingAsTest extends TestCase
         $result = Sanctum::actingAs($user);
 
         $this->assertSame($user, $result);
-        $this->assertSame($user, Context::get('__sanctum.acting_as_user'));
-        $this->assertEquals('sanctum', Context::get('__sanctum.acting_as_guard'));
     }
 
     public function testActingAsWithAbilitiesSetsTokenWithCorrectAbilities(): void
@@ -92,8 +91,7 @@ class ActingAsTest extends TestCase
 
         Sanctum::actingAs($user, ['read'], 'api');
 
-        $this->assertSame($user, Context::get('__sanctum.acting_as_user'));
-        $this->assertEquals('api', Context::get('__sanctum.acting_as_guard'));
+        $this->assertSame($user, $this->app->get(AuthFactoryContract::class)->guard('api')->user());
     }
 
     public function testActingAsRemovesRecentlyCreatedFlag(): void
