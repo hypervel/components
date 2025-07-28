@@ -458,7 +458,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
             $response = $response->getPsr7Response();
         }
 
-        if ($callbacks = $this->afterErrorResponseCallbacks()) {
+        if ($callbacks = $this->afterResponseCallbacks()) {
             foreach ($callbacks as $callback) {
                 $response = $callback($response, $e, $request);
             }
@@ -522,9 +522,9 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
     /**
      * Register a callback to be called after an HTTP error response is rendered.
      */
-    public function afterErrorResponse(callable $callback): void
+    public function afterResponse(callable $callback): void
     {
-        Context::override('__errors.handler.afterErrorResponse', function ($callbacks) use ($callback) {
+        Context::override('__errors.handler.afterResponse', function ($callbacks) use ($callback) {
             $callbacks = $callbacks ?: [];
             $callbacks[] = $callback;
 
@@ -535,9 +535,9 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
     /**
      * Get the callbacks that should be called after an HTTP error response is rendered.
      */
-    protected function afterErrorResponseCallbacks(): array
+    protected function afterResponseCallbacks(): array
     {
-        return Context::get('__errors.handler.afterErrorResponse', []);
+        return Context::get('__errors.handler.afterResponse', []);
     }
 
     /**

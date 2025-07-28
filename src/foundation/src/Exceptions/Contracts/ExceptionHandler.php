@@ -32,5 +32,5 @@ interface ExceptionHandler
     /**
      * Register a callback to be called after an HTTP error response is rendered.
      */
-    public function afterErrorResponse(callable $callback): void;
+    public function afterResponse(callable $callback): void;
 }
