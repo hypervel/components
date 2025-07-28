@@ -502,9 +502,9 @@ class FoundationExceptionHandlerTest extends TestCase
         $this->assertSame($reported, [$one, $two]);
     }
 
-    public function testAfterErrorResponseCallbacks()
+    public function testAfterResponseCallbacks()
     {
-        $this->handler->afterErrorResponse(function (ResponseInterface $response) {
+        $this->handler->afterResponse(function (ResponseInterface $response) {
             return $response->withHeader('X-After-Error', 'true');
         });
         $this->request->shouldReceive('expectsJson')->once()->andReturn(true);
