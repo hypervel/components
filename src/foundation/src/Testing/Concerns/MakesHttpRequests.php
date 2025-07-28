@@ -32,6 +32,11 @@ trait MakesHttpRequests
      */
     protected bool $withCredentials = false;
 
+    protected function options($uri, array $data = [], array $headers = []): TestResponse
+    {
+        return $this->doRequest(__FUNCTION__, $uri, $data, $headers);
+    }
+
     protected function get($uri, array $data = [], array $headers = []): TestResponse
     {
         return $this->doRequest(__FUNCTION__, $uri, $data, $headers);
