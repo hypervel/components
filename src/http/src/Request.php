@@ -11,6 +11,7 @@ use Hyperf\Collection\Arr;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\HttpServer\Request as HyperfRequest;
+use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\Stringable\Str;
 use Hypervel\Context\RequestContext;
 use Hypervel\Http\Contracts\RequestContract;
@@ -658,6 +659,68 @@ class Request extends HyperfRequest implements RequestContract
         return count($query) > 0
             ? $this->url() . $question . Arr::query($query)
             : $this->url();
+    }
+
+    /**
+     * Get the dispatched route.
+     */
+    public function getDispatchedRoute(): Dispatched
+    {
+        return $this->getAttribute(Dispatched::class);
+    }
+
+    /**
+     * Get a segment from the URI (1 based index).
+     */
+    public function segment(int $index, ?string $default = null): ?string
+    {
+        return $this->segments()[$index - 1] ?? $default;
+    }
+
+    /**
+     * Get all of the segments for the request path.
+     */
+    public function segments(): array
+    {
+        $segments = explode('/', $this->decodedPath());
+
+        return array_values(array_filter($segments, function ($value) {
+            return $value !== '';
+        }));
+    }
+
+    /**
+     * Determine if the route name matches a given pattern.
+     */
+    public function routeIs(mixed ...$patterns): bool
+    {
+        $routeOptions = $this->getDispatchedRoute()->handler->options ?? [];
+        if (is_null($routeName = $routeOptions['as'] ?? null)) {
+            return false;
+        }
+
+        foreach ($patterns as $pattern) {
+            if (Str::is($pattern, $routeName)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine if the current request URL and query string match a pattern.
+     */
+    public function fullUrlIs(mixed ...$patterns): bool
+    {
+        $fullUrl = $this->fullUrl();
+        foreach ($patterns as $pattern) {
+            if (Str::is($pattern, $fullUrl)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

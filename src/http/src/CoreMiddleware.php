@@ -193,7 +193,13 @@ class CoreMiddleware implements CoreMiddlewareInterface
      */
     protected function handleMethodNotAllowed(array $methods, ServerRequestInterface $request): mixed
     {
-        throw new MethodNotAllowedHttpException('Allow: ' . implode(', ', $methods));
+        $allowedMethods = implode(', ', $methods);
+        if ($request->getMethod() === 'OPTIONS') {
+            return $this->response()
+                ->withHeader('Allow', $allowedMethods);
+        }
+
+        throw new MethodNotAllowedHttpException("Allow: {$allowedMethods}");
     }
 
     protected function prepareHandler(array|string $handler): array

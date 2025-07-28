@@ -43,12 +43,12 @@ class RouteCollector extends BaseRouteCollector
     /**
      * Adds a GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS route to the collection.
      *
-     * This is simply an alias of $this->addRoute([GET, POST, PUT, DELETE, PATCH, HEAD], $route, $handler)
+     * This is simply an alias of $this->addRoute([GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS], $route, $handler)
      * @param array|string $handler
      */
     public function any(string $route, mixed $handler, array $options = []): void
     {
-        $this->addRoute(['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD'], $route, $handler, $options);
+        $this->addRoute(['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'], $route, $handler, $options);
     }
 
     public function addRoute(array|string $httpMethod, string $route, mixed $handler, array $options = []): void
