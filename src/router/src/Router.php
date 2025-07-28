@@ -7,6 +7,8 @@ namespace Hypervel\Router;
 use Closure;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Database\Model\Model;
+use Hyperf\HttpServer\Request;
+use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\HttpServer\Router\DispatcherFactory;
 use Hyperf\HttpServer\Router\RouteCollector;
 use RuntimeException;
@@ -107,6 +109,22 @@ class Router
     public function getExplicitBinding(string $param): ?Closure
     {
         return $this->explicitBindings[$param] ?? null;
+    }
+
+    public function current(): ?Dispatched
+    {
+        return ApplicationContext::getContainer()
+            ->get(Request::class)
+            ->getAttribute(Dispatched::class);
+    }
+
+    public function currentRouteName(): ?string
+    {
+        if (! $handler = $this->current()->handler ?? null) {
+            return null;
+        }
+
+        return $handler->options['as'] ?? null;
     }
 
     public static function __callStatic(string $name, array $arguments)
