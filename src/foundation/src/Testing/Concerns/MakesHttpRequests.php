@@ -151,14 +151,8 @@ trait MakesHttpRequests
             ? $this->defaultCookies
             : [];
 
-        $client = $this->app->make(TestClient::class)
-            ->setGlobalMiddleware($this->globalMiddleware)
-            ->setMiddlewareGroups($this->middlewareGroups)
-            ->setMiddlewareAliases($this->middlewareAliases)
-            ->setMiddlewarePriority($this->middlewarePriority);
-
         $response = $this->createTestResponse(
-            $client->{$method}(
+            $this->getTestingClient()->{$method}(
                 $this->prepareUrlForRequest($uri),
                 $data,
                 array_merge($this->defaultHeaders, $headers),
@@ -173,6 +167,25 @@ trait MakesHttpRequests
         $this->flushRequestStates();
 
         return $response;
+    }
+
+    protected function getTestingClient(): TestClient
+    {
+        $client = $this->app->make(TestClient::class);
+        if ($this->globalMiddleware) {
+            $client->setGlobalMiddleware($this->globalMiddleware);
+        }
+        if ($this->middlewareGroups) {
+            $client->setMiddlewareGroups($this->middlewareGroups);
+        }
+        if ($this->middlewareAliases) {
+            $client->setMiddlewareAliases($this->middlewareAliases);
+        }
+        if ($this->middlewarePriority) {
+            $client->setMiddlewarePriority($this->middlewarePriority);
+        }
+
+        return $client;
     }
 
     /**
