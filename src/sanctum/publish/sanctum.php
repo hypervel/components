@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-use Hypervel\Sanctum\Sanctum;
-
 return [
     /*
     |--------------------------------------------------------------------------
