@@ -53,7 +53,7 @@ use Hypervel\Http\Contracts\RequestContract;
  * @method static string fullUrl()
  * @method static string fullUrlWithQuery(array $query)
  * @method static string fullUrlWithoutQuery(array|string $keys)
- * @method static \Hyperf\HttpServer\Router\Dispatched getDispatchedRoute()
+ * @method static \Hypervel\Http\DispatchedRoute getDispatchedRoute()
  * @method static string|null segment(int $index, string|null $default = null)
  * @method static array segments()
  * @method static bool routeIs(mixed ...$patterns)

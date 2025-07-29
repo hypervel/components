@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Http;
 
-use Closure;
 use FastRoute\Dispatcher;
 use Hyperf\Codec\Json;
 use Hyperf\Context\RequestContext;
@@ -30,7 +29,6 @@ use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
-use RuntimeException;
 use Swow\Psr7\Message\ResponsePlusInterface;
 
 class CoreMiddleware implements CoreMiddlewareInterface
@@ -114,7 +112,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
     {
         $routes = $this->dispatcher->dispatch($request->getMethod(), $request->getUri()->getPath());
 
-        $dispatched = new Dispatched($routes, $this->serverName);
+        $dispatched = new DispatchedRoute($routes, $this->serverName);
 
         return RequestContext::set($request)->setAttribute(Dispatched::class, $dispatched);
     }
@@ -124,24 +122,24 @@ class CoreMiddleware implements CoreMiddlewareInterface
      *
      * @return array|Arrayable|mixed|ResponseInterface|string
      */
-    protected function handleFound(Dispatched $dispatched, ServerRequestInterface $request): mixed
+    protected function handleFound(DispatchedRoute $route, ServerRequestInterface $request): mixed
     {
-        if ($dispatched->handler->callback instanceof Closure) {
-            if ($parameters = $this->routeDependency->getClosureParameters($dispatched->handler->callback, $dispatched->params)) {
-                $this->routeDependency->fireAfterResolvingCallbacks($parameters, $dispatched);
+        if ($route->isClosure()) {
+            if ($parameters = $this->routeDependency->getClosureParameters($route->getCallback(), $route->getParameters())) {
+                $this->routeDependency->fireAfterResolvingCallbacks($parameters, $route);
             }
 
-            return ($dispatched->handler->callback)(...$parameters);
+            return ($route->getCallback())(...$parameters);
         }
 
-        [$controller, $action] = $this->prepareHandler($dispatched->handler->callback);
+        [$controller, $action] = $route->getControllerCallback();
         $controllerInstance = $this->container->get($controller);
         if (! method_exists($controllerInstance, $action)) {
             throw new ServerErrorHttpException("{$controller}@{$action} does not exist.");
         }
 
-        if ($parameters = $this->routeDependency->getMethodParameters($controller, $action, $dispatched->params)) {
-            $this->routeDependency->fireAfterResolvingCallbacks($parameters, $dispatched);
+        if ($parameters = $this->routeDependency->getMethodParameters($controller, $action, $route->getParameters())) {
+            $this->routeDependency->fireAfterResolvingCallbacks($parameters, $route);
         }
 
         if (method_exists($controllerInstance, 'callAction')) {
@@ -159,11 +157,11 @@ class CoreMiddleware implements CoreMiddlewareInterface
     {
         $request = RequestContext::set($request);
 
-        /** @var Dispatched $dispatched */
+        /** @var DispatchedRoute $dispatched */
         $dispatched = $request->getAttribute(Dispatched::class);
 
-        if (! $dispatched instanceof Dispatched) {
-            throw new ServerException(sprintf('The dispatched object is not a %s object.', Dispatched::class));
+        if (! $dispatched instanceof DispatchedRoute) {
+            throw new ServerException(sprintf('The dispatched object is not a %s object.', DispatchedRoute::class));
         }
 
         $response = match ($dispatched->status) {
@@ -200,22 +198,5 @@ class CoreMiddleware implements CoreMiddlewareInterface
         }
 
         throw new MethodNotAllowedHttpException("Allow: {$allowedMethods}");
-    }
-
-    protected function prepareHandler(array|string $handler): array
-    {
-        if (is_string($handler)) {
-            if (str_contains($handler, '@')) {
-                return explode('@', $handler);
-            }
-            if (str_contains($handler, '::')) {
-                return explode('::', $handler);
-            }
-            return [$handler, '__invoke'];
-        }
-        if (is_array($handler) && isset($handler[0], $handler[1])) {
-            return $handler;
-        }
-        throw new RuntimeException("Route handler doesn't exist.");
     }
 }

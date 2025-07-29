@@ -12,10 +12,11 @@ use Hyperf\HttpMessage\Upload\UploadedFile;
 use Hyperf\HttpMessage\Uri\Uri;
 use Hyperf\HttpServer\Request as HyperfRequest;
 use Hyperf\HttpServer\Router\Dispatched;
-use Hyperf\HttpServer\Router\Handler;
 use Hyperf\Stringable\Stringable;
+use Hypervel\Http\DispatchedRoute;
 use Hypervel\Http\Request;
 use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Router\RouteHandler;
 use Hypervel\Session\Contracts\Session as SessionContract;
 use Hypervel\Validation\Contracts\Factory as ValidatorFactoryContract;
 use Mockery;
@@ -872,8 +873,8 @@ class RequestTest extends TestCase
 
     public function testGetDispatchedRoute()
     {
-        $handler = new Handler('TestController@index', '/test', ['as' => 'test.index']);
-        $dispatched = new Dispatched([1, $handler, ['id' => '123']]);
+        $handler = new RouteHandler('TestController@index', '/test', ['as' => 'test.index']);
+        $dispatched = new DispatchedRoute([1, $handler, ['id' => '123']]);
 
         $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getAttribute')
@@ -956,8 +957,8 @@ class RequestTest extends TestCase
 
     public function testRouteIs()
     {
-        $handler = new Handler('TestController@index', '/test', ['as' => 'user.profile']);
-        $dispatched = new Dispatched([1, $handler, []]);
+        $handler = new RouteHandler('TestController@index', '/test', ['as' => 'user.profile']);
+        $dispatched = new DispatchedRoute([1, $handler, []]);
 
         $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getAttribute')
@@ -980,8 +981,8 @@ class RequestTest extends TestCase
 
     public function testRouteIsWithNoRouteName()
     {
-        $handler = new Handler('TestController@index', '/test', []);
-        $dispatched = new Dispatched([1, $handler, []]);
+        $handler = new RouteHandler('TestController@index', '/test', []);
+        $dispatched = new DispatchedRoute([1, $handler, []]);
 
         $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getAttribute')

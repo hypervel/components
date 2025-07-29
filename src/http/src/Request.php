@@ -664,7 +664,7 @@ class Request extends HyperfRequest implements RequestContract
     /**
      * Get the dispatched route.
      */
-    public function getDispatchedRoute(): Dispatched
+    public function getDispatchedRoute(): DispatchedRoute
     {
         return $this->getAttribute(Dispatched::class);
     }
@@ -694,8 +694,7 @@ class Request extends HyperfRequest implements RequestContract
      */
     public function routeIs(mixed ...$patterns): bool
     {
-        $routeOptions = $this->getDispatchedRoute()->handler->options ?? [];
-        if (is_null($routeName = $routeOptions['as'] ?? null)) {
+        if (is_null($routeName = $this->getDispatchedRoute()->getName())) {
             return false;
         }
 
