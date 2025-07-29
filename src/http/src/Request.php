@@ -692,7 +692,7 @@ class Request extends HyperfRequest implements RequestContract
     /**
      * Get the route handling the request.
      *
-     * @return ($param is null ? \Hypervel\Http\DispatchedRoute : null|object|string)
+     * @return ($param is null ? \Hypervel\Http\DispatchedRoute : mixed)
      */
     public function route(?string $param = null, mixed $default = null): mixed
     {

@@ -56,7 +56,7 @@ use Hypervel\Http\Contracts\RequestContract;
  * @method static \Hypervel\Http\DispatchedRoute getDispatchedRoute()
  * @method static string|null segment(int $index, string|null $default = null)
  * @method static array segments()
- * @method static \Hypervel\Http\DispatchedRoute|(null|object|string route(string|null $param = null, mixed $default = null)
+ * @method static \Hypervel\Http\DispatchedRoute|mixed route(string|null $param = null, mixed $default = null)
  * @method static bool routeIs(mixed ...$patterns)
  * @method static bool fullUrlIs(mixed ...$patterns)
  * @method static string method()
