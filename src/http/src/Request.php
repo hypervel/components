@@ -690,6 +690,21 @@ class Request extends HyperfRequest implements RequestContract
     }
 
     /**
+     * Get the route handling the request.
+     *
+     * @return ($param is null ? \Hypervel\Http\DispatchedRoute : null|object|string)
+     */
+    public function route(?string $param = null, mixed $default = null): mixed
+    {
+        $route = $this->getDispatchedRoute();
+        if (is_null($param)) {
+            return $route;
+        }
+
+        return $route->parameter($param, $default);
+    }
+
+    /**
      * Determine if the route name matches a given pattern.
      */
     public function routeIs(mixed ...$patterns): bool

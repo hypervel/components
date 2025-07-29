@@ -145,7 +145,7 @@ class Router
     {
         return ApplicationContext::getContainer()
             ->get(Request::class)
-            ->getAttribute(Dispatched::class);
+            ->route();
     }
 
     /**
@@ -177,7 +177,7 @@ class Router
             return $default;
         }
 
-        return $route->getParameters()[$key] ?? $default;
+        return $route->parameter($key, $default);
     }
 
     public static function __callStatic(string $name, array $arguments)

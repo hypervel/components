@@ -110,11 +110,13 @@ class CoreMiddleware implements CoreMiddlewareInterface
 
     public function dispatch(ServerRequestInterface $request): ServerRequestInterface
     {
-        $routes = $this->dispatcher->dispatch($request->getMethod(), $request->getUri()->getPath());
+        $route = new DispatchedRoute(
+            $this->dispatcher->dispatch($request->getMethod(), $request->getUri()->getPath()),
+            $this->serverName
+        );
 
-        $dispatched = new DispatchedRoute($routes, $this->serverName);
-
-        return RequestContext::set($request)->setAttribute(Dispatched::class, $dispatched);
+        return RequestContext::set($request)
+            ->setAttribute(Dispatched::class, $route);
     }
 
     /**
@@ -125,7 +127,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
     protected function handleFound(DispatchedRoute $route, ServerRequestInterface $request): mixed
     {
         if ($route->isClosure()) {
-            if ($parameters = $this->routeDependency->getClosureParameters($route->getCallback(), $route->getParameters())) {
+            if ($parameters = $this->routeDependency->getClosureParameters($route->getCallback(), $route->parameters())) {
                 $this->routeDependency->fireAfterResolvingCallbacks($parameters, $route);
             }
 
@@ -138,7 +140,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
             throw new ServerErrorHttpException("{$controller}@{$action} does not exist.");
         }
 
-        if ($parameters = $this->routeDependency->getMethodParameters($controller, $action, $route->getParameters())) {
+        if ($parameters = $this->routeDependency->getMethodParameters($controller, $action, $route->parameters())) {
             $this->routeDependency->fireAfterResolvingCallbacks($parameters, $route);
         }
 
