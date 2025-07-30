@@ -62,7 +62,7 @@ class RouteDependency
     /**
      * Call the "after resolving" callbacks for the given dependencies.
      */
-    public function fireAfterResolvingCallbacks(array $dependencies, Dispatched $dispatched): void
+    public function fireAfterResolvingCallbacks(array $dependencies, DispatchedRoute $dispatched): void
     {
         if (! $this->resolvingCallbacksRegistered) {
             return;
