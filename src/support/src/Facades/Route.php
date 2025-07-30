@@ -15,6 +15,8 @@ use Hypervel\Router\Router;
  * @method static void bind(string $param, \Closure $callback)
  * @method static string|null getModelBinding(string $param)
  * @method static \Closure|null getExplicitBinding(string $param)
+ * @method static \Hyperf\HttpServer\Router\Dispatched|null current()
+ * @method static string|null currentRouteName()
  * @method static void addRoute(string|string[] $httpMethod, string $route, array|string $handler, array $options = [])
  * @method static void get(string $route, null|array|callable|string $handler, array $options = [])
  * @method static void post(string $route, null|array|callable|string $handler, array $options = [])
