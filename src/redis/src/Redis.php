@@ -11,6 +11,9 @@ use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
 use Throwable;
 
+/**
+ * @mixin \Hypervel\Redis\RedisConnection
+ */
 class Redis
 {
     protected string $poolName = 'default';

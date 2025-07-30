@@ -13,21 +13,21 @@ use Throwable;
  * Redis connection class with Laravel-style method transformations.
  *
  * @method mixed get(string $key) Get the value of a key
- * @method mixed set(string $key, mixed $value, mixed $expireResolution = null, mixed $expireTTL = null, mixed $flag = null) Set the value of a key
+ * @method bool set(string $key, mixed $value, mixed $expireResolution = null, mixed $expireTTL = null, mixed $flag = null) Set the value of a key
  * @method array mget(array $keys) Get the values of multiple keys
- * @method mixed setnx(string $key, string $value) Set key if not exists
+ * @method int setnx(string $key, string $value) Set key if not exists
  * @method array hmget(string $key, mixed ...$fields) Get hash field values
- * @method mixed hmset(string $key, mixed ...$dictionary) Set hash field values
- * @method mixed hsetnx(string $hash, string $key, string $value) Set hash field if not exists
- * @method mixed lrem(string $key, int $count, mixed $value) Remove list elements
- * @method mixed blpop(mixed ...$arguments) Blocking left pop from list
- * @method mixed brpop(mixed ...$arguments) Blocking right pop from list
+ * @method bool hmset(string $key, mixed ...$dictionary) Set hash field values
+ * @method int hsetnx(string $hash, string $key, string $value) Set hash field if not exists
+ * @method false|int lrem(string $key, int $count, mixed $value) Remove list elements
+ * @method null|array blpop(mixed ...$arguments) Blocking left pop from list
+ * @method null|array brpop(mixed ...$arguments) Blocking right pop from list
  * @method mixed spop(string $key, int $count = 1) Remove and return random set member
- * @method mixed zadd(string $key, mixed ...$dictionary) Add members to sorted set
+ * @method int zadd(string $key, mixed ...$dictionary) Add members to sorted set
  * @method array zrangebyscore(string $key, mixed $min, mixed $max, array $options = []) Get sorted set members by score range
  * @method array zrevrangebyscore(string $key, mixed $min, mixed $max, array $options = []) Get sorted set members by score range (reverse)
- * @method mixed zinterstore(string $output, array $keys, array $options = []) Intersect sorted sets
- * @method mixed zunionstore(string $output, array $keys, array $options = []) Union sorted sets
+ * @method int zinterstore(string $output, array $keys, array $options = []) Intersect sorted sets
+ * @method int zunionstore(string $output, array $keys, array $options = []) Union sorted sets
  * @method mixed eval(string $script, int $numberOfKeys, mixed ...$arguments) Evaluate Lua script
  * @method mixed evalsha(string $script, int $numkeys, mixed ...$arguments) Evaluate Lua script by SHA1
  * @method mixed flushdb(mixed ...$arguments) Flush database
