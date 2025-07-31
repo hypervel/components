@@ -8,13 +8,13 @@ use Faker\Factory as FakerFactory;
 use Hyperf\Contract\ConfigInterface;
 use Psr\Container\ContainerInterface;
 
-class FactoryInvoker
+class OldFactoryInvoker
 {
     public function __invoke(ContainerInterface $container)
     {
         $config = $container->get(ConfigInterface::class);
 
-        $factory = new Factory(
+        $factory = new OldFactory(
             FakerFactory::create($config->get('app.faker_locale', 'en_US'))
         );
 
