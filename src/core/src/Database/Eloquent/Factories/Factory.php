@@ -735,6 +735,7 @@ abstract class Factory
 
         return $resolver($this);
     }
+
     /**
      * Specify the callback that should be invoked to guess model names based on factory names.
      *
