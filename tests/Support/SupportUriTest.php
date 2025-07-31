@@ -20,7 +20,7 @@ class SupportUriTest extends TestCase
         $this->assertEquals('https', $uri->scheme());
         $this->assertNull($uri->user());
         $this->assertNull($uri->password());
-        $this->assertEquals('laravel.com', $uri->host());
+        $this->assertEquals('hypervel.org', $uri->host());
         $this->assertNull($uri->port());
         $this->assertEquals('docs/installation', $uri->path());
         $this->assertEquals([], $uri->query()->toArray());
@@ -73,7 +73,7 @@ class SupportUriTest extends TestCase
     {
         $uri = Uri::of();
 
-        $uri = $uri->withHost('laravel.com')
+        $uri = $uri->withHost('hypervel.org')
             ->withScheme('https')
             ->withUser('taylor', 'password')
             ->withPath('/docs/installation')
