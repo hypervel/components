@@ -9,7 +9,7 @@ use Hyperf\Collection\Collection;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\HttpMessage\Upload\UploadedFile;
-use Hyperf\HttpMessage\Uri\Uri;
+use Hyperf\HttpMessage\Uri\Uri as HyperfUri;
 use Hyperf\HttpServer\Request as HyperfRequest;
 use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\Stringable\Stringable;
@@ -18,6 +18,7 @@ use Hypervel\Http\Request;
 use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Router\RouteHandler;
 use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Support\Uri;
 use Hypervel\Validation\Contracts\Factory as ValidatorFactoryContract;
 use Mockery;
 use PHPUnit\Framework\TestCase;
@@ -570,7 +571,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getQueryParams')->andReturn(['key' => 'value']);
         $psrRequest->shouldReceive('getServerParams')->andReturn([]);
         $psrRequest->shouldReceive('getUri')->andReturn(
-            new Uri('http://localhost/path')
+            new HyperfUri('http://localhost/path')
         );
 
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -585,7 +586,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getQueryParams')->andReturn(['key' => 'value', 'foo' => 'bar']);
         $psrRequest->shouldReceive('getServerParams')->andReturn([]);
         $psrRequest->shouldReceive('getUri')->andReturn(
-            new Uri('http://localhost/path')
+            new HyperfUri('http://localhost/path')
         );
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
@@ -613,6 +614,22 @@ class RequestTest extends TestCase
         $request = new Request();
 
         $this->assertSame('GET', $request->method());
+    }
+
+    public function testUri()
+    {
+        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest->shouldReceive('getQueryParams')->andReturn(['key' => 'value']);
+        $psrRequest->shouldReceive('getServerParams')->andReturn([]);
+        $psrRequest->shouldReceive('getUri')->andReturn(
+            new HyperfUri($uri = 'http://localhost/path')
+        );
+
+        Context::set(ServerRequestInterface::class, $psrRequest);
+        $request = new Request();
+
+        $this->assertInstanceOf(Uri::class, $request->uri());
+        $this->assertSame($uri, (string) $request->uri());
     }
 
     public function testBearerToken()
@@ -1001,7 +1018,7 @@ class RequestTest extends TestCase
         $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getQueryParams')->andReturn(['key' => 'value']);
         $psrRequest->shouldReceive('getServerParams')->andReturn(['query_string' => 'key=value', 'request_uri' => '/api/users?key=value']);
-        $psrRequest->shouldReceive('getUri')->andReturn(new Uri('http://localhost/api/users'));
+        $psrRequest->shouldReceive('getUri')->andReturn(new HyperfUri('http://localhost/api/users'));
 
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
@@ -1022,7 +1039,7 @@ class RequestTest extends TestCase
         $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         $psrRequest->shouldReceive('getServerParams')->andReturn(['query_string' => '', 'request_uri' => '/api/users']);
-        $psrRequest->shouldReceive('getUri')->andReturn(new Uri('http://localhost/api/users'));
+        $psrRequest->shouldReceive('getUri')->andReturn(new HyperfUri('http://localhost/api/users'));
 
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
