@@ -789,7 +789,6 @@ class HasPermissionTest extends PermissionTestCase
         $this->assertCount(2, $permissionNames);
     }
 
-
     public function testRoleCanBeGivenForbiddenPermission()
     {
         $this->adminRole->giveForbiddenTo('manage');

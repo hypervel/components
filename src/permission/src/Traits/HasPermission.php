@@ -63,7 +63,7 @@ trait HasPermission
 
         if (is_a($this->getOwnerType(), Role::class, true)) {
             $cachedPermissions = $manager->getAllRolesWithPermissions()[$this->getKey()]['permissions'];
-
+            /* @phpstan-ignore-next-line */
             return $this->permissions()->getRelated()->hydrate($cachedPermissions);
         }
 
