@@ -1,0 +1,45 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Hyperf\Stubs\Model;
+
+class User extends Model
+{
+    /**
+     * The table associated with the model.
+     */
+    protected ?string $table = 'user';
+
+    /**
+     * The attributes that are mass assignable.
+     */
+    protected array $fillable = ['id', 'name', 'gender', 'created_at', 'updated_at'];
+
+    /**
+     * The attributes that should be cast to native types.
+     */
+    protected array $casts = ['id' => 'integer', 'gender' => 'integer', 'created_at' => 'datetime', 'updated_at' => 'datetime'];
+
+    public function book()
+    {
+        return $this->hasOne(Book::class, 'user_id', 'id');
+    }
+
+    public function books()
+    {
+        return $this->hasMany(Book::class, 'user_id', 'id');
+    }
+
+    public function image()
+    {
+        return $this->morphOne(Image::class, 'imageable');
+    }
+
+    public function roles()
+    {
+        return $this->belongsToMany(Role::class, 'user_role', 'user_id', 'role_id', 'id', 'id')
+            ->using(UserRolePivot::class)->as('pivot')
+            ->withTimestamps();
+    }
+}

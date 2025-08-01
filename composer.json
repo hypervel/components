@@ -188,6 +188,7 @@
     },
     "require-dev": {
         "ably/ably-php": "^1.0",
+        "doctrine/dbal": "^3.0",
         "fakerphp/faker": "^1.24.1",
         "filp/whoops": "^2.15",
         "friendsofphp/php-cs-fixer": "^3.57.2",
@@ -207,6 +208,7 @@
         "phpunit/phpunit": "10.5.45",
         "pusher/pusher-php-server": "^7.2",
         "swoole/ide-helper": "~5.1.0",
+        "symfony/uid": "^7.3",
         "symfony/yaml": "^7.3"
     },
     "config": {
