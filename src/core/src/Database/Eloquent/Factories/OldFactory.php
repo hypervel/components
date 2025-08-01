@@ -7,6 +7,7 @@ namespace Hypervel\Database\Eloquent\Factories;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Database\Model\Factory as BaseFactory;
+use Symfony\Component\Finder\Finder;
 
 class OldFactory extends BaseFactory
 {
@@ -73,6 +74,39 @@ class OldFactory extends BaseFactory
 
         return parent::of($class, $name)
             ->connection($name);
+    }
+
+    /**
+     * Load factories from path.
+     *
+     * @return $this
+     */
+    public function load(string $path)
+    {
+        $factory = $this;
+
+        if (is_dir($path)) {
+            foreach (Finder::create()->files()->name('*.php')->in($path) as $file) {
+                $realPath = $file->getRealPath();
+                if ($this->isClass($realPath)) {
+                    continue;
+                }
+
+                require $realPath;
+            }
+        }
+
+        return $factory;
+    }
+
+    protected function isClass(string $file): bool
+    {
+        $contents = file_get_contents($file);
+        if ($contents === false) {
+            return false;
+        }
+
+        return preg_match('/^\s*class\s+(\w+)/m', $contents) === 1;
     }
 
     protected function getConnection(): string
