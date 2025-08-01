@@ -9,7 +9,7 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Database\Model\Factory as BaseFactory;
 use Symfony\Component\Finder\Finder;
 
-class OldFactory extends BaseFactory
+class LegacyFactory extends BaseFactory
 {
     /**
      * Define a class with a given set of attributes.
