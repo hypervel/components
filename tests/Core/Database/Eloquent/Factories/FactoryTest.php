@@ -41,16 +41,6 @@ class DatabaseEloquentFactoryTest extends TestCase
         ];
     }
 
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->app->bind(
-            Generator::class,
-            fn () => \Faker\Factory::create('en_US'),
-        );
-    }
-
     /**
      * Tear down the database schema.
      */

@@ -6,10 +6,12 @@ namespace Hypervel\Database\Eloquent\Factories;
 
 use Carbon\Carbon;
 use Closure;
+use Faker\Factory as FakerFactory;
 use Faker\Generator;
 use Hyperf\Collection\Collection;
 use Hyperf\Collection\Enumerable;
 use Hyperf\Context\ApplicationContext;
+use Hyperf\Contract\ConfigInterface;
 use Hyperf\Database\Model\Collection as EloquentCollection;
 use Hyperf\Database\Model\Model;
 use Hyperf\Database\Model\SoftDeletes;
@@ -784,7 +786,16 @@ abstract class Factory
      */
     protected function withFaker(): Generator
     {
-        return ApplicationContext::getContainer()->get(Generator::class);
+        static $faker;
+
+        if (! isset($faker)) {
+            $config = ApplicationContext::getContainer()->get(ConfigInterface::class);
+            $fakerLocale = $config->get('app.faker_locale', 'en_US');
+
+            $faker = FakerFactory::create($fakerLocale);
+        }
+
+        return $faker;
     }
 
     /**
