@@ -80,7 +80,8 @@
             "src/session/src/Functions.php",
             "src/support/src/Functions.php",
             "src/support/src/helpers.php",
-            "src/translation/src/Functions.php"
+            "src/translation/src/Functions.php",
+            "src/core/src/helpers.php"
         ]
     },
     "autoload-dev": {
