@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Factories;
 
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 
 class CrossJoinSequence extends Sequence
 {

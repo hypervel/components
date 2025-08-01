@@ -8,16 +8,16 @@ use Carbon\Carbon;
 use Closure;
 use Faker\Factory as FakerFactory;
 use Faker\Generator;
-use Hyperf\Collection\Collection;
 use Hyperf\Collection\Enumerable;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Database\Model\Collection as EloquentCollection;
-use Hyperf\Database\Model\Model;
 use Hyperf\Database\Model\SoftDeletes;
-use Hyperf\Stringable\Str;
 use Hyperf\Support\Traits\ForwardsCalls;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Contracts\Application;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
 use Throwable;
@@ -257,9 +257,9 @@ abstract class Factory
         $results = $this->make($attributes, $parent);
 
         if ($results instanceof Model) {
-            $this->store(new Collection([$results]));
+            $this->store(new EloquentCollection([$results]));
 
-            $this->callAfterCreating(new Collection([$results]), $parent);
+            $this->callAfterCreating(new EloquentCollection([$results]), $parent);
         } else {
             $this->store($results);
 
@@ -296,9 +296,9 @@ abstract class Factory
     /**
      * Set the connection name on the results and store them.
      *
-     * @param Collection<int, TModel> $results
+     * @param EloquentCollection<int, TModel> $results
      */
-    protected function store(Collection $results): void
+    protected function store(EloquentCollection $results): void
     {
         $results->each(function ($model) {
             if (! isset($this->connection)) {
@@ -357,14 +357,16 @@ abstract class Factory
 
         if ($this->count === null) {
             return tap($this->makeInstance($parent), function ($instance) {
-                $this->callAfterMaking(new Collection([$instance]));
+                $this->callAfterMaking(new EloquentCollection([$instance]));
             });
         }
 
         if ($this->count < 1) {
+            /** @var EloquentCollection<int, TModel> */
             return $this->newModel()->newCollection();
         }
 
+        /** @var EloquentCollection<int, TModel> */
         $instances = $this->newModel()->newCollection(array_map(function () use ($parent) {
             return $this->makeInstance($parent);
         }, range(1, $this->count)));
@@ -542,7 +544,7 @@ abstract class Factory
      *
      * @param array<string, mixed>|(callable(): array<string, mixed>) $pivot
      */
-    public function hasAttached(array|Collection|Factory|Model $factory, array|callable $pivot = [], ?string $relationship = null): self
+    public function hasAttached(array|EloquentCollection|Factory|Model $factory, array|callable $pivot = [], ?string $relationship = null): self
     {
         return $this->newInstance([
             'has' => $this->has->concat([new BelongsToManyRelationship(
@@ -573,14 +575,14 @@ abstract class Factory
     /**
      * Provide model instances to use instead of any nested factory calls when creating relationships.
      */
-    public function recycle(array|Collection|Model $model): self
+    public function recycle(array|Collection|EloquentCollection|Model $model): self
     {
         // Group provided models by the type and merge them into existing recycle collection
         return $this->newInstance([
             'recycle' => $this->recycle
                 ->flatten()
                 ->merge(
-                    Collection::wrap($model instanceof Model ? func_get_args() : $model)
+                    EloquentCollection::wrap($model instanceof Model ? func_get_args() : $model)
                         ->flatten()
                 )->groupBy(fn ($model) => get_class($model)),
         ]);
@@ -622,7 +624,7 @@ abstract class Factory
     /**
      * Call the "after making" callbacks for the given model instances.
      */
-    protected function callAfterMaking(Collection $instances): void
+    protected function callAfterMaking(EloquentCollection $instances): void
     {
         $instances->each(function ($model) {
             $this->afterMaking->each(function ($callback) use ($model) {
@@ -634,7 +636,7 @@ abstract class Factory
     /**
      * Call the "after creating" callbacks for the given model instances.
      */
-    protected function callAfterCreating(Collection $instances, ?Model $parent = null): void
+    protected function callAfterCreating(EloquentCollection $instances, ?Model $parent = null): void
     {
         $instances->each(function ($model) use ($parent) {
             $this->afterCreating->each(function ($callback) use ($model, $parent) {

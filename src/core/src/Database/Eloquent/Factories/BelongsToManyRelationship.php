@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Factories;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Collection;
 
 class BelongsToManyRelationship
 {
@@ -16,7 +17,7 @@ class BelongsToManyRelationship
      * @param $relationship The relationship name
      */
     public function __construct(
-        protected array|Collection|Factory|Model $factory,
+        protected array|EloquentCollection|Factory|Model $factory,
         protected mixed $pivot,
         protected string $relationship
     ) {

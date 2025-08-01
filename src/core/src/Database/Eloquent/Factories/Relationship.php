@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Factories;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Database\Model\Model;
 use Hyperf\Database\Model\Relations\BelongsToMany;
 use Hyperf\Database\Model\Relations\HasOneOrMany;
 use Hyperf\Database\Model\Relations\MorphOneOrMany;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Collection;
 
 class Relationship
 {
