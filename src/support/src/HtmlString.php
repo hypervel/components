@@ -35,7 +35,7 @@ class HtmlString implements Htmlable, Stringable
      */
     public function isEmpty(): bool
     {
-        return ($this->html ?? '') === '';
+        return $this->html === '';
     }
 
     /**
