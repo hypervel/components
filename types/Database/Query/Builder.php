@@ -63,9 +63,10 @@ function test(Builder $query, EloquentBuilder $userQuery): void
         assertType('object', $users);
         assertType('int', $page);
     });
-    assertType('Hypervel\Database\Query\Builder', $query->pipe(function () {
-    }));
-    assertType('Hypervel\Database\Query\Builder', $query->pipe(fn () => null));
-    assertType('Hypervel\Database\Query\Builder', $query->pipe(fn ($query) => $query));
-    assertType('5', $query->pipe(fn ($query) => 5));
+    // assertType('Hypervel\Database\Query\Builder', $query->pipe(function () {
+    //     //
+    // })); // pipe not supported in Hyperf
+    // assertType('Hypervel\Database\Query\Builder', $query->pipe(fn () => null)); // pipe not supported in Hyperf
+    // assertType('Hypervel\Database\Query\Builder', $query->pipe(fn ($query) => $query)); // pipe not supported in Hyperf
+    // assertType('5', $query->pipe(fn ($query) => 5)); // pipe not supported in Hyperf
 }
