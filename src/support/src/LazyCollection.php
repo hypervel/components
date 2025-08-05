@@ -6,6 +6,12 @@ namespace Hypervel\Support;
 
 use Hyperf\Collection\LazyCollection as BaseLazyCollection;
 
+/**
+ * @template TKey of array-key
+ * @template TValue
+ *
+ * @extends \Hyperf\Collection\LazyCollection<TKey, TValue>
+ */
 class LazyCollection extends BaseLazyCollection
 {
     /**
