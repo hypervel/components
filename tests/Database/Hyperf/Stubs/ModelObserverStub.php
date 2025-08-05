@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Hyperf\Stubs;
 
-use Hyperf\Database\Model\Events\Updating;
+use Hypervel\Database\Eloquent\Events\Updating;
 
 class ModelObserverStub
 {

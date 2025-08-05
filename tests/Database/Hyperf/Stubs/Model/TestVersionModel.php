@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Hyperf\Stubs\Model;
 
-use Hyperf\Database\Model\Builder;
+use Hypervel\Database\Eloquent\Builder;
 
 class TestVersionModel extends Model
 {

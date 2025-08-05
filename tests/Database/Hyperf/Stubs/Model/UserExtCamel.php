@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Hyperf\Stubs\Model;
 
-use Hyperf\Database\Model\Concerns\CamelCase;
+use Hypervel\Database\Eloquent\Concerns\CamelCase;
 
 class UserExtCamel extends Model
 {

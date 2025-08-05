@@ -7,9 +7,9 @@ namespace Hypervel\Tests\Database\Hyperf\Stubs;
 use Hyperf\Context\Context;
 use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\ConnectionInterface as Connection;
-use Hyperf\Database\Model\Model;
 use Hyperf\Database\Query\Grammars\Grammar;
 use Hyperf\Database\Query\Processors\Processor;
+use Hypervel\Database\Eloquent\Model;
 use Mockery;
 
 class ModelSaveStub extends Model

@@ -34,9 +34,12 @@ class ContainerStub
         $container->shouldReceive('has')->andReturn(true);
         $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturnFalse();
         $container->shouldReceive('has')->with(EventDispatcherInterface::class)->andReturnFalse();
+        $container->shouldReceive('has')->with('Psr\EventDispatcher\EventDispatcherInterface')->andReturnFalse();
         $container->shouldReceive('get')->with('db.connector.mysql')->andReturn(new MySqlConnector());
         $container->shouldReceive('get')->with('db.connector.sqlite')->andReturn(new SQLiteConnector());
         $container->shouldReceive('get')->with('sqlite.persistent.pdo.')->andReturnNull();
+        $container->shouldReceive('get')->with(EventDispatcherInterface::class)->andReturnNull();
+        $container->shouldReceive('get')->with('Psr\EventDispatcher\EventDispatcherInterface')->andReturnNull();
 
         // Register SQLite connection resolver
         Connection::resolverFor('sqlite', function ($connection, $database, $prefix, $config) {

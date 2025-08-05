@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Hyperf\Stubs;
 
-use Hyperf\Database\Model\Events\Event;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
+use Hypervel\Database\Eloquent\Events\Event;
 
 #[Listener]
 class ModelEventListenerStub implements ListenerInterface

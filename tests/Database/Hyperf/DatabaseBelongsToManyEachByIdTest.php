@@ -6,10 +6,10 @@ namespace Hypervel\Tests\Database\Hyperf;
 
 use Hyperf\Database\Connection;
 use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Model\Model;
 use Hyperf\Database\Model\Register;
 use Hyperf\Database\Schema\Builder;
 use Hyperf\DbConnection\Db;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\Database\Hyperf\Stubs\ContainerStub;
 
 /**

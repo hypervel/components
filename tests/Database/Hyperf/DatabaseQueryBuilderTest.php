@@ -4,12 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Hyperf;
 
-use Hyperf\Collection\Collection;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Database\Connection;
 use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\Exception\InvalidBindingException;
-use Hyperf\Database\Query\Builder;
 use Hyperf\Database\Query\Expression as Raw;
 use Hyperf\Database\Query\Grammars\Grammar;
 use Hyperf\Database\Query\Grammars\MySqlGrammar;
@@ -18,6 +16,8 @@ use Hyperf\Database\Query\Processors\Processor;
 use Hyperf\Paginator\Cursor;
 use Hyperf\Paginator\CursorPaginator;
 use Hyperf\Paginator\Paginator;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Support\Collection;
 use InvalidArgumentException;
 use Mockery as m;
 use Mockery\MockInterface;
@@ -26,7 +26,7 @@ use Psr\Container\ContainerInterface;
 use RuntimeException;
 use TypeError;
 
-use function Hyperf\Collection\collect;
+use function collect;
 use function Hyperf\Support\now;
 
 /**

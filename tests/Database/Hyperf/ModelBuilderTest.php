@@ -8,22 +8,22 @@ use BadMethodCallException;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Closure;
-use Hyperf\Collection\Collection as BaseCollection;
 use Hyperf\Database\Connection;
 use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\ConnectionResolver;
 use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\Database\Exception\MultipleRecordsFoundException;
-use Hyperf\Database\Model\Builder;
-use Hyperf\Database\Model\Collection;
-use Hyperf\Database\Model\Model;
-use Hyperf\Database\Model\ModelNotFoundException;
 use Hyperf\Database\Model\Register;
 use Hyperf\Database\Model\RelationNotFoundException;
-use Hyperf\Database\Model\SoftDeletes;
-use Hyperf\Database\Query\Builder as BaseBuilder;
 use Hyperf\Database\Query\Grammars\Grammar;
 use Hyperf\Database\Query\Processors\Processor;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Query\Builder as BaseBuilder;
+use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Tests\Database\Hyperf\Stubs\ModelStub;
 use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
@@ -31,7 +31,7 @@ use PDO;
 use PHPUnit\Framework\Attributes\CoversNothing;
 use stdClass;
 
-use function Hyperf\Collection\collect;
+use function collect;
 
 /**
  * @internal
@@ -43,12 +43,14 @@ class ModelBuilderTest extends \Hypervel\Testbench\TestCase
 
     protected function setUp(): void
     {
+        parent::setUp();
         Register::setConnectionResolver(new ConnectionResolver(['default' => new Connection(Mockery::mock(PDO::class))]));
     }
 
     protected function tearDown(): void
     {
         Mockery::close();
+        parent::tearDown();
     }
 
     public function testFindMethod()
@@ -507,7 +509,9 @@ class ModelBuilderTest extends \Hypervel\Testbench\TestCase
             return $bar;
         });
 
-        Builder::macro('bam', [Builder::class, 'getQuery']);
+        Builder::macro('bam', function () {
+            return $this->getQuery();
+        });
 
         $builder = $this->getBuilder();
 
@@ -518,7 +522,7 @@ class ModelBuilderTest extends \Hypervel\Testbench\TestCase
     public function testMissingStaticMacrosThrowsProperException()
     {
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Call to undefined method Hyperf\Database\Model\Builder::missingMacro()');
+        $this->expectExceptionMessage('Call to undefined method Hypervel\Database\Eloquent\Builder::missingMacro()');
         Builder::missingMacro();
     }
 
@@ -711,7 +715,7 @@ class ModelBuilderTest extends \Hypervel\Testbench\TestCase
         $query = $model->newQuery()->where('foo', '=', 'bar')->where(function ($query) {
             $query->where('baz', '>', 9000);
         });
-        $this->assertEquals('select * from `table` where `foo` = ? and (`baz` > ?) and `table`.`deleted_at` is null', $query->toSql());
+        $this->assertEquals('select * from "table" where "foo" = ? and ("baz" > ?) and "table"."deleted_at" is null', $query->toSql());
         $this->assertEquals(['bar', 9000], $query->getBindings());
     }
 
@@ -722,7 +726,7 @@ class ModelBuilderTest extends \Hypervel\Testbench\TestCase
         $query = $model->newQuery()->empty()->where('foo', '=', 'bar')->empty()->where(function ($query) {
             $query->empty()->where('baz', '>', 9000);
         });
-        $this->assertEquals('select * from `table` where `foo` = ? and (`baz` > ?) and `table`.`deleted_at` is null', $query->toSql());
+        $this->assertEquals('select * from "table" where "foo" = ? and ("baz" > ?) and "table"."deleted_at" is null', $query->toSql());
         $this->assertEquals(['bar', 9000], $query->getBindings());
     }
 
@@ -988,7 +992,7 @@ class ModelBuilderTest extends \Hypervel\Testbench\TestCase
 
         $builder = $model->doesntHave('foo.bar');
 
-        $this->assertEquals('select * from "model_builder_test_model_parent_stubs" where not exists (select * from "model_builder_test_model_close_related_stubs" where "model_builder_test_model_parent_stubs"."foo_id" = "model_builder_test_model_close_related_stubs"."id" and exists (select * from "model_builder_test_model_far_related_stubs" where "model_builder_test_model_close_related_stubs"."id" = "model_builder_test_model_far_related_stubs"."model_builder_test_model_close_related_stub_id"))', $builder->toSql());
+        $this->assertEquals('select * from "model_builder_test_model_parent_stubs" where not exists (select * from "model_builder_test_model_close_related_stubs" where "model_builder_test_model_parent_stubs"."foo_id" = "model_builder_test_model_close_related_stubs"."id" and exists (select * from "model_builder_test_model_far_related_stubs" where "model_builder_test_model_close_related_stubs"."id" = "model_builder_test_model_close_related_stub_id"))', $builder->toSql());
     }
 
     public function testOrDoesntHave()
@@ -1642,7 +1646,7 @@ class ModelBuilderTestModelParentStub extends Model
 {
     public function foo()
     {
-        return $this->belongsTo(ModelBuilderTestModelCloseRelatedStub::class);
+        return $this->belongsTo(ModelBuilderTestModelCloseRelatedStub::class, 'foo_id');
     }
 
     public function address()
@@ -1660,7 +1664,7 @@ class ModelBuilderTestModelCloseRelatedStub extends Model
 {
     public function bar()
     {
-        return $this->hasMany(ModelBuilderTestModelFarRelatedStub::class);
+        return $this->hasMany(ModelBuilderTestModelFarRelatedStub::class, 'model_builder_test_model_close_related_stub_id');
     }
 
     public function baz()

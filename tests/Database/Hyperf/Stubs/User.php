@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Database\Hyperf\Stubs;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Model;
 
 class User extends Model
 {

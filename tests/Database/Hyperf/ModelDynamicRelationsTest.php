@@ -6,10 +6,10 @@ namespace Hypervel\Tests\Database\Hyperf;
 
 use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Model\Model;
 use Hyperf\Database\Model\Register;
-use Hyperf\Database\Model\Relations\HasMany;
-use Hyperf\Database\Model\Relations\HasOne;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Relations\HasOne;
 use Mockery;
 use PHPUnit\Framework\Attributes\CoversNothing;
 
@@ -22,6 +22,7 @@ class ModelDynamicRelationsTest extends \Hypervel\Testbench\TestCase
 {
     public function setUp(): void
     {
+        parent::setUp();
         $grammarClass = 'Hyperf\Database\Query\Grammars\Grammar';
         $processorClass = 'Hyperf\Database\Query\Processors\Processor';
         $grammar = new $grammarClass();

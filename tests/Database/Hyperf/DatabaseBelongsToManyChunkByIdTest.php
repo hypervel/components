@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Hyperf;
 
-use Hyperf\Collection\Collection;
 use Hyperf\Database\Connection;
 use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Model\Model;
 use Hyperf\Database\Model\Register;
 use Hyperf\Database\Schema\Builder;
 use Hyperf\DbConnection\Db;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\Database\Hyperf\Stubs\ContainerStub;
 
 /**
@@ -19,8 +19,6 @@ use Hypervel\Tests\Database\Hyperf\Stubs\ContainerStub;
  */
 class DatabaseBelongsToManyChunkByIdTest extends \Hypervel\Testbench\TestCase
 {
-    use \Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-
     protected function setUp(): void
     {
         parent::setUp();
@@ -36,6 +34,8 @@ class DatabaseBelongsToManyChunkByIdTest extends \Hypervel\Testbench\TestCase
 
     protected function tearDown(): void
     {
+        parent::tearDown();
+
         $this->schema()->drop('article_user');
         $this->schema()->drop('articles');
         $this->schema()->drop('users');
@@ -84,14 +84,13 @@ class DatabaseBelongsToManyChunkByIdTest extends \Hypervel\Testbench\TestCase
     protected function seedData()
     {
         $user = BelongsToManyChunkByIdTestTestUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
-        $data = [
+        BelongsToManyChunkByIdTestTestArticle::query()->insert([
             ['id' => 1, 'title' => 'Another title'],
             ['id' => 2, 'title' => 'Another title'],
             ['id' => 3, 'title' => 'Another title'],
-        ];
-        foreach ($data as $item) {
-            $user->articles()->create($item);
-        }
+        ]);
+
+        $user->articles()->sync([1, 2, 3]);
     }
 
     private function createSchema(): void

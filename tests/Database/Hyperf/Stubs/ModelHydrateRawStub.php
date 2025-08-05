@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Database\Hyperf\Stubs;
 
 use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\ConnectionInterface as Connection;
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Model;
 use Mockery;
 
 class ModelHydrateRawStub extends Model
