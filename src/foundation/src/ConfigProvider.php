@@ -7,12 +7,14 @@ namespace Hypervel\Foundation;
 use Hyperf\Contract\ApplicationInterface;
 use Hyperf\Coordinator\Listener\ResumeExitCoordinatorListener;
 use Hyperf\ExceptionHandler\Listener\ErrorExceptionHandler;
+use Hyperf\Server\Listener\InitProcessTitleListener;
 use Hypervel\Console\ApplicationFactory;
 use Hypervel\Foundation\Console\Commands\AboutCommand;
 use Hypervel\Foundation\Console\Commands\ConfigShowCommand;
 use Hypervel\Foundation\Console\Commands\ServerReloadCommand;
 use Hypervel\Foundation\Console\Commands\VendorPublishCommand;
 use Hypervel\Foundation\Listeners\ReloadDotenvAndConfig;
+use Hypervel\Foundation\Listeners\SetProcessTitle;
 
 class ConfigProvider
 {
@@ -21,6 +23,7 @@ class ConfigProvider
         return [
             'dependencies' => [
                 ApplicationInterface::class => ApplicationFactory::class,
+                InitProcessTitleListener::class => SetProcessTitle::class,
             ],
             'listeners' => [
                 ErrorExceptionHandler::class,
