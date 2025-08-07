@@ -35,8 +35,8 @@ class ClearCommand extends Command
         $this->app->get(EventDispatcherInterface::class)
             ->dispatch('cache:clearing', [$this->argument('store'), $this->tags()]);
 
-        if (method_exists($this->cache(), 'flush')) {
-            if (! $this->cache()->flush()) {
+        if (method_exists($store = $this->cache()->getStore(), 'flush')) {
+            if (! $store->flush()) {
                 $this->error('Failed to clear cache. Make sure you have the appropriate permissions.');
                 return 1;
             }
