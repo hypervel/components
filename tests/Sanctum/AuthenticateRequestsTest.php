@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Sanctum\Controller;
+namespace Hypervel\Tests\Sanctum;
 
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Context\Context;
