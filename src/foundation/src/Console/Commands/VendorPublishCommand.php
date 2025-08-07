@@ -126,7 +126,7 @@ class VendorPublishCommand extends Command
         foreach ($packages as $packageName => $extra) {
             $hyperfPublishes = array_map(
                 fn ($provider) => (new $provider())()['publish'] ?? [],
-                Arr::wrap($extra['config'])
+                Arr::wrap($extra['config'] ?? [])
             );
             if (! $hyperfPublishes = Arr::flatten($hyperfPublishes, 1)) {
                 continue;

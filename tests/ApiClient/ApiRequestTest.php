@@ -132,4 +132,48 @@ class ApiRequestTest extends TestCase
         $psrRequest = $request->toPsrRequest();
         $this->assertSame(json_encode(['key2' => 'value2']), $psrRequest->getBody()->getContents());
     }
+
+    public function testAsForm(): void
+    {
+        $request = $this->request->asForm();
+
+        $this->assertSame(['application/x-www-form-urlencoded'], $request->toPsrRequest()->getHeader('Content-Type'));
+    }
+
+    public function testAsJson(): void
+    {
+        $request = $this->request->asJson();
+
+        $this->assertSame(['application/json'], $request->toPsrRequest()->getHeader('Content-Type'));
+    }
+
+    public function testAcceptJson(): void
+    {
+        $request = $this->request->acceptJson();
+
+        $this->assertSame(['application/json'], $request->toPsrRequest()->getHeader('Accept'));
+    }
+
+    public function testAccept(): void
+    {
+        $contentType = 'application/xml';
+        $request = $this->request->accept($contentType);
+
+        $this->assertSame([$contentType], $request->toPsrRequest()->getHeader('Accept'));
+    }
+
+    public function testWithToken(): void
+    {
+        $request = $this->request->withToken('test-token');
+
+        $this->assertSame(['Bearer test-token'], $request->toPsrRequest()->getHeader('Authorization'));
+    }
+
+    public function testWithUserAgent(): void
+    {
+        $userAgent = 'MyApiClient/1.0';
+        $request = $this->request->withUserAgent($userAgent);
+
+        $this->assertSame([$userAgent], $request->toPsrRequest()->getHeader('User-Agent'));
+    }
 }

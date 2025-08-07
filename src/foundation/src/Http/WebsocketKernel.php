@@ -28,6 +28,8 @@ use Swoole\Http\Response as SwooleResponse;
 use Swow\Psr7\Server\ServerConnection as SwowServerConnection;
 use Throwable;
 
+use function Hyperf\Support\make;
+
 class WebsocketKernel extends WebSocketServer implements MiddlewareContract
 {
     use HasMiddleware;
@@ -35,7 +37,7 @@ class WebsocketKernel extends WebSocketServer implements MiddlewareContract
     public function initCoreMiddleware(string $serverName): void
     {
         $this->serverName = $serverName;
-        $this->coreMiddleware = new CoreMiddleware($this->container, $serverName);
+        $this->coreMiddleware = make(CoreMiddleware::class, [$this->container, $serverName]);
 
         $config = $this->container->get(ConfigInterface::class);
         $this->exceptionHandlers = $config->get('exceptions.handler.' . $serverName, [

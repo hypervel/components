@@ -182,8 +182,6 @@ class ValidatedInput implements ValidatedData
 
     /**
      * Get an iterator for the input.
-     *
-     * @return ArrayIterator
      */
     public function getIterator(): Traversable
     {

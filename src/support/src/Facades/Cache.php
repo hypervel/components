@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 use Hypervel\Cache\Contracts\Factory;
-use Hypervel\Cache\Contracts\Store;
-use Hypervel\Cache\Repository;
 
 /**
  * @method static \Hypervel\Cache\Contracts\Repository store(string|null $name = null)
@@ -38,15 +36,26 @@ use Hypervel\Cache\Repository;
  * @method static bool setMultiple(iterable $values, null|int|\DateInterval $ttl = null)
  * @method static bool deleteMultiple(iterable $keys)
  * @method static bool has(string $key)
+ * @method static \Hypervel\Cache\Contracts\Lock lock(string $name, int $seconds = 0, string|null $owner = null)
+ * @method static \Hypervel\Cache\Contracts\Lock restoreLock(string $name, string $owner)
  * @method static \Hypervel\Cache\TaggedCache tags(mixed $names)
  * @method static array many(array $keys)
  * @method static bool putMany(array $values, int $seconds)
  * @method static bool flush()
  * @method static string getPrefix()
+ * @method static bool missing(string $key)
+ * @method static bool supportsTags()
+ * @method static int|null getDefaultCacheTime()
+ * @method static \Hypervel\Cache\Repository setDefaultCacheTime(int|null $seconds)
+ * @method static \Psr\EventDispatcher\EventDispatcherInterface|null getEventDispatcher()
+ * @method static void setEventDispatcher(\Psr\EventDispatcher\EventDispatcherInterface $events)
+ * @method static mixed macroCall(string $method, array $parameters)
+ * @method static void macro(string $name, callable|object $macro)
+ * @method static void mixin(object $mixin, bool $replace = true)
+ * @method static bool hasMacro(string $name)
  *
  * @see \Hypervel\Cache\CacheManager
- *
- * @mixin \Hypervel\Cache\Repository
+ * @see \Hypervel\Cache\Repository
  */
 class Cache extends Facade
 {

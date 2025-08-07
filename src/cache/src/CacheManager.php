@@ -19,6 +19,7 @@ use function Hyperf\Tappable\tap;
 
 /**
  * @mixin \Hypervel\Cache\Contracts\Repository
+ * @mixin \Hypervel\Cache\Contracts\LockProvider
  * @mixin \Hypervel\Cache\TaggableStore
  */
 class CacheManager implements FactoryContract
@@ -269,6 +270,26 @@ class CacheManager implements FactoryContract
         })->all();
 
         return $this->repository(new StackStore($stores));
+    }
+
+    /**
+     * Create an instance of the database cache driver.
+     */
+    protected function createDatabaseDriver(array $config): Repository
+    {
+        $connectionResolver = $this->app->get(\Hyperf\Database\ConnectionResolverInterface::class);
+
+        $store = new DatabaseStore(
+            $connectionResolver,
+            $config['connection'] ?? 'default',
+            $config['table'],
+            $this->getPrefix($config),
+            $config['lock_table'] ?? 'cache_locks',
+            $config['lock_lottery'] ?? [2, 100],
+            $config['lock_timeout'] ?? 86400
+        );
+
+        return $this->repository($store);
     }
 
     /**

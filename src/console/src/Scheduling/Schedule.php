@@ -69,7 +69,7 @@ class Schedule
     /**
      * The job dispatcher implementation.
      */
-    protected Dispatcher $dispatcher;
+    protected ?Dispatcher $dispatcher = null;
 
     /**
      * The cache of mutex results.

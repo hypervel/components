@@ -14,7 +14,9 @@ use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Support\ServiceProvider;
+use Hypervel\Support\Uri;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
@@ -50,6 +52,7 @@ class FoundationServiceProvider extends ServiceProvider
     {
         $this->overrideHyperfConfigs();
         $this->listenCommandException();
+        $this->registerUriUrlGeneration();
 
         $this->callAfterResolving(RequestContract::class, function (RequestContract $request) {
             $request->setUserResolver(function (?string $guard = null) {
@@ -146,6 +149,13 @@ class FoundationServiceProvider extends ServiceProvider
         }
 
         return $middleware;
+    }
+
+    protected function registerUriUrlGeneration(): void
+    {
+        Uri::setUrlGeneratorResolver(
+            fn () => $this->app->get(UrlGeneratorContract::class)
+        );
     }
 
     protected function setDefaultTimezone(): void

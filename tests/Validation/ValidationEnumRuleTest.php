@@ -155,6 +155,17 @@ class ValidationEnumRuleTest extends TestCase
         $this->assertSame($expected, $v->fails());
     }
 
+    public static function conditionalCasesDataProvider(): array
+    {
+        return [
+            [IntegerStatus::done, IntegerStatus::done, true],
+            [IntegerStatus::done, [IntegerStatus::done, IntegerStatus::pending], true],
+            [IntegerStatus::done, new Collection([IntegerStatus::done, IntegerStatus::pending]), true],
+            [IntegerStatus::pending->value, [IntegerStatus::done, IntegerStatus::pending], true],
+            [IntegerStatus::done->value, IntegerStatus::pending, false],
+        ];
+    }
+
     public function testOnlyHasHigherOrderThanExcept()
     {
         $v = new Validator(
@@ -291,16 +302,5 @@ class ValidationEnumRuleTest extends TestCase
 
         $this->assertTrue($v->fails());
         $this->assertEquals(['The selected status is invalid.'], $v->messages()->get('status'));
-    }
-
-    public static function conditionalCasesDataProvider(): array
-    {
-        return [
-            [IntegerStatus::done, IntegerStatus::done, true],
-            [IntegerStatus::done, [IntegerStatus::done, IntegerStatus::pending], true],
-            [IntegerStatus::done, new Collection([IntegerStatus::done, IntegerStatus::pending]), true],
-            [IntegerStatus::pending->value, [IntegerStatus::done, IntegerStatus::pending], true],
-            [IntegerStatus::done->value, IntegerStatus::pending, false],
-        ];
     }
 }
