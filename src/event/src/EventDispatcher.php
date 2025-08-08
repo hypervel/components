@@ -8,6 +8,7 @@ use Closure;
 use Exception;
 use Hyperf\Collection\Arr;
 use Hyperf\Context\ApplicationContext;
+use Hyperf\Context\Context;
 use Hyperf\Stringable\Str;
 use Hypervel\Broadcasting\Contracts\Factory as BroadcastFactory;
 use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
@@ -60,6 +61,17 @@ class EventDispatcher implements EventDispatcherContract
      */
     public function dispatch(object|string $event, mixed $payload = [], bool $halt = false): object|string
     {
+        if ($this->shouldDeferEvent($event)) {
+            Context::override('__event.deferred_events', function (?array $events) use ($event, $payload, $halt) {
+                $events = $events ?? [];
+                $events[] = [$event, $payload, $halt];
+
+                return $events;
+            });
+
+            return $event;
+        }
+
         // If the event is not intended to be dispatched unless the current database
         // transaction is successful, we'll register a callback which will handle
         // dispatching this event on the next successful DB transaction commit.
@@ -553,5 +565,56 @@ class EventDispatcher implements EventDispatcherContract
         }
 
         return $subscriber;
+    }
+
+    /**
+     * Execute the given callback while deferring events, then dispatch all deferred events.
+     *
+     * @return mixed
+     */
+    public function defer(callable $callback, ?array $events = null)
+    {
+        $wasDeferring = Context::get('__event.deferring', false);
+        $previousDeferredEvents = Context::get('__event.deferred_events', []);
+        $previousEventsToDefer = Context::get('__event.events_to_defer', null);
+
+        Context::set('__event.deferring', true);
+        Context::set('__event.deferred_events', []);
+        Context::set('__event.events_to_defer', $events);
+
+        try {
+            $result = $callback();
+
+            Context::set('__event.deferring', false);
+
+            foreach (Context::get('__event.deferred_events', []) as $args) {
+                $this->dispatch(...$args);
+            }
+
+            return $result;
+        } finally {
+            Context::set('__event.deferring', $wasDeferring);
+            Context::set('__event.deferred_events', $previousDeferredEvents);
+            Context::set('__event.events_to_defer', $previousEventsToDefer);
+        }
+    }
+
+    /**
+     * Determine if the given event should be deferred.
+     */
+    protected function shouldDeferEvent(object|string $event): bool
+    {
+        if (! Context::get('__event.deferring', false)) {
+            return false;
+        }
+
+        if (! $eventsToDefer = Context::get('__event.events_to_defer', null)) {
+            return true;
+        }
+
+        return in_array(
+            is_object($event) ? get_class($event) : $event,
+            $eventsToDefer
+        );
     }
 }
