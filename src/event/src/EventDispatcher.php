@@ -569,10 +569,8 @@ class EventDispatcher implements EventDispatcherContract
 
     /**
      * Execute the given callback while deferring events, then dispatch all deferred events.
-     *
-     * @return mixed
      */
-    public function defer(callable $callback, ?array $events = null)
+    public function defer(callable $callback, ?array $events = null): mixed
     {
         $wasDeferring = Context::get('__event.deferring', false);
         $previousDeferredEvents = Context::get('__event.deferred_events', []);
