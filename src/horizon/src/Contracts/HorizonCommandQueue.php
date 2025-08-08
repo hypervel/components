@@ -1,6 +1,8 @@
 <?php
 
-namespace Laravel\Horizon\Contracts;
+declare(strict_types=1);
+
+namespace Hypervel\Horizon\Contracts;
 
 interface HorizonCommandQueue
 {

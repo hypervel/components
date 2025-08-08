@@ -1,9 +1,11 @@
 <?php
 
-namespace Laravel\Horizon\Contracts;
+declare(strict_types=1);
 
-use Illuminate\Support\Collection;
-use Laravel\Horizon\JobPayload;
+namespace Hypervel\Horizon\Contracts;
+
+use Hyperf\Collection\Collection;
+use Hypervel\Horizon\JobPayload;
 
 interface JobRepository
 {
@@ -32,7 +34,7 @@ interface JobRepository
      * Get a chunk of recent jobs.
      *
      * @param  string  $afterIndex
-     * @return \Illuminate\Support\Collection
+     * @return \Hyperf\Collection\Collection
      */
     public function getRecent($afterIndex = null);
 
@@ -40,7 +42,7 @@ interface JobRepository
      * Get a chunk of failed jobs.
      *
      * @param  string  $afterIndex
-     * @return \Illuminate\Support\Collection
+     * @return \Hyperf\Collection\Collection
      */
     public function getFailed($afterIndex = null);
 
@@ -48,7 +50,7 @@ interface JobRepository
      * Get a chunk of pending jobs.
      *
      * @param  string  $afterIndex
-     * @return \Illuminate\Support\Collection
+     * @return \Hyperf\Collection\Collection
      */
     public function getPending($afterIndex = null);
 
@@ -56,7 +58,7 @@ interface JobRepository
      * Get a chunk of completed jobs.
      *
      * @param  string  $afterIndex
-     * @return \Illuminate\Support\Collection
+     * @return \Hyperf\Collection\Collection
      */
     public function getCompleted($afterIndex = null);
 
@@ -64,7 +66,7 @@ interface JobRepository
      * Get a chunk of silenced jobs.
      *
      * @param  string  $afterIndex
-     * @return \Illuminate\Support\Collection
+     * @return \Hyperf\Collection\Collection
      */
     public function getSilenced($afterIndex = null);
 
@@ -115,7 +117,7 @@ interface JobRepository
      *
      * @param  array  $ids
      * @param  mixed  $indexFrom
-     * @return \Illuminate\Support\Collection
+     * @return \Hyperf\Collection\Collection
      */
     public function getJobs(array $ids, $indexFrom = 0);
 
@@ -124,7 +126,7 @@ interface JobRepository
      *
      * @param  string  $connection
      * @param  string  $queue
-     * @param  \Laravel\Horizon\JobPayload  $payload
+     * @param  \Hypervel\Horizon\JobPayload  $payload
      * @return void
      */
     public function pushed($connection, $queue, JobPayload $payload);
@@ -134,7 +136,7 @@ interface JobRepository
      *
      * @param  string  $connection
      * @param  string  $queue
-     * @param  \Laravel\Horizon\JobPayload  $payload
+     * @param  \Hypervel\Horizon\JobPayload  $payload
      * @return void
      */
     public function reserved($connection, $queue, JobPayload $payload);
@@ -144,7 +146,7 @@ interface JobRepository
      *
      * @param  string  $connection
      * @param  string  $queue
-     * @param  \Laravel\Horizon\JobPayload  $payload
+     * @param  \Hypervel\Horizon\JobPayload  $payload
      * @return void
      */
     public function released($connection, $queue, JobPayload $payload);
@@ -154,7 +156,7 @@ interface JobRepository
      *
      * @param  string  $connection
      * @param  string  $queue
-     * @param  \Laravel\Horizon\JobPayload  $payload
+     * @param  \Hypervel\Horizon\JobPayload  $payload
      * @return void
      */
     public function remember($connection, $queue, JobPayload $payload);
@@ -164,7 +166,7 @@ interface JobRepository
      *
      * @param  string  $connection
      * @param  string  $queue
-     * @param  \Illuminate\Support\Collection  $payloads
+     * @param  \Hyperf\Collection\Collection  $payloads
      * @return void
      */
     public function migrated($connection, $queue, Collection $payloads);
@@ -172,7 +174,7 @@ interface JobRepository
     /**
      * Handle the storage of a completed job.
      *
-     * @param  \Laravel\Horizon\JobPayload  $payload
+     * @param  \Hypervel\Horizon\JobPayload  $payload
      * @param  bool  $failed
      * @param  bool  $silenced
      * @return void
@@ -222,7 +224,7 @@ interface JobRepository
      * @param  \Exception  $exception
      * @param  string  $connection
      * @param  string  $queue
-     * @param  \Laravel\Horizon\JobPayload  $payload
+     * @param  \Hypervel\Horizon\JobPayload  $payload
      * @return void
      */
     public function failed($exception, $connection, $queue, JobPayload $payload);

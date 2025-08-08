@@ -1,8 +1,10 @@
 <?php
 
-namespace Laravel\Horizon\Contracts;
+declare(strict_types=1);
 
-use Laravel\Horizon\MasterSupervisor;
+namespace Hypervel\Horizon\Contracts;
+
+use Hypervel\Horizon\MasterSupervisor;
 
 interface MasterSupervisorRepository
 {
@@ -39,7 +41,7 @@ interface MasterSupervisorRepository
     /**
      * Update the information about the given master supervisor.
      *
-     * @param  \Laravel\Horizon\MasterSupervisor  $master
+     * @param  \Hypervel\Horizon\MasterSupervisor  $master
      * @return void
      */
     public function update(MasterSupervisor $master);

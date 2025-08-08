@@ -1,8 +1,10 @@
 <?php
 
-namespace Laravel\Horizon\Contracts;
+declare(strict_types=1);
 
-use Laravel\Horizon\Supervisor;
+namespace Hypervel\Horizon\Contracts;
+
+use Hypervel\Horizon\Supervisor;
 
 interface SupervisorRepository
 {
@@ -46,7 +48,7 @@ interface SupervisorRepository
     /**
      * Update the information about the given supervisor process.
      *
-     * @param  \Laravel\Horizon\Supervisor  $supervisor
+     * @param  \Hypervel\Horizon\Supervisor  $supervisor
      * @return void
      */
     public function update(Supervisor $supervisor);
