@@ -21,10 +21,8 @@ class ForgetFailedCommand extends Command
 
     /**
      * Execute the console command.
-     *
-     * @return int|null
      */
-    public function handle(JobRepository $repository)
+    public function handle(JobRepository $repository): ?int
     {
         if ($this->option('all')) {
             $totalFailedCount = $repository->totalFailed();

@@ -24,11 +24,8 @@ class PauseSupervisorCommand extends Command
 
     /**
      * Execute the console command.
-     *
-     * @param  \Hypervel\Horizon\Contracts\SupervisorRepository  $supervisors
-     * @return void
      */
-    public function handle(SupervisorRepository $supervisors)
+    public function handle(SupervisorRepository $supervisors): int
     {
         $processId = optional(collect($supervisors->all())->first(function ($supervisor) {
             return Str::startsWith($supervisor->name, MasterSupervisor::basename())

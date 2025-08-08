@@ -27,10 +27,8 @@ class TimeoutCommand extends Command
 
     /**
      * Execute the console command.
-     *
-     * @return void
      */
-    public function handle()
+    public function handle(): void
     {
         $plan = ProvisioningPlan::get(MasterSupervisor::name())->plan;
 

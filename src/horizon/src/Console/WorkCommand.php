@@ -37,10 +37,8 @@ class WorkCommand extends BaseWorkCommand
 
     /**
      * Execute the console command.
-     *
-     * @return void
      */
-    public function handle()
+    public function handle(): void
     {
         if (config('horizon.fast_termination')) {
             ignore_user_abort(true);

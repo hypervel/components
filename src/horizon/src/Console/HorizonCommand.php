@@ -23,11 +23,8 @@ class HorizonCommand extends Command
 
     /**
      * Execute the console command.
-     *
-     * @param  \Hypervel\Horizon\Contracts\MasterSupervisorRepository  $masters
-     * @return void
      */
-    public function handle(MasterSupervisorRepository $masters)
+    public function handle(MasterSupervisorRepository $masters): void
     {
         if ($masters->find(MasterSupervisor::name())) {
             return $this->components->warn('A master supervisor is already running on this machine.');

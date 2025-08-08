@@ -24,11 +24,8 @@ class SupervisorStatusCommand extends Command
 
     /**
      * Execute the console command.
-     *
-     * @param  \Hypervel\Horizon\Contracts\SupervisorRepository  $supervisors
-     * @return void
      */
-    public function handle(SupervisorRepository $supervisors)
+    public function handle(SupervisorRepository $supervisors): int
     {
         $name = $this->argument('name');
 

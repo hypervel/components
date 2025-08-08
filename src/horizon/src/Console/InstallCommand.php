@@ -22,10 +22,8 @@ class InstallCommand extends Command
 
     /**
      * Execute the console command.
-     *
-     * @return void
      */
-    public function handle()
+    public function handle(): void
     {
         $this->components->info('Installing Horizon resources.');
 
@@ -41,10 +39,8 @@ class InstallCommand extends Command
 
     /**
      * Register the Horizon service provider in the application configuration file.
-     *
-     * @return void
      */
-    protected function registerHorizonServiceProvider()
+    protected function registerHorizonServiceProvider(): void
     {
         $namespace = Str::replaceLast('\\', '', $this->laravel->getNamespace());
 

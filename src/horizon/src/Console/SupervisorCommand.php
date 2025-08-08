@@ -6,6 +6,7 @@ namespace Hypervel\Horizon\Console;
 
 use Exception;
 use Hypervel\Console\Command;
+use Hypervel\Horizon\Supervisor;
 use Hypervel\Horizon\SupervisorFactory;
 use Hypervel\Horizon\SupervisorOptions;
 
@@ -51,11 +52,8 @@ class SupervisorCommand extends Command
 
     /**
      * Execute the console command.
-     *
-     * @param  \Hypervel\Horizon\SupervisorFactory  $factory
-     * @return int|null
      */
-    public function handle(SupervisorFactory $factory)
+    public function handle(SupervisorFactory $factory): ?int
     {
         $supervisor = $factory->make(
             $this->supervisorOptions()
@@ -74,11 +72,8 @@ class SupervisorCommand extends Command
 
     /**
      * Start the given supervisor.
-     *
-     * @param  \Hypervel\Horizon\Supervisor  $supervisor
-     * @return void
      */
-    protected function start($supervisor)
+    protected function start(Supervisor $supervisor): void
     {
         if ($supervisor->options->nice) {
             proc_nice($supervisor->options->nice);
@@ -100,10 +95,8 @@ class SupervisorCommand extends Command
 
     /**
      * Get the supervisor options.
-     *
-     * @return \Hypervel\Horizon\SupervisorOptions
      */
-    protected function supervisorOptions()
+    protected function supervisorOptions(): SupervisorOptions
     {
         $backoff = $this->hasOption('backoff')
                     ? $this->option('backoff')
@@ -140,11 +133,8 @@ class SupervisorCommand extends Command
 
     /**
      * Get the queue name for the worker.
-     *
-     * @param  string  $connection
-     * @return string
      */
-    protected function getQueue($connection)
+    protected function getQueue(string $connection): string
     {
         return $this->option('queue') ?: $this->laravel['config']->get(
             "queue.connections.{$connection}.queue", 'default'

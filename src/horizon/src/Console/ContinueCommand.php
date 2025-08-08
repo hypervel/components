@@ -24,10 +24,8 @@ class ContinueCommand extends Command
 
     /**
      * Execute the console command.
-     *
-     * @return void
      */
-    public function handle(MasterSupervisorRepository $masters)
+    public function handle(MasterSupervisorRepository $masters): void
     {
         $masters = collect($masters->all())->filter(function ($master) {
             return Str::startsWith($master->name, MasterSupervisor::basename());

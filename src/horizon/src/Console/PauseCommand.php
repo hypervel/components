@@ -24,11 +24,8 @@ class PauseCommand extends Command
 
     /**
      * Execute the console command.
-     *
-     * @param  \Hypervel\Horizon\Contracts\MasterSupervisorRepository  $masters
-     * @return void
      */
-    public function handle(MasterSupervisorRepository $masters)
+    public function handle(MasterSupervisorRepository $masters): void
     {
         $masters = collect($masters->all())->filter(function ($master) {
             return Str::startsWith($master->name, MasterSupervisor::basename());

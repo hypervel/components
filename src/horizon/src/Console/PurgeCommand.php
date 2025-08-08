@@ -42,11 +42,6 @@ class PurgeCommand extends Command
 
     /**
      * Create a new command instance.
-     *
-     * @param  \Hypervel\Horizon\Contracts\SupervisorRepository  $supervisors
-     * @param  \Hypervel\Horizon\Contracts\ProcessRepository  $processes
-     * @param  \Hypervel\Horizon\ProcessInspector  $inspector
-     * @return void
      */
     public function __construct(
         SupervisorRepository $supervisors,
@@ -62,11 +57,8 @@ class PurgeCommand extends Command
 
     /**
      * Execute the console command.
-     *
-     * @param  \Hypervel\Horizon\Contracts\MasterSupervisorRepository  $masters
-     * @return void
      */
-    public function handle(MasterSupervisorRepository $masters)
+    public function handle(MasterSupervisorRepository $masters): void
     {
         $signal = is_numeric($signal = $this->option('signal'))
                         ? $signal
@@ -81,12 +73,8 @@ class PurgeCommand extends Command
 
     /**
      * Purge any orphan processes.
-     *
-     * @param  string  $master
-     * @param  int  $signal
-     * @return void
      */
-    public function purge($master, $signal = SIGTERM)
+    public function purge(string $master, int $signal = SIGTERM): void
     {
         $this->recordOrphans($master, $signal);
 
@@ -107,12 +95,8 @@ class PurgeCommand extends Command
 
     /**
      * Record the orphaned Horizon processes.
-     *
-     * @param  string  $master
-     * @param  int  $signal
-     * @return void
      */
-    protected function recordOrphans($master, $signal)
+    protected function recordOrphans(string $master, int $signal): void
     {
         $this->processes->orphaned(
             $master, $orphans = $this->inspector->orphaned()

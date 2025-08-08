@@ -21,11 +21,8 @@ class ClearMetricsCommand extends Command
 
     /**
      * Execute the console command.
-     *
-     * @param  \Hypervel\Horizon\Contracts\MetricsRepository  $metrics
-     * @return void
      */
-    public function handle(MetricsRepository $metrics)
+    public function handle(MetricsRepository $metrics): void
     {
         $metrics->clear();
 

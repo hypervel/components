@@ -30,10 +30,8 @@ class ClearCommand extends Command
 
     /**
      * Execute the console command.
-     *
-     * @return int|null
      */
-    public function handle(JobRepository $jobRepository, QueueManager $manager)
+    public function handle(JobRepository $jobRepository, QueueManager $manager): ?int
     {
         if (! $this->confirmToProceed()) {
             return 1;
@@ -61,11 +59,8 @@ class ClearCommand extends Command
 
     /**
      * Get the queue name to clear.
-     *
-     * @param  string  $connection
-     * @return string
      */
-    protected function getQueue($connection)
+    protected function getQueue(string $connection): string
     {
         return $this->option('queue') ?: $this->laravel['config']->get(
             "queue.connections.{$connection}.queue",

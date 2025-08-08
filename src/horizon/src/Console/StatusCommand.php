@@ -21,11 +21,8 @@ class StatusCommand extends Command
 
     /**
      * Execute the console command.
-     *
-     * @param  \Hypervel\Horizon\Contracts\MasterSupervisorRepository  $masterSupervisorRepository
-     * @return int
      */
-    public function handle(MasterSupervisorRepository $masterSupervisorRepository)
+    public function handle(MasterSupervisorRepository $masterSupervisorRepository): int
     {
         if (! $masters = $masterSupervisorRepository->all()) {
             $this->components->error('Horizon is inactive.');

@@ -29,12 +29,8 @@ class TerminateCommand extends Command
 
     /**
      * Execute the console command.
-     *
-     * @param  \Hypervel\Contracts\Cache\Factory  $cache
-     * @param  \Hypervel\Horizon\Contracts\MasterSupervisorRepository  $masters
-     * @return void
      */
-    public function handle(CacheFactory $cache, MasterSupervisorRepository $masters)
+    public function handle(CacheFactory $cache, MasterSupervisorRepository $masters): void
     {
         if (config('horizon.fast_termination')) {
             $cache->forever(

@@ -20,10 +20,8 @@ class PublishCommand extends Command
 
     /**
      * Execute the console command.
-     *
-     * @return void
      */
-    public function handle()
+    public function handle(): void
     {
         $this->components->warn('Horizon no longer publishes its assets. You may stop calling the `horizon:publish` command.');
     }
