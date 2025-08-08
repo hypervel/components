@@ -7,10 +7,12 @@ namespace Hypervel\Database\Eloquent;
 use Hyperf\DbConnection\Model\Model as BaseModel;
 use Hyperf\Stringable\Str;
 use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
+use Hypervel\Context\Context;
 use Hypervel\Database\Eloquent\Concerns\HasCallbacks;
 use Hypervel\Database\Eloquent\Concerns\HasObservers;
 use Hypervel\Database\Eloquent\Concerns\HasRelations;
 use Hypervel\Router\Contracts\UrlRoutable;
+use Psr\EventDispatcher\EventDispatcherInterface;
 
 abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChannel
 {
@@ -48,5 +50,32 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
     public function broadcastChannel(): string
     {
         return str_replace('\\', '.', get_class($this)) . '.' . $this->getKey();
+    }
+
+    /**
+     * Get the event dispatcher instance.
+     */
+    public function getEventDispatcher(): ?EventDispatcherInterface
+    {
+        if (Context::get($this->getWithoutEventContextKey())) {
+            return null;
+        }
+
+        return parent::getEventDispatcher();
+    }
+
+    /**
+     * Execute a callback without firing any model events for any model type.
+     */
+    public static function withoutEvents(callable $callback): mixed
+    {
+        Context::set(self::getWithoutEventContextKey(), true);
+
+        return $callback();
+    }
+
+    protected static function getWithoutEventContextKey(): string
+    {
+        return '__database.model.without_events.' . static::class;
     }
 }
