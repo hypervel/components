@@ -1,36 +1,32 @@
 <?php
 
-namespace Laravel\Horizon\Console;
+declare(strict_types=1);
 
-use Illuminate\Console\Command;
-use Illuminate\Console\ConfirmableTrait;
-use Illuminate\Queue\QueueManager;
-use Illuminate\Support\Arr;
-use Laravel\Horizon\Contracts\JobRepository;
-use Laravel\Horizon\RedisQueue;
-use Symfony\Component\Console\Attribute\AsCommand;
+namespace Hypervel\Horizon\Console;
 
-#[AsCommand(name: 'horizon:clear')]
+use Hypervel\Console\Command;
+use Hypervel\Console\ConfirmableTrait;
+use Hypervel\Queue\QueueManager;
+use Hypervel\Support\Arr;
+use Hypervel\Horizon\Contracts\JobRepository;
+use Hypervel\Horizon\RedisQueue;
+
 class ClearCommand extends Command
 {
     use ConfirmableTrait;
 
     /**
      * The name and signature of the console command.
-     *
-     * @var string
      */
-    protected $signature = 'horizon:clear
+    protected string $signature = 'horizon:clear
                             {connection? : The name of the queue connection}
                             {--queue= : The name of the queue to clear}
                             {--force : Force the operation to run when in production}';
 
     /**
      * The console command description.
-     *
-     * @var string
      */
-    protected $description = 'Delete all of the jobs from the specified queue';
+    protected string $description = 'Delete all of the jobs from the specified queue';
 
     /**
      * Execute the console command.

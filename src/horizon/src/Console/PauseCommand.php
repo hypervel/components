@@ -1,35 +1,31 @@
 <?php
 
-namespace Laravel\Horizon\Console;
+declare(strict_types=1);
 
-use Illuminate\Console\Command;
-use Illuminate\Support\Arr;
-use Illuminate\Support\Str;
-use Laravel\Horizon\Contracts\MasterSupervisorRepository;
-use Laravel\Horizon\MasterSupervisor;
-use Symfony\Component\Console\Attribute\AsCommand;
+namespace Hypervel\Horizon\Console;
 
-#[AsCommand(name: 'horizon:pause')]
+use Hypervel\Console\Command;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
+use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
+use Hypervel\Horizon\MasterSupervisor;
+
 class PauseCommand extends Command
 {
     /**
      * The name and signature of the console command.
-     *
-     * @var string
      */
-    protected $signature = 'horizon:pause';
+    protected string $signature = 'horizon:pause';
 
     /**
      * The console command description.
-     *
-     * @var string
      */
-    protected $description = 'Pause the master supervisor';
+    protected string $description = 'Pause the master supervisor';
 
     /**
      * Execute the console command.
      *
-     * @param  \Laravel\Horizon\Contracts\MasterSupervisorRepository  $masters
+     * @param  \Hypervel\Horizon\Contracts\MasterSupervisorRepository  $masters
      * @return void
      */
     public function handle(MasterSupervisorRepository $masters)

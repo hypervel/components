@@ -1,32 +1,28 @@
 <?php
 
-namespace Laravel\Horizon\Console;
+declare(strict_types=1);
 
-use Illuminate\Console\Command;
-use Laravel\Horizon\Contracts\MasterSupervisorRepository;
-use Symfony\Component\Console\Attribute\AsCommand;
+namespace Hypervel\Horizon\Console;
 
-#[AsCommand(name: 'horizon:list')]
+use Hypervel\Console\Command;
+use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
+
 class ListCommand extends Command
 {
     /**
      * The name and signature of the console command.
-     *
-     * @var string
      */
-    protected $signature = 'horizon:list';
+    protected string $signature = 'horizon:list';
 
     /**
      * The console command description.
-     *
-     * @var string
      */
-    protected $description = 'List all of the deployed machines';
+    protected string $description = 'List all of the deployed machines';
 
     /**
      * Execute the console command.
      *
-     * @param  \Laravel\Horizon\Contracts\MasterSupervisorRepository  $masters
+     * @param  \Hypervel\Horizon\Contracts\MasterSupervisorRepository  $masters
      * @return void
      */
     public function handle(MasterSupervisorRepository $masters)

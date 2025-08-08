@@ -1,35 +1,30 @@
 <?php
 
-namespace Laravel\Horizon\Console;
+declare(strict_types=1);
 
-use Illuminate\Console\Command;
-use Illuminate\Support\Arr;
-use Illuminate\Support\Str;
-use Laravel\Horizon\Contracts\MasterSupervisorRepository;
-use Laravel\Horizon\MasterSupervisor;
-use Symfony\Component\Console\Attribute\AsCommand;
+namespace Hypervel\Horizon\Console;
 
-#[AsCommand(name: 'horizon:continue')]
+use Hypervel\Console\Command;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
+use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
+use Hypervel\Horizon\MasterSupervisor;
+
 class ContinueCommand extends Command
 {
     /**
      * The name and signature of the console command.
-     *
-     * @var string
      */
-    protected $signature = 'horizon:continue';
+    protected string $signature = 'horizon:continue';
 
     /**
      * The console command description.
-     *
-     * @var string
      */
-    protected $description = 'Instruct the master supervisor to continue processing jobs';
+    protected string $description = 'Instruct the master supervisor to continue processing jobs';
 
     /**
      * Execute the console command.
      *
-     * @param  \Laravel\Horizon\Contracts\MasterSupervisorRepository  $masters
      * @return void
      */
     public function handle(MasterSupervisorRepository $masters)

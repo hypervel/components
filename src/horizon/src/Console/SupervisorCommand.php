@@ -1,22 +1,20 @@
 <?php
 
-namespace Laravel\Horizon\Console;
+declare(strict_types=1);
+
+namespace Hypervel\Horizon\Console;
 
 use Exception;
-use Illuminate\Console\Command;
-use Laravel\Horizon\SupervisorFactory;
-use Laravel\Horizon\SupervisorOptions;
-use Symfony\Component\Console\Attribute\AsCommand;
+use Hypervel\Console\Command;
+use Hypervel\Horizon\SupervisorFactory;
+use Hypervel\Horizon\SupervisorOptions;
 
-#[AsCommand(name: 'horizon:supervisor')]
 class SupervisorCommand extends Command
 {
     /**
      * The name and signature of the console command.
-     *
-     * @var string
      */
-    protected $signature = 'horizon:supervisor
+    protected string $signature = 'horizon:supervisor
                             {name : The name of supervisor}
                             {connection : The name of the connection to work}
                             {--balance= : The balancing strategy the supervisor should apply}
@@ -43,22 +41,18 @@ class SupervisorCommand extends Command
 
     /**
      * The console command description.
-     *
-     * @var string
      */
-    protected $description = 'Start a new supervisor';
+    protected string $description = 'Start a new supervisor';
 
     /**
      * Indicates whether the command should be shown in the Artisan command list.
-     *
-     * @var bool
      */
-    protected $hidden = true;
+    protected bool $hidden = true;
 
     /**
      * Execute the console command.
      *
-     * @param  \Laravel\Horizon\SupervisorFactory  $factory
+     * @param  \Hypervel\Horizon\SupervisorFactory  $factory
      * @return int|null
      */
     public function handle(SupervisorFactory $factory)
@@ -81,7 +75,7 @@ class SupervisorCommand extends Command
     /**
      * Start the given supervisor.
      *
-     * @param  \Laravel\Horizon\Supervisor  $supervisor
+     * @param  \Hypervel\Horizon\Supervisor  $supervisor
      * @return void
      */
     protected function start($supervisor)
@@ -107,7 +101,7 @@ class SupervisorCommand extends Command
     /**
      * Get the supervisor options.
      *
-     * @return \Laravel\Horizon\SupervisorOptions
+     * @return \Hypervel\Horizon\SupervisorOptions
      */
     protected function supervisorOptions()
     {

@@ -1,28 +1,24 @@
 <?php
 
-namespace Laravel\Horizon\Console;
+declare(strict_types=1);
 
-use Illuminate\Console\Command;
-use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Str;
-use Symfony\Component\Console\Attribute\AsCommand;
+namespace Hypervel\Horizon\Console;
 
-#[AsCommand(name: 'horizon:install')]
+use Hypervel\Console\Command;
+use Hypervel\Support\ServiceProvider;
+use Hypervel\Support\Str;
+
 class InstallCommand extends Command
 {
     /**
      * The name and signature of the console command.
-     *
-     * @var string
      */
-    protected $signature = 'horizon:install';
+    protected string $signature = 'horizon:install';
 
     /**
      * The console command description.
-     *
-     * @var string
      */
-    protected $description = 'Install all of the Horizon resources';
+    protected string $description = 'Install all of the Horizon resources';
 
     /**
      * Execute the console command.

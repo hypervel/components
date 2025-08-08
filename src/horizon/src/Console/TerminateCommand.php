@@ -1,41 +1,37 @@
 <?php
 
-namespace Laravel\Horizon\Console;
+declare(strict_types=1);
 
-use Illuminate\Console\Command;
-use Illuminate\Contracts\Cache\Factory as CacheFactory;
-use Illuminate\Support\Arr;
-use Illuminate\Support\InteractsWithTime;
-use Illuminate\Support\Str;
-use Laravel\Horizon\Contracts\MasterSupervisorRepository;
-use Laravel\Horizon\MasterSupervisor;
-use Symfony\Component\Console\Attribute\AsCommand;
+namespace Hypervel\Horizon\Console;
 
-#[AsCommand(name: 'horizon:terminate')]
+use Hypervel\Console\Command;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Support\Arr;
+use Hypervel\Support\InteractsWithTime;
+use Hypervel\Support\Str;
+use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
+use Hypervel\Horizon\MasterSupervisor;
+
 class TerminateCommand extends Command
 {
     use InteractsWithTime;
 
     /**
      * The name and signature of the console command.
-     *
-     * @var string
      */
-    protected $signature = 'horizon:terminate
+    protected string $signature = 'horizon:terminate
                             {--wait : Wait for all workers to terminate}';
 
     /**
      * The console command description.
-     *
-     * @var string
      */
-    protected $description = 'Terminate the master supervisor so it can be restarted';
+    protected string $description = 'Terminate the master supervisor so it can be restarted';
 
     /**
      * Execute the console command.
      *
-     * @param  \Illuminate\Contracts\Cache\Factory  $cache
-     * @param  \Laravel\Horizon\Contracts\MasterSupervisorRepository  $masters
+     * @param  \Hypervel\Contracts\Cache\Factory  $cache
+     * @param  \Hypervel\Horizon\Contracts\MasterSupervisorRepository  $masters
      * @return void
      */
     public function handle(CacheFactory $cache, MasterSupervisorRepository $masters)

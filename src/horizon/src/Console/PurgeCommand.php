@@ -1,55 +1,51 @@
 <?php
 
-namespace Laravel\Horizon\Console;
+declare(strict_types=1);
 
-use Illuminate\Console\Command;
-use Illuminate\Support\Str;
-use Laravel\Horizon\Contracts\MasterSupervisorRepository;
-use Laravel\Horizon\Contracts\ProcessRepository;
-use Laravel\Horizon\Contracts\SupervisorRepository;
-use Laravel\Horizon\MasterSupervisor;
-use Laravel\Horizon\ProcessInspector;
-use Symfony\Component\Console\Attribute\AsCommand;
+namespace Hypervel\Horizon\Console;
 
-#[AsCommand(name: 'horizon:purge')]
+use Hypervel\Console\Command;
+use Hypervel\Support\Str;
+use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
+use Hypervel\Horizon\Contracts\ProcessRepository;
+use Hypervel\Horizon\Contracts\SupervisorRepository;
+use Hypervel\Horizon\MasterSupervisor;
+use Hypervel\Horizon\ProcessInspector;
+
 class PurgeCommand extends Command
 {
     /**
      * The name and signature of the console command.
-     *
-     * @var string
      */
-    protected $signature = 'horizon:purge
+    protected string $signature = 'horizon:purge
                             {--signal=SIGTERM : The signal to send to the rogue processes}';
 
     /**
      * The console command description.
-     *
-     * @var string
      */
-    protected $description = 'Terminate any rogue Horizon processes';
+    protected string $description = 'Terminate any rogue Horizon processes';
 
     /**
-     * @var \Laravel\Horizon\Contracts\SupervisorRepository
+     * @var \Hypervel\Horizon\Contracts\SupervisorRepository
      */
     private $supervisors;
 
     /**
-     * @var \Laravel\Horizon\Contracts\ProcessRepository
+     * @var \Hypervel\Horizon\Contracts\ProcessRepository
      */
     private $processes;
 
     /**
-     * @var \Laravel\Horizon\ProcessInspector
+     * @var \Hypervel\Horizon\ProcessInspector
      */
     private $inspector;
 
     /**
      * Create a new command instance.
      *
-     * @param  \Laravel\Horizon\Contracts\SupervisorRepository  $supervisors
-     * @param  \Laravel\Horizon\Contracts\ProcessRepository  $processes
-     * @param  \Laravel\Horizon\ProcessInspector  $inspector
+     * @param  \Hypervel\Horizon\Contracts\SupervisorRepository  $supervisors
+     * @param  \Hypervel\Horizon\Contracts\ProcessRepository  $processes
+     * @param  \Hypervel\Horizon\ProcessInspector  $inspector
      * @return void
      */
     public function __construct(
@@ -67,7 +63,7 @@ class PurgeCommand extends Command
     /**
      * Execute the console command.
      *
-     * @param  \Laravel\Horizon\Contracts\MasterSupervisorRepository  $masters
+     * @param  \Hypervel\Horizon\Contracts\MasterSupervisorRepository  $masters
      * @return void
      */
     public function handle(MasterSupervisorRepository $masters)

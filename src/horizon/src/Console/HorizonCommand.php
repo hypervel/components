@@ -1,34 +1,30 @@
 <?php
 
-namespace Laravel\Horizon\Console;
+declare(strict_types=1);
 
-use Illuminate\Console\Command;
-use Laravel\Horizon\Contracts\MasterSupervisorRepository;
-use Laravel\Horizon\MasterSupervisor;
-use Laravel\Horizon\ProvisioningPlan;
-use Symfony\Component\Console\Attribute\AsCommand;
+namespace Hypervel\Horizon\Console;
 
-#[AsCommand(name: 'horizon')]
+use Hypervel\Console\Command;
+use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
+use Hypervel\Horizon\MasterSupervisor;
+use Hypervel\Horizon\ProvisioningPlan;
+
 class HorizonCommand extends Command
 {
     /**
      * The name and signature of the console command.
-     *
-     * @var string
      */
-    protected $signature = 'horizon {--environment= : The environment name}';
+    protected string $signature = 'horizon {--environment= : The environment name}';
 
     /**
      * The console command description.
-     *
-     * @var string
      */
-    protected $description = 'Start a master supervisor in the foreground';
+    protected string $description = 'Start a master supervisor in the foreground';
 
     /**
      * Execute the console command.
      *
-     * @param  \Laravel\Horizon\Contracts\MasterSupervisorRepository  $masters
+     * @param  \Hypervel\Horizon\Contracts\MasterSupervisorRepository  $masters
      * @return void
      */
     public function handle(MasterSupervisorRepository $masters)

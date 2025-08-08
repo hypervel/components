@@ -1,26 +1,22 @@
 <?php
 
-namespace Laravel\Horizon\Console;
+declare(strict_types=1);
 
-use Illuminate\Console\Command;
-use Symfony\Component\Console\Attribute\AsCommand;
+namespace Hypervel\Horizon\Console;
 
-#[AsCommand(name: 'horizon:publish')]
+use Hypervel\Console\Command;
+
 class PublishCommand extends Command
 {
     /**
      * The name and signature of the console command.
-     *
-     * @var string
      */
-    protected $signature = 'horizon:publish';
+    protected string $signature = 'horizon:publish';
 
     /**
      * The console command description.
-     *
-     * @var string
      */
-    protected $description = 'Publish all of the Horizon resources';
+    protected string $description = 'Publish all of the Horizon resources';
 
     /**
      * Execute the console command.

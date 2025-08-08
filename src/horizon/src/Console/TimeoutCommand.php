@@ -1,35 +1,29 @@
 <?php
 
-namespace Laravel\Horizon\Console;
+declare(strict_types=1);
 
-use Illuminate\Console\Command;
-use Laravel\Horizon\MasterSupervisor;
-use Laravel\Horizon\ProvisioningPlan;
-use Symfony\Component\Console\Attribute\AsCommand;
+namespace Hypervel\Horizon\Console;
 
-#[AsCommand(name: 'horizon:timeout')]
+use Hypervel\Console\Command;
+use Hypervel\Horizon\MasterSupervisor;
+use Hypervel\Horizon\ProvisioningPlan;
+
 class TimeoutCommand extends Command
 {
     /**
      * The name and signature of the console command.
-     *
-     * @var string
      */
-    protected $signature = 'horizon:timeout {environment=production : The environment name}';
+    protected string $signature = 'horizon:timeout {environment=production : The environment name}';
 
     /**
      * The console command description.
-     *
-     * @var string
      */
-    protected $description = 'Get the maximum timeout for the given environment';
+    protected string $description = 'Get the maximum timeout for the given environment';
 
     /**
      * Indicates whether the command should be shown in the Artisan command list.
-     *
-     * @var bool
      */
-    protected $hidden = true;
+    protected bool $hidden = true;
 
     /**
      * Execute the console command.

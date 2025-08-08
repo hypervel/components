@@ -1,17 +1,17 @@
 <?php
 
-namespace Laravel\Horizon\Console;
+declare(strict_types=1);
 
-use Illuminate\Queue\Console\WorkCommand as BaseWorkCommand;
+namespace Hypervel\Horizon\Console;
+
+use Hypervel\Queue\Console\WorkCommand as BaseWorkCommand;
 
 class WorkCommand extends BaseWorkCommand
 {
     /**
      * The console command name.
-     *
-     * @var string
      */
-    protected $signature = 'horizon:work
+    protected string $signature = 'horizon:work
                             {connection? : The name of the queue connection to work}
                             {--name=default : The name of the worker}
                             {--delay=0 : The number of seconds to delay failed jobs (Deprecated)}
@@ -32,10 +32,8 @@ class WorkCommand extends BaseWorkCommand
 
     /**
      * Indicates whether the command should be shown in the Artisan command list.
-     *
-     * @var bool
      */
-    protected $hidden = true;
+    protected bool $hidden = true;
 
     /**
      * Execute the console command.

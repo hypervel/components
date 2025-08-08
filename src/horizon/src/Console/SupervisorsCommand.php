@@ -1,32 +1,28 @@
 <?php
 
-namespace Laravel\Horizon\Console;
+declare(strict_types=1);
 
-use Illuminate\Console\Command;
-use Laravel\Horizon\Contracts\SupervisorRepository;
-use Symfony\Component\Console\Attribute\AsCommand;
+namespace Hypervel\Horizon\Console;
 
-#[AsCommand(name: 'horizon:supervisors')]
+use Hypervel\Console\Command;
+use Hypervel\Horizon\Contracts\SupervisorRepository;
+
 class SupervisorsCommand extends Command
 {
     /**
      * The name and signature of the console command.
-     *
-     * @var string
      */
-    protected $signature = 'horizon:supervisors';
+    protected string $signature = 'horizon:supervisors';
 
     /**
      * The console command description.
-     *
-     * @var string
      */
-    protected $description = 'List all of the supervisors';
+    protected string $description = 'List all of the supervisors';
 
     /**
      * Execute the console command.
      *
-     * @param  \Laravel\Horizon\Contracts\SupervisorRepository  $supervisors
+     * @param  \Hypervel\Horizon\Contracts\SupervisorRepository  $supervisors
      * @return void
      */
     public function handle(SupervisorRepository $supervisors)

@@ -1,35 +1,31 @@
 <?php
 
-namespace Laravel\Horizon\Console;
+declare(strict_types=1);
 
-use Illuminate\Console\Command;
-use Illuminate\Support\Str;
-use Laravel\Horizon\Contracts\SupervisorRepository;
-use Laravel\Horizon\MasterSupervisor;
-use Symfony\Component\Console\Attribute\AsCommand;
+namespace Hypervel\Horizon\Console;
 
-#[AsCommand(name: 'horizon:supervisor-status')]
+use Hypervel\Console\Command;
+use Hypervel\Support\Str;
+use Hypervel\Horizon\Contracts\SupervisorRepository;
+use Hypervel\Horizon\MasterSupervisor;
+
 class SupervisorStatusCommand extends Command
 {
     /**
      * The name and signature of the console command.
-     *
-     * @var string
      */
-    protected $signature = 'horizon:supervisor-status
+    protected string $signature = 'horizon:supervisor-status
                             {name : The name of the supervisor}';
 
     /**
      * The console command description.
-     *
-     * @var string
      */
-    protected $description = 'Show the status for a given supervisor';
+    protected string $description = 'Show the status for a given supervisor';
 
     /**
      * Execute the console command.
      *
-     * @param  \Laravel\Horizon\Contracts\SupervisorRepository  $supervisors
+     * @param  \Hypervel\Horizon\Contracts\SupervisorRepository  $supervisors
      * @return void
      */
     public function handle(SupervisorRepository $supervisors)

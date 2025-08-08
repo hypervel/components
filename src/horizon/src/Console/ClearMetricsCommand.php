@@ -1,32 +1,28 @@
 <?php
 
-namespace Laravel\Horizon\Console;
+declare(strict_types=1);
 
-use Illuminate\Console\Command;
-use Laravel\Horizon\Contracts\MetricsRepository;
-use Symfony\Component\Console\Attribute\AsCommand;
+namespace Hypervel\Horizon\Console;
 
-#[AsCommand(name: 'horizon:clear-metrics')]
+use Hypervel\Console\Command;
+use Hypervel\Horizon\Contracts\MetricsRepository;
+
 class ClearMetricsCommand extends Command
 {
     /**
      * The name and signature of the console command.
-     *
-     * @var string
      */
-    protected $signature = 'horizon:clear-metrics';
+    protected string $signature = 'horizon:clear-metrics';
 
     /**
      * The console command description.
-     *
-     * @var string
      */
-    protected $description = 'Delete metrics for all jobs and queues';
+    protected string $description = 'Delete metrics for all jobs and queues';
 
     /**
      * Execute the console command.
      *
-     * @param  \Laravel\Horizon\Contracts\MetricsRepository  $metrics
+     * @param  \Hypervel\Horizon\Contracts\MetricsRepository  $metrics
      * @return void
      */
     public function handle(MetricsRepository $metrics)

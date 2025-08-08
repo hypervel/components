@@ -1,27 +1,23 @@
 <?php
 
-namespace Laravel\Horizon\Console;
+declare(strict_types=1);
 
-use Illuminate\Console\Command;
-use Laravel\Horizon\Contracts\JobRepository;
-use Symfony\Component\Console\Attribute\AsCommand;
+namespace Hypervel\Horizon\Console;
 
-#[AsCommand(name: 'horizon:forget')]
+use Hypervel\Console\Command;
+use Hypervel\Horizon\Contracts\JobRepository;
+
 class ForgetFailedCommand extends Command
 {
     /**
      * The console command signature.
-     *
-     * @var string
      */
-    protected $signature = 'horizon:forget {id? : The ID of the failed job} {--all : Delete all failed jobs}';
+    protected string $signature = 'horizon:forget {id? : The ID of the failed job} {--all : Delete all failed jobs}';
 
     /**
      * The console command description.
-     *
-     * @var string
      */
-    protected $description = 'Delete a failed queue job';
+    protected string $description = 'Delete a failed queue job';
 
     /**
      * Execute the console command.
