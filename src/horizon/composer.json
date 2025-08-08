@@ -1,0 +1,49 @@
+{
+    "name": "hypervel/horizon",
+    "description": "The horizon package for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "swoole",
+        "hyperf",
+        "hypervel",
+        "horizon"
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "hyperf/context": "~3.1.0",
+        "nesbot/carbon": "^2.72.6",
+        "hypervel/support": "^0.2",
+        "hypervel/cache": "^0.2"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Horizon\\": "src/"
+        }
+    },
+    "extra": {
+        "hyperf": {
+            "config": "Hypervel\\Bus\\ConfigProvider"
+        },
+        "branch-alias": {
+            "dev-main": "0.2-dev"
+        }
+    },
+    "suggest": {
+        "hypervel/queue": "Required to use closures when chaining jobs."
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev"
+}
