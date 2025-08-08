@@ -11,238 +11,146 @@ interface JobRepository
 {
     /**
      * Get the next job ID that should be assigned.
-     *
-     * @return string
      */
-    public function nextJobId();
+    public function nextJobId(): string;
 
     /**
      * Get the total count of recent jobs.
-     *
-     * @return int
      */
-    public function totalRecent();
+    public function totalRecent(): int;
 
     /**
      * Get the total count of failed jobs.
-     *
-     * @return int
      */
-    public function totalFailed();
+    public function totalFailed(): int;
 
     /**
      * Get a chunk of recent jobs.
-     *
-     * @param  string  $afterIndex
-     * @return \Hyperf\Collection\Collection
      */
-    public function getRecent($afterIndex = null);
+    public function getRecent(?string $afterIndex = null): Collection;
 
     /**
      * Get a chunk of failed jobs.
-     *
-     * @param  string  $afterIndex
-     * @return \Hyperf\Collection\Collection
      */
-    public function getFailed($afterIndex = null);
+    public function getFailed(?string $afterIndex = null): Collection;
 
     /**
      * Get a chunk of pending jobs.
-     *
-     * @param  string  $afterIndex
-     * @return \Hyperf\Collection\Collection
      */
-    public function getPending($afterIndex = null);
+    public function getPending(?string $afterIndex = null): Collection;
 
     /**
      * Get a chunk of completed jobs.
-     *
-     * @param  string  $afterIndex
-     * @return \Hyperf\Collection\Collection
      */
-    public function getCompleted($afterIndex = null);
+    public function getCompleted(?string $afterIndex = null): Collection;
 
     /**
      * Get a chunk of silenced jobs.
-     *
-     * @param  string  $afterIndex
-     * @return \Hyperf\Collection\Collection
      */
-    public function getSilenced($afterIndex = null);
+    public function getSilenced(?string $afterIndex = null): Collection;
 
     /**
      * Get the count of recent jobs.
-     *
-     * @return int
      */
-    public function countRecent();
+    public function countRecent(): int;
 
     /**
      * Get the count of failed jobs.
-     *
-     * @return int
      */
-    public function countFailed();
+    public function countFailed(): int;
 
     /**
      * Get the count of pending jobs.
-     *
-     * @return int
      */
-    public function countPending();
+    public function countPending(): int;
 
     /**
      * Get the count of completed jobs.
-     *
-     * @return int
      */
-    public function countCompleted();
+    public function countCompleted(): int;
 
     /**
      * Get the count of silenced jobs.
-     *
-     * @return int
      */
-    public function countSilenced();
+    public function countSilenced(): int;
 
     /**
      * Get the count of the recently failed jobs.
-     *
-     * @return int
      */
-    public function countRecentlyFailed();
+    public function countRecentlyFailed(): int;
 
     /**
      * Retrieve the jobs with the given IDs.
-     *
-     * @param  array  $ids
-     * @param  mixed  $indexFrom
-     * @return \Hyperf\Collection\Collection
      */
-    public function getJobs(array $ids, $indexFrom = 0);
+    public function getJobs(array $ids, mixed $indexFrom = 0): Collection;
 
     /**
      * Insert the job into storage.
-     *
-     * @param  string  $connection
-     * @param  string  $queue
-     * @param  \Hypervel\Horizon\JobPayload  $payload
-     * @return void
      */
-    public function pushed($connection, $queue, JobPayload $payload);
+    public function pushed(string $connection, string $queue, JobPayload $payload): void;
 
     /**
      * Mark the job as reserved.
-     *
-     * @param  string  $connection
-     * @param  string  $queue
-     * @param  \Hypervel\Horizon\JobPayload  $payload
-     * @return void
      */
-    public function reserved($connection, $queue, JobPayload $payload);
+    public function reserved(string $connection, string $queue, JobPayload $payload): void;
 
     /**
      * Mark the job as released / pending.
-     *
-     * @param  string  $connection
-     * @param  string  $queue
-     * @param  \Hypervel\Horizon\JobPayload  $payload
-     * @return void
      */
-    public function released($connection, $queue, JobPayload $payload);
+    public function released(string $connection, string $queue, JobPayload $payload): void;
 
     /**
      * Mark the job as completed and monitored.
-     *
-     * @param  string  $connection
-     * @param  string  $queue
-     * @param  \Hypervel\Horizon\JobPayload  $payload
-     * @return void
      */
-    public function remember($connection, $queue, JobPayload $payload);
+    public function remember(string $connection, string $queue, JobPayload $payload): void;
 
     /**
      * Mark the given jobs as released / pending.
-     *
-     * @param  string  $connection
-     * @param  string  $queue
-     * @param  \Hyperf\Collection\Collection  $payloads
-     * @return void
      */
-    public function migrated($connection, $queue, Collection $payloads);
+    public function migrated(string $connection, string $queue, Collection $payloads): void;
 
     /**
      * Handle the storage of a completed job.
-     *
-     * @param  \Hypervel\Horizon\JobPayload  $payload
-     * @param  bool  $failed
-     * @param  bool  $silenced
-     * @return void
      */
-    public function completed(JobPayload $payload, $failed = false, $silenced = false);
+    public function completed(JobPayload $payload, bool $failed = false, bool $silenced = false): void;
 
     /**
      * Delete the given monitored jobs by IDs.
-     *
-     * @param  array  $ids
-     * @return void
      */
-    public function deleteMonitored(array $ids);
+    public function deleteMonitored(array $ids): void;
 
     /**
      * Trim the recent job list.
-     *
-     * @return void
      */
-    public function trimRecentJobs();
+    public function trimRecentJobs(): void;
 
     /**
      * Trim the failed job list.
-     *
-     * @return void
      */
-    public function trimFailedJobs();
+    public function trimFailedJobs(): void;
 
     /**
      * Trim the monitored job list.
-     *
-     * @return void
      */
-    public function trimMonitoredJobs();
+    public function trimMonitoredJobs(): void;
 
     /**
      * Find a failed job by ID.
-     *
-     * @param  string  $id
-     * @return \stdClass|null
      */
-    public function findFailed($id);
+    public function findFailed(string $id): ?\stdClass;
 
     /**
      * Mark the job as failed.
-     *
-     * @param  \Exception  $exception
-     * @param  string  $connection
-     * @param  string  $queue
-     * @param  \Hypervel\Horizon\JobPayload  $payload
-     * @return void
      */
-    public function failed($exception, $connection, $queue, JobPayload $payload);
+    public function failed(\Exception $exception, string $connection, string $queue, JobPayload $payload): void;
 
     /**
      * Store the retry job ID on the original job record.
-     *
-     * @param  string  $id
-     * @param  string  $retryId
-     * @return void
      */
-    public function storeRetryReference($id, $retryId);
+    public function storeRetryReference(string $id, string $retryId): void;
 
     /**
      * Delete a failed job by ID.
-     *
-     * @param  string  $id
-     * @return int
      */
-    public function deleteFailed($id);
+    public function deleteFailed(string $id): int;
 }

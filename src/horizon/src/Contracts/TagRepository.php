@@ -8,85 +8,51 @@ interface TagRepository
 {
     /**
      * Get the currently monitored tags.
-     *
-     * @return array
      */
-    public function monitoring();
+    public function monitoring(): array;
 
     /**
      * Return the tags which are being monitored.
-     *
-     * @param  array  $tags
-     * @return array
      */
-    public function monitored(array $tags);
+    public function monitored(array $tags): array;
 
     /**
      * Start monitoring the given tag.
-     *
-     * @param  string  $tag
-     * @return void
      */
-    public function monitor($tag);
+    public function monitor(string $tag): void;
 
     /**
      * Stop monitoring the given tag.
-     *
-     * @param  string  $tag
-     * @return void
      */
-    public function stopMonitoring($tag);
+    public function stopMonitoring(string $tag): void;
 
     /**
      * Store the tags for the given job.
-     *
-     * @param  string  $id
-     * @param  array  $tags
-     * @return void
      */
-    public function add($id, array $tags);
+    public function add(string $id, array $tags): void;
 
     /**
      * Store the tags for the given job temporarily.
-     *
-     * @param  int  $minutes
-     * @param  string  $id
-     * @param  array  $tags
-     * @return void
      */
-    public function addTemporary($minutes, $id, array $tags);
+    public function addTemporary(int $minutes, string $id, array $tags): void;
 
     /**
      * Get the number of jobs matching a given tag.
-     *
-     * @param  string  $tag
-     * @return int
      */
-    public function count($tag);
+    public function count(string $tag): int;
 
     /**
      * Get all of the job IDs for a given tag.
-     *
-     * @param  string  $tag
-     * @return array
      */
-    public function jobs($tag);
+    public function jobs(string $tag): array;
 
     /**
      * Paginate the job IDs for a given tag.
-     *
-     * @param  string  $tag
-     * @param  int  $startingAt
-     * @param  int  $limit
-     * @return array
      */
-    public function paginate($tag, $startingAt = 0, $limit = 25);
+    public function paginate(string $tag, int $startingAt = 0, int $limit = 25): array;
 
     /**
      * Delete the given tag from storage.
-     *
-     * @param  string  $tag
-     * @return void
      */
-    public function forget($tag);
+    public function forget(string $tag): void;
 }

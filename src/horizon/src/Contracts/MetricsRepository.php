@@ -8,138 +8,91 @@ interface MetricsRepository
 {
     /**
      * Get all of the class names that have metrics measurements.
-     *
-     * @return array
      */
-    public function measuredJobs();
+    public function measuredJobs(): array;
 
     /**
      * Get all of the queues that have metrics measurements.
-     *
-     * @return array
      */
-    public function measuredQueues();
+    public function measuredQueues(): array;
 
     /**
      * Get the jobs processed per minute since the last snapshot.
-     *
-     * @return int
      */
-    public function jobsProcessedPerMinute();
+    public function jobsProcessedPerMinute(): int;
 
     /**
      * Get the application's total throughput since the last snapshot.
-     *
-     * @return int
      */
-    public function throughput();
+    public function throughput(): int;
 
     /**
      * Get the throughput for a given job.
-     *
-     * @param  string  $job
-     * @return int
      */
-    public function throughputForJob($job);
+    public function throughputForJob(string $job): int;
 
     /**
      * Get the throughput for a given queue.
-     *
-     * @param  string  $queue
-     * @return int
      */
-    public function throughputForQueue($queue);
+    public function throughputForQueue(string $queue): int;
 
     /**
      * Get the average runtime for a given job in milliseconds.
-     *
-     * @param  string  $job
-     * @return float
      */
-    public function runtimeForJob($job);
+    public function runtimeForJob(string $job): float;
 
     /**
      * Get the average runtime for a given queue in milliseconds.
-     *
-     * @param  string  $queue
-     * @return float
      */
-    public function runtimeForQueue($queue);
+    public function runtimeForQueue(string $queue): float;
 
     /**
      * Get the queue that has the longest runtime.
-     *
-     * @return int
      */
-    public function queueWithMaximumRuntime();
+    public function queueWithMaximumRuntime(): int;
 
     /**
      * Get the queue that has the most throughput.
-     *
-     * @return int
      */
-    public function queueWithMaximumThroughput();
+    public function queueWithMaximumThroughput(): int;
 
     /**
      * Increment the metrics information for a job.
-     *
-     * @param  string  $job
-     * @param  float|null  $runtime
-     * @return void
      */
-    public function incrementJob($job, $runtime);
+    public function incrementJob(string $job, ?float $runtime): void;
 
     /**
      * Increment the metrics information for a queue.
-     *
-     * @param  string  $queue
-     * @param  float|null  $runtime
-     * @return void
      */
-    public function incrementQueue($queue, $runtime);
+    public function incrementQueue(string $queue, ?float $runtime): void;
 
     /**
      * Get all of the snapshots for the given job.
-     *
-     * @param  string  $job
-     * @return array
      */
-    public function snapshotsForJob($job);
+    public function snapshotsForJob(string $job): array;
 
     /**
      * Get all of the snapshots for the given queue.
-     *
-     * @param  string  $queue
-     * @return array
      */
-    public function snapshotsForQueue($queue);
+    public function snapshotsForQueue(string $queue): array;
 
     /**
      * Store a snapshot of the metrics information.
-     *
-     * @return void
      */
-    public function snapshot();
+    public function snapshot(): void;
 
     /**
      * Attempt to acquire a lock to monitor the queue wait times.
-     *
-     * @return bool
      */
-    public function acquireWaitTimeMonitorLock();
+    public function acquireWaitTimeMonitorLock(): bool;
 
     /**
      * Clear the metrics for a key.
-     *
-     * @param  string  $key
-     * @return void
      */
-    public function forget($key);
+    public function forget(string $key): void;
 
     /**
      * Delete all stored metrics information.
-     *
-     * @return void
      */
-    public function clear();
+    public function clear(): void;
 }

@@ -8,15 +8,11 @@ interface Pausable
 {
     /**
      * Pause the process.
-     *
-     * @return void
      */
-    public function pause();
+    public function pause(): void;
 
     /**
      * Instruct the process to continue working.
-     *
-     * @return void
      */
-    public function continue();
+    public function continue(): void;
 }

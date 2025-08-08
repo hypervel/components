@@ -10,61 +10,41 @@ interface SupervisorRepository
 {
     /**
      * Get the names of all the supervisors currently running.
-     *
-     * @return array
      */
-    public function names();
+    public function names(): array;
 
     /**
      * Get information on all of the supervisors.
-     *
-     * @return array
      */
-    public function all();
+    public function all(): array;
 
     /**
      * Get information on a supervisor by name.
-     *
-     * @param  string  $name
-     * @return array
      */
-    public function find($name);
+    public function find(string $name): array;
 
     /**
      * Get information on the given supervisors.
-     *
-     * @param  array  $names
-     * @return array
      */
-    public function get(array $names);
+    public function get(array $names): array;
 
     /**
      * Get the longest active timeout setting for a supervisor.
-     *
-     * @return int
      */
-    public function longestActiveTimeout();
+    public function longestActiveTimeout(): int;
 
     /**
      * Update the information about the given supervisor process.
-     *
-     * @param  \Hypervel\Horizon\Supervisor  $supervisor
-     * @return void
      */
-    public function update(Supervisor $supervisor);
+    public function update(Supervisor $supervisor): void;
 
     /**
      * Remove the supervisor information from storage.
-     *
-     * @param  array|string  $names
-     * @return void
      */
-    public function forget($names);
+    public function forget(array|string $names): void;
 
     /**
      * Remove expired supervisors from storage.
-     *
-     * @return void
      */
-    public function flushExpired();
+    public function flushExpired(): void;
 }
