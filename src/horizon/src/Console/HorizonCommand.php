@@ -27,7 +27,8 @@ class HorizonCommand extends Command
     public function handle(MasterSupervisorRepository $masters): void
     {
         if ($masters->find(MasterSupervisor::name())) {
-            return $this->components->warn('A master supervisor is already running on this machine.');
+            $this->components->warn('A master supervisor is already running on this machine.');
+            return;
         }
 
         $environment = $this->option('environment') ?? config('horizon.env') ?? config('app.env');

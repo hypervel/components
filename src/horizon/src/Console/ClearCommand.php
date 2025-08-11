@@ -6,10 +6,10 @@ namespace Hypervel\Horizon\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
-use Hypervel\Queue\QueueManager;
-use Hypervel\Support\Arr;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\RedisQueue;
+use Hypervel\Queue\QueueManager;
+use Hypervel\Support\Arr;
 
 class ClearCommand extends Command
 {
@@ -52,7 +52,7 @@ class ClearCommand extends Command
 
         $count = $manager->connection($connection)->clear($queue);
 
-        $this->components->info('Cleared '.$count.' jobs from the ['.$queue.'] queue.');
+        $this->components->info('Cleared ' . $count . ' jobs from the [' . $queue . '] queue.');
 
         return 0;
     }

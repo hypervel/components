@@ -36,6 +36,6 @@ class TimeoutCommand extends Command
 
         $timeout = collect($plan[$this->argument('environment')] ?? [])->max('timeout') ?? 60;
 
-        $this->components->info('Maximum timeout for '.$environment.' environment: '.$timeout.' seconds.');
+        $this->components->info('Maximum timeout for ' . $environment . ' environment: ' . $timeout . ' seconds.');
     }
 }

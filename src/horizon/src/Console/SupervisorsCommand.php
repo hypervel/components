@@ -27,7 +27,8 @@ class SupervisorsCommand extends Command
         $supervisors = $supervisors->all();
 
         if (empty($supervisors)) {
-            return $this->components->info('No supervisors are running.');
+            $this->components->info('No supervisors are running.');
+            return;
         }
 
         $this->output->writeln('');
@@ -40,7 +41,7 @@ class SupervisorsCommand extends Command
                 $supervisor->pid,
                 $supervisor->status,
                 collect($supervisor->processes)->map(function ($count, $queue) {
-                    return $queue.' ('.$count.')';
+                    return $queue . ' (' . $count . ')';
                 })->implode(', '),
                 $supervisor->options['balance'],
             ];

@@ -27,7 +27,8 @@ class ListCommand extends Command
         $masters = $masters->all();
 
         if (empty($masters)) {
-            return $this->components->info('No machines are running.');
+            $this->components->info('No machines are running.');
+            return;
         }
 
         $this->output->writeln('');

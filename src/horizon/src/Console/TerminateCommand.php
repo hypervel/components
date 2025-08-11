@@ -6,11 +6,11 @@ namespace Hypervel\Horizon\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
+use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Support\Arr;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
-use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
-use Hypervel\Horizon\MasterSupervisor;
 
 class TerminateCommand extends Command
 {
@@ -34,7 +34,8 @@ class TerminateCommand extends Command
     {
         if (config('horizon.fast_termination')) {
             $cache->forever(
-                'horizon:terminate:wait', $this->option('wait')
+                'horizon:terminate:wait',
+                $this->option('wait')
             );
         }
 
@@ -48,12 +49,12 @@ class TerminateCommand extends Command
             ->each(function ($processId) {
                 $result = true;
 
-                $this->components->task("Process: $processId", function () use ($processId, &$result) {
+                $this->components->task("Process: {$processId}", function () use ($processId, &$result) {
                     return $result = posix_kill($processId, SIGTERM);
                 });
 
                 if (! $result) {
-                    $this->components->error("Failed to kill process: {$processId} (".posix_strerror(posix_get_last_error()).')');
+                    $this->components->error("Failed to kill process: {$processId} (" . posix_strerror(posix_get_last_error()) . ')');
                 }
             })->whenNotEmpty(fn () => $this->output->writeln(''));
 

@@ -34,18 +34,18 @@ class ForgetFailedCommand extends Command
                     $repository->deleteFailed($failedId);
 
                     if ($this->laravel['queue.failer']->forget($failedId)) {
-                        $this->components->info('Failed job (id): '.$failedId.' deleted successfully!');
+                        $this->components->info('Failed job (id): ' . $failedId . ' deleted successfully!');
                     }
                 });
             } while ($repository->totalFailed() !== 0 && $failedJobs->isNotEmpty());
 
             if ($totalFailedCount) {
-                $this->components->info($totalFailedCount.' failed jobs deleted successfully!');
+                $this->components->info($totalFailedCount . ' failed jobs deleted successfully!');
             } else {
                 $this->components->info('No failed jobs detected.');
             }
 
-            return;
+            return null;
         }
 
         if (! $this->argument('id')) {

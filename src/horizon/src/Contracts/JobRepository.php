@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Contracts;
 
+use Exception;
 use Hyperf\Collection\Collection;
 use Hypervel\Horizon\JobPayload;
+use stdClass;
 
 interface JobRepository
 {
@@ -137,12 +139,12 @@ interface JobRepository
     /**
      * Find a failed job by ID.
      */
-    public function findFailed(string $id): ?\stdClass;
+    public function findFailed(string $id): ?stdClass;
 
     /**
      * Mark the job as failed.
      */
-    public function failed(\Exception $exception, string $connection, string $queue, JobPayload $payload): void;
+    public function failed(Exception $exception, string $connection, string $queue, JobPayload $payload): void;
 
     /**
      * Store the retry job ID on the original job record.

@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Console;
 
 use Hypervel\Console\Command;
-use Hypervel\Support\Str;
 use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\Contracts\ProcessRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Horizon\ProcessInspector;
+use Hypervel\Support\Str;
 
 class PurgeCommand extends Command
 {
@@ -25,20 +25,11 @@ class PurgeCommand extends Command
      */
     protected string $description = 'Terminate any rogue Horizon processes';
 
-    /**
-     * @var \Hypervel\Horizon\Contracts\SupervisorRepository
-     */
-    private $supervisors;
+    private SupervisorRepository $supervisors;
 
-    /**
-     * @var \Hypervel\Horizon\Contracts\ProcessRepository
-     */
-    private $processes;
+    private ProcessRepository $processes;
 
-    /**
-     * @var \Hypervel\Horizon\ProcessInspector
-     */
-    private $inspector;
+    private ProcessInspector $inspector;
 
     /**
      * Create a new command instance.
@@ -79,13 +70,14 @@ class PurgeCommand extends Command
         $this->recordOrphans($master, $signal);
 
         $expired = $this->processes->orphanedFor(
-            $master, $this->supervisors->longestActiveTimeout()
+            $master,
+            $this->supervisors->longestActiveTimeout()
         );
 
         collect($expired)
-            ->whenNotEmpty(fn () => $this->components->info('Sending TERM signal to expired processes of ['.$master.']'))
+            ->whenNotEmpty(fn () => $this->components->info('Sending TERM signal to expired processes of [' . $master . ']'))
             ->each(function ($processId) use ($master, $signal) {
-                $this->components->task("Process: $processId", function () use ($processId, $signal) {
+                $this->components->task("Process: {$processId}", function () use ($processId, $signal) {
                     exec("kill -s {$signal} {$processId}");
                 });
 
@@ -99,20 +91,21 @@ class PurgeCommand extends Command
     protected function recordOrphans(string $master, int $signal): void
     {
         $this->processes->orphaned(
-            $master, $orphans = $this->inspector->orphaned()
+            $master,
+            $orphans = $this->inspector->orphaned()
         );
 
         collect($orphans)
-            ->whenNotEmpty(fn () => $this->components->info('Sending TERM signal to orphaned processes of ['.$master.']'))
+            ->whenNotEmpty(fn () => $this->components->info('Sending TERM signal to orphaned processes of [' . $master . ']'))
             ->each(function ($processId) use ($signal) {
                 $result = true;
 
-                $this->components->task("Process: $processId", function () use ($processId, $signal, &$result) {
+                $this->components->task("Process: {$processId}", function () use ($processId, $signal, &$result) {
                     return $result = posix_kill($processId, $signal);
                 });
 
                 if (! $result) {
-                    $this->components->error("Failed to kill orphan process: {$processId} (".posix_strerror(posix_get_last_error()).')');
+                    $this->components->error("Failed to kill orphan process: {$processId} (" . posix_strerror(posix_get_last_error()) . ')');
                 }
             })->whenNotEmpty(fn () => $this->output->writeln(''));
     }

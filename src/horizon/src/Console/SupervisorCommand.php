@@ -87,7 +87,8 @@ class SupervisorCommand extends Command
 
         $balancedWorkerCount = floor(($this->option('min-processes') + $this->option('max-processes')) / 2);
         $supervisor->scale(max(
-            0, $balancedWorkerCount - $supervisor->totalSystemProcessCount()
+            0,
+            $balancedWorkerCount - $supervisor->totalSystemProcessCount()
         ));
 
         $supervisor->monitor();
@@ -137,7 +138,8 @@ class SupervisorCommand extends Command
     protected function getQueue(string $connection): string
     {
         return $this->option('queue') ?: $this->laravel['config']->get(
-            "queue.connections.{$connection}.queue", 'default'
+            "queue.connections.{$connection}.queue",
+            'default'
         );
     }
 }

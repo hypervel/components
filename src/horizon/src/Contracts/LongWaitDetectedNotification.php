@@ -6,5 +6,4 @@ namespace Hypervel\Horizon\Contracts;
 
 interface LongWaitDetectedNotification
 {
-    //
 }

@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Console;
 
 use Hypervel\Console\Command;
-use Hypervel\Support\Str;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\MasterSupervisor;
+use Hypervel\Support\Str;
 
 class ContinueSupervisorCommand extends Command
 {
@@ -41,7 +41,9 @@ class ContinueSupervisorCommand extends Command
         $this->components->info("Sending CONT signal to process: {$processId}");
 
         if (! posix_kill($processId, SIGCONT)) {
-            $this->components->error("Failed to send CONT signal to process: {$processId} (".posix_strerror(posix_get_last_error()).')');
+            $this->components->error("Failed to send CONT signal to process: {$processId} (" . posix_strerror(posix_get_last_error()) . ')');
         }
+
+        return 0;
     }
 }

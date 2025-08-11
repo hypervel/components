@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Console;
 
 use Hypervel\Console\Command;
-use Hypervel\Support\Arr;
-use Hypervel\Support\Str;
 use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\MasterSupervisor;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
 
 class PauseCommand extends Command
 {
@@ -37,12 +37,12 @@ class PauseCommand extends Command
             ->each(function ($processId) {
                 $result = true;
 
-                $this->components->task("Process: $processId", function () use ($processId, &$result) {
+                $this->components->task("Process: {$processId}", function () use ($processId, &$result) {
                     return $result = posix_kill($processId, SIGUSR2);
                 });
 
                 if (! $result) {
-                    $this->components->error("Failed to kill process: {$processId} (".posix_strerror(posix_get_last_error()).')');
+                    $this->components->error("Failed to kill process: {$processId} (" . posix_strerror(posix_get_last_error()) . ')');
                 }
             })->whenNotEmpty(fn () => $this->output->writeln(''));
     }

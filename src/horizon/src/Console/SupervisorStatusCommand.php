@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Console;
 
 use Hypervel\Console\Command;
-use Hypervel\Support\Str;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\MasterSupervisor;
+use Hypervel\Support\Str;
 
 class SupervisorStatusCommand extends Command
 {
@@ -30,8 +30,8 @@ class SupervisorStatusCommand extends Command
         $name = $this->argument('name');
 
         $supervisorStatus = optional(collect($supervisors->all())->first(function ($supervisor) use ($name) {
-            return Str::startsWith($supervisor->name, MasterSupervisor::basename()) &&
-                   Str::endsWith($supervisor->name, $name);
+            return Str::startsWith($supervisor->name, MasterSupervisor::basename())
+                   && Str::endsWith($supervisor->name, $name);
         }))->status;
 
         if (is_null($supervisorStatus)) {
@@ -41,5 +41,7 @@ class SupervisorStatusCommand extends Command
         }
 
         $this->components->info("{$name} is {$supervisorStatus}");
+
+        return 0;
     }
 }
