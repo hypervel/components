@@ -24,9 +24,6 @@ class EloquentModelWithoutEventsTest extends TestCase
 
     public function testWithoutEventsExecutesCallback()
     {
-        TestModel::withoutEvents(function () {
-            return new TestModel();
-        });
         $callbackExecuted = false;
         $expectedResult = 'test result';
 
