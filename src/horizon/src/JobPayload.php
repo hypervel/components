@@ -6,11 +6,11 @@ namespace Hypervel\Horizon;
 
 use ArrayAccess;
 use Hypervel\Broadcasting\BroadcastEvent;
-use Hypervel\Events\CallQueuedListener;
+use Hypervel\Event\CallQueuedListener;
+use Hypervel\Horizon\Contracts\Silenced;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Notifications\SendQueuedNotifications;
 use Hypervel\Support\Arr;
-use Hypervel\Horizon\Contracts\Silenced;
 
 class JobPayload implements ArrayAccess
 {
@@ -22,7 +22,7 @@ class JobPayload implements ArrayAccess
     /**
      * Create a new raw job payload instance.
      *
-     * @param string $value The raw payload string.
+     * @param string $value the raw payload string
      */
     public function __construct(
         public string $value
@@ -121,8 +121,8 @@ class JobPayload implements ArrayAccess
 
         $jobClass = is_string($underlyingJob) ? $underlyingJob : get_class($underlyingJob);
 
-        return in_array($jobClass, config('horizon.silenced', [])) ||
-               is_a($jobClass, Silenced::class, true);
+        return in_array($jobClass, config('horizon.silenced', []))
+            || is_a($jobClass, Silenced::class, true);
     }
 
     /**
@@ -178,7 +178,6 @@ class JobPayload implements ArrayAccess
     /**
      * Get the value at the current offset.
      */
-    #[\ReturnTypeWillChange]
     public function offsetGet(mixed $offset): mixed
     {
         return $this->decoded[$offset];

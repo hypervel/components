@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Horizon;
 
 use Hypervel\Broadcasting\BroadcastEvent;
+use Hypervel\Context\Context;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Events\CallQueuedListener;
+use Hypervel\Event\CallQueuedListener;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Notifications\SendQueuedNotifications;
 use Hypervel\Support\Collection;
@@ -17,12 +18,7 @@ use stdClass;
 
 class Tags
 {
-    /**
-     * The event that was last handled.
-     *
-     * @var object|null
-     */
-    protected static $event;
+    protected const CONTEXT_KEY = 'horizon.tags';
 
     /**
      * Determine the tags for the given job.
@@ -34,7 +30,7 @@ class Tags
         }
 
         return static::modelsFor(static::targetsFor($job))->map(function ($model) {
-            return get_class($model).':'.$model->getKey();
+            return get_class($model) . ':' . $model->getKey();
         })->all();
     }
 
@@ -51,7 +47,7 @@ class Tags
     /**
      * Determine tags for the given queued listener.
      */
-    protected static function tagsForListener(mixed $job): array
+    protected static function tagsForListener(CallQueuedListener $job): array
     {
         $event = static::extractEvent($job);
 
@@ -72,7 +68,7 @@ class Tags
     protected static function explicitTags(array $jobs): array
     {
         return collect($jobs)->map(function ($job) {
-            return method_exists($job, 'tags') ? $job->tags(static::$event) : [];
+            return method_exists($job, 'tags') ? $job->tags(static::getEvent()) : [];
         })->collapse()->unique()->all();
     }
 
@@ -107,7 +103,8 @@ class Tags
 
                 if ($value instanceof Model) {
                     return [$value];
-                } elseif ($value instanceof EloquentCollection) {
+                }
+                if ($value instanceof EloquentCollection) {
                     return $value->all();
                 }
             })->collapse()->filter()->all();
@@ -121,8 +118,9 @@ class Tags
      */
     protected static function getValue(ReflectionProperty $property, mixed $target): mixed
     {
-        if (method_exists($property, 'isInitialized') &&
-            ! $property->isInitialized($target)) {
+        if (method_exists($property, 'isInitialized')
+            && ! $property->isInitialized($target)
+        ) {
             return null;
         }
 
@@ -144,7 +142,7 @@ class Tags
     {
         return isset($job->data[0]) && is_object($job->data[0])
                         ? $job->data[0]
-                        : new stdClass;
+                        : new stdClass();
     }
 
     /**
@@ -152,7 +150,12 @@ class Tags
      */
     protected static function setEvent(object $event): void
     {
-        static::$event = $event;
+        Context::set(static::CONTEXT_KEY, $event);
+    }
+
+    protected static function getEvent(): ?object
+    {
+        return Context::get(static::CONTEXT_KEY);
     }
 
     /**
@@ -160,6 +163,6 @@ class Tags
      */
     protected static function flushEventState(): void
     {
-        static::$event = null;
+        Context::set(static::CONTEXT_KEY, null);
     }
 }
