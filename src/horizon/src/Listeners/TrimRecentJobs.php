@@ -17,10 +17,8 @@ class TrimRecentJobs
 
     /**
      * How many minutes to wait in between each trim.
-     *
-     * @var int
      */
-    public $frequency = 1;
+    public int $frequency = 1;
 
     /**
      * Handle the event.

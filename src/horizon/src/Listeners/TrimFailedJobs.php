@@ -17,10 +17,8 @@ class TrimFailedJobs
 
     /**
      * How many minutes to wait in between each trim.
-     *
-     * @var int
      */
-    public $frequency = 5040;
+    public int $frequency = 5040;
 
     /**
      * Handle the event.

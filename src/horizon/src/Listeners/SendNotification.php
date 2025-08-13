@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Listeners;
 
+use Hypervel\Horizon\Events\LongWaitDetected;
 use Hypervel\Horizon\Horizon;
 use Hypervel\Horizon\Lock;
 use Hypervel\Support\Facades\Notification;
@@ -13,7 +14,7 @@ class SendNotification
     /**
      * Handle the event.
      */
-    public function handle(mixed $event): void
+    public function handle(LongWaitDetected $event): void
     {
         $notification = $event->toNotification();
 
