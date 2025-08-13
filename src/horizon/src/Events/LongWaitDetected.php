@@ -10,28 +10,17 @@ use Hypervel\Horizon\Contracts\LongWaitDetectedNotification;
 class LongWaitDetected
 {
     /**
-     * The queue connection name.
-     */
-    public string $connection;
-
-    /**
-     * The queue name.
-     */
-    public string $queue;
-
-    /**
-     * The wait time in seconds.
-     */
-    public int $seconds;
-
-    /**
      * Create a new event instance.
+     *
+     * @param string $connection the queue connection name
+     * @param string $queue the queue name
+     * @param int $seconds the wait time in seconds
      */
-    public function __construct(string $connection, string $queue, int $seconds)
-    {
-        $this->queue = $queue;
-        $this->seconds = $seconds;
-        $this->connection = $connection;
+    public function __construct(
+        public string $connection,
+        public string $queue,
+        public int $seconds
+    ) {
     }
 
     /**

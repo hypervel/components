@@ -9,15 +9,12 @@ use Hypervel\Horizon\MasterSupervisor;
 class MasterSupervisorOutOfMemory
 {
     /**
-     * The master supervisor instance.
-     */
-    public MasterSupervisor $master;
-
-    /**
      * Create a new event instance.
+     *
+     * @param MasterSupervisor $master the master supervisor instance
      */
-    public function __construct(MasterSupervisor $master)
-    {
-        $this->master = $master;
+    public function __construct(
+        public MasterSupervisor $master
+    ) {
     }
 }

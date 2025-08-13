@@ -9,15 +9,12 @@ use Hypervel\Horizon\Supervisor;
 class SupervisorLooped
 {
     /**
-     * The supervisor instance.
-     */
-    public Supervisor $supervisor;
-
-    /**
      * Create a new event instance.
+     *
+     * @param Supervisor $supervisor the supervisor instance
      */
-    public function __construct(Supervisor $supervisor)
-    {
-        $this->supervisor = $supervisor;
+    public function __construct(
+        public Supervisor $supervisor
+    ) {
     }
 }

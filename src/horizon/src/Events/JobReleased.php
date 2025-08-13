@@ -6,5 +6,4 @@ namespace Hypervel\Horizon\Events;
 
 class JobReleased extends RedisEvent
 {
-    //
 }

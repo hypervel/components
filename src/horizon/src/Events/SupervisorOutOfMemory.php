@@ -9,27 +9,24 @@ use Hypervel\Horizon\Supervisor;
 class SupervisorOutOfMemory
 {
     /**
-     * The supervisor instance.
-     */
-    public Supervisor $supervisor;
-
-    /**
      * The memory usage that exceeded the allowable limit.
      */
-    public int|float $memoryUsage;
+    public float|int $memoryUsage;
 
     /**
      * Create a new event instance.
+     *
+     * @param Supervisor $supervisor the supervisor instance
      */
-    public function __construct(Supervisor $supervisor)
-    {
-        $this->supervisor = $supervisor;
+    public function __construct(
+        public Supervisor $supervisor
+    ) {
     }
 
     /**
      * Get the memory usage that triggered the event.
      */
-    public function getMemoryUsage(): int|float
+    public function getMemoryUsage(): float|int
     {
         return $this->memoryUsage ?? $this->supervisor->memoryUsage();
     }
@@ -37,7 +34,7 @@ class SupervisorOutOfMemory
     /**
      * Set the memory usage that was recorded when the event was dispatched.
      */
-    public function setMemoryUsage(int|float $memoryUsage): static
+    public function setMemoryUsage(float|int $memoryUsage): static
     {
         $this->memoryUsage = $memoryUsage;
 

@@ -9,15 +9,12 @@ use Hypervel\Horizon\SupervisorProcess;
 class SupervisorProcessRestarting
 {
     /**
-     * The supervisor process instance.
-     */
-    public SupervisorProcess $process;
-
-    /**
      * Create a new event instance.
+     *
+     * @param SupervisorProcess $process the supervisor process instance
      */
-    public function __construct(SupervisorProcess $process)
-    {
-        $this->process = $process;
+    public function __construct(
+        public SupervisorProcess $process
+    ) {
     }
 }

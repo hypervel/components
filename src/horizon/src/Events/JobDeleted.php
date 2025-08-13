@@ -9,17 +9,14 @@ use Hypervel\Queue\Jobs\RedisJob;
 class JobDeleted extends RedisEvent
 {
     /**
-     * The queue job instance.
-     */
-    public RedisJob $job;
-
-    /**
      * Create a new event instance.
+     *
+     * @param RedisJob $job the queue job instance
      */
-    public function __construct(RedisJob $job, string $payload)
-    {
-        $this->job = $job;
-
+    public function __construct(
+        public RedisJob $job,
+        string $payload
+    ) {
         parent::__construct($payload);
     }
 }

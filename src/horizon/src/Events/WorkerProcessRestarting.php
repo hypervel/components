@@ -9,15 +9,12 @@ use Hypervel\Horizon\WorkerProcess;
 class WorkerProcessRestarting
 {
     /**
-     * The worker process instance.
-     */
-    public WorkerProcess $process;
-
-    /**
      * Create a new event instance.
+     *
+     * @param WorkerProcess $process the worker process instance
      */
-    public function __construct(WorkerProcess $process)
-    {
-        $this->process = $process;
+    public function __construct(
+        public WorkerProcess $process
+    ) {
     }
 }

@@ -7,15 +7,12 @@ namespace Hypervel\Horizon\Events;
 class MasterSupervisorReviving
 {
     /**
-     * The master supervisor that was dead.
-     */
-    public string $master;
-
-    /**
      * Create a new event instance.
+     *
+     * @param string $master the master supervisor that was dead
      */
-    public function __construct(string $master)
-    {
-        $this->master = $master;
+    public function __construct(
+        public string $master
+    ) {
     }
 }

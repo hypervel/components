@@ -10,23 +10,16 @@ use Hypervel\Queue\Jobs\Job;
 class JobFailed extends RedisEvent
 {
     /**
-     * The exception that caused the failure.
-     */
-    public Exception $exception;
-
-    /**
-     * The queue job instance.
-     */
-    public Job $job;
-
-    /**
      * Create a new event instance.
+     *
+     * @param Exception $exception the exception that caused the failure
+     * @param Job $job the queue job instance
      */
-    public function __construct(Exception $exception, Job $job, string $payload)
-    {
-        $this->job = $job;
-        $this->exception = $exception;
-
+    public function __construct(
+        public Exception $exception,
+        public Job $job,
+        string $payload
+    ) {
         parent::__construct($payload);
     }
 }
