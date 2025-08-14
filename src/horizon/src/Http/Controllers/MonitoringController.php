@@ -11,19 +11,15 @@ use Hypervel\Horizon\Jobs\StopMonitoringTag;
 use Hypervel\Http\Request;
 use Hypervel\Support\Collection;
 
-class MonitoringController extends Controller
+class MonitoringController
 {
     /**
      * Create a new controller instance.
-     *
-     * @param JobRepository $jobs The job repository implementation.
-     * @param TagRepository $tags The tag repository implementation.
      */
     public function __construct(
         public JobRepository $jobs,
         public TagRepository $tags
     ) {
-        parent::__construct();
     }
 
     /**
@@ -75,7 +71,7 @@ class MonitoringController extends Controller
      */
     public function store(Request $request): void
     {
-        dispatch(new MonitorTag($request->tag));
+        dispatch(new MonitorTag($request->input('tag')));
     }
 
     /**

@@ -10,7 +10,7 @@ use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\WaitTimeCalculator;
 
-class DashboardStatsController extends Controller
+class DashboardStatsController
 {
     /**
      * Get the key performance stats for the dashboard.

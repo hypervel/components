@@ -7,17 +7,14 @@ namespace Hypervel\Horizon\Http\Controllers;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Support\Collection;
 
-class JobMetricsController extends Controller
+class JobMetricsController
 {
     /**
      * Create a new controller instance.
-     *
-     * @param MetricsRepository $metrics The metrics repository implementation.
      */
     public function __construct(
         public MetricsRepository $metrics
     ) {
-        parent::__construct();
     }
 
     /**

@@ -4,23 +4,22 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Http\Controllers;
 
-use Hypervel\Bus\BatchRepository;
-use Hypervel\Database\QueryException;
+use Hyperf\Database\Exception\QueryException;
+use Hypervel\Bus\Contracts\BatchRepository;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Jobs\RetryFailedJob;
 use Hypervel\Http\Request;
 
-class BatchesController extends Controller
+class BatchesController
 {
     /**
      * Create a new controller instance.
      *
-     * @param BatchRepository $batches The job repository implementation.
+     * @param BatchRepository $batches the job repository implementation
      */
     public function __construct(
         public BatchRepository $batches
     ) {
-        parent::__construct();
     }
 
     /**

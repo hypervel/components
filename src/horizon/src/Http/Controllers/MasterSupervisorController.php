@@ -9,7 +9,7 @@ use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\ProvisioningPlan;
 use Hypervel\Support\Collection;
 
-class MasterSupervisorController extends Controller
+class MasterSupervisorController
 {
     /**
      * Get all of the master supervisors and their underlying supervisors.
