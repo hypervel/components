@@ -48,6 +48,7 @@ use Hypervel\Support\LazyCollection;
  * @method bool chunkByIdDesc(int $count, callable(\Hypervel\Support\Collection<int, TModel>, int): (bool|void) $callback, null|string $column = null, null|string $alias = null)
  * @method bool each(callable(TModel, int): (bool|void) $callback, int $count = 1000)
  * @method bool eachById(callable(TModel, int): (bool|void) $callback, int $count = 1000, null|string $column = null, null|string $alias = null)
+ * @method $this whereIn(string $column, mixed $values, string $boolean = 'and', bool $not = false)
  */
 class Builder extends BaseBuilder
 {
