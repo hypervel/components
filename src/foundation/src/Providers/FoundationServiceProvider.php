@@ -7,12 +7,18 @@ namespace Hypervel\Foundation\Providers;
 use Hyperf\Command\Event\FailToHandle;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
+use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\ConnectionResolverInterface;
+use Hyperf\Database\Grammar;
 use Hyperf\HttpServer\MiddlewareManager;
 use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
+use Hypervel\Container\Contracts\Container;
+use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Foundation\Console\CliDumper;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
+use Hypervel\Foundation\Http\HtmlDumper;
 use Hypervel\Http\Contracts\RequestContract;
 use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Support\ServiceProvider;
@@ -20,6 +26,8 @@ use Hypervel\Support\Uri;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
+use Symfony\Component\VarDumper\Caster\StubCaster;
+use Symfony\Component\VarDumper\Cloner\AbstractCloner;
 use Throwable;
 
 class FoundationServiceProvider extends ServiceProvider
@@ -53,6 +61,8 @@ class FoundationServiceProvider extends ServiceProvider
         $this->overrideHyperfConfigs();
         $this->listenCommandException();
         $this->registerUriUrlGeneration();
+
+        $this->registerDumper();
 
         $this->callAfterResolving(RequestContract::class, function (RequestContract $request) {
             $request->setUserResolver(function (?string $guard = null) {
@@ -166,5 +176,27 @@ class FoundationServiceProvider extends ServiceProvider
     protected function setInternalEncoding(): void
     {
         mb_internal_encoding('UTF-8');
+    }
+
+    protected function registerDumper(): void
+    {
+        AbstractCloner::$defaultCasters[ConnectionInterface::class] ??= [StubCaster::class, 'cutInternals'];
+        AbstractCloner::$defaultCasters[Container::class] ??= [StubCaster::class, 'cutInternals'];
+        AbstractCloner::$defaultCasters[Dispatcher::class] ??= [StubCaster::class, 'cutInternals'];
+        AbstractCloner::$defaultCasters[Grammar::class] ??= [StubCaster::class, 'cutInternals'];
+
+        $basePath = $this->app->basePath();
+
+        $compiledViewPath = $this->config->get('view.config.view_path');
+
+        $format = $_SERVER['VAR_DUMPER_FORMAT'] ?? null;
+
+        match (true) {
+            $format == 'html' => HtmlDumper::register($basePath, $compiledViewPath),
+            $format == 'cli' => CliDumper::register($basePath, $compiledViewPath),
+            $format == 'server' => null,
+            $format && parse_url($format, PHP_URL_SCHEME) == 'tcp' => null,
+            default => php_sapi_name() === 'cli' ? CliDumper::register($basePath, $compiledViewPath) : HtmlDumper::register($basePath, $compiledViewPath),
+        };
     }
 }
