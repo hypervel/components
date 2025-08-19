@@ -114,20 +114,16 @@ trait ResolvesDumpSource
 
     /**
      * Determine if the given file is a view compiled.
-     *
-     * @param string $file
      */
-    protected function isCompiledViewFile($file): bool
+    protected function isCompiledViewFile(string $file): bool
     {
         return str_starts_with($file, $this->compiledViewPath) && str_ends_with($file, '.php');
     }
 
     /**
      * Get the original view compiled file by the given compiled file.
-     *
-     * @param string $file
      */
-    protected function getOriginalFileForCompiledView($file): string
+    protected function getOriginalFileForCompiledView(string $file): string
     {
         preg_match('/\/\*\*PATH\s(.*)\sENDPATH/', file_get_contents($file), $matches);
 
@@ -141,11 +137,9 @@ trait ResolvesDumpSource
     /**
      * Resolve the source href, if possible.
      *
-     * @param string $file
-     * @param null|int $line
      * @return null|string|void
      */
-    protected function resolveSourceHref($file, $line)
+    protected function resolveSourceHref(string $file, ?int $line)
     {
         try {
             $editor = config('app.editor');
@@ -177,7 +171,7 @@ trait ResolvesDumpSource
      *
      * @param null|(callable(): (null|array{0: string, 1: string, 2: null|int})) $callable
      */
-    public static function resolveDumpSourceUsing($callable): void
+    public static function resolveDumpSourceUsing(?callable $callable): void
     {
         static::$dumpSourceResolver = $callable;
     }
