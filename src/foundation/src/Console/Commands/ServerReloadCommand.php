@@ -48,6 +48,8 @@ class ServerReloadCommand extends Command
             }
 
             if (! $hasTaskWorkers) {
+                $this->info('Done.');
+
                 return 0;
             }
 

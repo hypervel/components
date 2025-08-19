@@ -61,6 +61,80 @@ class ApiRequest extends HttpClientRequest
     }
 
     /**
+     * Specify the request's content type.
+     */
+    public function contentType(string $contentType): static
+    {
+        $this->withHeaders(['Content-Type' => $contentType]);
+
+        return $this;
+    }
+
+    /**
+     * Indicate the request contains form parameters.
+     */
+    public function asForm(): static
+    {
+        if ($this->isJson() || ! $this->hasHeader('Content-Type')) {
+            if (! $this->data) {
+                $this->json();
+            }
+
+            $this->dataChanged = true;
+        }
+
+        return $this->contentType('application/x-www-form-urlencoded');
+    }
+
+    /**
+     * Indicate the request contains JSON.
+     */
+    public function asJson(): static
+    {
+        if ($this->isForm()) {
+            if (! $this->data) {
+                $this->parameters();
+            }
+
+            $this->dataChanged = true;
+        }
+
+        return $this->contentType('application/json');
+    }
+
+    /**
+     * Indicate that JSON should be returned by the server.
+     */
+    public function acceptJson(): static
+    {
+        return $this->accept('application/json');
+    }
+
+    /**
+     * Indicate the type of content that should be returned by the server.
+     */
+    public function accept(string $contentType): static
+    {
+        return $this->withHeaders(['Accept' => $contentType]);
+    }
+
+    /**
+     * Specify an authorization token for the request.
+     */
+    public function withToken(string $token, string $type = 'Bearer'): static
+    {
+        return $this->withHeaders(['Authorization' => trim($type . ' ' . $token)]);
+    }
+
+    /**
+     * Specify the user agent for the request.
+     */
+    public function withUserAgent(bool|string $userAgent): static
+    {
+        return $this->withHeaders(['User-Agent' => trim($userAgent)]);
+    }
+
+    /**
      * Add a request header.
      */
     public function withAddedHeader(string $key, string $value): static
@@ -130,8 +204,6 @@ class ApiRequest extends HttpClientRequest
         foreach ($data as $key) {
             unset($this->data[$key]);
         }
-
-        $this->dataChanged = true;
 
         return $this;
     }

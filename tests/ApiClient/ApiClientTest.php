@@ -40,4 +40,33 @@ class ApiClientTest extends TestCase
             return $request['foo'] === 'bar';
         });
     }
+
+    public function testSendRequestWithDecoration(): void
+    {
+        Http::preventStrayRequests();
+
+        Http::fake([
+            'test-endpoint' => Http::response('{"success": true}'),
+        ]);
+
+        $client = new ApiClient();
+        $response = $client
+            ->withToken('test-token')
+            ->asForm()
+            ->post('test-endpoint', ['foo' => 'bar']);
+
+        $this->assertInstanceOf(ApiResource::class, $response);
+        $this->assertInstanceOf(Response::class, $response->getResponse());
+        $this->assertInstanceOf(Request::class, $response->getRequest());
+        $this->assertSame(['foo' => 'bar'], $response->getRequest()->data());
+        $this->assertSame(['success' => true], $response->json());
+        $this->assertSame('{"success": true}', $response->body());
+        $this->assertTrue($response['success']);
+
+        Http::assertSent(function (Request $request) {
+            return $request['foo'] === 'bar'
+                && $request->header('Authorization')[0] === 'Bearer test-token'
+                && $request->header('Content-Type')[0] === 'application/x-www-form-urlencoded';
+        });
+    }
 }

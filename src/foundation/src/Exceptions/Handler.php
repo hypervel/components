@@ -32,6 +32,7 @@ use Hypervel\HttpMessage\Exceptions\HttpResponseException;
 use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
 use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Session\TokenMismatchException;
 use Hypervel\Support\Contracts\Responsable;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Reflector;
@@ -112,6 +113,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
         HyperfHttpException::class,
         HttpResponseException::class,
         ModelNotFoundException::class,
+        TokenMismatchException::class,
         ValidationException::class,
     ];
 
@@ -456,6 +458,12 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
             $response = $response->getPsr7Response();
         }
 
+        if ($callbacks = $this->afterResponseCallbacks()) {
+            foreach ($callbacks as $callback) {
+                $response = $callback($response, $e, $request);
+            }
+        }
+
         return $this->finalizeResponseCallback
             ? call_user_func($this->finalizeResponseCallback, $response, $e, $request)
             : $response;
@@ -509,6 +517,27 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
         return $this->shouldReturnJson($request, $e)
             ? $this->prepareJsonResponse($request, $e)
             : $this->prepareResponse($request, $e);
+    }
+
+    /**
+     * Register a callback to be called after an HTTP error response is rendered.
+     */
+    public function afterResponse(callable $callback): void
+    {
+        Context::override('__errors.handler.afterResponse', function ($callbacks) use ($callback) {
+            $callbacks = $callbacks ?: [];
+            $callbacks[] = $callback;
+
+            return $callbacks;
+        });
+    }
+
+    /**
+     * Get the callbacks that should be called after an HTTP error response is rendered.
+     */
+    protected function afterResponseCallbacks(): array
+    {
+        return Context::get('__errors.handler.afterResponse', []);
     }
 
     /**

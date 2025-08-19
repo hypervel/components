@@ -8,8 +8,10 @@ use Carbon\Carbon;
 use Carbon\Exceptions\InvalidFormatException;
 use Closure;
 use Hyperf\HttpServer\Contract\RequestInterface;
+use Hyperf\HttpServer\Router\Dispatched;
 use Hypervel\Session\Contracts\Session as SessionContract;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Uri;
 use Psr\Http\Message\ServerRequestInterface;
 use Stringable;
 
@@ -289,9 +291,39 @@ interface RequestContract extends RequestInterface
     public function fullUrlWithoutQuery(array|string $keys): string;
 
     /**
+     * Get the dispatched route.
+     */
+    public function getDispatchedRoute(): Dispatched;
+
+    /**
+     * Get a segment from the URI (1 based index).
+     */
+    public function segment(int $index, ?string $default = null): ?string;
+
+    /**
+     * Get all of the segments for the request path.
+     */
+    public function segments(): array;
+
+    /**
+     * Determine if the route name matches a given pattern.
+     */
+    public function routeIs(mixed ...$patterns): bool;
+
+    /**
+     * Determine if the current request URL and query string match a pattern.
+     */
+    public function fullUrlIs(mixed ...$patterns): bool;
+
+    /**
      * Get the request method.
      */
     public function method(): string;
+
+    /**
+     * Get a URI instance for the request.
+     */
+    public function uri(): Uri;
 
     /**
      * Get the request headers.
