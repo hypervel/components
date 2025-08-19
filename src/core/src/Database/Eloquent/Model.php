@@ -71,7 +71,11 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
     {
         Context::set(self::getWithoutEventContextKey(), true);
 
-        return $callback();
+        try {
+            return $callback();
+        } finally {
+            Context::destroy(self::getWithoutEventContextKey());
+        }
     }
 
     protected static function getWithoutEventContextKey(): string

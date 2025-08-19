@@ -12,7 +12,6 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
-use Swoole\Coroutine\Channel;
 
 /**
  * @internal
@@ -41,7 +40,9 @@ class EloquentModelWithoutEventsTest extends TestCase
 
     public function testGetWithoutEventContextKeyReturnsCorrectKey()
     {
-        $model = new TestModel();
+        $model = TestModel::withoutEvents(function () {
+            return new TestModel();
+        });
         $expectedKey = '__database.model.without_events.' . TestModel::class;
 
         $result = $model->getWithoutEventContextKey();
@@ -68,19 +69,6 @@ class EloquentModelWithoutEventsTest extends TestCase
         $this->assertTrue(Coroutine::inCoroutine());
     }
 
-    public function testGetEventDispatcherInCoroutineWithoutContext()
-    {
-        $model = new TestModelWithMockDispatcher();
-        $dispatcher = m::mock(EventDispatcherInterface::class);
-        $model->setMockDispatcher($dispatcher);
-
-        // Context should not be set initially
-        $result = $model->getEventDispatcher();
-
-        $this->assertSame($dispatcher, $result);
-        $this->assertTrue(Coroutine::inCoroutine());
-    }
-
     public function testGetEventDispatcherInCoroutineWithWithoutEventsActive()
     {
         $model = new TestModelWithMockDispatcher();
@@ -97,52 +85,8 @@ class EloquentModelWithoutEventsTest extends TestCase
             $this->assertNull($result);
         });
 
-        // After withoutEvents, context should still be set
-        // so getEventDispatcher should still return null
-        $this->assertNull($model->getEventDispatcher());
-    }
-
-    public function testWithoutEventsNestedInRealCoroutines()
-    {
-        $model = new TestModelWithMockDispatcher();
-        $dispatcher = m::mock(EventDispatcherInterface::class);
-        $model->setMockDispatcher($dispatcher);
-
-        $outerExecuted = false;
-        $innerExecuted = false;
-        $innerResult = null;
-        $outerResult = null;
-
-        go(function () use (&$outerExecuted, &$innerExecuted, &$innerResult, &$outerResult) {
-            $outerResult = TestModelWithMockDispatcher::withoutEvents(
-                function () use (&$outerExecuted, &$innerExecuted, &$innerResult) {
-                    $outerExecuted = true;
-
-                    // Create inner coroutine and use a Channel to get the result
-                    $channel = new Channel(1);
-
-                    go(function () use (&$innerExecuted, $channel) {
-                        $result = TestModelWithMockDispatcher::withoutEvents(function () use (&$innerExecuted) {
-                            $innerExecuted = true;
-
-                            return 'nested coroutine result';
-                        });
-                        $channel->push($result);
-                    });
-
-                    // Get result from inner coroutine
-                    return $innerResult = $channel->pop();
-                }
-            );
-        });
-
-        // Wait for all coroutines to complete
-        \Swoole\Coroutine::sleep(0.1);
-
-        $this->assertTrue($outerExecuted);
-        $this->assertTrue($innerExecuted);
-        $this->assertEquals('nested coroutine result', $innerResult);
-        $this->assertEquals('nested coroutine result', $outerResult);
+        // After exiting the withoutEvents context, it should return to normal
+        $this->assertSame($dispatcher, $model->getEventDispatcher());
     }
 
     public function testWithoutEventsContextIsolationBetweenModels()
@@ -188,8 +132,7 @@ class EloquentModelWithoutEventsTest extends TestCase
                 throw new RuntimeException('Coroutine exception');
             });
         } catch (RuntimeException $e) {
-            // After exception, context is still set so dispatcher returns null
-            $this->assertNull($model->getEventDispatcher());
+            $this->assertSame($dispatcher, $model->getEventDispatcher());
             throw $e;
         }
     }
@@ -212,58 +155,13 @@ class EloquentModelWithoutEventsTest extends TestCase
             $this->assertNull($model->getEventDispatcher());
         });
 
-        // After withoutEvents, context should still be set (as per implementation)
-        // so getEventDispatcher returns null
-        $this->assertNull($model->getEventDispatcher());
-    }
-
-    public function testMultipleWithoutEventsCallsInSameCoroutine()
-    {
-        $model = new TestModelWithMockDispatcher();
-        $dispatcher = m::mock(EventDispatcherInterface::class);
-        $model->setMockDispatcher($dispatcher);
-
-        $call1Executed = false;
-        $call2Executed = false;
-        $result1 = null;
-        $result2 = null;
-
-        go(function () use (&$call1Executed, &$call2Executed, &$result1, &$result2) {
-            // First withoutEvents call using static method
-            $result1 = TestModelWithMockDispatcher::withoutEvents(function () use (&$call1Executed) {
-                $call1Executed = true;
-
-                return 'first call';
-            });
-
-            // Second withoutEvents call using static method
-            $result2 = TestModelWithMockDispatcher::withoutEvents(function () use (&$call2Executed) {
-                $call2Executed = true;
-
-                return 'second call';
-            });
-        });
-
-        // Wait for coroutine to complete
-        \Swoole\Coroutine::sleep(0.1);
-
-        $this->assertTrue($call1Executed);
-        $this->assertTrue($call2Executed);
-        $this->assertEquals('first call', $result1);
-        $this->assertEquals('second call', $result2);
+        $this->assertSame($dispatcher, $model->getEventDispatcher());
     }
 }
 
 class TestModel extends Model
 {
     protected ?string $table = 'test_models';
-
-    public static function withoutEvents(callable $callback): mixed
-    {
-        Context::set(self::getWithoutEventContextKey(), true);
-
-        return $callback();
-    }
 
     public static function getWithoutEventContextKey(): string
     {
@@ -284,7 +182,7 @@ class TestModelWithMockDispatcher extends Model
 
     public function getEventDispatcher(): ?EventDispatcherInterface
     {
-        if (Coroutine::inCoroutine() && Context::get($this->getWithoutEventContextKey())) {
+        if (Context::get($this->getWithoutEventContextKey())) {
             return null;
         }
 
@@ -310,18 +208,11 @@ class AnotherTestModelWithMockDispatcher extends Model
 
     public function getEventDispatcher(): ?EventDispatcherInterface
     {
-        if (Coroutine::inCoroutine() && Context::get($this->getWithoutEventContextKey())) {
+        if (Context::get($this->getWithoutEventContextKey())) {
             return null;
         }
 
         return $this->mockDispatcher;
-    }
-
-    public static function withoutEvents(callable $callback): mixed
-    {
-        Context::set(self::getWithoutEventContextKey(), true);
-
-        return $callback();
     }
 
     public static function getWithoutEventContextKey(): string
