@@ -6,4 +6,4 @@
     <title></title>
 </head>
 <body>
-<?php /*PATH /my-work-directory/resources/views/welcome.blade.php ENDPATH*/ ?>
+<?php /* PATH /my-work-directory/resources/views/welcome.blade.php ENDPATH */ ?>
