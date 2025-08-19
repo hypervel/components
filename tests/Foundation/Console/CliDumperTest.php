@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Console;
 
 use Hyperf\Contract\ConfigInterface;
+use Hypervel\Config\Repository;
 use Hypervel\Foundation\Console\CliDumper;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
@@ -13,8 +14,11 @@ use stdClass;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\VarDumper\Caster\ReflectionCaster;
 use Symfony\Component\VarDumper\Cloner\VarCloner;
-use Hypervel\Config\Repository;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class CliDumperTest extends TestCase
 {
     use HasMockedApplication;
@@ -120,7 +124,7 @@ class CliDumperTest extends TestCase
         $objectId = spl_object_id($user);
 
         $expected = <<<EOF
-        {#$objectId
+        {#{$objectId}
           +"name": "Guus"
         } // app/routes/console.php:18
 
@@ -179,7 +183,7 @@ class CliDumperTest extends TestCase
 
     public function testGetOriginalViewCompiledFile()
     {
-        $compiled = __DIR__.'/../fixtures/fake-compiled-view.php';
+        $compiled = __DIR__ . '/../fixtures/fake-compiled-view.php';
         $original = '/my-work-directory/resources/views/welcome.blade.php';
 
         $output = new BufferedOutput();
@@ -197,7 +201,7 @@ class CliDumperTest extends TestCase
 
     public function testWhenGetOriginalViewCompiledFileFails()
     {
-        $compiled = __DIR__.'/../fixtures/fake-compiled-view-without-source-map.php';
+        $compiled = __DIR__ . '/../fixtures/fake-compiled-view-without-source-map.php';
         $original = $compiled;
 
         $output = new BufferedOutput();

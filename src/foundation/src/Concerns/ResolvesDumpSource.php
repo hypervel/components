@@ -44,14 +44,14 @@ trait ResolvesDumpSource
     /**
      * The source resolver.
      *
-     * @var null|(callable(): (array{0: string, 1: string, 2: int|null}|null))|false
+     * @var null|(callable(): (null|array{0: string, 1: string, 2: null|int}))|false
      */
-    protected static $dumpSourceResolver = null;
+    protected static $dumpSourceResolver;
 
     /**
      * Resolve the source of the dump call.
      *
-     * @return null|array{0: string, 1: string, 2: int|null}
+     * @return null|array{0: string, 1: string, 2: null|int}
      */
     public function resolveDumpSource(): ?array
     {
@@ -116,7 +116,6 @@ trait ResolvesDumpSource
      * Determine if the given file is a view compiled.
      *
      * @param string $file
-     * @return bool
      */
     protected function isCompiledViewFile($file): bool
     {
@@ -127,7 +126,6 @@ trait ResolvesDumpSource
      * Get the original view compiled file by the given compiled file.
      *
      * @param string $file
-     * @return string
      */
     protected function getOriginalFileForCompiledView($file): string
     {
@@ -144,8 +142,8 @@ trait ResolvesDumpSource
      * Resolve the source href, if possible.
      *
      * @param string $file
-     * @param int|null  $line
-     * @return void|string|null
+     * @param null|int $line
+     * @return null|string|void
      */
     protected function resolveSourceHref($file, $line)
     {
@@ -177,8 +175,7 @@ trait ResolvesDumpSource
     /**
      * Set the resolver that resolves the source of the dump call.
      *
-     * @param null|(callable(): (array{0: string, 1: string, 2: int|null}|null)) $callable
-     * @return void
+     * @param null|(callable(): (null|array{0: string, 1: string, 2: null|int})) $callable
      */
     public static function resolveDumpSourceUsing($callable): void
     {
@@ -187,8 +184,6 @@ trait ResolvesDumpSource
 
     /**
      * Don't include the location / file of the dump in dumps.
-     *
-     * @return void
      */
     public static function dontIncludeSource(): void
     {

@@ -7,12 +7,18 @@ namespace Hypervel\Foundation\Providers;
 use Hyperf\Command\Event\FailToHandle;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
+use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\ConnectionResolverInterface;
+use Hyperf\Database\Grammar;
 use Hyperf\HttpServer\MiddlewareManager;
 use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
+use Hypervel\Container\Contracts\Container;
+use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Foundation\Console\CliDumper;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
+use Hypervel\Foundation\Http\HtmlDumper;
 use Hypervel\Http\Contracts\RequestContract;
 use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Support\ServiceProvider;
@@ -20,12 +26,6 @@ use Hypervel\Support\Uri;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
-use Hypervel\Container\Contracts\Container;
-use Hypervel\Event\Contracts\Dispatcher;
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\Grammar;
-use Hypervel\Foundation\Console\CliDumper;
-use Hypervel\Foundation\Http\HtmlDumper;
 use Symfony\Component\VarDumper\Caster\StubCaster;
 use Symfony\Component\VarDumper\Cloner\AbstractCloner;
 use Throwable;
@@ -192,15 +192,10 @@ class FoundationServiceProvider extends ServiceProvider
         $format = $_SERVER['VAR_DUMPER_FORMAT'] ?? null;
 
         match (true) {
-            'html' == $format => HtmlDumper::register($basePath, $compiledViewPath),
-            'cli' == $format => CliDumper::register($basePath, $compiledViewPath),
-            'server' == $format => null,
-            $format && 'tcp' == parse_url($format, PHP_URL_SCHEME) => null,
-            /**
-             * Regarding this, I am following the example of the UploadedFile class
-             * 
-             * @see \Hypervel\Http\UploadedFile::move()
-             */
+            $format == 'html' => HtmlDumper::register($basePath, $compiledViewPath),
+            $format == 'cli' => CliDumper::register($basePath, $compiledViewPath),
+            $format == 'server' => null,
+            $format && parse_url($format, PHP_URL_SCHEME) == 'tcp' => null,
             default => php_sapi_name() === 'cli' ? CliDumper::register($basePath, $compiledViewPath) : HtmlDumper::register($basePath, $compiledViewPath),
         };
     }

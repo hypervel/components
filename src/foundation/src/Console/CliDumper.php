@@ -6,12 +6,12 @@ namespace Hypervel\Foundation\Console;
 
 use Hypervel\Foundation\Concerns\ResolvesDumpSource;
 use Symfony\Component\Console\Output\ConsoleOutput;
+use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\VarDumper\Caster\ReflectionCaster;
 use Symfony\Component\VarDumper\Cloner\Data;
 use Symfony\Component\VarDumper\Cloner\VarCloner;
 use Symfony\Component\VarDumper\Dumper\CliDumper as BaseCliDumper;
 use Symfony\Component\VarDumper\VarDumper;
-use \Symfony\Component\Console\Output\OutputInterface;
 
 class CliDumper extends BaseCliDumper
 {
@@ -19,16 +19,16 @@ class CliDumper extends BaseCliDumper
 
     /**
      * If the dumper is currently dumping.
-     *
-     * @var bool
      */
     protected bool $dumping = false;
 
     /**
      * Create a new CLI dumper instance.
+     *
+     * @param OutputInterface $output
      */
     public function __construct(
-        protected OutputInterface $output,
+        protected mixed $output,
         protected string $basePath,
         protected ?string $compiledViewPath,
     ) {
@@ -42,7 +42,6 @@ class CliDumper extends BaseCliDumper
      *
      * @param string $basePath
      * @param string $compiledViewPath
-     * @return void
      */
     public static function register($basePath, $compiledViewPath): void
     {
@@ -55,9 +54,6 @@ class CliDumper extends BaseCliDumper
 
     /**
      * Dump a variable with its source file / line.
-     *
-     * @param \Symfony\Component\VarDumper\Cloner\Data $data
-     * @return void
      */
     public function dumpWithSource(Data $data): void
     {
@@ -81,8 +77,6 @@ class CliDumper extends BaseCliDumper
 
     /**
      * Get the dump's source console content.
-     *
-     * @return string
      */
     protected function getDumpSourceContent(): string
     {
@@ -102,9 +96,6 @@ class CliDumper extends BaseCliDumper
         );
     }
 
-    /**
-     * {@inheritDoc}
-     */
     protected function supportsColors(): bool
     {
         return $this->output->isDecorated();

@@ -20,19 +20,17 @@ class HtmlDumper extends BaseHtmlDumper
      *
      * @var string
      */
-    const EXPANDED_SEPARATOR = 'class=sf-dump-expanded>';
+    public const EXPANDED_SEPARATOR = 'class=sf-dump-expanded>';
 
     /**
      * Where the source should be placed on "non expanded" kind of dumps.
      *
      * @var string
      */
-    const NON_EXPANDED_SEPARATOR = "\n</pre><script>";
+    public const NON_EXPANDED_SEPARATOR = "\n</pre><script>";
 
     /**
      * If the dumper is currently dumping.
-     *
-     * @var bool
      */
     protected bool $dumping = false;
 
@@ -51,7 +49,6 @@ class HtmlDumper extends BaseHtmlDumper
      *
      * @param string $basePath
      * @param string $compiledViewPath
-     * @return void
      */
     public static function register($basePath, $compiledViewPath): void
     {
@@ -64,9 +61,6 @@ class HtmlDumper extends BaseHtmlDumper
 
     /**
      * Dump a variable with its source file / line.
-     *
-     * @param \Symfony\Component\VarDumper\Cloner\Data $data
-     * @return void
      */
     public function dumpWithSource(Data $data): void
     {
@@ -83,12 +77,12 @@ class HtmlDumper extends BaseHtmlDumper
         $output = match (true) {
             str_contains($output, static::EXPANDED_SEPARATOR) => str_replace(
                 static::EXPANDED_SEPARATOR,
-                static::EXPANDED_SEPARATOR.$this->getDumpSourceContent(),
+                static::EXPANDED_SEPARATOR . $this->getDumpSourceContent(),
                 $output,
             ),
             str_contains($output, static::NON_EXPANDED_SEPARATOR) => str_replace(
                 static::NON_EXPANDED_SEPARATOR,
-                $this->getDumpSourceContent().static::NON_EXPANDED_SEPARATOR,
+                $this->getDumpSourceContent() . static::NON_EXPANDED_SEPARATOR,
                 $output,
             ),
             default => $output,
@@ -101,8 +95,6 @@ class HtmlDumper extends BaseHtmlDumper
 
     /**
      * Get the dump's source HTML content.
-     *
-     * @return string
      */
     protected function getDumpSourceContent(): string
     {
@@ -112,7 +104,7 @@ class HtmlDumper extends BaseHtmlDumper
 
         [$file, $relativeFile, $line] = $dumpSource;
 
-        $source = sprintf('%s%s', $relativeFile, is_null($line) ? '' : ":$line");
+        $source = sprintf('%s%s', $relativeFile, is_null($line) ? '' : ":{$line}");
 
         if ($href = $this->resolveSourceHref($file, $line)) {
             $source = sprintf('<a href="%s">%s</a>', $href, $source);

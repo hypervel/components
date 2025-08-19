@@ -15,6 +15,10 @@ use stdClass;
 use Symfony\Component\VarDumper\Caster\ReflectionCaster;
 use Symfony\Component\VarDumper\Cloner\VarCloner;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class HtmlDumperTest extends TestCase
 {
     use HasMockedApplication;
@@ -32,7 +36,7 @@ class HtmlDumperTest extends TestCase
         $this->container = $this->getApplication([
             ConfigInterface::class => fn () => $this->config,
         ]);
-    
+
         HtmlDumper::resolveDumpSourceUsing(function () {
             return [
                 '/my-work-director/app/routes/console.php',
@@ -161,7 +165,7 @@ class HtmlDumperTest extends TestCase
 
     public function testGetOriginalViewCompiledFile()
     {
-        $compiled = __DIR__.'/../fixtures/fake-compiled-view.php';
+        $compiled = __DIR__ . '/../fixtures/fake-compiled-view.php';
         $original = '/my-work-directory/resources/views/welcome.blade.php';
 
         $dumper = new HtmlDumper(
@@ -177,7 +181,7 @@ class HtmlDumperTest extends TestCase
 
     public function testWhenGetOriginalViewCompiledFileFails()
     {
-        $compiled = __DIR__.'/../fixtures/fake-compiled-view-without-source-map.php';
+        $compiled = __DIR__ . '/../fixtures/fake-compiled-view-without-source-map.php';
         $original = $compiled;
 
         $dumper = new HtmlDumper(
@@ -234,30 +238,36 @@ class HtmlDumperTest extends TestCase
         // When editor name is provided...
         $this->config->set('app.editor', 'phpstorm');
         $this->assertSame(
-            'phpstorm://open?file=/my-work-directory/app/my-file&line=10', $resolveSourceHref()
+            'phpstorm://open?file=/my-work-directory/app/my-file&line=10',
+            $resolveSourceHref()
         );
 
         // When editor name is provided on array format...
         $this->config->set('app.editor', ['name' => 'phpstorm']);
         $this->assertSame(
-            'phpstorm://open?file=/my-work-directory/app/my-file&line=10', $resolveSourceHref()
+            'phpstorm://open?file=/my-work-directory/app/my-file&line=10',
+            $resolveSourceHref()
         );
 
         // When editor name and base path is provided on array format...
         $this->config->set('app.editor', ['name' => 'phpstorm', 'base_path' => '/my-docker-work-directory']);
         $this->assertSame(
-            'phpstorm://open?file=/my-docker-work-directory/app/my-file&line=10', $resolveSourceHref());
+            'phpstorm://open?file=/my-docker-work-directory/app/my-file&line=10',
+            $resolveSourceHref()
+        );
 
         // When href is provided on array format...
         $this->config->set('app.editor', ['href' => 'vscode://open?file={file}&line={line}']);
         $this->assertSame(
-            'vscode://open?file=/my-work-directory/app/my-file&line=10', $resolveSourceHref()
+            'vscode://open?file=/my-work-directory/app/my-file&line=10',
+            $resolveSourceHref()
         );
 
         // When href and base path is provided on array format...
         $this->config->set('app.editor', ['href' => 'vscode://open?file={file}&line={line}', 'base_path' => '/my-docker-work-directory']);
         $this->assertSame(
-            'vscode://open?file=/my-docker-work-directory/app/my-file&line=10', $resolveSourceHref()
+            'vscode://open?file=/my-docker-work-directory/app/my-file&line=10',
+            $resolveSourceHref()
         );
 
         // When editor name is provided...
