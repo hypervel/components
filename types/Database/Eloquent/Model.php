@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Types\Model;
 
 use Hypervel\Database\Eloquent\Collection;
-// use Hypervel\Database\Eloquent\HasCollection; // HasCollection not supported in Hyperf
 use Hypervel\Database\Eloquent\Model;
 use User;
 
