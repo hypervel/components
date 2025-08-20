@@ -82,10 +82,10 @@ class EloquentModelWithoutEventsTest extends TestCase
                 function () use ($model) {
                     TestModelWithMockDispatcher::withoutEvents(function () use ($model) {
                         // Within this nested withoutEvents context, getEventDispatcher should return null
-                        $this->assertnull($model->getEventDispatcher());
+                        $this->assertNull($model->getEventDispatcher());
                     });
                     // After exiting the inner withoutEvents context, it should still return null
-                    $this->assertnull($model->getEventDispatcher());
+                    $this->assertNull($model->getEventDispatcher());
                 }
             );
         });
