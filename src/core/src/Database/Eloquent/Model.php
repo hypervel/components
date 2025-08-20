@@ -69,12 +69,19 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
      */
     public static function withoutEvents(callable $callback): mixed
     {
-        Context::set(static::getWithoutEventContextKey(), true);
+        $key = static::getWithoutEventContextKey();
+        $counter = Context::get($key) ?? 0;
+        Context::set($key, $counter + 1);
 
         try {
             return $callback();
         } finally {
-            Context::destroy(static::getWithoutEventContextKey());
+            $counter = Context::get($key) ?? 1;
+            if ($counter <= 1) {
+                Context::destroy($key);
+            } else {
+                Context::set($key, $counter - 1);
+            }
         }
     }
 

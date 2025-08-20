@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\Eloquent;
 
 use Hypervel\Context\Context;
-use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
+
+use function Hypervel\Coroutine\wait;
 
 /**
  * @internal
@@ -50,25 +51,6 @@ class EloquentModelWithoutEventsTest extends TestCase
         $this->assertEquals($expectedKey, $result);
     }
 
-    public function testWithoutEventsInRealCoroutine()
-    {
-        $callbackExecuted = false;
-
-        $expectedResult = 'coroutine result';
-
-        $callback = function () use (&$callbackExecuted, $expectedResult) {
-            $callbackExecuted = true;
-
-            return $expectedResult;
-        };
-
-        $result = TestModel::withoutEvents($callback);
-
-        $this->assertTrue($callbackExecuted);
-        $this->assertEquals($expectedResult, $result);
-        $this->assertTrue(Coroutine::inCoroutine());
-    }
-
     public function testGetEventDispatcherInCoroutineWithWithoutEventsActive()
     {
         $model = new TestModelWithMockDispatcher();
@@ -89,20 +71,38 @@ class EloquentModelWithoutEventsTest extends TestCase
         $this->assertSame($dispatcher, $model->getEventDispatcher());
     }
 
+    public function testWithoutEventsNestedInRealCoroutines()
+    {
+        $model = new TestModelWithMockDispatcher();
+        $dispatcher = m::mock(EventDispatcherInterface::class);
+        $model->setMockDispatcher($dispatcher);
+
+        wait(function () use ($model) {
+            TestModelWithMockDispatcher::withoutEvents(
+                function () use ($model) {
+                    TestModelWithMockDispatcher::withoutEvents(function () use ($model) {
+                        // Within this nested withoutEvents context, getEventDispatcher should return null
+                        $this->assertnull($model->getEventDispatcher());
+                    });
+                    // After exiting the inner withoutEvents context, it should still return null
+                    $this->assertnull($model->getEventDispatcher());
+                }
+            );
+        });
+    }
+
     public function testWithoutEventsContextIsolationBetweenModels()
     {
         $model1 = null;
         $model2 = new AnotherTestModelWithMockDispatcher();
+        $dispatcher1 = m::mock(EventDispatcherInterface::class);
         $dispatcher2 = m::mock(EventDispatcherInterface::class);
         $model2->setMockDispatcher($dispatcher2);
 
-        $callbackExecuted = false;
-
         TestModelWithMockDispatcher::withoutEvents(
-            function () use (&$model1, $model2, &$callbackExecuted, $dispatcher2) {
-                $callbackExecuted = true;
-
+            function () use (&$model1, $model2, $dispatcher1, $dispatcher2) {
                 $model1 = new TestModelWithMockDispatcher();
+                $model1->setMockDispatcher($dispatcher1);
                 // model1 should return null within withoutEvents
                 $this->assertNull($model1->getEventDispatcher());
 
@@ -111,10 +111,8 @@ class EloquentModelWithoutEventsTest extends TestCase
             }
         );
 
-        $this->assertTrue($callbackExecuted);
-
-        // After withoutEvents, context is still set for model1 but not model2
-        $this->assertNull($model1->getEventDispatcher());
+        // After exiting the withoutEvents context, both models should return their respective dispatchers
+        $this->assertSame($dispatcher1, $model1->getEventDispatcher());
         $this->assertSame($dispatcher2, $model2->getEventDispatcher());
     }
 
@@ -145,13 +143,13 @@ class EloquentModelWithoutEventsTest extends TestCase
 
         $contextKey = $model->getWithoutEventContextKey();
 
-        // Initially, context should not be set (returns 0 for Coroutine::parentId() in root coroutine)
-        $this->assertFalse((bool) Context::get($contextKey));
+        // Initially, context should not be set
+        $this->assertNull(Context::get($contextKey));
         $this->assertSame($dispatcher, $model->getEventDispatcher());
 
         TestModelWithMockDispatcher::withoutEvents(function () use ($model, $contextKey) {
             // Within withoutEvents, context should be set
-            $this->assertTrue(Context::get($contextKey));
+            $this->assertSame(1, Context::get($contextKey));
             $this->assertNull($model->getEventDispatcher());
         });
 
