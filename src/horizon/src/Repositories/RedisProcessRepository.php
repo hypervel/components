@@ -5,15 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Repositories;
 
 use Carbon\CarbonImmutable;
-use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Horizon\Contracts\ProcessRepository;
+use Hypervel\Redis\RedisFactory;
+use Hypervel\Redis\RedisProxy;
 
 class RedisProcessRepository implements ProcessRepository
 {
     /**
      * Create a new repository instance.
      *
-     * @param RedisFactory $redis The Redis connection instance.
+     * @param RedisFactory $redis the Redis connection instance
      */
     public function __construct(
         public RedisFactory $redis
@@ -25,7 +26,7 @@ class RedisProcessRepository implements ProcessRepository
      */
     public function allOrphans(string $master): array
     {
-        return $this->connection()->hgetall(
+        return $this->connection()->hGetAll(
             "{$master}:orphans"
         );
     }
@@ -37,17 +38,17 @@ class RedisProcessRepository implements ProcessRepository
     {
         $time = CarbonImmutable::now()->getTimestamp();
 
-        $shouldRemove = array_diff($this->connection()->hkeys(
+        $shouldRemove = array_diff($this->connection()->hKeys(
             $key = "{$master}:orphans"
         ), $processIds);
 
         if (! empty($shouldRemove)) {
-            $this->connection()->hdel($key, ...$shouldRemove);
+            $this->connection()->hDel($key, ...$shouldRemove);
         }
 
         $this->connection()->pipeline(function ($pipe) use ($key, $time, $processIds) {
             foreach ($processIds as $processId) {
-                $pipe->hsetnx($key, $processId, $time);
+                $pipe->hSetNx($key, $processId, $time);
             }
         });
     }
@@ -69,7 +70,7 @@ class RedisProcessRepository implements ProcessRepository
      */
     public function forgetOrphans(string $master, array $processIds): void
     {
-        $this->connection()->hdel(
+        $this->connection()->hDel(
             "{$master}:orphans",
             ...$processIds
         );
@@ -77,11 +78,9 @@ class RedisProcessRepository implements ProcessRepository
 
     /**
      * Get the Redis connection instance.
-     *
-     * @return \Illuminate\Redis\Connections\Connection
      */
-    protected function connection()
+    protected function connection(): RedisProxy
     {
-        return $this->redis->connection('horizon');
+        return $this->redis->get('horizon');
     }
 }

@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Repositories;
 
 use Carbon\CarbonImmutable;
-use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\MasterSupervisor;
+use Hypervel\Redis\RedisFactory;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Arr;
 use stdClass;
 
@@ -16,8 +17,6 @@ class RedisMasterSupervisorRepository implements MasterSupervisorRepository
 {
     /**
      * Create a new repository instance.
-     *
-     * @param RedisFactory $redis The Redis connection instance.
      */
     public function __construct(
         public RedisFactory $redis
@@ -29,7 +28,7 @@ class RedisMasterSupervisorRepository implements MasterSupervisorRepository
      */
     public function names(): array
     {
-        return $this->connection()->zrevrangebyscore(
+        return $this->connection()->zRevRangeByScore(
             'masters',
             '+inf',
             CarbonImmutable::now()->subSeconds(14)->getTimestamp()
@@ -64,15 +63,9 @@ class RedisMasterSupervisorRepository implements MasterSupervisorRepository
         });
 
         return collect($records)->map(function ($record) {
-            $record = array_values($record);
-
-            return ! $record[0] ? null : (object) [
-                'name' => $record[0],
-                'environment' => $record[4],
-                'pid' => $record[1],
-                'status' => $record[2],
-                'supervisors' => json_decode($record[3], true),
-            ];
+            return $record['name']
+                ? (object) array_merge($record, ['supervisors' => json_decode($record['supervisors'], true)])
+                : null;
         })->filter()->all();
     }
 
@@ -128,7 +121,7 @@ class RedisMasterSupervisorRepository implements MasterSupervisorRepository
      */
     public function flushExpired(): void
     {
-        $this->connection()->zremrangebyscore(
+        $this->connection()->zRemRangeByScore(
             'masters',
             '-inf',
             CarbonImmutable::now()->subSeconds(14)->getTimestamp()
@@ -137,11 +130,9 @@ class RedisMasterSupervisorRepository implements MasterSupervisorRepository
 
     /**
      * Get the Redis connection instance.
-     *
-     * @return \Illuminate\Redis\Connections\Connection
      */
-    protected function connection()
+    protected function connection(): RedisProxy
     {
-        return $this->redis->connection('horizon');
+        return $this->redis->get('horizon');
     }
 }

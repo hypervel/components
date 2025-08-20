@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Repositories;
 
-use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Horizon\Contracts\TagRepository;
+use Hypervel\Redis\RedisFactory;
+use Hypervel\Redis\RedisProxy;
 
 class RedisTagRepository implements TagRepository
 {
     /**
      * Create a new repository instance.
      *
-     * @param RedisFactory $redis The Redis connection instance.
+     * @param RedisFactory $redis the Redis connection instance
      */
     public function __construct(
         public RedisFactory $redis
@@ -24,7 +25,7 @@ class RedisTagRepository implements TagRepository
      */
     public function monitoring(): array
     {
-        return (array) $this->connection()->smembers('monitoring');
+        return (array) $this->connection()->sMembers('monitoring');
     }
 
     /**
@@ -40,7 +41,7 @@ class RedisTagRepository implements TagRepository
      */
     public function monitor(string $tag): void
     {
-        $this->connection()->sadd('monitoring', $tag);
+        $this->connection()->sAdd('monitoring', $tag);
     }
 
     /**
@@ -48,7 +49,7 @@ class RedisTagRepository implements TagRepository
      */
     public function stopMonitoring(string $tag): void
     {
-        $this->connection()->srem('monitoring', $tag);
+        $this->connection()->sRem('monitoring', $tag);
     }
 
     /**
@@ -58,7 +59,7 @@ class RedisTagRepository implements TagRepository
     {
         $this->connection()->pipeline(function ($pipe) use ($id, $tags) {
             foreach ($tags as $tag) {
-                $pipe->zadd($tag, str_replace(',', '.', microtime(true)), $id);
+                $pipe->zAdd($tag, str_replace(',', '.', microtime(true)), $id);
             }
         });
     }
@@ -70,7 +71,7 @@ class RedisTagRepository implements TagRepository
     {
         $this->connection()->pipeline(function ($pipe) use ($minutes, $id, $tags) {
             foreach ($tags as $tag) {
-                $pipe->zadd($tag, str_replace(',', '.', microtime(true)), $id);
+                $pipe->zAdd($tag, str_replace(',', '.', microtime(true)), $id);
 
                 $pipe->expire($tag, $minutes * 60);
             }
@@ -82,7 +83,7 @@ class RedisTagRepository implements TagRepository
      */
     public function count(string $tag): int
     {
-        return $this->connection()->zcard($tag);
+        return $this->connection()->zCard($tag);
     }
 
     /**
@@ -90,7 +91,7 @@ class RedisTagRepository implements TagRepository
      */
     public function jobs(string $tag): array
     {
-        return (array) $this->connection()->zrange($tag, 0, -1);
+        return (array) $this->connection()->zRange($tag, 0, -1);
     }
 
     /**
@@ -98,7 +99,7 @@ class RedisTagRepository implements TagRepository
      */
     public function paginate(string $tag, int $startingAt = 0, int $limit = 25): array
     {
-        $tags = (array) $this->connection()->zrevrange(
+        $tags = (array) $this->connection()->zRevRange(
             $tag,
             $startingAt,
             $startingAt + $limit - 1
@@ -117,7 +118,7 @@ class RedisTagRepository implements TagRepository
         $this->connection()->pipeline(function ($pipe) use ($tags, $ids) {
             foreach ((array) $tags as $tag) {
                 foreach ((array) $ids as $id) {
-                    $pipe->zrem($tag, $id);
+                    $pipe->zRem($tag, $id);
                 }
             }
         });
@@ -133,11 +134,9 @@ class RedisTagRepository implements TagRepository
 
     /**
      * Get the Redis connection instance.
-     *
-     * @return \Illuminate\Redis\Connections\Connection
      */
-    protected function connection()
+    protected function connection(): RedisProxy
     {
-        return $this->redis->connection('horizon');
+        return $this->redis->get('horizon');
     }
 }

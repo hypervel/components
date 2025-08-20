@@ -14,7 +14,7 @@ interface ProcessRepository
     /**
      * Record the given process IDs as orphaned.
      */
-    public function orphaned(string $master, array $processIds): array;
+    public function orphaned(string $master, array $processIds): void;
 
     /**
      * Get the process IDs orphaned for at least the given number of seconds.

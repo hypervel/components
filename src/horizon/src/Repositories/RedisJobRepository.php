@@ -6,10 +6,11 @@ namespace Hypervel\Horizon\Repositories;
 
 use Carbon\CarbonImmutable;
 use Exception;
-use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\JobPayload;
 use Hypervel\Horizon\LuaScripts;
+use Hypervel\Redis\RedisFactory;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use stdClass;
@@ -57,8 +58,6 @@ class RedisJobRepository implements JobRepository
 
     /**
      * Create a new repository instance.
-     *
-     * @param RedisFactory $redis The Redis connection instance.
      */
     public function __construct(
         public RedisFactory $redis
@@ -84,7 +83,7 @@ class RedisJobRepository implements JobRepository
      */
     public function totalRecent(): int
     {
-        return $this->connection()->zcard('recent_jobs');
+        return $this->connection()->zCard('recent_jobs');
     }
 
     /**
@@ -92,7 +91,7 @@ class RedisJobRepository implements JobRepository
      */
     public function totalFailed(): int
     {
-        return $this->connection()->zcard('failed_jobs');
+        return $this->connection()->zCard('failed_jobs');
     }
 
     /**
@@ -190,7 +189,7 @@ class RedisJobRepository implements JobRepository
     {
         $afterIndex = $afterIndex === null ? -1 : $afterIndex;
 
-        return $this->getJobs($this->connection()->zrange(
+        return $this->getJobs($this->connection()->zRange(
             $type,
             $afterIndex + 1,
             $afterIndex + 50
@@ -444,31 +443,31 @@ class RedisJobRepository implements JobRepository
     public function trimRecentJobs(): void
     {
         $this->connection()->pipeline(function ($pipe) {
-            $pipe->zremrangebyscore(
+            $pipe->zRemRangeByScore(
                 'recent_jobs',
                 CarbonImmutable::now()->subMinutes($this->recentJobExpires)->getTimestamp() * -1,
                 '+inf'
             );
 
-            $pipe->zremrangebyscore(
+            $pipe->zRemRangeByScore(
                 'recent_failed_jobs',
                 CarbonImmutable::now()->subMinutes($this->recentFailedJobExpires)->getTimestamp() * -1,
                 '+inf'
             );
 
-            $pipe->zremrangebyscore(
+            $pipe->zRemRangeByScore(
                 'pending_jobs',
                 CarbonImmutable::now()->subMinutes($this->pendingJobExpires)->getTimestamp() * -1,
                 '+inf'
             );
 
-            $pipe->zremrangebyscore(
+            $pipe->zRemRangeByScore(
                 'completed_jobs',
                 CarbonImmutable::now()->subMinutes($this->completedJobExpires)->getTimestamp() * -1,
                 '+inf'
             );
 
-            $pipe->zremrangebyscore(
+            $pipe->zRemRangeByScore(
                 'silenced_jobs',
                 CarbonImmutable::now()->subMinutes($this->completedJobExpires)->getTimestamp() * -1,
                 '+inf'
@@ -481,7 +480,7 @@ class RedisJobRepository implements JobRepository
      */
     public function trimFailedJobs(): void
     {
-        $this->connection()->zremrangebyscore(
+        $this->connection()->zRemRangeByScore(
             'failed_jobs',
             CarbonImmutable::now()->subMinutes($this->failedJobExpires)->getTimestamp() * -1,
             '+inf'
@@ -493,7 +492,7 @@ class RedisJobRepository implements JobRepository
      */
     public function trimMonitoredJobs(): void
     {
-        $this->connection()->zremrangebyscore(
+        $this->connection()->zRemRangeByScore(
             'monitored_jobs',
             CarbonImmutable::now()->subMinutes($this->monitoredJobExpires)->getTimestamp() * -1,
             '+inf'
@@ -510,7 +509,7 @@ class RedisJobRepository implements JobRepository
             $this->keys
         );
 
-        $job = is_array($attributes) && $attributes[0] !== null ? (object) array_combine($this->keys, $attributes) : null;
+        $job = is_array($attributes) && $attributes[$this->keys[0]] ? (object) $attributes : null;
 
         if ($job && $job->status !== 'failed') {
             return null;
@@ -592,6 +591,7 @@ class RedisJobRepository implements JobRepository
      */
     public function deleteFailed(string $id): int
     {
+        /* @phpstan-ignore-next-line */
         return $this->connection()->zrem('failed_jobs', $id) != 1
             ? 0
             : $this->connection()->del($id);
@@ -614,11 +614,9 @@ class RedisJobRepository implements JobRepository
 
     /**
      * Get the Redis connection instance.
-     *
-     * @return \Illuminate\Redis\Connections\Connection
      */
-    protected function connection()
+    protected function connection(): RedisProxy
     {
-        return $this->redis->connection('horizon');
+        return $this->redis->get('horizon');
     }
 }

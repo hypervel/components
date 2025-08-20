@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Contracts;
 
 use Exception;
-use Hyperf\Collection\Collection;
 use Hypervel\Horizon\JobPayload;
+use Hypervel\Support\Collection;
 use stdClass;
 
 interface JobRepository

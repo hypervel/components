@@ -19,7 +19,7 @@ interface MetricsRepository
     /**
      * Get the jobs processed per minute since the last snapshot.
      */
-    public function jobsProcessedPerMinute(): int;
+    public function jobsProcessedPerMinute(): float;
 
     /**
      * Get the application's total throughput since the last snapshot.
@@ -49,12 +49,12 @@ interface MetricsRepository
     /**
      * Get the queue that has the longest runtime.
      */
-    public function queueWithMaximumRuntime(): int;
+    public function queueWithMaximumRuntime(): ?string;
 
     /**
      * Get the queue that has the most throughput.
      */
-    public function queueWithMaximumThroughput(): int;
+    public function queueWithMaximumThroughput(): ?string;
 
     /**
      * Increment the metrics information for a job.

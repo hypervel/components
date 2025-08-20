@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Repositories;
 
-use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\Contracts\WorkloadRepository;
 use Hypervel\Horizon\WaitTimeCalculator;
+use Hypervel\Queue\Contracts\Factory as QueueFactory;
 use Hypervel\Support\Str;
 
 class RedisWorkloadRepository implements WorkloadRepository
@@ -16,10 +16,10 @@ class RedisWorkloadRepository implements WorkloadRepository
     /**
      * Create a new repository instance.
      *
-     * @param QueueFactory $queue The queue factory implementation.
-     * @param WaitTimeCalculator $waitTime The wait time calculator instance.
-     * @param MasterSupervisorRepository $masters The master supervisor repository implementation.
-     * @param SupervisorRepository $supervisors The supervisor repository implementation.
+     * @param QueueFactory $queue the queue factory implementation
+     * @param WaitTimeCalculator $waitTime the wait time calculator instance
+     * @param MasterSupervisorRepository $masters the master supervisor repository implementation
+     * @param SupervisorRepository $supervisors the supervisor repository implementation
      */
     public function __construct(
         public QueueFactory $queue,
@@ -32,9 +32,15 @@ class RedisWorkloadRepository implements WorkloadRepository
     /**
      * Get the current workload of each queue.
      *
-     * @return array<int, array{"name": string, "length": int, "wait": int, "processes": int, "split_queues": null|array<int, array{"name": string, "wait": int, "length": int}>}>
+     * @return array<int, array{
+     *    "name": string,
+     *    "length": int,
+     *    "wait": int,
+     *    "processes": int,
+     *    "split_queues": null|array<int, array{"name": string, "wait": int, "length": int}>
+     *  }>
      */
-    public function get()
+    public function get(): array
     {
         $processes = $this->processes();
 
@@ -45,8 +51,9 @@ class RedisWorkloadRepository implements WorkloadRepository
                 $totalProcesses = $processes[$queue] ?? 0;
 
                 $length = ! Str::contains($queue, ',')
-                    ? collect([$queueName => $this->queue->connection($connection)->readyNow($queueName)])
+                    ? collect([$queueName => $this->queue->connection($connection)->readyNow($queueName)]) // @phpstan-ignore-line
                     : collect(explode(',', $queueName))->mapWithKeys(function ($queueName) use ($connection) {
+                        /* @phpstan-ignore-next-line */
                         return [$queueName => $this->queue->connection($connection)->readyNow($queueName)];
                     });
 
@@ -70,6 +77,8 @@ class RedisWorkloadRepository implements WorkloadRepository
 
     /**
      * Get the number of processes of each queue.
+     *
+     * @return array<string, int>
      */
     private function processes(): array
     {

@@ -5,19 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Repositories;
 
 use Carbon\CarbonImmutable;
-use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Lock;
 use Hypervel\Horizon\LuaScripts;
 use Hypervel\Horizon\WaitTimeCalculator;
+use Hypervel\Redis\RedisFactory;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Str;
 
 class RedisMetricsRepository implements MetricsRepository
 {
     /**
      * Create a new repository instance.
-     *
-     * @param RedisFactory $redis The Redis connection instance.
      */
     public function __construct(
         public RedisFactory $redis
@@ -29,7 +28,7 @@ class RedisMetricsRepository implements MetricsRepository
      */
     public function measuredJobs(): array
     {
-        $classes = (array) $this->connection()->smembers('measured_jobs');
+        $classes = (array) $this->connection()->sMembers('measured_jobs');
 
         return collect($classes)->map(function ($class) {
             return preg_match('/job:(.*)$/', $class, $matches) ? $matches[1] : $class;
@@ -41,7 +40,7 @@ class RedisMetricsRepository implements MetricsRepository
      */
     public function measuredQueues(): array
     {
-        $queues = (array) $this->connection()->smembers('measured_queues');
+        $queues = (array) $this->connection()->sMembers('measured_queues');
 
         return collect($queues)->map(function ($class) {
             return preg_match('/queue:(.*)$/', $class, $matches) ? $matches[1] : $class;
@@ -62,7 +61,7 @@ class RedisMetricsRepository implements MetricsRepository
     public function throughput(): int
     {
         return collect($this->measuredQueues())->reduce(function ($carry, $queue) {
-            return $carry + $this->connection()->hget('queue:' . $queue, 'throughput');
+            return $carry + $this->connection()->hGet('queue:' . $queue, 'throughput');
         }, 0);
     }
 
@@ -87,7 +86,7 @@ class RedisMetricsRepository implements MetricsRepository
      */
     protected function throughputFor(string $key): int
     {
-        return (int) $this->connection()->hget($key, 'throughput');
+        return (int) $this->connection()->hGet($key, 'throughput');
     }
 
     /**
@@ -111,7 +110,7 @@ class RedisMetricsRepository implements MetricsRepository
      */
     protected function runtimeFor(string $key): float
     {
-        return (float) $this->connection()->hget($key, 'runtime');
+        return (float) $this->connection()->hGet($key, 'runtime');
     }
 
     /**
@@ -120,7 +119,7 @@ class RedisMetricsRepository implements MetricsRepository
     public function queueWithMaximumRuntime(): ?string
     {
         return collect($this->measuredQueues())->sortBy(function ($queue) {
-            if ($snapshots = $this->connection()->zrange('snapshot:queue:' . $queue, -1, 1)) {
+            if ($snapshots = $this->connection()->zRange('snapshot:queue:' . $queue, -1, 1)) {
                 return json_decode($snapshots[0])->runtime;
             }
         })->last();
@@ -132,7 +131,7 @@ class RedisMetricsRepository implements MetricsRepository
     public function queueWithMaximumThroughput(): ?string
     {
         return collect($this->measuredQueues())->sortBy(function ($queue) {
-            if ($snapshots = $this->connection()->zrange('snapshot:queue:' . $queue, -1, 1)) {
+            if ($snapshots = $this->connection()->zRange('snapshot:queue:' . $queue, -1, 1)) {
                 return json_decode($snapshots[0])->throughput;
             }
         })->last();
@@ -187,7 +186,7 @@ class RedisMetricsRepository implements MetricsRepository
      */
     protected function snapshotsFor(string $key): array
     {
-        return collect($this->connection()->zrange('snapshot:' . $key, 0, -1))
+        return collect($this->connection()->zRange('snapshot:' . $key, 0, -1))
             ->map(function ($snapshot) {
                 return (object) json_decode($snapshot, true);
             })->values()->all();
@@ -226,7 +225,7 @@ class RedisMetricsRepository implements MetricsRepository
             ])
         );
 
-        $this->connection()->zremrangebyrank(
+        $this->connection()->zRemRangeByRank(
             'snapshot:' . $key,
             0,
             -abs(1 + config('horizon.metrics.trim_snapshots.job', 24))
@@ -251,7 +250,7 @@ class RedisMetricsRepository implements MetricsRepository
             ])
         );
 
-        $this->connection()->zremrangebyrank(
+        $this->connection()->zRemRangeByRank(
             'snapshot:' . $key,
             0,
             -abs(1 + config('horizon.metrics.trim_snapshots.queue', 24))
@@ -260,21 +259,19 @@ class RedisMetricsRepository implements MetricsRepository
 
     /**
      * Get the base snapshot data for a given key.
+     *
+     * @return array{throughput: string, runtime: string}
      */
     protected function baseSnapshotData(string $key): array
     {
+        /** @var array{0: array{throughput: string, runtime: string}} $responses */
         $responses = $this->connection()->transaction(function ($trans) use ($key) {
             $trans->hmget($key, ['throughput', 'runtime']);
 
             $trans->del($key);
         });
 
-        $snapshot = array_values($responses[0]);
-
-        return [
-            'throughput' => $snapshot[0],
-            'runtime' => $snapshot[1],
-        ];
+        return $responses[0];
     }
 
     /**
@@ -345,11 +342,9 @@ class RedisMetricsRepository implements MetricsRepository
 
     /**
      * Get the Redis connection instance.
-     *
-     * @return \Illuminate\Redis\Connections\Connection
      */
-    public function connection()
+    protected function connection(): RedisProxy
     {
-        return $this->redis->connection('horizon');
+        return $this->redis->get('horizon');
     }
 }

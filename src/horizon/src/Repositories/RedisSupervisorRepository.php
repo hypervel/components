@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Repositories;
 
 use Carbon\CarbonImmutable;
-use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\Supervisor;
+use Hypervel\Redis\RedisFactory;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Arr;
 use stdClass;
 
@@ -15,8 +16,6 @@ class RedisSupervisorRepository implements SupervisorRepository
 {
     /**
      * Create a new repository instance.
-     *
-     * @param RedisFactory $redis The Redis connection instance.
      */
     public function __construct(
         public RedisFactory $redis
@@ -28,7 +27,7 @@ class RedisSupervisorRepository implements SupervisorRepository
      */
     public function names(): array
     {
-        return $this->connection()->zrevrangebyscore(
+        return $this->connection()->zRevRangeByScore(
             'supervisors',
             '+inf',
             CarbonImmutable::now()->subSeconds(29)->getTimestamp()
@@ -56,6 +55,7 @@ class RedisSupervisorRepository implements SupervisorRepository
      */
     public function get(array $names): array
     {
+        /** @var array<int, array{name: string, master: string, pid: int, status: string, processes: string, options: string}> $records */
         $records = $this->connection()->pipeline(function ($pipe) use ($names) {
             foreach ($names as $name) {
                 $pipe->hmget('supervisor:' . $name, ['name', 'master', 'pid', 'status', 'processes', 'options']);
@@ -63,16 +63,12 @@ class RedisSupervisorRepository implements SupervisorRepository
         });
 
         return collect($records)->filter()->map(function ($record) {
-            $record = array_values($record);
-
-            return ! $record[0] ? null : (object) [
-                'name' => $record[0],
-                'master' => $record[1],
-                'pid' => $record[2],
-                'status' => $record[3],
-                'processes' => json_decode($record[4], true),
-                'options' => json_decode($record[5], true),
-            ];
+            return $record['name']
+                ? (object) array_merge($record, [
+                    'processes' => json_decode($record['processes'], true),
+                    'options' => json_decode($record['options'], true),
+                ])
+                : null;
         })->filter()->all();
     }
 
@@ -141,7 +137,7 @@ class RedisSupervisorRepository implements SupervisorRepository
      */
     public function flushExpired(): void
     {
-        $this->connection()->zremrangebyscore(
+        $this->connection()->zRemRangeByScore(
             'supervisors',
             '-inf',
             CarbonImmutable::now()->subSeconds(14)->getTimestamp()
@@ -150,11 +146,9 @@ class RedisSupervisorRepository implements SupervisorRepository
 
     /**
      * Get the Redis connection instance.
-     *
-     * @return \Illuminate\Redis\Connections\Connection
      */
-    protected function connection()
+    protected function connection(): RedisProxy
     {
-        return $this->redis->connection('horizon');
+        return $this->redis->get('horizon');
     }
 }

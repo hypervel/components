@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Contracts;
 
 use Hypervel\Horizon\MasterSupervisor;
+use stdClass;
 
 interface MasterSupervisorRepository
 {
@@ -21,7 +22,7 @@ interface MasterSupervisorRepository
     /**
      * Get information on a master supervisor by name.
      */
-    public function find(string $name): array;
+    public function find(string $name): ?stdClass;
 
     /**
      * Get information on the given master supervisors.
