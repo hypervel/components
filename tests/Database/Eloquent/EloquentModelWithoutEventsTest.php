@@ -12,8 +12,6 @@ use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
 
-use function Hypervel\Coroutine\wait;
-
 /**
  * @internal
  * @coversNothing
@@ -77,18 +75,16 @@ class EloquentModelWithoutEventsTest extends TestCase
         $dispatcher = m::mock(EventDispatcherInterface::class);
         $model->setMockDispatcher($dispatcher);
 
-        wait(function () use ($model) {
-            TestModelWithMockDispatcher::withoutEvents(
-                function () use ($model) {
-                    TestModelWithMockDispatcher::withoutEvents(function () use ($model) {
-                        // Within this nested withoutEvents context, getEventDispatcher should return null
-                        $this->assertNull($model->getEventDispatcher());
-                    });
-                    // After exiting the inner withoutEvents context, it should still return null
+        TestModelWithMockDispatcher::withoutEvents(
+            function () use ($model) {
+                TestModelWithMockDispatcher::withoutEvents(function () use ($model) {
+                    // Within this nested withoutEvents context, getEventDispatcher should return null
                     $this->assertNull($model->getEventDispatcher());
-                }
-            );
-        });
+                });
+                // After exiting the inner withoutEvents context, it should still return null
+                $this->assertNull($model->getEventDispatcher());
+            }
+        );
     }
 
     public function testWithoutEventsContextIsolationBetweenModels()
