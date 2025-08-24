@@ -51,7 +51,7 @@ class ListenCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(): void
+    public function handle()
     {
         // We need to get the right queue for the connection which is set in the queue
         // configuration file for the application. We will pull it based on the set
@@ -98,9 +98,9 @@ class ListenCommand extends Command
             memory: (int) $this->option('memory'),
             timeout: (int) $this->option('timeout'),
             sleep: (int) $this->option('sleep'),
+            rest: (int) $this->option('rest'),
             maxTries: (int) $this->option('tries'),
-            force: (bool) $this->option('force'),
-            rest: (int) $this->option('rest')
+            force: (bool) $this->option('force')
         );
     }
 
