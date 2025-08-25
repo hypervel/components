@@ -18,7 +18,7 @@ use Hyperf\Database\Commands\Seeders\SeedCommand;
 use Hyperf\Database\Migrations\Migration;
 use Hyperf\Database\Model\Factory as HyperfDatabaseFactory;
 use Hyperf\ViewEngine\Compiler\CompilerInterface;
-use Hypervel\Database\Eloquent\Factories\FactoryInvoker as DatabaseFactoryInvoker;
+use Hypervel\Database\Eloquent\Factories\LegacyFactoryInvoker as DatabaseFactoryInvoker;
 use Hypervel\Database\Migrations\MigrationCreator;
 use Hypervel\Database\Migrations\MigrationCreator as HyperfMigrationCreator;
 use Hypervel\Database\TransactionListener;
