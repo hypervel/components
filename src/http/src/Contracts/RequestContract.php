@@ -11,6 +11,7 @@ use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Router\Dispatched;
 use Hypervel\Session\Contracts\Session as SessionContract;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Uri;
 use Psr\Http\Message\ServerRequestInterface;
 use Stringable;
 
@@ -318,6 +319,11 @@ interface RequestContract extends RequestInterface
      * Get the request method.
      */
     public function method(): string;
+
+    /**
+     * Get a URI instance for the request.
+     */
+    public function uri(): Uri;
 
     /**
      * Get the request headers.

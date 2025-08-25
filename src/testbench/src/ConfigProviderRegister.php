@@ -49,6 +49,7 @@ class ConfigProviderRegister
         \Hypervel\Notifications\ConfigProvider::class,
         \Hypervel\ObjectPool\ConfigProvider::class,
         \Hypervel\Queue\ConfigProvider::class,
+        \Hypervel\Redis\ConfigProvider::class,
         \Hypervel\Router\ConfigProvider::class,
         \Hypervel\Session\ConfigProvider::class,
         \Hypervel\Translation\ConfigProvider::class,

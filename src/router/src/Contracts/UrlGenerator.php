@@ -120,6 +120,16 @@ interface UrlGenerator
     public function isValidUrl(string $path): bool;
 
     /**
+     * Force the scheme for URLs.
+     */
+    public function forceScheme(?string $scheme): void;
+
+    /**
+     * Force the use of the HTTPS scheme for all generated URLs.
+     */
+    public function forceHttps(bool $force = true): void;
+
+    /**
      * Set a callback to be used to format the host of generated URLs.
      */
     public function formatHostUsing(Closure $callback): static;
