@@ -200,11 +200,10 @@ abstract class Factory
      *
      * @return TModel
      */
-    // `withoutEvents` not supported in Hyperf
-    // public function createOneQuietly(array|callable $attributes = []): Model
-    // {
-    //     return $this->count(null)->createQuietly($attributes);
-    // }
+    public function createOneQuietly(array|callable $attributes = []): Model
+    {
+        return $this->count(null)->createQuietly($attributes);
+    }
 
     /**
      * Create a collection of models and persist them to the database.
@@ -235,11 +234,10 @@ abstract class Factory
      *
      * @return EloquentCollection<int, TModel>
      */
-    // `withoutEvents` not supported in Hyperf
-    // public function createManyQuietly(null|int|iterable $records = null)
-    // {
-    //     return Model::withoutEvents(fn () => $this->createMany($records));
-    // }
+    public function createManyQuietly(null|int|iterable $records = null): EloquentCollection
+    {
+        return Model::withoutEvents(fn () => $this->createMany($records));
+    }
 
     /**
      * Create a collection of models and persist them to the database.
@@ -276,11 +274,10 @@ abstract class Factory
      * @param null|TModel $parent
      * @return EloquentCollection<int, TModel>|TModel
      */
-    // `withoutEvents` not supported in Hyperf
-    // public function createQuietly(array|callable $attributes = [], ?Model $parent = null): EloquentCollection|Model
-    // {
-    //     return Model::withoutEvents(fn () => $this->create($attributes, $parent));
-    // }
+    public function createQuietly(array|callable $attributes = [], ?Model $parent = null): EloquentCollection|Model
+    {
+        return Model::withoutEvents(fn () => $this->create($attributes, $parent));
+    }
 
     /**
      * Create a callback that persists a model in the database when invoked.
