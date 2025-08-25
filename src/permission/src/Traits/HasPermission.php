@@ -112,6 +112,7 @@ trait HasPermission
         $rolePermissions = $this->getPermissionsViaRoles();
 
         // Filter out forbidden permissions from direct permissions
+        /** @var BaseCollection<int, array{id: mixed, pivot?: array{is_forbidden?: bool}}> $directPermissions */
         $filteredDirect = $directPermissions->reject(function ($permission) {
             return isset($permission['pivot']) && $permission['pivot']['is_forbidden'] == true;
         });
