@@ -15,7 +15,7 @@ class PauseCommand extends Command
     /**
      * The name and signature of the console command.
      */
-    protected string $signature = 'horizon:pause';
+    protected ?string $signature = 'horizon:pause';
 
     /**
      * The console command description.

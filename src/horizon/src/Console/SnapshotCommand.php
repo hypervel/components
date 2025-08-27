@@ -13,7 +13,7 @@ class SnapshotCommand extends Command
     /**
      * The name and signature of the console command.
      */
-    protected string $signature = 'horizon:snapshot';
+    protected ?string $signature = 'horizon:snapshot';
 
     /**
      * The console command description.

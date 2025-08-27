@@ -12,7 +12,7 @@ class StatusCommand extends Command
     /**
      * The name and signature of the console command.
      */
-    protected string $signature = 'horizon:status';
+    protected ?string $signature = 'horizon:status';
 
     /**
      * The console command description.

@@ -14,7 +14,7 @@ class HorizonCommand extends Command
     /**
      * The name and signature of the console command.
      */
-    protected string $signature = 'horizon {--environment= : The environment name}';
+    protected ?string $signature = 'horizon {--environment= : The environment name}';
 
     /**
      * The console command description.

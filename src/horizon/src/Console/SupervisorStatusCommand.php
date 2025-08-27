@@ -14,7 +14,7 @@ class SupervisorStatusCommand extends Command
     /**
      * The name and signature of the console command.
      */
-    protected string $signature = 'horizon:supervisor-status
+    protected ?string $signature = 'horizon:supervisor-status
                             {name : The name of the supervisor}';
 
     /**

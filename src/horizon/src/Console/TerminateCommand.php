@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Console;
 
+use Hypervel\Cache\Contracts\Factory as CacheFactory;
 use Hypervel\Console\Command;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Support\Arr;
-use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
+use Hypervel\Support\Traits\InteractsWithTime;
 
 class TerminateCommand extends Command
 {
@@ -19,7 +19,7 @@ class TerminateCommand extends Command
     /**
      * The name and signature of the console command.
      */
-    protected string $signature = 'horizon:terminate
+    protected ?string $signature = 'horizon:terminate
                             {--wait : Wait for all workers to terminate}';
 
     /**
@@ -33,6 +33,7 @@ class TerminateCommand extends Command
     public function handle(CacheFactory $cache, MasterSupervisorRepository $masters): void
     {
         if (config('horizon.fast_termination')) {
+            /* @phpstan-ignore-next-line */
             $cache->forever(
                 'horizon:terminate:wait',
                 $this->option('wait')
@@ -58,6 +59,6 @@ class TerminateCommand extends Command
                 }
             })->whenNotEmpty(fn () => $this->output->writeln(''));
 
-        $this->laravel['cache']->forever('illuminate:queue:restart', $this->currentTime());
+        app('cache')->forever('illuminate:queue:restart', $this->currentTime());
     }
 }

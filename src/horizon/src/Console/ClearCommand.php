@@ -18,7 +18,7 @@ class ClearCommand extends Command
     /**
      * The name and signature of the console command.
      */
-    protected string $signature = 'horizon:clear
+    protected ?string $signature = 'horizon:clear
                             {connection? : The name of the queue connection}
                             {--queue= : The name of the queue to clear}
                             {--force : Force the operation to run when in production}';
@@ -44,12 +44,14 @@ class ClearCommand extends Command
         }
 
         $connection = $this->argument('connection')
-            ?: Arr::first($this->laravel['config']->get('horizon.defaults'))['connection'] ?? 'redis';
+            ?: Arr::first(config('horizon.defaults'))['connection'] ?? 'redis';
+        $queue = $this->getQueue($connection);
 
         if (method_exists($jobRepository, 'purge')) {
-            $jobRepository->purge($queue = $this->getQueue($connection));
+            $jobRepository->purge($queue);
         }
 
+        /** @phpstan-ignore-next-line */
         $count = $manager->connection($connection)->clear($queue);
 
         $this->components->info('Cleared ' . $count . ' jobs from the [' . $queue . '] queue.');
@@ -62,9 +64,6 @@ class ClearCommand extends Command
      */
     protected function getQueue(string $connection): string
     {
-        return $this->option('queue') ?: $this->laravel['config']->get(
-            "queue.connections.{$connection}.queue",
-            'default'
-        );
+        return $this->option('queue') ?: config("queue.connections.{$connection}.queue", 'default');
     }
 }

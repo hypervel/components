@@ -12,7 +12,7 @@ class ListCommand extends Command
     /**
      * The name and signature of the console command.
      */
-    protected string $signature = 'horizon:list';
+    protected ?string $signature = 'horizon:list';
 
     /**
      * The console command description.

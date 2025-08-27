@@ -14,7 +14,7 @@ class ContinueSupervisorCommand extends Command
     /**
      * The name and signature of the console command.
      */
-    protected string $signature = 'horizon:continue-supervisor
+    protected ?string $signature = 'horizon:continue-supervisor
                             {name : The name of the supervisor to resume}';
 
     /**

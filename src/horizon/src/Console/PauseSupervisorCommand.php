@@ -14,7 +14,7 @@ class PauseSupervisorCommand extends Command
     /**
      * The name and signature of the console command.
      */
-    protected string $signature = 'horizon:pause-supervisor
+    protected ?string $signature = 'horizon:pause-supervisor
                             {name : The name of the supervisor to pause}';
 
     /**

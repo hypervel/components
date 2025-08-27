@@ -11,7 +11,7 @@ class WorkCommand extends BaseWorkCommand
     /**
      * The console command name.
      */
-    protected string $signature = 'horizon:work
+    protected ?string $signature = 'horizon:work
                             {connection? : The name of the queue connection to work}
                             {--name=default : The name of the worker}
                             {--delay=0 : The number of seconds to delay failed jobs (Deprecated)}
@@ -38,12 +38,12 @@ class WorkCommand extends BaseWorkCommand
     /**
      * Execute the console command.
      */
-    public function handle(): void
+    public function handle(): int
     {
         if (config('horizon.fast_termination')) {
             ignore_user_abort(true);
         }
 
-        parent::handle();
+        return parent::handle();
     }
 }

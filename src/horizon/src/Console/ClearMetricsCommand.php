@@ -12,7 +12,7 @@ class ClearMetricsCommand extends Command
     /**
      * The name and signature of the console command.
      */
-    protected string $signature = 'horizon:clear-metrics';
+    protected ?string $signature = 'horizon:clear-metrics';
 
     /**
      * The console command description.

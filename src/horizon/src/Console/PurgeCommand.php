@@ -17,7 +17,7 @@ class PurgeCommand extends Command
     /**
      * The name and signature of the console command.
      */
-    protected string $signature = 'horizon:purge
+    protected ?string $signature = 'horizon:purge
                             {--signal=SIGTERM : The signal to send to the rogue processes}';
 
     /**

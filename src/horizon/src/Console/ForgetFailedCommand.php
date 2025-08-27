@@ -12,7 +12,7 @@ class ForgetFailedCommand extends Command
     /**
      * The console command signature.
      */
-    protected string $signature = 'horizon:forget {id? : The ID of the failed job} {--all : Delete all failed jobs}';
+    protected ?string $signature = 'horizon:forget {id? : The ID of the failed job} {--all : Delete all failed jobs}';
 
     /**
      * The console command description.
@@ -33,7 +33,7 @@ class ForgetFailedCommand extends Command
                 $failedJobs->pluck('id')->each(function ($failedId) use ($repository): void {
                     $repository->deleteFailed($failedId);
 
-                    if ($this->laravel['queue.failer']->forget($failedId)) {
+                    if (app('queue.failer')->forget($failedId)) {
                         $this->components->info('Failed job (id): ' . $failedId . ' deleted successfully!');
                     }
                 });
@@ -54,12 +54,14 @@ class ForgetFailedCommand extends Command
 
         $repository->deleteFailed($this->argument('id'));
 
-        if ($this->laravel['queue.failer']->forget($this->argument('id'))) {
+        if (app('queue.failer')->forget($this->argument('id'))) {
             $this->components->info('Failed job deleted successfully!');
         } else {
             $this->components->error('No failed job matches the given ID.');
 
             return 1;
         }
+
+        return 0;
     }
 }

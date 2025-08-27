@@ -15,7 +15,7 @@ class SupervisorCommand extends Command
     /**
      * The name and signature of the console command.
      */
-    protected string $signature = 'horizon:supervisor
+    protected ?string $signature = 'horizon:supervisor
                             {name : The name of supervisor}
                             {connection : The name of the connection to work}
                             {--balance= : The balancing strategy the supervisor should apply}
@@ -68,6 +68,8 @@ class SupervisorCommand extends Command
         }
 
         $this->start($supervisor);
+
+        return 0;
     }
 
     /**
@@ -113,21 +115,21 @@ class SupervisorCommand extends Command
             $this->getQueue($this->argument('connection')),
             $this->option('workers-name'),
             $balance,
-            $backoff,
-            $this->option('max-time'),
-            $this->option('max-jobs'),
-            $this->option('max-processes'),
-            $this->option('min-processes'),
-            $this->option('memory'),
-            $this->option('timeout'),
-            $this->option('sleep'),
-            $this->option('tries'),
+            (int) $backoff,
+            (int) $this->option('max-time'),
+            (int) $this->option('max-jobs'),
+            (int) $this->option('max-processes'),
+            (int) $this->option('min-processes'),
+            (int) $this->option('memory'),
+            (int) $this->option('timeout'),
+            (int) $this->option('sleep'),
+            (int) $this->option('tries'),
             $this->option('force'),
-            $this->option('nice'),
-            $this->option('balance-cooldown'),
-            $this->option('balance-max-shift'),
-            $this->option('parent-id'),
-            $this->option('rest'),
+            (int) $this->option('nice'),
+            (int) $this->option('balance-cooldown'),
+            (int) $this->option('balance-max-shift'),
+            (int) $this->option('parent-id'),
+            (int) $this->option('rest'),
             $autoScalingStrategy
         );
     }
@@ -137,7 +139,7 @@ class SupervisorCommand extends Command
      */
     protected function getQueue(string $connection): string
     {
-        return $this->option('queue') ?: $this->laravel['config']->get(
+        return $this->option('queue') ?: config(
             "queue.connections.{$connection}.queue",
             'default'
         );

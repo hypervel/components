@@ -15,7 +15,7 @@ class ContinueCommand extends Command
     /**
      * The name and signature of the console command.
      */
-    protected string $signature = 'horizon:continue';
+    protected ?string $signature = 'horizon:continue';
 
     /**
      * The console command description.

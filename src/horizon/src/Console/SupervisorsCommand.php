@@ -12,7 +12,7 @@ class SupervisorsCommand extends Command
     /**
      * The name and signature of the console command.
      */
-    protected string $signature = 'horizon:supervisors';
+    protected ?string $signature = 'horizon:supervisors';
 
     /**
      * The console command description.
