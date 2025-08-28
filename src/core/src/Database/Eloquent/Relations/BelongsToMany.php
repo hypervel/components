@@ -79,19 +79,6 @@ class BelongsToMany extends BaseBelongsToMany implements RelationContract
     /**
      * @template TValue
      *
-     * @param mixed $id
-     * @param (Closure(): TValue)|list<string>|string $columns
-     * @param null|(Closure(): TValue) $callback
-     * @return ($id is (array<mixed>|\Hyperf\Collection\Contracts\Arrayable<array-key, mixed>) ? \Hypervel\Database\Eloquent\Collection<int, object{pivot: TPivotModel}&TRelatedModel> : (object{pivot: TPivotModel}&TRelatedModel))|TValue
-     */
-    public function findOr($id, $columns = ['*'], ?Closure $callback = null)
-    {
-        return parent::findOr($id, $columns, $callback);
-    }
-
-    /**
-     * @template TValue
-     *
      * @param (Closure(): TValue)|list<string> $columns
      * @param null|(Closure(): TValue) $callback
      * @return (object{pivot: TPivotModel}&TRelatedModel)|TValue

@@ -25,7 +25,6 @@ use Hypervel\Router\Contracts\UrlRoutable;
  * @method static \Hypervel\Database\Eloquent\Builder<static> newQueryWithoutScopes()
  * @method static \Hypervel\Database\Eloquent\Builder<static> newQueryWithoutScope($scope)
  * @method static \Hypervel\Database\Eloquent\Builder<static> newQueryForRestoration($ids)
- * @method \Hypervel\Database\Eloquent\Builder<static> newEloquentBuilder($query)
  * @method static static make(array $attributes = [])
  * @method static static create(array $attributes = [])
  * @method static static forceCreate(array $attributes = [])

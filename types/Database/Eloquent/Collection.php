@@ -61,13 +61,6 @@ assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->load
     // assertType('Hypervel\Database\Eloquent\Relations\Relation<*,*,*>', $query);
 }], 'string'));
 
-assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadExists('string'));
-assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadExists(['string']));
-assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadExists(['string' => ['foo' => fn ($q) => $q]]));
-assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadExists(['string' => function ($query) {
-    // assertType('Hypervel\Database\Eloquent\Relations\Relation<*,*,*>', $query);
-}]));
-
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMissing('string'));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMissing(['string']));
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->loadMissing(['string' => ['foo' => fn ($q) => $q]]));
@@ -100,7 +93,7 @@ assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->merg
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->merge([new User()]));
 
 assertType(
-    'Hypervel\Database\Eloquent\Collection<int, User>|Hypervel\Support\Collection<int, User>',
+    'Hypervel\Database\Eloquent\Collection<int, User>',
     $collection->map(function ($user, $int) {
         assertType('User', $user);
         assertType('int', $int);
@@ -108,20 +101,13 @@ assertType(
         return new User();
     })
 );
-
 assertType(
-    'Hypervel\Database\Eloquent\Collection<int, User>|Hypervel\Support\Collection<int, User>',
-    $collection->mapWithKeys(function ($user, $int) {
+    'Hypervel\Support\Collection<int, string>',
+    $collection->map(function ($user, $int) {
         assertType('User', $user);
         assertType('int', $int);
 
-        return [new User()];
-    })
-);
-assertType(
-    'Hypervel\Database\Eloquent\Collection<string, User>|Hypervel\Support\Collection<string, User>',
-    $collection->mapWithKeys(function ($user, $int) {
-        return ['string' => new User()];
+        return 'string';
     })
 );
 
@@ -192,9 +178,3 @@ assertType('Hypervel\Support\Collection<User, int>', $collection->flip());
 
 assertType('Hypervel\Support\Collection<int, int|User>', $collection->pad(2, 0));
 assertType('Hypervel\Support\Collection<int, string|User>', $collection->pad(2, 'string'));
-
-assertType('array<int, mixed>', $collection->getQueueableIds());
-
-assertType('array<int, string>', $collection->getQueueableRelations());
-
-assertType('Hypervel\Database\Eloquent\Builder<User>', $collection->toQuery());

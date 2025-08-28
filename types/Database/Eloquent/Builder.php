@@ -9,7 +9,6 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
-use Hypervel\Database\Query\Builder as QueryBuilder;
 
 use function PHPStan\Testing\assertType;
 
@@ -19,8 +18,7 @@ function test(
     User $user,
     Post $post,
     ChildPost $childPost,
-    Comment $comment,
-    QueryBuilder $queryBuilder
+    Comment $comment
 ): void {
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->where('id', 1));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhere('name', 'John'));
@@ -50,6 +48,7 @@ function test(
     assertType('Hypervel\Types\Builder\User', $query->firstOrNew(['id' => 1]));
     assertType('Hypervel\Types\Builder\User', $query->findOrNew(1));
     assertType('Hypervel\Types\Builder\User', $query->firstOrCreate(['id' => 1]));
+    assertType('Hypervel\Types\Builder\User', $query->createOrfirst(['id' => 1]));
     assertType('Hypervel\Types\Builder\User', $query->create(['name' => 'John']));
     assertType('Hypervel\Types\Builder\User', $query->forceCreate(['name' => 'John']));
     assertType('Hypervel\Types\Builder\User', $query->getModel());
@@ -58,7 +57,6 @@ function test(
     assertType('Hypervel\Types\Builder\User', $query->updateOrCreate(['id' => 1], ['name' => 'John']));
     assertType('Hypervel\Types\Builder\User', $query->firstOrFail());
     assertType('Hypervel\Types\Builder\User', $query->sole());
-    assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Builder\User>', $query->cursor());
     assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Builder\User>', $query->cursor());
     assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Builder\User>', $query->lazy());
     assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Builder\User>', $query->lazyById());
@@ -123,8 +121,6 @@ function test(
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhereRelation($user->posts(), 'id', 1));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereMorphRelation($post->taggable(), 'taggable', 'id', 1));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhereMorphRelation($post->taggable(), 'taggable', 'id', 1));
-    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->whereMorphDoesntHaveRelation($post->taggable(), 'taggable', 'id', 1));
-    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhereMorphDoesntHaveRelation($post->taggable(), 'taggable', 'id', 1));
 
     $query->chunk(1, function ($users, $page) {
         assertType('Hypervel\Support\Collection<int, Hypervel\Types\Builder\User>', $users);
@@ -155,7 +151,6 @@ function test(
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Post>', Post::onWriteConnection());
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Post>', Post::with([]));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Post>', $post->newQuery());
-    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Post>', $post->newEloquentBuilder($queryBuilder));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Post>', $post->newModelQuery());
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Post>', $post->newQueryWithoutRelationships());
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Post>', $post->newQueryWithoutScopes());
@@ -169,7 +164,6 @@ function test(
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\ChildPost>', ChildPost::onWriteConnection());
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\ChildPost>', ChildPost::with([]));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\ChildPost>', $childPost->newQuery());
-    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\ChildPost>', $childPost->newEloquentBuilder($queryBuilder));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\ChildPost>', $childPost->newModelQuery());
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\ChildPost>', $childPost->newQueryWithoutRelationships());
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\ChildPost>', $childPost->newQueryWithoutScopes());
@@ -183,7 +177,6 @@ function test(
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Comment>', Comment::onWriteConnection());
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Comment>', Comment::with([]));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Comment>', $comment->newQuery());
-    assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Comment>', $comment->newEloquentBuilder($queryBuilder));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Comment>', $comment->newModelQuery());
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Comment>', $comment->newQueryWithoutRelationships());
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\Comment>', $comment->newQueryWithoutScopes());

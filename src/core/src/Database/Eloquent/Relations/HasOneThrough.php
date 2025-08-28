@@ -34,28 +34,6 @@ class HasOneThrough extends BaseHasOneThrough implements RelationContract
     /**
      * @template TValue
      *
-     * @param mixed $id
-     * @param (Closure(): TValue)|list<string>|string $columns
-     * @param null|(Closure(): TValue) $callback
-     * @return ($id is (array<mixed>|\Hyperf\Collection\Contracts\Arrayable<array-key, mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : TRelatedModel)|TValue
-     */
-    public function findOr($id, $columns = ['*'], ?Closure $callback = null)
-    {
-        if ($columns instanceof Closure) {
-            $callback = $columns;
-            $columns = ['*'];
-        }
-
-        if (! is_null($model = $this->find($id, $columns))) {
-            return $model;
-        }
-
-        return $callback();
-    }
-
-    /**
-     * @template TValue
-     *
      * @param (Closure(): TValue)|list<string> $columns
      * @param null|(Closure(): TValue) $callback
      * @return TRelatedModel|TValue

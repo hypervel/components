@@ -23,7 +23,6 @@ use Hypervel\Support\Collection as SupportCollection;
  * @method $this loadMin($relations, string $column)
  * @method $this loadSum($relations, string $column)
  * @method $this loadAvg($relations, string $column)
- * @method $this loadExists($relations)
  * @method $this loadMorphCount(string $relation, $relations)
  * @method $this makeVisible($attributes)
  * @method $this makeHidden($attributes)
@@ -37,8 +36,6 @@ use Hypervel\Support\Collection as SupportCollection;
  * @method \Hypervel\Database\Eloquent\Collection<TKey, TModel> fresh($with = [])
  * @method \Hypervel\Database\Eloquent\Builder<TModel> toQuery()
  * @method array<int, array-key> modelKeys()
- * @method array<int, mixed> getQueueableIds()
- * @method array<int, string> getQueueableRelations()
  */
 class Collection extends BaseCollection
 {
@@ -124,7 +121,7 @@ class Collection extends BaseCollection
      * @template TMapValue
      *
      * @param callable(TModel, TKey): TMapValue $callback
-     * @return \Hypervel\Support\Collection<TKey, TMapValue>|static<TKey, TMapValue>
+     * @return (TMapValue is \Hypervel\Database\Eloquent\Model ? static<TKey, TMapValue> : \Hypervel\Support\Collection<TKey, TMapValue>)
      */
     public function map(callable $callback): Enumerable
     {
@@ -133,20 +130,6 @@ class Collection extends BaseCollection
         return $result->contains(function ($item) {
             return ! $item instanceof Model;
         }) ? $result->toBase() : $result;
-    }
-
-    /**
-     * @template TMapWithKeysKey of array-key
-     * @template TMapWithKeysValue
-     *
-     * @param callable(TModel, TKey): array<TMapWithKeysKey, TMapWithKeysValue> $callback
-     * @return \Hypervel\Support\Collection<TMapWithKeysKey, TMapWithKeysValue>|static<TMapWithKeysKey, TMapWithKeysValue>
-     */
-    public function mapWithKeys(callable $callback): Enumerable
-    {
-        $result = parent::mapWithKeys($callback);
-
-        return $result->contains(fn ($item) => ! $item instanceof Model) ? $result->toBase() : $result;
     }
 
     /**

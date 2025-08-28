@@ -26,7 +26,6 @@ use Hypervel\Database\Eloquent\Relations\Contracts\Relation as RelationContract;
  * @method null|TRelatedModel find(mixed $id, array|string $columns = ['*'])
  * @method \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> findMany(mixed $ids, array|string $columns = ['*'])
  * @method TRelatedModel findOrNew(mixed $id, array|string $columns = ['*'])
- * @method mixed|TRelatedModel findOr(mixed $id, \Closure|array|string $columns = ['*'], ?\Closure $callback = null)
  * @method mixed|TRelatedModel firstOr(\Closure|array|string $columns = ['*'], ?\Closure $callback = null)
  * @method TRelatedModel forceCreate(array $attributes)
  * @method \Hypervel\Database\Eloquent\Builder<TRelatedModel> getQuery()

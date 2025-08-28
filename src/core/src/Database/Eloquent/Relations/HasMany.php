@@ -22,7 +22,6 @@ use Hypervel\Database\Eloquent\Relations\Contracts\Relation as RelationContract;
  * @method null|TRelatedModel find(mixed $id, array|string $columns = ['*'])
  * @method TRelatedModel findOrFail(mixed $id, array|string $columns = ['*'])
  * @method TRelatedModel findOrNew(mixed $id, array|string $columns = ['*'])
- * @method mixed|TRelatedModel findOr(mixed $id, \Closure|array|string $columns = ['*'], ?\Closure $callback = null)
  * @method \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> findMany(mixed $ids, array|string $columns = ['*'])
  * @method TRelatedModel make(array $attributes = [])
  * @method TRelatedModel create(array $attributes = [])
@@ -42,28 +41,6 @@ use Hypervel\Database\Eloquent\Relations\Contracts\Relation as RelationContract;
 class HasMany extends BaseHasMany implements RelationContract
 {
     use WithoutAddConstraints;
-
-    /**
-     * @template TValue
-     *
-     * @param mixed $id
-     * @param array|(Closure(): TValue)|string $columns
-     * @param null|(Closure(): TValue) $callback
-     * @return ($id is (array<mixed>|\Hyperf\Collection\Contracts\Arrayable<array-key, mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : null|TRelatedModel)|TValue
-     */
-    public function findOr($id, $columns = ['*'], ?Closure $callback = null)
-    {
-        if ($columns instanceof Closure) {
-            $callback = $columns;
-            $columns = ['*'];
-        }
-
-        if (! is_null($model = $this->find($id, $columns))) {
-            return $model;
-        }
-
-        return $callback();
-    }
 
     /**
      * @template TValue

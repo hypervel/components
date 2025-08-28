@@ -45,16 +45,10 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->findMany([1, 2, 3]));
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->findOrNew([1]));
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->findOrFail([1]));
-    assertType('42|Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->findOr([1], fn () => 42));
-    assertType('42|Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->findOr([1], callback: fn () => 42));
     assertType('Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}', $user->roles()->findOrNew(1));
     assertType('Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}', $user->roles()->findOrFail(1));
     assertType('(Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot})|null', $user->roles()->find(1));
-    assertType('42|(Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot})', $user->roles()->findOr(1, fn () => 42));
-    assertType('42|(Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot})', $user->roles()->findOr(1, callback: fn () => 42));
     assertType('(Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot})|null', $user->roles()->first());
-    assertType('42|(Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot})', $user->roles()->firstOr(fn () => 42));
-    assertType('42|(Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot})', $user->roles()->firstOr(callback: fn () => 42));
     assertType('Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}', $user->roles()->firstOrNew());
     assertType('Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}', $user->roles()->firstOrFail());
     assertType('Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}', $user->roles()->firstOrCreate());
@@ -67,22 +61,12 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
     assertType('array<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->createMany($roles->all()));
     assertType('array{attached: array, detached: array, updated: array}', $user->roles()->sync($roles));
     assertType('array{attached: array, detached: array, updated: array}', $user->roles()->syncWithoutDetaching($roles));
-    assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->lazy());
-    assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->lazyById());
 
     assertType('Hypervel\Database\Eloquent\Relations\HasOneThrough<Hypervel\Types\Relations\Car, Hypervel\Types\Relations\Mechanic, Hypervel\Types\Relations\User>', $user->car());
     assertType('Hypervel\Types\Relations\Car|null', $user->car()->getResults());
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Car>', $user->car()->find([1]));
-    assertType('42|Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Car>', $user->car()->findOr([1], fn () => 42));
-    assertType('42|Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Car>', $user->car()->findOr([1], callback: fn () => 42));
     assertType('Hypervel\Types\Relations\Car|null', $user->car()->find(1));
-    assertType('42|Hypervel\Types\Relations\Car', $user->car()->findOr(1, fn () => 42));
-    assertType('42|Hypervel\Types\Relations\Car', $user->car()->findOr(1, callback: fn () => 42));
     assertType('Hypervel\Types\Relations\Car|null', $user->car()->first());
-    assertType('42|Hypervel\Types\Relations\Car', $user->car()->firstOr(fn () => 42));
-    assertType('42|Hypervel\Types\Relations\Car', $user->car()->firstOr(callback: fn () => 42));
-    assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Relations\Car>', $user->car()->lazy());
-    assertType('Hypervel\Support\LazyCollection<int, Hypervel\Types\Relations\Car>', $user->car()->lazyById());
 
     assertType('Hypervel\Database\Eloquent\Relations\HasManyThrough<Hypervel\Types\Relations\Part, Hypervel\Types\Relations\Mechanic, Hypervel\Types\Relations\User>', $user->parts());
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Part>', $user->parts()->getResults());
