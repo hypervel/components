@@ -8,7 +8,6 @@ use Hypervel\Bus\Queueable;
 use Hypervel\Horizon\Contracts\LongWaitDetectedNotification;
 use Hypervel\Horizon\Horizon;
 use Hypervel\Notifications\Messages\MailMessage;
-use Hypervel\Notifications\Messages\NexmoMessage;
 use Hypervel\Notifications\Messages\SlackMessage;
 use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock;
@@ -20,34 +19,17 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
     use Queueable;
 
     /**
-     * The queue connection name.
-     *
-     * @var string
-     */
-    public $longWaitConnection;
-
-    /**
-     * The queue name.
-     *
-     * @var string
-     */
-    public $longWaitQueue;
-
-    /**
-     * The wait time in seconds.
-     *
-     * @var int
-     */
-    public $seconds;
-
-    /**
      * Create a new notification instance.
+     *
+     * @param string $longWaitConnection The queue connection name.
+     * @param string $longWaitQueue The queue name.
+     * @param int $seconds The wait time in seconds.
      */
-    public function __construct(string $connection, string $queue, int $seconds)
-    {
-        $this->longWaitQueue = $queue;
-        $this->seconds = $seconds;
-        $this->longWaitConnection = $connection;
+    public function __construct(
+        public string $longWaitConnection,
+        public string $longWaitQueue,
+        public int $seconds
+    ) {
     }
 
     /**
@@ -57,7 +39,8 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
     {
         return array_filter([
             Horizon::$slackWebhookUrl ? 'slack' : null,
-            Horizon::$smsNumber ? 'nexmo' : null,
+            // no sms client supported yet
+            // Horizon::$smsNumber ? 'nexmo' : null,
             Horizon::$email ? 'mail' : null,
         ]);
     }
@@ -97,8 +80,8 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
             $this->seconds
         );
 
-        if (class_exists('\Illuminate\Notifications\Slack\SlackMessage')
-            && class_exists('\Illuminate\Notifications\Slack\BlockKit\Blocks\SectionBlock')
+        if (class_exists('\Hypervel\Notifications\Messages\SlackMessage')
+            && class_exists('\Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock')
             && ! (is_string(Horizon::$slackWebhookUrl) && Str::startsWith(Horizon::$slackWebhookUrl, ['http://', 'https://']))) {
             return (new ChannelIdSlackMessage())
                 ->username($fromName)
@@ -125,16 +108,14 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
     /**
      * Get the Nexmo / SMS representation of the notification.
      */
-    public function toNexmo(mixed $notifiable): NexmoMessage
-    {
-        return (new NexmoMessage())->content(sprintf( // @phpstan-ignore-line
-            '[%s] The "%s" queue on the "%s" connection has a wait time of %s seconds.',
-            config('app.name'),
-            $this->longWaitQueue,
-            $this->longWaitConnection,
-            $this->seconds
-        ));
-    }
+    // no sms client supported yet
+    // public function toNexmo(mixed $notifiable): NexmoMessage
+    // {
+    //     return (new NexmoMessage)->content(sprintf( // @phpstan-ignore-line
+    //         '[%s] The "%s" queue on the "%s" connection has a wait time of %s seconds.',
+    //         config('app.name'), $this->longWaitQueue, $this->longWaitConnection, $this->seconds
+    //     ));
+    // }
 
     /**
      * The unique signature of the notification.
