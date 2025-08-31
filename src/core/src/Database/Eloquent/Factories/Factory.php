@@ -418,7 +418,7 @@ abstract class Factory
     /**
      * Create the parent relationship resolvers (as deferred Closures).
      *
-     * @return array<string, Closure|string>
+     * @return array<array<string, Closure|string>>
      */
     protected function parentResolvers(): array
     {
