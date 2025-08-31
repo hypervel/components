@@ -581,8 +581,6 @@ class HasPermissionTest extends PermissionTestCase
         $this->assertTrue($this->user->hasForbiddenPermissionViaRoles('edit')); // Role has forbidden permission
     }
 
-    // Role::syncPermissions Tests
-
     public function testRoleCanSyncPermissions()
     {
         $this->adminRole->givePermissionTo('view', 'edit');
@@ -771,5 +769,73 @@ class HasPermissionTest extends PermissionTestCase
         $this->assertEquals(1, $viewPerm->pivot->is_forbidden);
         $this->assertNotNull($editPerm);
         $this->assertEquals(0, $editPerm->pivot->is_forbidden);
+    }
+
+    public function testRoleGetAllPermission()
+    {
+        // Create another role
+        $editorRole = Role::create([
+            'name' => 'editor',
+            'guard_name' => 'web',
+        ]);
+
+        $editorRole->givePermissionTo('edit');
+        $permissionNames = $editorRole->getAllPermissions()->pluck('name')->toArray();
+        $this->assertContains('edit', $permissionNames);
+        $this->assertCount(1, $permissionNames);
+
+        $editorRole->givePermissionTo('view');
+        $permissionNames = $editorRole->getAllPermissions()->pluck('name')->toArray();
+        $this->assertCount(2, $permissionNames);
+    }
+
+    public function testRoleCanBeGivenForbiddenPermission()
+    {
+        $this->adminRole->giveForbiddenTo('manage');
+
+        $this->assertFalse($this->adminRole->hasPermission('manage'));
+        $this->assertFalse($this->adminRole->hasDirectPermission('manage'));
+        $this->assertTrue($this->adminRole->hasForbiddenPermission('manage'));
+        $this->assertCount(3, $this->adminRole->permissions); // view, edit from setUp + forbidden manage
+
+        // Check that the permission exists but is forbidden
+        $this->assertTrue($this->adminRole->permissions->contains('name', 'manage'));
+        $this->assertTrue($this->adminRole->permissions->where('name', 'manage')->first()->pivot->is_forbidden == 1);
+    }
+
+    public function testRoleCanRevokePermission()
+    {
+        $this->adminRole->givePermissionTo('manage');
+        $this->assertCount(3, $this->adminRole->permissions); // view, edit from setUp + manage
+
+        $this->adminRole->revokePermissionTo('manage');
+
+        $this->adminRole->refresh();
+        $this->assertFalse($this->adminRole->hasDirectPermission('manage'));
+        $this->assertTrue($this->adminRole->hasDirectPermission('view'));
+        $this->assertTrue($this->adminRole->hasDirectPermission('edit'));
+        $this->assertCount(2, $this->adminRole->permissions);
+    }
+
+    public function testRoleGetPermissionsViaRolesReturnsEmpty()
+    {
+        // Roles should not have permissions via other roles
+        $rolePermissions = $this->adminRole->getPermissionsViaRoles();
+        $this->assertTrue($rolePermissions->isEmpty());
+    }
+
+    public function testRoleGetAllPermissionsExcludesForbiddenPermissions()
+    {
+        $this->adminRole->givePermissionTo('manage');
+        $this->adminRole->giveForbiddenTo('delete');
+
+        $allPermissions = $this->adminRole->getAllPermissions();
+
+        $permissionNames = $allPermissions->pluck('name')->toArray();
+        $this->assertContains('view', $permissionNames);
+        $this->assertContains('edit', $permissionNames);
+        $this->assertContains('manage', $permissionNames);
+        $this->assertNotContains('delete', $permissionNames); // Forbidden permission should not be included
+        $this->assertCount(3, $allPermissions);
     }
 }

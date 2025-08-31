@@ -60,6 +60,13 @@ trait HasPermission
     protected function getCachedPermissions(): Collection
     {
         $manager = $this->getPermissionManager();
+
+        if (is_a($this->getOwnerType(), Role::class, true)) {
+            $cachedPermissions = $manager->getAllRolesWithPermissions()[$this->getKey()]['permissions'];
+            /* @phpstan-ignore-next-line */
+            return $this->permissions()->getRelated()->hydrate($cachedPermissions);
+        }
+
         $cachedPermissions = $manager->getOwnerCachedPermissions($this->getOwnerType(), $this->getKey());
 
         if (! empty($cachedPermissions)) {
@@ -97,7 +104,7 @@ trait HasPermission
     }
 
     /**
-     * Return all the permissions the model has, both direcstly and via roles.
+     * Return all the permissions the model has, both directly and via roles.
      */
     public function getAllPermissions(): BaseCollection
     {
@@ -305,6 +312,12 @@ trait HasPermission
         $detachPermissions = $this->collectPermissions($permissions);
 
         $this->permissions()->detach($detachPermissions);
+
+        if (is_a($this->getOwnerType(), Role::class, true)) {
+            $this->getPermissionManager()->clearAllRolesPermissionsCache();
+
+            return $this;
+        }
 
         // Clear owner cache when permissions are modified
         $this->getPermissionManager()->clearOwnerCache($this->getOwnerType(), $this->getKey());

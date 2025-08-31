@@ -46,7 +46,7 @@ class FactoryCommand extends GeneratorCommand
             : $factory;
 
         $replace = [
-            '%CLASS%' => $model,
+            '%MODEL%' => $model,
             '%MODEL_NAMESPACE%' => $this->getModelNamespace($model),
         ];
 

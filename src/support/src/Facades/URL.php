@@ -27,6 +27,8 @@ use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
  * @method static string previousPath(mixed $fallback = false)
  * @method static string format(string $root, string $path)
  * @method static bool isValidUrl(string $path)
+ * @method static void forceScheme(string|null $scheme)
+ * @method static void forceHttps(bool $force = true)
  * @method static \Hypervel\Router\UrlGenerator formatHostUsing(\Closure $callback)
  * @method static \Hypervel\Router\UrlGenerator formatPathUsing(\Closure $callback)
  * @method static \Hypervel\Router\UrlGenerator setSignedKey(string|null $signedKey = null)

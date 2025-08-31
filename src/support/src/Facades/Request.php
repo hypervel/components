@@ -60,6 +60,7 @@ use Hypervel\Http\Contracts\RequestContract;
  * @method static bool routeIs(mixed ...$patterns)
  * @method static bool fullUrlIs(mixed ...$patterns)
  * @method static string method()
+ * @method static \Hypervel\Support\Uri uri()
  * @method static array headers()
  * @method static string|null bearerToken()
  * @method static string[] getAcceptableContentTypes()
