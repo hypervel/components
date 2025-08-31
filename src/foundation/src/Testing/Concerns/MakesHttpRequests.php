@@ -32,6 +32,31 @@ trait MakesHttpRequests
      */
     protected bool $withCredentials = false;
 
+    /**
+     * Global middleware to be applied to all requests.
+     */
+    protected array $globalMiddleware = [];
+
+    /**
+     * Middleware groups to be applied to all requests.
+     */
+    protected array $middlewareGroups = [];
+
+    /**
+     * Middleware aliases to be applied to all requests.
+     */
+    protected array $middlewareAliases = [];
+
+    /**
+     * Priority of middleware to be applied to all requests.
+     */
+    protected array $middlewarePriority = [];
+
+    protected function options($uri, array $data = [], array $headers = []): TestResponse
+    {
+        return $this->doRequest(__FUNCTION__, $uri, $data, $headers);
+    }
+
     protected function get($uri, array $data = [], array $headers = []): TestResponse
     {
         return $this->doRequest(__FUNCTION__, $uri, $data, $headers);
@@ -92,6 +117,34 @@ trait MakesHttpRequests
         return $this->doRequest(__FUNCTION__, $uri, $data, $headers);
     }
 
+    protected function setGlobalMiddleware(array $middleware): static
+    {
+        $this->globalMiddleware = $middleware;
+
+        return $this;
+    }
+
+    protected function setMiddlewareGroups(array $middlewareGroups): static
+    {
+        $this->middlewareGroups = $middlewareGroups;
+
+        return $this;
+    }
+
+    protected function setMiddlewareAliases(array $middlewareAliases): static
+    {
+        $this->middlewareAliases = $middlewareAliases;
+
+        return $this;
+    }
+
+    protected function setMiddlewarePriority(array $middlewarePriority): static
+    {
+        $this->middlewarePriority = $middlewarePriority;
+
+        return $this;
+    }
+
     protected function doRequest(string $method, $uri, array $data = [], array $headers = []): TestResponse
     {
         $cookies = $method !== 'json' || ($method === 'json' && $this->withCredentials)
@@ -99,7 +152,7 @@ trait MakesHttpRequests
             : [];
 
         $response = $this->createTestResponse(
-            $this->app->make(TestClient::class)->{$method}(
+            $this->getTestingClient()->{$method}(
                 $this->prepareUrlForRequest($uri),
                 $data,
                 array_merge($this->defaultHeaders, $headers),
@@ -114,6 +167,25 @@ trait MakesHttpRequests
         $this->flushRequestStates();
 
         return $response;
+    }
+
+    protected function getTestingClient(): TestClient
+    {
+        $client = $this->app->make(TestClient::class);
+        if ($this->globalMiddleware) {
+            $client->setGlobalMiddleware($this->globalMiddleware);
+        }
+        if ($this->middlewareGroups) {
+            $client->setMiddlewareGroups($this->middlewareGroups);
+        }
+        if ($this->middlewareAliases) {
+            $client->setMiddlewareAliases($this->middlewareAliases);
+        }
+        if ($this->middlewarePriority) {
+            $client->setMiddlewarePriority($this->middlewarePriority);
+        }
+
+        return $client;
     }
 
     /**

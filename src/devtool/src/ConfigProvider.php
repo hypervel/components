@@ -8,11 +8,14 @@ use Hyperf\Devtool\Generator\GeneratorCommand;
 use Hypervel\Devtool\Commands\EventListCommand;
 use Hypervel\Devtool\Commands\WatchCommand;
 use Hypervel\Devtool\Generator\BatchesTableCommand;
+use Hypervel\Devtool\Generator\CacheLocksTableCommand;
+use Hypervel\Devtool\Generator\CacheTableCommand;
 use Hypervel\Devtool\Generator\ChannelCommand;
 use Hypervel\Devtool\Generator\ComponentCommand;
 use Hypervel\Devtool\Generator\ConsoleCommand;
 use Hypervel\Devtool\Generator\ControllerCommand;
 use Hypervel\Devtool\Generator\EventCommand;
+use Hypervel\Devtool\Generator\ExceptionCommand;
 use Hypervel\Devtool\Generator\FactoryCommand;
 use Hypervel\Devtool\Generator\JobCommand;
 use Hypervel\Devtool\Generator\ListenerCommand;
@@ -50,6 +53,8 @@ class ConfigProvider
                 ComponentCommand::class,
                 TestCommand::class,
                 SessionTableCommand::class,
+                CacheTableCommand::class,
+                CacheLocksTableCommand::class,
                 RuleCommand::class,
                 ConsoleCommand::class,
                 ModelCommand::class,
@@ -70,6 +75,7 @@ class ConfigProvider
                 MiddlewareCommand::class,
                 ControllerCommand::class,
                 ResourceCommand::class,
+                ExceptionCommand::class,
             ],
         ];
     }

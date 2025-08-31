@@ -9,7 +9,7 @@ use Hyperf\Contract\NormalizerInterface;
 use Hyperf\Di\ClosureDefinitionCollectorInterface;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hyperf\Di\ReflectionType;
-use Hyperf\HttpServer\Router\Dispatched;
+use Hypervel\Http\DispatchedRoute;
 use Hypervel\Http\RouteDependency;
 use InvalidArgumentException;
 use Mockery as m;
@@ -57,7 +57,7 @@ class RouteDependencyTest extends TestCase
 
         $routeDependency->fireAfterResolvingCallbacks(
             ['string', $foo = new FooClass()],
-            m::mock(Dispatched::class)
+            m::mock(DispatchedRoute::class)
         );
 
         $this->assertTrue($foo->modified);

@@ -46,6 +46,16 @@ class UrlGenerator implements UrlGeneratorContract
 
     protected ?string $signedKey = null;
 
+    /**
+     * A cached copy of the URL scheme for the current request.
+     */
+    protected ?string $cachedScheme = null;
+
+    /**
+     * The forced scheme for URLs.
+     */
+    protected ?string $forceScheme = null;
+
     public function __construct(protected ContainerInterface $container)
     {
     }
@@ -78,7 +88,7 @@ class UrlGenerator implements UrlGeneratorContract
         }, '');
 
         $path = $this->format(
-            $absolute ? $this->getRootUrl($this->getSchemeForUrl(null)) : '',
+            $absolute ? $this->getRootUrl($this->formatScheme(null)) : '',
             $uri
         );
 
@@ -100,7 +110,7 @@ class UrlGenerator implements UrlGeneratorContract
 
         $extra = $this->formatParameters($extra);
         $tail = implode('/', array_map('rawurlencode', $extra));
-        $root = $this->getRootUrl($this->getSchemeForUrl($secure));
+        $root = $this->getRootUrl($this->formatScheme($secure));
         [$path, $query] = $this->extractQueryString($path);
 
         return $this->format(
@@ -140,7 +150,7 @@ class UrlGenerator implements UrlGeneratorContract
             return $path;
         }
 
-        $root = $this->getRootUrl($this->getSchemeForUrl($secure));
+        $root = $this->getRootUrl($this->formatScheme($secure));
 
         return Str::finish($root, '/') . trim($path, '/');
     }
@@ -158,7 +168,7 @@ class UrlGenerator implements UrlGeneratorContract
      */
     public function assetFrom(string $root, string $path, ?bool $secure = null): string
     {
-        $root = $this->getRootUrl($this->getSchemeForUrl($secure));
+        $root = $this->getRootUrl($this->formatScheme($secure));
 
         return $root . '/' . trim($path, '/');
     }
@@ -168,7 +178,15 @@ class UrlGenerator implements UrlGeneratorContract
      */
     public function formatScheme(?bool $secure = null): string
     {
-        return $this->getSchemeForUrl($secure) . '://';
+        if (! is_null($secure)) {
+            return $secure ? 'https://' : 'http://';
+        }
+
+        if (is_null($this->cachedScheme)) {
+            $this->cachedScheme = $this->forceScheme ?: $this->getRequestUri()->getScheme() . '://';
+        }
+
+        return $this->cachedScheme;
     }
 
     /**
@@ -367,6 +385,26 @@ class UrlGenerator implements UrlGeneratorContract
     }
 
     /**
+     * Force the scheme for URLs.
+     */
+    public function forceScheme(?string $scheme): void
+    {
+        $this->cachedScheme = null;
+
+        $this->forceScheme = $scheme ? $scheme . '://' : null;
+    }
+
+    /**
+     * Force the use of the HTTPS scheme for all generated URLs.
+     */
+    public function forceHttps(bool $force = true): void
+    {
+        if ($force) {
+            $this->forceScheme('https');
+        }
+    }
+
+    /**
      * Set a callback to be used to format the host of generated URLs.
      */
     public function formatHostUsing(Closure $callback): static
@@ -429,25 +467,18 @@ class UrlGenerator implements UrlGeneratorContract
             ->get('app.key');
     }
 
-    protected function getSchemeForUrl(?bool $secure): string
-    {
-        if (is_null($secure)) {
-            return $this->getRequestUri()->getScheme();
-        }
-
-        return $secure ? 'https' : 'http';
-    }
-
     protected function getRootUrl(string $scheme): string
     {
         $root = Context::getOrSet('__request.root.uri', function () {
             $requestUri = $this->getRequestUri()->toString();
-            $root = preg_replace(';^(.+://.+?)((/|\?|#).*)?$;', '\1', $requestUri);
+            $root = preg_replace(';^([^:]+://[^/?#]+).*$;', '\1', $requestUri);
 
             return new Uri($root);
         });
 
-        return $root->withScheme($scheme)->toString();
+        return $root->withScheme(
+            str_replace('://', '', $scheme)
+        )->toString();
     }
 
     protected function getRequestUri(): Uri

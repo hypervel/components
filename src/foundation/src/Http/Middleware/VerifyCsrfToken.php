@@ -8,7 +8,6 @@ use Hyperf\Collection\Arr;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\HttpServer\Request;
 use Hypervel\Cookie\Cookie;
-use Hypervel\Encryption\Contracts\Encrypter;
 use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Http\Middleware\Concerns\ExcludesPaths;
 use Hypervel\Session\Contracts\Session as SessionContract;
@@ -48,7 +47,6 @@ class VerifyCsrfToken implements MiddlewareInterface
     public function __construct(
         protected ContainerInterface $app,
         protected ConfigInterface $config,
-        protected Encrypter $encrypter,
         protected Request $request
     ) {
     }

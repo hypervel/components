@@ -7,7 +7,6 @@ namespace Hypervel\Router;
 use Closure;
 use Hyperf\Collection\Arr;
 use Hyperf\HttpServer\MiddlewareManager;
-use Hyperf\HttpServer\Router\Handler;
 use Hyperf\HttpServer\Router\RouteCollector as BaseRouteCollector;
 use InvalidArgumentException;
 
@@ -43,12 +42,12 @@ class RouteCollector extends BaseRouteCollector
     /**
      * Adds a GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS route to the collection.
      *
-     * This is simply an alias of $this->addRoute([GET, POST, PUT, DELETE, PATCH, HEAD], $route, $handler)
+     * This is simply an alias of $this->addRoute([GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS], $route, $handler)
      * @param array|string $handler
      */
     public function any(string $route, mixed $handler, array $options = []): void
     {
-        $this->addRoute(['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD'], $route, $handler, $options);
+        $this->addRoute(['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'HEAD', 'OPTIONS'], $route, $handler, $options);
     }
 
     public function addRoute(array|string $httpMethod, string $route, mixed $handler, array $options = []): void
@@ -64,7 +63,7 @@ class RouteCollector extends BaseRouteCollector
             $method = strtoupper($method);
 
             foreach ($routeDataList as $routeData) {
-                $this->dataGenerator->addRoute($method, $routeData, new Handler($handler, $route, $options));
+                $this->dataGenerator->addRoute($method, $routeData, new RouteHandler($handler, $route, $options));
 
                 if (isset($options['as'])) {
                     $this->namedRoutes[$options['as']] = $routeData;

@@ -11,12 +11,14 @@ use Hyperf\Collection\Arr;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\HttpServer\Request as HyperfRequest;
+use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\Stringable\Str;
 use Hypervel\Context\RequestContext;
 use Hypervel\Http\Contracts\RequestContract;
 use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Session\Contracts\Session as SessionContract;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Uri;
 use Hypervel\Validation\Contracts\Factory as ValidatorFactoryContract;
 use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
@@ -661,11 +663,95 @@ class Request extends HyperfRequest implements RequestContract
     }
 
     /**
+     * Get the dispatched route.
+     */
+    public function getDispatchedRoute(): DispatchedRoute
+    {
+        return $this->getAttribute(Dispatched::class);
+    }
+
+    /**
+     * Get a segment from the URI (1 based index).
+     */
+    public function segment(int $index, ?string $default = null): ?string
+    {
+        return $this->segments()[$index - 1] ?? $default;
+    }
+
+    /**
+     * Get all of the segments for the request path.
+     */
+    public function segments(): array
+    {
+        $segments = explode('/', $this->decodedPath());
+
+        return array_values(array_filter($segments, function ($value) {
+            return $value !== '';
+        }));
+    }
+
+    /**
+     * Get the route handling the request.
+     *
+     * @return ($param is null ? \Hypervel\Http\DispatchedRoute : mixed)
+     */
+    public function route(?string $param = null, mixed $default = null): mixed
+    {
+        $route = $this->getDispatchedRoute();
+        if (is_null($param)) {
+            return $route;
+        }
+
+        return $route->parameter($param, $default);
+    }
+
+    /**
+     * Determine if the route name matches a given pattern.
+     */
+    public function routeIs(mixed ...$patterns): bool
+    {
+        if (is_null($routeName = $this->getDispatchedRoute()->getName())) {
+            return false;
+        }
+
+        foreach ($patterns as $pattern) {
+            if (Str::is($pattern, $routeName)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine if the current request URL and query string match a pattern.
+     */
+    public function fullUrlIs(mixed ...$patterns): bool
+    {
+        $fullUrl = $this->fullUrl();
+        foreach ($patterns as $pattern) {
+            if (Str::is($pattern, $fullUrl)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Get the request method.
      */
     public function method(): string
     {
         return $this->getMethod();
+    }
+
+    /**
+     * Get a URI instance for the request.
+     */
+    public function uri(): Uri
+    {
+        return Uri::of($this->fullUrl());
     }
 
     /**

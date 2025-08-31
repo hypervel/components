@@ -60,6 +60,15 @@ class TestClient extends HttpKernel
         $this->loadKernelMiddleware($server);
     }
 
+    public function options(string $uri, array $data = [], array $headers = [], array $cookies = [])
+    {
+        return $this->request('OPTIONS', $uri, [
+            'headers' => $headers,
+            'query' => $data,
+            'cookies' => $cookies,
+        ]);
+    }
+
     public function get(string $uri, array $data = [], array $headers = [], array $cookies = [])
     {
         return $this->request('GET', $uri, [

@@ -23,6 +23,7 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  * @method static \Hypervel\Event\EventDispatcher setTransactionManagerResolver(callable $resolver)
  * @method static void subscribe(object|string $subscriber)
  * @method static array getRawListeners()
+ * @method static mixed defer(callable $callback, array|null $events = null)
  * @method static \Hypervel\Support\Testing\Fakes\EventFake except(array|string $eventsToDispatch)
  * @method static void assertListening(string $expectedEvent, string $expectedListener)
  * @method static void assertDispatched(\Closure|string $event, callable|int|null $callback = null)

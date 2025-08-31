@@ -1,0 +1,49 @@
+{
+    "name": "hypervel/socialite",
+    "type": "library",
+    "description": "Hypervel wrapper around OAuth 1 & OAuth 2 libraries.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "hyperf",
+        "oauth",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Socialite\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.2",
+        "ext-json": "*",
+        "firebase/php-jwt": "^6.4",
+        "guzzlehttp/guzzle": "^6.0|^7.0",
+        "hypervel/http": "^0.2",
+        "hypervel/support": "^0.2",
+        "league/oauth1-client": "^1.11",
+        "phpseclib/phpseclib": "^3.0"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "hyperf": {
+            "config": "Hypervel\\Socialite\\ConfigProvider"
+        },
+        "branch-alias": {
+            "dev-main": "0.2-dev"
+        }
+    }
+}

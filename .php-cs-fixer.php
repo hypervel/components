@@ -94,6 +94,7 @@ return (new Config())
             ->exclude('bin')
             ->exclude('overrides')
             ->exclude('vendor')
+            ->notPath('tests/Foundation/fixtures/fake-compiled-view.php')
             ->in(__DIR__)
     )
     ->setUsingCache(false);

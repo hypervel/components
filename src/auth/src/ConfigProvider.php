@@ -18,7 +18,7 @@ class ConfigProvider
             'dependencies' => [
                 AuthFactoryContract::class => AuthManager::class,
                 Authenticatable::class => UserResolver::class,
-                Guard::class => fn ($container) => $container->get(Factory::class)->guard(),
+                Guard::class => fn ($container) => $container->get(AuthFactoryContract::class)->guard(),
                 GateContract::class => GateFactory::class,
             ],
             'publish' => [
