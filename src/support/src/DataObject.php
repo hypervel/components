@@ -19,7 +19,7 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
     /**
      * Property map cache (class name => [snake_case key => camelCase property]).
      *
-     * @var array<string,string>>
+     * @var array<string,string>
      */
     protected array $propertyMapCache = [];
 
