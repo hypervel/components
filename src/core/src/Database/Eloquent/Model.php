@@ -127,7 +127,7 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
 
         return $caller['function'] ?? $three['function'];
     }
-    
+
     /**
      * Get the event dispatcher instance.
      */
