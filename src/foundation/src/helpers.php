@@ -384,6 +384,24 @@ if (! function_exists('event')) {
     }
 }
 
+if (! function_exists('fake') && class_exists(\Faker\Factory::class)) {
+    /**
+     * Get a faker instance.
+     */
+    function fake(?string $locale = null): \Faker\Generator
+    {
+        $locale ??= config('app.faker_locale', 'en_US');
+
+        $abstract = \Faker\Generator::class . ':' . $locale;
+
+        if (! app()->bound($abstract)) {
+            app()->bind($abstract, fn () => \Faker\Factory::create($locale));
+        }
+
+        return app()->get($abstract);
+    }
+}
+
 if (! function_exists('info')) {
     /**
      * @throws TypeError
