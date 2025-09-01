@@ -11,6 +11,7 @@ use Hyperf\Redis\RedisFactory;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Queue\Connectors\BeanstalkdConnector;
 use Hypervel\Queue\Connectors\ConnectorInterface;
+use Hypervel\Queue\Connectors\CoroutineConnector;
 use Hypervel\Queue\Connectors\DatabaseConnector;
 use Hypervel\Queue\Connectors\DeferConnector;
 use Hypervel\Queue\Connectors\NullConnector;
@@ -284,6 +285,7 @@ class QueueManager implements FactoryContract, MonitorContract
         $this->registerBeanstalkdConnector();
         $this->registerSqsConnector();
         $this->registerDeferConnector();
+        $this->registerCoroutineConnector();
     }
 
     /**
@@ -357,6 +359,16 @@ class QueueManager implements FactoryContract, MonitorContract
     {
         $this->addConnector('defer', function () {
             return new DeferConnector();
+        });
+    }
+
+    /**
+     * Register the Coroutine queue connector.
+     */
+    protected function registerCoroutineConnector(): void
+    {
+        $this->addConnector('coroutine', function () {
+            return new CoroutineConnector();
         });
     }
 }
