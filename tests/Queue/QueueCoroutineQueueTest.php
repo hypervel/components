@@ -35,7 +35,7 @@ class QueueCoroutineQueueTest extends TestCase
         $coroutine->setContainer($container);
         $coroutine->setConnectionName('coroutine');
 
-        run(fn() => $coroutine->push(CoroutineQueueTestHandler::class, ['foo' => 'bar']));
+        run(fn () => $coroutine->push(CoroutineQueueTestHandler::class, ['foo' => 'bar']));
 
         $this->assertInstanceOf(SyncJob::class, $_SERVER['__coroutine.test'][0]);
         $this->assertEquals(['foo' => 'bar'], $_SERVER['__coroutine.test'][1]);
@@ -75,7 +75,7 @@ class QueueCoroutineQueueTest extends TestCase
         $container->set(TransactionManager::class, $transactionManager);
 
         $coroutine->setContainer($container);
-        run(fn() => $coroutine->push(new CoroutineQueueAfterCommitJob()));
+        run(fn () => $coroutine->push(new CoroutineQueueAfterCommitJob()));
     }
 
     public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitJobs()
@@ -87,7 +87,7 @@ class QueueCoroutineQueueTest extends TestCase
         $container->set(TransactionManager::class, $transactionManager);
 
         $coroutine->setContainer($container);
-        run(fn() => $coroutine->push(new CoroutineQueueAfterCommitInterfaceJob()));
+        run(fn () => $coroutine->push(new CoroutineQueueAfterCommitInterfaceJob()));
     }
 
     protected function getContainer(): Container
@@ -143,12 +143,16 @@ class CoroutineQueueAfterCommitJob
 
     public $afterCommit = true;
 
-    public function handle() {}
+    public function handle()
+    {
+    }
 }
 
 class CoroutineQueueAfterCommitInterfaceJob implements ShouldQueueAfterCommit
 {
     use InteractsWithQueue;
 
-    public function handle() {}
+    public function handle()
+    {
+    }
 }
