@@ -28,15 +28,15 @@
     "require": {
         "php": "^8.2",
         "hyperf/database": "~3.1.0",
-        "hypervel/core": "^0.2",
-        "hypervel/support": "^0.2"
+        "hypervel/core": "^0.3",
+        "hypervel/support": "^0.3"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.2-dev"
+            "dev-main": "0.3-dev"
         }
     }
 }

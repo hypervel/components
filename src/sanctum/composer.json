@@ -22,8 +22,8 @@
         "php": "^8.2",
         "hyperf/database": "~3.1.0",
         "hyperf/http-server": "~3.1.0",
-        "hypervel/auth": "^0.2",
-        "hypervel/support": "^0.2",
+        "hypervel/auth": "^0.3",
+        "hypervel/support": "^0.3",
         "nesbot/carbon": "^2.72.6"
     },
     "autoload": {
@@ -33,7 +33,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.2-dev"
+            "dev-main": "0.3-dev"
         },
         "hypervel": {
             "providers": [
