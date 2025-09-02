@@ -52,7 +52,9 @@ class RouteCollector extends BaseRouteCollector
 
     public function addRoute(array|string $httpMethod, string $route, mixed $handler, array $options = []): void
     {
-        $route = $this->getRouteWithGroupPrefix($route);
+        $route = $this->getRouteWithGroupPrefix(
+            $this->getRouteWithPrefix($route, $options['prefix'] ?? '/')
+        );
         $routeDataList = $this->routeParser->parse($route);
 
         [$handler, $options] = $this->parseHandlerAndOptions($handler, $options);
@@ -162,7 +164,15 @@ class RouteCollector extends BaseRouteCollector
 
     private function getRouteWithGroupPrefix(string $route): string
     {
-        $prefix = trim($this->currentGroupPrefix, '/');
+        return $this->getRouteWithPrefix(
+            $this->getRouteWithPrefix($route, $this->currentGroupPrefix),
+            $this->currentGroupOptions['prefix'] ?? '/'
+        );
+    }
+
+    private function getRouteWithPrefix(string $route, string $prefix): string
+    {
+        $prefix = trim($prefix, '/');
         $route = trim($route, '/');
 
         if (empty($prefix) || $prefix === '/') {
