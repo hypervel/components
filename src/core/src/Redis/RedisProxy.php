@@ -8,6 +8,9 @@ use Closure;
 use Hyperf\Redis\RedisProxy as HyperfRedisProxy;
 use Hypervel\Support\Arr;
 
+/**
+ * @mixin \Redis
+ */
 class RedisProxy extends HyperfRedisProxy
 {
     /**
