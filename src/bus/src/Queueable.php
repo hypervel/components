@@ -32,7 +32,7 @@ trait Queueable
     /**
      * The number of seconds before the job should be made available.
      */
-    public null|array|DateInterval|DateTimeInterface|int $delay = null;
+    public array|DateInterval|DateTimeInterface|int|null $delay = null;
 
     /**
      * Indicates whether the job should be dispatched after all database transactions have committed.
@@ -67,7 +67,7 @@ trait Queueable
     /**
      * Set the desired connection for the job.
      */
-    public function onConnection(null|BackedEnum|string $connection): static
+    public function onConnection(BackedEnum|string|null $connection): static
     {
         $this->connection = enum_value($connection);
 
@@ -77,7 +77,7 @@ trait Queueable
     /**
      * Set the desired queue for the job.
      */
-    public function onQueue(null|BackedEnum|string $queue): static
+    public function onQueue(BackedEnum|string|null $queue): static
     {
         $this->queue = enum_value($queue);
 
@@ -87,7 +87,7 @@ trait Queueable
     /**
      * Set the desired connection for the chain.
      */
-    public function allOnConnection(null|BackedEnum|string $connection): static
+    public function allOnConnection(BackedEnum|string|null $connection): static
     {
         $resolvedConnection = enum_value($connection);
 
@@ -100,7 +100,7 @@ trait Queueable
     /**
      * Set the desired queue for the chain.
      */
-    public function allOnQueue(null|BackedEnum|string $queue): static
+    public function allOnQueue(BackedEnum|string|null $queue): static
     {
         $resolvedQueue = enum_value($queue);
 
@@ -113,7 +113,7 @@ trait Queueable
     /**
      * Set the desired delay in seconds for the job.
      */
-    public function delay(null|array|DateInterval|DateTimeInterface|int $delay): static
+    public function delay(array|DateInterval|DateTimeInterface|int|null $delay): static
     {
         $this->delay = $delay;
 

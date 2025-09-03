@@ -46,7 +46,7 @@ class NotificationFake implements Fake, NotificationDispatcher, NotificationFact
      *
      * @throws Exception
      */
-    public function assertSentTo(mixed $notifiable, Closure|string $notification, null|callable|int|string $callback = null): void
+    public function assertSentTo(mixed $notifiable, Closure|string $notification, callable|int|string|null $callback = null): void
     {
         if (is_array($notifiable) || $notifiable instanceof Collection) {
             if (count($notifiable) === 0) {

@@ -212,7 +212,7 @@ class PendingBatch
     /**
      * Specify the queue that the batched jobs should run on.
      */
-    public function onQueue(null|BackedEnum|string $queue): static
+    public function onQueue(BackedEnum|string|null $queue): static
     {
         $this->options['queue'] = enum_value($queue);
 

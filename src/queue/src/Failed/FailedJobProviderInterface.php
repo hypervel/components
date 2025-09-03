@@ -14,7 +14,7 @@ interface FailedJobProviderInterface
     /**
      * Log a failed job into storage.
      */
-    public function log(string $connection, string $queue, string $payload, Throwable $exception): null|int|string;
+    public function log(string $connection, string $queue, string $payload, Throwable $exception): int|string|null;
 
     /**
      * Get a list of all of the failed jobs.

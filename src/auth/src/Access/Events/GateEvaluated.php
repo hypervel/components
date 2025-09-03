@@ -20,7 +20,7 @@ class GateEvaluated
     public function __construct(
         public ?Authenticatable $user,
         public string $ability,
-        public null|bool|Response $result,
+        public bool|Response|null $result,
         public array $arguments
     ) {
     }

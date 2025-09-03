@@ -87,7 +87,7 @@ trait FormatsMessages
     /**
      * Get the inline message for a rule if it exists.
      */
-    protected function getFromLocalArray(string $attribute, string $lowerRule, ?array $source = null): null|array|string
+    protected function getFromLocalArray(string $attribute, string $lowerRule, ?array $source = null): array|string|null
     {
         $source = $source ?: $this->customMessages;
 

@@ -64,12 +64,12 @@ interface Filesystem
     /**
      * Store the uploaded file on the disk.
      */
-    public function putFile(string|UploadedFile $path, null|array|string|UploadedFile $file = null, mixed $options = []): false|string;
+    public function putFile(string|UploadedFile $path, array|string|UploadedFile|null $file = null, mixed $options = []): false|string;
 
     /**
      * Store the uploaded file on the disk with a given name.
      */
-    public function putFileAs(string|UploadedFile $path, null|array|string|UploadedFile $file, null|array|string $name = null, mixed $options = []): false|string;
+    public function putFileAs(string|UploadedFile $path, array|string|UploadedFile|null $file, array|string|null $name = null, mixed $options = []): false|string;
 
     /**
      * Write a new file using a stream.

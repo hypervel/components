@@ -50,5 +50,5 @@ interface Recycler
     /**
      * Gets the timestamp of the last recycling operation for a specific pool.
      */
-    public function getLastRecycledAt(string $name): null|DateTime|int;
+    public function getLastRecycledAt(string $name): DateTime|int|null;
 }

@@ -16,7 +16,7 @@ class JobQueued
     public function __construct(
         public string $connectionName,
         public ?string $queue,
-        public null|int|string $id,
+        public int|string|null $id,
         public object|string $job,
         public string $payload,
         public ?int $delay

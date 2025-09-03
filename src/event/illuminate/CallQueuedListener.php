@@ -36,7 +36,7 @@ class CallQueuedListener implements ShouldQueue
     /**
      * The timestamp indicating when the job should timeout.
      */
-    public null|DateInterval|DateTimeInterface|int $retryUntil = null;
+    public DateInterval|DateTimeInterface|int|null $retryUntil = null;
 
     /**
      * The number of seconds the job can run before timing out.

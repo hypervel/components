@@ -21,7 +21,7 @@ interface Dispatcher extends EventDispatcherInterface
      */
     public function listen(
         array|Closure|QueuedClosure|string $events,
-        null|array|Closure|int|QueuedClosure|string $listener = null,
+        array|Closure|int|QueuedClosure|string|null $listener = null,
         int $priority = ListenerData::DEFAULT_PRIORITY
     ): void;
 

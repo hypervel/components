@@ -46,7 +46,7 @@ trait InteractsWithQueue
     /**
      * Fail the job from the queue.
      */
-    public function fail(null|string|Throwable $exception = null): void
+    public function fail(string|Throwable|null $exception = null): void
     {
         if (is_string($exception)) {
             $exception = new ManuallyFailedException($exception);
@@ -150,7 +150,7 @@ trait InteractsWithQueue
     /**
      * Assert that the job was released back onto the queue.
      */
-    public function assertReleased(null|DateInterval|DateTimeInterface|int $delay = null): static
+    public function assertReleased(DateInterval|DateTimeInterface|int|null $delay = null): static
     {
         $this->ensureQueueInteractionsHaveBeenFaked();
 

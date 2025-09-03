@@ -57,7 +57,7 @@ abstract class Job implements JobContract
     /**
      * Get the job identifier.
      */
-    abstract public function getJobId(): null|int|string;
+    abstract public function getJobId(): int|string|null;
 
     /**
      * Get the raw body of the job.
@@ -253,7 +253,7 @@ abstract class Job implements JobContract
      *
      * @return null|int|int[]
      */
-    public function backoff(): null|array|int
+    public function backoff(): array|int|null
     {
         return $this->payload()['backoff'] ?? $this->payload()['delay'] ?? null;
     }

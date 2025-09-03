@@ -194,7 +194,7 @@ class UrlGenerator implements UrlGeneratorContract
      *
      * @throws InvalidArgumentException
      */
-    public function signedRoute(BackedEnum|string $name, array $parameters = [], null|DateInterval|DateTimeInterface|int $expiration = null, bool $absolute = true, string $server = 'http'): string
+    public function signedRoute(BackedEnum|string $name, array $parameters = [], DateInterval|DateTimeInterface|int|null $expiration = null, bool $absolute = true, string $server = 'http'): string
     {
         $this->ensureSignedRouteParametersAreNotReserved(
             $parameters = Arr::wrap($parameters)
@@ -236,7 +236,7 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * Create a temporary signed route URL for a named route.
      */
-    public function temporarySignedRoute(BackedEnum|string $name, null|DateInterval|DateTimeInterface|int $expiration, array $parameters = [], bool $absolute = true, string $server = 'http'): string
+    public function temporarySignedRoute(BackedEnum|string $name, DateInterval|DateTimeInterface|int|null $expiration, array $parameters = [], bool $absolute = true, string $server = 'http'): string
     {
         return $this->signedRoute($name, $parameters, $expiration, $absolute, $server);
     }

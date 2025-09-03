@@ -27,7 +27,7 @@ class SelectPrompt extends Prompt
     public function __construct(
         public string $label,
         array|Collection $options,
-        public null|int|string $default = null,
+        public int|string|null $default = null,
         public int $scroll = 5,
         public mixed $validate = null,
         public string $hint = '',
@@ -65,7 +65,7 @@ class SelectPrompt extends Prompt
     /**
      * Get the selected value.
      */
-    public function value(): null|int|string
+    public function value(): int|string|null
     {
         if (static::$interactive === false) {
             return $this->default;

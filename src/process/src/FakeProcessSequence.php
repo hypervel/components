@@ -12,7 +12,7 @@ class FakeProcessSequence
     /**
      * The response that should be returned when the sequence is empty.
      */
-    protected null|FakeProcessDescription|ProcessResultContract $emptyProcess = null;
+    protected FakeProcessDescription|ProcessResultContract|null $emptyProcess = null;
 
     /**
      * Create a new fake process sequence instance.

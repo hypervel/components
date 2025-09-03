@@ -212,7 +212,7 @@ class TestResponse extends HyperfTestResponse
     /**
      * Assert that the given keys do not have validation errors.
      */
-    public function assertValid(null|array|string $keys = null, string $responseKey = 'errors'): static
+    public function assertValid(array|string|null $keys = null, string $responseKey = 'errors'): static
     {
         return $this->assertJsonMissingValidationErrors($keys, $responseKey);
     }
@@ -220,7 +220,7 @@ class TestResponse extends HyperfTestResponse
     /**
      * Assert that the response has the given validation errors.
      */
-    public function assertInvalid(null|array|string $errors = null, string $responseKey = 'errors'): static
+    public function assertInvalid(array|string|null $errors = null, string $responseKey = 'errors'): static
     {
         return $this->assertJsonValidationErrors($errors, $responseKey);
     }

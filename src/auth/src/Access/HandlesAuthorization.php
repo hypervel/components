@@ -9,7 +9,7 @@ trait HandlesAuthorization
     /**
      * Create a new access response.
      */
-    protected function allow(?string $message = null, null|int|string $code = null): Response
+    protected function allow(?string $message = null, int|string|null $code = null): Response
     {
         return Response::allow($message, $code);
     }
@@ -17,7 +17,7 @@ trait HandlesAuthorization
     /**
      * Throws an unauthorized exception.
      */
-    protected function deny(?string $message = null, null|int|string $code = null): Response
+    protected function deny(?string $message = null, int|string|null $code = null): Response
     {
         return Response::deny($message, $code);
     }
@@ -25,7 +25,7 @@ trait HandlesAuthorization
     /**
      * Deny with a HTTP status code.
      */
-    public function denyWithStatus(int $status, ?string $message = null, null|int|string $code = null): Response
+    public function denyWithStatus(int $status, ?string $message = null, int|string|null $code = null): Response
     {
         return Response::denyWithStatus($status, $message, $code);
     }
@@ -33,7 +33,7 @@ trait HandlesAuthorization
     /**
      * Deny with a 404 HTTP status code.
      */
-    public function denyAsNotFound(?string $message = null, null|int|string $code = null): Response
+    public function denyAsNotFound(?string $message = null, int|string|null $code = null): Response
     {
         return Response::denyWithStatus(404, $message, $code);
     }

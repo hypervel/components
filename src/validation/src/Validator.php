@@ -75,7 +75,7 @@ class Validator implements ValidatorContract
     /**
      * The current rule that is validating.
      */
-    protected null|array|object|string $currentRule = null;
+    protected array|object|string|null $currentRule = null;
 
     /**
      * The array of wildcard attributes with their asterisks expanded.

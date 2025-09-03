@@ -96,7 +96,7 @@ class Event
     public function __construct(
         public EventMutex $mutex,
         public ?string $command,
-        null|DateTimeZone|string $timezone = null,
+        DateTimeZone|string|null $timezone = null,
         bool $isSystem = false
     ) {
         $this->timezone = $timezone;

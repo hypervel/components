@@ -636,7 +636,7 @@ class WorkerFakeJob implements QueueJobContract
         };
     }
 
-    public function getJobId(): null|int|string
+    public function getJobId(): int|string|null
     {
         return $this->id;
     }

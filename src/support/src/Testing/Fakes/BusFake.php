@@ -88,7 +88,7 @@ class BusFake implements Fake, QueueingDispatcher
     /**
      * Assert if a job was dispatched based on a truth-test callback.
      */
-    public function assertDispatched(Closure|string $command, null|callable|int $callback = null): void
+    public function assertDispatched(Closure|string $command, callable|int|null $callback = null): void
     {
         if ($command instanceof Closure) {
             [$command, $callback] = [$this->firstClosureParameterType($command), $command];
@@ -159,7 +159,7 @@ class BusFake implements Fake, QueueingDispatcher
     /**
      * Assert if a job was explicitly dispatched synchronously based on a truth-test callback.
      */
-    public function assertDispatchedSync(Closure|string $command, null|callable|int $callback = null): void
+    public function assertDispatchedSync(Closure|string $command, callable|int|null $callback = null): void
     {
         if ($command instanceof Closure) {
             [$command, $callback] = [$this->firstClosureParameterType($command), $command];
@@ -215,7 +215,7 @@ class BusFake implements Fake, QueueingDispatcher
     /**
      * Assert if a job was dispatched after the response was sent based on a truth-test callback.
      */
-    public function assertDispatchedAfterResponse(Closure|string $command, null|callable|int $callback = null): void
+    public function assertDispatchedAfterResponse(Closure|string $command, callable|int|null $callback = null): void
     {
         if ($command instanceof Closure) {
             [$command, $callback] = [$this->firstClosureParameterType($command), $command];

@@ -87,7 +87,7 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
      *
      * @throws InvalidArgumentException
      */
-    public static function signedRoute(BackedEnum|string $name, array $parameters = [], null|DateInterval|DateTimeInterface|int $expiration = null, bool $absolute = true): static
+    public static function signedRoute(BackedEnum|string $name, array $parameters = [], DateInterval|DateTimeInterface|int|null $expiration = null, bool $absolute = true): static
     {
         return new static(call_user_func(static::$urlGeneratorResolver)->signedRoute($name, $parameters, $expiration, $absolute));
     }
@@ -95,7 +95,7 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
     /**
      * Create a temporary signed route URI instance for a named route.
      */
-    public static function temporarySignedRoute(BackedEnum|string $name, null|DateInterval|DateTimeInterface|int $expiration = null, array $parameters = [], bool $absolute = true): static
+    public static function temporarySignedRoute(BackedEnum|string $name, DateInterval|DateTimeInterface|int|null $expiration = null, array $parameters = [], bool $absolute = true): static
     {
         return static::signedRoute($name, $parameters, $expiration, $absolute);
     }
@@ -203,7 +203,7 @@ class Uri implements Htmlable, JsonSerializable, Responsable, Stringable
     /**
      * Specify the user and password for the URI.
      */
-    public function withUser(null|string|Stringable $user, null|string|Stringable $password = null): static
+    public function withUser(string|Stringable|null $user, string|Stringable|null $password = null): static
     {
         return new static($this->uri->withUserInfo($user, $password));
     }

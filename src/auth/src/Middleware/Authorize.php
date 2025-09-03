@@ -64,7 +64,7 @@ class Authorize implements MiddlewareInterface
     /**
      * Get the model to authorize.
      */
-    protected function getModel(ServerRequestInterface $request, string $model): null|Model|string
+    protected function getModel(ServerRequestInterface $request, string $model): Model|string|null
     {
         if ($this->isClassName($model)) {
             return trim($model);

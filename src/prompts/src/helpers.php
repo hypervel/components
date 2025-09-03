@@ -44,7 +44,7 @@ if (! function_exists('\Hypervel\Prompts\select')) {
      * @param array<int|string, string>|Collection<int|string, string> $options
      * @param string|true $required
      */
-    function select(string $label, array|Collection $options, null|int|string $default = null, int $scroll = 5, mixed $validate = null, string $hint = '', bool|string $required = true, ?Closure $transform = null): int|string
+    function select(string $label, array|Collection $options, int|string|null $default = null, int $scroll = 5, mixed $validate = null, string $hint = '', bool|string $required = true, ?Closure $transform = null): int|string
     {
         return (new SelectPrompt(...get_defined_vars()))->prompt();
     }
@@ -224,7 +224,7 @@ if (! function_exists('\Hypervel\Prompts\table')) {
      * @param array<int, array<int, string>|string>|Collection<int, array<int, string>|string> $headers
      * @param array<int, array<int, string>>|Collection<int, array<int, string>> $rows
      */
-    function table(array|Collection $headers = [], null|array|Collection $rows = null): void
+    function table(array|Collection $headers = [], array|Collection|null $rows = null): void
     {
         (new Table($headers, $rows))->display();
     }

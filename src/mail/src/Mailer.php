@@ -212,7 +212,7 @@ class Mailer implements MailerContract, MailQueueContract
     /**
      * Send a new message using a view.
      */
-    public function send(array|Mailable|string $view, array $data = [], null|Closure|string $callback = null): ?SentMessage
+    public function send(array|Mailable|string $view, array $data = [], Closure|string|null $callback = null): ?SentMessage
     {
         if ($view instanceof MailableContract) {
             return $this->sendMailable($view);
@@ -276,7 +276,7 @@ class Mailer implements MailerContract, MailQueueContract
     /**
      * Send a new message synchronously using a view.
      */
-    public function sendNow(array|MailableContract|string $mailable, array $data = [], null|Closure|string $callback = null): ?SentMessage
+    public function sendNow(array|MailableContract|string $mailable, array $data = [], Closure|string|null $callback = null): ?SentMessage
     {
         return $mailable instanceof MailableContract
             ? $mailable->mailer($this->name)->send($this)
@@ -318,7 +318,7 @@ class Mailer implements MailerContract, MailQueueContract
     /**
      * Add the content to a given message.
      */
-    protected function addContent(Message $message, null|Closure|Htmlable|string $view, null|Closure|Htmlable|string $plain, ?string $raw, array $data = []): void
+    protected function addContent(Message $message, Closure|Htmlable|string|null $view, Closure|Htmlable|string|null $plain, ?string $raw, array $data = []): void
     {
         if (isset($view)) {
             $message->html($this->renderView($view, $data) ?: ' ');

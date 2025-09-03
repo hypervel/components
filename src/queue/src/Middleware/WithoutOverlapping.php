@@ -38,7 +38,7 @@ class WithoutOverlapping
      */
     public function __construct(
         public string $key = '',
-        public null|DateTimeInterface|int $releaseAfter = 0,
+        public DateTimeInterface|int|null $releaseAfter = 0,
         DateTimeInterface|int $expiresAfter = 0
     ) {
         $this->expiresAfter = $this->secondsUntil($expiresAfter);

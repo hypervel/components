@@ -16,7 +16,7 @@ interface Job
     /**
      * Get the job identifier.
      */
-    public function getJobId(): null|int|string;
+    public function getJobId(): int|string|null;
 
     /**
      * Fire the job.

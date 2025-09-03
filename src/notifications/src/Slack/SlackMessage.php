@@ -151,7 +151,7 @@ class SlackMessage implements Arrayable
     /**
      * Add a new Image block to the message.
      */
-    public function imageBlock(string $url, null|Closure|string $altText = null, ?Closure $callback = null): static
+    public function imageBlock(string $url, Closure|string|null $altText = null, ?Closure $callback = null): static
     {
         if ($altText instanceof Closure) {
             $callback = $altText;

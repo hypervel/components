@@ -44,7 +44,7 @@ class Sleep
     /**
      * The pending duration to sleep.
      */
-    protected null|float|int $pending = null;
+    protected float|int|null $pending = null;
 
     /**
      * Indicates that all sleeping should be faked.

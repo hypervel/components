@@ -16,7 +16,7 @@ class Envelope
     /**
      * The address sending the message.
      */
-    public null|Address|string $from;
+    public Address|string|null $from;
 
     /**
      * The recipients of the message.
@@ -68,7 +68,7 @@ class Envelope
      *
      * @named-arguments-supported
      */
-    public function __construct(null|Address|string $from = null, $to = [], $cc = [], $bcc = [], $replyTo = [], ?string $subject = null, array $tags = [], array $metadata = [], array|Closure $using = [])
+    public function __construct(Address|string|null $from = null, $to = [], $cc = [], $bcc = [], $replyTo = [], ?string $subject = null, array $tags = [], array $metadata = [], array|Closure $using = [])
     {
         $this->from = is_string($from) ? new Address($from) : $from;
         $this->to = $this->normalizeAddresses($to);

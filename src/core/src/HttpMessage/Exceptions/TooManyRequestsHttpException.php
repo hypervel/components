@@ -12,7 +12,7 @@ class TooManyRequestsHttpException extends HttpException
      * @param null|int|string $retryAfter The number of seconds or HTTP-date after which the request may be retried
      */
     public function __construct(
-        null|int|string $retryAfter = null,
+        int|string|null $retryAfter = null,
         string $message = '',
         int $code = 0,
         ?Throwable $previous = null,

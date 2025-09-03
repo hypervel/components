@@ -73,7 +73,7 @@ class Factory
     /**
      * Indicate that the process factory should fake processes.
      */
-    public function fake(null|array|Closure $callback = null): static
+    public function fake(array|Closure|null $callback = null): static
     {
         $this->recording = true;
 

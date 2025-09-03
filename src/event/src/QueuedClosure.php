@@ -27,7 +27,7 @@ class QueuedClosure
     /**
      * The number of seconds before the job should be made available.
      */
-    public null|DateInterval|DateTimeInterface|int $delay = null;
+    public DateInterval|DateTimeInterface|int|null $delay = null;
 
     /**
      * All of the "catch" callbacks for the queued closure.

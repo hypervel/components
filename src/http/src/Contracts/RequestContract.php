@@ -44,7 +44,7 @@ interface RequestContract extends RequestInterface
     /**
      * Retrieve input from the request as a collection.
      */
-    public function collect(null|array|string $key = null): Collection;
+    public function collect(array|string|null $key = null): Collection;
 
     /**
      * Retrieve input from the request as a Carbon instance.

@@ -16,7 +16,7 @@ trait HasFactory
      * @param array<string, mixed>|(callable(array<string, mixed>, null|static): array<string, mixed>) $state
      * @return TFactory
      */
-    public static function factory(null|array|callable|int $count = null, array|callable $state = []): Factory
+    public static function factory(array|callable|int|null $count = null, array|callable $state = []): Factory
     {
         $factory = isset(static::$factory)
             ? static::$factory::new()

@@ -32,7 +32,7 @@ class TaggedCache extends Repository
     /**
      * Store multiple items in the cache for a given number of seconds.
      */
-    public function putMany(array $values, null|DateInterval|DateTimeInterface|int $ttl = null): bool
+    public function putMany(array $values, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         if ($ttl === null) {
             return $this->putManyForever($values);

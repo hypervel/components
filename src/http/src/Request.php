@@ -82,7 +82,7 @@ class Request extends HyperfRequest implements RequestContract
     /**
      * Retrieve input from the request as a collection.
      */
-    public function collect(null|array|string $key = null): Collection
+    public function collect(array|string|null $key = null): Collection
     {
         if (is_null($key)) {
             return Collection::make($this->all());

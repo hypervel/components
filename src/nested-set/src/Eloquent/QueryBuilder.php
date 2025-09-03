@@ -753,7 +753,7 @@ class QueryBuilder extends EloquentBuilder
      *
      * @param bool $delete whether to delete nodes that exists but not in the data array
      */
-    public function rebuildTree(array $data, bool $delete = false, null|int|Model $root = null): int
+    public function rebuildTree(array $data, bool $delete = false, int|Model|null $root = null): int
     {
         /* @phpstan-ignore-next-line */
         if ($this->model->usesSoftDelete()) {
