@@ -120,7 +120,7 @@ class SearchPrompt extends Prompt
     /**
      * Get the selected value.
      */
-    public function value(): null|int|string
+    public function value(): int|string|null
     {
         if ($this->matches === null || $this->highlighted === null) {
             return null;

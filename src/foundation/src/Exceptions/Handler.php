@@ -178,7 +178,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
     /**
      * Register a new exception mapping.
      */
-    public function map(callable|string $from, null|Closure|string $to = null): static
+    public function map(callable|string $from, Closure|string|null $to = null): static
     {
         if (is_string($to)) {
             $to = fn ($exception) => new $to('', 0, $exception);

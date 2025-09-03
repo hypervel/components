@@ -60,12 +60,12 @@ interface UrlGenerator
      *
      * @throws InvalidArgumentException
      */
-    public function signedRoute(BackedEnum|string $name, array $parameters = [], null|DateInterval|DateTimeInterface|int $expiration = null, bool $absolute = true, string $server = 'http'): string;
+    public function signedRoute(BackedEnum|string $name, array $parameters = [], DateInterval|DateTimeInterface|int|null $expiration = null, bool $absolute = true, string $server = 'http'): string;
 
     /**
      * Create a temporary signed route URL for a named route.
      */
-    public function temporarySignedRoute(BackedEnum|string $name, null|DateInterval|DateTimeInterface|int $expiration, array $parameters = [], bool $absolute = true, string $server = 'http'): string;
+    public function temporarySignedRoute(BackedEnum|string $name, DateInterval|DateTimeInterface|int|null $expiration, array $parameters = [], bool $absolute = true, string $server = 'http'): string;
 
     /**
      * Determine if the given request has a valid signature.

@@ -16,7 +16,7 @@ trait InteractsWithBroadcasting
     /**
      * Broadcast the event using a specific broadcaster.
      */
-    public function broadcastVia(null|array|string $connection = null): static
+    public function broadcastVia(array|string|null $connection = null): static
     {
         $this->broadcastConnection = is_null($connection)
             ? [null]

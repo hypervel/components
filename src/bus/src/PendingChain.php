@@ -34,7 +34,7 @@ class PendingChain
     /**
      * The number of seconds before the chain should be made available.
      */
-    public null|DateInterval|DateTimeInterface|int $delay = null;
+    public DateInterval|DateTimeInterface|int|null $delay = null;
 
     /**
      * The callbacks to be executed on failure.
@@ -66,7 +66,7 @@ class PendingChain
     /**
      * Set the desired queue for the job.
      */
-    public function onQueue(null|BackedEnum|string $queue): static
+    public function onQueue(BackedEnum|string|null $queue): static
     {
         $this->queue = enum_value($queue);
 
@@ -76,7 +76,7 @@ class PendingChain
     /**
      * Set the desired delay in seconds for the chain.
      */
-    public function delay(null|DateInterval|DateTimeInterface|int $delay): static
+    public function delay(DateInterval|DateTimeInterface|int|null $delay): static
     {
         $this->delay = $delay;
 
