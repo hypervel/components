@@ -8,10 +8,8 @@ class WorkerCommandString
 {
     /**
      * The base worker command.
-     *
-     * @var string
      */
-    public static $command = 'exec @php artisan horizon:work';
+    public static string $command = 'exec @php artisan horizon:work';
 
     /**
      * Get the command-line representation of the options for a worker.

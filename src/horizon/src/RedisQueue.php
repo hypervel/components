@@ -6,7 +6,8 @@ namespace Hypervel\Horizon;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Context\Context;
+use Hypervel\Event\Contracts\Dispatcher;
 use Hypervel\Horizon\Events\JobDeleted;
 use Hypervel\Horizon\Events\JobPushed;
 use Hypervel\Horizon\Events\JobReleased;
@@ -20,19 +21,14 @@ use Override;
 
 class RedisQueue extends BaseQueue
 {
-    /**
-     * The job that last pushed to queue via the "push" method.
-     *
-     * @var object|string
-     */
-    protected $lastPushed;
+    public const LAST_PUSHED_CONTEXT_KEY = 'horizon.queue.last_pushed';
 
     /**
      * Get the number of queue jobs that are ready to process.
      */
     public function readyNow(?string $queue = null): int
     {
-        return $this->getConnection()->llen($this->getQueue($queue));
+        return $this->getConnection()->lLen($this->getQueue($queue));
     }
 
     /**
@@ -47,7 +43,7 @@ class RedisQueue extends BaseQueue
             $queue,
             null,
             function ($payload, $queue) use ($job) {
-                $this->lastPushed = $job;
+                $this->setLastPushed($job);
 
                 return $this->pushRaw($payload, $queue);
             }
@@ -60,7 +56,7 @@ class RedisQueue extends BaseQueue
     #[Override]
     public function pushRaw(string $payload, ?string $queue = null, array $options = []): mixed
     {
-        $payload = (new JobPayload($payload))->prepare($this->lastPushed);
+        $payload = (new JobPayload($payload))->prepare($this->getLastPushed());
 
         parent::pushRaw($payload->value, $queue, $options);
 
@@ -73,7 +69,7 @@ class RedisQueue extends BaseQueue
      * Create a payload string from the given job and data.
      */
     #[Override]
-    protected function createPayloadArray(string $job, string $queue, mixed $data = ''): array
+    protected function createPayloadArray(array|object|string $job, ?string $queue, mixed $data = ''): array
     {
         $payload = parent::createPayloadArray($job, $queue, $data);
 
@@ -90,23 +86,17 @@ class RedisQueue extends BaseQueue
     {
         $payload = (new JobPayload($this->createPayload($job, $queue, $data)))->prepare($job)->value;
 
-        if (method_exists($this, 'enqueueUsing')) {
-            return $this->enqueueUsing(
-                $job,
-                $payload,
-                $queue,
-                $delay,
-                function ($payload, $queue, $delay) {
-                    return tap(parent::laterRaw($delay, $payload, $queue), function () use ($payload, $queue) {
-                        $this->event($this->getQueue($queue), new JobPushed($payload));
-                    });
-                }
-            );
-        }
-
-        return tap(parent::laterRaw($delay, $payload, $queue), function () use ($payload, $queue) {
-            $this->event($this->getQueue($queue), new JobPushed($payload));
-        });
+        return $this->enqueueUsing(
+            $job,
+            $payload,
+            $queue,
+            $delay,
+            function ($payload, $queue, $delay) {
+                return tap(parent::laterRaw($delay, $payload, $queue), function () use ($payload, $queue) {
+                    $this->event($this->getQueue($queue), new JobPushed($payload));
+                });
+            }
+        );
     }
 
     /**
@@ -160,12 +150,28 @@ class RedisQueue extends BaseQueue
      */
     protected function event(string $queue, mixed $event): void
     {
-        if ($this->container && $this->container->bound(Dispatcher::class)) {
+        if ($this->container && $this->container->has(Dispatcher::class)) {
             $queue = Str::replaceFirst('queues:', '', $queue);
 
-            $this->container->make(Dispatcher::class)->dispatch(
+            $this->container->get(Dispatcher::class)->dispatch(
                 $event->connection($this->getConnectionName())->queue($queue)
             );
         }
+    }
+
+    /**
+     * Set the job that last pushed to queue via the "push" method.
+     */
+    protected function setLastPushed(object|string $job): void
+    {
+        Context::set(static::LAST_PUSHED_CONTEXT_KEY, $job);
+    }
+
+    /**
+     * Get the job that last pushed to queue via the "push" method.
+     */
+    protected function getLastPushed(): null|object|string
+    {
+        return Context::get(static::LAST_PUSHED_CONTEXT_KEY);
     }
 }

@@ -11,13 +11,7 @@ trait ServiceBindings
      */
     public array $serviceBindings = [
         // General services...
-        AutoScaler::class,
         Contracts\HorizonCommandQueue::class => RedisHorizonCommandQueue::class,
-        Listeners\TrimRecentJobs::class,
-        Listeners\TrimFailedJobs::class,
-        Listeners\TrimMonitoredJobs::class,
-        Lock::class,
-        Stopwatch::class,
 
         // Repository services...
         Contracts\JobRepository::class => Repositories\RedisJobRepository::class,

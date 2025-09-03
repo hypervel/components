@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon;
 
-use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
+use Hypervel\Queue\Contracts\Factory as QueueFactory;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 
@@ -14,10 +14,6 @@ class WaitTimeCalculator
 {
     /**
      * Create a new calculator instance.
-     *
-     * @param QueueFactory $queue The queue factory implementation.
-     * @param SupervisorRepository $supervisors The supervisor repository implementation.
-     * @param MetricsRepository $metrics The metrics repository implementation.
      */
     public function __construct(
         public QueueFactory $queue,
@@ -36,6 +32,8 @@ class WaitTimeCalculator
 
     /**
      * Calculate the time to clear per queue in seconds.
+     *
+     * @return array<string, float>
      */
     public function calculate(?string $queue = null): array
     {
@@ -78,9 +76,9 @@ class WaitTimeCalculator
     /**
      * Calculate the time to clear for the given queue in seconds distributed over the given amount of processes.
      */
-    public function calculateTimeToClear(string $connection, string $queue, int $totalProcesses): int
+    public function calculateTimeToClear(string $connection, string $queue, int $totalProcesses): float
     {
-        $timeToClear = ! Str::contains($queue ?? '', ',')
+        $timeToClear = ! Str::contains($queue, ',')
             ? $this->timeToClearFor($connection, $queue)
             : collect(explode(',', $queue))->sum(function ($queueName) use ($connection) {
                 return $this->timeToClearFor($connection, $queueName);
@@ -96,6 +94,7 @@ class WaitTimeCalculator
      */
     protected function timeToClearFor(string $connection, string $queue): float
     {
+        // @phpstan-ignore-next-line RedisQueue has readyNow method
         $size = $this->queue->connection($connection)->readyNow($queue);
 
         return $size * $this->metrics->runtimeForQueue($queue);

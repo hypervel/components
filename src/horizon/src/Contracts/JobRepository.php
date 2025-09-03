@@ -29,27 +29,27 @@ interface JobRepository
     /**
      * Get a chunk of recent jobs.
      */
-    public function getRecent(?string $afterIndex = null): Collection;
+    public function getRecent(?int $afterIndex = null): Collection;
 
     /**
      * Get a chunk of failed jobs.
      */
-    public function getFailed(?string $afterIndex = null): Collection;
+    public function getFailed(?int $afterIndex = null): Collection;
 
     /**
      * Get a chunk of pending jobs.
      */
-    public function getPending(?string $afterIndex = null): Collection;
+    public function getPending(?int $afterIndex = null): Collection;
 
     /**
      * Get a chunk of completed jobs.
      */
-    public function getCompleted(?string $afterIndex = null): Collection;
+    public function getCompleted(?int $afterIndex = null): Collection;
 
     /**
      * Get a chunk of silenced jobs.
      */
-    public function getSilenced(?string $afterIndex = null): Collection;
+    public function getSilenced(?int $afterIndex = null): Collection;
 
     /**
      * Get the count of recent jobs.

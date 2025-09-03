@@ -16,10 +16,10 @@ class LuaScripts
     public static function updateMetrics(): string
     {
         return <<<'LUA'
-            redis.call('hsetnx', KEYS[1], 'throughput', 0)
-            
+            redis.call('hSetNx', KEYS[1], 'throughput', 0)
+
             redis.call('sadd', KEYS[2], KEYS[1])
-            
+
             local hash = redis.call('hmget', KEYS[1], 'throughput', 'runtime')
 
             local throughput = hash[1] + 1
@@ -32,7 +32,7 @@ class LuaScripts
             end
 
             redis.call('hmset', KEYS[1], 'throughput', throughput, 'runtime', runtime)
-LUA;
+            LUA;
     }
 
     /**
@@ -46,10 +46,10 @@ LUA;
     public static function purge(): string
     {
         return <<<'LUA'
-            
+
             local count = 0
             local cursor = 0
-            
+
             repeat
                 -- Iterate over the recent jobs sorted set
                 local scanner = redis.call('zscan', KEYS[1], cursor)
@@ -67,11 +67,11 @@ LUA;
                         redis.call('zrem', KEYS[2], jobid)
                         redis.call('del', hashkey)
                         count = count + 1
-                    end           
+                    end
                 end
             until cursor == '0'
 
             return count
-LUA;
+            LUA;
     }
 }

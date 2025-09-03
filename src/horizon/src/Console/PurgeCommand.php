@@ -25,19 +25,13 @@ class PurgeCommand extends Command
      */
     protected string $description = 'Terminate any rogue Horizon processes';
 
-    private SupervisorRepository $supervisors;
-
-    private ProcessRepository $processes;
-
-    private ProcessInspector $inspector;
-
     /**
      * Create a new command instance.
      */
     public function __construct(
-        SupervisorRepository $supervisors,
-        ProcessRepository $processes,
-        ProcessInspector $inspector
+        private SupervisorRepository $supervisors,
+        private ProcessRepository $processes,
+        private ProcessInspector $inspector
     ) {
         parent::__construct();
 

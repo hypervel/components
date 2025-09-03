@@ -6,9 +6,9 @@ namespace Hypervel\Horizon;
 
 use Closure;
 use Exception;
-use Hypervel\Http\Request;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Js;
+use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
 
 class Horizon
@@ -31,7 +31,8 @@ class Horizon
     /**
      * The SMS notifications phone number.
      */
-    public static ?string $smsNumber = null;
+    // no sms client supported yet
+    // public static ?string $smsNumber = null;
 
     /**
      * The email address for notifications.
@@ -56,7 +57,7 @@ class Horizon
     /**
      * Determine if the given request can access the Horizon dashboard.
      */
-    public static function check(Request $request): bool
+    public static function check(?ServerRequestInterface $request): bool
     {
         return (static::$authUsing ?: function () {
             return app()->environment('local');
@@ -88,7 +89,7 @@ class Horizon
 
         $config['options']['prefix'] = config('horizon.prefix') ?: 'horizon:';
 
-        config(['database.redis.horizon' => $config]);
+        config(['redis.horizon' => $config]);
     }
 
     /**
@@ -178,13 +179,14 @@ class Horizon
         return new static();
     }
 
-    /**
+    /*
      * Specify the phone number to which SMS notifications should be routed.
      */
-    public static function routeSmsNotificationsTo(string $number): static
-    {
-        static::$smsNumber = $number;
+    // no sms client supported yet
+    // public static function routeSmsNotificationsTo(string $number): static
+    // {
+    //     static::$smsNumber = $number;
 
-        return new static();
-    }
+    //     return new static();
+    // }
 }

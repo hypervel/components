@@ -26,7 +26,7 @@ class ProvisioningPlan
     /**
      * Create a new provisioning plan instance.
      *
-     * @param string $master The master supervisor's name.
+     * @param string $master the master supervisor's name
      */
     public function __construct(
         public string $master,
@@ -34,7 +34,6 @@ class ProvisioningPlan
         array $defaults = []
     ) {
         $this->plan = $this->applyDefaultOptions($plan, $defaults);
-
         $this->parsed = $this->toSupervisorOptions();
     }
 
@@ -109,11 +108,9 @@ class ProvisioningPlan
     /**
      * Get the SupervisorOptions for a given environment and supervisor.
      */
-    public function optionsFor(string $environment, string $supervisor): mixed
+    public function optionsFor(string $environment, string $supervisor): ?SupervisorOptions
     {
-        if (isset($this->parsed[$environment], $this->parsed[$environment][$supervisor])) {
-            return $this->parsed[$environment][$supervisor];
-        }
+        return $this->parsed[$environment][$supervisor] ?? null;
     }
 
     /**

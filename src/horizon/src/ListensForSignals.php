@@ -10,10 +10,8 @@ trait ListensForSignals
 {
     /**
      * The pending signals that need to be processed.
-     *
-     * @var array
      */
-    protected $pendingSignals = [];
+    protected array $pendingSignals = [];
 
     /**
      * Listen for incoming process signals.

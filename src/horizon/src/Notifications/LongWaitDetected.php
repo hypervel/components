@@ -21,9 +21,9 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
     /**
      * Create a new notification instance.
      *
-     * @param string $longWaitConnection The queue connection name.
-     * @param string $longWaitQueue The queue name.
-     * @param int $seconds The wait time in seconds.
+     * @param string $longWaitConnection the queue connection name
+     * @param string $longWaitQueue the queue name
+     * @param int $seconds the wait time in seconds
      */
     public function __construct(
         public string $longWaitConnection,

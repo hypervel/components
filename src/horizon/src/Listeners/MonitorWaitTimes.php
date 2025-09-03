@@ -14,7 +14,7 @@ class MonitorWaitTimes
     /**
      * The time at which we last checked if monitoring was due.
      */
-    public ?CarbonImmutable $lastMonitored;
+    public ?CarbonImmutable $lastMonitored = null;
 
     /**
      * Create a new listener instance.

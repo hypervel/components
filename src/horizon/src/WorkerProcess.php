@@ -9,6 +9,7 @@ use Closure;
 use Hypervel\Horizon\Events\UnableToLaunchProcess;
 use Hypervel\Horizon\Events\WorkerProcessRestarting;
 use Symfony\Component\Process\Exception\ExceptionInterface;
+use Symfony\Component\Process\Process;
 
 class WorkerProcess
 {
@@ -20,15 +21,15 @@ class WorkerProcess
     /**
      * The time at which the cooldown period will be over.
      */
-    public ?\Carbon\CarbonImmutable $restartAgainAt = null;
+    public ?CarbonImmutable $restartAgainAt = null;
 
     /**
      * Create a new worker process instance.
      *
-     * @param \Symfony\Component\Process\Process $process the underlying Symfony process
+     * @param Process $process the underlying Symfony process
      */
     public function __construct(
-        public \Symfony\Component\Process\Process $process
+        public Process $process
     ) {
     }
 

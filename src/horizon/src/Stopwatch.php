@@ -24,9 +24,9 @@ class Stopwatch
      */
     public function check(string $key): ?float
     {
-        if (isset($this->timers[$key])) {
-            return round((microtime(true) - $this->timers[$key]) * 1000, 2);
-        }
+        return isset($this->timers[$key])
+            ? round((microtime(true) - $this->timers[$key]) * 1000, 2)
+            : null;
     }
 
     /**

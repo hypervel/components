@@ -10,10 +10,8 @@ class SystemProcessCounter
 {
     /**
      * The base command to search for.
-     *
-     * @var string
      */
-    public static $command = 'horizon:work';
+    public static string $command = 'horizon:work';
 
     /**
      * Get the number of Horizon workers for a given supervisor.

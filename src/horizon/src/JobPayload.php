@@ -6,11 +6,11 @@ namespace Hypervel\Horizon;
 
 use ArrayAccess;
 use Hypervel\Broadcasting\BroadcastEvent;
-use Hypervel\Event\CallQueuedListener;
 use Hypervel\Horizon\Contracts\Silenced;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Notifications\SendQueuedNotifications;
 use Hypervel\Support\Arr;
+use Illuminate\Events\CallQueuedListener;
 
 class JobPayload implements ArrayAccess
 {
@@ -79,7 +79,7 @@ class JobPayload implements ArrayAccess
             'type' => $this->determineType($job),
             'tags' => $this->determineTags($job),
             'silenced' => $this->shouldBeSilenced($job),
-            'pushedAt' => str_replace(',', '.', microtime(true)),
+            'pushedAt' => str_replace(',', '.', (string) microtime(true)),
         ]);
     }
 

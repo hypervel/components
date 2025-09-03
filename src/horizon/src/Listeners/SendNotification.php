@@ -23,7 +23,8 @@ class SendNotification
         }
 
         Notification::route('slack', Horizon::$slackWebhookUrl)
-            ->route('nexmo', Horizon::$smsNumber)
+            // no sms client supported yet
+            // ->route('nexmo', Horizon::$smsNumber)
             ->route('mail', Horizon::$email)
             ->notify($notification);
     }

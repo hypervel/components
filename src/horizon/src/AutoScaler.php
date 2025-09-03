@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon;
 
-use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Horizon\Contracts\MetricsRepository;
+use Hypervel\Queue\Contracts\Factory as QueueFactory;
 use Hypervel\Support\Collection;
 
 class AutoScaler
@@ -13,8 +13,8 @@ class AutoScaler
     /**
      * Create a new auto-scaler instance.
      *
-     * @param QueueFactory $queue The queue factory implementation.
-     * @param MetricsRepository $metrics The metrics repository implementation.
+     * @param QueueFactory $queue the queue factory implementation
+     * @param MetricsRepository $metrics the metrics repository implementation
      */
     public function __construct(
         public QueueFactory $queue,
@@ -44,7 +44,7 @@ class AutoScaler
      */
     protected function poolsByQueue(Supervisor $supervisor): Collection
     {
-        return $supervisor->processPools->mapWithKeys(function ($pool) {
+        return $supervisor->processPools->mapWithKeys(function (ProcessPool $pool) {
             return [$pool->queue() => $pool];
         });
     }
@@ -56,6 +56,7 @@ class AutoScaler
     {
         return $pools->mapWithKeys(function ($pool, $queue) use ($supervisor) {
             $queues = collect(explode(',', $queue))->map(function ($_queue) use ($supervisor) {
+                // @phpstan-ignore-next-line RedisQueue has readyNow method
                 $size = $this->queue->connection($supervisor->options->connection)->readyNow($_queue);
 
                 return [
@@ -73,6 +74,8 @@ class AutoScaler
 
     /**
      * Get the number of workers needed per queue for proper balance.
+     *
+     * @return Collection<string, float>
      */
     protected function numberOfWorkersPerQueue(Supervisor $supervisor, Collection $queues): Collection
     {
@@ -90,15 +93,18 @@ class AutoScaler
             }
 
             if ($timeToClearAll > 0
-                && $supervisor->options->autoScaling()) {
+                && $supervisor->options->autoScaling()
+            ) {
                 $numberOfProcesses = $supervisor->options->autoScaleByNumberOfJobs()
                     ? ($timeToClear['size'] / $totalJobs)
                     : ($timeToClear['time'] / $timeToClearAll);
 
                 return [$queue => $numberOfProcesses *= $supervisor->options->maxProcesses];
             }
+
             if ($timeToClearAll == 0
-                      && $supervisor->options->autoScaling()) {
+                && $supervisor->options->autoScaling()
+            ) {
                 return [
                     $queue => $timeToClear['size']
                                 ? $supervisor->options->maxProcesses

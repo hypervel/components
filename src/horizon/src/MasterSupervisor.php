@@ -7,8 +7,8 @@ namespace Hypervel\Horizon;
 use Carbon\CarbonImmutable;
 use Closure;
 use Exception;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
-use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
 use Hypervel\Horizon\Contracts\HorizonCommandQueue;
 use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\Contracts\Pausable;
@@ -31,6 +31,8 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
 
     /**
      * All of the supervisors managed.
+     *
+     * @var Collection<int, SupervisorProcess>
      */
     public Collection $supervisors;
 
@@ -164,6 +166,7 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
         }
 
         if (config('horizon.fast_termination')) {
+            /* @phpstan-ignore-next-line */
             app(CacheFactory::class)->forget('horizon:terminate:wait');
         }
 

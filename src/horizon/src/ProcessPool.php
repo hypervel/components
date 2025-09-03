@@ -15,30 +15,21 @@ class ProcessPool implements Countable
     /**
      * All of the active processes.
      *
-     * @var array
+     * @var array<int, WorkerProcess>
      */
-    public $processes = [];
+    public array $processes = [];
 
     /**
      * The processes that are terminating.
      *
-     * @var array
+     * @var array<int, array{process: WorkerProcess, terminatedAt: CarbonImmutable}>
      */
-    public $terminatingProcesses = [];
+    public array $terminatingProcesses = [];
 
     /**
      * Indicates if the process pool is currently running.
-     *
-     * @var array
      */
-    public $working = true;
-
-    /**
-     * The supervisor options for the process pool.
-     *
-     * @var SupervisorOptions
-     */
-    public $options;
+    public bool $working = true;
 
     /**
      * The output handler.
@@ -48,8 +39,10 @@ class ProcessPool implements Countable
     /**
      * Create a new process pool instance.
      */
-    public function __construct(SupervisorOptions $options, ?Closure $output = null)
-    {
+    public function __construct(
+        public SupervisorOptions $options,
+        ?Closure $output = null
+    ) {
         $this->options = $options;
 
         $this->output = $output ?: function () {

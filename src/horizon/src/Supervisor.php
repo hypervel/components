@@ -7,8 +7,8 @@ namespace Hypervel\Horizon;
 use Carbon\CarbonImmutable;
 use Closure;
 use Exception;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
-use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
 use Hypervel\Horizon\Contracts\HorizonCommandQueue;
 use Hypervel\Horizon\Contracts\Pausable;
 use Hypervel\Horizon\Contracts\Restartable;
@@ -114,7 +114,7 @@ class Supervisor implements Pausable, Restartable, Terminable
         );
 
         $this->balance($this->processPools->mapWithKeys(function ($pool) use ($processes) {
-            return [$pool->queue() => floor($processes / count($this->processPools))];
+            return [$pool->queue() => (int) floor($processes / count($this->processPools))];
         })->all());
     }
 
@@ -196,8 +196,8 @@ class Supervisor implements Pausable, Restartable, Terminable
      */
     protected function shouldWait(): bool
     {
-        return ! config('horizon.fast_termination')
-               || app(CacheFactory::class)->get('horizon:terminate:wait');
+        // @phpstan-ignore-next-line
+        return ! config('horizon.fast_termination') || app(CacheFactory::class)->get('horizon:terminate:wait');
     }
 
     /**
@@ -410,6 +410,6 @@ class Supervisor implements Pausable, Restartable, Terminable
      */
     protected function exitProcess(int $status = 0): void
     {
-        exit((int) $status);
+        exit($status);
     }
 }

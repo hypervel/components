@@ -16,29 +16,18 @@ class SupervisorProcess extends WorkerProcess
 {
     /**
      * The name of the supervisor.
-     *
-     * @var string
      */
-    public $name;
-
-    /**
-     * The supervisor process options.
-     */
-    public SupervisorOptions $options;
+    public string $name;
 
     /**
      * Indicates if the process is "dead".
-     *
-     * @var bool
      */
-    public $dead = false;
+    public bool $dead = false;
 
     /**
      * The exit codes on which supervisor should be marked as dead.
-     *
-     * @var array
      */
-    public $dontRestartOn = [
+    public array $dontRestartOn = [
         0,
         2,
         13, // Indicates duplicate supervisors...
@@ -47,8 +36,11 @@ class SupervisorProcess extends WorkerProcess
     /**
      * Create a new supervisor process instance.
      */
-    public function __construct(SupervisorOptions $options, Process $process, ?Closure $output = null)
-    {
+    public function __construct(
+        public SupervisorOptions $options,
+        Process $process,
+        ?Closure $output = null
+    ) {
         $this->options = $options;
         $this->name = $options->name;
 
@@ -65,22 +57,24 @@ class SupervisorProcess extends WorkerProcess
     public function monitor(): void
     {
         if (! $this->process->isStarted()) {
-            return $this->restart();
+            $this->restart();
+            return;
         }
 
         // First, we will check to see if the supervisor failed as a duplicate and if
         // it did we will go ahead and mark it as dead. We will do this before the
         // other checks run because we do not care if this is cooling down here.
         if (! $this->process->isRunning()
-            && $this->process->getExitCode() === 13) {
-            return $this->markAsDead();
+            && $this->process->getExitCode() === 13
+        ) {
+            $this->markAsDead();
+            return;
         }
 
         // If the process is running or cooling down from a failure, we don't need to
         // attempt to do anything right now, so we can just bail out of the method
         // here and it will get checked out during the next master monitor loop.
-        if ($this->process->isRunning()
-            || $this->coolingDown()) {
+        if ($this->process->isRunning() || $this->coolingDown()) {
             return;
         }
 

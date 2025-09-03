@@ -4,16 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon;
 
-use Hypervel\Contracts\Redis\Factory as RedisFactory;
 use Hypervel\Horizon\Contracts\HorizonCommandQueue;
-use Hypervel\Redis\RedisConnection;
+use Hyperf\Redis\RedisFactory;
+use Hyperf\Redis\RedisProxy;
 
 class RedisHorizonCommandQueue implements HorizonCommandQueue
 {
     /**
      * Create a new command queue instance.
-     *
-     * @param RedisFactory $redis the Redis connection instance
      */
     public function __construct(
         public RedisFactory $redis
@@ -25,7 +23,7 @@ class RedisHorizonCommandQueue implements HorizonCommandQueue
      */
     public function push(string $name, string $command, array $options = []): void
     {
-        $this->connection()->rpush('commands:' . $name, json_encode([
+        $this->connection()->rPush('commands:' . $name, json_encode([
             'command' => $command,
             'options' => $options,
         ]));
@@ -36,16 +34,17 @@ class RedisHorizonCommandQueue implements HorizonCommandQueue
      */
     public function pending(string $name): array
     {
-        $length = $this->connection()->llen('commands:' . $name);
+        /** @var int */
+        $length = $this->connection()->lLen('commands:' . $name);
 
         if ($length < 1) {
             return [];
         }
 
         $results = $this->connection()->pipeline(function ($pipe) use ($name, $length) {
-            $pipe->lrange('commands:' . $name, 0, $length - 1);
+            $pipe->lRange('commands:' . $name, 0, $length - 1);
 
-            $pipe->ltrim('commands:' . $name, $length, -1);
+            $pipe->lTrim('commands:' . $name, $length, -1);
         });
 
         return collect($results[0])->map(function ($result) {
@@ -64,8 +63,8 @@ class RedisHorizonCommandQueue implements HorizonCommandQueue
     /**
      * Get the Redis connection instance.
      */
-    protected function connection(): RedisConnection
+    protected function connection(): RedisProxy
     {
-        return $this->redis->connection('horizon');
+        return $this->redis->get('horizon');
     }
 }
