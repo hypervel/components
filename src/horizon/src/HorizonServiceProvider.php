@@ -14,6 +14,7 @@ use Hypervel\Support\ServiceProvider;
 class HorizonServiceProvider extends ServiceProvider
 {
     use EventMap;
+    use ServiceBindings;
 
     /**
      * Bootstrap any application services.
@@ -23,6 +24,8 @@ class HorizonServiceProvider extends ServiceProvider
         $this->registerEvents();
         $this->registerRoutes();
         $this->registerResources();
+        $this->registerPublishing();
+        $this->registerCommands();
     }
 
     /**
@@ -46,12 +49,12 @@ class HorizonServiceProvider extends ServiceProvider
     {
         Route::group(
             config('horizon.path'),
-            fn () => $this->loadRoutesFrom(__DIR__ . '/../routes/web.php'),
+            __DIR__ . '/../routes/web.php',
             [
                 // not support domain setting
                 // 'domain' => config('horizon.domain', null),
-                'namespace' => 'Laravel\Horizon\Http\Controllers',
-                'middleware' => config('horizon.middleware', 'web'),
+                'namespace' => 'Hypervel\Horizon\Http\Controllers',
+                'middleware' => config('horizon.middleware', ['web']),
             ]
         );
     }
@@ -65,6 +68,48 @@ class HorizonServiceProvider extends ServiceProvider
     }
 
     /**
+     * Setup the resource publishing groups for Horizon.
+     */
+    protected function registerPublishing(): void
+    {
+        $this->publishes([
+            __DIR__ . '/../config/horizon.php' => config_path('horizon.php'),
+        ], 'horizon-config');
+
+        $this->publishes([
+            __DIR__ . '/../stubs/HorizonServiceProvider.stub' => app_path('Providers/HorizonServiceProvider.php'),
+        ], 'horizon-provider');
+    }
+
+    /**
+     * Register the Horizon Artisan commands.
+     */
+    protected function registerCommands(): void
+    {
+        $this->commands([
+                Console\ClearCommand::class,
+                Console\ClearMetricsCommand::class,
+                Console\ContinueCommand::class,
+                Console\ContinueSupervisorCommand::class,
+                Console\ForgetFailedCommand::class,
+                Console\HorizonCommand::class,
+                Console\InstallCommand::class,
+                Console\ListCommand::class,
+                Console\PauseCommand::class,
+                Console\PauseSupervisorCommand::class,
+                Console\PurgeCommand::class,
+                Console\SupervisorCommand::class,
+                Console\SupervisorStatusCommand::class,
+                Console\TerminateCommand::class,
+                Console\TimeoutCommand::class,
+                Console\WorkCommand::class,
+                Console\SnapshotCommand::class,
+                Console\StatusCommand::class,
+                Console\SupervisorsCommand::class,
+        ]);
+    }
+
+    /**
      * Register any application services.
      */
     public function register(): void
@@ -74,6 +119,7 @@ class HorizonServiceProvider extends ServiceProvider
         }
 
         $this->configure();
+        $this->registerServices();
         $this->registerQueueConnectors();
     }
 
@@ -88,6 +134,16 @@ class HorizonServiceProvider extends ServiceProvider
         );
 
         Horizon::use(config('horizon.use', 'default'));
+    }
+
+    /**
+     * Register Horizon's services in the container.
+     */
+    protected function registerServices(): void
+    {
+        foreach ($this->serviceBindings as $key => $value) {
+            $this->app->alias($value, $key);
+        }
     }
 
     /**
