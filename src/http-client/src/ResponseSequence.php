@@ -34,7 +34,7 @@ class ResponseSequence
     /**
      * Push a response to the sequence.
      */
-    public function push(null|array|string $body = null, int $status = 200, array $headers = []): static
+    public function push(array|string|null $body = null, int $status = 200, array $headers = []): static
     {
         return $this->pushResponse(
             Factory::response($body, $status, $headers)

@@ -9,7 +9,7 @@ if (! function_exists('context')) {
     /**
      * Get / set the specified context value in the current coroutine.
      */
-    function context(null|array|string $key = null, mixed $default = null, ?int $coroutineId = null): mixed
+    function context(array|string|null $key = null, mixed $default = null, ?int $coroutineId = null): mixed
     {
         return match (true) {
             is_null($key) => ApplicationContext::getContainer()->get(Context::class),

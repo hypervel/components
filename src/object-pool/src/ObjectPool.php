@@ -54,7 +54,7 @@ abstract class ObjectPool implements ObjectPoolContract
     /**
      * The last time the pool was recycled.
      */
-    protected null|DateTime|int $lastRecycledAt = null;
+    protected DateTime|int|null $lastRecycledAt = null;
 
     /**
      * Initialize the object pool with the given configuration.
@@ -313,7 +313,7 @@ abstract class ObjectPool implements ObjectPoolContract
     /**
      * Get the last time the pool was recycled.
      */
-    public function getLastRecycledAt(): null|DateTime|int
+    public function getLastRecycledAt(): DateTime|int|null
     {
         return $this->lastRecycledAt;
     }
@@ -321,7 +321,7 @@ abstract class ObjectPool implements ObjectPoolContract
     /**
      * Set the last time the pool was recycled.
      */
-    public function setLastRecycledAt(null|DateTime|int $lastRecycledAt): static
+    public function setLastRecycledAt(DateTime|int|null $lastRecycledAt): static
     {
         $this->lastRecycledAt = $lastRecycledAt;
 

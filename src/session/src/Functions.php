@@ -15,7 +15,7 @@ use RuntimeException;
  *
  * @return mixed|SessionContract
  */
-function session(null|array|string $key = null, mixed $default = null): mixed
+function session(array|string|null $key = null, mixed $default = null): mixed
 {
     $session = app(SessionContract::class);
 

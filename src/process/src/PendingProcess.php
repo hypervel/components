@@ -34,7 +34,7 @@ class PendingProcess
      *
      * @var null|array<array-key, string>|string
      */
-    public null|array|string $command = null;
+    public array|string|null $command = null;
 
     /**
      * The working directory of the process.
@@ -209,7 +209,7 @@ class PendingProcess
      * @throws \Hypervel\Process\Exceptions\ProcessTimedOutException
      * @throws RuntimeException
      */
-    public function run(null|array|string $command = null, ?callable $output = null): ProcessResultContract
+    public function run(array|string|null $command = null, ?callable $output = null): ProcessResultContract
     {
         $this->command = $command ?: $this->command;
 
@@ -234,7 +234,7 @@ class PendingProcess
      *
      * @throws RuntimeException
      */
-    public function start(null|array|string $command = null, ?callable $output = null): InvokedProcessContract
+    public function start(array|string|null $command = null, ?callable $output = null): InvokedProcessContract
     {
         $this->command = $command ?: $this->command;
 
@@ -255,7 +255,7 @@ class PendingProcess
     /**
      * Get a Symfony Process instance from the current pending command.
      */
-    protected function toSymfonyProcess(null|array|string $command): Process
+    protected function toSymfonyProcess(array|string|null $command): Process
     {
         $command = $command ?? $this->command;
 
