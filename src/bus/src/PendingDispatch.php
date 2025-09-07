@@ -30,7 +30,7 @@ class PendingDispatch
     /**
      * Set the desired connection for the job.
      */
-    public function onConnection(null|BackedEnum|string $connection): static
+    public function onConnection(BackedEnum|string|null $connection): static
     {
         $this->job->onConnection($connection);
 
@@ -40,7 +40,7 @@ class PendingDispatch
     /**
      * Set the desired queue for the job.
      */
-    public function onQueue(null|BackedEnum|string $queue): static
+    public function onQueue(BackedEnum|string|null $queue): static
     {
         $this->job->onQueue($queue);
 
@@ -50,7 +50,7 @@ class PendingDispatch
     /**
      * Set the desired connection for the chain.
      */
-    public function allOnConnection(null|BackedEnum|string $connection): static
+    public function allOnConnection(BackedEnum|string|null $connection): static
     {
         $this->job->allOnConnection($connection);
 
@@ -60,7 +60,7 @@ class PendingDispatch
     /**
      * Set the desired queue for the chain.
      */
-    public function allOnQueue(null|BackedEnum|string $queue): static
+    public function allOnQueue(BackedEnum|string|null $queue): static
     {
         $this->job->allOnQueue($queue);
 
@@ -70,7 +70,7 @@ class PendingDispatch
     /**
      * Set the desired delay in seconds for the job.
      */
-    public function delay(null|DateInterval|DateTimeInterface|int $delay): static
+    public function delay(DateInterval|DateTimeInterface|int|null $delay): static
     {
         $this->job->delay($delay);
 

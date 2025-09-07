@@ -400,7 +400,7 @@ class Gate implements GateContract
     /**
      * Resolve and call the appropriate authorization callback.
      */
-    protected function callAuthCallback(?Authenticatable $user, string $ability, array $arguments): null|bool|Response
+    protected function callAuthCallback(?Authenticatable $user, string $ability, array $arguments): bool|Response|null
     {
         $callback = $this->resolveAuthCallback($user, $ability, $arguments);
 
@@ -428,7 +428,7 @@ class Gate implements GateContract
     /**
      * Call all of the after callbacks with check result.
      */
-    protected function callAfterCallbacks(?Authenticatable $user, string $ability, array $arguments, null|bool|Response $result): null|bool|Response
+    protected function callAfterCallbacks(?Authenticatable $user, string $ability, array $arguments, bool|Response|null $result): bool|Response|null
     {
         foreach ($this->afterCallbacks as $after) {
             if (! $this->canBeCalledWithUser($user, $after)) {
@@ -446,7 +446,7 @@ class Gate implements GateContract
     /**
      * Dispatch a gate evaluation event.
      */
-    protected function dispatchGateEvaluatedEvent(?Authenticatable $user, string $ability, array $arguments, null|bool|Response $result): void
+    protected function dispatchGateEvaluatedEvent(?Authenticatable $user, string $ability, array $arguments, bool|Response|null $result): void
     {
         if (! $this->container->has(EventDispatcherInterface::class)) {
             return;

@@ -163,7 +163,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Store an item in the cache.
      */
-    public function put(array|string $key, mixed $value, null|DateInterval|DateTimeInterface|int $ttl = null): bool
+    public function put(array|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         if (is_array($key)) {
             return $this->putMany($key, $value);
@@ -190,7 +190,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Store an item in the cache.
      */
-    public function set(string $key, mixed $value, null|DateInterval|DateTimeInterface|int $ttl = null): bool
+    public function set(string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         return $this->put($key, $value, $ttl);
     }
@@ -198,7 +198,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Store multiple items in the cache for a given number of seconds.
      */
-    public function putMany(array $values, null|DateInterval|DateTimeInterface|int $ttl = null): bool
+    public function putMany(array $values, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         if ($ttl === null) {
             return $this->putManyForever($values);
@@ -221,7 +221,7 @@ class Repository implements ArrayAccess, CacheContract
         return $result;
     }
 
-    public function setMultiple(iterable $values, null|DateInterval|DateTimeInterface|int $ttl = null): bool
+    public function setMultiple(iterable $values, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         return $this->putMany(is_array($values) ? $values : iterator_to_array($values), $ttl);
     }
@@ -229,7 +229,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Store an item in the cache if the key does not exist.
      */
-    public function add(string $key, mixed $value, null|DateInterval|DateTimeInterface|int $ttl = null): bool
+    public function add(string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         $seconds = null;
 
@@ -300,7 +300,7 @@ class Repository implements ArrayAccess, CacheContract
      * @param Closure(): TCacheValue $callback
      * @return TCacheValue
      */
-    public function remember(string $key, null|DateInterval|DateTimeInterface|int $ttl, Closure $callback): mixed
+    public function remember(string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed
     {
         $value = $this->get($key);
 

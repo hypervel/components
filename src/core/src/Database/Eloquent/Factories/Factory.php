@@ -211,7 +211,7 @@ abstract class Factory
      * @param null|int|iterable<int, array<string, mixed>> $records
      * @return EloquentCollection<int, TModel>
      */
-    public function createMany(null|int|iterable $records = null): EloquentCollection
+    public function createMany(int|iterable|null $records = null): EloquentCollection
     {
         $records ??= ($this->count ?? 1);
 
@@ -234,7 +234,7 @@ abstract class Factory
      *
      * @return EloquentCollection<int, TModel>
      */
-    public function createManyQuietly(null|int|iterable $records = null): EloquentCollection
+    public function createManyQuietly(int|iterable|null $records = null): EloquentCollection
     {
         return Model::withoutEvents(fn () => $this->createMany($records));
     }
