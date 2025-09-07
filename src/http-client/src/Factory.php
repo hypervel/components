@@ -139,7 +139,7 @@ class Factory
      * Create a new response instance for use during stubbing.
      */
     public static function response(
-        null|array|callable|int|PromiseInterface|Response|string $body = null,
+        array|callable|int|PromiseInterface|Response|string|null $body = null,
         int $status = 200,
         array $headers = []
     ): PromiseInterface {
@@ -180,7 +180,7 @@ class Factory
     /**
      * Register a stub callable that will intercept requests and be able to return stub responses.
      */
-    public function fake(null|array|callable $callback = null): static
+    public function fake(array|callable|null $callback = null): static
     {
         $this->record();
 

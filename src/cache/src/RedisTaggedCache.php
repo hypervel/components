@@ -27,7 +27,7 @@ class RedisTaggedCache extends TaggedCache
     /**
      * Store an item in the cache if the key does not exist.
      */
-    public function add(string $key, mixed $value, null|DateInterval|DateTimeInterface|int $ttl = null): bool
+    public function add(string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         $this->tags->addEntry(
             $this->itemKey($key),
@@ -40,7 +40,7 @@ class RedisTaggedCache extends TaggedCache
     /**
      * Store an item in the cache.
      */
-    public function put(array|string $key, mixed $value, null|DateInterval|DateTimeInterface|int $ttl = null): bool
+    public function put(array|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         if (is_array($key)) {
             return $this->putMany($key, $value);

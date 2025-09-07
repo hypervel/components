@@ -117,7 +117,7 @@ class FormBuilder
      * @param array<int|string, string>|Collection<int|string, string> $options
      * @param string|true $required
      */
-    public function select(string $label, array|Collection $options, null|int|string $default = null, int $scroll = 5, mixed $validate = null, string $hint = '', bool|string $required = true, ?string $name = null, ?Closure $transform = null): self
+    public function select(string $label, array|Collection $options, int|string|null $default = null, int $scroll = 5, mixed $validate = null, string $hint = '', bool|string $required = true, ?string $name = null, ?Closure $transform = null): self
     {
         return $this->runPrompt(select(...), get_defined_vars());
     }
@@ -252,7 +252,7 @@ class FormBuilder
      * @param array<int, array<int, string>|string>|Collection<int, array<int, string>|string> $headers
      * @param array<int, array<int, string>>|Collection<int, array<int, string>> $rows
      */
-    public function table(array|Collection $headers = [], null|array|Collection $rows = null, ?string $name = null): self
+    public function table(array|Collection $headers = [], array|Collection|null $rows = null, ?string $name = null): self
     {
         return $this->runPrompt(table(...), get_defined_vars(), true);
     }

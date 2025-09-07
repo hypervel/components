@@ -72,7 +72,7 @@ class QueueFake extends QueueManager implements Fake, Queue
     /**
      * Assert if a job was pushed based on a truth-test callback.
      */
-    public function assertPushed(Closure|string $job, null|callable|int $callback = null): void
+    public function assertPushed(Closure|string $job, callable|int|null $callback = null): void
     {
         if ($job instanceof Closure) {
             [$job, $callback] = [$this->firstClosureParameterType($job), $job];
@@ -189,7 +189,7 @@ class QueueFake extends QueueManager implements Fake, Queue
     /**
      * Assert if a closure was pushed based on a truth-test callback.
      */
-    public function assertClosurePushed(null|callable|int $callback = null): void
+    public function assertClosurePushed(callable|int|null $callback = null): void
     {
         $this->assertPushed(CallQueuedClosure::class, $callback);
     }

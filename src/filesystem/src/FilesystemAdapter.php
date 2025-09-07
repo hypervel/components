@@ -339,7 +339,7 @@ class FilesystemAdapter implements CloudFilesystemContract
     /**
      * Store the uploaded file on the disk.
      */
-    public function putFile(string|UploadedFile $path, null|array|string|UploadedFile $file = null, mixed $options = []): false|string
+    public function putFile(string|UploadedFile $path, array|string|UploadedFile|null $file = null, mixed $options = []): false|string
     {
         if (is_null($file) || is_array($file)) {
             [$path, $file, $options] = ['', $path, $file ?? []];
@@ -362,7 +362,7 @@ class FilesystemAdapter implements CloudFilesystemContract
     /**
      * Store the uploaded file on the disk with a given name.
      */
-    public function putFileAs(string|UploadedFile $path, null|array|string|UploadedFile $file, null|array|string $name = null, mixed $options = []): false|string
+    public function putFileAs(string|UploadedFile $path, array|string|UploadedFile|null $file, array|string|null $name = null, mixed $options = []): false|string
     {
         if (is_null($name) || is_array($name)) {
             [$path, $file, $name, $options] = ['', $path, $file, $name ?? []];

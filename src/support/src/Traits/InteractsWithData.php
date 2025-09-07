@@ -295,7 +295,7 @@ trait InteractsWithData
     /**
      * Retrieve data from the instance as an array.
      */
-    public function array(null|array|string $key = null): array
+    public function array(array|string|null $key = null): array
     {
         return (array) (is_array($key) ? $this->only($key) : $this->data($key));
     }
@@ -303,7 +303,7 @@ trait InteractsWithData
     /**
      * Retrieve data from the instance as a collection.
      */
-    public function collect(null|array|string $key = null): Collection
+    public function collect(array|string|null $key = null): Collection
     {
         return new Collection(is_array($key) ? $this->only($key) : $this->data($key));
     }
