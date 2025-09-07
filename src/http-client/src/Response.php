@@ -86,7 +86,7 @@ class Response implements ArrayAccess, Stringable
      *
      *  This method will return an array of objects.
      */
-    public function object(): null|array|object
+    public function object(): array|object|null
     {
         return json_decode($this->body(), false);
     }

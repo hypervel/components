@@ -70,7 +70,7 @@ class PendingRequest
     /**
      * The raw body for the request.
      */
-    protected null|StreamInterface|string $pendingBody = null;
+    protected StreamInterface|string|null $pendingBody = null;
 
     /**
      * The pending files for the request.
@@ -625,7 +625,7 @@ class PendingRequest
      *
      * @throws ConnectionException
      */
-    public function get(string $url, null|array|JsonSerializable|string $query = null): PromiseInterface|Response
+    public function get(string $url, array|JsonSerializable|string|null $query = null): PromiseInterface|Response
     {
         return $this->send(
             'GET',
@@ -641,7 +641,7 @@ class PendingRequest
      *
      * @throws ConnectionException
      */
-    public function head(string $url, null|array|string $query = null): PromiseInterface|Response
+    public function head(string $url, array|string|null $query = null): PromiseInterface|Response
     {
         return $this->send(
             'HEAD',

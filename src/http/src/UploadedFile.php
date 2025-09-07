@@ -305,7 +305,7 @@ class UploadedFile extends HyperfUploadedFile
     /**
      * Store the uploaded file on a filesystem disk.
      */
-    public function storeAs(string $path, null|array|string $name = null, array|string $options = []): false|string
+    public function storeAs(string $path, array|string|null $name = null, array|string $options = []): false|string
     {
         if (is_null($name) || is_array($name)) {
             [$path, $name, $options] = ['', $path, $name ?? []];
