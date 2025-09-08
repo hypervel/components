@@ -116,6 +116,7 @@ class VerifyCsrfToken implements MiddlewareInterface
     protected function getTokenFromRequest(): ?string
     {
         return $this->request->input('_token')
+            ?? $this->request->header('X-XSRF-TOKEN')
             ?? $this->request->header('X-CSRF-TOKEN')
             ?? null;
     }
