@@ -179,7 +179,7 @@ class ThrottleRequests implements MiddlewareInterface
     protected function resolveRequestSignature(): string
     {
         if ($user = $this->user()) {
-            return $this->formatIdentifier($user->getAuthIdentifier());
+            return $this->formatIdentifier((string) $user->getAuthIdentifier());
         }
 
         $domain = $this->domain();
@@ -210,8 +210,8 @@ class ThrottleRequests implements MiddlewareInterface
         );
 
         return is_callable($responseCallback)
-                    ? new HttpResponseException($responseCallback($request, $headers))
-                    : new ThrottleRequestsException('Too Many Attempts.', headers: $headers);
+            ? new HttpResponseException($responseCallback($request, $headers))
+            : new ThrottleRequestsException('Too Many Attempts.', headers: $headers);
     }
 
     /**
