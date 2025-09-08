@@ -111,10 +111,9 @@ class Redis
             ? Context::get($this->getContextKey())
             : null;
 
-        if (! $connection instanceof RedisConnection) {
-            $pool = $this->factory->getPool($this->poolName);
-            $connection = $pool->get();
-        }
+        $connection = $connection
+            ?: $this->factory->getPool($this->poolName)->get();
+
         if (! $connection instanceof RedisConnection) {
             throw new InvalidRedisConnectionException('The connection is not a valid RedisConnection.');
         }
