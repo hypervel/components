@@ -28,6 +28,7 @@ class Redis
         $hasContextConnection = Context::has($this->getContextKey());
         $connection = $this->getConnection($hasContextConnection);
 
+        $hasError = false;
         $start = (float) microtime(true);
 
         try {
@@ -35,6 +36,7 @@ class Redis
             $connection = $connection->getConnection();
             $result = $connection->{$name}(...$arguments);
         } catch (Throwable $exception) {
+            $hasError = true;
             throw $exception;
         } finally {
             $time = round((microtime(true) - $start) * 1000, 2);
@@ -51,7 +53,7 @@ class Redis
             );
 
             if ($hasContextConnection) {
-                return;
+                return $hasError ? null : $result; // @phpstan-ignore-line
             }
 
             // Release connection.
@@ -65,7 +67,7 @@ class Redis
                     $this->releaseContextConnection();
                 });
 
-                return;
+                return $hasError ? null : $result; // @phpstan-ignore-line
             }
 
             // Release the connection after command executed.
