@@ -64,7 +64,8 @@
             "Hypervel\\Testbench\\": "src/testbench/src/",
             "Hypervel\\Translation\\": "src/translation/src/",
             "Hypervel\\Validation\\": "src/validation/src/",
-            "Hypervel\\Permission\\": "src/permission/src/"
+            "Hypervel\\Permission\\": "src/permission/src/",
+            "Hypervel\\Sentry\\": "src/sentry/src/"
         },
         "files": [
             "src/auth/src/Functions.php",
@@ -105,6 +106,7 @@
         "egulias/email-validator": "^3.2.5|^4.0",
         "friendsofhyperf/command-signals": "~3.1.0",
         "friendsofhyperf/pretty-console": "~3.1.0",
+        "friendsofhyperf/sentry": "^3.1",
         "guzzlehttp/guzzle": "^7.8.2",
         "guzzlehttp/uri-template": "^1.0",
         "hyperf/cache": "~3.1.0",
@@ -176,7 +178,8 @@
         "hypervel/testbench": "self.version",
         "hypervel/translation": "self.version",
         "hypervel/validation": "self.version",
-        "hypervel/permission": "self.version"
+        "hypervel/permission": "self.version",
+        "hypervel/sentry": "self.version"
     },
     "suggest": {
         "hyperf/redis": "Required to use redis driver. (^3.1).",
@@ -247,13 +250,15 @@
                 "Hypervel\\Socialite\\ConfigProvider",
                 "Hypervel\\Telescope\\ConfigProvider",
                 "Hypervel\\Validation\\ConfigProvider",
-                "Hypervel\\Permission\\ConfigProvider"
+                "Hypervel\\Permission\\ConfigProvider",
+                "Hypervel\\Sentry\\ConfigProvider"
             ]
         },
         "hypervel": {
             "providers": [
                 "Hypervel\\Notifications\\NotificationServiceProvider",
-                "Hypervel\\Telescope\\TelescopeServiceProvider"
+                "Hypervel\\Telescope\\TelescopeServiceProvider",
+                "Hypervel\\Sentry\\SentryServiceProvider"
             ]
         },
         "branch-alias": {

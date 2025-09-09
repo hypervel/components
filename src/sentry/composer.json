@@ -1,0 +1,53 @@
+{
+    "name": "hypervel/sentry",
+    "type": "library",
+    "description": "The sentry component for Hypervel framework.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "hyperf",
+        "hypervel",
+        "sentry",
+        "error-tracking"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Sentry\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.2",
+        "friendsofhyperf/sentry": "v3.1.67.15",
+        "hypervel/cache": "^0.3",
+        "hypervel/console": "^0.3",
+        "hypervel/core": "^0.3",
+        "hypervel/object-pool": "^0.3",
+        "hypervel/support": "^0.3"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.3-dev"
+        },
+        "hyperf": {
+            "config": "Hypervel\\Sentry\\ConfigProvider"
+        },
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Sentry\\SentryServiceProvider"
+            ]
+        }
+    }
+}
