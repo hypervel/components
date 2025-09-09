@@ -53,7 +53,7 @@ class Redis
             );
 
             if ($hasContextConnection) {
-                return $hasError ? null : $result;
+                return $hasError ? null : $result; // @phpstan-ignore-line
             }
 
             // Release connection.
@@ -67,7 +67,7 @@ class Redis
                     $this->releaseContextConnection();
                 });
 
-                return $hasError ? null : $result;
+                return $hasError ? null : $result; // @phpstan-ignore-line
             }
 
             // Release the connection after command executed.
