@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use DateTime;
 use Hypervel\Support\DataObject;
 use Hypervel\Support\Str;
 use LogicException;
@@ -202,6 +203,103 @@ class DataObjectTest extends TestCase
         $this->assertSame('nested', $decoded['object_value']['string_value']);
     }
 
+    /**
+     * Test autoResolve = false (default behavior).
+     */
+    public function testMakeWithoutAutoResolve(): void
+    {
+        $data = [
+            'name' => 'John Doe',
+            'address' => [
+                'street' => '123 Main St',
+                'city' => 'New York',
+                'zipCode' => '10001',
+            ],
+            'created_at' => '2023-01-01 12:00:00',
+        ];
+
+        $user = TestUserDataObject::make($data, false);
+
+        $this->assertSame('John Doe', $user->name);
+        $this->assertIsArray($user->address);
+        $this->assertSame(['street' => '123 Main St', 'city' => 'New York', 'zipCode' => '10001'], $user->address);
+        $this->assertIsString($user->createdAt);
+        $this->assertSame('2023-01-01 12:00:00', $user->createdAt);
+    }
+
+    /**
+     * Test autoResolve = true with nested DataObject conversion.
+     */
+    public function testMakeWithAutoResolveDataObject(): void
+    {
+        $data = [
+            'name' => 'John Doe',
+            'address' => [
+                'street' => '123 Main St',
+                'city' => 'New York',
+                'zip_code' => '10001',
+            ],
+            'created_at' => '2023-01-01 12:00:00',
+        ];
+
+        $user = TestUserDataObject::make($data, true);
+
+        $this->assertSame('John Doe', $user->name);
+        $this->assertInstanceOf(TestAddressDataObject::class, $user->address);
+        $this->assertSame('123 Main St', $user->address->street);
+        $this->assertSame('New York', $user->address->city);
+        $this->assertSame('10001', $user->address->zipCode);
+        $this->assertInstanceOf(DateTime::class, $user->createdAt);
+        $this->assertSame('2023-01-01 12:00:00', $user->createdAt->format('Y-m-d H:i:s'));
+    }
+
+    /**
+     * Test autoResolve with deep nesting.
+     */
+    public function testMakeWithAutoResolveDeepNesting(): void
+    {
+        $data = [
+            'name' => 'Company Inc',
+            'employee' => [
+                'name' => 'Jane Smith',
+                'address' => [
+                    'street' => '456 Oak Ave',
+                    'city' => 'Boston',
+                    'zip_code' => '02101',
+                ],
+                'created_at' => '2023-06-15 09:30:00',
+            ],
+        ];
+
+        $company = TestCompanyDataObject::make($data, true);
+
+        $this->assertSame('Company Inc', $company->name);
+        $this->assertInstanceOf(TestUserDataObject::class, $company->employee);
+        $this->assertSame('Jane Smith', $company->employee->name);
+        $this->assertInstanceOf(TestAddressDataObject::class, $company->employee->address);
+        $this->assertSame('456 Oak Ave', $company->employee->address->street);
+        $this->assertSame('Boston', $company->employee->address->city);
+        $this->assertInstanceOf(DateTime::class, $company->employee->createdAt);
+    }
+
+    /**
+     * Test autoResolve with null values.
+     */
+    public function testMakeWithAutoResolveNullValues(): void
+    {
+        $data = [
+            'name' => 'John Doe',
+            'address' => null,
+            'created_at' => null,
+        ];
+
+        $user = TestUserDataObject::make($data, true);
+
+        $this->assertSame('John Doe', $user->name);
+        $this->assertNull($user->address);
+        $this->assertNull($user->createdAt);
+    }
+
     protected function getData(): array
     {
         return [
@@ -245,20 +343,58 @@ class TestOverrideDataObject extends DataObject
     }
 
     /**
-     * Convert the parameter name to the data key format.
+     * Convert the property name to the data key format.
      * It converts camelCase to snake_case by default.
      */
-    protected static function convertDataKeyToProperty(string $input): string
+    public static function convertPropertyToDataKey(string $input): string
     {
         return Str::camel($input);
     }
 
     /**
-     * Convert the property name to the data key format.
+     * Convert the data key to the property name format.
      * It converts snake_case to camelCase by default.
      */
-    protected static function convertPropertyToDataKey(string $input): string
+    public static function convertDataKeyToProperty(string $input): string
     {
         return Str::snake($input);
+    }
+}
+
+/**
+ * Test DataObject for address.
+ */
+class TestAddressDataObject extends DataObject
+{
+    public function __construct(
+        public string $street,
+        public string $city,
+        public string $zipCode,
+    ) {
+    }
+}
+
+/**
+ * Test DataObject for user with nested address and DateTime.
+ */
+class TestUserDataObject extends DataObject
+{
+    public function __construct(
+        public string $name,
+        public TestAddressDataObject|array|null $address,
+        public DateTime|string|null $createdAt,
+    ) {
+    }
+}
+
+/**
+ * Test DataObject for company with nested user.
+ */
+class TestCompanyDataObject extends DataObject
+{
+    public function __construct(
+        public string $name,
+        public TestUserDataObject|array $employee,
+    ) {
     }
 }
