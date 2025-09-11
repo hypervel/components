@@ -18,7 +18,7 @@ trait HasAttributes
     /**
      * The cache of the casts.
      */
-    protected static ?array $castsCache = null;
+    protected static array $castsCache = [];
 
     /**
      * Resolve the custom caster class for a given key.
@@ -26,7 +26,7 @@ trait HasAttributes
     protected function resolveCasterClass(string $key): CastsAttributes|CastsInboundAttributes
     {
         $castType = $this->getCasts()[$key];
-        if ($caster = static::$casterCache[$castType] ?? null) {
+        if ($caster = static::$casterCache[static::class][$castType] ?? null) {
             return $caster;
         }
 
@@ -45,10 +45,10 @@ trait HasAttributes
         }
 
         if (is_object($castClass)) {
-            return static::$casterCache[$castType] = $castClass;
+            return static::$casterCache[static::class][$castType] = $castClass;
         }
 
-        return static::$casterCache[$castType] = new $castClass(...$arguments);
+        return static::$casterCache[static::class][$castType] = new $castClass(...$arguments);
     }
 
     /**
@@ -56,15 +56,15 @@ trait HasAttributes
      */
     public function getCasts(): array
     {
-        if (! is_null(static::$castsCache)) {
-            return static::$castsCache;
+        if (! is_null($cache = static::$castsCache[static::class] ?? null)) {
+            return $cache;
         }
 
         if ($this->getIncrementing()) {
-            return static::$castsCache = array_merge([$this->getKeyName() => $this->getKeyType()], $this->casts, $this->casts());
+            return static::$castsCache[static::class] = array_merge([$this->getKeyName() => $this->getKeyType()], $this->casts, $this->casts());
         }
 
-        return static::$castsCache = $this->casts;
+        return static::$castsCache[static::class] = $this->casts;
     }
 
     /**
