@@ -7,6 +7,7 @@ namespace Hypervel\Config;
 use Hyperf\Collection\Arr;
 use Hyperf\Config\ProviderConfig as HyperfProviderConfig;
 use Hyperf\Support\Composer;
+use Hypervel\Support\ServiceProvider;
 use Throwable;
 
 /**
@@ -49,6 +50,27 @@ class ProviderConfig extends HyperfProviderConfig
         return static::$providerConfigs = static::loadProviders(
             Arr::flatten($providers)
         );
+    }
+
+    protected static function loadProviders(array $providers): array
+    {
+        $providerConfigs = [];
+        foreach ($providers as $provider) {
+            if (! is_string($provider) || ! class_exists($provider)) {
+                continue;
+            }
+            if (is_subclass_of($provider, ServiceProvider::class)
+                && $providerConfig = $provider::getProviderConfig()
+            ) {
+                $providerConfigs[] = $providerConfig;
+                continue;
+            }
+            if (method_exists($provider, '__invoke')) {
+                $providerConfigs[] = (new $provider())();
+            }
+        }
+
+        return static::merge(...$providerConfigs);
     }
 
     protected static function packagesToIgnore(): array
