@@ -565,7 +565,10 @@ class Application extends Container implements ApplicationContract
                 \Hypervel\Event\Contracts\Dispatcher::class,
             ],
             \Hyperf\HttpServer\Router\DispatcherFactory::class => ['router'],
-            \Psr\Log\LoggerInterface::class => ['log'],
+            \Psr\Log\LoggerInterface::class => [
+                'log',
+                \Hypervel\Log\LogManager::class,
+            ],
             \Hypervel\Encryption\Contracts\Encrypter::class => [
                 'encrypter',
                 \Hypervel\Encryption\Encrypter::class,
