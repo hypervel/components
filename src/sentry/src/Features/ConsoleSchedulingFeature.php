@@ -113,7 +113,8 @@ class ConsoleSchedulingFeature extends Feature
 
     public function isApplicable(): bool
     {
-        return true;
+        return $this->switcher->isTracingEnable('console_scheduling')
+            || $this->switcher->isBreadcrumbEnable('console_scheduling');
     }
 
     public function onBoot(): void
@@ -313,7 +314,7 @@ class ConsoleSchedulingFeature extends Feature
 
     private function getCommandNameForScheduled(SchedulingEvent $scheduled): ?string
     {
-        if (! $scheduled->command) {
+        if (empty($scheduled->command)) {
             return null;
         }
 

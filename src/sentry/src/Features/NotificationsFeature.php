@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Features;
 
-use FriendsOfHyperf\Sentry\Integration;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Event\Contracts\Dispatcher;
 use Hypervel\Notifications\Events\NotificationSending;
 use Hypervel\Notifications\Events\NotificationSent;
+use Hypervel\Sentry\Integrations\Integration;
 use Hypervel\Sentry\Traits\TracksPushedScopesAndSpans;
 use Sentry\Breadcrumb;
 use Sentry\SentrySdk;
@@ -19,18 +19,18 @@ class NotificationsFeature extends Feature
 {
     use TracksPushedScopesAndSpans;
 
-    protected const FEATURE_KEY = 'notification';
+    protected const FEATURE_KEY = 'notifications';
 
     public function isApplicable(): bool
     {
-        return $this->isTracingFeatureEnabled(static::FEATURE_KEY)
-            || $this->isBreadcrumbFeatureEnabled(static::FEATURE_KEY);
+        return $this->switcher->isTracingEnable(static::FEATURE_KEY)
+            || $this->switcher->isBreadcrumbEnable(static::FEATURE_KEY);
     }
 
     public function onBoot(): void
     {
         $dispatcher = $this->container->get(Dispatcher::class);
-        if ($this->isTracingFeatureEnabled(static::FEATURE_KEY)) {
+        if ($this->switcher->isTracingEnable(static::FEATURE_KEY)) {
             $dispatcher->listen(NotificationSending::class, [$this, 'handleNotificationSending']);
         }
 
@@ -64,7 +64,7 @@ class NotificationsFeature extends Feature
     {
         $this->maybeFinishSpan(SpanStatus::ok());
 
-        if ($this->isBreadcrumbFeatureEnabled(static::FEATURE_KEY)) {
+        if ($this->switcher->isBreadcrumbEnable(static::FEATURE_KEY)) {
             Integration::addBreadcrumb(
                 new Breadcrumb(
                     Breadcrumb::LEVEL_INFO,

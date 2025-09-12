@@ -6,26 +6,13 @@ namespace Hypervel\Sentry\Features;
 
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Foundation\Application;
+use Hypervel\Sentry\Switcher;
 use Sentry\SentrySdk;
 use Throwable;
 
 abstract class Feature
 {
-    /**
-     * In-memory cache for the tracing feature flag.
-     *
-     * @var array<string, bool>
-     */
-    protected array $isTracingFeatureEnabled = [];
-
-    /**
-     * In-memory cache for the breadcrumb feature flag.
-     *
-     * @var array<string, bool>
-     */
-    protected array $isBreadcrumbFeatureEnabled = [];
-
-    public function __construct(protected Application $container)
+    public function __construct(protected Application $container, protected Switcher $switcher)
     {
     }
 
@@ -80,7 +67,7 @@ abstract class Feature
     }
 
     /**
-     * Retrieve the Laravel application container.
+     * Retrieve the Hypervel application container.
      */
     protected function container(): Application
     {
@@ -109,40 +96,5 @@ abstract class Feature
         }
 
         return $client->getOptions()->shouldSendDefaultPii();
-    }
-
-    /**
-     * Indicates if the given feature is enabled for tracing.
-     */
-    protected function isTracingFeatureEnabled(string $feature, bool $default = true): bool
-    {
-        return true;
-        if (! array_key_exists($feature, $this->isTracingFeatureEnabled)) {
-            $this->isTracingFeatureEnabled[$feature] = $this->isFeatureEnabled('tracing', $feature, $default);
-        }
-
-        return $this->isTracingFeatureEnabled[$feature];
-    }
-
-    /**
-     * Indicates if the given feature is enabled for breadcrumbs.
-     */
-    protected function isBreadcrumbFeatureEnabled(string $feature, bool $default = true): bool
-    {
-        if (! array_key_exists($feature, $this->isBreadcrumbFeatureEnabled)) {
-            $this->isBreadcrumbFeatureEnabled[$feature] = $this->isFeatureEnabled('breadcrumbs', $feature, $default);
-        }
-
-        return $this->isBreadcrumbFeatureEnabled[$feature];
-    }
-
-    /**
-     * Helper to test if a certain feature is enabled in the user config.
-     */
-    private function isFeatureEnabled(string $category, string $feature, bool $default): bool
-    {
-        $config = $this->getUserConfig()[$category] ?? [];
-
-        return ($config[$feature] ?? $default) === true;
     }
 }
