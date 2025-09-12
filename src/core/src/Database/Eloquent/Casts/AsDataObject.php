@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Database\Eloquent\Concerns;
+namespace Hypervel\Database\Eloquent\Casts;
 
 use Hyperf\Contract\CastsAttributes;
 use Hypervel\Support\DataObject;
