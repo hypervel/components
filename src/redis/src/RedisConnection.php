@@ -413,6 +413,14 @@ class RedisConnection extends HyperfRedisConnection
     }
 
     /**
+     * Evaluate a script and return its result.
+     */
+    protected function callEval(string $script, int $numberOfKeys, mixed ...$arguments): mixed
+    {
+        return $this->connection->eval($script, $arguments, $numberOfKeys);
+    }
+
+    /**
      * Evaluate a LUA script serverside, from the SHA1 hash of the script instead of the script itself.
      */
     protected function callEvalsha(string $script, int $numkeys, mixed ...$arguments): mixed
