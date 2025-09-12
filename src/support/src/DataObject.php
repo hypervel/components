@@ -517,4 +517,14 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
     {
         return $this->toArray();
     }
+
+    /**
+     * Return a refreshed instance of the object with cleared cache.
+     */
+    public function refresh(): static
+    {
+        $this->arrayCache = [];
+
+        return $this;
+    }
 }
