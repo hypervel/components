@@ -237,6 +237,9 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
 
         $result = [];
         foreach ($properties as $property) {
+            if ($property->isStatic()) {
+                continue;
+            }
             $propertyType = $property->getType();
             $allowsNull = $propertyType->allowsNull();
             if ($propertyType instanceof ReflectionUnionType) {
