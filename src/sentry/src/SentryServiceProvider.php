@@ -5,12 +5,19 @@ declare(strict_types=1);
 namespace Hypervel\Sentry;
 
 use Hyperf\Contract\ConfigInterface;
+use Hypervel\Sentry\Commands\AboutCommand;
+use Hypervel\Sentry\Commands\TestCommand;
+use Hypervel\Sentry\Factory\ClientBuilderFactory;
+use Hypervel\Sentry\Factory\HubFactory;
 use Hypervel\Sentry\Features\Feature;
+use Hypervel\Sentry\HttpClient\HttpClientFactory;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use Hypervel\Sentry\Transport\Pool;
 use Hypervel\Support\ServiceProvider;
 use Sentry\ClientBuilder;
 use Sentry\ClientInterface;
+use Sentry\HttpClient\HttpClientInterface;
+use Sentry\State\HubInterface;
 use Throwable;
 
 class SentryServiceProvider extends ServiceProvider
@@ -18,6 +25,8 @@ class SentryServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->bootFeatures();
+        $this->registerPublishing();
+        $this->registerCommands();
     }
 
     public function register(): void
@@ -40,16 +49,38 @@ class SentryServiceProvider extends ServiceProvider
                 ->getClient();
         });
 
+        $this->app->bind(ClientBuilder::class, ClientBuilderFactory::class);
+        $this->app->bind(HubInterface::class, HubFactory::class);
+        $this->app->bind(HttpClientInterface::class, HttpClientFactory::class);
         $this->registerFeatures();
+    }
+
+    /**
+     * Register the package's publishable resources.
+     */
+    protected function registerPublishing(): void
+    {
+        $this->publishes([
+            __DIR__ . '/../config/sentry.php' => config_path('sentry.php'),
+        ], 'sentry-config');
+    }
+
+    /**
+     * Register the package's commands.
+     */
+    protected function registerCommands(): void
+    {
+        $this->commands([
+            AboutCommand::class,
+            TestCommand::class,
+        ]);
     }
 
     protected function registerFeatures(): void
     {
         $features = $this->app->get(ConfigInterface::class)->get('sentry.features', []);
         foreach ($features as $feature) {
-            $this->app->bind($feature, function () use ($feature) {
-                return new $feature($this->app);
-            });
+            $this->app->bind($feature, $feature);
         }
 
         foreach ($features as $feature) {

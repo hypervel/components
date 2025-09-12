@@ -27,12 +27,12 @@
     },
     "require": {
         "php": "^8.2",
-        "friendsofhyperf/sentry": "v3.1.67.15",
         "hypervel/cache": "^0.3",
         "hypervel/console": "^0.3",
         "hypervel/core": "^0.3",
         "hypervel/object-pool": "^0.3",
-        "hypervel/support": "^0.3"
+        "hypervel/support": "^0.3",
+        "sentry/sentry": "^4.15.0"
     },
     "config": {
         "sort-packages": true

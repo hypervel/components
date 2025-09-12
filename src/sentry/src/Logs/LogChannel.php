@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Sentry\LogAggregator;
+namespace Hypervel\Sentry\Logs;
 
 use Hypervel\Log\LogManager;
 use Monolog\Logger;
+use Sentry\Monolog\LogsHandler;
 
 class LogChannel extends LogManager
 {

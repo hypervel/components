@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Sentry\LogAggregator;
+namespace Hypervel\Sentry\Logs;
 
 use Monolog\Formatter\FormatterInterface;
 use Monolog\Formatter\LineFormatter;

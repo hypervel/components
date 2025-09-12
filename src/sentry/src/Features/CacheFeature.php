@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Features;
 
-use FriendsOfHyperf\Sentry\Integration;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\KeyForgotten;
 use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Sentry\Integrations\Integration;
 use Hypervel\Sentry\Traits\TracksPushedScopesAndSpans;
 use Sentry\Breadcrumb;
 use Sentry\Tracing\SpanStatus;
@@ -22,15 +22,15 @@ class CacheFeature extends Feature
 
     public function isApplicable(): bool
     {
-        return $this->isTracingFeatureEnabled(static::FEATURE_KEY)
-            || $this->isBreadcrumbFeatureEnabled(static::FEATURE_KEY);
+        return $this->switcher->isTracingEnable(static::FEATURE_KEY)
+            || $this->switcher->isBreadcrumbEnable(static::FEATURE_KEY);
     }
 
     public function onBoot(): void
     {
         /** @var Dispatcher $dispatcher */
         $dispatcher = $this->container->get(Dispatcher::class);
-        if ($this->isBreadcrumbFeatureEnabled(static::FEATURE_KEY)) {
+        if ($this->switcher->isBreadcrumbEnable(static::FEATURE_KEY)) {
             $dispatcher->listen([
                 CacheHit::class,
                 CacheMissed::class,
@@ -39,7 +39,7 @@ class CacheFeature extends Feature
             ], [$this, 'handleCacheEventsForBreadcrumbs']);
         }
 
-        if ($this->isTracingFeatureEnabled(static::FEATURE_KEY)) {
+        if ($this->switcher->isTracingEnable(static::FEATURE_KEY)) {
             $dispatcher->listen([
                 CacheHit::class,
                 CacheMissed::class,
@@ -70,7 +70,6 @@ class CacheFeature extends Feature
 
     public function handleCacheEventsForTracing(CacheHit|CacheMissed|KeyForgotten|KeyWritten $event): void
     {
-        // End of span for RetrievingKey and RetrievingManyKeys events
         if ($event instanceof CacheHit || $event instanceof CacheMissed) {
             $finishedSpan = $this->maybeFinishSpan(SpanStatus::ok());
 
@@ -83,7 +82,6 @@ class CacheFeature extends Feature
             return;
         }
 
-        // End of span for WritingKey and WritingManyKeys events
         if ($event instanceof KeyWritten) {
             $finishedSpan = $this->maybeFinishSpan(SpanStatus::ok());
 

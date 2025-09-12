@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Factory;
 
-use FriendsOfHyperf\Sentry\Integration;
-use FriendsOfHyperf\Sentry\Integration\RequestFetcher;
-use FriendsOfHyperf\Sentry\Version;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Foundation\Contracts\Application;
+use Hypervel\Sentry\Integrations\ExceptionContextIntegration;
+use Hypervel\Sentry\Integrations\Integration;
+use Hypervel\Sentry\Integrations\RequestFetcher;
+use Hypervel\Sentry\Integrations\RequestIntegration;
+use Hypervel\Sentry\Version;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Sentry\ClientBuilder;
@@ -138,8 +140,8 @@ class ClientBuilderFactory
                     $integrations,
                     [
                         new Integration(),
-                        new Integration\ExceptionContextIntegration(),
-                        new Integration\RequestIntegration(),
+                        new ExceptionContextIntegration(),
+                        new RequestIntegration(),
                     ],
                     $userIntegrations
                 );

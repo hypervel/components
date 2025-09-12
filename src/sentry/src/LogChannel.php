@@ -2,19 +2,18 @@
 
 namespace Hypervel\Sentry;
 
-use FriendsOfHyperf\Sentry\SentryHandler;
 use Hypervel\Log\LogManager;
 use Monolog\Logger;
+use Sentry\Monolog\Handler;
+use Sentry\SentrySdk;
 
 class LogChannel extends LogManager
 {
     public function __invoke(array $config = []): Logger
     {
-        $handler = new SentryHandler(
+        $handler = new Handler(
+            SentrySdk::getCurrentHub(),
             $config['level'] ?? Logger::DEBUG,
-            $config['bubble'] ?? true,
-            $config['report_exceptions'] ?? true,
-            isset($config['formatter']) && $config['formatter'] !== 'default'
         );
 
         return new Logger(
