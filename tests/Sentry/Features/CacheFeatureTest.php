@@ -14,7 +14,7 @@ use Hypervel\Tests\Sentry\SentryTestCase;
  * @internal
  * @coversNothing
  */
-class CacheFeatureSentryTest extends SentryTestCase
+class CacheFeatureTest extends SentryTestCase
 {
     use RunTestsInCoroutine;
 
