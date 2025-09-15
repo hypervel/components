@@ -9,7 +9,6 @@ use Hypervel\Sentry\Features\CacheFeature;
 use Hypervel\Session\Contracts\Session as SessionContract;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Tests\Sentry\SentryTestCase;
-use Sentry\SentrySdk;
 
 /**
  * @internal
