@@ -28,9 +28,7 @@ use Sentry\Tracing\TransactionContext;
  */
 class SentryTestCase extends \Hypervel\Testbench\TestCase
 {
-    protected ?ApplicationContract $app = null;
-
-    private static bool $hasSetupGlobalEventProcessor = false;
+    protected static bool $hasSetupGlobalEventProcessor = false;
 
     protected array $setupConfig = [];
 
@@ -76,12 +74,6 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
                 $config->set($key, $value);
             }
         });
-    }
-
-    public function setUp(): void
-    {
-        ConfigProviderRegister::add(ConfigProvider::class);
-        parent::setUp();
     }
 
     protected function getSentryHubFromContainer(): HubInterface

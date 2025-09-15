@@ -54,6 +54,7 @@ class ConfigProviderRegister
         \Hypervel\Session\ConfigProvider::class,
         \Hypervel\Translation\ConfigProvider::class,
         \Hypervel\Validation\ConfigProvider::class,
+        //\Hypervel\Sentry\ConfigProvider::class,
     ];
 
     public static function get(): array
