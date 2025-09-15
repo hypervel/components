@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Sentry;
 
 use Hypervel\Support\Composer;
