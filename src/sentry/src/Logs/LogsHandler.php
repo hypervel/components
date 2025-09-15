@@ -55,9 +55,7 @@ class LogsHandler extends AbstractProcessingHandler
             $logs[] = $this->processRecord($r);
         }
 
-        if (! empty($logs)) {
-            $record['context']['logs'] = (string) $this->getBatchFormatter()->formatBatch($logs);
-        }
+        $record['context']['logs'] = (string) $this->getBatchFormatter()->formatBatch($logs);
 
         $this->handle($record);
     }

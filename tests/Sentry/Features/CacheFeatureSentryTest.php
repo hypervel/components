@@ -30,7 +30,6 @@ class CacheFeatureSentryTest extends SentryTestCase
     public function testCacheSetAndGet(): void
     {
         Cache::put($key = 'foo', 'bar');
-        SentrySdk::getCurrentHub();
         $this->assertEquals("Written: {$key}", $this->getLastSentryBreadcrumb()->getMessage());
 
         Cache::get('foo');
