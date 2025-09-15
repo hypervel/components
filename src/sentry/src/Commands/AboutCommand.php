@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Sentry\Commands;
 
 use Hypervel\Console\Command;
@@ -48,9 +50,13 @@ class AboutCommand extends Command
             'PHP SDK Version' => Client::SDK_VERSION,
             'Release' => $options->getRelease() ?: '<fg=yellow;options=bold>NOT SET</>',
             'Sample Rate Errors' => $this->formatSampleRate($options->getSampleRate()),
-            'Sample Rate Performance Monitoring' => $this->formatSampleRate($options->getTracesSampleRate(), $options->getTracesSampler() !== null),
+            'Sample Rate Performance Monitoring' => $this->formatSampleRate(
+                $options->getTracesSampleRate(),
+                $options->getTracesSampler() !== null
+            ),
             'Sample Rate Profiling' => $this->formatSampleRate($options->getProfilesSampleRate()),
-            'Send Default PII' => $options->shouldSendDefaultPii() ? '<fg=green;options=bold>ENABLED</>' : '<fg=yellow;options=bold>DISABLED</>',
+            'Send Default PII' => $options->shouldSendDefaultPii(
+            ) ? '<fg=green;options=bold>ENABLED</>' : '<fg=yellow;options=bold>DISABLED</>',
         ];
     }
 
