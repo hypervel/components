@@ -133,6 +133,7 @@
         "phpseclib/phpseclib": "^3.0",
         "psr/log": "^1.0|^2.0|^3.0",
         "ramsey/uuid": "^4.7",
+        "sentry/sentry": "^4.15",
         "symfony/error-handler": "^6.3",
         "symfony/mailer": "^6.2",
         "symfony/process": "^6.2",
