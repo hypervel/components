@@ -11,7 +11,6 @@ use Hypervel\Queue\Contracts\ShouldQueue;
 use Hypervel\Sentry\Features\QueueFeature;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Sentry\Breadcrumb;
-
 use Sentry\EventType;
 
 use function Sentry\addBreadcrumb;

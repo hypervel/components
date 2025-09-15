@@ -45,15 +45,12 @@ class LogFeatureTest extends SentryTestCase
     public function testLogChannelIsRegistered(): void
     {
         $this->expectNotToPerformAssertions();
-        //Log::channel('sentry');
-        $logger = $this->app->get(LoggerInterface::class);
         Log::channel('sentry');
     }
 
     public function testLogChannelGeneratesEvents(): void
     {
         $logger = $this->app->get(LoggerInterface::class)->channel('sentry');
-
 
         $logger->info('Sentry Laravel info log message');
 
