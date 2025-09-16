@@ -27,6 +27,10 @@ class RedisFeature extends Feature
 
     public function onBoot(): void
     {
+        $config = $this->container->get(ConfigInterface::class);
+        if ($config->has('database.connections.redis.event')) {
+            $config->set('database.connections.redis.event', true);
+        }
         $dispatcher = $this->container->get(Dispatcher::class);
         $dispatcher->listen(CommandExecuted::class, [$this, 'handleRedisCommands']);
     }
