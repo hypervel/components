@@ -53,8 +53,7 @@ class ConfigProviderRegister
         \Hypervel\Router\ConfigProvider::class,
         \Hypervel\Session\ConfigProvider::class,
         \Hypervel\Translation\ConfigProvider::class,
-        \Hypervel\Validation\ConfigProvider::class,
-        //\Hypervel\Sentry\ConfigProvider::class,
+        \Hypervel\Validation\ConfigProvider::class
     ];
 
     public static function get(): array

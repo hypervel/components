@@ -250,8 +250,7 @@
                 "Hypervel\\Socialite\\ConfigProvider",
                 "Hypervel\\Telescope\\ConfigProvider",
                 "Hypervel\\Validation\\ConfigProvider",
-                "Hypervel\\Permission\\ConfigProvider",
-                "Hypervel\\Sentry\\ConfigProvider"
+                "Hypervel\\Permission\\ConfigProvider"
             ]
         },
         "hypervel": {
