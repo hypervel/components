@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Sentry;
 
 use Hyperf\Contract\ConfigInterface;
+use Hypervel\Sentry\Aspects\CoroutineAspect;
+use Hypervel\Sentry\Aspects\GuzzleHttpClientAspect;
 use Hypervel\Sentry\Commands\AboutCommand;
 use Hypervel\Sentry\Commands\TestCommand;
 use Hypervel\Sentry\Factory\ClientBuilderFactory;
@@ -27,6 +29,23 @@ class SentryServiceProvider extends ServiceProvider
         $this->bootFeatures();
         $this->registerPublishing();
         $this->registerCommands();
+    }
+
+    public static function getProviderConfig(): array
+    {
+        return [
+            'aspects' => [
+                GuzzleHttpClientAspect::class,
+                CoroutineAspect::class,
+            ],
+            'annotations' => [
+                'scan' => [
+                    'class_map' => [
+                        \Sentry\SentrySdk::class => __DIR__ . '/../class-map/SentrySdk.php',
+                    ],
+                ],
+            ],
+        ];
     }
 
     public function register(): void

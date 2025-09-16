@@ -41,9 +41,6 @@
         "branch-alias": {
             "dev-main": "0.3-dev"
         },
-        "hyperf": {
-            "config": "Hypervel\\Sentry\\ConfigProvider"
-        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Sentry\\SentryServiceProvider"
