@@ -13,7 +13,7 @@ use Hyperf\Redis\RedisConnection;
 use Hypervel\Event\Contracts\Dispatcher;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Sentry\Features\RedisFeature;
-use Hypervel\Session\Contracts\Session;
+use Hypervel\Session\SessionManager;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Mockery;
 
@@ -79,13 +79,14 @@ class RedisFeatureTest extends SentryTestCase
 
     public function testRedisCommandWithSessionKeyReplacesWithPlaceholder(): void
     {
-        $this->setupMocks('test-session-id');
-
+        $this->setupMocks();
+        $this->startSession();
+        $this->app->get(SessionManager::class)->setId($sessionId = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa');
         $transaction = $this->startTransaction();
 
         $dispatcher = $this->app->get(Dispatcher::class);
         $connection = $this->createRedisConnection('default');
-        $event = new CommandExecuted('GET', ['test-session-id'], 0.005, $connection, 'default', 'value', null);
+        $event = new CommandExecuted('GET', [$sessionId], 0.005, $connection, 'default', 'value', null);
 
         $dispatcher->dispatch($event);
 
@@ -190,7 +191,7 @@ class RedisFeatureTest extends SentryTestCase
 
     public function testRedisCommandWithDifferentConfiguration(): void
     {
-        $this->setupMocks(null, 'cache', 1);
+        $this->setupMocks('cache', 1);
 
         $transaction = $this->startTransaction();
 
@@ -209,7 +210,7 @@ class RedisFeatureTest extends SentryTestCase
         $this->assertEquals(10.0, $spanData['duration']);
     }
 
-    private function setupMocks(?string $sessionId = null, string $connectionName = 'default', int $database = 0): void
+    private function setupMocks(string $connectionName = 'default', int $database = 0): void
     {
         // Mock PoolFactory
         $poolOption = Mockery::mock(PoolOptionInterface::class);
@@ -225,13 +226,6 @@ class RedisFeatureTest extends SentryTestCase
         $poolFactory->shouldReceive('getPool')->with($connectionName)->andReturn($pool);
 
         $this->app->instance(PoolFactory::class, $poolFactory);
-
-        // Mock Session
-        if ($sessionId !== null) {
-            $session = Mockery::mock(Session::class);
-            $session->shouldReceive('getId')->andReturn($sessionId);
-            $this->app->instance(Session::class, $session);
-        }
 
         // Mock Redis config
         $config = $this->app->get(ConfigInterface::class);

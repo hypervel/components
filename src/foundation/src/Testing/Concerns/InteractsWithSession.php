@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Session\SessionManager;
 
 trait InteractsWithSession
 {
@@ -37,8 +38,8 @@ trait InteractsWithSession
      */
     protected function startSession(): static
     {
-        if (! $this->app->get(SessionContract::class)->isStarted()) {
-            $this->app->get(SessionContract::class)->start();
+        if (! $this->app->get(SessionManager::class)->isStarted()) {
+            $this->app->get(SessionManager::class)->start();
         }
 
         return $this;
