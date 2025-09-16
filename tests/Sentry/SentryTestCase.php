@@ -8,7 +8,6 @@ use Hyperf\Contract\ConfigInterface;
 use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Sentry\SentryServiceProvider;
 use Hypervel\Testbench\ConfigProviderRegister;
-use Hypervel\Testbench\Bootstrapper;
 use ReflectionException;
 use ReflectionMethod;
 use ReflectionProperty;
