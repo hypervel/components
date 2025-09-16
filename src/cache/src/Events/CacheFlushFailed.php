@@ -4,17 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Events;
 
-abstract class CacheEvent
+class CacheFlushFailed
 {
     /**
      * The name of the cache store.
      */
     public ?string $storeName;
-
-    /**
-     * The key of the event.
-     */
-    public string $key;
 
     /**
      * The tags that were assigned to the key.
@@ -24,10 +19,9 @@ abstract class CacheEvent
     /**
      * Create a new event instance.
      */
-    public function __construct(?string $storeName, string $key, array $tags = [])
+    public function __construct(?string $storeName, array $tags = [])
     {
         $this->storeName = $storeName;
-        $this->key = $key;
         $this->tags = $tags;
     }
 
