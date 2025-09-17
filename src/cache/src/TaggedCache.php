@@ -7,6 +7,8 @@ namespace Hypervel\Cache;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Cache\Contracts\Store;
+use Hypervel\Cache\Events\CacheFlushed;
+use Hypervel\Cache\Events\CacheFlushing;
 
 class TaggedCache extends Repository
 {
@@ -62,7 +64,11 @@ class TaggedCache extends Repository
      */
     public function flush(): bool
     {
+        $this->event(new CacheFlushing($this->getName()));
+
         $this->tags->reset();
+
+        $this->event(new CacheFlushed($this->getName()));
 
         return true;
     }

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Events;
 
-class KeyWritten extends CacheEvent
+class WritingKey extends CacheEvent
 {
     /**
-     * The value that was written.
+     * The value that will be written.
      */
     public mixed $value;
 
