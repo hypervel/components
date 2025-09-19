@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Features;
 
 use Exception;
+use Hyperf\Contract\ConfigInterface;
 use Hypervel\Cache\Events\CacheEvent;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
@@ -44,6 +45,11 @@ class CacheFeature extends Feature
 
     public function onBoot(): void
     {
+        $config = $this->container->get(ConfigInterface::class);
+        $stores = array_keys($config->get('cache.stores', []));
+        foreach ($stores as $store) {
+            $config->set("cache.stores.{$store}.events", true);
+        }
         /** @var Dispatcher $dispatcher */
         $dispatcher = $this->container->get(Dispatcher::class);
         if ($this->switcher->isBreadcrumbEnable(static::FEATURE_KEY)) {
