@@ -6,19 +6,12 @@ namespace Hypervel\Tests\Broadcasting;
 
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Broadcasting\AnonymousEvent;
-use Hypervel\Broadcasting\BroadcastManager;
-use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactoryContract;
 use Hypervel\Broadcasting\PresenceChannel;
 use Hypervel\Broadcasting\PrivateChannel;
-use Hypervel\Container\DefinitionSource;
-use Hypervel\Context\ApplicationContext;
-use Hypervel\Foundation\Application;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Event;
-use Hypervel\Support\Facades\Facade;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use ReflectionClass;
 
 /**
@@ -27,32 +20,6 @@ use ReflectionClass;
  */
 class SendingBroadcastsViaAnonymousEventTest extends TestCase
 {
-    protected Application $container;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->container = new Application(
-            new DefinitionSource([
-                EventDispatcherInterface::class => fn () => m::mock(EventDispatcherInterface::class),
-                BroadcastingFactoryContract::class => fn ($container) => new BroadcastManager($container),
-            ]),
-            'bath_path',
-        );
-
-        ApplicationContext::setContainer($this->container);
-    }
-
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        m::close();
-
-        Facade::clearResolvedInstances();
-    }
-
     public function testBroadcastIsSent()
     {
         Event::fake();
@@ -148,7 +115,7 @@ class SendingBroadcastsViaAnonymousEventTest extends TestCase
 
         $request = m::mock(RequestInterface::class);
         $request->shouldReceive('header')->with('X-Socket-ID')->andReturn('12345');
-        $this->container->set(RequestInterface::class, $request);
+        $this->app->set(RequestInterface::class, $request);
 
         Broadcast::on('test-channel')->send();
 
