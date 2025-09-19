@@ -71,10 +71,12 @@ class CacheManager implements FactoryContract
     /**
      * Create a new cache repository with the given implementation.
      */
-    public function repository(Store $store): Repository
+    public function repository(Store $store, array $config = []): Repository
     {
-        return tap(new Repository($store), function ($repository) {
-            $this->setEventDispatcher($repository);
+        return tap(new Repository($store), function ($repository) use ($config) {
+            if ($config['events'] ?? false) {
+                $this->setEventDispatcher($repository);
+            }
         });
     }
 
@@ -83,7 +85,11 @@ class CacheManager implements FactoryContract
      */
     public function refreshEventDispatcher(): void
     {
-        array_map([$this, 'setEventDispatcher'], $this->stores);
+        foreach ($this->stores as $name => $repository) {
+            if ($this->getConfig($name)['events'] ?? false) {
+                $this->setEventDispatcher($repository);
+            }
+        }
     }
 
     /**
@@ -197,7 +203,7 @@ class CacheManager implements FactoryContract
      */
     protected function createArrayDriver(array $config): Repository
     {
-        return $this->repository(new ArrayStore($config['serialize'] ?? false));
+        return $this->repository(new ArrayStore($config['serialize'] ?? false), $config);
     }
 
     /**
@@ -210,7 +216,7 @@ class CacheManager implements FactoryContract
             'filePermission' => $config['permission'] ?? null,
         ])->setLockDirectory($config['lock_path'] ?? null);
 
-        return $this->repository($store);
+        return $this->repository($store, $config);
     }
 
     /**
@@ -218,7 +224,7 @@ class CacheManager implements FactoryContract
      */
     protected function createNullDriver(): Repository
     {
-        return $this->repository(new NullStore());
+        return $this->repository(new NullStore(), []);
     }
 
     /**
@@ -233,7 +239,8 @@ class CacheManager implements FactoryContract
         $store = new RedisStore($redis, $this->getPrefix($config), $connection);
 
         return $this->repository(
-            $store->setLockConnection($config['lock_connection'] ?? $connection)
+            $store->setLockConnection($config['lock_connection'] ?? $connection),
+            $config
         );
     }
 
@@ -250,7 +257,7 @@ class CacheManager implements FactoryContract
             $config['eviction_proportion'] ?? 0.05
         );
 
-        return $this->repository($store);
+        return $this->repository($store, $config);
     }
 
     /**
@@ -269,7 +276,7 @@ class CacheManager implements FactoryContract
             return new StackStoreProxy($store, $config['ttl'] ?? null);
         })->all();
 
-        return $this->repository(new StackStore($stores));
+        return $this->repository(new StackStore($stores), $config);
     }
 
     /**
@@ -289,7 +296,7 @@ class CacheManager implements FactoryContract
             $config['lock_timeout'] ?? 86400
         );
 
-        return $this->repository($store);
+        return $this->repository($store, $config);
     }
 
     /**
