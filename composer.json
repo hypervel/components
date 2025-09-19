@@ -64,7 +64,8 @@
             "Hypervel\\Testbench\\": "src/testbench/src/",
             "Hypervel\\Translation\\": "src/translation/src/",
             "Hypervel\\Validation\\": "src/validation/src/",
-            "Hypervel\\Permission\\": "src/permission/src/"
+            "Hypervel\\Permission\\": "src/permission/src/",
+            "Hypervel\\Sentry\\": "src/sentry/src/"
         },
         "files": [
             "src/auth/src/Functions.php",
@@ -132,6 +133,7 @@
         "phpseclib/phpseclib": "^3.0",
         "psr/log": "^1.0|^2.0|^3.0",
         "ramsey/uuid": "^4.7",
+        "sentry/sentry": "^4.15",
         "symfony/error-handler": "^6.3",
         "symfony/mailer": "^6.2",
         "symfony/process": "^6.2",
@@ -176,7 +178,8 @@
         "hypervel/testbench": "self.version",
         "hypervel/translation": "self.version",
         "hypervel/validation": "self.version",
-        "hypervel/permission": "self.version"
+        "hypervel/permission": "self.version",
+        "hypervel/sentry": "self.version"
     },
     "suggest": {
         "hyperf/redis": "Required to use redis driver. (^3.1).",
@@ -253,7 +256,8 @@
         "hypervel": {
             "providers": [
                 "Hypervel\\Notifications\\NotificationServiceProvider",
-                "Hypervel\\Telescope\\TelescopeServiceProvider"
+                "Hypervel\\Telescope\\TelescopeServiceProvider",
+                "Hypervel\\Sentry\\SentryServiceProvider"
             ]
         },
         "branch-alias": {
