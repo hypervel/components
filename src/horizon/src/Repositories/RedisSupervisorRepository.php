@@ -7,8 +7,8 @@ namespace Hypervel\Horizon\Repositories;
 use Carbon\CarbonImmutable;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\Supervisor;
-use Hypervel\Redis\RedisFactory;
-use Hypervel\Redis\RedisProxy;
+use Hyperf\Redis\RedisFactory;
+use Hyperf\Redis\RedisProxy;
 use Hypervel\Support\Arr;
 use stdClass;
 
@@ -140,7 +140,7 @@ class RedisSupervisorRepository implements SupervisorRepository
         $this->connection()->zRemRangeByScore(
             'supervisors',
             '-inf',
-            CarbonImmutable::now()->subSeconds(14)->getTimestamp()
+            (string) CarbonImmutable::now()->subSeconds(14)->getTimestamp()
         );
     }
 

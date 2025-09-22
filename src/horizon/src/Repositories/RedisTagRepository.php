@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Repositories;
 
 use Hypervel\Horizon\Contracts\TagRepository;
-use Hypervel\Redis\RedisFactory;
-use Hypervel\Redis\RedisProxy;
+use Hyperf\Redis\RedisFactory;
+use Hyperf\Redis\RedisProxy;
 
 class RedisTagRepository implements TagRepository
 {
@@ -59,7 +59,7 @@ class RedisTagRepository implements TagRepository
     {
         $this->connection()->pipeline(function ($pipe) use ($id, $tags) {
             foreach ($tags as $tag) {
-                $pipe->zAdd($tag, str_replace(',', '.', microtime(true)), $id);
+                $pipe->zAdd($tag, str_replace(',', '.', (string) microtime(true)), $id);
             }
         });
     }
@@ -71,7 +71,7 @@ class RedisTagRepository implements TagRepository
     {
         $this->connection()->pipeline(function ($pipe) use ($minutes, $id, $tags) {
             foreach ($tags as $tag) {
-                $pipe->zAdd($tag, str_replace(',', '.', microtime(true)), $id);
+                $pipe->zAdd($tag, str_replace(',', '.', (string) microtime(true)), $id);
 
                 $pipe->expire($tag, $minutes * 60);
             }

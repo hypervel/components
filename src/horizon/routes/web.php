@@ -5,7 +5,7 @@ declare(strict_types=1);
 use Hypervel\Horizon\Http\Middleware\Authenticate;
 use Hypervel\Support\Facades\Route;
 
-Route::group('api', function () {
+Route::group('/api', function () {
     // Dashboard Routes...
     Route::get('/stats', 'DashboardStatsController@index', ['as' => 'horizon.stats.index']);
 

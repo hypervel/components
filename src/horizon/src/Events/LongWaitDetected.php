@@ -28,9 +28,9 @@ class LongWaitDetected
      */
     public function toNotification(): LongWaitDetectedNotification
     {
-        return Container::getInstance()->make(LongWaitDetectedNotification::class, [
-            'connection' => $this->connection,
-            'queue' => $this->queue,
+        return Container::getInstance()->makeWith(LongWaitDetectedNotification::class, [
+            'longWaitConnection' => $this->connection,
+            'longWaitQueue' => $this->queue,
             'seconds' => $this->seconds,
         ]);
     }

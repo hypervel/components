@@ -6,8 +6,8 @@ namespace Hypervel\Horizon\Repositories;
 
 use Carbon\CarbonImmutable;
 use Hypervel\Horizon\Contracts\ProcessRepository;
-use Hypervel\Redis\RedisFactory;
-use Hypervel\Redis\RedisProxy;
+use Hyperf\Redis\RedisFactory;
+use Hyperf\Redis\RedisProxy;
 
 class RedisProcessRepository implements ProcessRepository
 {
