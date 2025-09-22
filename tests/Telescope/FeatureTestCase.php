@@ -64,6 +64,7 @@ class FeatureTestCase extends TestCase
             ->set('cache.stores.array', [
                 'driver' => 'array',
                 'serialize' => false,
+                'events' => true,
             ]);
         $this->app->get(CacheFactoryContract::class)
             ->forever('telescope:dump-watcher', true);

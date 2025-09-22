@@ -7,6 +7,8 @@ namespace Hypervel\Cache;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Cache\Contracts\Store;
+use Hypervel\Cache\Events\CacheFlushed;
+use Hypervel\Cache\Events\CacheFlushing;
 
 class TaggedCache extends Repository
 {
@@ -32,7 +34,7 @@ class TaggedCache extends Repository
     /**
      * Store multiple items in the cache for a given number of seconds.
      */
-    public function putMany(array $values, null|DateInterval|DateTimeInterface|int $ttl = null): bool
+    public function putMany(array $values, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         if ($ttl === null) {
             return $this->putManyForever($values);
@@ -62,7 +64,11 @@ class TaggedCache extends Repository
      */
     public function flush(): bool
     {
+        $this->event(new CacheFlushing($this->getName()));
+
         $this->tags->reset();
+
+        $this->event(new CacheFlushed($this->getName()));
 
         return true;
     }

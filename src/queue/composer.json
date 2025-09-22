@@ -32,8 +32,8 @@
         "laravel/serializable-closure": "^1.2.2",
         "ramsey/uuid": "^4.7",
         "symfony/process": "^7.0",
-        "hypervel/support": "^0.2",
-        "hypervel/encryption": "^0.2"
+        "hypervel/support": "^0.3",
+        "hypervel/encryption": "^0.3"
     },
     "autoload": {
         "psr-4": {
@@ -45,7 +45,7 @@
             "config": "Hypervel\\Queue\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.2-dev"
+            "dev-main": "0.3-dev"
         }
     },
     "suggest": {

@@ -23,14 +23,16 @@
     "autoload": {
         "psr-4": {
             "Hypervel\\": "src/"
-        }
+        },
+        "files": [
+            "src/helpers.php"
+        ]
     },
     "require": {
         "php": "^8.2",
         "hyperf/database": "~3.1.0",
         "hyperf/http-message": "~3.1.0",
-        "hyperf/context": "~3.1.0",
-        "hyperf/redis": "~3.1.0"
+        "hyperf/context": "~3.1.0"
     },
     "require-dev": {
         "fakerphp/faker": "^2.0"
@@ -43,7 +45,7 @@
             "config": "Hypervel\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.2-dev"
+            "dev-main": "0.3-dev"
         }
     }
 }

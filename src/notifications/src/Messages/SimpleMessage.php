@@ -177,7 +177,7 @@ class SimpleMessage
     /**
      * Format the given line of text.
      */
-    protected function formatLine(null|array|Htmlable|string $line): Htmlable|string
+    protected function formatLine(array|Htmlable|string|null $line): Htmlable|string
     {
         if ($line instanceof Htmlable) {
             return $line;

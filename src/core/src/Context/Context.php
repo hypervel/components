@@ -11,6 +11,24 @@ class Context extends HyperfContext
 {
     protected const DEPTH_KEY = 'di.depth';
 
+    public function __call(string $method, array $arguments): mixed
+    {
+        return static::{$method}(...$arguments);
+    }
+
+    /**
+     * Set multiple key-value pairs in the context.
+     */
+    public static function setMany(array $values, ?int $coroutineId = null): void
+    {
+        foreach ($values as $key => $value) {
+            static::set($key, $value, $coroutineId);
+        }
+    }
+
+    /**
+     * Copy context data from non-coroutine context to the specified coroutine context.
+     */
     public static function copyFromNonCoroutine(array $keys = [], ?int $coroutineId = null): void
     {
         if (is_null($context = Coroutine::getContextFor($coroutineId))) {
@@ -26,6 +44,9 @@ class Context extends HyperfContext
         $context->exchangeArray($map);
     }
 
+    /**
+     * Destroy all context data for the specified coroutine, preserving only the depth key.
+     */
     public static function destroyAll(?int $coroutineId = null): void
     {
         $coroutineId = $coroutineId ?: Coroutine::id();
@@ -41,7 +62,7 @@ class Context extends HyperfContext
         }
 
         $contextKeys = [];
-        foreach ($context as $key => $_value) {
+        foreach ($context as $key => $_) {
             if ($key === static::DEPTH_KEY) {
                 continue;
             }

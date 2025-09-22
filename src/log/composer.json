@@ -32,7 +32,7 @@
         "hyperf/stringable": "~3.1.0",
         "hyperf/contract": "~3.1.0",
         "hyperf/collection": "~3.1.0",
-        "hypervel/support": "^0.2"
+        "hypervel/support": "^0.3"
     },
     "config": {
         "sort-packages": true
@@ -42,7 +42,7 @@
             "config": "Hypervel\\Log\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.2-dev"
+            "dev-main": "0.3-dev"
         }
     }
 }

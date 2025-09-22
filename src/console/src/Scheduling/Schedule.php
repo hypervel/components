@@ -98,7 +98,7 @@ class Schedule
      * @throws RuntimeException
      */
     public function __construct(
-        protected null|DateTimeZone|string $timezone = null
+        protected DateTimeZone|string|null $timezone = null
     ) {
         if (! class_exists(Container::class)) {
             throw new RuntimeException(

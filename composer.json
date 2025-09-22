@@ -55,6 +55,7 @@
             "Hypervel\\Process\\": "src/process/src/",
             "Hypervel\\Prompts\\": "src/prompts/src/",
             "Hypervel\\Queue\\": "src/queue/src/",
+            "Hypervel\\Redis\\": "src/redis/src/",
             "Hypervel\\Router\\": "src/router/src/",
             "Hypervel\\Sanctum\\": "src/sanctum/src/",
             "Hypervel\\Session\\": "src/session/src/",
@@ -80,7 +81,8 @@
             "src/session/src/Functions.php",
             "src/support/src/Functions.php",
             "src/support/src/helpers.php",
-            "src/translation/src/Functions.php"
+            "src/translation/src/Functions.php",
+            "src/core/src/helpers.php"
         ]
     },
     "autoload-dev": {
@@ -123,17 +125,18 @@
         "laravel/serializable-closure": "^1.3",
         "lcobucci/jwt": "^5.0",
         "league/commonmark": "^2.2",
+        "league/oauth1-client": "^1.11",
+        "league/uri": "^7.5",
         "monolog/monolog": "^3.1",
         "nesbot/carbon": "^2.72.6",
         "nunomaduro/termwind": "^2.0",
+        "phpseclib/phpseclib": "^3.0",
         "psr/log": "^1.0|^2.0|^3.0",
         "ramsey/uuid": "^4.7",
         "symfony/error-handler": "^6.3",
         "symfony/mailer": "^6.2",
         "symfony/process": "^6.2",
-        "tijsverkoyen/css-to-inline-styles": "^2.2.5",
-        "league/oauth1-client": "^1.11",
-        "phpseclib/phpseclib": "^3.0"
+        "tijsverkoyen/css-to-inline-styles": "^2.2.5"
     },
     "replace": {
         "hypervel/api-client": "self.version",
@@ -166,6 +169,7 @@
         "hypervel/process": "self.version",
         "hypervel/prompts": "self.version",
         "hypervel/queue": "self.version",
+        "hypervel/redis": "self.version",
         "hypervel/router": "self.version",
         "hypervel/session": "self.version",
         "hypervel/socialite": "self.version",
@@ -205,7 +209,7 @@
         "mockery/mockery": "1.6.x-dev",
         "nunomaduro/collision": "^8.5",
         "pda/pheanstalk": "v5.0.9",
-        "phpstan/phpstan": "1.12.25",
+        "phpstan/phpstan": "^2.0",
         "phpunit/phpunit": "10.5.45",
         "pusher/pusher-php-server": "^7.2",
         "swoole/ide-helper": "~5.1.0",
@@ -238,6 +242,7 @@
                 "Hypervel\\Mail\\ConfigProvider",
                 "Hypervel\\Notifications\\ConfigProvider",
                 "Hypervel\\Queue\\ConfigProvider",
+                "Hypervel\\Redis\\ConfigProvider",
                 "Hypervel\\Router\\ConfigProvider",
                 "Hypervel\\Sanctum\\ConfigProvider",
                 "Hypervel\\Session\\ConfigProvider",
@@ -254,7 +259,7 @@
             ]
         },
         "branch-alias": {
-            "dev-main": "0.2-dev"
+            "dev-main": "0.3-dev"
         }
     },
     "minimum-stability": "dev",

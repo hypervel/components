@@ -11,7 +11,7 @@ use Hypervel\Translation\Contracts\Translator as TranslatorContract;
 /**
  * Translate the given message.
  */
-function __(?string $key = null, array $replace = [], ?string $locale = null): null|array|string
+function __(?string $key = null, array $replace = [], ?string $locale = null): array|string|null
 {
     return ApplicationContext::getContainer()
         ->get(TranslatorContract::class)

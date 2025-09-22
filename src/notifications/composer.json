@@ -34,11 +34,11 @@
         "hyperf/context": "~3.1.0",
         "hyperf/database": "~3.1.0",
         "hyperf/di": "~3.1.0",
-        "hypervel/broadcasting": "^0.2",
-        "hypervel/support": "^0.2",
-        "hypervel/mail": "^0.2",
-        "hypervel/queue": "^0.2",
-        "hypervel/object-pool": "^0.2"
+        "hypervel/broadcasting": "^0.3",
+        "hypervel/support": "^0.3",
+        "hypervel/mail": "^0.3",
+        "hypervel/queue": "^0.3",
+        "hypervel/object-pool": "^0.3"
     },
     "config": {
         "sort-packages": true
@@ -53,7 +53,7 @@
             ]
         },
         "branch-alias": {
-            "dev-main": "0.2-dev"
+            "dev-main": "0.3-dev"
         }
     }
 }

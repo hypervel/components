@@ -18,6 +18,7 @@ use Hypervel\Http\Contracts\RequestContract;
 use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Session\Contracts\Session as SessionContract;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Uri;
 use Hypervel\Validation\Contracts\Factory as ValidatorFactoryContract;
 use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
@@ -81,7 +82,7 @@ class Request extends HyperfRequest implements RequestContract
     /**
      * Retrieve input from the request as a collection.
      */
-    public function collect(null|array|string $key = null): Collection
+    public function collect(array|string|null $key = null): Collection
     {
         if (is_null($key)) {
             return Collection::make($this->all());
@@ -743,6 +744,14 @@ class Request extends HyperfRequest implements RequestContract
     public function method(): string
     {
         return $this->getMethod();
+    }
+
+    /**
+     * Get a URI instance for the request.
+     */
+    public function uri(): Uri
+    {
+        return Uri::of($this->fullUrl());
     }
 
     /**

@@ -31,7 +31,7 @@ class Application extends Container implements ApplicationContract
      *
      * @var string
      */
-    public const VERSION = '0.2.10';
+    public const VERSION = '0.3.1';
 
     /**
      * The base path for the Hypervel installation.
@@ -565,7 +565,10 @@ class Application extends Container implements ApplicationContract
                 \Hypervel\Event\Contracts\Dispatcher::class,
             ],
             \Hyperf\HttpServer\Router\DispatcherFactory::class => ['router'],
-            \Psr\Log\LoggerInterface::class => ['log'],
+            \Psr\Log\LoggerInterface::class => [
+                'log',
+                \Hypervel\Log\LogManager::class,
+            ],
             \Hypervel\Encryption\Contracts\Encrypter::class => [
                 'encrypter',
                 \Hypervel\Encryption\Encrypter::class,

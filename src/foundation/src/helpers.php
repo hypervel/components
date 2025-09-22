@@ -384,6 +384,24 @@ if (! function_exists('event')) {
     }
 }
 
+if (! function_exists('fake') && class_exists(\Faker\Factory::class)) {
+    /**
+     * Get a faker instance.
+     */
+    function fake(?string $locale = null): \Faker\Generator
+    {
+        $locale ??= config('app.faker_locale', 'en_US');
+
+        $abstract = \Faker\Generator::class . ':' . $locale;
+
+        if (! app()->bound($abstract)) {
+            app()->bind($abstract, fn () => \Faker\Factory::create($locale));
+        }
+
+        return app()->get($abstract);
+    }
+}
+
 if (! function_exists('info')) {
     /**
      * @throws TypeError
@@ -434,7 +452,7 @@ if (! function_exists('now')) {
     /**
      * Create a new Carbon instance for the current time.
      */
-    function now(null|\DateTimeZone|string $tz = null): Carbon
+    function now(\DateTimeZone|string|null $tz = null): Carbon
     {
         return Carbon::now($tz);
     }
@@ -477,7 +495,7 @@ if (! function_exists('request')) {
      *
      * @throws TypeError
      */
-    function request(null|array|string $key = null, mixed $default = null): mixed
+    function request(array|string|null $key = null, mixed $default = null): mixed
     {
         $request = app(RequestContract::class);
 
@@ -587,7 +605,7 @@ if (! function_exists('session')) {
      *
      * @return mixed|SessionContract
      */
-    function session(null|array|string $key = null, mixed $default = null): mixed
+    function session(array|string|null $key = null, mixed $default = null): mixed
     {
         return \Hypervel\Session\session($key, $default);
     }

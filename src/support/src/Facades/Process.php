@@ -63,7 +63,7 @@ class Process extends Facade
     /**
      * Indicate that the process factory should fake processes.
      */
-    public static function fake(null|array|Closure $callback = null): Factory
+    public static function fake(array|Closure|null $callback = null): Factory
     {
         return tap(static::getFacadeRoot(), function ($fake) use ($callback) {
             static::swap($fake->fake($callback));

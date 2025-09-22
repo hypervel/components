@@ -89,7 +89,7 @@ abstract class Command extends HyperfCommand
      *
      * @throws ManuallyFailedException|Throwable
      */
-    public function fail(null|string|Throwable $exception = null): void
+    public function fail(string|Throwable|null $exception = null): void
     {
         if (is_null($exception)) {
             $exception = 'Command failed manually.';

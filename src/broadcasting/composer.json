@@ -30,19 +30,18 @@
         "hyperf/contract": "~3.1.0",
         "hyperf/http-server": "~3.1.0",
         "hyperf/pool": "~3.1.0",
-        "hyperf/redis": "~3.1.0",
-        "hypervel/auth": "^0.2",
-        "hypervel/bus": "^0.2",
-        "hypervel/cache": "^0.2",
-        "hypervel/foundation": "^0.2",
-        "hypervel/queue": "^0.2",
-        "hypervel/router": "^0.2",
-        "hypervel/support": "^0.2",
-        "hypervel/object-pool": "^0.2"
+        "hypervel/auth": "^0.3",
+        "hypervel/bus": "^0.3",
+        "hypervel/cache": "^0.3",
+        "hypervel/foundation": "^0.3",
+        "hypervel/queue": "^0.3",
+        "hypervel/router": "^0.3",
+        "hypervel/support": "^0.3",
+        "hypervel/object-pool": "^0.3"
     },
     "suggest": {
         "ext-hash": "Required to use the Ably and Pusher broadcast drivers.",
-        "ext-redis": "Required to use the Redis cache and queue drivers (^4.0|^5.0|^6.0).",
+        "hyperf/redis": "Required to use the Redis broadcast driver (~3.1.0).",
         "ably/ably-php": "Required to use the Ably broadcast driver (^1.0).",
         "pusher/pusher-php-server": "Required to use the Pusher broadcast driver (^6.0|^7.0)."
     },
@@ -54,7 +53,7 @@
             "config": "Hypervel\\Broadcasting\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.2-dev"
+            "dev-main": "0.3-dev"
         }
     }
 }

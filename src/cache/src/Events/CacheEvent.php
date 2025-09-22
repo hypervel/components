@@ -7,6 +7,11 @@ namespace Hypervel\Cache\Events;
 abstract class CacheEvent
 {
     /**
+     * The name of the cache store.
+     */
+    public ?string $storeName;
+
+    /**
      * The key of the event.
      */
     public string $key;
@@ -19,8 +24,9 @@ abstract class CacheEvent
     /**
      * Create a new event instance.
      */
-    public function __construct(string $key, array $tags = [])
+    public function __construct(?string $storeName, string $key, array $tags = [])
     {
+        $this->storeName = $storeName;
         $this->key = $key;
         $this->tags = $tags;
     }

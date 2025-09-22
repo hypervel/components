@@ -25,7 +25,7 @@ class DatabaseFailedJobProvider implements CountableFailedJobProvider, FailedJob
     /**
      * Log a failed job into storage.
      */
-    public function log(string $connection, string $queue, string $payload, Throwable $exception): null|int|string
+    public function log(string $connection, string $queue, string $payload, Throwable $exception): int|string|null
     {
         $failed_at = Carbon::now();
 

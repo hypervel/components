@@ -369,6 +369,72 @@ class UrlGeneratorTest extends TestCase
         $this->assertFalse($method->invoke($urlGenerator, 'not-a-url'));
     }
 
+    public function testForceScheme()
+    {
+        $this->mockRequest();
+
+        $urlGenerator = new UrlGenerator($this->container);
+
+        // Test forcing https scheme
+        $urlGenerator->forceScheme('https');
+        $this->assertEquals('https://example.com/foo', $urlGenerator->to('foo'));
+
+        // Test forcing http scheme
+        $urlGenerator->forceScheme('http');
+        $this->assertEquals('http://example.com/foo', $urlGenerator->to('foo'));
+
+        // Test forcing custom scheme
+        $urlGenerator->forceScheme('ftp');
+        $this->assertEquals('ftp://example.com/foo', $urlGenerator->to('foo'));
+
+        // Test clearing forced scheme (passing null)
+        $urlGenerator->forceScheme(null);
+        $this->assertEquals('http://example.com/foo', $urlGenerator->to('foo'));
+    }
+
+    public function testForceHttps()
+    {
+        $this->mockRequest();
+
+        $urlGenerator = new UrlGenerator($this->container);
+
+        // Test original scheme
+        $this->assertEquals('http://example.com/foo', $urlGenerator->to('foo'));
+
+        // Test forcing HTTPS
+        $urlGenerator->forceHttps();
+        $this->assertEquals('https://example.com/foo', $urlGenerator->to('foo'));
+    }
+
+    public function testFormatScheme()
+    {
+        $this->mockRequest();
+
+        $urlGenerator = new UrlGenerator($this->container);
+
+        // Test with secure = true
+        $this->assertEquals('https://', $urlGenerator->formatScheme(true));
+
+        // Test with secure = false
+        $this->assertEquals('http://', $urlGenerator->formatScheme(false));
+
+        // Test with secure = null (should use request scheme)
+        $this->assertEquals('http://', $urlGenerator->formatScheme(null));
+
+        // Test with forceScheme set
+        $urlGenerator->forceScheme('https');
+        $this->assertEquals('https://', $urlGenerator->formatScheme(null));
+
+        // Test with different forceScheme
+        $urlGenerator->forceScheme('ftp');
+        $this->assertEquals('ftp://', $urlGenerator->formatScheme(null));
+
+        // Test that explicit secure parameter overrides forceScheme
+        $urlGenerator->forceScheme('https');
+        $this->assertEquals('http://', $urlGenerator->formatScheme(false));
+        $this->assertEquals('https://', $urlGenerator->formatScheme(true));
+    }
+
     public function testFormatParameters()
     {
         $urlGenerator = new UrlGenerator($this->container);
