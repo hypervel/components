@@ -23,12 +23,12 @@
         "php": "^8.2",
         "hyperf/context": "~3.1.0",
         "nesbot/carbon": "^2.72.6",
-        "hypervel/support": "^0.2",
-        "hypervel/cache": "^0.2",
-        "hypervel/core": "^0.2",
-        "hypervel/console": "^0.2",
-        "hypervel/event": "^0.2",
-        "hypervel/queue": "^0.2"
+        "hypervel/support": "^0.3",
+        "hypervel/cache": "^0.3",
+        "hypervel/core": "^0.3",
+        "hypervel/console": "^0.3",
+        "hypervel/event": "^0.3",
+        "hypervel/queue": "^0.3"
     },
     "autoload": {
         "psr-4": {
@@ -37,7 +37,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.2-dev"
+            "dev-main": "0.3-dev"
         },
         "hypervel": {
             "providers": [
