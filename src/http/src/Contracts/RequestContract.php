@@ -103,8 +103,7 @@ interface RequestContract extends RequestInterface
     /**
      * Returns the host name.
      *
-     * This method can read the client host name from the "HOST" header
-     * or SERVER_NAME from server params, or SERVER_ADDR from server params
+     * This method can read the client host name from the "HOST" header.
      */
     public function getHost(): string;
 
@@ -132,8 +131,6 @@ interface RequestContract extends RequestInterface
 
     /**
      * Checks whether the request is secure or not.
-     *
-     * This method can read the client protocol from the HTTPS from server params.
      */
     public function isSecure(): bool;
 
