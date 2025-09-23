@@ -2,14 +2,6 @@
 
 declare(strict_types=1);
 
-/**
- * This file is part of Hypervel components.
- *
- * @link     https://github.com/hypervel/components
- * @document https://github.com/hypervel/components/blob/main/README.md
- * @contact  albert@hypervel.org
- */
-
 use Hypervel\Sentry\Features\CacheFeature;
 use Hypervel\Sentry\Features\ConsoleSchedulingFeature;
 use Hypervel\Sentry\Features\DbQueryFeature;
@@ -48,9 +40,6 @@ return [
 
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#traces_sampler
     // 'traces_sampler' => function (Sentry\Tracing\SamplingContext $context): float {
-    //     if (str_contains($context->getTransactionContext()->getDescription(), '/health')) {
-    //         return 0;
-    //     }
     //     return env('SENTRY_TRACES_SAMPLE_RATE') === null ? 1.0 : (float) env('SENTRY_TRACES_SAMPLE_RATE');
     // },
 
@@ -65,8 +54,9 @@ return [
     // @see: https://docs.sentry.io/platforms/php/guides/laravel/configuration/options/#send_default_pii
     'send_default_pii' => env('SENTRY_SEND_DEFAULT_PII', false),
 
-    // Must instanceof Psr\Log\LoggerInterface
-    // 'logger' => Hyperf\Contract\StdoutLoggerInterface::class,
+    'enable' => [
+        'coroutine' => env('SENTRY_ENABLE_COROUTINE', true),
+    ],
 
     'breadcrumbs' => [
         // Capture Hypervel cache events (hits, writes etc.) as breadcrumbs
@@ -74,9 +64,9 @@ return [
         // Capture SQL queries as breadcrumbs
         'sql_queries' => env('SENTRY_BREADCRUMBS_SQL_QUERIES', true),
         // Capture SQL query bindings (parameters) in SQL query breadcrumbs
-        'sql_bindings' => env('SENTRY_BREADCRUMBS_SQL_BINDINGS', false),
+        'sql_bindings' => env('SENTRY_BREADCRUMBS_SQL_BINDINGS', true),
         // Capture SQL transactions (begin, commit, rollbacks) as breadcrumbs
-        'sql_transaction' => env('SENTRY_BREADCRUMBS_SQL_TRANSACTION', false),
+        'sql_transaction' => env('SENTRY_BREADCRUMBS_SQL_TRANSACTION', true),
         // Capture queue job information as breadcrumbs
         'queue_info' => env('SENTRY_BREADCRUMBS_QUEUE_INFO_ENABLED', true),
         // Capture send notifications as breadcrumbs
@@ -106,11 +96,11 @@ return [
     ],
 
     'ignore_transactions' => [
-        'GET /health',
     ],
 
     'ignore_commands' => [
         'crontab:run',
+        'make:*',
         'gen:*',
         'migrate*',
         'tinker',
@@ -128,10 +118,18 @@ return [
         // Capture send notifications as spans
         'notifications' => env('SENTRY_TRACE_NOTIFICATIONS_ENABLED', true),
         // Capture Redis operations as spans (this enables Redis events in Hypervel)
-        'redis_commands' => env('SENTRY_TRACE_REDIS_COMMANDS', false),
+        'redis_commands' => env('SENTRY_TRACE_REDIS_COMMANDS', true),
         // Capture where the Redis command originated from on the Redis command spans
         'redis_origin' => env('SENTRY_TRACE_REDIS_ORIGIN_ENABLED', true),
     ],
 
     'http_timeout' => (float) env('SENTRY_HTTP_TIMEOUT', 2.0),
+
+    // HTTP connection pool configuration for Sentry SDK's underlying Guzzle transport client
+    'pool' => [
+        'min_objects' => 1,
+        'max_objects' => 10,
+        'wait_timeout' => 3.0,
+        'max_lifetime' => 60.0,
+    ],
 ];

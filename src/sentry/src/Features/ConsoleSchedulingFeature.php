@@ -139,11 +139,6 @@ class ConsoleSchedulingFeature extends Feature
 
     public function handleScheduledTaskStarting(ScheduledTaskStarting $event): void
     {
-        // There is nothing for us to track if it's a background task since it will be handled by a separate process
-        if ($event->task->runInBackground) {
-            return;
-        }
-
         // When scheduling a command class the command name will be the most descriptive
         // When a job is scheduled the command name is `null` and the job class name (or display name) is set as the description
         // When a closure is scheduled both the command name and description are `null`

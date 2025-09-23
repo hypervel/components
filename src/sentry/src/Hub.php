@@ -27,6 +27,8 @@ use Sentry\Tracing\Transaction;
 use Sentry\Tracing\TransactionContext;
 use Throwable;
 
+use function sprintf;
+
 class Hub implements HubInterface
 {
     protected const CONTEXT_STACK_KEY = 'sentry.stack';
@@ -177,7 +179,7 @@ class Hub implements HubInterface
             $transaction->setSampled(false);
 
             $logger->warning(
-                \sprintf(
+                sprintf(
                     'Transaction [%s] was started but tracing is not enabled.',
                     (string) $transaction->getTraceId()
                 ),
@@ -218,7 +220,7 @@ class Hub implements HubInterface
                 $transaction->setSampled(false);
 
                 $logger->warning(
-                    \sprintf(
+                    sprintf(
                         'Transaction [%s] was started but not sampled because sample rate (decided by %s) is invalid.',
                         (string) $transaction->getTraceId(),
                         $sampleSource
@@ -241,7 +243,7 @@ class Hub implements HubInterface
                 $transaction->setSampled(false);
 
                 $logger->info(
-                    \sprintf(
+                    sprintf(
                         'Transaction [%s] was started but not sampled because sample rate (decided by %s) is %s.',
                         (string) $transaction->getTraceId(),
                         $sampleSource,
@@ -258,7 +260,7 @@ class Hub implements HubInterface
 
         if (! $transaction->getSampled()) {
             $logger->info(
-                \sprintf(
+                sprintf(
                     'Transaction [%s] was started but not sampled, decided by %s.',
                     (string) $transaction->getTraceId(),
                     $sampleSource
@@ -270,7 +272,7 @@ class Hub implements HubInterface
         }
 
         $logger->info(
-            \sprintf(
+            sprintf(
                 'Transaction [%s] was started and sampled, decided by %s.',
                 (string) $transaction->getTraceId(),
                 $sampleSource
@@ -283,14 +285,14 @@ class Hub implements HubInterface
         $profilesSampleRate = $options->getProfilesSampleRate();
         if ($profilesSampleRate === null) {
             $logger->info(
-                \sprintf(
+                sprintf(
                     'Transaction [%s] is not profiling because `profiles_sample_rate` option is not set.',
                     (string) $transaction->getTraceId()
                 )
             );
         } elseif ($this->sample($profilesSampleRate)) {
             $logger->info(
-                \sprintf(
+                sprintf(
                     'Transaction [%s] started profiling because it was sampled.',
                     (string) $transaction->getTraceId()
                 )
@@ -299,7 +301,7 @@ class Hub implements HubInterface
             $transaction->initProfiler()->start();
         } else {
             $logger->info(
-                \sprintf(
+                sprintf(
                     'Transaction [%s] is not profiling because it was not sampled.',
                     (string) $transaction->getTraceId()
                 )

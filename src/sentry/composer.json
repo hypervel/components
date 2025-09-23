@@ -5,7 +5,6 @@
     "license": "MIT",
     "keywords": [
         "php",
-        "hyperf",
         "hypervel",
         "sentry",
         "error-tracking"

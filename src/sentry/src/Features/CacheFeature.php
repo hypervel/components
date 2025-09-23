@@ -239,7 +239,7 @@ class CacheFeature extends Feature
         } catch (Exception $e) {
             // We can assume the session store is not available here so there is no session key to retrieve
             // We capture a generic exception to avoid breaking the application because some code paths can
-            // result in an exception other than the expected `Illuminate\Contracts\Container\BindingResolutionException`
+            // result in an exception other than the expected `Hypervel\Contracts\Container\BindingResolutionException`
             return null;
         }
     }

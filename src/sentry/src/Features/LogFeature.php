@@ -19,7 +19,6 @@ class LogFeature extends Feature
 
     public function register(): void
     {
-        $logger = $this->container->get(LoggerInterface::class);
         Log::extend('sentry', function ($app, array $config) {
             return (new LogChannel($app))($config);
         });

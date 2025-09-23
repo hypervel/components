@@ -62,7 +62,7 @@ class SentryServiceProvider extends ServiceProvider
             return $builder->setTransport($transport);
         });
 
-        $this->app->define(ClientInterface::class, function () {
+        $this->app->bind(ClientInterface::class, function () {
             return $this->app
                 ->get(ClientBuilder::class)
                 ->getClient();

@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Integrations;
 
-use Hypervel\Context\Context;
-use Psr\Http\Message\ServerRequestInterface;
 use Sentry\Event;
 use Sentry\Integration\IntegrationInterface;
 use Sentry\SentrySdk;
@@ -24,7 +22,7 @@ class RequestIntegration implements IntegrationInterface
                 return $event;
             }
 
-            $ip = $this->getClientIp();
+            $ip = request()->ip();
 
             if (! $user = $event->getUser()) {
                 $user = UserDataBag::createFromUserIpAddress($ip);
@@ -36,17 +34,5 @@ class RequestIntegration implements IntegrationInterface
 
             return $event;
         });
-    }
-
-    protected function getClientIp(): ?string
-    {
-        /** @var null|ServerRequestInterface $request */
-        $request = Context::get(ServerRequestInterface::class);
-
-        if (! $request) {
-            return '127.0.0.1';
-        }
-
-        return $request->getHeaderLine('x-real-ip') ?: $request->getServerParams()['remote_addr'] ?? '127.0.0.1';
     }
 }

@@ -12,6 +12,11 @@ class Switcher
     {
     }
 
+    public function isEnabled(string $key, bool $default = true): bool
+    {
+        return (bool) $this->config->get('sentry.enable.' . $key, $default);
+    }
+
     public function isBreadcrumbEnable(string $key): bool
     {
         return (bool) $this->config->get('sentry.breadcrumbs.' . $key, true);

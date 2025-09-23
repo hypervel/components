@@ -10,7 +10,7 @@ trait ResolvesEventOrigin
 {
     protected function resolveEventOrigin(): ?array
     {
-        $backtraceHelper = $this->makeBacktraceHelper();
+        $backtraceHelper = $this->getBacktraceHelper();
 
         // We limit the backtrace to 20 frames to prevent too much overhead and we'd reasonable expect the origin to be within the first 20 frames
         $firstAppFrame = $backtraceHelper->findFirstInAppFrameForBacktrace(
@@ -43,8 +43,8 @@ trait ResolvesEventOrigin
         return "{$origin['code.filepath']}:{$origin['code.lineno']}";
     }
 
-    private function makeBacktraceHelper(): BacktraceHelper
+    private function getBacktraceHelper(): BacktraceHelper
     {
-        return $this->container()->make(BacktraceHelper::class);
+        return $this->container()->get(BacktraceHelper::class);
     }
 }
