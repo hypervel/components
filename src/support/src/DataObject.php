@@ -9,7 +9,6 @@ use Carbon\Carbon as BaseCarbon;
 use Carbon\CarbonInterface;
 use DateTime;
 use DateTimeInterface;
-use Hyperf\Collection\Collection;
 use JsonSerializable;
 use LogicException;
 use OutOfBoundsException;
