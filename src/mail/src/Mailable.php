@@ -273,7 +273,11 @@ class Mailable implements MailableContract, Renderable
             return ['text' => $this->textView];
         }
 
-        return $this->view;
+        if (isset($this->view)) {
+            return $this->view;
+        }
+
+        return '';
     }
 
     /**
