@@ -13,9 +13,16 @@ use Throwable;
 
 class Coroutine extends BaseCoroutine
 {
+    protected static bool $enableReportException = true;
+
+    public static function enableReportException(bool $enableReportException): void
+    {
+        static::$enableReportException = $enableReportException;
+    }
+
     protected static function printLog(Throwable $throwable): void
     {
-        if (! ApplicationContext::hasContainer()) {
+        if (! ApplicationContext::hasContainer() || ! static::$enableReportException) {
             return;
         }
 
@@ -24,6 +31,7 @@ class Coroutine extends BaseCoroutine
         if ($container->has(ExceptionHandlerContract::class)) {
             $container->get(ExceptionHandlerContract::class)
                 ->report($throwable);
+
             return;
         }
 
