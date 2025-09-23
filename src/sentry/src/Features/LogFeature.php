@@ -7,7 +7,6 @@ namespace Hypervel\Sentry\Features;
 use Hypervel\Sentry\LogChannel;
 use Hypervel\Sentry\Logs\LogChannel as LogsLogChannel;
 use Hypervel\Support\Facades\Log;
-use Psr\Log\LoggerInterface;
 
 class LogFeature extends Feature
 {
