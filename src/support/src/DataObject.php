@@ -93,6 +93,15 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
     }
 
     /**
+     * Create an instance of the class using the provided data array.
+     * This is an alias of the `make` method.
+     */
+    public static function from(array $data, bool $autoResolve = false): static
+    {
+        return static::make($data, $autoResolve);
+    }
+
+    /**
      * Get the customized dependencies map.
      *
      * @return array<string, callable>
