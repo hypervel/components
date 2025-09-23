@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
+use Hyperf\Collection\Collection;
 use Hyperf\Command\Event\FailToHandle;
 use Hyperf\Conditionable\Conditionable;
 use Hyperf\Contract\Arrayable;
@@ -11,6 +12,9 @@ use Hyperf\Macroable\Macroable;
 use Hyperf\Tappable\Tappable;
 use Hypervel\Container\Contracts\Container as ContainerContract;
 use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Prompts\Note as PromptsNote;
+use Hypervel\Prompts\Prompt as BasePrompt;
+use Hypervel\Prompts\Table as PromptsTable;
 use Hypervel\Support\Arr;
 use Mockery;
 use Mockery\Exception\NoMatchingExpectationException;
@@ -178,6 +182,108 @@ class PendingCommand
         }
 
         return $this;
+    }
+
+    /**
+     * Specify that the given Prompts info message should be contained in the command output.
+     */
+    public function expectsPromptsInfo(string $message): static
+    {
+        $this->expectOutputToContainPrompt(
+            new PromptsNote($message, 'info')
+        );
+
+        return $this;
+    }
+
+    /**
+     * Specify that the given Prompts warning message should be contained in the command output.
+     */
+    public function expectsPromptsWarning(string $message): static
+    {
+        $this->expectOutputToContainPrompt(
+            new PromptsNote($message, 'warning')
+        );
+
+        return $this;
+    }
+
+    /**
+     * Specify that the given Prompts error message should be contained in the command output.
+     */
+    public function expectsPromptsError(string $message): static
+    {
+        $this->expectOutputToContainPrompt(
+            new PromptsNote($message, 'error')
+        );
+
+        return $this;
+    }
+
+    /**
+     * Specify that the given Prompts alert message should be contained in the command output.
+     */
+    public function expectsPromptsAlert(string $message): static
+    {
+        $this->expectOutputToContainPrompt(
+            new PromptsNote($message, 'alert')
+        );
+
+        return $this;
+    }
+
+    /**
+     * Specify that the given Prompts intro message should be contained in the command output.
+     */
+    public function expectsPromptsIntro(string $message): static
+    {
+        $this->expectOutputToContainPrompt(
+            new PromptsNote($message, 'intro')
+        );
+
+        return $this;
+    }
+
+    /**
+     * Specify that the given Prompts outro message should be contained in the command output.
+     */
+    public function expectsPromptsOutro(string $message): static
+    {
+        $this->expectOutputToContainPrompt(
+            new PromptsNote($message, 'outro')
+        );
+
+        return $this;
+    }
+
+    /**
+     * Specify a Prompts table that should be printed when the command runs.
+     *
+     * @param array<int, array<int, string>|string>|Collection<int, array<int, string>|string> $headers
+     * @param null|array<int, array<int, string>>|Collection<int, array<int, string>> $rows
+     *
+     * @phpstan-param ($rows is null ? list<list<string>>|Collection<int, list<string>> : list<string|list<string>>|Collection<int, string|list<string>>) $headers
+     */
+    public function expectsPromptsTable(array|Collection $headers, array|Collection|null $rows): static
+    {
+        $this->expectOutputToContainPrompt(
+            new PromptsTable($headers, $rows)
+        );
+
+        return $this;
+    }
+
+    /**
+     * Render the given prompt and add the output to the expectations.
+     */
+    protected function expectOutputToContainPrompt(BasePrompt $prompt): void
+    {
+        $prompt->setOutput($output = new BufferedOutput());
+
+        /** @var PromptsNote $prompt */
+        $prompt->display();
+
+        $this->expectsOutputToContain(trim($output->fetch()));
     }
 
     /**

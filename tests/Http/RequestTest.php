@@ -264,22 +264,48 @@ class RequestTest extends TestCase
         $this->assertEquals(8080, $request->getPort());
     }
 
-    public function testGetScheme()
+    public function testGetSchemeWithHttp()
     {
         $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getServerParams')
-            ->andReturn(['HTTPS' => 'on']);
+        $psrRequest->shouldReceive('getUri')->andReturn(
+            new HyperfUri('http://localhost/path')
+        );
+        Context::set(ServerRequestInterface::class, $psrRequest);
+        $request = new Request();
+
+        $this->assertEquals('http', $request->getScheme());
+    }
+
+    public function testGetSchemeWithHttps()
+    {
+        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest->shouldReceive('getUri')->andReturn(
+            new HyperfUri('https://localhost/path')
+        );
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
 
         $this->assertEquals('https', $request->getScheme());
     }
 
-    public function testIsSecure()
+    public function testIsSecureWithHttp()
     {
         $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getServerParams')
-            ->andReturn(['HTTPS' => 'on']);
+        $psrRequest->shouldReceive('getUri')->andReturn(
+            new HyperfUri('http://localhost/path')
+        );
+        Context::set(ServerRequestInterface::class, $psrRequest);
+        $request = new Request();
+
+        $this->assertFalse($request->isSecure());
+    }
+
+    public function testIsSecureWithHttps()
+    {
+        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest->shouldReceive('getUri')->andReturn(
+            new HyperfUri('https://localhost/path')
+        );
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
 
@@ -412,9 +438,11 @@ class RequestTest extends TestCase
     public function testSchemeAndHttpHost()
     {
         $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getServerParams')->andReturn(['HTTPS' => 'on']);
         $psrRequest->shouldReceive('hasHeader')->with('HOST')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('HOST')->andReturn('example.com:8080');
+        $psrRequest->shouldReceive('getUri')->andReturn(
+            new HyperfUri('https://example.com:8080')
+        );
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
 
@@ -597,9 +625,11 @@ class RequestTest extends TestCase
     public function testRoot()
     {
         $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getServerParams')->andReturn(['HTTPS' => 'on']);
         $psrRequest->shouldReceive('hasHeader')->with('HOST')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('HOST')->andReturn('example.com:8080');
+        $psrRequest->shouldReceive('getUri')->andReturn(
+            new HyperfUri('https://example.com:8080')
+        );
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
 
@@ -697,7 +727,8 @@ class RequestTest extends TestCase
     public function testPrefetch()
     {
         $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getServerParams')->andReturn(['HTTP_X_MOZ' => 'prefetch']);
+        $psrRequest->shouldReceive('hasHeader')->with('X-MOZ')->andReturn(true);
+        $psrRequest->shouldReceive('getHeaderLine')->with('X-MOZ')->andReturn('prefetch');
 
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();

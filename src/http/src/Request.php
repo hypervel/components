@@ -209,14 +209,13 @@ class Request extends HyperfRequest implements RequestContract
     /**
      * Returns the host name.
      *
-     * This method can read the client host name from the "HOST" header
-     * or SERVER_NAME from server params, or SERVER_ADDR from server params
+     * This method can read the client host name from the "HOST" header.
      */
     public function getHost(): string
     {
-        $host = $this->header('HOST') ?? $this->server('SERVER_NAME') ?? $this->server('SERVER_ADDR') ?? '';
-
-        return strtolower(preg_replace('/:\d+$/', '', trim($host)));
+        return strtolower(
+            preg_replace('/:\d+$/', '', trim($this->header('HOST') ?? ''))
+        );
     }
 
     /**
@@ -240,7 +239,7 @@ class Request extends HyperfRequest implements RequestContract
     public function getPort(): int|string
     {
         if (! $host = $this->header('HOST', '')) {
-            return $this->server('SERVER_PORT');
+            return $this->server('server_port');
         }
 
         if ($host[0] === '[') {
@@ -261,19 +260,16 @@ class Request extends HyperfRequest implements RequestContract
      */
     public function getScheme(): string
     {
-        return $this->isSecure() ? 'https' : 'http';
+        return $this->getUri()
+            ->getScheme();
     }
 
     /**
      * Checks whether the request is secure or not.
-     *
-     * This method can read the client protocol from the HTTPS from server params.
      */
     public function isSecure(): bool
     {
-        $https = $this->server('HTTPS', '');
-
-        return ! empty($https) && strtolower($https) !== 'off';
+        return $this->getScheme() === 'https';
     }
 
     /**
@@ -846,7 +842,7 @@ class Request extends HyperfRequest implements RequestContract
      */
     public function prefetch(): bool
     {
-        return strcasecmp($this->server('HTTP_X_MOZ') ?? '', 'prefetch') === 0
+        return strcasecmp($this->header('X-MOZ') ?? '', 'prefetch') === 0
             || strcasecmp($this->header('Purpose') ?? '', 'prefetch') === 0
             || strcasecmp($this->header('Sec-Purpose') ?? '', 'prefetch') === 0;
     }
