@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Session\Contracts\Session;
 
 trait InteractsWithSession
 {
@@ -26,7 +26,7 @@ trait InteractsWithSession
         $this->startSession();
 
         foreach ($data as $key => $value) {
-            $this->app->get(SessionContract::class)->put($key, $value);
+            $this->app->get(Session::class)->put($key, $value);
         }
 
         return $this;
@@ -37,8 +37,8 @@ trait InteractsWithSession
      */
     protected function startSession(): static
     {
-        if (! $this->app->get(SessionContract::class)->isStarted()) {
-            $this->app->get(SessionContract::class)->start();
+        if (! $this->app->get(Session::class)->isStarted()) {
+            $this->app->get(Session::class)->start();
         }
 
         return $this;
@@ -51,7 +51,7 @@ trait InteractsWithSession
     {
         $this->startSession();
 
-        $this->app->get(SessionContract::class)->flush();
+        $this->app->get(Session::class)->flush();
 
         return $this;
     }

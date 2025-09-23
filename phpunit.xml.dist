@@ -13,6 +13,7 @@
         <testsuite name="Hypervel Packages Test Suite">
             <directory suffix="Test.php">./tests</directory>
             <exclude>./tests/Prompts</exclude>
+            <exclude>./tests/Sentry</exclude>
         </testsuite>
     </testsuites>
     <php>
