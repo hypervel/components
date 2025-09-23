@@ -9,7 +9,6 @@ use Hyperf\ViewEngine\Compiler\ComponentTagCompiler as HyperfComponentTagCompile
 use Hyperf\ViewEngine\Contract\FactoryInterface;
 use InvalidArgumentException;
 
-
 class ComponentTagCompiler extends HyperfComponentTagCompiler
 {
     /**
