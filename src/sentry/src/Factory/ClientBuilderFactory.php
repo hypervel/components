@@ -31,6 +31,7 @@ class ClientBuilderFactory
         'integrations',
         'tracing',
         'features',
+        'pool',
     ];
 
     public function __invoke(Application $container)
