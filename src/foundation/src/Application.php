@@ -31,7 +31,7 @@ class Application extends Container implements ApplicationContract
      *
      * @var string
      */
-    public const VERSION = '0.3.2';
+    public const VERSION = '0.3.3';
 
     /**
      * The base path for the Hypervel installation.
