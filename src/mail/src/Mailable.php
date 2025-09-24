@@ -83,22 +83,22 @@ class Mailable implements MailableContract, Renderable
     /**
      * The Markdown template for the message (if applicable).
      */
-    public string $markdown = '';
+    public string $markdown;
 
     /**
      * The HTML to use for the message.
      */
-    protected string $html = '';
+    protected string $html;
 
     /**
      * The view to use for the message.
      */
-    public string $view = '';
+    public string $view;
 
     /**
      * The plain text view to use for the message.
      */
-    public string $textView = '';
+    public string $textView;
 
     /**
      * The view data for the message.
@@ -273,7 +273,11 @@ class Mailable implements MailableContract, Renderable
             return ['text' => $this->textView];
         }
 
-        return $this->view;
+        if (isset($this->view)) {
+            return $this->view;
+        }
+
+        return '';
     }
 
     /**
