@@ -140,11 +140,13 @@ class GuzzleHttpClientAspect extends AbstractAspect
     protected function getResponsePayload(ResponseInterface $response): array|string
     {
         $stream = $response->getBody();
-        try {
-            if ($stream->isSeekable()) {
-                $stream->rewind();
-            }
+        if ($stream->isSeekable()) {
+            $stream->rewind();
+        } else {
+            return 'Streamed Response';
+        }
 
+        try {
             $sizeLimit = ($this->options['response_size_limit'] ?? 64) * 1024;
             if ($stream->getSize() >= $sizeLimit) {
                 return $stream->read($sizeLimit) . ' (truncated...)';

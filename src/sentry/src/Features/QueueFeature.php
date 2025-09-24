@@ -82,7 +82,7 @@ class QueueFeature extends Feature
                     $context = SpanContext::make()
                         ->setOp(static::QUEUE_SPAN_OP_QUEUE_PUBLISH)
                         ->setData([
-                            'messaging.system' => 'laravel',
+                            'messaging.system' => 'hypervel',
                             'messaging.message.id' => $payload['uuid'] ?? null,
                             'messaging.destination.name' => $this->normalizeQueueName($queue),
                             'messaging.destination.connection' => $connection,
