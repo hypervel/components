@@ -41,7 +41,7 @@ class SentryServiceProvider extends ServiceProvider
             'annotations' => [
                 'scan' => [
                     'class_map' => [
-                        \Sentry\SentrySdk::class => __DIR__ . '/../class-map/SentrySdk.php',
+                        \Sentry\SentrySdk::class => __DIR__ . '/../class_map/SentrySdk.php',
                     ],
                 ],
             ],
