@@ -12,8 +12,7 @@ class LogFeature extends Feature
 {
     public function isApplicable(): bool
     {
-        return $this->switcher->isTracingEnable('logs')
-            || $this->switcher->isBreadcrumbEnable('logs');
+        return true;
     }
 
     public function register(): void
