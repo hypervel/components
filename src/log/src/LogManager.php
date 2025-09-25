@@ -156,7 +156,7 @@ class LogManager implements LoggerInterface
         );
 
         return new Logger(
-            new Monolog('hyperf', $this->prepareHandlers([$handler])),
+            new Monolog('hypervel', $this->prepareHandlers([$handler])),
             $this->app->get(EventDispatcherInterface::class)
         );
     }
