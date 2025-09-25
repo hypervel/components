@@ -47,7 +47,11 @@ class Lock
      */
     public function get(string $key, int $seconds = 60): bool
     {
-        return $this->connection()->setNx($key, 1);
+        if ($result = $this->connection()->setNx($key, 1)) {
+            $this->connection()->expire($key, $seconds);
+        }
+
+        return $result;
     }
 
     /**

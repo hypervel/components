@@ -50,7 +50,7 @@ class MonitoringTest extends IntegrationTest
     {
         dispatch(new MonitorTag('first'));
         dispatch(new StopMonitoringTag('first'));
-        $this->assertFalse(Redis::connection('horizon')->get('first'));
+        $this->assertNull(Redis::connection('horizon')->get('first'));
     }
 
     public function testCompletedJobsAreStoredInDatabaseWhenOneOfTheirTagsIsBeingMonitored()

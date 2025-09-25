@@ -81,14 +81,14 @@ abstract class IntegrationTest extends TestCase
     {
         Redis::eval(
             "return redis.call('del', unpack(redis.call('keys', ARGV[1])))",
-            [static::HORIZON_PREFIX . '*'],
-            0
+            0,
+            static::HORIZON_PREFIX . '*',
         );
 
         Redis::eval(
             "return redis.call('del', unpack(redis.call('keys', ARGV[1])))",
-            [config('database.redis.options.prefix', '') . '*'],
-            0
+            0,
+            config('database.redis.options.prefix', '') . '*',
         );
     }
 
