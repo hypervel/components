@@ -9,7 +9,7 @@ use Hypervel\Cache\Contracts\Factory;
 /**
  * @method static \Hypervel\Cache\Contracts\Repository store(string|null $name = null)
  * @method static \Hypervel\Cache\Contracts\Repository driver(string|null $driver = null)
- * @method static \Hypervel\Cache\Repository repository(\Hypervel\Cache\Contracts\Store $store)
+ * @method static \Hypervel\Cache\Repository repository(\Hypervel\Cache\Contracts\Store $store, array $config = [])
  * @method static void refreshEventDispatcher()
  * @method static string getDefaultDriver()
  * @method static void setDefaultDriver(string $name)
@@ -49,6 +49,7 @@ use Hypervel\Cache\Contracts\Factory;
  * @method static \Hypervel\Cache\Repository setDefaultCacheTime(int|null $seconds)
  * @method static \Psr\EventDispatcher\EventDispatcherInterface|null getEventDispatcher()
  * @method static void setEventDispatcher(\Psr\EventDispatcher\EventDispatcherInterface $events)
+ * @method static string|null getName()
  * @method static mixed macroCall(string $method, array $parameters)
  * @method static void macro(string $name, callable|object $macro)
  * @method static void mixin(object $mixin, bool $replace = true)
