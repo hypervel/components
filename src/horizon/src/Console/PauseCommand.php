@@ -38,7 +38,7 @@ class PauseCommand extends Command
                 $result = true;
 
                 $this->components->task("Process: {$processId}", function () use ($processId, &$result) {
-                    return $result = posix_kill($processId, SIGUSR2);
+                    return $result = posix_kill((int) $processId, SIGUSR2);
                 });
 
                 if (! $result) {

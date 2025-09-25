@@ -22,7 +22,9 @@ class PendingJobsController
      */
     public function index(Request $request): array
     {
-        $jobs = $this->jobs->getPending($request->query('starting_at', -1))->map(function ($job) {
+        $startingAt = $request->query('starting_at') ?: -1;
+
+        $jobs = $this->jobs->getPending((int) $startingAt)->map(function ($job) {
             $job->payload = json_decode($job->payload);
 
             return $job;

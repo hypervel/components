@@ -24,7 +24,9 @@ class CompletedJobsController
      */
     public function index(Request $request): array
     {
-        $jobs = $this->jobs->getCompleted($request->query('starting_at', -1))->map(function ($job) {
+        $startingAt = $request->query('starting_at') ?: -1;
+
+        $jobs = $this->jobs->getCompleted((int) $startingAt)->map(function ($job) {
             $job->payload = json_decode($job->payload);
 
             return $job;

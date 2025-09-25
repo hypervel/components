@@ -78,7 +78,7 @@ class RedisSupervisorRepository implements SupervisorRepository
     public function longestActiveTimeout(): int
     {
         return collect($this->all())->max(function ($supervisor) {
-            return $supervisor->options['timeout'];
+            return (int) $supervisor->options['timeout'];
         }) ?: 0;
     }
 

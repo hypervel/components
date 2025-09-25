@@ -51,7 +51,7 @@ class TerminateCommand extends Command
                 $result = true;
 
                 $this->components->task("Process: {$processId}", function () use ($processId, &$result) {
-                    return $result = posix_kill($processId, SIGTERM);
+                    return $result = posix_kill((int) $processId, SIGTERM);
                 });
 
                 if (! $result) {

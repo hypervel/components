@@ -22,7 +22,9 @@ class SilencedJobsController
      */
     public function index(Request $request): array
     {
-        $jobs = $this->jobs->getSilenced($request->query('starting_at', -1))->map(function ($job) {
+        $startingAt = $request->query('starting_at') ?: -1;
+
+        $jobs = $this->jobs->getSilenced((int) $startingAt)->map(function ($job) {
             $job->payload = json_decode($job->payload);
 
             return $job;

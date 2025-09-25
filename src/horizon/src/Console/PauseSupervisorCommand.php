@@ -27,7 +27,7 @@ class PauseSupervisorCommand extends Command
      */
     public function handle(SupervisorRepository $supervisors): int
     {
-        $processId = optional(collect($supervisors->all())->first(function ($supervisor) {
+        $processId = (int) optional(collect($supervisors->all())->first(function ($supervisor) {
             return Str::startsWith($supervisor->name, MasterSupervisor::basename())
                     && Str::endsWith($supervisor->name, $this->argument('name'));
         }))->pid;

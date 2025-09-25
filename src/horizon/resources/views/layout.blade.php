@@ -12,8 +12,8 @@
     <!-- Style sheets-->
     <link rel="preconnect" href="https://fonts.bunny.net">
     <link href="https://fonts.bunny.net/css?family=figtree:300,400,500,600" rel="stylesheet" />
-    {{ Laravel\Horizon\Horizon::css() }}
-    {{ Laravel\Horizon\Horizon::js() }}
+    {{ Hypervel\Horizon\Horizon::css() }}
+    {{ Hypervel\Horizon\Horizon::js() }}
 </head>
 <body>
 <div id="horizon" v-cloak>
@@ -32,7 +32,7 @@
                 </svg>
 
                 <h1 class="h4 mb-0 ms-2">
-                    <strong>Laravel</strong> Horizon{{ config('app.name') ? ' - ' . config('app.name') : '' }}
+                    <strong>Hypervel</strong> Horizon{{ config('app.name') ? ' - ' . config('app.name') : '' }}
                 </h1>
             </router-link>
 

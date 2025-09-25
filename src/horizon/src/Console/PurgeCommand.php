@@ -34,10 +34,6 @@ class PurgeCommand extends Command
         private ProcessInspector $inspector
     ) {
         parent::__construct();
-
-        $this->supervisors = $supervisors;
-        $this->processes = $processes;
-        $this->inspector = $inspector;
     }
 
     /**
@@ -48,6 +44,7 @@ class PurgeCommand extends Command
         $signal = is_numeric($signal = $this->option('signal'))
                         ? $signal
                         : constant($signal);
+        $signal = (int) $signal;
 
         foreach ($masters->names() as $master) {
             if (Str::startsWith($master, MasterSupervisor::basename())) {
@@ -95,7 +92,7 @@ class PurgeCommand extends Command
                 $result = true;
 
                 $this->components->task("Process: {$processId}", function () use ($processId, $signal, &$result) {
-                    return $result = posix_kill($processId, $signal);
+                    return $result = posix_kill((int) $processId, $signal);
                 });
 
                 if (! $result) {

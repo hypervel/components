@@ -44,7 +44,9 @@ class FailedJobsController
      */
     protected function paginate(Request $request)
     {
-        return $this->jobs->getFailed($request->query('starting_at') ?: -1)->map(function ($job) {
+        $startingAt = $request->query('starting_at') ?: -1;
+
+        return $this->jobs->getFailed((int) $startingAt)->map(function ($job) {
             return $this->decode($job);
         });
     }
@@ -60,7 +62,7 @@ class FailedJobsController
             50
         );
 
-        $startingAt = $request->query('starting_at', 0);
+        $startingAt = (int) $request->query('starting_at', 0);
 
         return $this->jobs->getJobs($jobIds, $startingAt)->map(function ($job) {
             return $this->decode($job);
@@ -88,7 +90,7 @@ class FailedJobsController
 
         $job->context = json_decode($job->context ?? '');
 
-        $job->retried_by = collect(! is_null($job->retried_by) ? json_decode($job->retried_by) : [])
+        $job->retried_by = collect(! empty($job->retried_by) ? json_decode($job->retried_by) : [])
             ->sortByDesc('retried_at')->values();
 
         return $job;

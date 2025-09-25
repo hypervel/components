@@ -45,7 +45,7 @@ class MonitoringController
         $jobIds = $this->tags->paginate(
             $tag,
             $startingAt = (int) $request->query('starting_at', 0),
-            $request->query('limit', 25)
+            (int) $request->query('limit', 25)
         );
 
         return [

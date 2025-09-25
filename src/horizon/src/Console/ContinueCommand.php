@@ -38,7 +38,7 @@ class ContinueCommand extends Command
                 $result = true;
 
                 $this->components->task("Process: {$processId}", function () use ($processId, &$result) {
-                    return $result = posix_kill($processId, SIGCONT);
+                    return $result = posix_kill((int) $processId, SIGCONT);
                 });
 
                 if (! $result) {

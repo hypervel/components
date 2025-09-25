@@ -30,7 +30,7 @@ class JobMetricsController
      */
     public function show(string $id): Collection
     {
-        return collect($this->metrics->snapshotsForJob($id))->map(function ($record) {
+        return collect($this->metrics->snapshotsForJob(urldecode($id)))->map(function ($record) {
             $record->runtime = round($record->runtime / 1000, 3);
             $record->throughput = (int) $record->throughput;
 
