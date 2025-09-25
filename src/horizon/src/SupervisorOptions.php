@@ -61,6 +61,7 @@ class SupervisorOptions
         public int $maxJobs = 0,
         public int $maxProcesses = 1,
         public int $minProcesses = 1,
+        public int $concurrency = 1,
         public int $memory = 128,
         public int $timeout = 60,
         public int $sleep = 3,
@@ -71,7 +72,7 @@ class SupervisorOptions
         public int $balanceMaxShift = 1,
         public int $parentId = 0,
         public int $rest = 0,
-        public ?string $autoScalingStrategy = 'time'
+        public ?string $autoScalingStrategy = 'time',
     ) {
         $this->queue = $queue ?: config('queue.connections.' . $connection . '.queue');
     }
@@ -161,6 +162,7 @@ class SupervisorOptions
             'parentId' => $this->parentId,
             'rest' => $this->rest,
             'autoScalingStrategy' => $this->autoScalingStrategy,
+            'concurrency' => $this->concurrency,
         ];
     }
 

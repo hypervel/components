@@ -26,6 +26,7 @@ class SupervisorCommand extends Command
                             {--force : Force the worker to run even in maintenance mode}
                             {--max-processes=1 : The maximum number of total workers to start}
                             {--min-processes=1 : The minimum number of workers to assign per queue}
+                            {--concurrency=1 : The number of jobs to process at once}
                             {--memory=128 : The memory limit in megabytes}
                             {--nice=0 : The process priority}
                             {--paused : Start the supervisor in a paused state}
@@ -120,6 +121,7 @@ class SupervisorCommand extends Command
             (int) $this->option('max-jobs'),
             (int) $this->option('max-processes'),
             (int) $this->option('min-processes'),
+            (int) $this->option('concurrency'),
             (int) $this->option('memory'),
             (int) $this->option('timeout'),
             (int) $this->option('sleep'),
@@ -130,7 +132,7 @@ class SupervisorCommand extends Command
             (int) $this->option('balance-max-shift'),
             (int) $this->option('parent-id'),
             (int) $this->option('rest'),
-            $autoScalingStrategy
+            $autoScalingStrategy,
         );
     }
 
