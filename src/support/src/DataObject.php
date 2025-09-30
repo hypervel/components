@@ -387,6 +387,9 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
         if (! $type = $parameter->getType()) {
             return $value;
         }
+        if ($type->allowsNull() && is_null($value)) {
+            return null;
+        }
 
         if ($type instanceof ReflectionNamedType) {
             return match ($type->getName()) {
@@ -472,8 +475,11 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
      */
     public function offsetGet(mixed $offset): mixed
     {
-        return $this->toArray()[$offset]
-            ?? throw new OutOfBoundsException("Undefined offset: {$offset}");
+        if (array_key_exists($offset, $this->toArray())) {
+            return $this->toArray()[$offset];
+        }
+
+        throw new OutOfBoundsException("Undefined offset: {$offset}");
     }
 
     /**
@@ -512,7 +518,6 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
             } elseif (is_object($value) && method_exists($value, 'toArray')) {
                 $value = $value->toArray();
             }
-
             $result[$snakeKey] = $value;
         }
 
