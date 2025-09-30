@@ -118,6 +118,20 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
     }
 
     /**
+     * Get the serialization handlers for specific dependency types.
+     *
+     * @return array<string, callable>
+     */
+    protected static function getSerializers(): array
+    {
+        return [
+            CarbonInterface::class => $asISOString = fn ($value) => $value->toISOString(),
+            Carbon::class => $asISOString,
+            BaseCarbon::class => $asISOString,
+        ];
+    }
+
+    /**
      * Return a timestamp as DateTime object.
      */
     protected static function asDateTime(mixed $value): CarbonInterface
@@ -510,11 +524,14 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
         $result = [];
         $map = static::getPropertyMap();
 
+        $serializers = static::getSerializers();
         foreach ($map as $snakeKey => $propName) {
             $value = $this->{$propName};
             // recursively convert nested objects to arrays
             if ($value instanceof self) {
                 $value = $value->toArray();
+            } elseif (is_object($value) && $serializer = $serializers[get_class($value)] ?? null) {
+                $value = $serializer($value);
             } elseif (is_object($value) && method_exists($value, 'toArray')) {
                 $value = $value->toArray();
             }
