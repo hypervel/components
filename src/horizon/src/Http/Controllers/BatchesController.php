@@ -6,7 +6,6 @@ namespace Hypervel\Horizon\Http\Controllers;
 
 use Hyperf\Database\Exception\QueryException;
 use Hypervel\Bus\Contracts\BatchRepository;
-use Hypervel\Bus\DatabaseBatchRepository;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Jobs\RetryFailedJob;
 use Hypervel\Http\Request;
@@ -19,7 +18,7 @@ class BatchesController
      * @param BatchRepository $batches the job repository implementation
      */
     public function __construct(
-        public DatabaseBatchRepository $batches
+        public BatchRepository $batches
     ) {
     }
 

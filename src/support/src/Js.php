@@ -54,7 +54,7 @@ class Js implements Htmlable, Stringable
      *
      * @throws JsonException
      */
-    protected function convertDataToJavaScriptExpression(mixed $data, int $flags = 0, int $depth = 512): static
+    protected function convertDataToJavaScriptExpression(mixed $data, int $flags = 0, int $depth = 512): string
     {
         if ($data instanceof self) {
             return $data->toHtml();
