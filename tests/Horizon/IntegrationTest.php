@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Horizon;
 
 use Closure;
 use Hyperf\Contract\ConfigInterface;
+use Hyperf\Redis\Pool\PoolFactory;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Horizon\Contracts\JobRepository;
@@ -34,9 +36,7 @@ abstract class IntegrationTest extends TestCase
 
         $this->loadServiceProviders();
 
-        $this->afterApplicationCreated(function () {
-            $this->flushRedis();
-        });
+        $this->flushRedis();
 
         $this->beforeApplicationDestroyed(function () {
             /* $this->flushRedis(); */
@@ -51,7 +51,24 @@ abstract class IntegrationTest extends TestCase
         $config = $this->app->get(ConfigInterface::class);
         $config->set('queue', $this->originalQueueConfig);
 
+        $poolFactory = $this->app->get(PoolFactory::class);
+        $pool = $poolFactory->getPool('default');
+        $pool->flushOne(true);
+
         parent::tearDown();
+    }
+
+    public function setUpInCoroutine()
+    {
+        $poolFactory = $this->app->get(PoolFactory::class);
+
+        defer(function () use ($poolFactory) {
+            $pool = $poolFactory->getPool('default');
+            $pool->flushOne(true);
+
+            $pool = $poolFactory->getPool('horizon');
+            $pool->flushOne(true);
+        });
     }
 
     protected function loadServiceProviders(): void
