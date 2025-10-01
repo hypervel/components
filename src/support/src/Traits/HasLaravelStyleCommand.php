@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support\Traits;
 
 use Hyperf\Context\ApplicationContext;
+use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
 use Psr\Container\ContainerInterface;
 use Symfony\Component\Console\Output\NullOutput;
 
@@ -24,8 +25,8 @@ trait HasLaravelStyleCommand
      */
     public function callSilent(string $command, array $arguments = []): int
     {
-        $arguments['command'] = $command;
-
-        return $this->getApplication()->find($command)->run($this->createInputFromArguments($arguments), new NullOutput());
+        return $this->app
+            ->get(KernelContract::class)
+            ->call($command, $arguments);
     }
 }
