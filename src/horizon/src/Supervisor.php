@@ -29,6 +29,8 @@ class Supervisor implements Pausable, Restartable, Terminable
 
     /**
      * All of the process pools being managed.
+     *
+     * @var Collection<int, ProcessPool>
      */
     public Collection $processPools;
 
