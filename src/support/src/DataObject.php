@@ -125,9 +125,11 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
     protected static function getSerializers(): array
     {
         return [
-            CarbonInterface::class => $asISOString = fn ($value) => $value->toISOString(),
-            Carbon::class => $asISOString,
-            BaseCarbon::class => $asISOString,
+            DateTimeInterface::class => $asIsoString = fn ($value) => $value->format('c'),
+            DateTime::class => $asIsoString,
+            CarbonInterface::class => $asIsoString,
+            Carbon::class => $asIsoString,
+            BaseCarbon::class => $asIsoString,
         ];
     }
 
