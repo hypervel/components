@@ -28,7 +28,9 @@ class InstallCommand extends Command
 
         $this->components->task(
             'Service Provider and Configuration',
-            fn () => $this->callSilent('vendor:publish', ['hypervel/horizon']) == 0
+            fn () => $this->callSilent('vendor:publish', [
+                'package' => 'Hypervel\Horizon\HorizonServiceProvider'
+            ]) == 0
         );
 
         $this->registerHorizonServiceProvider();
