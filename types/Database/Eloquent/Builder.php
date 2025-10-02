@@ -123,18 +123,18 @@ function test(
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->orWhereMorphRelation($post->taggable(), 'taggable', 'id', 1));
 
     $query->chunk(1, function ($users, $page) {
-        assertType('Hypervel\Support\Collection<int, Hypervel\Types\Builder\User>', $users);
+        assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Builder\User>', $users);
         assertType('int', $page);
     });
     $query->chunkById(1, function ($users, $page) {
-        assertType('Hypervel\Support\Collection<int, Hypervel\Types\Builder\User>', $users);
+        assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Builder\User>', $users);
         assertType('int', $page);
     });
     $query->chunkMap(function ($users) {
         assertType('Hypervel\Types\Builder\User', $users);
     });
     $query->chunkByIdDesc(1, function ($users, $page) {
-        assertType('Hypervel\Support\Collection<int, Hypervel\Types\Builder\User>', $users);
+        assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Builder\User>', $users);
         assertType('int', $page);
     });
     $query->each(function ($users, $page) {
