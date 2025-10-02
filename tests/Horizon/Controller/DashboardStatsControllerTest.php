@@ -9,14 +9,14 @@ use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\WaitTimeCalculator;
-use Hypervel\Tests\Horizon\ControllerTest;
+use Hypervel\Tests\Horizon\ControllerTestCase;
 use Mockery;
 
 /**
  * @internal
  * @coversNothing
  */
-class DashboardStatsControllerTest extends ControllerTest
+class DashboardStatsControllerTest extends ControllerTestCase
 {
     public function testAllStatsAreCorrectlyReturned()
     {

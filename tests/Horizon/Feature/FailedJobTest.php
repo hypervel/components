@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Horizon\Feature;
 
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Contracts\TagRepository;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
 
@@ -14,7 +14,7 @@ use Hypervel\Support\Facades\Redis;
  * @internal
  * @coversNothing
  */
-class FailedJobTest extends IntegrationTest
+class FailedJobTest extends IntegrationTestCase
 {
     public function testFailedJobsArePlacedInTheFailedJobTable()
     {

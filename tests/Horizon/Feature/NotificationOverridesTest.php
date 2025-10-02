@@ -9,7 +9,7 @@ use Hypervel\Horizon\Contracts\LongWaitDetectedNotification as LongWaitDetectedN
 use Hypervel\Horizon\Events\LongWaitDetected;
 use Hypervel\Horizon\Horizon;
 use Hypervel\Horizon\Notifications\LongWaitDetected as LongWaitDetectedNotification;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Support\Facades\Notification;
 
@@ -17,7 +17,7 @@ use Hypervel\Support\Facades\Notification;
  * @internal
  * @coversNothing
  */
-class NotificationOverridesTest extends IntegrationTest
+class NotificationOverridesTest extends IntegrationTestCase
 {
     public function testCustomNotificationsAreSentIfSpecified()
     {

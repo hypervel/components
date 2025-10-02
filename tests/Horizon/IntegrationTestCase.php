@@ -22,7 +22,7 @@ use Hypervel\Queue\WorkerOptions;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
 
-abstract class IntegrationTest extends TestCase
+abstract class IntegrationTestCase extends TestCase
 {
     use RunTestsInCoroutine;
 

@@ -8,7 +8,7 @@ use Exception;
 use Hypervel\Event\Contracts\Dispatcher;
 use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Horizon\Events\JobFailed;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Queue\Jobs\Job;
 use Mockery as m;
 
@@ -16,7 +16,7 @@ use Mockery as m;
  * @internal
  * @coversNothing
  */
-class StoreTagsForFailedTest extends IntegrationTest
+class StoreTagsForFailedTest extends IntegrationTestCase
 {
     protected function tearDown(): void
     {

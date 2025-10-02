@@ -7,14 +7,14 @@ namespace Hypervel\Tests\Horizon\Feature;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Horizon\MasterSupervisorCommands\AddSupervisor;
 use Hypervel\Horizon\ProvisioningPlan;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Support\Facades\Redis;
 
 /**
  * @internal
  * @coversNothing
  */
-class ProvisioningPlanTest extends IntegrationTest
+class ProvisioningPlanTest extends IntegrationTestCase
 {
     public function testSupervisorsAreAdded()
     {

@@ -21,7 +21,7 @@ use Hypervel\Tests\Horizon\Feature\Fixtures\FakeListenerWithProperties;
 use Hypervel\Tests\Horizon\Feature\Fixtures\FakeModel;
 use Hypervel\Tests\Horizon\Feature\Fixtures\FakeSilencedJob;
 use Hypervel\Tests\Horizon\Feature\Fixtures\SilencedMailable;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Notifications\SendQueuedNotifications;
 use Illuminate\Events\CallQueuedListener;
@@ -32,7 +32,7 @@ use StdClass;
  * @internal
  * @coversNothing
  */
-class RedisPayloadTest extends IntegrationTest
+class RedisPayloadTest extends IntegrationTestCase
 {
     public function testTypeIsCorrectlyDetermined()
     {

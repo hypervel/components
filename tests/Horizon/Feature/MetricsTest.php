@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Horizon\Feature;
 use Carbon\CarbonImmutable;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Stopwatch;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Support\Facades\Queue;
 use Mockery;
 
@@ -15,7 +15,7 @@ use Mockery;
  * @internal
  * @coversNothing
  */
-class MetricsTest extends IntegrationTest
+class MetricsTest extends IntegrationTestCase
 {
     public function testTotalThroughputIsStored()
     {

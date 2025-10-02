@@ -14,7 +14,7 @@ use Hypervel\Horizon\SupervisorOptions;
 use Hypervel\Horizon\SupervisorProcess;
 use Hypervel\Tests\Horizon\Feature\Fixtures\EternalSupervisor;
 use Hypervel\Tests\Horizon\Feature\Fixtures\SupervisorProcessWithFakeRestart;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Horizon\WorkerCommandString;
 use Hypervel\Support\Facades\Redis;
 use Mockery;
@@ -24,7 +24,7 @@ use Symfony\Component\Process\Process;
  * @internal
  * @coversNothing
  */
-class MasterSupervisorTest extends IntegrationTest
+class MasterSupervisorTest extends IntegrationTestCase
 {
     public function testNamesCanBeCustomized()
     {

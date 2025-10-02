@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Horizon;
 
 use Hypervel\Horizon\Horizon;
 
-abstract class ControllerTest extends IntegrationTest
+abstract class ControllerTestCase extends IntegrationTestCase
 {
     protected function setUp(): void
     {

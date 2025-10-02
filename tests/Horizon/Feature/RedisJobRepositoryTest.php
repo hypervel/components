@@ -7,14 +7,14 @@ namespace Hypervel\Tests\Horizon\Feature;
 use Exception;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\JobPayload;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Throwable;
 
 /**
  * @internal
  * @coversNothing
  */
-class RedisJobRepositoryTest extends IntegrationTest
+class RedisJobRepositoryTest extends IntegrationTestCase
 {
     public function testItCanFindAFailedJobByItsId()
     {

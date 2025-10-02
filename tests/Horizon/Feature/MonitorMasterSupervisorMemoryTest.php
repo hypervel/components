@@ -7,14 +7,14 @@ namespace Hypervel\Tests\Horizon\Feature;
 use Hypervel\Horizon\Events\MasterSupervisorLooped;
 use Hypervel\Horizon\Listeners\MonitorMasterSupervisorMemory;
 use Hypervel\Horizon\MasterSupervisor;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Mockery;
 
 /**
  * @internal
  * @coversNothing
  */
-class MonitorMasterSupervisorMemoryTest extends IntegrationTest
+class MonitorMasterSupervisorMemoryTest extends IntegrationTestCase
 {
     public function testSupervisorIsTerminatedWhenUsingTooMuchMemory()
     {

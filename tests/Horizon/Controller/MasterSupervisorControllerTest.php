@@ -9,13 +9,13 @@ use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Horizon\Supervisor;
 use Hypervel\Horizon\SupervisorOptions;
-use Hypervel\Tests\Horizon\ControllerTest;
+use Hypervel\Tests\Horizon\ControllerTestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-class MasterSupervisorControllerTest extends ControllerTest
+class MasterSupervisorControllerTest extends ControllerTestCase
 {
     public function testMasterSupervisorListingWithoutSupervisors()
     {

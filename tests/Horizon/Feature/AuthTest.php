@@ -8,7 +8,7 @@ use Hypervel\Horizon\Exceptions\ForbiddenException;
 use Hypervel\Horizon\Horizon;
 use Hypervel\Horizon\Http\Middleware\Authenticate;
 use Hypervel\Http\Response;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Mockery;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -16,7 +16,7 @@ use Psr\Http\Message\ServerRequestInterface;
  * @internal
  * @coversNothing
  */
-class AuthTest extends IntegrationTest
+class AuthTest extends IntegrationTestCase
 {
     public function testAuthenticationCallbackWorks()
     {

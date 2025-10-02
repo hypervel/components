@@ -8,7 +8,7 @@ use Carbon\CarbonImmutable;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Events\JobReserved;
 use Hypervel\Horizon\Events\JobsMigrated;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
@@ -17,7 +17,7 @@ use Hypervel\Support\Facades\Redis;
  * @internal
  * @coversNothing
  */
-class QueueProcessingTest extends IntegrationTest
+class QueueProcessingTest extends IntegrationTestCase
 {
     public function testLegacyJobsCanBeProcessedWithoutErrors()
     {

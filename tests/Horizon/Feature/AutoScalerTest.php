@@ -11,14 +11,14 @@ use Hypervel\Horizon\RedisQueue;
 use Hypervel\Horizon\Supervisor;
 use Hypervel\Horizon\SupervisorOptions;
 use Hypervel\Horizon\SystemProcessCounter;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Mockery;
 
 /**
  * @internal
  * @coversNothing
  */
-class AutoScalerTest extends IntegrationTest
+class AutoScalerTest extends IntegrationTestCase
 {
     public function testScalerAttemptsToGetCloserToProperBalanceOnEachIteration()
     {

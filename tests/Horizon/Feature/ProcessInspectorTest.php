@@ -8,14 +8,14 @@ use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\Exec;
 use Hypervel\Horizon\ProcessInspector;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Mockery;
 
 /**
  * @internal
  * @coversNothing
  */
-class ProcessInspectorTest extends IntegrationTest
+class ProcessInspectorTest extends IntegrationTestCase
 {
     public function testFindsOrphanedProcessIds()
     {

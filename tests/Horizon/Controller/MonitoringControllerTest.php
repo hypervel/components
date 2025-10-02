@@ -7,14 +7,14 @@ namespace Hypervel\Tests\Horizon\Controller;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Horizon\JobPayload;
-use Hypervel\Tests\Horizon\ControllerTest;
+use Hypervel\Tests\Horizon\ControllerTestCase;
 use Mockery;
 
 /**
  * @internal
  * @coversNothing
  */
-class MonitoringControllerTest extends ControllerTest
+class MonitoringControllerTest extends ControllerTestCase
 {
     public function testMonitoredTagsAndJobCountsAreReturned()
     {

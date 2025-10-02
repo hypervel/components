@@ -8,7 +8,7 @@ use Carbon\CarbonImmutable;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Events\LongWaitDetected;
 use Hypervel\Horizon\Listeners\MonitorWaitTimes;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Horizon\WaitTimeCalculator;
 use Hypervel\Support\Facades\Event;
 use Mockery;
@@ -17,7 +17,7 @@ use Mockery;
  * @internal
  * @coversNothing
  */
-class MonitorWaitTimesTest extends IntegrationTest
+class MonitorWaitTimesTest extends IntegrationTestCase
 {
     public function testQueuesWithLongWaitsAreFound()
     {

@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Horizon\Unit;
 
 use Hypervel\Horizon\Stopwatch;
-use Hypervel\Tests\Horizon\UnitTest;
+use Hypervel\Tests\Horizon\UnitTestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-class StopwatchTest extends UnitTest
+class StopwatchTest extends UnitTestCase
 {
     public function testTimeBetweenChecksCanBeMeasured()
     {

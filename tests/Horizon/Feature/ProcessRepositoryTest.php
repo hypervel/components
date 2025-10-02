@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Horizon\Feature;
 
 use Hypervel\Horizon\Contracts\ProcessRepository;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-class ProcessRepositoryTest extends IntegrationTest
+class ProcessRepositoryTest extends IntegrationTestCase
 {
     public function testExpiredOrphansCanBeFound()
     {

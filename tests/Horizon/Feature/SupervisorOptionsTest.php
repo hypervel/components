@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Horizon\Feature;
 
 use Hypervel\Horizon\SupervisorOptions;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-class SupervisorOptionsTest extends IntegrationTest
+class SupervisorOptionsTest extends IntegrationTestCase
 {
     public function testDefaultQueueIsUsedWhenNullIsGiven()
     {

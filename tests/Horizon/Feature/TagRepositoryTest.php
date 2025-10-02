@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Horizon\Feature;
 
 use Hypervel\Horizon\Contracts\TagRepository;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-class TagRepositoryTest extends IntegrationTest
+class TagRepositoryTest extends IntegrationTestCase
 {
     public function testPaginationOfJobIdsCanBeAccomplished()
     {

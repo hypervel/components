@@ -10,7 +10,7 @@ use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Horizon\Events\JobDeleted;
 use Hypervel\Horizon\JobPayload;
 use Hypervel\Horizon\Listeners\MarkJobAsComplete;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Queue\Jobs\RedisJob;
 use Mockery as m;
 
@@ -18,7 +18,7 @@ use Mockery as m;
  * @internal
  * @coversNothing
  */
-class MarkJobAsCompleteTest extends IntegrationTest
+class MarkJobAsCompleteTest extends IntegrationTestCase
 {
     public function testHandle(): void
     {

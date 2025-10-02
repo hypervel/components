@@ -8,13 +8,13 @@ use Hypervel\Foundation\Console\Contracts\Kernel;
 use Hypervel\Horizon\Console\SupervisorCommand;
 use Hypervel\Horizon\SupervisorFactory;
 use Hypervel\Tests\Horizon\Feature\Fixtures\FakeSupervisorFactory;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-class SupervisorCommandTest extends IntegrationTest
+class SupervisorCommandTest extends IntegrationTestCase
 {
     const OPTIONS = [
         'name' => 'foo',

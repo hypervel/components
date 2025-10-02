@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Horizon\Feature;
 use Hypervel\Queue\Contracts\Factory as QueueFactory;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Horizon\WaitTimeCalculator;
 use Hypervel\Queue\Contracts\Queue;
 use Mockery;
@@ -16,7 +16,7 @@ use Mockery;
  * @internal
  * @coversNothing
  */
-class WaitTimeCalculatorTest extends IntegrationTest
+class WaitTimeCalculatorTest extends IntegrationTestCase
 {
     public function testTimeToClearIsCalculatedPerQueue()
     {

@@ -17,7 +17,7 @@ use Hypervel\Horizon\HorizonServiceProvider;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
 use Hypervel\Testbench\Bootstrapper;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Workbench\App\Exceptions\ExceptionHandler;
 
 use function Hyperf\Coroutine\run;
@@ -33,7 +33,7 @@ $app->get(ApplicationInterface::class);
 
 
 $config = $app->get(ConfigInterface::class);
-$config->set('horizon.prefix', IntegrationTest::HORIZON_PREFIX);
+$config->set('horizon.prefix', IntegrationTestCase::HORIZON_PREFIX);
 $config->set('queue', [
     'default' => 'redis',
     'connections' => [

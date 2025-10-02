@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Horizon\Feature;
 use Carbon\CarbonImmutable;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\JobPayload;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
 
@@ -15,7 +15,7 @@ use Hypervel\Support\Facades\Redis;
  * @internal
  * @coversNothing
  */
-class JobRetrievalTest extends IntegrationTest
+class JobRetrievalTest extends IntegrationTestCase
 {
     public function testPendingJobsCanBeRetrieved()
     {

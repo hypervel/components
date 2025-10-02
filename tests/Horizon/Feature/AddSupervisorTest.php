@@ -10,13 +10,13 @@ use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Horizon\MasterSupervisorCommands\AddSupervisor;
 use Hypervel\Horizon\PhpBinary;
 use Hypervel\Horizon\SupervisorOptions;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-class AddSupervisorTest extends IntegrationTest
+class AddSupervisorTest extends IntegrationTestCase
 {
     public function testAddSupervisorCommandCreatesNewSupervisorOnMasterProcess()
     {

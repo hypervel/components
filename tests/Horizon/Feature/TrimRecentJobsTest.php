@@ -9,14 +9,14 @@ use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Events\MasterSupervisorLooped;
 use Hypervel\Horizon\Listeners\TrimRecentJobs;
 use Hypervel\Horizon\MasterSupervisor;
-use Hypervel\Tests\Horizon\IntegrationTest;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Mockery;
 
 /**
  * @internal
  * @coversNothing
  */
-class TrimRecentJobsTest extends IntegrationTest
+class TrimRecentJobsTest extends IntegrationTestCase
 {
     public function testTrimmerHasACooldownPeriod()
     {
