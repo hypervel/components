@@ -22,5 +22,6 @@
         <ini name="display_startup_errors" value="on"/>
         <ini name="memory_limit" value="1024M"/>
         <env name="RUN_BLOCKING_TESTS" value="false" force="true"/>
+        <env name="APP_ENV" value="testing"/>
     </php>
 </phpunit>
