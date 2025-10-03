@@ -51,9 +51,11 @@ class InstallCommand extends Command
             return;
         }
 
-        file_put_contents(config_path('app.php'), str_replace(
-            "{$namespace}\\Providers\\EventServiceProvider::class," . PHP_EOL,
-            "{$namespace}\\Providers\\EventServiceProvider::class," . PHP_EOL . "        {$namespace}\\Providers\\HorizonServiceProvider::class," . PHP_EOL,
+        $lastProvider = last(config('app.providers'));
+
+        file_put_contents(config_path('app.php'), preg_replace(
+            '/' . preg_quote($lastProvider, '/') . '::class,?\n/',
+            "{$lastProvider}::class,\n        {$namespace}\\Providers\\HorizonServiceProvider::class,\n",
             $appConfig
         ));
 
