@@ -74,6 +74,7 @@ class RedisMasterSupervisorRepository implements MasterSupervisorRepository
      */
     public function update(MasterSupervisor $master): void
     {
+        /** @phpstan-ignore-next-line */
         $supervisors = $master->supervisors->map->name->all();
 
         $this->connection()->pipeline(function ($pipe) use ($master, $supervisors) {

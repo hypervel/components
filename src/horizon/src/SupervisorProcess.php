@@ -100,9 +100,7 @@ class SupervisorProcess extends WorkerProcess
      */
     protected function reprovision(): void
     {
-        if (isset($this->name)) {
-            app(SupervisorRepository::class)->forget($this->name);
-        }
+        app(SupervisorRepository::class)->forget($this->name);
 
         app(HorizonCommandQueue::class)->push(
             MasterSupervisor::commandQueue(),

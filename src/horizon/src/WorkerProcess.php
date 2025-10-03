@@ -11,6 +11,9 @@ use Hypervel\Horizon\Events\WorkerProcessRestarting;
 use Symfony\Component\Process\Exception\ExceptionInterface;
 use Symfony\Component\Process\Process;
 
+/**
+ * @mixin Process
+ */
 class WorkerProcess
 {
     /**

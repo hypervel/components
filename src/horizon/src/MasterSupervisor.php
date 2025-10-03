@@ -242,6 +242,7 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
     {
         $this->supervisors->each->monitor();
 
+        /** @phpstan-ignore-next-line */
         $this->supervisors = $this->supervisors->reject->dead;
     }
 
