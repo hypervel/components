@@ -74,8 +74,8 @@ abstract class Facade
         $name = static::getFacadeAccessor();
 
         $mock = static::isMock()
-                    ? static::$resolvedInstance[$name]
-                    : static::createFreshMockInstance();
+            ? static::$resolvedInstance[$name]
+            : static::createFreshMockInstance();
 
         return $mock->shouldReceive(...func_get_args());
     }
@@ -110,7 +110,7 @@ abstract class Facade
         $name = static::getFacadeAccessor();
 
         return isset(static::$resolvedInstance[$name])
-               && static::$resolvedInstance[$name] instanceof LegacyMockInterface;
+            && static::$resolvedInstance[$name] instanceof LegacyMockInterface;
     }
 
     /**
@@ -249,6 +249,7 @@ abstract class Facade
             'URL' => URL::class,
             'Validator' => Validator::class,
             'View' => View::class,
+            'Vite' => Vite::class,
         ]);
     }
 

@@ -653,6 +653,7 @@ class Application extends Container implements ApplicationContract
             \Hypervel\Queue\Failed\FailedJobProviderInterface::class => ['queue.failer'],
             \Hypervel\Validation\Contracts\Factory::class => ['validator'],
             \Hypervel\Validation\DatabasePresenceVerifierInterface::class => ['validation.presence'],
+            \Hypervel\Foundation\Vite::class => ['vite'],
         ] as $key => $aliases) {
             foreach ($aliases as $alias) {
                 $this->alias($key, $alias);

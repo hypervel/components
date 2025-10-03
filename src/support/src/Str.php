@@ -7,10 +7,18 @@ namespace Hypervel\Support;
 use Hyperf\Stringable\Str as BaseStr;
 use Ramsey\Uuid\Exception\InvalidUuidStringException;
 use Ramsey\Uuid\Rfc4122\FieldsInterface;
+use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactory;
 
 class Str extends BaseStr
 {
+    /**
+     * The callback that should be used to generate random strings.
+     *
+     * @var null|(callable(int): string)
+     */
+    protected static $randomStringFactory;
+
     /**
      * Determine if a given string matches a given pattern.
      *
@@ -95,5 +103,43 @@ class Str extends BaseStr
         }
 
         return $fields->getVersion() === $version;
+    }
+
+    /**
+     * Set the callable that will be used to generate random strings.
+     */
+    public static function createRandomStringsUsing(?callable $factory = null)
+    {
+        static::$randomStringFactory = $factory;
+    }
+
+    /**
+     * Indicate that random strings should be created normally and not using a custom factory.
+     */
+    public static function createRandomStringsNormally()
+    {
+        static::$randomStringFactory = null;
+    }
+
+    /**
+     * Generate a more truly "random" alpha-numeric string.
+     */
+    public static function random(int $length = 16): string
+    {
+        return (static::$randomStringFactory ?? function ($length) {
+            $string = '';
+
+            while (($len = strlen($string)) < $length) {
+                $size = $length - $len;
+
+                $bytesSize = (int) ceil($size / 3) * 3;
+
+                $bytes = random_bytes($bytesSize);
+
+                $string .= substr(str_replace(['/', '+', '='], '', base64_encode($bytes)), 0, $size);
+            }
+
+            return $string;
+        })($length);
     }
 }

@@ -5,15 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Context;
 
 use Hyperf\Context\ApplicationContext as HyperfApplicationContext;
-use Hypervel\Container\Contracts\Container as ContainerContract;
+use Psr\Container\ContainerInterface;
 use TypeError;
 
 class ApplicationContext extends HyperfApplicationContext
 {
     /**
+     * @return \Hypervel\Container\Contracts\Container
      * @throws TypeError
      */
-    public static function getContainer(): ContainerContract
+    public static function getContainer(): ContainerInterface
     {
         /* @phpstan-ignore-next-line */
         return self::$container;
