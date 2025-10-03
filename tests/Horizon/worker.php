@@ -31,7 +31,6 @@ $app->bind(ExceptionHandlerContract::class, ExceptionHandler::class);
 ApplicationContext::setContainer($app);
 $app->get(ApplicationInterface::class);
 
-
 $config = $app->get(ConfigInterface::class);
 $config->set('horizon.prefix', IntegrationTestCase::HORIZON_PREFIX);
 $config->set('queue', [
@@ -44,7 +43,7 @@ $config->set('queue', [
             'retry_after' => 90,
             'block_for' => null,
             'after_commit' => false,
-        ]
+        ],
     ],
 ]);
 

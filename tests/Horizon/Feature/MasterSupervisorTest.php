@@ -12,11 +12,11 @@ use Hypervel\Horizon\MasterSupervisorCommands\AddSupervisor;
 use Hypervel\Horizon\PhpBinary;
 use Hypervel\Horizon\SupervisorOptions;
 use Hypervel\Horizon\SupervisorProcess;
+use Hypervel\Horizon\WorkerCommandString;
+use Hypervel\Support\Facades\Redis;
 use Hypervel\Tests\Horizon\Feature\Fixtures\EternalSupervisor;
 use Hypervel\Tests\Horizon\Feature\Fixtures\SupervisorProcessWithFakeRestart;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
-use Hypervel\Horizon\WorkerCommandString;
-use Hypervel\Support\Facades\Redis;
 use Mockery;
 use Symfony\Component\Process\Process;
 

@@ -17,11 +17,11 @@ use Hypervel\Horizon\PhpBinary;
 use Hypervel\Horizon\Supervisor;
 use Hypervel\Horizon\SupervisorOptions;
 use Hypervel\Horizon\SystemProcessCounter;
-use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Horizon\WorkerCommandString;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Mockery;
 
 /**

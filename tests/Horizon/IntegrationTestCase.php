@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Horizon;
 use Closure;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Redis\Pool\PoolFactory;
-use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Horizon\Contracts\JobRepository;
@@ -26,7 +25,7 @@ abstract class IntegrationTestCase extends TestCase
 {
     use RunTestsInCoroutine;
 
-    const HORIZON_PREFIX = 'hypervel_test_horizon:';
+    public const HORIZON_PREFIX = 'hypervel_test_horizon:';
 
     protected array $originalQueueConfig = [];
 

@@ -7,8 +7,8 @@ namespace Hypervel\Tests\Horizon\Feature;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Horizon\MasterSupervisorCommands\AddSupervisor;
 use Hypervel\Horizon\ProvisioningPlan;
-use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Support\Facades\Redis;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 
 /**
  * @internal

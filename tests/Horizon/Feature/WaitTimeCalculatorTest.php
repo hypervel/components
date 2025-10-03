@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Horizon\Feature;
 
-use Hypervel\Queue\Contracts\Factory as QueueFactory;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
-use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Horizon\WaitTimeCalculator;
+use Hypervel\Queue\Contracts\Factory as QueueFactory;
 use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Mockery;
 
 /**
@@ -159,7 +159,7 @@ class WaitTimeCalculatorTest extends IntegrationTestCase
 
     protected function with_scenario(array $supervisorSettings, array $queues)
     {
-        $queue = Mockery::mock(Queue::class);;
+        $queue = Mockery::mock(Queue::class);
         $queueFactory = Mockery::mock(QueueFactory::class);
         $supervisors = Mockery::mock(SupervisorRepository::class);
         $metrics = Mockery::mock(MetricsRepository::class);

@@ -29,7 +29,7 @@ class InstallCommand extends Command
         $this->components->task(
             'Service Provider and Configuration',
             fn () => $this->callSilent('vendor:publish', [
-                'package' => 'Hypervel\Horizon\HorizonServiceProvider'
+                'package' => 'Hypervel\Horizon\HorizonServiceProvider',
             ]) == 0
         );
 

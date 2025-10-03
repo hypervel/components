@@ -7,8 +7,8 @@ namespace Hypervel\Tests\Horizon\Feature;
 use Carbon\CarbonImmutable;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Stopwatch;
-use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Support\Facades\Queue;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Mockery;
 
 /**

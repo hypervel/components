@@ -170,7 +170,7 @@ class RedisQueue extends BaseQueue
     /**
      * Get the job that last pushed to queue via the "push" method.
      */
-    protected function getLastPushed(): null|object|string
+    protected function getLastPushed(): object|string|null
     {
         return Context::get(static::LAST_PUSHED_CONTEXT_KEY);
     }

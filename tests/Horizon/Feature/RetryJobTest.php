@@ -9,9 +9,9 @@ use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\JobPayload;
 use Hypervel\Horizon\Jobs\MonitorTag;
 use Hypervel\Horizon\Jobs\RetryFailedJob;
-use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 
 /**
  * @internal
@@ -99,7 +99,7 @@ class RetryJobTest extends IntegrationTestCase
                 'id' => '1',
                 'displayName' => 'foo',
                 'retryUntil' => now()->addMinute(3)->timestamp,
-                'job' => 'Illuminate\\Queue\\CallQueuedHandler@call',
+                'job' => 'Illuminate\Queue\CallQueuedHandler@call',
                 'data' => [
                     'commandName' => Jobs\ConditionallyFailingJob::class,
                     'command' => serialize($job),

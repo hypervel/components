@@ -16,7 +16,7 @@ use Hypervel\Tests\Horizon\IntegrationTestCase;
  */
 class SupervisorCommandTest extends IntegrationTestCase
 {
-    const OPTIONS = [
+    public const OPTIONS = [
         'name' => 'foo',
         'connection' => 'redis',
         '--workers-name' => 'default',

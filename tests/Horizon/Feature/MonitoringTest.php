@@ -7,9 +7,9 @@ namespace Hypervel\Tests\Horizon\Feature;
 use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Horizon\Jobs\MonitorTag;
 use Hypervel\Horizon\Jobs\StopMonitoringTag;
-use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 
 /**
  * @internal

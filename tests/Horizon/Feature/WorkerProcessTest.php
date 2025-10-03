@@ -7,9 +7,9 @@ namespace Hypervel\Tests\Horizon\Feature;
 use Carbon\CarbonImmutable;
 use Hypervel\Horizon\Events\UnableToLaunchProcess;
 use Hypervel\Horizon\Events\WorkerProcessRestarting;
-use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Horizon\WorkerProcess;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Symfony\Component\Process\Process;
 
 /**

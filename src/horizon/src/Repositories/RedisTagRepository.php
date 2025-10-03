@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Repositories;
 
-use Hypervel\Horizon\Contracts\TagRepository;
 use Hyperf\Redis\RedisFactory;
 use Hyperf\Redis\RedisProxy;
+use Hypervel\Horizon\Contracts\TagRepository;
 
 class RedisTagRepository implements TagRepository
 {

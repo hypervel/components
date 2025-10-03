@@ -5,13 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Horizon\Feature\Listeners;
 
 use Hypervel\Horizon\Contracts\JobRepository;
-use Hypervel\Horizon\Contracts\Silenced;
 use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Horizon\Events\JobDeleted;
 use Hypervel\Horizon\JobPayload;
 use Hypervel\Horizon\Listeners\MarkJobAsComplete;
-use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Queue\Jobs\RedisJob;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Mockery as m;
 
 /**

@@ -608,7 +608,7 @@ class RedisJobRepository implements JobRepository
                 'recent_jobs',
                 'pending_jobs',
                 config('horizon.prefix'),
-                $queue
+                $queue,
             ],
             2,
         );

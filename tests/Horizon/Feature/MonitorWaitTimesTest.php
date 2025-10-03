@@ -8,9 +8,9 @@ use Carbon\CarbonImmutable;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Events\LongWaitDetected;
 use Hypervel\Horizon\Listeners\MonitorWaitTimes;
-use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Horizon\WaitTimeCalculator;
 use Hypervel\Support\Facades\Event;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Mockery;
 
 /**

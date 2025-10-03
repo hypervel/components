@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Horizon\Feature;
 
-use Hypervel\Queue\Contracts\Factory as QueueFactory;
 use Hypervel\Horizon\AutoScaler;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\RedisQueue;
 use Hypervel\Horizon\Supervisor;
 use Hypervel\Horizon\SupervisorOptions;
 use Hypervel\Horizon\SystemProcessCounter;
+use Hypervel\Queue\Contracts\Factory as QueueFactory;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Mockery;
 
@@ -181,7 +181,6 @@ class AutoScalerTest extends IntegrationTestCase
         $supervisor->processPools = collect($pools)->mapWithKeys(function ($pool, $name) {
             return [$name => new Fakes\FakePool($name, $pool['current'])];
         });
-
 
         // Set stats per pool...
         $queue = Mockery::mock(RedisQueue::class);

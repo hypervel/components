@@ -7,7 +7,6 @@ namespace Hypervel\Support\Traits;
 use Hyperf\Context\ApplicationContext;
 use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
 use Psr\Container\ContainerInterface;
-use Symfony\Component\Console\Output\NullOutput;
 
 trait HasLaravelStyleCommand
 {

@@ -8,8 +8,8 @@ use Exception;
 use Hypervel\Event\Contracts\Dispatcher;
 use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Horizon\Events\JobFailed;
-use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Hypervel\Queue\Jobs\Job;
+use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Mockery as m;
 
 /**
@@ -48,7 +48,7 @@ class StoreTagsForFailedTest extends IntegrationTestCase
 
 class FailedJob extends Job
 {
-    public function getJobId(): null|int|string
+    public function getJobId(): int|string|null
     {
         return '1';
     }
