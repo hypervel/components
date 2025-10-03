@@ -189,7 +189,7 @@ class CustomCastingTest extends TestCase
         $this->assertInstanceOf(Collection::class, $statuses);
         $this->assertCount(3, $statuses);
 
-        $values = $statuses->pluck('value')->all() ;
+        $values = $statuses->pluck('value')->all();
         $this->assertSame(['active', 'inactive', 'pending'], $values);
     }
 

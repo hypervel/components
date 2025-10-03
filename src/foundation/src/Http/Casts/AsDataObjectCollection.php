@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Http\Casts;
 use Hyperf\Collection\Collection;
 use Hypervel\Foundation\Http\Contracts\Castable;
 use Hypervel\Foundation\Http\Contracts\CastInputs;
+use RuntimeException;
 
 class AsDataObjectCollection implements Castable
 {
@@ -40,7 +41,7 @@ class AsDataObjectCollection implements Castable
 
                 // Check if the class has make static method (provided by DataObject)
                 if (! method_exists($dataClass, 'make')) {
-                    throw new \RuntimeException(
+                    throw new RuntimeException(
                         "Class {$dataClass} must implement static make(array \$data) method"
                     );
                 }
