@@ -8,6 +8,7 @@ use Hyperf\Collection\Arr;
 use Hyperf\Context\Context;
 use Hyperf\Context\ResponseContext;
 use Hypervel\Auth\Access\AuthorizationException;
+use Hypervel\Foundation\Http\Traits\HasCasts;
 use Hypervel\Http\Request;
 use Hypervel\Validation\Contracts\Factory as ValidationFactory;
 use Hypervel\Validation\Contracts\ValidatesWhenResolved;
@@ -19,6 +20,7 @@ use Psr\Http\Message\ResponseInterface;
 
 class FormRequest extends Request implements ValidatesWhenResolved
 {
+    use HasCasts;
     use ValidatesWhenResolvedTrait;
 
     /**
@@ -38,6 +40,7 @@ class FormRequest extends Request implements ValidatesWhenResolved
 
     public function __construct(protected ContainerInterface $container)
     {
+        $this->casts = array_merge($this->casts, $this->casts());
     }
 
     public function scene(string $scene): static
@@ -192,5 +195,13 @@ class FormRequest extends Request implements ValidatesWhenResolved
         }
 
         return $rules;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [];
     }
 }
