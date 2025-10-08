@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Horizon\SupervisorCommands;
 
 use Hypervel\Horizon\Contracts\Terminable;
