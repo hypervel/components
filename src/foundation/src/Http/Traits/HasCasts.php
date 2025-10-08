@@ -262,7 +262,15 @@ trait HasCasts
      */
     public function getCasts(): array
     {
-        return $this->casts;
+        return array_merge($this->casts, $this->casts());
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [];
     }
 
     /**

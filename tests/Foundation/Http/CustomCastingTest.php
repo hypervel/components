@@ -9,7 +9,6 @@ use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Hyperf\Collection\Collection;
 use Hyperf\Context\Context;
-use Hyperf\HttpServer\Request as HyperfRequest;
 use Hypervel\Foundation\Http\Casts\AsDataObjectArray;
 use Hypervel\Foundation\Http\Casts\AsDataObjectCollection;
 use Hypervel\Foundation\Http\Casts\AsEnumArrayObject;
@@ -31,16 +30,6 @@ use Swow\Psr7\Message\ServerRequestPlusInterface;
 class CustomCastingTest extends TestCase
 {
     use RunTestsInCoroutine;
-
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-        Mockery::close();
-        Context::destroy(ServerRequestInterface::class);
-        Context::destroy('http.request.parsedData');
-        Context::destroy(HyperfRequest::class . '.properties.requestUri');
-        Context::destroy(HyperfRequest::class . '.properties.pathInfo');
-    }
 
     /**
      * Test enum casting.

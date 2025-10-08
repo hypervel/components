@@ -38,9 +38,9 @@ class FormRequest extends Request implements ValidatesWhenResolved
      */
     protected array $dontFlash = ['password', 'password_confirmation'];
 
-    public function __construct(protected ContainerInterface $container)
-    {
-        $this->casts = array_merge($this->casts, $this->casts());
+    public function __construct(
+        protected ContainerInterface $container
+    ) {
     }
 
     public function scene(string $scene): static
@@ -195,13 +195,5 @@ class FormRequest extends Request implements ValidatesWhenResolved
         }
 
         return $rules;
-    }
-
-    /**
-     * @return array<string, string>
-     */
-    protected function casts(): array
-    {
-        return [];
     }
 }
