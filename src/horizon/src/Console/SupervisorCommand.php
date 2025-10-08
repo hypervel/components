@@ -19,7 +19,6 @@ class SupervisorCommand extends Command
                             {name : The name of supervisor}
                             {connection : The name of the connection to work}
                             {--balance= : The balancing strategy the supervisor should apply}
-                            {--delay=0 : The number of seconds to delay failed jobs (Deprecated)}
                             {--backoff=0 : The number of seconds to wait before retrying a job that encountered an uncaught exception}
                             {--max-jobs=0 : The number of jobs to process before stopping a child process}
                             {--max-time=0 : The maximum number of seconds a child process should run}
@@ -104,10 +103,6 @@ class SupervisorCommand extends Command
      */
     protected function supervisorOptions(): SupervisorOptions
     {
-        $backoff = $this->hasOption('backoff')
-                    ? $this->option('backoff')
-                    : $this->option('delay');
-
         $balance = $this->option('balance');
 
         $autoScalingStrategy = $balance === 'auto' ? $this->option('auto-scaling-strategy') : null;
@@ -118,7 +113,7 @@ class SupervisorCommand extends Command
             $this->getQueue($this->argument('connection')),
             $this->option('workers-name'),
             $balance,
-            (int) $backoff,
+            (int) $this->option('backoff'),
             (int) $this->option('max-time'),
             (int) $this->option('max-jobs'),
             (int) $this->option('max-processes'),
