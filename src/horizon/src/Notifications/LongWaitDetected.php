@@ -82,7 +82,8 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
 
         if (class_exists('\Hypervel\Notifications\Messages\SlackMessage')
             && class_exists('\Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock')
-            && ! (is_string(Horizon::$slackWebhookUrl) && Str::startsWith(Horizon::$slackWebhookUrl, ['http://', 'https://']))) {
+            && ! (is_string(Horizon::$slackWebhookUrl) && Str::startsWith(Horizon::$slackWebhookUrl, ['http://', 'https://']))
+        ) {
             return (new ChannelIdSlackMessage())
                 ->username($fromName)
                 ->image($imageUrl)

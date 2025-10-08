@@ -41,6 +41,8 @@ class AutoScaler
 
     /**
      * Get the process pools keyed by their queue name.
+     *
+     * @return Collection<string, ProcessPool>
      */
     protected function poolsByQueue(Supervisor $supervisor): Collection
     {
