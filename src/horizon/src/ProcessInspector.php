@@ -7,6 +7,7 @@ namespace Hypervel\Horizon;
 use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 
 class ProcessInspector
 {
@@ -46,9 +47,9 @@ class ProcessInspector
     {
         return collect(app(SupervisorRepository::class)->all())
             ->pluck('pid')
-            ->pipe(function ($processes) {
-                $processes->each(function ($process) use (&$processes) {
-                    $processes = $processes->merge($this->exec->run('pgrep -P ' . (string) $process));
+            ->pipe(function (Collection $processes) {
+                $processes->each(function (string $process) use (&$processes) {
+                    $processes = $processes->merge($this->exec->run('pgrep -P ' . $process));
                 });
 
                 return $processes;
