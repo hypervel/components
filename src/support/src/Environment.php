@@ -28,7 +28,7 @@ class Environment
         $this->debug = $debug ?? (bool) env('APP_DEBUG', false);
     }
 
-    public function __call($method, $parameters = [])
+    public function __call($method, $parameters)
     {
         if (Str::startsWith($method, 'is')) {
             return $this->is(Str::snake(substr($method, 2)));

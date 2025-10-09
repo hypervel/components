@@ -9,6 +9,7 @@ use Hyperf\Coroutine\Concurrent;
 use Hyperf\Database\DetectsLostConnections;
 use Hyperf\Stringable\Str;
 use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Coroutine\Waiter;
 use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Queue\Contracts\Factory as QueueManager;
 use Hypervel\Queue\Contracts\Job as JobContract;
@@ -141,6 +142,7 @@ class Worker
 
         [$startTime, $jobsProcessed] = [hrtime(true) / 1e9, 0];
 
+        $waiter = new Waiter();
         $concurrent = new Concurrent($options->concurrency);
 
         // Before we begin processing, we will setup the monitor to check for timeout jobs
@@ -173,10 +175,10 @@ class Worker
             // Then, we can fire off this job in coroutine. If there are no jobs,
             // we will need to sleep the worker so no more jobs are processed
             // until they should be processed.
-            $job = $this->getNextJob(
+            $job = $waiter->wait(fn () => $this->getNextJob(
                 $this->manager->connection($connectionName),
                 $queue
-            );
+            ));
             if ($job) {
                 ++$jobsProcessed;
                 $concurrent->create(fn () => $this->runJob($job, $connectionName, $options));
