@@ -118,6 +118,22 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
     }
 
     /**
+     * Get the serialization handlers for specific dependency types.
+     *
+     * @return array<string, callable>
+     */
+    protected static function getSerializers(): array
+    {
+        return [
+            DateTimeInterface::class => $asIsoString = fn ($value) => $value->format('c'),
+            DateTime::class => $asIsoString,
+            CarbonInterface::class => $asIsoString,
+            Carbon::class => $asIsoString,
+            BaseCarbon::class => $asIsoString,
+        ];
+    }
+
+    /**
      * Return a timestamp as DateTime object.
      */
     protected static function asDateTime(mixed $value): CarbonInterface
@@ -387,6 +403,9 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
         if (! $type = $parameter->getType()) {
             return $value;
         }
+        if ($type->allowsNull() && is_null($value)) {
+            return null;
+        }
 
         if ($type instanceof ReflectionNamedType) {
             return match ($type->getName()) {
@@ -472,8 +491,11 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
      */
     public function offsetGet(mixed $offset): mixed
     {
-        return $this->toArray()[$offset]
-            ?? throw new OutOfBoundsException("Undefined offset: {$offset}");
+        if (array_key_exists($offset, $this->toArray())) {
+            return $this->toArray()[$offset];
+        }
+
+        throw new OutOfBoundsException("Undefined offset: {$offset}");
     }
 
     /**
@@ -504,15 +526,17 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
         $result = [];
         $map = static::getPropertyMap();
 
+        $serializers = static::getSerializers();
         foreach ($map as $snakeKey => $propName) {
             $value = $this->{$propName};
             // recursively convert nested objects to arrays
             if ($value instanceof self) {
                 $value = $value->toArray();
+            } elseif (is_object($value) && $serializer = $serializers[get_class($value)] ?? null) {
+                $value = $serializer($value);
             } elseif (is_object($value) && method_exists($value, 'toArray')) {
                 $value = $value->toArray();
             }
-
             $result[$snakeKey] = $value;
         }
 

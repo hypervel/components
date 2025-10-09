@@ -134,16 +134,22 @@ class DataObjectTest extends TestCase
      */
     public function testArrayAccess(): void
     {
-        $object = TestDataObject::make($this->getData());
+        $object = TestDataObject::make(
+            array_merge($this->getData(), [
+                'nullable_value' => null,
+            ])
+        );
 
         // Test offsetExists
         $this->assertTrue(isset($object['string_value']));
         $this->assertTrue(isset($object['int_value']));
         $this->assertFalse(isset($object['non_existent']));
+        $this->assertTrue(isset($object['nullable_value']));
 
         // Test offsetGet
         $this->assertSame('test', $object['string_value']);
         $this->assertSame(42, $object['int_value']);
+        $this->assertNull($object['nullable_value']);
 
         // Test accessing properties that don't exist
         $this->expectException(OutOfBoundsException::class);
