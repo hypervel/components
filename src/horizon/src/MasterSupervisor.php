@@ -51,6 +51,8 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
      */
     public static ?Closure $nameResolver = null;
 
+    public bool $shouldExitLoop = false;
+
     /**
      * Create a new master supervisor instance.
      *
@@ -170,7 +172,7 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
             app(CacheFactory::class)->forget('horizon:terminate:wait');
         }
 
-        $this->exit($status);
+        $this->shouldExitLoop = true;
     }
 
     /**
@@ -188,6 +190,10 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
             sleep(1);
 
             $this->loop();
+
+            if ($this->shouldExitLoop) {
+                break;
+            }
         }
     }
 
@@ -302,21 +308,5 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
     public function output(string $type, string $line): void
     {
         call_user_func($this->output, $type, $line);
-    }
-
-    /**
-     * Shutdown the supervisor.
-     */
-    protected function exit(int $status = 0): void
-    {
-        $this->exitProcess($status);
-    }
-
-    /**
-     * Exit the PHP process.
-     */
-    protected function exitProcess(int $status = 0): void
-    {
-        exit((int) $status);
     }
 }

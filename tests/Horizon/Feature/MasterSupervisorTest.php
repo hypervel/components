@@ -220,13 +220,13 @@ class MasterSupervisorTest extends IntegrationTestCase
 
     public function testSupervisorProcessTerminatesAllWorkersAndExitsOnFullTermination()
     {
-        $master = new Fakes\MasterSupervisorWithFakeExit();
+        $master = new MasterSupervisor();
         $master->working = true;
 
         $master->persist();
         $master->terminate();
 
-        $this->assertTrue($master->exited);
+        $this->assertTrue($master->shouldExitLoop);
 
         // Assert that the supervisor is removed...
         $this->assertNull(resolve(MasterSupervisorRepository::class)->find($master->name));
@@ -234,7 +234,7 @@ class MasterSupervisorTest extends IntegrationTestCase
 
     public function testSupervisorContinuesTerminationIfSupervisorsTakeTooLong()
     {
-        $master = new Fakes\MasterSupervisorWithFakeExit();
+        $master = new MasterSupervisor();
         $master->working = true;
 
         $master->supervisors = collect([new EternalSupervisor()]);
@@ -242,7 +242,7 @@ class MasterSupervisorTest extends IntegrationTestCase
         $master->persist();
         $master->terminate();
 
-        $this->assertTrue($master->exited);
+        $this->assertTrue($master->shouldExitLoop);
     }
 
     protected function supervisorOptions()
