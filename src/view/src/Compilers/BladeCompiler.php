@@ -6,8 +6,8 @@ namespace Hypervel\View\Compilers;
 
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Support\Htmlable;
-use Hypervel\Contracts\View\Factory as ViewFactory;
-use Hypervel\Contracts\View\View;
+use Hypervel\View\Contracts\Factory as ViewFactory;
+use Hypervel\View\Contracts\View;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;

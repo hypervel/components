@@ -6,7 +6,7 @@ namespace Hypervel\View\Compilers;
 
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Foundation\Application;
-use Hypervel\Contracts\View\Factory;
+use Hypervel\View\Contracts\Factory;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;

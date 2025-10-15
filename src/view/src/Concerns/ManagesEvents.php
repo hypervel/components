@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\View\Concerns;
 
 use Closure;
-use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\Support\Str;
 
 trait ManagesEvents

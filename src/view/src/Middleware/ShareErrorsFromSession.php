@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\View\Middleware;
 
 use Closure;
-use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\View\Contracts\Factory as ViewFactory;
 use Hypervel\Support\ViewErrorBag;
 
 class ShareErrorsFromSession

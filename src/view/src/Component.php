@@ -7,7 +7,7 @@ namespace Hypervel\View;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Support\Htmlable;
-use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\Support\Collection;
 use ReflectionClass;
 use ReflectionMethod;

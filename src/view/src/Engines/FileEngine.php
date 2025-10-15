@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Engines;
 
-use Hypervel\Contracts\View\Engine;
+use Hypervel\View\Contracts\Engine;
 use Hypervel\Filesystem\Filesystem;
 
 class FileEngine implements Engine
