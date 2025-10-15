@@ -1,11 +1,11 @@
 <?php
 
-namespace Illuminate\View\Concerns;
+namespace Hypervel\View\Concerns;
 
-use Illuminate\Contracts\Support\Htmlable;
-use Illuminate\Contracts\View\View;
-use Illuminate\Support\Arr;
-use Illuminate\View\ComponentSlot;
+use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\View\View;
+use Hypervel\Support\Arr;
+use Hypervel\View\ComponentSlot;
 
 trait ManagesComponents
 {

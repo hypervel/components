@@ -1,10 +1,10 @@
 <?php
 
-namespace Illuminate\View\Compilers;
+namespace Hypervel\View\Compilers;
 
 use ErrorException;
-use Illuminate\Filesystem\Filesystem;
-use Illuminate\Support\Str;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Str;
 use InvalidArgumentException;
 
 abstract class Compiler

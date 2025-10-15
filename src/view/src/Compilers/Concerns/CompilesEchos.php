@@ -1,9 +1,9 @@
 <?php
 
-namespace Illuminate\View\Compilers\Concerns;
+namespace Hypervel\View\Compilers\Concerns;
 
 use Closure;
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Stringable;
 
 trait CompilesEchos
 {

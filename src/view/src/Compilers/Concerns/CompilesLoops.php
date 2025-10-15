@@ -1,8 +1,8 @@
 <?php
 
-namespace Illuminate\View\Compilers\Concerns;
+namespace Hypervel\View\Compilers\Concerns;
 
-use Illuminate\Contracts\View\ViewCompilationException;
+use Hypervel\Contracts\View\ViewCompilationException;
 
 trait CompilesLoops
 {

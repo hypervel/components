@@ -1,8 +1,8 @@
 <?php
 
-namespace Illuminate\View\Compilers\Concerns;
+namespace Hypervel\View\Compilers\Concerns;
 
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 trait CompilesStacks
 {

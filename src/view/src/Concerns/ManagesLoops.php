@@ -1,9 +1,9 @@
 <?php
 
-namespace Illuminate\View\Concerns;
+namespace Hypervel\View\Concerns;
 
-use Illuminate\Support\Arr;
-use Illuminate\Support\LazyCollection;
+use Hypervel\Support\Arr;
+use Hypervel\Support\LazyCollection;
 
 trait ManagesLoops
 {

@@ -1,9 +1,9 @@
 <?php
 
-namespace Illuminate\View\Engines;
+namespace Hypervel\View\Engines;
 
-use Illuminate\Contracts\View\Engine;
-use Illuminate\Filesystem\Filesystem;
+use Hypervel\Contracts\View\Engine;
+use Hypervel\Filesystem\Filesystem;
 use Throwable;
 
 class PhpEngine implements Engine

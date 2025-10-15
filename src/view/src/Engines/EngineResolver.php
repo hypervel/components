@@ -1,6 +1,6 @@
 <?php
 
-namespace Illuminate\View\Engines;
+namespace Hypervel\View\Engines;
 
 use Closure;
 use InvalidArgumentException;

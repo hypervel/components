@@ -1,11 +1,11 @@
 <?php
 
-namespace Illuminate\View;
+namespace Hypervel\View;
 
-use Illuminate\Container\Container;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
-use Illuminate\View\Compilers\ComponentTagCompiler;
+use Hypervel\Container\Container;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
+use Hypervel\View\Compilers\ComponentTagCompiler;
 
 class DynamicComponent extends Component
 {

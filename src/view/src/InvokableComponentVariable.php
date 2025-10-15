@@ -1,11 +1,11 @@
 <?php
 
-namespace Illuminate\View;
+namespace Hypervel\View;
 
 use ArrayIterator;
 use Closure;
-use Illuminate\Contracts\Support\DeferringDisplayableValue;
-use Illuminate\Support\Enumerable;
+use Hypervel\Contracts\Support\DeferringDisplayableValue;
+use Hypervel\Support\Enumerable;
 use IteratorAggregate;
 use Stringable;
 use Traversable;

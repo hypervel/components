@@ -1,20 +1,20 @@
 <?php
 
-namespace Illuminate\View;
+namespace Hypervel\View;
 
 use ArrayAccess;
 use BadMethodCallException;
-use Illuminate\Contracts\Support\Arrayable;
-use Illuminate\Contracts\Support\Htmlable;
-use Illuminate\Contracts\Support\MessageProvider;
-use Illuminate\Contracts\Support\Renderable;
-use Illuminate\Contracts\View\Engine;
-use Illuminate\Contracts\View\View as ViewContract;
-use Illuminate\Support\Collection;
-use Illuminate\Support\MessageBag;
-use Illuminate\Support\Str;
-use Illuminate\Support\Traits\Macroable;
-use Illuminate\Support\ViewErrorBag;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\Support\MessageProvider;
+use Hypervel\Contracts\Support\Renderable;
+use Hypervel\Contracts\View\Engine;
+use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\Support\Collection;
+use Hypervel\Support\MessageBag;
+use Hypervel\Support\Str;
+use Hypervel\Support\Traits\Macroable;
+use Hypervel\Support\ViewErrorBag;
 use Stringable;
 use Throwable;
 

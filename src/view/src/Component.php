@@ -1,12 +1,12 @@
 <?php
 
-namespace Illuminate\View;
+namespace Hypervel\View;
 
 use Closure;
-use Illuminate\Container\Container;
-use Illuminate\Contracts\Support\Htmlable;
-use Illuminate\Contracts\View\View as ViewContract;
-use Illuminate\Support\Collection;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\Support\Collection;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionProperty;

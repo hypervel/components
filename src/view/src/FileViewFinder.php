@@ -1,8 +1,8 @@
 <?php
 
-namespace Illuminate\View;
+namespace Hypervel\View;
 
-use Illuminate\Filesystem\Filesystem;
+use Hypervel\Filesystem\Filesystem;
 use InvalidArgumentException;
 
 class FileViewFinder implements ViewFinderInterface

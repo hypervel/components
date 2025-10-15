@@ -1,8 +1,8 @@
 <?php
 
-namespace Illuminate\View;
+namespace Hypervel\View;
 
-use Illuminate\Contracts\Support\Htmlable;
+use Hypervel\Contracts\Support\Htmlable;
 use InvalidArgumentException;
 use Stringable;
 

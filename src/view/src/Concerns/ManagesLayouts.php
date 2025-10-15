@@ -1,9 +1,9 @@
 <?php
 
-namespace Illuminate\View\Concerns;
+namespace Hypervel\View\Concerns;
 
-use Illuminate\Contracts\View\View;
-use Illuminate\Support\Str;
+use Hypervel\Contracts\View\View;
+use Hypervel\Support\Str;
 use InvalidArgumentException;
 
 trait ManagesLayouts

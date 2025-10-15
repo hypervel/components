@@ -1,10 +1,10 @@
 <?php
 
-namespace Illuminate\View\Concerns;
+namespace Hypervel\View\Concerns;
 
 use Closure;
-use Illuminate\Contracts\View\View as ViewContract;
-use Illuminate\Support\Str;
+use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\Support\Str;
 
 trait ManagesEvents
 {

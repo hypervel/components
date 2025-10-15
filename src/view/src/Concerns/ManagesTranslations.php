@@ -1,6 +1,6 @@
 <?php
 
-namespace Illuminate\View\Concerns;
+namespace Hypervel\View\Concerns;
 
 trait ManagesTranslations
 {

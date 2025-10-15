@@ -1,6 +1,6 @@
 <?php
 
-namespace Illuminate\View;
+namespace Hypervel\View;
 
 interface ViewFinderInterface
 {

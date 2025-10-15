@@ -1,10 +1,10 @@
 <?php
 
-namespace Illuminate\View;
+namespace Hypervel\View;
 
 use ErrorException;
-use Illuminate\Container\Container;
-use Illuminate\Support\Reflector;
+use Hypervel\Container\Container;
+use Hypervel\Support\Reflector;
 
 class ViewException extends ErrorException
 {

@@ -1,10 +1,10 @@
 <?php
 
-namespace Illuminate\View\Middleware;
+namespace Hypervel\View\Middleware;
 
 use Closure;
-use Illuminate\Contracts\View\Factory as ViewFactory;
-use Illuminate\Support\ViewErrorBag;
+use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Support\ViewErrorBag;
 
 class ShareErrorsFromSession
 {

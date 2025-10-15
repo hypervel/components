@@ -1,17 +1,17 @@
 <?php
 
-namespace Illuminate\View\Compilers;
+namespace Hypervel\View\Compilers;
 
-use Illuminate\Container\Container;
-use Illuminate\Contracts\Support\Htmlable;
-use Illuminate\Contracts\View\Factory as ViewFactory;
-use Illuminate\Contracts\View\View;
-use Illuminate\Support\Arr;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
-use Illuminate\Support\Stringable;
-use Illuminate\Support\Traits\ReflectsClosures;
-use Illuminate\View\Component;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\View\Factory as ViewFactory;
+use Hypervel\Contracts\View\View;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
+use Hypervel\Support\Traits\ReflectsClosures;
+use Hypervel\View\Component;
 use InvalidArgumentException;
 
 class BladeCompiler extends Compiler implements CompilerInterface

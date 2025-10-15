@@ -1,11 +1,11 @@
 <?php
 
-namespace Illuminate\View\Compilers\Concerns;
+namespace Hypervel\View\Compilers\Concerns;
 
-use Illuminate\Contracts\Support\CanBeEscapedWhenCastToString;
-use Illuminate\Support\Str;
-use Illuminate\View\AnonymousComponent;
-use Illuminate\View\ComponentAttributeBag;
+use Hypervel\Contracts\Support\CanBeEscapedWhenCastToString;
+use Hypervel\Support\Str;
+use Hypervel\View\AnonymousComponent;
+use Hypervel\View\ComponentAttributeBag;
 
 trait CompilesComponents
 {

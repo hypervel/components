@@ -1,8 +1,8 @@
 <?php
 
-namespace Illuminate\View\Compilers\Concerns;
+namespace Hypervel\View\Compilers\Concerns;
 
-use Illuminate\Foundation\Vite;
+use Hypervel\Foundation\Vite;
 
 trait CompilesHelpers
 {

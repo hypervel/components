@@ -1,14 +1,14 @@
 <?php
 
-namespace Illuminate\View\Engines;
+namespace Hypervel\View\Engines;
 
-use Illuminate\Database\RecordNotFoundException;
-use Illuminate\Database\RecordsNotFoundException;
-use Illuminate\Filesystem\Filesystem;
-use Illuminate\Http\Exceptions\HttpResponseException;
-use Illuminate\Support\Str;
-use Illuminate\View\Compilers\CompilerInterface;
-use Illuminate\View\ViewException;
+use Hypervel\Database\RecordNotFoundException;
+use Hypervel\Database\RecordsNotFoundException;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Http\Exceptions\HttpResponseException;
+use Hypervel\Support\Str;
+use Hypervel\View\Compilers\CompilerInterface;
+use Hypervel\View\ViewException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 

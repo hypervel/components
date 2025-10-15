@@ -1,6 +1,6 @@
 <?php
 
-namespace Illuminate\View\Compilers;
+namespace Hypervel\View\Compilers;
 
 interface CompilerInterface
 {

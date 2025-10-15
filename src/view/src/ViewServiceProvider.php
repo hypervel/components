@@ -1,14 +1,14 @@
 <?php
 
-namespace Illuminate\View;
+namespace Hypervel\View;
 
-use Illuminate\Container\Container;
-use Illuminate\Support\ServiceProvider;
-use Illuminate\View\Compilers\BladeCompiler;
-use Illuminate\View\Engines\CompilerEngine;
-use Illuminate\View\Engines\EngineResolver;
-use Illuminate\View\Engines\FileEngine;
-use Illuminate\View\Engines\PhpEngine;
+use Hypervel\Container\Container;
+use Hypervel\Support\ServiceProvider;
+use Hypervel\View\Compilers\BladeCompiler;
+use Hypervel\View\Engines\CompilerEngine;
+use Hypervel\View\Engines\EngineResolver;
+use Hypervel\View\Engines\FileEngine;
+use Hypervel\View\Engines\PhpEngine;
 
 class ViewServiceProvider extends ServiceProvider
 {

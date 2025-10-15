@@ -1,16 +1,16 @@
 <?php
 
-namespace Illuminate\View\Compilers;
+namespace Hypervel\View\Compilers;
 
-use Illuminate\Container\Container;
-use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Contracts\View\Factory;
-use Illuminate\Filesystem\Filesystem;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
-use Illuminate\View\AnonymousComponent;
-use Illuminate\View\DynamicComponent;
-use Illuminate\View\ViewFinderInterface;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Contracts\View\Factory;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
+use Hypervel\View\AnonymousComponent;
+use Hypervel\View\DynamicComponent;
+use Hypervel\View\ViewFinderInterface;
 use InvalidArgumentException;
 use ReflectionClass;
 

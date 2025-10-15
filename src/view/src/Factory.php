@@ -1,14 +1,14 @@
 <?php
 
-namespace Illuminate\View;
+namespace Hypervel\View;
 
-use Illuminate\Contracts\Container\Container;
-use Illuminate\Contracts\Events\Dispatcher;
-use Illuminate\Contracts\Support\Arrayable;
-use Illuminate\Contracts\View\Factory as FactoryContract;
-use Illuminate\Support\Arr;
-use Illuminate\Support\Traits\Macroable;
-use Illuminate\View\Engines\EngineResolver;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\View\Factory as FactoryContract;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Traits\Macroable;
+use Hypervel\View\Engines\EngineResolver;
 use InvalidArgumentException;
 
 class Factory implements FactoryContract
