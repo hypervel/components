@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\View;
 
 use ArrayAccess;
@@ -33,7 +35,7 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
      * @param  array  $attributes
      * @return void
      */
-    public function __construct(array $attributes = []): void
+    public function __construct(array $attributes = [])
     {
         $this->setAttributes($attributes);
     }

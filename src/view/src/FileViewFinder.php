@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\View;
 
 use Hypervel\Filesystem\Filesystem;
@@ -37,7 +39,7 @@ class FileViewFinder implements ViewFinderInterface
     /**
      * Create a new file view loader instance.
      */
-    public function __construct(Filesystem $files, array $paths, ?array $extensions = null): void
+    public function __construct(Filesystem $files, array $paths, ?array $extensions = null)
     {
         $this->files = $files;
         $this->paths = array_map([$this, 'resolvePath'], $paths);

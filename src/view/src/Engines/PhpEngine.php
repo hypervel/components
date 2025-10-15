@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\View\Engines;
 
 use Hypervel\Contracts\View\Engine;
@@ -21,7 +23,7 @@ class PhpEngine implements Engine
      * @param  \Hypervel\Filesystem\Filesystem  $files
      * @return void
      */
-    public function __construct(Filesystem $files): void
+    public function __construct(Filesystem $files)
     {
         $this->files = $files;
     }

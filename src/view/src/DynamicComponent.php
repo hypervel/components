@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\View;
 
 use Hypervel\Container\Container;
@@ -36,7 +38,7 @@ class DynamicComponent extends Component
      * @param  string  $component
      * @return void
      */
-    public function __construct(string $component): void
+    public function __construct(string $component)
     {
         $this->component = $component;
     }

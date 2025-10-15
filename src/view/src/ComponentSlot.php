@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\View;
 
 use Hypervel\Contracts\Support\Htmlable;
@@ -29,7 +31,7 @@ class ComponentSlot implements Htmlable, Stringable
      * @param  array  $attributes
      * @return void
      */
-    public function __construct(string $contents = '', array $attributes = []): void
+    public function __construct(string $contents = '', array $attributes = [])
     {
         $this->contents = $contents;
 

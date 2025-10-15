@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\View\Engines;
 
 use Hypervel\Database\RecordNotFoundException;
@@ -42,7 +44,7 @@ class CompilerEngine extends PhpEngine
      * @param  \Hypervel\Filesystem\Filesystem|null  $files
      * @return void
      */
-    public function __construct(CompilerInterface $compiler, ?Filesystem $files = null): void
+    public function __construct(CompilerInterface $compiler, ?Filesystem $files = null)
     {
         parent::__construct($files ?: new Filesystem);
 

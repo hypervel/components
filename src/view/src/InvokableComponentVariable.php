@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\View;
 
 use ArrayIterator;
@@ -25,7 +27,7 @@ class InvokableComponentVariable implements DeferringDisplayableValue, IteratorA
      * @param  \Closure  $callable
      * @return void
      */
-    public function __construct(Closure $callable): void
+    public function __construct(Closure $callable)
     {
         $this->callable = $callable;
     }
