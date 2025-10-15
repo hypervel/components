@@ -1,14 +1,14 @@
 <?php
 
-namespace Illuminate\Tests\View;
+namespace Hypervel\Tests\View;
 
 use ErrorException;
 use Exception;
-use Illuminate\Contracts\Filesystem\FileNotFoundException;
-use Illuminate\Filesystem\Filesystem;
-use Illuminate\View\Compilers\CompilerInterface;
-use Illuminate\View\Engines\CompilerEngine;
-use Illuminate\View\ViewException;
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\View\Compilers\CompilerInterface;
+use Hypervel\View\Engines\CompilerEngine;
+use Hypervel\View\ViewException;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\HttpKernel\Exception\HttpException;

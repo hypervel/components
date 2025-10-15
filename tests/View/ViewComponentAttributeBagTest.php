@@ -1,8 +1,8 @@
 <?php
 
-namespace Illuminate\Tests\View;
+namespace Hypervel\Tests\View;
 
-use Illuminate\View\ComponentAttributeBag;
+use Hypervel\View\ComponentAttributeBag;
 use PHPUnit\Framework\TestCase;
 
 class ViewComponentAttributeBagTest extends TestCase

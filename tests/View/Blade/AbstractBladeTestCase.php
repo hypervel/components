@@ -1,18 +1,18 @@
 <?php
 
-namespace Illuminate\Tests\View\Blade;
+namespace Hypervel\Tests\View\Blade;
 
-use Illuminate\Container\Container;
-use Illuminate\Filesystem\Filesystem;
-use Illuminate\View\Compilers\BladeCompiler;
-use Illuminate\View\Component;
+use Hypervel\Container\Container;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\View\Compilers\BladeCompiler;
+use Hypervel\View\Component;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
 abstract class AbstractBladeTestCase extends TestCase
 {
     /**
-     * @var \Illuminate\View\Compilers\BladeCompiler
+     * @var \Hypervel\View\Compilers\BladeCompiler
      */
     protected $compiler;
 

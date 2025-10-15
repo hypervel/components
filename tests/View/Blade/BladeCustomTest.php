@@ -1,6 +1,6 @@
 <?php
 
-namespace Illuminate\Tests\View\Blade;
+namespace Hypervel\Tests\View\Blade;
 
 use InvalidArgumentException;
 
@@ -105,7 +105,7 @@ class BladeCustomTest extends AbstractBladeTestCase
 
         $string = '@custom($user)
 @endcustom';
-        $expected = '<?php if (\Illuminate\Support\Facades\Blade::check(\'custom\', $user)): ?>
+        $expected = '<?php if (\Hypervel\Support\Facades\Blade::check(\'custom\', $user)): ?>
 <?php endif; ?>';
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
@@ -120,8 +120,8 @@ class BladeCustomTest extends AbstractBladeTestCase
 @elsecustom($product)
 @else
 @endcustom';
-        $expected = '<?php if (\Illuminate\Support\Facades\Blade::check(\'custom\', $user)): ?>
-<?php elseif (\Illuminate\Support\Facades\Blade::check(\'custom\', $product)): ?>
+        $expected = '<?php if (\Hypervel\Support\Facades\Blade::check(\'custom\', $user)): ?>
+<?php elseif (\Hypervel\Support\Facades\Blade::check(\'custom\', $product)): ?>
 <?php else: ?>
 <?php endif; ?>';
         $this->assertEquals($expected, $this->compiler->compileString($string));
@@ -135,7 +135,7 @@ class BladeCustomTest extends AbstractBladeTestCase
 
         $string = '@unlesscustom($user)
 @endcustom';
-        $expected = '<?php if (! \Illuminate\Support\Facades\Blade::check(\'custom\', $user)): ?>
+        $expected = '<?php if (! \Hypervel\Support\Facades\Blade::check(\'custom\', $user)): ?>
 <?php endif; ?>';
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
@@ -149,8 +149,8 @@ class BladeCustomTest extends AbstractBladeTestCase
         $string = '@custom(0)
 @elsecustom(0)
 @endcustom';
-        $expected = '<?php if (\Illuminate\Support\Facades\Blade::check(\'custom\', 0)): ?>
-<?php elseif (\Illuminate\Support\Facades\Blade::check(\'custom\', 0)): ?>
+        $expected = '<?php if (\Hypervel\Support\Facades\Blade::check(\'custom\', 0)): ?>
+<?php elseif (\Hypervel\Support\Facades\Blade::check(\'custom\', 0)): ?>
 <?php endif; ?>';
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }

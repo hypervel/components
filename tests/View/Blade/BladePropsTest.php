@@ -1,17 +1,17 @@
 <?php
 
-namespace Illuminate\Tests\View\Blade;
+namespace Hypervel\Tests\View\Blade;
 
-use Illuminate\View\ComponentAttributeBag;
+use Hypervel\View\ComponentAttributeBag;
 
 class BladePropsTest extends AbstractBladeTestCase
 {
     public function testPropsAreCompiled()
     {
-        $this->assertSame('<?php $attributes ??= new \Illuminate\View\ComponentAttributeBag;
+        $this->assertSame('<?php $attributes ??= new \Hypervel\View\ComponentAttributeBag;
 
 $__newAttributes = [];
-$__propNames = \Illuminate\View\ComponentAttributeBag::extractPropNames(([\'one\' => true, \'two\' => \'string\']));
+$__propNames = \Hypervel\View\ComponentAttributeBag::extractPropNames(([\'one\' => true, \'two\' => \'string\']));
 
 foreach ($attributes->all() as $__key => $__value) {
     if (in_array($__key, $__propNames)) {
@@ -21,7 +21,7 @@ foreach ($attributes->all() as $__key => $__value) {
     }
 }
 
-$attributes = new \Illuminate\View\ComponentAttributeBag($__newAttributes);
+$attributes = new \Hypervel\View\ComponentAttributeBag($__newAttributes);
 
 unset($__propNames);
 unset($__newAttributes);

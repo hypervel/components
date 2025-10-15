@@ -1,9 +1,9 @@
 <?php
 
-namespace Illuminate\Tests\View;
+namespace Hypervel\Tests\View;
 
-use Illuminate\Filesystem\Filesystem;
-use Illuminate\View\FileViewFinder;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\View\FileViewFinder;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;

@@ -1,9 +1,9 @@
 <?php
 
-namespace Illuminate\Tests\View;
+namespace Hypervel\Tests\View;
 
-use Illuminate\Filesystem\Filesystem;
-use Illuminate\View\Engines\PhpEngine;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\View\Engines\PhpEngine;
 use PHPUnit\Framework\TestCase;
 
 class ViewPhpEngineTest extends TestCase

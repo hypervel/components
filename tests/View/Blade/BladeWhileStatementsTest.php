@@ -1,6 +1,6 @@
 <?php
 
-namespace Illuminate\Tests\View\Blade;
+namespace Hypervel\Tests\View\Blade;
 
 class BladeWhileStatementsTest extends AbstractBladeTestCase
 {

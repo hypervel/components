@@ -1,8 +1,8 @@
 <?php
 
-namespace Illuminate\Tests\View\Blade;
+namespace Hypervel\Tests\View\Blade;
 
-use Illuminate\Support\Str;
+use Hypervel\Support\Str;
 
 class BladePrependTest extends AbstractBladeTestCase
 {

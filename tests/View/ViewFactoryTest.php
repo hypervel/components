@@ -1,24 +1,24 @@
 <?php
 
-namespace Illuminate\Tests\View;
+namespace Hypervel\Tests\View;
 
 use Closure;
 use ErrorException;
-use Illuminate\Container\Container;
-use Illuminate\Contracts\Events\Dispatcher as DispatcherContract;
-use Illuminate\Contracts\View\Engine;
-use Illuminate\Contracts\View\View as ViewContract;
-use Illuminate\Events\Dispatcher;
-use Illuminate\Filesystem\Filesystem;
-use Illuminate\Support\HtmlString;
-use Illuminate\Support\LazyCollection;
-use Illuminate\View\Compilers\CompilerInterface;
-use Illuminate\View\Engines\CompilerEngine;
-use Illuminate\View\Engines\EngineResolver;
-use Illuminate\View\Engines\PhpEngine;
-use Illuminate\View\Factory;
-use Illuminate\View\View;
-use Illuminate\View\ViewFinderInterface;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\View\Engine;
+use Hypervel\Contracts\View\View as ViewContract;
+use Hypervel\Events\Dispatcher;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\HtmlString;
+use Hypervel\Support\LazyCollection;
+use Hypervel\View\Compilers\CompilerInterface;
+use Hypervel\View\Engines\CompilerEngine;
+use Hypervel\View\Engines\EngineResolver;
+use Hypervel\View\Engines\PhpEngine;
+use Hypervel\View\Factory;
+use Hypervel\View\View;
+use Hypervel\View\ViewFinderInterface;
 use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;

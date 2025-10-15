@@ -1,8 +1,8 @@
 <?php
 
-namespace Illuminate\Tests\View;
+namespace Hypervel\Tests\View;
 
-use Illuminate\View\Engines\EngineResolver;
+use Hypervel\View\Engines\EngineResolver;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use stdClass;

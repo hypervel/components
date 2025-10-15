@@ -1,10 +1,10 @@
 <?php
 
-namespace Illuminate\Tests\View;
+namespace Hypervel\Tests\View;
 
-use Illuminate\View\Component;
-use Illuminate\View\ComponentAttributeBag;
-use Illuminate\View\ComponentSlot;
+use Hypervel\View\Component;
+use Hypervel\View\ComponentAttributeBag;
+use Hypervel\View\ComponentSlot;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
 

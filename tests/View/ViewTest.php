@@ -1,17 +1,17 @@
 <?php
 
-namespace Illuminate\Tests\View;
+namespace Hypervel\Tests\View;
 
 use ArrayAccess;
 use BadMethodCallException;
 use Closure;
-use Illuminate\Contracts\Support\Arrayable;
-use Illuminate\Contracts\Support\Renderable;
-use Illuminate\Contracts\View\Engine;
-use Illuminate\Support\MessageBag;
-use Illuminate\Support\ViewErrorBag;
-use Illuminate\View\Factory;
-use Illuminate\View\View;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Renderable;
+use Hypervel\Contracts\View\Engine;
+use Hypervel\Support\MessageBag;
+use Hypervel\Support\ViewErrorBag;
+use Hypervel\View\Factory;
+use Hypervel\View\View;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
@@ -175,7 +175,7 @@ class ViewTest extends TestCase
     public function testViewBadMethod()
     {
         $this->expectException(BadMethodCallException::class);
-        $this->expectExceptionMessage('Method Illuminate\View\View::badMethodCall does not exist.');
+        $this->expectExceptionMessage('Method Hypervel\View\View::badMethodCall does not exist.');
 
         $view = $this->getView();
         $view->badMethodCall();

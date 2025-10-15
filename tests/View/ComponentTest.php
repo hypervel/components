@@ -1,19 +1,19 @@
 <?php
 
-namespace Illuminate\Tests\View;
+namespace Hypervel\Tests\View;
 
 use Closure;
-use Illuminate\Config\Repository as Config;
-use Illuminate\Container\Container;
-use Illuminate\Contracts\Container\BindingResolutionException;
-use Illuminate\Contracts\Support\Htmlable;
-use Illuminate\Contracts\View\Factory as FactoryContract;
-use Illuminate\Support\Facades\Facade;
-use Illuminate\Support\HtmlString;
-use Illuminate\View\Component;
-use Illuminate\View\ComponentSlot;
-use Illuminate\View\Factory;
-use Illuminate\View\View;
+use Hypervel\Config\Repository as Config;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\BindingResolutionException;
+use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\View\Factory as FactoryContract;
+use Hypervel\Support\Facades\Facade;
+use Hypervel\Support\HtmlString;
+use Hypervel\View\Component;
+use Hypervel\View\ComponentSlot;
+use Hypervel\View\Factory;
+use Hypervel\View\View;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 

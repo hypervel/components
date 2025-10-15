@@ -1,10 +1,10 @@
 <?php
 
-namespace Illuminate\Tests\View\Blade;
+namespace Hypervel\Tests\View\Blade;
 
 use Exception;
-use Illuminate\Support\Fluent;
-use Illuminate\Support\Stringable;
+use Hypervel\Support\Fluent;
+use Hypervel\Support\Stringable;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class BladeEchoHandlerTest extends AbstractBladeTestCase

@@ -1,9 +1,9 @@
 <?php
 
-namespace Illuminate\Tests\View\Blade;
+namespace Hypervel\Tests\View\Blade;
 
-use Illuminate\View\Component;
-use Illuminate\View\ComponentAttributeBag;
+use Hypervel\View\Component;
+use Hypervel\View\ComponentAttributeBag;
 use Mockery as m;
 
 class BladeComponentsTest extends AbstractBladeTestCase
@@ -18,10 +18,10 @@ class BladeComponentsTest extends AbstractBladeTestCase
     {
         $this->assertSame(str_replace("\r\n", "\n", '<?php if (isset($component)) { $__componentOriginal2dda3d2f2f9b76bd400bf03f0b84e87f = $component; } ?>
 <?php if (isset($attributes)) { $__attributesOriginal2dda3d2f2f9b76bd400bf03f0b84e87f = $attributes; } ?>
-<?php $component = Illuminate\Tests\View\Blade\ComponentStub::class::resolve(["foo" => "bar"] + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
+<?php $component = Hypervel\Tests\View\Blade\ComponentStub::class::resolve(["foo" => "bar"] + (isset($attributes) && $attributes instanceof Hypervel\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
 <?php $component->withName(\'test\'); ?>
 <?php if ($component->shouldRender()): ?>
-<?php $__env->startComponent($component->resolveView(), $component->data()); ?>'), $this->compiler->compileString('@component(\'Illuminate\Tests\View\Blade\ComponentStub::class\', \'test\', ["foo" => "bar"])'));
+<?php $__env->startComponent($component->resolveView(), $component->data()); ?>'), $this->compiler->compileString('@component(\'Hypervel\Tests\View\Blade\ComponentStub::class\', \'test\', ["foo" => "bar"])'));
     }
 
     public function testEndComponentsAreCompiled()
@@ -68,7 +68,7 @@ class BladeComponentsTest extends AbstractBladeTestCase
 
         Component::resolveComponentsUsing(fn () => $component);
 
-        $template = $this->compiler->compileString('@component(\'Illuminate\Tests\View\Blade\ComponentStub::class\', \'test\', ["foo" => "bar"])');
+        $template = $this->compiler->compileString('@component(\'Hypervel\Tests\View\Blade\ComponentStub::class\', \'test\', ["foo" => "bar"])');
 
         ob_start();
         eval(" ?> $template <?php endif; ");

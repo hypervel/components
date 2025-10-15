@@ -1,8 +1,8 @@
 <?php
 
-namespace Illuminate\Tests\View\Blade;
+namespace Hypervel\Tests\View\Blade;
 
-use Illuminate\Contracts\View\ViewCompilationException;
+use Hypervel\Contracts\View\ViewCompilationException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class BladeForelseStatementsTest extends AbstractBladeTestCase
