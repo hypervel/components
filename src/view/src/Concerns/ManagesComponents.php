@@ -14,44 +14,44 @@ trait ManagesComponents
      *
      * @var array
      */
-    protected $componentStack = [];
+    protected array $componentStack = [];
 
     /**
      * The original data passed to the component.
      *
      * @var array
      */
-    protected $componentData = [];
+    protected array $componentData = [];
 
     /**
      * The component data for the component that is currently being rendered.
      *
      * @var array
      */
-    protected $currentComponentData = [];
+    protected array $currentComponentData = [];
 
     /**
      * The slot contents for the component.
      *
      * @var array
      */
-    protected $slots = [];
+    protected array $slots = [];
 
     /**
      * The names of the slots being rendered.
      *
      * @var array
      */
-    protected $slotStack = [];
+    protected array $slotStack = [];
 
     /**
      * Start a component rendering process.
      *
-     * @param  \Illuminate\Contracts\View\View|\Illuminate\Contracts\Support\Htmlable|\Closure|string  $view
+     * @param  \Hypervel\Contracts\View\View|\Hypervel\Contracts\Support\Htmlable|\Closure|string  $view
      * @param  array  $data
      * @return void
      */
-    public function startComponent($view, array $data = [])
+    public function startComponent(mixed $view, array $data = []): void
     {
         if (ob_start()) {
             $this->componentStack[] = $view;
@@ -69,7 +69,7 @@ trait ManagesComponents
      * @param  array  $data
      * @return void
      */
-    public function startComponentFirst(array $names, array $data = [])
+    public function startComponentFirst(array $names, array $data = []): void
     {
         $name = Arr::first($names, function ($item) {
             return $this->exists($item);
@@ -83,7 +83,7 @@ trait ManagesComponents
      *
      * @return string
      */
-    public function renderComponent()
+    public function renderComponent(): string
     {
         $view = array_pop($this->componentStack);
 
@@ -112,7 +112,7 @@ trait ManagesComponents
      *
      * @return array
      */
-    protected function componentData()
+    protected function componentData(): array
     {
         $defaultSlot = new ComponentSlot(trim(ob_get_clean()));
 
@@ -135,7 +135,7 @@ trait ManagesComponents
      * @param  mixed  $default
      * @return mixed|null
      */
-    public function getConsumableComponentData($key, $default = null)
+    public function getConsumableComponentData(string $key, mixed $default = null): mixed
     {
         if (array_key_exists($key, $this->currentComponentData)) {
             return $this->currentComponentData[$key];
@@ -166,7 +166,7 @@ trait ManagesComponents
      * @param  array  $attributes
      * @return void
      */
-    public function slot($name, $content = null, $attributes = [])
+    public function slot(string $name, ?string $content = null, array $attributes = []): void
     {
         if (func_num_args() === 2 || $content !== null) {
             $this->slots[$this->currentComponent()][$name] = $content;
@@ -182,7 +182,7 @@ trait ManagesComponents
      *
      * @return void
      */
-    public function endSlot()
+    public function endSlot(): void
     {
         last($this->componentStack);
 
@@ -202,7 +202,7 @@ trait ManagesComponents
      *
      * @return int
      */
-    protected function currentComponent()
+    protected function currentComponent(): int
     {
         return count($this->componentStack) - 1;
     }
@@ -212,7 +212,7 @@ trait ManagesComponents
      *
      * @return void
      */
-    protected function flushComponents()
+    protected function flushComponents(): void
     {
         $this->componentStack = [];
         $this->componentData = [];

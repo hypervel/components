@@ -10,7 +10,7 @@ trait CompilesTranslations
      * @param  string|null  $expression
      * @return string
      */
-    protected function compileLang($expression)
+    protected function compileLang(?string $expression): string
     {
         if (is_null($expression)) {
             return '<?php $__env->startTranslation(); ?>';
@@ -26,7 +26,7 @@ trait CompilesTranslations
      *
      * @return string
      */
-    protected function compileEndlang()
+    protected function compileEndlang(): string
     {
         return '<?php echo $__env->renderTranslation(); ?>';
     }
@@ -37,7 +37,7 @@ trait CompilesTranslations
      * @param  string  $expression
      * @return string
      */
-    protected function compileChoice($expression)
+    protected function compileChoice(string $expression): string
     {
         return "<?php echo app('translator')->choice{$expression}; ?>";
     }

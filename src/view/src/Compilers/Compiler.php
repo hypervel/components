@@ -12,42 +12,42 @@ abstract class Compiler
     /**
      * The filesystem instance.
      *
-     * @var \Illuminate\Filesystem\Filesystem
+     * @var \Hypervel\Filesystem\Filesystem
      */
-    protected $files;
+    protected Filesystem $files;
 
     /**
      * The cache path for the compiled views.
      *
      * @var string
      */
-    protected $cachePath;
+    protected string $cachePath;
 
     /**
      * The base path that should be removed from paths before hashing.
      *
      * @var string
      */
-    protected $basePath;
+    protected string $basePath;
 
     /**
      * Determines if compiled views should be cached.
      *
      * @var bool
      */
-    protected $shouldCache;
+    protected bool $shouldCache;
 
     /**
      * The compiled view file extension.
      *
      * @var string
      */
-    protected $compiledExtension = 'php';
+    protected string $compiledExtension = 'php';
 
     /**
      * Create a new compiler instance.
      *
-     * @param  \Illuminate\Filesystem\Filesystem  $files
+     * @param  \Hypervel\Filesystem\Filesystem  $files
      * @param  string  $cachePath
      * @param  string  $basePath
      * @param  bool  $shouldCache
@@ -58,11 +58,11 @@ abstract class Compiler
      */
     public function __construct(
         Filesystem $files,
-        $cachePath,
-        $basePath = '',
-        $shouldCache = true,
-        $compiledExtension = 'php',
-    ) {
+        string $cachePath,
+        string $basePath = '',
+        bool $shouldCache = true,
+        string $compiledExtension = 'php',
+    ): void {
         if (! $cachePath) {
             throw new InvalidArgumentException('Please provide a valid cache path.');
         }
@@ -80,7 +80,7 @@ abstract class Compiler
      * @param  string  $path
      * @return string
      */
-    public function getCompiledPath($path)
+    public function getCompiledPath(string $path): string
     {
         return $this->cachePath.'/'.hash('xxh128', 'v2'.Str::after($path, $this->basePath)).'.'.$this->compiledExtension;
     }
@@ -93,7 +93,7 @@ abstract class Compiler
      *
      * @throws \ErrorException
      */
-    public function isExpired($path)
+    public function isExpired(string $path): bool
     {
         if (! $this->shouldCache) {
             return true;
@@ -126,7 +126,7 @@ abstract class Compiler
      * @param  string  $path
      * @return void
      */
-    protected function ensureCompiledDirectoryExists($path)
+    protected function ensureCompiledDirectoryExists(string $path): void
     {
         if (! $this->files->exists(dirname($path))) {
             $this->files->makeDirectory(dirname($path), 0777, true, true);

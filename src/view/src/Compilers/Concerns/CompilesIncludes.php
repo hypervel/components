@@ -10,7 +10,7 @@ trait CompilesIncludes
      * @param  string  $expression
      * @return string
      */
-    protected function compileEach($expression)
+    protected function compileEach(string $expression): string
     {
         return "<?php echo \$__env->renderEach{$expression}; ?>";
     }
@@ -21,7 +21,7 @@ trait CompilesIncludes
      * @param  string  $expression
      * @return string
      */
-    protected function compileInclude($expression)
+    protected function compileInclude(string $expression): string
     {
         $expression = $this->stripParentheses($expression);
 
@@ -34,7 +34,7 @@ trait CompilesIncludes
      * @param  string  $expression
      * @return string
      */
-    protected function compileIncludeIf($expression)
+    protected function compileIncludeIf(string $expression): string
     {
         $expression = $this->stripParentheses($expression);
 
@@ -47,7 +47,7 @@ trait CompilesIncludes
      * @param  string  $expression
      * @return string
      */
-    protected function compileIncludeWhen($expression)
+    protected function compileIncludeWhen(string $expression): string
     {
         $expression = $this->stripParentheses($expression);
 
@@ -60,7 +60,7 @@ trait CompilesIncludes
      * @param  string  $expression
      * @return string
      */
-    protected function compileIncludeUnless($expression)
+    protected function compileIncludeUnless(string $expression): string
     {
         $expression = $this->stripParentheses($expression);
 
@@ -73,7 +73,7 @@ trait CompilesIncludes
      * @param  string  $expression
      * @return string
      */
-    protected function compileIncludeFirst($expression)
+    protected function compileIncludeFirst(string $expression): string
     {
         $expression = $this->stripParentheses($expression);
 

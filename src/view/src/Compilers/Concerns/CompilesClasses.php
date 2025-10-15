@@ -7,13 +7,13 @@ trait CompilesClasses
     /**
      * Compile the conditional class statement into valid PHP.
      *
-     * @param  string  $expression
+     * @param  string|null  $expression
      * @return string
      */
-    protected function compileClass($expression)
+    protected function compileClass(?string $expression): string
     {
         $expression = is_null($expression) ? '([])' : $expression;
 
-        return "class=\"<?php echo \Illuminate\Support\Arr::toCssClasses{$expression}; ?>\"";
+        return "class=\"<?php echo \Hypervel\Support\Arr::toCssClasses{$expression}; ?>\"";
     }
 }

@@ -10,17 +10,17 @@ class FileEngine implements Engine
     /**
      * The filesystem instance.
      *
-     * @var \Illuminate\Filesystem\Filesystem
+     * @var \Hypervel\Filesystem\Filesystem
      */
-    protected $files;
+    protected Filesystem $files;
 
     /**
      * Create a new file engine instance.
      *
-     * @param  \Illuminate\Filesystem\Filesystem  $files
+     * @param  \Hypervel\Filesystem\Filesystem  $files
      * @return void
      */
-    public function __construct(Filesystem $files)
+    public function __construct(Filesystem $files): void
     {
         $this->files = $files;
     }
@@ -32,7 +32,7 @@ class FileEngine implements Engine
      * @param  array  $data
      * @return string
      */
-    public function get($path, array $data = [])
+    public function get(string $path, array $data = []): string
     {
         return $this->files->get($path);
     }

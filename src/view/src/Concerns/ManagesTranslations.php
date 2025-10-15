@@ -9,7 +9,7 @@ trait ManagesTranslations
      *
      * @var array
      */
-    protected $translationReplacements = [];
+    protected array $translationReplacements = [];
 
     /**
      * Start a translation block.
@@ -17,7 +17,7 @@ trait ManagesTranslations
      * @param  array  $replacements
      * @return void
      */
-    public function startTranslation($replacements = [])
+    public function startTranslation(array $replacements = []): void
     {
         ob_start();
 
@@ -29,7 +29,7 @@ trait ManagesTranslations
      *
      * @return string
      */
-    public function renderTranslation()
+    public function renderTranslation(): string
     {
         return $this->container->make('translator')->get(
             trim(ob_get_clean()), $this->translationReplacements

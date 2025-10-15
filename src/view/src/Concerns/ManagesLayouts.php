@@ -13,28 +13,28 @@ trait ManagesLayouts
      *
      * @var array
      */
-    protected $sections = [];
+    protected array $sections = [];
 
     /**
      * The stack of in-progress sections.
      *
      * @var array
      */
-    protected $sectionStack = [];
+    protected array $sectionStack = [];
 
     /**
      * The parent placeholder for the request.
      *
      * @var mixed
      */
-    protected static $parentPlaceholder = [];
+    protected static array $parentPlaceholder = [];
 
     /**
      * The parent placeholder salt for the request.
      *
      * @var string
      */
-    protected static $parentPlaceholderSalt;
+    protected static ?string $parentPlaceholderSalt = null;
 
     /**
      * Start injecting content into a section.
@@ -43,7 +43,7 @@ trait ManagesLayouts
      * @param  string|null  $content
      * @return void
      */
-    public function startSection($section, $content = null)
+    public function startSection(string $section, mixed $content = null): void
     {
         if ($content === null) {
             if (ob_start()) {
@@ -61,7 +61,7 @@ trait ManagesLayouts
      * @param  string  $content
      * @return void
      */
-    public function inject($section, $content)
+    public function inject(string $section, string $content): void
     {
         $this->startSection($section, $content);
     }
@@ -71,7 +71,7 @@ trait ManagesLayouts
      *
      * @return string
      */
-    public function yieldSection()
+    public function yieldSection(): string
     {
         if (empty($this->sectionStack)) {
             return '';
@@ -88,7 +88,7 @@ trait ManagesLayouts
      *
      * @throws \InvalidArgumentException
      */
-    public function stopSection($overwrite = false)
+    public function stopSection(bool $overwrite = false): string
     {
         if (empty($this->sectionStack)) {
             throw new InvalidArgumentException('Cannot end a section without first starting one.');
@@ -112,7 +112,7 @@ trait ManagesLayouts
      *
      * @throws \InvalidArgumentException
      */
-    public function appendSection()
+    public function appendSection(): string
     {
         if (empty($this->sectionStack)) {
             throw new InvalidArgumentException('Cannot end a section without first starting one.');
@@ -136,7 +136,7 @@ trait ManagesLayouts
      * @param  string  $content
      * @return void
      */
-    protected function extendSection($section, $content)
+    protected function extendSection(string $section, string $content): void
     {
         if (isset($this->sections[$section])) {
             $content = str_replace(static::parentPlaceholder($section), $content, $this->sections[$section]);
@@ -152,7 +152,7 @@ trait ManagesLayouts
      * @param  string  $default
      * @return string
      */
-    public function yieldContent($section, $default = '')
+    public function yieldContent(string $section, string $default = ''): string
     {
         $sectionContent = $default instanceof View ? $default : e($default);
 
@@ -173,7 +173,7 @@ trait ManagesLayouts
      * @param  string  $section
      * @return string
      */
-    public static function parentPlaceholder($section = '')
+    public static function parentPlaceholder(string $section = ''): string
     {
         if (! isset(static::$parentPlaceholder[$section])) {
             $salt = static::parentPlaceholderSalt();
@@ -189,7 +189,7 @@ trait ManagesLayouts
      *
      * @return string
      */
-    protected static function parentPlaceholderSalt()
+    protected static function parentPlaceholderSalt(): string
     {
         if (! static::$parentPlaceholderSalt) {
             return static::$parentPlaceholderSalt = Str::random(40);
@@ -204,7 +204,7 @@ trait ManagesLayouts
      * @param  string  $name
      * @return bool
      */
-    public function hasSection($name)
+    public function hasSection(string $name): bool
     {
         return array_key_exists($name, $this->sections);
     }
@@ -215,7 +215,7 @@ trait ManagesLayouts
      * @param  string  $name
      * @return bool
      */
-    public function sectionMissing($name)
+    public function sectionMissing(string $name): bool
     {
         return ! $this->hasSection($name);
     }
@@ -227,7 +227,7 @@ trait ManagesLayouts
      * @param  string|null  $default
      * @return mixed
      */
-    public function getSection($name, $default = null)
+    public function getSection(string $name, ?string $default = null): mixed
     {
         return $this->getSections()[$name] ?? $default;
     }
@@ -237,7 +237,7 @@ trait ManagesLayouts
      *
      * @return array
      */
-    public function getSections()
+    public function getSections(): array
     {
         return $this->sections;
     }
@@ -247,7 +247,7 @@ trait ManagesLayouts
      *
      * @return void
      */
-    public function flushSections()
+    public function flushSections(): void
     {
         $this->sections = [];
         $this->sectionStack = [];

@@ -17,16 +17,16 @@ class CompilerEngine extends PhpEngine
     /**
      * The Blade compiler instance.
      *
-     * @var \Illuminate\View\Compilers\CompilerInterface
+     * @var \Hypervel\View\Compilers\CompilerInterface
      */
-    protected $compiler;
+    protected CompilerInterface $compiler;
 
     /**
      * A stack of the last compiled templates.
      *
      * @var array
      */
-    protected $lastCompiled = [];
+    protected array $lastCompiled = [];
 
     /**
      * The view paths that were compiled or are not expired, keyed by the path.
@@ -38,11 +38,11 @@ class CompilerEngine extends PhpEngine
     /**
      * Create a new compiler engine instance.
      *
-     * @param  \Illuminate\View\Compilers\CompilerInterface  $compiler
-     * @param  \Illuminate\Filesystem\Filesystem|null  $files
+     * @param  \Hypervel\View\Compilers\CompilerInterface  $compiler
+     * @param  \Hypervel\Filesystem\Filesystem|null  $files
      * @return void
      */
-    public function __construct(CompilerInterface $compiler, ?Filesystem $files = null)
+    public function __construct(CompilerInterface $compiler, ?Filesystem $files = null): void
     {
         parent::__construct($files ?: new Filesystem);
 
@@ -56,7 +56,7 @@ class CompilerEngine extends PhpEngine
      * @param  array  $data
      * @return string
      */
-    public function get($path, array $data = [])
+    public function get(string $path, array $data = []): string
     {
         $this->lastCompiled[] = $path;
 
@@ -103,7 +103,7 @@ class CompilerEngine extends PhpEngine
      *
      * @throws \Throwable
      */
-    protected function handleViewException(Throwable $e, $obLevel)
+    protected function handleViewException(Throwable $e, int $obLevel): void
     {
         if ($e instanceof HttpException ||
             $e instanceof HttpResponseException ||
@@ -123,7 +123,7 @@ class CompilerEngine extends PhpEngine
      * @param  \Throwable  $e
      * @return string
      */
-    protected function getMessage(Throwable $e)
+    protected function getMessage(Throwable $e): string
     {
         return $e->getMessage().' (View: '.realpath(last($this->lastCompiled)).')';
     }
@@ -131,9 +131,9 @@ class CompilerEngine extends PhpEngine
     /**
      * Get the compiler implementation.
      *
-     * @return \Illuminate\View\Compilers\CompilerInterface
+     * @return \Hypervel\View\Compilers\CompilerInterface
      */
-    public function getCompiler()
+    public function getCompiler(): CompilerInterface
     {
         return $this->compiler;
     }
@@ -143,7 +143,7 @@ class CompilerEngine extends PhpEngine
      *
      * @return void
      */
-    public function forgetCompiledOrNotExpired()
+    public function forgetCompiledOrNotExpired(): void
     {
         $this->compiledOrNotExpired = [];
     }

@@ -11,7 +11,7 @@ trait CompilesHelpers
      *
      * @return string
      */
-    protected function compileCsrf()
+    protected function compileCsrf(): string
     {
         return '<?php echo csrf_field(); ?>';
     }
@@ -22,7 +22,7 @@ trait CompilesHelpers
      * @param  string  $arguments
      * @return string
      */
-    protected function compileDd($arguments)
+    protected function compileDd(string $arguments): string
     {
         return "<?php dd{$arguments}; ?>";
     }
@@ -33,7 +33,7 @@ trait CompilesHelpers
      * @param  string  $arguments
      * @return string
      */
-    protected function compileDump($arguments)
+    protected function compileDump(string $arguments): string
     {
         return "<?php dump{$arguments}; ?>";
     }
@@ -44,7 +44,7 @@ trait CompilesHelpers
      * @param  string  $method
      * @return string
      */
-    protected function compileMethod($method)
+    protected function compileMethod(string $method): string
     {
         return "<?php echo method_field{$method}; ?>";
     }
@@ -55,7 +55,7 @@ trait CompilesHelpers
      * @param  string|null  $arguments
      * @return string
      */
-    protected function compileVite($arguments)
+    protected function compileVite(?string $arguments): string
     {
         $arguments ??= '()';
 
@@ -69,7 +69,7 @@ trait CompilesHelpers
      *
      * @return string
      */
-    protected function compileViteReactRefresh()
+    protected function compileViteReactRefresh(): string
     {
         $class = Vite::class;
 

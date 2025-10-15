@@ -27,49 +27,49 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
     /**
      * The view factory instance.
      *
-     * @var \Illuminate\View\Factory
+     * @var \Hypervel\View\Factory
      */
-    protected $factory;
+    protected Factory $factory;
 
     /**
      * The engine implementation.
      *
-     * @var \Illuminate\Contracts\View\Engine
+     * @var \Hypervel\Contracts\View\Engine
      */
-    protected $engine;
+    protected Engine $engine;
 
     /**
      * The name of the view.
      *
      * @var string
      */
-    protected $view;
+    protected string $view;
 
     /**
      * The array of view data.
      *
      * @var array
      */
-    protected $data;
+    protected array $data;
 
     /**
      * The path to the view file.
      *
      * @var string
      */
-    protected $path;
+    protected string $path;
 
     /**
      * Create a new view instance.
      *
-     * @param  \Illuminate\View\Factory  $factory
-     * @param  \Illuminate\Contracts\View\Engine  $engine
+     * @param  \Hypervel\View\Factory  $factory
+     * @param  \Hypervel\Contracts\View\Engine  $engine
      * @param  string  $view
      * @param  string  $path
      * @param  mixed  $data
      * @return void
      */
-    public function __construct(Factory $factory, Engine $engine, $view, $path, $data = [])
+    public function __construct(Factory $factory, Engine $engine, string $view, string $path, mixed $data = [])
     {
         $this->view = $view;
         $this->path = $path;
@@ -85,7 +85,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      * @param  string  $fragment
      * @return string
      */
-    public function fragment($fragment)
+    public function fragment(string $fragment): string
     {
         return $this->render(function () use ($fragment) {
             return $this->factory->getFragment($fragment);
@@ -98,7 +98,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      * @param  array|null  $fragments
      * @return string
      */
-    public function fragments(?array $fragments = null)
+    public function fragments(?array $fragments = null): string
     {
         return is_null($fragments)
             ? $this->allFragments()
@@ -112,7 +112,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      * @param  string  $fragment
      * @return string
      */
-    public function fragmentIf($boolean, $fragment)
+    public function fragmentIf(bool $boolean, string $fragment): string
     {
         if (value($boolean)) {
             return $this->fragment($fragment);
@@ -128,7 +128,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      * @param  array|null  $fragments
      * @return string
      */
-    public function fragmentsIf($boolean, ?array $fragments = null)
+    public function fragmentsIf(bool $boolean, ?array $fragments = null): string
     {
         if (value($boolean)) {
             return $this->fragments($fragments);
@@ -142,7 +142,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      *
      * @return string
      */
-    protected function allFragments()
+    protected function allFragments(): string
     {
         return (new Collection($this->render(fn () => $this->factory->getFragments())))->implode('');
     }
@@ -155,7 +155,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      *
      * @throws \Throwable
      */
-    public function render(?callable $callback = null)
+    public function render(?callable $callback = null): string
     {
         try {
             $contents = $this->renderContents();
@@ -180,7 +180,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      *
      * @return string
      */
-    protected function renderContents()
+    protected function renderContents(): string
     {
         // We will keep track of the number of views being rendered so we can flush
         // the section after the complete rendering operation is done. This will
@@ -275,7 +275,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
     /**
      * Add validation errors to the view.
      *
-     * @param  \Illuminate\Contracts\Support\MessageProvider|array|string  $provider
+     * @param  \Hypervel\Contracts\Support\MessageProvider|array|string  $provider
      * @param  string  $bag
      * @return $this
      */
@@ -289,8 +289,8 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
     /**
      * Parse the given errors into an appropriate value.
      *
-     * @param  \Illuminate\Contracts\Support\MessageProvider|array|string  $provider
-     * @return \Illuminate\Support\MessageBag
+     * @param  \Hypervel\Contracts\Support\MessageProvider|array|string  $provider
+     * @return \Hypervel\Support\MessageBag
      */
     protected function formatErrors($provider)
     {
@@ -353,7 +353,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
     /**
      * Get the view factory instance.
      *
-     * @return \Illuminate\View\Factory
+     * @return \Hypervel\View\Factory
      */
     public function getFactory()
     {
@@ -363,7 +363,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
     /**
      * Get the view's rendering engine.
      *
-     * @return \Illuminate\Contracts\View\Engine
+     * @return \Hypervel\Contracts\View\Engine
      */
     public function getEngine()
     {
@@ -465,7 +465,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      *
      * @param  string  $method
      * @param  array  $parameters
-     * @return \Illuminate\View\View
+     * @return \Hypervel\View\View
      *
      * @throws \BadMethodCallException
      */

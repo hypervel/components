@@ -15,7 +15,7 @@ trait ManagesEvents
      * @param  \Closure|string  $callback
      * @return array
      */
-    public function creator($views, $callback)
+    public function creator(array|string $views, Closure|string $callback): array
     {
         $creators = [];
 
@@ -32,7 +32,7 @@ trait ManagesEvents
      * @param  array  $composers
      * @return array
      */
-    public function composers(array $composers)
+    public function composers(array $composers): array
     {
         $registered = [];
 
@@ -50,7 +50,7 @@ trait ManagesEvents
      * @param  \Closure|string  $callback
      * @return array
      */
-    public function composer($views, $callback)
+    public function composer(array|string $views, Closure|string $callback): array
     {
         $composers = [];
 
@@ -69,7 +69,7 @@ trait ManagesEvents
      * @param  string  $prefix
      * @return \Closure|null
      */
-    protected function addViewEvent($view, $callback, $prefix = 'composing: ')
+    protected function addViewEvent(string $view, Closure|string $callback, string $prefix = 'composing: '): ?Closure
     {
         $view = $this->normalizeName($view);
 
@@ -90,7 +90,7 @@ trait ManagesEvents
      * @param  string  $prefix
      * @return \Closure
      */
-    protected function addClassEvent($view, $class, $prefix)
+    protected function addClassEvent(string $view, string $class, string $prefix): Closure
     {
         $name = $prefix.$view;
 
@@ -113,7 +113,7 @@ trait ManagesEvents
      * @param  string  $prefix
      * @return \Closure
      */
-    protected function buildClassEventCallback($class, $prefix)
+    protected function buildClassEventCallback(string $class, string $prefix): Closure
     {
         [$class, $method] = $this->parseClassEvent($class, $prefix);
 
@@ -132,7 +132,7 @@ trait ManagesEvents
      * @param  string  $prefix
      * @return array
      */
-    protected function parseClassEvent($class, $prefix)
+    protected function parseClassEvent(string $class, string $prefix): array
     {
         return Str::parseCallback($class, $this->classEventMethodForPrefix($prefix));
     }
@@ -143,7 +143,7 @@ trait ManagesEvents
      * @param  string  $prefix
      * @return string
      */
-    protected function classEventMethodForPrefix($prefix)
+    protected function classEventMethodForPrefix(string $prefix): string
     {
         return str_contains($prefix, 'composing') ? 'compose' : 'create';
     }
@@ -155,7 +155,7 @@ trait ManagesEvents
      * @param  \Closure  $callback
      * @return void
      */
-    protected function addEventListener($name, $callback)
+    protected function addEventListener(string $name, Closure $callback): void
     {
         if (str_contains($name, '*')) {
             $callback = function ($name, array $data) use ($callback) {
@@ -169,10 +169,10 @@ trait ManagesEvents
     /**
      * Call the composer for a given view.
      *
-     * @param  \Illuminate\Contracts\View\View  $view
+     * @param  \Hypervel\Contracts\View\View  $view
      * @return void
      */
-    public function callComposer(ViewContract $view)
+    public function callComposer(ViewContract $view): void
     {
         if ($this->events->hasListeners($event = 'composing: '.$view->name())) {
             $this->events->dispatch($event, [$view]);
@@ -182,10 +182,10 @@ trait ManagesEvents
     /**
      * Call the creator for a given view.
      *
-     * @param  \Illuminate\Contracts\View\View  $view
+     * @param  \Hypervel\Contracts\View\View  $view
      * @return void
      */
-    public function callCreator(ViewContract $view)
+    public function callCreator(ViewContract $view): void
     {
         if ($this->events->hasListeners($event = 'creating: '.$view->name())) {
             $this->events->dispatch($event, [$view]);

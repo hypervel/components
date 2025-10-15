@@ -17,7 +17,7 @@ class InvokableComponentVariable implements DeferringDisplayableValue, IteratorA
      *
      * @var \Closure
      */
-    protected $callable;
+    protected Closure $callable;
 
     /**
      * Create a new variable instance.
@@ -25,7 +25,7 @@ class InvokableComponentVariable implements DeferringDisplayableValue, IteratorA
      * @param  \Closure  $callable
      * @return void
      */
-    public function __construct(Closure $callable)
+    public function __construct(Closure $callable): void
     {
         $this->callable = $callable;
     }
@@ -33,9 +33,9 @@ class InvokableComponentVariable implements DeferringDisplayableValue, IteratorA
     /**
      * Resolve the displayable value that the class is deferring.
      *
-     * @return \Illuminate\Contracts\Support\Htmlable|string
+     * @return \Hypervel\Contracts\Support\Htmlable|string
      */
-    public function resolveDisplayableValue()
+    public function resolveDisplayableValue(): mixed
     {
         return $this->__invoke();
     }
@@ -58,7 +58,7 @@ class InvokableComponentVariable implements DeferringDisplayableValue, IteratorA
      * @param  string  $key
      * @return mixed
      */
-    public function __get($key)
+    public function __get(string $key): mixed
     {
         return $this->__invoke()->{$key};
     }
@@ -70,7 +70,7 @@ class InvokableComponentVariable implements DeferringDisplayableValue, IteratorA
      * @param  array  $parameters
      * @return mixed
      */
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         return $this->__invoke()->{$method}(...$parameters);
     }
@@ -80,7 +80,7 @@ class InvokableComponentVariable implements DeferringDisplayableValue, IteratorA
      *
      * @return mixed
      */
-    public function __invoke()
+    public function __invoke(): mixed
     {
         return call_user_func($this->callable);
     }
@@ -90,7 +90,7 @@ class InvokableComponentVariable implements DeferringDisplayableValue, IteratorA
      *
      * @return string
      */
-    public function __toString()
+    public function __toString(): string
     {
         return (string) $this->__invoke();
     }

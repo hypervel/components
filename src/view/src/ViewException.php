@@ -13,7 +13,7 @@ class ViewException extends ErrorException
      *
      * @return bool|null
      */
-    public function report()
+    public function report(): bool|null
     {
         $exception = $this->getPrevious();
 
@@ -27,10 +27,10 @@ class ViewException extends ErrorException
     /**
      * Render the exception into an HTTP response.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response|null
+     * @param  \Hypervel\Http\Request  $request
+     * @return \Hypervel\Http\Response|null
      */
-    public function render($request)
+    public function render($request): mixed
     {
         $exception = $this->getPrevious();
 

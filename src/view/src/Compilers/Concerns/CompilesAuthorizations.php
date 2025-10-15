@@ -10,9 +10,9 @@ trait CompilesAuthorizations
      * @param  string  $expression
      * @return string
      */
-    protected function compileCan($expression)
+    protected function compileCan(string $expression): string
     {
-        return "<?php if (app(\Illuminate\\Contracts\\Auth\\Access\\Gate::class)->check{$expression}): ?>";
+        return "<?php if (app(\Hypervel\\Contracts\\Auth\\Access\\Gate::class)->check{$expression}): ?>";
     }
 
     /**
@@ -21,9 +21,9 @@ trait CompilesAuthorizations
      * @param  string  $expression
      * @return string
      */
-    protected function compileCannot($expression)
+    protected function compileCannot(string $expression): string
     {
-        return "<?php if (app(\Illuminate\\Contracts\\Auth\\Access\\Gate::class)->denies{$expression}): ?>";
+        return "<?php if (app(\Hypervel\\Contracts\\Auth\\Access\\Gate::class)->denies{$expression}): ?>";
     }
 
     /**
@@ -32,9 +32,9 @@ trait CompilesAuthorizations
      * @param  string  $expression
      * @return string
      */
-    protected function compileCanany($expression)
+    protected function compileCanany(string $expression): string
     {
-        return "<?php if (app(\Illuminate\\Contracts\\Auth\\Access\\Gate::class)->any{$expression}): ?>";
+        return "<?php if (app(\Hypervel\\Contracts\\Auth\\Access\\Gate::class)->any{$expression}): ?>";
     }
 
     /**
@@ -43,9 +43,9 @@ trait CompilesAuthorizations
      * @param  string  $expression
      * @return string
      */
-    protected function compileElsecan($expression)
+    protected function compileElsecan(string $expression): string
     {
-        return "<?php elseif (app(\Illuminate\\Contracts\\Auth\\Access\\Gate::class)->check{$expression}): ?>";
+        return "<?php elseif (app(\Hypervel\\Contracts\\Auth\\Access\\Gate::class)->check{$expression}): ?>";
     }
 
     /**
@@ -54,9 +54,9 @@ trait CompilesAuthorizations
      * @param  string  $expression
      * @return string
      */
-    protected function compileElsecannot($expression)
+    protected function compileElsecannot(string $expression): string
     {
-        return "<?php elseif (app(\Illuminate\\Contracts\\Auth\\Access\\Gate::class)->denies{$expression}): ?>";
+        return "<?php elseif (app(\Hypervel\\Contracts\\Auth\\Access\\Gate::class)->denies{$expression}): ?>";
     }
 
     /**
@@ -65,9 +65,9 @@ trait CompilesAuthorizations
      * @param  string  $expression
      * @return string
      */
-    protected function compileElsecanany($expression)
+    protected function compileElsecanany(string $expression): string
     {
-        return "<?php elseif (app(\Illuminate\\Contracts\\Auth\\Access\\Gate::class)->any{$expression}): ?>";
+        return "<?php elseif (app(\Hypervel\\Contracts\\Auth\\Access\\Gate::class)->any{$expression}): ?>";
     }
 
     /**
@@ -75,7 +75,7 @@ trait CompilesAuthorizations
      *
      * @return string
      */
-    protected function compileEndcan()
+    protected function compileEndcan(): string
     {
         return '<?php endif; ?>';
     }
@@ -85,7 +85,7 @@ trait CompilesAuthorizations
      *
      * @return string
      */
-    protected function compileEndcannot()
+    protected function compileEndcannot(): string
     {
         return '<?php endif; ?>';
     }
@@ -95,7 +95,7 @@ trait CompilesAuthorizations
      *
      * @return string
      */
-    protected function compileEndcanany()
+    protected function compileEndcanany(): string
     {
         return '<?php endif; ?>';
     }

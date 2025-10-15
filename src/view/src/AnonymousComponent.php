@@ -9,14 +9,14 @@ class AnonymousComponent extends Component
      *
      * @var string
      */
-    protected $view;
+    protected string $view;
 
     /**
      * The component data.
      *
      * @var array
      */
-    protected $data = [];
+    protected array $data = [];
 
     /**
      * Create a new anonymous component instance.
@@ -25,7 +25,7 @@ class AnonymousComponent extends Component
      * @param  array  $data
      * @return void
      */
-    public function __construct($view, $data)
+    public function __construct(string $view, array $data)
     {
         $this->view = $view;
         $this->data = $data;
@@ -36,7 +36,7 @@ class AnonymousComponent extends Component
      *
      * @return string
      */
-    public function render()
+    public function render(): string
     {
         return $this->view;
     }
@@ -46,7 +46,7 @@ class AnonymousComponent extends Component
      *
      * @return array
      */
-    public function data()
+    public function data(): array
     {
         $this->attributes = $this->attributes ?: $this->newAttributeBag();
 

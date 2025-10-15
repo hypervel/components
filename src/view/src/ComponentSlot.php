@@ -11,16 +11,16 @@ class ComponentSlot implements Htmlable, Stringable
     /**
      * The slot attribute bag.
      *
-     * @var \Illuminate\View\ComponentAttributeBag
+     * @var \Hypervel\View\ComponentAttributeBag
      */
-    public $attributes;
+    public ComponentAttributeBag $attributes;
 
     /**
      * The slot contents.
      *
      * @var string
      */
-    protected $contents;
+    protected string $contents;
 
     /**
      * Create a new slot instance.
@@ -29,7 +29,7 @@ class ComponentSlot implements Htmlable, Stringable
      * @param  array  $attributes
      * @return void
      */
-    public function __construct($contents = '', $attributes = [])
+    public function __construct(string $contents = '', array $attributes = []): void
     {
         $this->contents = $contents;
 
@@ -42,7 +42,7 @@ class ComponentSlot implements Htmlable, Stringable
      * @param  array  $attributes
      * @return $this
      */
-    public function withAttributes(array $attributes)
+    public function withAttributes(array $attributes): static
     {
         $this->attributes = new ComponentAttributeBag($attributes);
 
@@ -54,7 +54,7 @@ class ComponentSlot implements Htmlable, Stringable
      *
      * @return string
      */
-    public function toHtml()
+    public function toHtml(): string
     {
         return $this->contents;
     }
@@ -64,7 +64,7 @@ class ComponentSlot implements Htmlable, Stringable
      *
      * @return bool
      */
-    public function isEmpty()
+    public function isEmpty(): bool
     {
         return $this->contents === '';
     }
@@ -74,7 +74,7 @@ class ComponentSlot implements Htmlable, Stringable
      *
      * @return bool
      */
-    public function isNotEmpty()
+    public function isNotEmpty(): bool
     {
         return ! $this->isEmpty();
     }
@@ -85,7 +85,7 @@ class ComponentSlot implements Htmlable, Stringable
      * @param  callable|string|null  $callable
      * @return bool
      */
-    public function hasActualContent(callable|string|null $callable = null)
+    public function hasActualContent(callable|string|null $callable = null): bool
     {
         if (is_string($callable) && ! function_exists($callable)) {
             throw new InvalidArgumentException('Callable does not exist.');
@@ -103,7 +103,7 @@ class ComponentSlot implements Htmlable, Stringable
      *
      * @return string
      */
-    public function __toString()
+    public function __toString(): string
     {
         return $this->toHtml();
     }

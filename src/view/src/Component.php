@@ -18,35 +18,35 @@ abstract class Component
      *
      * @var array
      */
-    protected $except = [];
+    protected array $except = [];
 
     /**
      * The component alias name.
      *
      * @var string
      */
-    public $componentName;
+    public ?string $componentName = null;
 
     /**
      * The component attributes.
      *
-     * @var \Illuminate\View\ComponentAttributeBag
+     * @var \Hypervel\View\ComponentAttributeBag
      */
-    public $attributes;
+    public ?ComponentAttributeBag $attributes = null;
 
     /**
      * The view factory instance, if any.
      *
-     * @var \Illuminate\Contracts\View\Factory|null
+     * @var \Hypervel\Contracts\View\Factory|null
      */
-    protected static $factory;
+    protected static $factory = null;
 
     /**
      * The component resolver callback.
      *
      * @var (\Closure(string, array): Component)|null
      */
-    protected static $componentsResolver;
+    protected static ?Closure $componentsResolver = null;
 
     /**
      * The cache of blade view names, keyed by contents.
@@ -60,14 +60,14 @@ abstract class Component
      *
      * @var array
      */
-    protected static $propertyCache = [];
+    protected static array $propertyCache = [];
 
     /**
      * The cache of public method names, keyed by class.
      *
      * @var array
      */
-    protected static $methodCache = [];
+    protected static array $methodCache = [];
 
     /**
      * The cache of constructor parameters, keyed by class.
@@ -81,14 +81,14 @@ abstract class Component
      *
      * @var array
      */
-    protected static $ignoredParameterNames = [];
+    protected static array $ignoredParameterNames = [];
 
     /**
      * Get the view / view contents that represent the component.
      *
-     * @return \Illuminate\Contracts\View\View|\Illuminate\Contracts\Support\Htmlable|\Closure|string
+     * @return \Hypervel\Contracts\View\View|\Hypervel\Contracts\Support\Htmlable|\Closure|string
      */
-    abstract public function render();
+    abstract public function render(): mixed;
 
     /**
      * Resolve the component instance with the given data.
@@ -96,7 +96,7 @@ abstract class Component
      * @param  array  $data
      * @return static
      */
-    public static function resolve($data)
+    public static function resolve(array $data): static
     {
         if (static::$componentsResolver) {
             return call_user_func(static::$componentsResolver, static::class, $data);
@@ -118,7 +118,7 @@ abstract class Component
      *
      * @return array
      */
-    protected static function extractConstructorParameters()
+    protected static function extractConstructorParameters(): array
     {
         if (! isset(static::$constructorParametersCache[static::class])) {
             $class = new ReflectionClass(static::class);
@@ -136,9 +136,9 @@ abstract class Component
     /**
      * Resolve the Blade view or view file that should be used when rendering the component.
      *
-     * @return \Illuminate\Contracts\View\View|\Illuminate\Contracts\Support\Htmlable|\Closure|string
+     * @return \Hypervel\Contracts\View\View|\Hypervel\Contracts\Support\Htmlable|\Closure|string
      */
-    public function resolveView()
+    public function resolveView(): mixed
     {
         $view = $this->render();
 
@@ -170,7 +170,7 @@ abstract class Component
      * @param  string  $contents
      * @return string
      */
-    protected function extractBladeViewFromString($contents)
+    protected function extractBladeViewFromString(string $contents): string
     {
         $key = sprintf('%s::%s', static::class, $contents);
 
@@ -188,11 +188,11 @@ abstract class Component
     /**
      * Create a Blade view with the raw component string content.
      *
-     * @param  \Illuminate\Contracts\View\Factory  $factory
+     * @param  \Hypervel\Contracts\View\Factory  $factory
      * @param  string  $contents
      * @return string
      */
-    protected function createBladeViewFromString($factory, $contents)
+    protected function createBladeViewFromString($factory, string $contents): string
     {
         $factory->addNamespace(
             '__components',
@@ -218,7 +218,7 @@ abstract class Component
      *
      * @return array
      */
-    public function data()
+    public function data(): array
     {
         $this->attributes = $this->attributes ?: $this->newAttributeBag();
 
@@ -230,7 +230,7 @@ abstract class Component
      *
      * @return array
      */
-    protected function extractPublicProperties()
+    protected function extractPublicProperties(): array
     {
         $class = get_class($this);
 
@@ -258,7 +258,7 @@ abstract class Component
      *
      * @return array
      */
-    protected function extractPublicMethods()
+    protected function extractPublicMethods(): array
     {
         $class = get_class($this);
 
@@ -285,7 +285,7 @@ abstract class Component
      * @param  \ReflectionMethod  $method
      * @return mixed
      */
-    protected function createVariableFromMethod(ReflectionMethod $method)
+    protected function createVariableFromMethod(ReflectionMethod $method): mixed
     {
         return $method->getNumberOfParameters() === 0
                         ? $this->createInvokableVariable($method->getName())
@@ -296,9 +296,9 @@ abstract class Component
      * Create an invokable, toStringable variable for the given component method.
      *
      * @param  string  $method
-     * @return \Illuminate\View\InvokableComponentVariable
+     * @return \Hypervel\View\InvokableComponentVariable
      */
-    protected function createInvokableVariable(string $method)
+    protected function createInvokableVariable(string $method): InvokableComponentVariable
     {
         return new InvokableComponentVariable(function () use ($method) {
             return $this->{$method}();
@@ -311,7 +311,7 @@ abstract class Component
      * @param  string  $name
      * @return bool
      */
-    protected function shouldIgnore($name)
+    protected function shouldIgnore(string $name): bool
     {
         return str_starts_with($name, '__') ||
                in_array($name, $this->ignoredMethods());
@@ -322,7 +322,7 @@ abstract class Component
      *
      * @return array
      */
-    protected function ignoredMethods()
+    protected function ignoredMethods(): array
     {
         return array_merge([
             'data',
@@ -346,7 +346,7 @@ abstract class Component
      * @param  string  $name
      * @return $this
      */
-    public function withName($name)
+    public function withName(string $name): static
     {
         $this->componentName = $name;
 
@@ -359,7 +359,7 @@ abstract class Component
      * @param  array  $attributes
      * @return $this
      */
-    public function withAttributes(array $attributes)
+    public function withAttributes(array $attributes): static
     {
         $this->attributes = $this->attributes ?: $this->newAttributeBag();
 
@@ -372,9 +372,9 @@ abstract class Component
      * Get a new attribute bag instance.
      *
      * @param  array  $attributes
-     * @return \Illuminate\View\ComponentAttributeBag
+     * @return \Hypervel\View\ComponentAttributeBag
      */
-    protected function newAttributeBag(array $attributes = [])
+    protected function newAttributeBag(array $attributes = []): ComponentAttributeBag
     {
         return new ComponentAttributeBag($attributes);
     }
@@ -384,7 +384,7 @@ abstract class Component
      *
      * @return bool
      */
-    public function shouldRender()
+    public function shouldRender(): bool
     {
         return true;
     }
@@ -393,11 +393,11 @@ abstract class Component
      * Get the evaluated view contents for the given view.
      *
      * @param  string|null  $view
-     * @param  \Illuminate\Contracts\Support\Arrayable|array  $data
+     * @param  \Hypervel\Contracts\Support\Arrayable|array  $data
      * @param  array  $mergeData
-     * @return \Illuminate\Contracts\View\View
+     * @return \Hypervel\Contracts\View\View
      */
-    public function view($view, $data = [], $mergeData = [])
+    public function view(?string $view, mixed $data = [], array $mergeData = []): ViewContract
     {
         return $this->factory()->make($view, $data, $mergeData);
     }
@@ -405,9 +405,9 @@ abstract class Component
     /**
      * Get the view factory instance.
      *
-     * @return \Illuminate\Contracts\View\Factory
+     * @return \Hypervel\Contracts\View\Factory
      */
-    protected function factory()
+    protected function factory(): mixed
     {
         if (is_null(static::$factory)) {
             static::$factory = Container::getInstance()->make('view');
@@ -421,7 +421,7 @@ abstract class Component
      *
      * @return array
      */
-    public static function ignoredParameterNames()
+    public static function ignoredParameterNames(): array
     {
         if (! isset(static::$ignoredParameterNames[static::class])) {
             $constructor = (new ReflectionClass(
@@ -446,7 +446,7 @@ abstract class Component
      *
      * @return void
      */
-    public static function flushCache()
+    public static function flushCache(): void
     {
         static::$bladeViewCache = [];
         static::$constructorParametersCache = [];
@@ -459,7 +459,7 @@ abstract class Component
      *
      * @return void
      */
-    public static function forgetFactory()
+    public static function forgetFactory(): void
     {
         static::$factory = null;
     }
@@ -471,7 +471,7 @@ abstract class Component
      *
      * @internal
      */
-    public static function forgetComponentsResolver()
+    public static function forgetComponentsResolver(): void
     {
         static::$componentsResolver = null;
     }
@@ -484,7 +484,7 @@ abstract class Component
      *
      * @internal
      */
-    public static function resolveComponentsUsing($resolver)
+    public static function resolveComponentsUsing(Closure $resolver): void
     {
         static::$componentsResolver = $resolver;
     }

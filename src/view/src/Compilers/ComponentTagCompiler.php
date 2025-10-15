@@ -23,7 +23,7 @@ class ComponentTagCompiler
     /**
      * The Blade compiler instance.
      *
-     * @var \Illuminate\View\Compilers\BladeCompiler
+     * @var \Hypervel\View\Compilers\BladeCompiler
      */
     protected $blade;
 
@@ -53,7 +53,7 @@ class ComponentTagCompiler
      *
      * @param  array  $aliases
      * @param  array  $namespaces
-     * @param  \Illuminate\View\Compilers\BladeCompiler|null  $blade
+     * @param  \Hypervel\View\Compilers\BladeCompiler|null  $blade
      * @return void
      */
     public function __construct(array $aliases = [], array $namespaces = [], ?BladeCompiler $blade = null)
@@ -246,7 +246,7 @@ class ComponentTagCompiler
         // can be accessed within the component and we can render out the view.
         if (! class_exists($class)) {
             $view = Str::startsWith($component, 'mail::')
-                ? "\$__env->getContainer()->make(Illuminate\\View\\Factory::class)->make('{$component}')"
+                ? "\$__env->getContainer()->make(Hypervel\\View\\Factory::class)->make('{$component}')"
                 : "'$class'";
 
             $parameters = [
@@ -260,7 +260,7 @@ class ComponentTagCompiler
         }
 
         return "##BEGIN-COMPONENT-CLASS##@component('{$class}', '{$component}', [".$this->attributesToString($parameters, $escapeBound = false).'])
-<?php if (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag): ?>
+<?php if (isset($attributes) && $attributes instanceof Hypervel\View\ComponentAttributeBag): ?>
 <?php $attributes = $attributes->except(\\'.$class.'::ignoredParameterNames()); ?>
 <?php endif; ?>
 <?php $component->withAttributes(['.$this->attributesToString($attributes->all(), $escapeAttributes = $class !== DynamicComponent::class).']); ?>';
@@ -321,7 +321,7 @@ class ComponentTagCompiler
     /**
      * Attempt to find an anonymous component using the registered anonymous component paths.
      *
-     * @param  \Illuminate\Contracts\View\Factory  $viewFactory
+     * @param  \Hypervel\Contracts\View\Factory  $viewFactory
      * @param  string  $component
      * @return string|null
      */
@@ -357,7 +357,7 @@ class ComponentTagCompiler
     /**
      * Attempt to find an anonymous component using the registered anonymous component namespaces.
      *
-     * @param  \Illuminate\Contracts\View\Factory  $viewFactory
+     * @param  \Hypervel\Contracts\View\Factory  $viewFactory
      * @param  string  $component
      * @return string|null
      */
@@ -691,7 +691,7 @@ class ComponentTagCompiler
                 if ($match[1] === 'class') {
                     $match[2] = str_replace('"', "'", $match[2]);
 
-                    return ":class=\"\Illuminate\Support\Arr::toCssClasses{$match[2]}\"";
+                    return ":class=\"\Hypervel\Support\Arr::toCssClasses{$match[2]}\"";
                 }
 
                 return $match[0];
@@ -712,7 +712,7 @@ class ComponentTagCompiler
                 if ($match[1] === 'style') {
                     $match[2] = str_replace('"', "'", $match[2]);
 
-                    return ":style=\"\Illuminate\Support\Arr::toCssStyles{$match[2]}\"";
+                    return ":style=\"\Hypervel\Support\Arr::toCssStyles{$match[2]}\"";
                 }
 
                 return $match[0];
@@ -789,7 +789,7 @@ class ComponentTagCompiler
         return (new Collection($attributes))
             ->map(function (string $value, string $attribute) use ($escapeBound) {
                 return $escapeBound && isset($this->boundAttributes[$attribute]) && $value !== 'true' && ! is_numeric($value)
-                            ? "'{$attribute}' => \Illuminate\View\Compilers\BladeCompiler::sanitizeComponentAttribute({$value})"
+                            ? "'{$attribute}' => \Hypervel\View\Compilers\BladeCompiler::sanitizeComponentAttribute({$value})"
                             : "'{$attribute}' => {$value}";
             })
             ->implode(',');

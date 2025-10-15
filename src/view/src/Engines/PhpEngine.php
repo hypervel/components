@@ -11,17 +11,17 @@ class PhpEngine implements Engine
     /**
      * The filesystem instance.
      *
-     * @var \Illuminate\Filesystem\Filesystem
+     * @var \Hypervel\Filesystem\Filesystem
      */
-    protected $files;
+    protected Filesystem $files;
 
     /**
      * Create a new file engine instance.
      *
-     * @param  \Illuminate\Filesystem\Filesystem  $files
+     * @param  \Hypervel\Filesystem\Filesystem  $files
      * @return void
      */
-    public function __construct(Filesystem $files)
+    public function __construct(Filesystem $files): void
     {
         $this->files = $files;
     }
@@ -33,7 +33,7 @@ class PhpEngine implements Engine
      * @param  array  $data
      * @return string
      */
-    public function get($path, array $data = [])
+    public function get(string $path, array $data = []): string
     {
         return $this->evaluatePath($path, $data);
     }
@@ -45,7 +45,7 @@ class PhpEngine implements Engine
      * @param  array  $data
      * @return string
      */
-    protected function evaluatePath($path, $data)
+    protected function evaluatePath(string $path, array $data): string
     {
         $obLevel = ob_get_level();
 
@@ -72,7 +72,7 @@ class PhpEngine implements Engine
      *
      * @throws \Throwable
      */
-    protected function handleViewException(Throwable $e, $obLevel)
+    protected function handleViewException(Throwable $e, int $obLevel): void
     {
         while (ob_get_level() > $obLevel) {
             ob_end_clean();

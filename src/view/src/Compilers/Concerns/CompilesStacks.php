@@ -12,7 +12,7 @@ trait CompilesStacks
      * @param  string  $expression
      * @return string
      */
-    protected function compileStack($expression)
+    protected function compileStack(string $expression): string
     {
         return "<?php echo \$__env->yieldPushContent{$expression}; ?>";
     }
@@ -23,7 +23,7 @@ trait CompilesStacks
      * @param  string  $expression
      * @return string
      */
-    protected function compilePush($expression)
+    protected function compilePush(string $expression): string
     {
         return "<?php \$__env->startPush{$expression}; ?>";
     }
@@ -34,7 +34,7 @@ trait CompilesStacks
      * @param  string  $expression
      * @return string
      */
-    protected function compilePushOnce($expression)
+    protected function compilePushOnce(string $expression): string
     {
         $parts = explode(',', $this->stripParentheses($expression), 2);
 
@@ -51,7 +51,7 @@ $__env->startPush('.$stack.'); ?>';
      *
      * @return string
      */
-    protected function compileEndpush()
+    protected function compileEndpush(): string
     {
         return '<?php $__env->stopPush(); ?>';
     }
@@ -61,7 +61,7 @@ $__env->startPush('.$stack.'); ?>';
      *
      * @return string
      */
-    protected function compileEndpushOnce()
+    protected function compileEndpushOnce(): string
     {
         return '<?php $__env->stopPush(); endif; ?>';
     }
@@ -72,7 +72,7 @@ $__env->startPush('.$stack.'); ?>';
      * @param  string  $expression
      * @return string
      */
-    protected function compilePrepend($expression)
+    protected function compilePrepend(string $expression): string
     {
         return "<?php \$__env->startPrepend{$expression}; ?>";
     }
@@ -83,7 +83,7 @@ $__env->startPush('.$stack.'); ?>';
      * @param  string  $expression
      * @return string
      */
-    protected function compilePrependOnce($expression)
+    protected function compilePrependOnce(string $expression): string
     {
         $parts = explode(',', $this->stripParentheses($expression), 2);
 
@@ -100,7 +100,7 @@ $__env->startPrepend('.$stack.'); ?>';
      *
      * @return string
      */
-    protected function compileEndprepend()
+    protected function compileEndprepend(): string
     {
         return '<?php $__env->stopPrepend(); ?>';
     }
@@ -110,7 +110,7 @@ $__env->startPrepend('.$stack.'); ?>';
      *
      * @return string
      */
-    protected function compileEndprependOnce()
+    protected function compileEndprependOnce(): string
     {
         return '<?php $__env->stopPrepend(); endif; ?>';
     }

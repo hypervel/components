@@ -11,14 +11,14 @@ trait ManagesFragments
      *
      * @var array
      */
-    protected $fragments = [];
+    protected array $fragments = [];
 
     /**
      * The stack of in-progress fragment renders.
      *
      * @var array
      */
-    protected $fragmentStack = [];
+    protected array $fragmentStack = [];
 
     /**
      * Start injecting content into a fragment.
@@ -26,7 +26,7 @@ trait ManagesFragments
      * @param  string  $fragment
      * @return void
      */
-    public function startFragment($fragment)
+    public function startFragment(string $fragment): void
     {
         if (ob_start()) {
             $this->fragmentStack[] = $fragment;
@@ -40,7 +40,7 @@ trait ManagesFragments
      *
      * @throws \InvalidArgumentException
      */
-    public function stopFragment()
+    public function stopFragment(): string
     {
         if (empty($this->fragmentStack)) {
             throw new InvalidArgumentException('Cannot end a fragment without first starting one.');
@@ -60,7 +60,7 @@ trait ManagesFragments
      * @param  string|null  $default
      * @return mixed
      */
-    public function getFragment($name, $default = null)
+    public function getFragment(string $name, ?string $default = null): mixed
     {
         return $this->getFragments()[$name] ?? $default;
     }
@@ -70,7 +70,7 @@ trait ManagesFragments
      *
      * @return array
      */
-    public function getFragments()
+    public function getFragments(): array
     {
         return $this->fragments;
     }
@@ -80,7 +80,7 @@ trait ManagesFragments
      *
      * @return void
      */
-    public function flushFragments()
+    public function flushFragments(): void
     {
         $this->fragments = [];
         $this->fragmentStack = [];

@@ -12,14 +12,14 @@ class EngineResolver
      *
      * @var array
      */
-    protected $resolvers = [];
+    protected array $resolvers = [];
 
     /**
      * The resolved engine instances.
      *
      * @var array
      */
-    protected $resolved = [];
+    protected array $resolved = [];
 
     /**
      * Register a new engine resolver.
@@ -30,7 +30,7 @@ class EngineResolver
      * @param  \Closure  $resolver
      * @return void
      */
-    public function register($engine, Closure $resolver)
+    public function register(string $engine, Closure $resolver): void
     {
         $this->forget($engine);
 
@@ -41,11 +41,11 @@ class EngineResolver
      * Resolve an engine instance by name.
      *
      * @param  string  $engine
-     * @return \Illuminate\Contracts\View\Engine
+     * @return \Hypervel\Contracts\View\Engine
      *
      * @throws \InvalidArgumentException
      */
-    public function resolve($engine)
+    public function resolve(string $engine): mixed
     {
         if (isset($this->resolved[$engine])) {
             return $this->resolved[$engine];
@@ -64,7 +64,7 @@ class EngineResolver
      * @param  string  $engine
      * @return void
      */
-    public function forget($engine)
+    public function forget(string $engine): void
     {
         unset($this->resolved[$engine]);
     }

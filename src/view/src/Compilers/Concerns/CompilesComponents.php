@@ -12,9 +12,9 @@ trait CompilesComponents
     /**
      * The component name hash stack.
      *
-     * @var array
+     * @var array<string>
      */
-    protected static $componentHashStack = [];
+    protected static array $componentHashStack = [];
 
     /**
      * Compile the component statements into valid PHP.
@@ -22,7 +22,7 @@ trait CompilesComponents
      * @param  string  $expression
      * @return string
      */
-    protected function compileComponent($expression)
+    protected function compileComponent(string $expression): string
     {
         [$component, $alias, $data] = str_contains($expression, ',')
                     ? array_map('trim', explode(',', trim($expression, '()'), 3)) + ['', '', '']
@@ -63,12 +63,12 @@ trait CompilesComponents
      * @param  string  $hash
      * @return string
      */
-    public static function compileClassComponentOpening(string $component, string $alias, string $data, string $hash)
+    public static function compileClassComponentOpening(string $component, string $alias, string $data, string $hash): string
     {
         return implode("\n", [
             '<?php if (isset($component)) { $__componentOriginal'.$hash.' = $component; } ?>',
             '<?php if (isset($attributes)) { $__attributesOriginal'.$hash.' = $attributes; } ?>',
-            '<?php $component = '.$component.'::resolve('.($data ?: '[]').' + (isset($attributes) && $attributes instanceof Illuminate\View\ComponentAttributeBag ? $attributes->all() : [])); ?>',
+            '<?php $component = '.$component.'::resolve('.($data ?: '[]').' + (isset($attributes) && $attributes instanceof Hypervel\View\ComponentAttributeBag ? $attributes->all() : [])); ?>',
             '<?php $component->withName('.$alias.'); ?>',
             '<?php if ($component->shouldRender()): ?>',
             '<?php $__env->startComponent($component->resolveView(), $component->data()); ?>',
@@ -80,7 +80,7 @@ trait CompilesComponents
      *
      * @return string
      */
-    protected function compileEndComponent()
+    protected function compileEndComponent(): string
     {
         return '<?php echo $__env->renderComponent(); ?>';
     }
@@ -90,7 +90,7 @@ trait CompilesComponents
      *
      * @return string
      */
-    public function compileEndComponentClass()
+    public function compileEndComponentClass(): string
     {
         $hash = array_pop(static::$componentHashStack);
 
@@ -113,7 +113,7 @@ trait CompilesComponents
      * @param  string  $expression
      * @return string
      */
-    protected function compileSlot($expression)
+    protected function compileSlot(string $expression): string
     {
         return "<?php \$__env->slot{$expression}; ?>";
     }
@@ -123,7 +123,7 @@ trait CompilesComponents
      *
      * @return string
      */
-    protected function compileEndSlot()
+    protected function compileEndSlot(): string
     {
         return '<?php $__env->endSlot(); ?>';
     }
@@ -134,7 +134,7 @@ trait CompilesComponents
      * @param  string  $expression
      * @return string
      */
-    protected function compileComponentFirst($expression)
+    protected function compileComponentFirst(string $expression): string
     {
         return "<?php \$__env->startComponentFirst{$expression}; ?>";
     }
@@ -144,7 +144,7 @@ trait CompilesComponents
      *
      * @return string
      */
-    protected function compileEndComponentFirst()
+    protected function compileEndComponentFirst(): string
     {
         return $this->compileEndComponent();
     }
@@ -155,12 +155,12 @@ trait CompilesComponents
      * @param  string  $expression
      * @return string
      */
-    protected function compileProps($expression)
+    protected function compileProps(string $expression): string
     {
-        return "<?php \$attributes ??= new \\Illuminate\\View\\ComponentAttributeBag;
+        return "<?php \$attributes ??= new \\Hypervel\\View\\ComponentAttributeBag;
 
 \$__newAttributes = [];
-\$__propNames = \Illuminate\View\ComponentAttributeBag::extractPropNames({$expression});
+\$__propNames = \Hypervel\View\ComponentAttributeBag::extractPropNames({$expression});
 
 foreach (\$attributes->all() as \$__key => \$__value) {
     if (in_array(\$__key, \$__propNames)) {
@@ -170,7 +170,7 @@ foreach (\$attributes->all() as \$__key => \$__value) {
     }
 }
 
-\$attributes = new \Illuminate\View\ComponentAttributeBag(\$__newAttributes);
+\$attributes = new \Hypervel\View\ComponentAttributeBag(\$__newAttributes);
 
 unset(\$__propNames);
 unset(\$__newAttributes);
@@ -194,7 +194,7 @@ unset(\$__defined_vars); ?>";
      * @param  string  $expression
      * @return string
      */
-    protected function compileAware($expression)
+    protected function compileAware(string $expression): string
     {
         return "<?php foreach ({$expression} as \$__key => \$__value) {
     \$__consumeVariable = is_string(\$__key) ? \$__key : \$__value;
@@ -208,7 +208,7 @@ unset(\$__defined_vars); ?>";
      * @param  mixed  $value
      * @return mixed
      */
-    public static function sanitizeComponentAttribute($value)
+    public static function sanitizeComponentAttribute(mixed $value): mixed
     {
         if ($value instanceof CanBeEscapedWhenCastToString) {
             return $value->escapeWhenCastingToString();

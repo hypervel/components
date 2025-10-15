@@ -10,7 +10,7 @@ trait CompilesComments
      * @param  string  $value
      * @return string
      */
-    protected function compileComments($value)
+    protected function compileComments(string $value): string
     {
         $pattern = sprintf('/%s--(.*?)--%s/s', $this->contentTags[0], $this->contentTags[1]);
 

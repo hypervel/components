@@ -10,9 +10,9 @@ trait CompilesEchos
     /**
      * Custom rendering callbacks for stringable objects.
      *
-     * @var array
+     * @var array<string, callable>
      */
-    protected $echoHandlers = [];
+    protected array $echoHandlers = [];
 
     /**
      * Add a handler to be executed before echoing a given class.
@@ -21,7 +21,7 @@ trait CompilesEchos
      * @param  callable|null  $handler
      * @return void
      */
-    public function stringable($class, $handler = null)
+    public function stringable(string|callable $class, ?callable $handler = null): void
     {
         if ($class instanceof Closure) {
             [$class, $handler] = [$this->firstClosureParameterType($class), $class];
@@ -36,7 +36,7 @@ trait CompilesEchos
      * @param  string  $value
      * @return string
      */
-    public function compileEchos($value)
+    public function compileEchos(string $value): string
     {
         foreach ($this->getEchoMethods() as $method) {
             $value = $this->$method($value);
@@ -48,9 +48,9 @@ trait CompilesEchos
     /**
      * Get the echo methods in the proper order for compilation.
      *
-     * @return array
+     * @return array<string>
      */
-    protected function getEchoMethods()
+    protected function getEchoMethods(): array
     {
         return [
             'compileRawEchos',
@@ -65,7 +65,7 @@ trait CompilesEchos
      * @param  string  $value
      * @return string
      */
-    protected function compileRawEchos($value)
+    protected function compileRawEchos(string $value): string
     {
         $pattern = sprintf('/(@)?%s\s*(.+?)\s*%s(\r?\n)?/s', $this->rawTags[0], $this->rawTags[1]);
 
@@ -86,7 +86,7 @@ trait CompilesEchos
      * @param  string  $value
      * @return string
      */
-    protected function compileRegularEchos($value)
+    protected function compileRegularEchos(string $value): string
     {
         $pattern = sprintf('/(@)?%s\s*(.+?)\s*%s(\r?\n)?/s', $this->contentTags[0], $this->contentTags[1]);
 
@@ -107,7 +107,7 @@ trait CompilesEchos
      * @param  string  $value
      * @return string
      */
-    protected function compileEscapedEchos($value)
+    protected function compileEscapedEchos(string $value): string
     {
         $pattern = sprintf('/(@)?%s\s*(.+?)\s*%s(\r?\n)?/s', $this->escapedTags[0], $this->escapedTags[1]);
 
@@ -128,7 +128,7 @@ trait CompilesEchos
      * @param  string  $result
      * @return string
      */
-    protected function addBladeCompilerVariable($result)
+    protected function addBladeCompilerVariable(string $result): string
     {
         return "<?php \$__bladeCompiler = app('blade.compiler'); ?>".$result;
     }
@@ -139,7 +139,7 @@ trait CompilesEchos
      * @param  string  $value
      * @return string
      */
-    protected function wrapInEchoHandler($value)
+    protected function wrapInEchoHandler(string $value): string
     {
         $value = (new Stringable($value))
             ->trim()
@@ -153,10 +153,10 @@ trait CompilesEchos
     /**
      * Apply the echo handler for the value if it exists.
      *
-     * @param  string  $value
-     * @return string
+     * @param  mixed  $value
+     * @return mixed
      */
-    public function applyEchoHandler($value)
+    public function applyEchoHandler(mixed $value): mixed
     {
         if (is_object($value) && isset($this->echoHandlers[get_class($value)])) {
             return call_user_func($this->echoHandlers[get_class($value)], $value);

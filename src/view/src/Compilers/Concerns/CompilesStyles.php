@@ -7,13 +7,13 @@ trait CompilesStyles
     /**
      * Compile the conditional style statement into valid PHP.
      *
-     * @param  string  $expression
+     * @param  string|null  $expression
      * @return string
      */
-    protected function compileStyle($expression)
+    protected function compileStyle(?string $expression): string
     {
         $expression = is_null($expression) ? '([])' : $expression;
 
-        return "style=\"<?php echo \Illuminate\Support\Arr::toCssStyles{$expression} ?>\"";
+        return "style=\"<?php echo \Hypervel\Support\Arr::toCssStyles{$expression} ?>\"";
     }
 }

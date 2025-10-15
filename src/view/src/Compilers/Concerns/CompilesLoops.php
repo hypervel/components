@@ -11,7 +11,7 @@ trait CompilesLoops
      *
      * @var int
      */
-    protected $forElseCounter = 0;
+    protected int $forElseCounter = 0;
 
     /**
      * Compile the for-else statements into valid PHP.
@@ -19,9 +19,9 @@ trait CompilesLoops
      * @param  string|null  $expression
      * @return string
      *
-     * @throws \Illuminate\Contracts\View\ViewCompilationException
+     * @throws \Hypervel\Contracts\View\ViewCompilationException
      */
-    protected function compileForelse($expression)
+    protected function compileForelse(?string $expression): string
     {
         $empty = '$__empty_'.++$this->forElseCounter;
 
@@ -48,7 +48,7 @@ trait CompilesLoops
      * @param  string  $expression
      * @return string
      */
-    protected function compileEmpty($expression)
+    protected function compileEmpty(?string $expression): string
     {
         if ($expression) {
             return "<?php if(empty{$expression}): ?>";
@@ -64,7 +64,7 @@ trait CompilesLoops
      *
      * @return string
      */
-    protected function compileEndforelse()
+    protected function compileEndforelse(): string
     {
         return '<?php endif; ?>';
     }
@@ -74,7 +74,7 @@ trait CompilesLoops
      *
      * @return string
      */
-    protected function compileEndEmpty()
+    protected function compileEndEmpty(): string
     {
         return '<?php endif; ?>';
     }
@@ -85,7 +85,7 @@ trait CompilesLoops
      * @param  string  $expression
      * @return string
      */
-    protected function compileFor($expression)
+    protected function compileFor(string $expression): string
     {
         return "<?php for{$expression}: ?>";
     }
@@ -96,9 +96,9 @@ trait CompilesLoops
      * @param  string|null  $expression
      * @return string
      *
-     * @throws \Illuminate\Contracts\View\ViewCompilationException
+     * @throws \Hypervel\Contracts\View\ViewCompilationException
      */
-    protected function compileForeach($expression)
+    protected function compileForeach(?string $expression): string
     {
         preg_match('/\( *(.+) +as +(.*)\)$/is', $expression ?? '', $matches);
 
@@ -123,7 +123,7 @@ trait CompilesLoops
      * @param  string  $expression
      * @return string
      */
-    protected function compileBreak($expression)
+    protected function compileBreak(?string $expression): string
     {
         if ($expression) {
             preg_match('/\(\s*(-?\d+)\s*\)$/', $expression, $matches);
@@ -140,7 +140,7 @@ trait CompilesLoops
      * @param  string  $expression
      * @return string
      */
-    protected function compileContinue($expression)
+    protected function compileContinue(?string $expression): string
     {
         if ($expression) {
             preg_match('/\(\s*(-?\d+)\s*\)$/', $expression, $matches);
@@ -156,7 +156,7 @@ trait CompilesLoops
      *
      * @return string
      */
-    protected function compileEndfor()
+    protected function compileEndfor(): string
     {
         return '<?php endfor; ?>';
     }
@@ -166,7 +166,7 @@ trait CompilesLoops
      *
      * @return string
      */
-    protected function compileEndforeach()
+    protected function compileEndforeach(): string
     {
         return '<?php endforeach; $__env->popLoop(); $loop = $__env->getLastLoop(); ?>';
     }
@@ -177,7 +177,7 @@ trait CompilesLoops
      * @param  string  $expression
      * @return string
      */
-    protected function compileWhile($expression)
+    protected function compileWhile(string $expression): string
     {
         return "<?php while{$expression}: ?>";
     }
@@ -187,7 +187,7 @@ trait CompilesLoops
      *
      * @return string
      */
-    protected function compileEndwhile()
+    protected function compileEndwhile(): string
     {
         return '<?php endwhile; ?>';
     }

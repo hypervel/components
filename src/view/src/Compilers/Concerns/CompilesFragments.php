@@ -7,9 +7,9 @@ trait CompilesFragments
     /**
      * The last compiled fragment.
      *
-     * @var string
+     * @var string|null
      */
-    protected $lastFragment;
+    protected ?string $lastFragment = null;
 
     /**
      * Compile the fragment statements into valid PHP.
@@ -17,7 +17,7 @@ trait CompilesFragments
      * @param  string  $expression
      * @return string
      */
-    protected function compileFragment($expression)
+    protected function compileFragment(string $expression): string
     {
         $this->lastFragment = trim($expression, "()'\" ");
 
@@ -29,7 +29,7 @@ trait CompilesFragments
      *
      * @return string
      */
-    protected function compileEndfragment()
+    protected function compileEndfragment(): string
     {
         return '<?php echo $__env->stopFragment(); ?>';
     }

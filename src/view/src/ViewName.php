@@ -10,7 +10,7 @@ class ViewName
      * @param  string  $name
      * @return string
      */
-    public static function normalize($name)
+    public static function normalize(string $name): string
     {
         $delimiter = ViewFinderInterface::HINT_PATH_DELIMITER;
 

@@ -14,21 +14,21 @@ class DynamicComponent extends Component
      *
      * @var string
      */
-    public $component;
+    public string $component;
 
     /**
      * The component tag compiler instance.
      *
-     * @var \Illuminate\View\Compilers\BladeTagCompiler
+     * @var \Hypervel\View\Compilers\ComponentTagCompiler
      */
-    protected static $compiler;
+    protected static ?ComponentTagCompiler $compiler = null;
 
     /**
      * The cached component classes.
      *
      * @var array
      */
-    protected static $componentClasses = [];
+    protected static array $componentClasses = [];
 
     /**
      * Create a new component instance.
@@ -36,7 +36,7 @@ class DynamicComponent extends Component
      * @param  string  $component
      * @return void
      */
-    public function __construct(string $component)
+    public function __construct(string $component): void
     {
         $this->component = $component;
     }
@@ -44,12 +44,12 @@ class DynamicComponent extends Component
     /**
      * Get the view / contents that represent the component.
      *
-     * @return \Illuminate\Contracts\View\View|string
+     * @return \Hypervel\Contracts\View\View|string
      */
-    public function render()
+    public function render(): \Closure
     {
         $template = <<<'EOF'
-<?php extract((new \Illuminate\Support\Collection($attributes->getAttributes()))->mapWithKeys(function ($value, $key) { return [Illuminate\Support\Str::camel(str_replace([':', '.'], ' ', $key)) => $value]; })->all(), EXTR_SKIP); ?>
+<?php extract((new \Hypervel\Support\Collection($attributes->getAttributes()))->mapWithKeys(function ($value, $key) { return [Hypervel\Support\Str::camel(str_replace([':', '.'], ' ', $key)) => $value]; })->all(), EXTR_SKIP); ?>
 {{ props }}
 <x-{{ component }} {{ bindings }} {{ attributes }}>
 {{ slots }}
@@ -88,7 +88,7 @@ EOF;
      * @param  array  $bindings
      * @return string
      */
-    protected function compileProps(array $bindings)
+    protected function compileProps(array $bindings): string
     {
         if (empty($bindings)) {
             return '';
@@ -105,7 +105,7 @@ EOF;
      * @param  array  $bindings
      * @return string
      */
-    protected function compileBindings(array $bindings)
+    protected function compileBindings(array $bindings): string
     {
         return (new Collection($bindings))
             ->map(fn ($key) => ':'.$key.'="$'.Str::camel(str_replace([':', '.'], ' ', $key)).'"')
@@ -118,7 +118,7 @@ EOF;
      * @param  array  $slots
      * @return string
      */
-    protected function compileSlots(array $slots)
+    protected function compileSlots(array $slots): string
     {
         return (new Collection($slots))
             ->map(fn ($slot, $name) => $name === '__default' ? null : '<x-slot name="'.$name.'" '.((string) $slot->attributes).'>{{ $'.$name.' }}</x-slot>')
@@ -131,7 +131,7 @@ EOF;
      *
      * @return string
      */
-    protected function classForComponent()
+    protected function classForComponent(): string
     {
         if (isset(static::$componentClasses[$this->component])) {
             return static::$componentClasses[$this->component];
@@ -147,7 +147,7 @@ EOF;
      * @param  string  $class
      * @return array
      */
-    protected function bindings(string $class)
+    protected function bindings(string $class): array
     {
         [$data, $attributes] = $this->compiler()->partitionDataAndAttributes($class, $this->attributes->getAttributes());
 
@@ -157,9 +157,9 @@ EOF;
     /**
      * Get an instance of the Blade tag compiler.
      *
-     * @return \Illuminate\View\Compilers\ComponentTagCompiler
+     * @return \Hypervel\View\Compilers\ComponentTagCompiler
      */
-    protected function compiler()
+    protected function compiler(): ComponentTagCompiler
     {
         if (! static::$compiler) {
             static::$compiler = new ComponentTagCompiler(

@@ -11,21 +11,21 @@ trait ManagesStacks
      *
      * @var array
      */
-    protected $pushes = [];
+    protected array $pushes = [];
 
     /**
      * All of the finished, captured prepend sections.
      *
      * @var array
      */
-    protected $prepends = [];
+    protected array $prepends = [];
 
     /**
      * The stack of in-progress push sections.
      *
      * @var array
      */
-    protected $pushStack = [];
+    protected array $pushStack = [];
 
     /**
      * Start injecting content into a push section.
@@ -34,7 +34,7 @@ trait ManagesStacks
      * @param  string  $content
      * @return void
      */
-    public function startPush($section, $content = '')
+    public function startPush(string $section, string $content = ''): void
     {
         if ($content === '') {
             if (ob_start()) {
@@ -52,7 +52,7 @@ trait ManagesStacks
      *
      * @throws \InvalidArgumentException
      */
-    public function stopPush()
+    public function stopPush(): string
     {
         if (empty($this->pushStack)) {
             throw new InvalidArgumentException('Cannot end a push stack without first starting one.');
@@ -70,7 +70,7 @@ trait ManagesStacks
      * @param  string  $content
      * @return void
      */
-    protected function extendPush($section, $content)
+    protected function extendPush(string $section, string $content): void
     {
         if (! isset($this->pushes[$section])) {
             $this->pushes[$section] = [];
@@ -90,7 +90,7 @@ trait ManagesStacks
      * @param  string  $content
      * @return void
      */
-    public function startPrepend($section, $content = '')
+    public function startPrepend(string $section, string $content = ''): void
     {
         if ($content === '') {
             if (ob_start()) {
@@ -108,7 +108,7 @@ trait ManagesStacks
      *
      * @throws \InvalidArgumentException
      */
-    public function stopPrepend()
+    public function stopPrepend(): string
     {
         if (empty($this->pushStack)) {
             throw new InvalidArgumentException('Cannot end a prepend operation without first starting one.');
@@ -126,7 +126,7 @@ trait ManagesStacks
      * @param  string  $content
      * @return void
      */
-    protected function extendPrepend($section, $content)
+    protected function extendPrepend(string $section, string $content): void
     {
         if (! isset($this->prepends[$section])) {
             $this->prepends[$section] = [];
@@ -146,7 +146,7 @@ trait ManagesStacks
      * @param  string  $default
      * @return string
      */
-    public function yieldPushContent($section, $default = '')
+    public function yieldPushContent(string $section, string $default = ''): string
     {
         if (! isset($this->pushes[$section]) && ! isset($this->prepends[$section])) {
             return $default;
@@ -170,7 +170,7 @@ trait ManagesStacks
      *
      * @return void
      */
-    public function flushStacks()
+    public function flushStacks(): void
     {
         $this->pushes = [];
         $this->prepends = [];

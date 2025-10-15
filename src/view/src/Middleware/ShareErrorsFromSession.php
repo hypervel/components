@@ -11,14 +11,14 @@ class ShareErrorsFromSession
     /**
      * The view factory implementation.
      *
-     * @var \Illuminate\Contracts\View\Factory
+     * @var \Hypervel\Contracts\View\Factory
      */
-    protected $view;
+    protected ViewFactory $view;
 
     /**
      * Create a new error binder instance.
      *
-     * @param  \Illuminate\Contracts\View\Factory  $view
+     * @param  \Hypervel\Contracts\View\Factory  $view
      * @return void
      */
     public function __construct(ViewFactory $view)
@@ -29,11 +29,11 @@ class ShareErrorsFromSession
     /**
      * Handle an incoming request.
      *
-     * @param  \Illuminate\Http\Request  $request
+     * @param  mixed  $request
      * @param  \Closure  $next
      * @return mixed
      */
-    public function handle($request, Closure $next)
+    public function handle(mixed $request, Closure $next): mixed
     {
         // If the current session has an "errors" variable bound to it, we will share
         // its value with all view instances so the views can easily access errors

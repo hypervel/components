@@ -12,7 +12,7 @@ trait ManagesLoops
      *
      * @var array
      */
-    protected $loopsStack = [];
+    protected array $loopsStack = [];
 
     /**
      * Add new loop to the stack.
@@ -20,7 +20,7 @@ trait ManagesLoops
      * @param  \Countable|array  $data
      * @return void
      */
-    public function addLoop($data)
+    public function addLoop(mixed $data): void
     {
         $length = is_countable($data) && ! $data instanceof LazyCollection
                             ? count($data)
@@ -47,7 +47,7 @@ trait ManagesLoops
      *
      * @return void
      */
-    public function incrementLoopIndices()
+    public function incrementLoopIndices(): void
     {
         $loop = $this->loopsStack[$index = count($this->loopsStack) - 1];
 
@@ -67,7 +67,7 @@ trait ManagesLoops
      *
      * @return void
      */
-    public function popLoop()
+    public function popLoop(): void
     {
         array_pop($this->loopsStack);
     }
@@ -77,7 +77,7 @@ trait ManagesLoops
      *
      * @return \stdClass|null
      */
-    public function getLastLoop()
+    public function getLastLoop(): ?\stdClass
     {
         if ($last = Arr::last($this->loopsStack)) {
             return (object) $last;
@@ -89,7 +89,7 @@ trait ManagesLoops
      *
      * @return array
      */
-    public function getLoopStack()
+    public function getLoopStack(): array
     {
         return $this->loopsStack;
     }

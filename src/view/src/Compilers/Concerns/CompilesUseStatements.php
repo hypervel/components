@@ -10,7 +10,7 @@ trait CompilesUseStatements
      * @param  string  $expression
      * @return string
      */
-    protected function compileUse($expression)
+    protected function compileUse(string $expression): string
     {
         $segments = explode(',', preg_replace("/[\(\)]/", '', $expression));
 

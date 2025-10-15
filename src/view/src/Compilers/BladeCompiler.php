@@ -218,7 +218,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
      * Get the open and closing PHP tag tokens from the given string.
      *
      * @param  string  $contents
-     * @return \Illuminate\Support\Collection
+     * @return \Hypervel\Support\Collection
      */
     protected function getOpenAndClosingPhpTokens($contents)
     {
@@ -344,7 +344,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Render a component instance to HTML.
      *
-     * @param  \Illuminate\View\Component  $component
+     * @param  \Hypervel\View\Component  $component
      * @return string
      */
     public static function renderComponent(Component $component)
@@ -713,20 +713,20 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
         $this->directive($name, function ($expression) use ($name) {
             return $expression !== ''
-                    ? "<?php if (\Illuminate\Support\Facades\Blade::check('{$name}', {$expression})): ?>"
-                    : "<?php if (\Illuminate\Support\Facades\Blade::check('{$name}')): ?>";
+                    ? "<?php if (\Hypervel\Support\Facades\Blade::check('{$name}', {$expression})): ?>"
+                    : "<?php if (\Hypervel\Support\Facades\Blade::check('{$name}')): ?>";
         });
 
         $this->directive('unless'.$name, function ($expression) use ($name) {
             return $expression !== ''
-                ? "<?php if (! \Illuminate\Support\Facades\Blade::check('{$name}', {$expression})): ?>"
-                : "<?php if (! \Illuminate\Support\Facades\Blade::check('{$name}')): ?>";
+                ? "<?php if (! \Hypervel\Support\Facades\Blade::check('{$name}', {$expression})): ?>"
+                : "<?php if (! \Hypervel\Support\Facades\Blade::check('{$name}')): ?>";
         });
 
         $this->directive('else'.$name, function ($expression) use ($name) {
             return $expression !== ''
-                ? "<?php elseif (\Illuminate\Support\Facades\Blade::check('{$name}', {$expression})): ?>"
-                : "<?php elseif (\Illuminate\Support\Facades\Blade::check('{$name}')): ?>";
+                ? "<?php elseif (\Hypervel\Support\Facades\Blade::check('{$name}', {$expression})): ?>"
+                : "<?php elseif (\Hypervel\Support\Facades\Blade::check('{$name}')): ?>";
         });
 
         $this->directive('end'.$name, function () {

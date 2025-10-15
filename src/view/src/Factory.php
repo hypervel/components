@@ -5,6 +5,7 @@ namespace Hypervel\View;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\View\Engine;
 use Hypervel\Contracts\View\Factory as FactoryContract;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Macroable;
@@ -25,44 +26,44 @@ class Factory implements FactoryContract
     /**
      * The engine implementation.
      *
-     * @var \Illuminate\View\Engines\EngineResolver
+     * @var \Hypervel\View\Engines\EngineResolver
      */
-    protected $engines;
+    protected EngineResolver $engines;
 
     /**
      * The view finder implementation.
      *
-     * @var \Illuminate\View\ViewFinderInterface
+     * @var \Hypervel\View\ViewFinderInterface
      */
-    protected $finder;
+    protected ViewFinderInterface $finder;
 
     /**
      * The event dispatcher instance.
      *
-     * @var \Illuminate\Contracts\Events\Dispatcher
+     * @var \Hypervel\Contracts\Events\Dispatcher
      */
-    protected $events;
+    protected Dispatcher $events;
 
     /**
      * The IoC container instance.
      *
-     * @var \Illuminate\Contracts\Container\Container
+     * @var \Hypervel\Contracts\Container\Container
      */
-    protected $container;
+    protected Container $container;
 
     /**
      * Data that should be available to all templates.
      *
      * @var array
      */
-    protected $shared = [];
+    protected array $shared = [];
 
     /**
      * The extension to engine bindings.
      *
      * @var array
      */
-    protected $extensions = [
+    protected array $extensions = [
         'blade.php' => 'blade',
         'php' => 'php',
         'css' => 'file',
@@ -74,42 +75,42 @@ class Factory implements FactoryContract
      *
      * @var array
      */
-    protected $composers = [];
+    protected array $composers = [];
 
     /**
      * The number of active rendering operations.
      *
      * @var int
      */
-    protected $renderCount = 0;
+    protected int $renderCount = 0;
 
     /**
      * The "once" block IDs that have been rendered.
      *
      * @var array
      */
-    protected $renderedOnce = [];
+    protected array $renderedOnce = [];
 
     /**
      * The cached array of engines for paths.
      *
      * @var array
      */
-    protected $pathEngineCache = [];
+    protected array $pathEngineCache = [];
 
     /**
      * The cache of normalized names for views.
      *
      * @var array
      */
-    protected $normalizedNameCache = [];
+    protected array $normalizedNameCache = [];
 
     /**
      * Create a new view factory instance.
      *
-     * @param  \Illuminate\View\Engines\EngineResolver  $engines
-     * @param  \Illuminate\View\ViewFinderInterface  $finder
-     * @param  \Illuminate\Contracts\Events\Dispatcher  $events
+     * @param  \Hypervel\View\Engines\EngineResolver  $engines
+     * @param  \Hypervel\View\ViewFinderInterface  $finder
+     * @param  \Hypervel\Contracts\Events\Dispatcher  $events
      * @return void
      */
     public function __construct(EngineResolver $engines, ViewFinderInterface $finder, Dispatcher $events)
@@ -125,11 +126,11 @@ class Factory implements FactoryContract
      * Get the evaluated view contents for the given view.
      *
      * @param  string  $path
-     * @param  \Illuminate\Contracts\Support\Arrayable|array  $data
+     * @param  \Hypervel\Contracts\Support\Arrayable|array  $data
      * @param  array  $mergeData
-     * @return \Illuminate\Contracts\View\View
+     * @return \Hypervel\Contracts\View\View
      */
-    public function file($path, $data = [], $mergeData = [])
+    public function file(string $path, Arrayable|array $data = [], array $mergeData = []): View
     {
         $data = array_merge($mergeData, $this->parseData($data));
 
@@ -142,11 +143,11 @@ class Factory implements FactoryContract
      * Get the evaluated view contents for the given view.
      *
      * @param  string  $view
-     * @param  \Illuminate\Contracts\Support\Arrayable|array  $data
+     * @param  \Hypervel\Contracts\Support\Arrayable|array  $data
      * @param  array  $mergeData
-     * @return \Illuminate\Contracts\View\View
+     * @return \Hypervel\Contracts\View\View
      */
-    public function make($view, $data = [], $mergeData = [])
+    public function make(string $view, Arrayable|array $data = [], array $mergeData = []): View
     {
         $path = $this->finder->find(
             $view = $this->normalizeName($view)
@@ -166,13 +167,13 @@ class Factory implements FactoryContract
      * Get the first view that actually exists from the given list.
      *
      * @param  array  $views
-     * @param  \Illuminate\Contracts\Support\Arrayable|array  $data
+     * @param  \Hypervel\Contracts\Support\Arrayable|array  $data
      * @param  array  $mergeData
-     * @return \Illuminate\Contracts\View\View
+     * @return \Hypervel\Contracts\View\View
      *
      * @throws \InvalidArgumentException
      */
-    public function first(array $views, $data = [], $mergeData = [])
+    public function first(array $views, Arrayable|array $data = [], array $mergeData = []): View
     {
         $view = Arr::first($views, function ($view) {
             return $this->exists($view);
@@ -190,11 +191,11 @@ class Factory implements FactoryContract
      *
      * @param  bool  $condition
      * @param  string  $view
-     * @param  \Illuminate\Contracts\Support\Arrayable|array  $data
+     * @param  \Hypervel\Contracts\Support\Arrayable|array  $data
      * @param  array  $mergeData
      * @return string
      */
-    public function renderWhen($condition, $view, $data = [], $mergeData = [])
+    public function renderWhen(bool $condition, string $view, Arrayable|array $data = [], array $mergeData = []): string
     {
         if (! $condition) {
             return '';
@@ -208,11 +209,11 @@ class Factory implements FactoryContract
      *
      * @param  bool  $condition
      * @param  string  $view
-     * @param  \Illuminate\Contracts\Support\Arrayable|array  $data
+     * @param  \Hypervel\Contracts\Support\Arrayable|array  $data
      * @param  array  $mergeData
      * @return string
      */
-    public function renderUnless($condition, $view, $data = [], $mergeData = [])
+    public function renderUnless(bool $condition, string $view, Arrayable|array $data = [], array $mergeData = []): string
     {
         return $this->renderWhen(! $condition, $view, $data, $mergeData);
     }
@@ -226,7 +227,7 @@ class Factory implements FactoryContract
      * @param  string  $empty
      * @return string
      */
-    public function renderEach($view, $data, $iterator, $empty = 'raw|')
+    public function renderEach(string $view, array $data, string $iterator, string $empty = 'raw|'): string
     {
         $result = '';
 
@@ -259,7 +260,7 @@ class Factory implements FactoryContract
      * @param  string  $name
      * @return string
      */
-    protected function normalizeName($name)
+    protected function normalizeName(string $name): string
     {
         return $this->normalizedNameCache[$name] ??= ViewName::normalize($name);
     }
@@ -270,7 +271,7 @@ class Factory implements FactoryContract
      * @param  mixed  $data
      * @return array
      */
-    protected function parseData($data)
+    protected function parseData(mixed $data): array
     {
         return $data instanceof Arrayable ? $data->toArray() : $data;
     }
@@ -280,10 +281,10 @@ class Factory implements FactoryContract
      *
      * @param  string  $view
      * @param  string  $path
-     * @param  \Illuminate\Contracts\Support\Arrayable|array  $data
-     * @return \Illuminate\Contracts\View\View
+     * @param  \Hypervel\Contracts\Support\Arrayable|array  $data
+     * @return \Hypervel\Contracts\View\View
      */
-    protected function viewInstance($view, $path, $data)
+    protected function viewInstance(string $view, string $path, Arrayable|array $data): View
     {
         return new View($this, $this->getEngineFromPath($path), $view, $path, $data);
     }
@@ -294,7 +295,7 @@ class Factory implements FactoryContract
      * @param  string  $view
      * @return bool
      */
-    public function exists($view)
+    public function exists(string $view): bool
     {
         try {
             $this->finder->find($view);
@@ -309,11 +310,11 @@ class Factory implements FactoryContract
      * Get the appropriate view engine for the given path.
      *
      * @param  string  $path
-     * @return \Illuminate\Contracts\View\Engine
+     * @return \Hypervel\Contracts\View\Engine
      *
      * @throws \InvalidArgumentException
      */
-    public function getEngineFromPath($path)
+    public function getEngineFromPath(string $path): Engine
     {
         if (isset($this->pathEngineCache[$path])) {
             return $this->engines->resolve($this->pathEngineCache[$path]);
@@ -334,7 +335,7 @@ class Factory implements FactoryContract
      * @param  string  $path
      * @return string|null
      */
-    protected function getExtension($path)
+    protected function getExtension(string $path): ?string
     {
         $extensions = array_keys($this->extensions);
 
@@ -350,7 +351,7 @@ class Factory implements FactoryContract
      * @param  mixed|null  $value
      * @return mixed
      */
-    public function share($key, $value = null)
+    public function share(array|string $key, mixed $value = null): mixed
     {
         $keys = is_array($key) ? $key : [$key => $value];
 
@@ -366,7 +367,7 @@ class Factory implements FactoryContract
      *
      * @return void
      */
-    public function incrementRender()
+    public function incrementRender(): void
     {
         $this->renderCount++;
     }
@@ -376,7 +377,7 @@ class Factory implements FactoryContract
      *
      * @return void
      */
-    public function decrementRender()
+    public function decrementRender(): void
     {
         $this->renderCount--;
     }
@@ -386,7 +387,7 @@ class Factory implements FactoryContract
      *
      * @return bool
      */
-    public function doneRendering()
+    public function doneRendering(): bool
     {
         return $this->renderCount == 0;
     }
@@ -408,7 +409,7 @@ class Factory implements FactoryContract
      * @param  string  $id
      * @return void
      */
-    public function markAsRenderedOnce(string $id)
+    public function markAsRenderedOnce(string $id): void
     {
         $this->renderedOnce[$id] = true;
     }
@@ -419,7 +420,7 @@ class Factory implements FactoryContract
      * @param  string  $location
      * @return void
      */
-    public function addLocation($location)
+    public function addLocation(string $location): void
     {
         $this->finder->addLocation($location);
     }
@@ -430,7 +431,7 @@ class Factory implements FactoryContract
      * @param  string  $location
      * @return void
      */
-    public function prependLocation($location)
+    public function prependLocation(string $location): void
     {
         $this->finder->prependLocation($location);
     }
@@ -442,7 +443,7 @@ class Factory implements FactoryContract
      * @param  string|array  $hints
      * @return $this
      */
-    public function addNamespace($namespace, $hints)
+    public function addNamespace(string $namespace, string|array $hints): static
     {
         $this->finder->addNamespace($namespace, $hints);
 
@@ -456,7 +457,7 @@ class Factory implements FactoryContract
      * @param  string|array  $hints
      * @return $this
      */
-    public function prependNamespace($namespace, $hints)
+    public function prependNamespace(string $namespace, string|array $hints): static
     {
         $this->finder->prependNamespace($namespace, $hints);
 
@@ -470,7 +471,7 @@ class Factory implements FactoryContract
      * @param  string|array  $hints
      * @return $this
      */
-    public function replaceNamespace($namespace, $hints)
+    public function replaceNamespace(string $namespace, string|array $hints): static
     {
         $this->finder->replaceNamespace($namespace, $hints);
 
@@ -485,7 +486,7 @@ class Factory implements FactoryContract
      * @param  \Closure|null  $resolver
      * @return void
      */
-    public function addExtension($extension, $engine, $resolver = null)
+    public function addExtension(string $extension, string $engine, \Closure $resolver = null): void
     {
         $this->finder->addExtension($extension);
 
@@ -505,7 +506,7 @@ class Factory implements FactoryContract
      *
      * @return void
      */
-    public function flushState()
+    public function flushState(): void
     {
         $this->renderCount = 0;
         $this->renderedOnce = [];
@@ -521,7 +522,7 @@ class Factory implements FactoryContract
      *
      * @return void
      */
-    public function flushStateIfDoneRendering()
+    public function flushStateIfDoneRendering(): void
     {
         if ($this->doneRendering()) {
             $this->flushState();
@@ -533,7 +534,7 @@ class Factory implements FactoryContract
      *
      * @return array
      */
-    public function getExtensions()
+    public function getExtensions(): array
     {
         return $this->extensions;
     }
@@ -541,9 +542,9 @@ class Factory implements FactoryContract
     /**
      * Get the engine resolver instance.
      *
-     * @return \Illuminate\View\Engines\EngineResolver
+     * @return \Hypervel\View\Engines\EngineResolver
      */
-    public function getEngineResolver()
+    public function getEngineResolver(): EngineResolver
     {
         return $this->engines;
     }
@@ -551,9 +552,9 @@ class Factory implements FactoryContract
     /**
      * Get the view finder instance.
      *
-     * @return \Illuminate\View\ViewFinderInterface
+     * @return \Hypervel\View\ViewFinderInterface
      */
-    public function getFinder()
+    public function getFinder(): ViewFinderInterface
     {
         return $this->finder;
     }
@@ -561,10 +562,10 @@ class Factory implements FactoryContract
     /**
      * Set the view finder instance.
      *
-     * @param  \Illuminate\View\ViewFinderInterface  $finder
+     * @param  \Hypervel\View\ViewFinderInterface  $finder
      * @return void
      */
-    public function setFinder(ViewFinderInterface $finder)
+    public function setFinder(ViewFinderInterface $finder): void
     {
         $this->finder = $finder;
     }
@@ -574,7 +575,7 @@ class Factory implements FactoryContract
      *
      * @return void
      */
-    public function flushFinderCache()
+    public function flushFinderCache(): void
     {
         $this->getFinder()->flush();
     }
@@ -582,9 +583,9 @@ class Factory implements FactoryContract
     /**
      * Get the event dispatcher instance.
      *
-     * @return \Illuminate\Contracts\Events\Dispatcher
+     * @return \Hypervel\Contracts\Events\Dispatcher
      */
-    public function getDispatcher()
+    public function getDispatcher(): Dispatcher
     {
         return $this->events;
     }
@@ -592,10 +593,10 @@ class Factory implements FactoryContract
     /**
      * Set the event dispatcher instance.
      *
-     * @param  \Illuminate\Contracts\Events\Dispatcher  $events
+     * @param  \Hypervel\Contracts\Events\Dispatcher  $events
      * @return void
      */
-    public function setDispatcher(Dispatcher $events)
+    public function setDispatcher(Dispatcher $events): void
     {
         $this->events = $events;
     }
@@ -603,9 +604,9 @@ class Factory implements FactoryContract
     /**
      * Get the IoC container instance.
      *
-     * @return \Illuminate\Contracts\Container\Container
+     * @return \Hypervel\Contracts\Container\Container
      */
-    public function getContainer()
+    public function getContainer(): Container
     {
         return $this->container;
     }
@@ -613,10 +614,10 @@ class Factory implements FactoryContract
     /**
      * Set the IoC container instance.
      *
-     * @param  \Illuminate\Contracts\Container\Container  $container
+     * @param  \Hypervel\Contracts\Container\Container  $container
      * @return void
      */
-    public function setContainer(Container $container)
+    public function setContainer(Container $container): void
     {
         $this->container = $container;
     }
@@ -628,7 +629,7 @@ class Factory implements FactoryContract
      * @param  mixed  $default
      * @return mixed
      */
-    public function shared($key, $default = null)
+    public function shared(string $key, mixed $default = null): mixed
     {
         return Arr::get($this->shared, $key, $default);
     }
@@ -638,7 +639,7 @@ class Factory implements FactoryContract
      *
      * @return array
      */
-    public function getShared()
+    public function getShared(): array
     {
         return $this->shared;
     }

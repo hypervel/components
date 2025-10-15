@@ -10,7 +10,7 @@ trait CompilesSessions
      * @param  string  $expression
      * @return string
      */
-    protected function compileSession($expression)
+    protected function compileSession(string $expression): string
     {
         $expression = $this->stripParentheses($expression);
 
@@ -26,7 +26,7 @@ $value = session()->get($__sessionArgs[0]); ?>';
      * @param  string  $expression
      * @return string
      */
-    protected function compileEndsession($expression)
+    protected function compileEndsession(string $expression): string
     {
         return '<?php unset($value);
 if (isset($__sessionPrevious) && !empty($__sessionPrevious)) { $value = array_pop($__sessionPrevious); }
