@@ -47,7 +47,8 @@ Route::group('/api', function () {
 ]);
 
 // Catch-all Route...
-Route::get('/[{view:.*}]', 'HomeController@index', [
+Route::get('/{view:.*}', 'HomeController@index', [
     'as' => 'horizon.index',
     'middleware' => [Authenticate::class],
 ]);
+Route::get('/', fn () => redirect(config('horizon.path') . '/dashboard'));
