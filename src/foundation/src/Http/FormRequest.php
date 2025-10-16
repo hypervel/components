@@ -8,6 +8,7 @@ use Hyperf\Collection\Arr;
 use Hyperf\Context\Context;
 use Hyperf\Context\ResponseContext;
 use Hypervel\Auth\Access\AuthorizationException;
+use Hypervel\Foundation\Http\Traits\HasCasts;
 use Hypervel\Http\Request;
 use Hypervel\Validation\Contracts\Factory as ValidationFactory;
 use Hypervel\Validation\Contracts\ValidatesWhenResolved;
@@ -19,6 +20,7 @@ use Psr\Http\Message\ResponseInterface;
 
 class FormRequest extends Request implements ValidatesWhenResolved
 {
+    use HasCasts;
     use ValidatesWhenResolvedTrait;
 
     /**
@@ -36,8 +38,9 @@ class FormRequest extends Request implements ValidatesWhenResolved
      */
     protected array $dontFlash = ['password', 'password_confirmation'];
 
-    public function __construct(protected ContainerInterface $container)
-    {
+    public function __construct(
+        protected ContainerInterface $container
+    ) {
     }
 
     public function scene(string $scene): static

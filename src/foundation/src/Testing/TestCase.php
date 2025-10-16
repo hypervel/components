@@ -21,11 +21,7 @@ use Throwable;
 
 use function Hyperf\Coroutine\run;
 
-/**
- * @internal
- * @coversNothing
- */
-class TestCase extends \PHPUnit\Framework\TestCase
+abstract class TestCase extends \PHPUnit\Framework\TestCase
 {
     use InteractsWithContainer;
     use MakesHttpRequests;
