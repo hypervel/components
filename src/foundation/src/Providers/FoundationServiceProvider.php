@@ -89,8 +89,10 @@ class FoundationServiceProvider extends ServiceProvider
     protected function isConsoleKernelCall(Throwable $exception): bool
     {
         foreach ($exception->getTrace() as $trace) {
-            if (($trace['class'] ?? null) === ConsoleKernel::class
-                && ($trace['function'] ?? null) === 'call') {
+            if (
+                ($trace['class'] ?? null) === ConsoleKernel::class
+                && ($trace['function'] ?? null) === 'call'
+            ) {
                 return true;
             }
         }
