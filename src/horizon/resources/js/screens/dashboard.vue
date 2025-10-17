@@ -333,7 +333,7 @@
                     <td class="text-muted">{{ supervisor.options.queue.replace(/,/g, ', ') }}</td>
                     <td class="text-end text-muted">{{ countProcesses(supervisor.processes) }}</td>
                     <td class="text-end text-muted">
-                        {{ supervisor.options.concurrency }}
+                        {{ supervisor.options.concurrency || 1 }}
                     </td>
                     <td class="text-end text-muted" v-if="supervisor.options.balance">
                         {{ supervisor.options.balance.charAt(0).toUpperCase() + supervisor.options.balance.slice(1) }}
