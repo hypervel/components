@@ -314,6 +314,7 @@
                     <th>Supervisor</th>
                     <th>Queues</th>
                     <th class="text-end" style="width: 120px;">Processes</th>
+                    <th class="text-end" style="width: 120px;">Concurrency</th>
                     <th class="text-end" style="width: 180px;">Balancing</th>
                 </tr>
                 </thead>
@@ -331,6 +332,9 @@
                     </td>
                     <td class="text-muted">{{ supervisor.options.queue.replace(/,/g, ', ') }}</td>
                     <td class="text-end text-muted">{{ countProcesses(supervisor.processes) }}</td>
+                    <td class="text-end text-muted">
+                        {{ supervisor.options.concurrency }}
+                    </td>
                     <td class="text-end text-muted" v-if="supervisor.options.balance">
                         {{ supervisor.options.balance.charAt(0).toUpperCase() + supervisor.options.balance.slice(1) }}
                     </td>
