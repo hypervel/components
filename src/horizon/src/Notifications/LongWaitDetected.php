@@ -107,18 +107,6 @@ class LongWaitDetected extends Notification implements LongWaitDetectedNotificat
     }
 
     /**
-     * Get the Nexmo / SMS representation of the notification.
-     */
-    // no sms client supported yet
-    // public function toNexmo(mixed $notifiable): NexmoMessage
-    // {
-    //     return (new NexmoMessage)->content(sprintf( // @phpstan-ignore-line
-    //         '[%s] The "%s" queue on the "%s" connection has a wait time of %s seconds.',
-    //         config('app.name'), $this->longWaitQueue, $this->longWaitConnection, $this->seconds
-    //     ));
-    // }
-
-    /**
      * The unique signature of the notification.
      */
     public function signature(): string

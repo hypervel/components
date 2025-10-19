@@ -51,8 +51,6 @@ class HorizonServiceProvider extends ServiceProvider
             config('horizon.path'),
             __DIR__ . '/../routes/web.php',
             [
-                // not support domain setting
-                // 'domain' => config('horizon.domain', null),
                 'namespace' => 'Hypervel\Horizon\Http\Controllers',
                 'middleware' => config('horizon.middleware', ['web']),
             ]

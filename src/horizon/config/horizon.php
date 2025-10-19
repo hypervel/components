@@ -16,9 +16,6 @@ return [
     |
     */
 
-    // not support domain setting yet
-    // 'domain' => env('HORIZON_DOMAIN'),
-
     /*
     |--------------------------------------------------------------------------
     | Horizon Path

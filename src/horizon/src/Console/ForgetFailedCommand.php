@@ -6,6 +6,7 @@ namespace Hypervel\Horizon\Console;
 
 use Hypervel\Console\Command;
 use Hypervel\Horizon\Contracts\JobRepository;
+use Hypervel\Queue\Failed\FailedJobProviderInterface;
 
 class ForgetFailedCommand extends Command
 {
@@ -33,7 +34,7 @@ class ForgetFailedCommand extends Command
                 $failedJobs->pluck('id')->each(function ($failedId) use ($repository): void {
                     $repository->deleteFailed($failedId);
 
-                    if (app('queue.failer')->forget($failedId)) {
+                    if ($this->app->get(FailedJobProviderInterface::class)->forget($failedId)) {
                         $this->components->info('Failed job (id): ' . $failedId . ' deleted successfully!');
                     }
                 });
@@ -54,7 +55,7 @@ class ForgetFailedCommand extends Command
 
         $repository->deleteFailed($this->argument('id'));
 
-        if (app('queue.failer')->forget($this->argument('id'))) {
+        if ($this->app->get(FailedJobProviderInterface::class)->forget($this->argument('id'))) {
             $this->components->info('Failed job deleted successfully!');
         } else {
             $this->components->error('No failed job matches the given ID.');
