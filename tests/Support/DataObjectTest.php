@@ -255,6 +255,7 @@ class DataObjectTest extends TestCase
                 'city' => 'New York',
                 'zipCode' => '10001',
             ],
+            'gender' => TestGenderEnum::Male,
             'created_at' => '2023-01-01 12:00:00',
         ];
 
@@ -265,6 +266,7 @@ class DataObjectTest extends TestCase
         $this->assertSame(['street' => '123 Main St', 'city' => 'New York', 'zipCode' => '10001'], $user->address);
         $this->assertIsString($user->createdAt);
         $this->assertSame('2023-01-01 12:00:00', $user->createdAt);
+        $this->assertSame(TestGenderEnum::Male, $user->gender);
     }
 
     /**
@@ -279,6 +281,7 @@ class DataObjectTest extends TestCase
                 'city' => 'New York',
                 'zip_code' => '10001',
             ],
+            'gender' => 'male',
             'created_at' => '2023-01-01 12:00:00',
         ];
 
@@ -291,6 +294,7 @@ class DataObjectTest extends TestCase
         $this->assertSame('10001', $user->address->zipCode);
         $this->assertInstanceOf(DateTime::class, $user->createdAt);
         $this->assertSame('2023-01-01 12:00:00', $user->createdAt->format('Y-m-d H:i:s'));
+        $this->assertSame(TestGenderEnum::Male, $user->gender);
     }
 
     /**
@@ -307,6 +311,7 @@ class DataObjectTest extends TestCase
                     'city' => 'Boston',
                     'zip_code' => '02101',
                 ],
+                'gender' => 'male',
                 'created_at' => '2023-06-15 09:30:00',
             ],
         ];
@@ -320,6 +325,7 @@ class DataObjectTest extends TestCase
         $this->assertSame('456 Oak Ave', $company->employee->address->street);
         $this->assertSame('Boston', $company->employee->address->city);
         $this->assertInstanceOf(DateTime::class, $company->employee->createdAt);
+        $this->assertSame(TestGenderEnum::Male, $company->employee->gender);
     }
 
     /**
@@ -331,6 +337,7 @@ class DataObjectTest extends TestCase
             'name' => 'John Doe',
             'address' => null,
             'created_at' => null,
+            'gender' => 'male',
         ];
 
         $user = TestUserDataObject::make($data, true);
@@ -338,6 +345,7 @@ class DataObjectTest extends TestCase
         $this->assertSame('John Doe', $user->name);
         $this->assertNull($user->address);
         $this->assertNull($user->createdAt);
+        $this->assertSame(TestGenderEnum::Male, $user->gender);
     }
 
     protected function getData(): array
@@ -421,6 +429,7 @@ class TestUserDataObject extends DataObject
 {
     public function __construct(
         public string $name,
+        public TestGenderEnum $gender,
         public TestAddressDataObject|array|null $address,
         public DateTime|string|null $createdAt,
     ) {
@@ -437,4 +446,10 @@ class TestCompanyDataObject extends DataObject
         public TestUserDataObject|array $employee,
     ) {
     }
+}
+
+enum TestGenderEnum: string
+{
+    case Male = 'male';
+    case Female = 'female';
 }
