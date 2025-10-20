@@ -262,7 +262,7 @@ class Supervisor implements Pausable, Restartable, Terminable
             // Next, we'll persist the supervisor state to storage so that it can be read by a
             // user interface. This contains information on the specific options for it and
             // the current number of worker processes per queue for easy load monitoring.
-            $this->persist();
+            go(fn () => $this->persist());
 
             event(new SupervisorLooped($this));
         } catch (Throwable $e) {

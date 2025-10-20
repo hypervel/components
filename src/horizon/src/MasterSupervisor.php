@@ -223,7 +223,7 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
                 $this->monitorSupervisors();
             }
 
-            $this->persist();
+            go(fn () => $this->persist());
 
             event(new MasterSupervisorLooped($this));
         } catch (Throwable $e) {
