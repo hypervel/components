@@ -189,11 +189,11 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
         while (true) {
             sleep(1);
 
-            $this->loop();
-
             if ($this->shouldExitLoop) {
                 break;
             }
+
+            $this->loop();
         }
     }
 
