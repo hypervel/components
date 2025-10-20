@@ -23,6 +23,8 @@ use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 
+use function Termwind\terminal;
+
 class WorkCommand extends Command
 {
     use HasLaravelStyleCommand;
@@ -199,20 +201,41 @@ class WorkCommand extends Command
      */
     protected function writeOutputForCli(Job $job, string $status): void
     {
-        $type = match ($status) {
-            'Processing' => 'comment',
-            'Processed' => 'info',
-            'Failed' => 'error',
-            default => 'comment',
-        };
-
-        $this->output->writeln(sprintf(
-            "<{$type}>[%s][%s] %s</{$type}> %s",
-            Carbon::now()->format('Y-m-d H:i:s'),
-            $job->getJobId(),
-            str_pad("{$status}:", 11),
-            $job->resolveName()
+        $this->output->write(sprintf(
+            '  <fg=gray>%s</> %s%s',
+            $this->now()->format('Y-m-d H:i:s'),
+            $job->resolveName(),
+            $this->output->isVerbose()
+                ? sprintf(' <fg=gray>%s</>', $job->getJobId())
+                : ''
         ));
+
+        if ($status == 'starting') {
+            $this->latestStartedAt = microtime(true);
+
+            $dots = max(terminal()->width() - mb_strlen($job->resolveName()) - (
+                $this->output->isVerbose() ? (mb_strlen($job->getJobId()) + 1) : 0
+            ) - 33, 0);
+
+            $this->output->write(' '.str_repeat('<fg=gray>.</>', $dots));
+
+            return $this->output->writeln(' <fg=yellow;options=bold>RUNNING</>');
+        }
+
+        $runTime = $this->runTimeForHumans($this->latestStartedAt);
+
+        $dots = max(terminal()->width() - mb_strlen($job->resolveName()) - (
+            $this->output->isVerbose() ? (mb_strlen($job->getJobId()) + 1) : 0
+        ) - mb_strlen($runTime) - 31, 0);
+
+        $this->output->write(' '.str_repeat('<fg=gray>.</>', $dots));
+        $this->output->write(" <fg=gray>$runTime</>");
+
+        $this->output->writeln(match ($status) {
+            'success' => ' <fg=green;options=bold>DONE</>',
+            'released_after_exception' => ' <fg=yellow;options=bold>FAIL</>',
+            default => ' <fg=red;options=bold>FAIL</>',
+        });
     }
 
     /**
