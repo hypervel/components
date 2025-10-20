@@ -6,6 +6,7 @@ namespace Hypervel\Queue;
 
 use Hyperf\Engine\Coroutine;
 use Hypervel\Database\TransactionManager;
+use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
 use Throwable;
 
 class CoroutineQueue extends SyncQueue
@@ -59,6 +60,9 @@ class CoroutineQueue extends SyncQueue
                 if ($this->exceptionCallback) {
                     ($this->exceptionCallback)($e);
                 }
+
+                $this->container->get(ExceptionHandler::class)
+                    ->report($e);
             }
         });
 
