@@ -46,12 +46,68 @@ class SqsQueue extends Queue implements QueueContract, ClearableQueue
     {
         $response = $this->sqs->getQueueAttributes([
             'QueueUrl' => $this->getQueue($queue),
+            'AttributeNames' => [
+                'ApproximateNumberOfMessages',
+                'ApproximateNumberOfMessagesDelayed',
+                'ApproximateNumberOfMessagesNotVisible',
+            ],
+        ]);
+
+        $a = $response['Attributes'];
+
+        return (int) $a['ApproximateNumberOfMessages']
+            + (int) $a['ApproximateNumberOfMessagesDelayed']
+            + (int) $a['ApproximateNumberOfMessagesNotVisible'];
+    }
+
+    /**
+     * Get the number of pending jobs.
+     */
+    public function pendingSize(?string $queue = null): int
+    {
+        $response = $this->sqs->getQueueAttributes([
+            'QueueUrl' => $this->getQueue($queue),
             'AttributeNames' => ['ApproximateNumberOfMessages'],
         ]);
 
-        $attributes = $response->get('Attributes');
+        return (int) $response['Attributes']['ApproximateNumberOfMessages'] ?? 0;
+    }
 
-        return (int) $attributes['ApproximateNumberOfMessages'];
+    /**
+     * Get the number of delayed jobs.
+     */
+    public function delayedSize(?string $queue = null): int
+    {
+        $response = $this->sqs->getQueueAttributes([
+            'QueueUrl' => $this->getQueue($queue),
+            'AttributeNames' => ['ApproximateNumberOfMessagesDelayed'],
+        ]);
+
+        return (int) $response['Attributes']['ApproximateNumberOfMessagesDelayed'] ?? 0;
+    }
+
+    /**
+     * Get the number of reserved jobs.
+     */
+    public function reservedSize(?string $queue = null): int
+    {
+        $response = $this->sqs->getQueueAttributes([
+            'QueueUrl' => $this->getQueue($queue),
+            'AttributeNames' => ['ApproximateNumberOfMessagesNotVisible'],
+        ]);
+
+        return (int) $response['Attributes']['ApproximateNumberOfMessagesNotVisible'] ?? 0;
+    }
+
+    /**
+     * Get the creation timestamp of the oldest pending job, excluding delayed jobs.
+     *
+     * Not supported by SQS, returns null.
+     */
+    public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
+    {
+        // Not supported by SQS...
+        return null;
     }
 
     /**

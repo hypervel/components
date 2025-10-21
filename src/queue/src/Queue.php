@@ -40,6 +40,11 @@ abstract class Queue
     protected string $connectionName;
 
     /**
+     * The original configuration for the queue.
+     */
+    protected array $config = [];
+
+    /**
      * Indicates that jobs should be dispatched after all database transactions have committed.
      */
     protected bool $dispatchAfterCommit = false;
@@ -357,6 +362,24 @@ abstract class Queue
     public function setConnectionName(string $name): static
     {
         $this->connectionName = $name;
+
+        return $this;
+    }
+
+    /**
+     * Get the queue configuration array.
+     */
+    public function getConfig(): array
+    {
+        return $this->config;
+    }
+
+    /**
+     * Set the queue configuration array.
+     */
+    public function setConfig(array $config): static
+    {
+        $this->config = $config;
 
         return $this;
     }
