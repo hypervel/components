@@ -418,10 +418,11 @@ abstract class Factory
     /**
      * Create the parent relationship resolvers (as deferred Closures).
      *
-     * @return array<array<string, Closure|string>>
+     * @return array<string, Closure|string>
      */
     protected function parentResolvers(): array
     {
+        /** @var array<string, Closure|string> */
         return $this->for
             ->map(fn (BelongsToRelationship $for) => $for->recycle($this->recycle)->attributesFor($this->newModel()))
             ->collapse()
