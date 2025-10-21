@@ -217,9 +217,9 @@ class WorkCommand extends Command
                 $this->output->isVerbose() ? (mb_strlen($job->getJobId()) + 1) : 0
             ) - 33, 0);
 
-            $this->output->write(' '.str_repeat('<fg=gray>.</>', $dots));
+            $this->output->write(' ' . str_repeat('<fg=gray>.</>', $dots));
 
-            return $this->output->writeln(' <fg=yellow;options=bold>RUNNING</>');
+            $this->output->writeln(' <fg=yellow;options=bold>RUNNING</>');
         }
 
         $runTime = $this->runTimeForHumans($this->latestStartedAt);
@@ -228,8 +228,8 @@ class WorkCommand extends Command
             $this->output->isVerbose() ? (mb_strlen($job->getJobId()) + 1) : 0
         ) - mb_strlen($runTime) - 31, 0);
 
-        $this->output->write(' '.str_repeat('<fg=gray>.</>', $dots));
-        $this->output->write(" <fg=gray>$runTime</>");
+        $this->output->write(' ' . str_repeat('<fg=gray>.</>', $dots));
+        $this->output->write(" <fg=gray>{$runTime}</>");
 
         $this->output->writeln(match ($status) {
             'success' => ' <fg=green;options=bold>DONE</>',
