@@ -224,7 +224,7 @@ class QueueFeature extends Feature
         $this->pushSpan($span);
     }
 
-    public function handleJobFailedEvent(JobFailed $event)
+    public function handleJobFailedEvent(JobFailed $event): void
     {
         $this->maybeFinishSpan(SpanStatus::internalError());
         $this->maybePopScope();
