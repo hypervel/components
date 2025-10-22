@@ -220,6 +220,8 @@ class WorkCommand extends Command
             $this->output->write(' ' . str_repeat('<fg=gray>.</>', $dots));
 
             $this->output->writeln(' <fg=yellow;options=bold>RUNNING</>');
+
+            return;
         }
 
         $runTime = $this->runTimeForHumans($this->latestStartedAt);
