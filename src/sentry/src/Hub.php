@@ -6,6 +6,7 @@ namespace Hypervel\Sentry;
 
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
+use Hypervel\Context\RequestContext;
 use Hypervel\Coroutine\Coroutine;
 use Psr\Log\NullLogger;
 use Sentry\Breadcrumb;
@@ -439,6 +440,10 @@ class Hub implements HubInterface
 
     private function getRequestCoroutineId(): ?int
     {
+        if (! RequestContext::has()) {
+            return Coroutine::id();
+        }
+
         if (! Coroutine::inCoroutine()) {
             return null;
         }
