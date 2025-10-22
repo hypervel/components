@@ -20,6 +20,38 @@ class NullQueue extends Queue implements QueueContract
     }
 
     /**
+     * Get the number of pending jobs.
+     */
+    public function pendingSize(?string $queue = null): int
+    {
+        return 0;
+    }
+
+    /**
+     * Get the number of delayed jobs.
+     */
+    public function delayedSize(?string $queue = null): int
+    {
+        return 0;
+    }
+
+    /**
+     * Get the number of reserved jobs.
+     */
+    public function reservedSize(?string $queue = null): int
+    {
+        return 0;
+    }
+
+    /**
+     * Get the creation timestamp of the oldest pending job, excluding delayed jobs.
+     */
+    public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
+    {
+        return 0;
+    }
+
+    /**
      * Push a new job onto the queue.
      */
     public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed

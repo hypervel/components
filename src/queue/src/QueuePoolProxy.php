@@ -21,6 +21,38 @@ class QueuePoolProxy extends PoolProxy implements Queue
     }
 
     /**
+     * Get the current queue workload for the application.
+     */
+    public function pendingSize(?string $queue = null): int
+    {
+        return $this->__call(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Get the number of delayed jobs.
+     */
+    public function delayedSize(?string $queue = null): int
+    {
+        return $this->__call(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Get the number of reserved jobs.
+     */
+    public function reservedSize(?string $queue = null): int
+    {
+        return $this->__call(__FUNCTION__, func_get_args());
+    }
+
+    /**
+     * Get the creation timestamp of the oldest pending job, excluding delayed jobs.
+     */
+    public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
+    {
+        return $this->__call(__FUNCTION__, func_get_args());
+    }
+
+    /**
      * Push a new job onto the queue.
      */
     public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
