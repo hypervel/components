@@ -7,6 +7,7 @@ namespace Hypervel\Queue;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Database\TransactionManager;
+use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
 use Hypervel\Queue\Contracts\Job as JobContract;
 use Hypervel\Queue\Contracts\Queue as QueueContract;
 use Hypervel\Queue\Events\JobExceptionOccurred;
@@ -158,6 +159,9 @@ class SyncQueue extends Queue implements QueueContract
         $this->raiseExceptionOccurredJobEvent($queueJob, $e);
 
         $queueJob->fail($e);
+
+        $this->container->get(ExceptionHandler::class)
+            ->report($e);
 
         throw $e;
     }
