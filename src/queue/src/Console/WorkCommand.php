@@ -22,6 +22,7 @@ use Hypervel\Support\Traits\InteractsWithTime;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
+use Symfony\Component\Console\Terminal;
 
 use function Termwind\terminal;
 
@@ -99,7 +100,7 @@ class WorkCommand extends Command
         // connection being run for the queue operation currently being executed.
         $queue = $this->getQueue($connection);
 
-        if (! $this->outputUsingJson()) {
+        if (! $this->outputUsingJson() && Terminal::hasSttyAvailable()) {
             $this->info(
                 sprintf('Processing jobs from the [%s] %s.', $queue, Str::of('queue')->plural(explode(',', $queue)))
             );
