@@ -21,8 +21,8 @@ use Hypervel\Support\Traits\HasLaravelStyleCommand;
 use Hypervel\Support\Traits\InteractsWithTime;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
-use Throwable;
 use Symfony\Component\Console\Terminal;
+use Throwable;
 
 use function Termwind\terminal;
 
