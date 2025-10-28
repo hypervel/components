@@ -708,7 +708,7 @@ class RedisConnection extends HyperfRedisConnection
 
         return [
             $channels,
-            $callback = fn ($redis, $pattern, $channel, $message) => $callback($message, $channel)
+            $callback = fn ($redis, $pattern, $channel, $message) => $callback($message, $channel),
         ];
     }
 }
