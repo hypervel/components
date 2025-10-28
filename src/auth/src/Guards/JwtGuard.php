@@ -149,9 +149,9 @@ class JwtGuard implements Guard
         return [];
     }
 
-    public function refresh(): ?string
+    public function refresh(?string $token = null): ?string
     {
-        if (! $token = $this->parseToken()) {
+        if (! $token = $token ?? $this->parseToken()) {
             return null;
         }
 
@@ -184,9 +184,9 @@ class JwtGuard implements Guard
         return false;
     }
 
-    public function logout(): bool
+    public function logout(?string $token = null): bool
     {
-        $token = $this->parseToken();
+        $token = $token ?? $this->parseToken();
         Context::set($this->getContextKey($token), null);
 
         if ($token) {
