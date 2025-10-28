@@ -457,6 +457,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
         if ($response instanceof ResponseContract) {
             $response = $response->getPsr7Response();
         }
+        $response = $response->withHeader('Server', 'Hypervel');
 
         if ($callbacks = $this->afterResponseCallbacks()) {
             foreach ($callbacks as $callback) {
