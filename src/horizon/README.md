@@ -1,4 +1,4 @@
-Bus for Hypervel
+Horizon for Hypervel
 ===
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/hypervel/horizon)
