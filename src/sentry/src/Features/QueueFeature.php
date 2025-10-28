@@ -7,6 +7,7 @@ namespace Hypervel\Sentry\Features;
 use Closure;
 use Hypervel\Event\Contracts\Dispatcher;
 use Hypervel\Queue\Events\JobExceptionOccurred;
+use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Events\JobQueued;
@@ -70,6 +71,7 @@ class QueueFeature extends Feature
 
         $dispatcher->listen(JobProcessed::class, [$this, 'handleJobProcessedQueueEvent']);
         $dispatcher->listen(JobProcessing::class, [$this, 'handleJobProcessingQueueEvent']);
+        $dispatcher->listen(JobFailed::class, [$this, 'handleJobFailedEvent']);
         $dispatcher->listen(WorkerStopping::class, [$this, 'handleWorkerStoppingQueueEvent']);
         $dispatcher->listen(JobExceptionOccurred::class, [$this, 'handleJobExceptionOccurredQueueEvent']);
 
@@ -220,6 +222,12 @@ class QueueFeature extends Feature
         }
 
         $this->pushSpan($span);
+    }
+
+    public function handleJobFailedEvent(JobFailed $event): void
+    {
+        $this->maybeFinishSpan(SpanStatus::internalError());
+        $this->maybePopScope();
     }
 
     public function handleWorkerStoppingQueueEvent(WorkerStopping $event): void

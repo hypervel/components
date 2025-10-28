@@ -74,6 +74,10 @@ class MonitorCommand extends Command
                 'connection' => $connection,
                 'queue' => $queue,
                 'size' => $size = $this->manager->connection($connection)->size($queue),
+                'pending' => $this->manager->connection($connection)->pendingSize($queue),
+                'delayed' => $this->manager->connection($connection)->delayedSize($queue),
+                'reserved' => $this->manager->connection($connection)->reservedSize($queue),
+                'oldest_pending' => $this->manager->connection($connection)->creationTimeOfOldestPendingJob($queue),
                 'status' => $size >= (int) $this->option('max')
                     ? '<fg=yellow;options=bold>ALERT</>'
                     : '<fg=green;options=bold>OK</>',

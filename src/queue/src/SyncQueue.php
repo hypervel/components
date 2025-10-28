@@ -7,6 +7,7 @@ namespace Hypervel\Queue;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Database\TransactionManager;
+use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
 use Hypervel\Queue\Contracts\Job as JobContract;
 use Hypervel\Queue\Contracts\Queue as QueueContract;
 use Hypervel\Queue\Events\JobExceptionOccurred;
@@ -30,6 +31,38 @@ class SyncQueue extends Queue implements QueueContract
      * Get the size of the queue.
      */
     public function size(?string $queue = null): int
+    {
+        return 0;
+    }
+
+    /**
+     * Get the number of pending jobs.
+     */
+    public function pendingSize(?string $queue = null): int
+    {
+        return 0;
+    }
+
+    /**
+     * Get the number of delayed jobs.
+     */
+    public function delayedSize(?string $queue = null): int
+    {
+        return 0;
+    }
+
+    /**
+     * Get the number of reserved jobs.
+     */
+    public function reservedSize(?string $queue = null): int
+    {
+        return 0;
+    }
+
+    /**
+     * Get the creation timestamp of the oldest pending job, excluding delayed jobs.
+     */
+    public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
     {
         return 0;
     }
@@ -126,6 +159,9 @@ class SyncQueue extends Queue implements QueueContract
         $this->raiseExceptionOccurredJobEvent($queueJob, $e);
 
         $queueJob->fail($e);
+
+        $this->container->get(ExceptionHandler::class)
+            ->report($e);
 
         throw $e;
     }
