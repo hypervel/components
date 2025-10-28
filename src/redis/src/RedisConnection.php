@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Redis;
 
 use Hyperf\Redis\RedisConnection as HyperfRedisConnection;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Redis;
 use Throwable;
@@ -157,7 +158,7 @@ use Throwable;
  * @method static \Redis|bool pfmerge(string $dst, array $srckeys)
  * @method static \Redis|string|bool ping(string|null $message = null)
  * @method static \Redis|bool psetex(string $key, int $expire, mixed $value)
- * @method static bool psubscribe(array $patterns, callable $cb)
+ * @method static void psubscribe(array|string $channels, Closure $callback)
  * @method static \Redis|int|false pttl(string $key)
  * @method static \Redis|int|false publish(string $channel, string $message)
  * @method static mixed pubsub(string $command, mixed $arg = null)
@@ -202,7 +203,7 @@ use Throwable;
  * @method static \Redis|int|false srem(string $key, mixed $value, mixed ...$other_values)
  * @method static bool ssubscribe(array $channels, callable $cb)
  * @method static \Redis|int|false strlen(string $key)
- * @method static bool subscribe(array $channels, callable $cb)
+ * @method static void subscribe(array|string $channels, Closure $callback)
  * @method static \Redis|array|bool sunsubscribe(array $channels)
  * @method static \Redis|bool swapdb(int $src, int $dst)
  * @method static \Redis|array time()
@@ -683,11 +684,31 @@ class RedisConnection extends HyperfRedisConnection
         $this->connection->setOption(Redis::OPT_READ_TIMEOUT, -1);
 
         try {
-            return $this->connection->{$name}(...$arguments);
+            return $this->connection->{$name}(
+                ...$this->getSubscribeArguments($name, $arguments)
+            );
         } finally {
             // Restore the read timeout to the original value before
             // returning to the connection pool.
             $this->connection->setOption(Redis::OPT_READ_TIMEOUT, $timeout);
         }
+    }
+
+    protected function getSubscribeArguments(string $name, array $arguments): array
+    {
+        $channels = Arr::wrap($arguments[0]);
+        $callback = $arguments[1];
+
+        if ($name === 'subscribe') {
+            return [
+                $channels,
+                fn ($redis, $channel, $message) => $callback($message, $channel),
+            ];
+        }
+
+        return [
+            $channels,
+            $callback = fn ($redis, $pattern, $channel, $message) => $callback($message, $channel)
+        ];
     }
 }
