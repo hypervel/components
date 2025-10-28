@@ -13,12 +13,12 @@ use Hyperf\Database\Commands\Migrations\RefreshCommand;
 use Hyperf\Database\Commands\Migrations\ResetCommand;
 use Hyperf\Database\Commands\Migrations\RollbackCommand;
 use Hyperf\Database\Commands\Migrations\StatusCommand;
+use Hyperf\Database\Migrations\MigrationCreator as HyperfMigrationCreator;
 use Hyperf\Database\Model\Factory as HyperfDatabaseFactory;
 use Hyperf\ViewEngine\Compiler\CompilerInterface;
 use Hypervel\Database\Console\SeedCommand;
 use Hypervel\Database\Eloquent\Factories\LegacyFactoryInvoker as DatabaseFactoryInvoker;
 use Hypervel\Database\Migrations\MigrationCreator;
-use Hypervel\Database\Migrations\MigrationCreator as HyperfMigrationCreator;
 use Hypervel\Database\TransactionListener;
 use Hypervel\View\CompilerFactory;
 
