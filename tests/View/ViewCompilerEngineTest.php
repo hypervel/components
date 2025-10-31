@@ -28,8 +28,7 @@ class ViewCompilerEngineTest extends TestCase
         $engine->getCompiler()->shouldReceive('compile')->once()->with(__DIR__.'/fixtures/foo.php');
         $results = $engine->get(__DIR__.'/fixtures/foo.php');
 
-        $this->assertSame('Hello World
-', $results);
+        $this->assertSame('Hello World' . PHP_EOL, $results);
     }
 
     public function testViewsAreNotRecompiledIfTheyAreNotExpired()
