@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Sentry;
 
 use Hyperf\Contract\ConfigInterface;
+use Hypervel\Context\Context;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Sentry\Aspects\CoroutineAspect;
 use Hypervel\Sentry\Aspects\GuzzleHttpClientAspect;
 use Hypervel\Sentry\Commands\AboutCommand;
@@ -29,6 +31,15 @@ class SentryServiceProvider extends ServiceProvider
         $this->bootFeatures();
         $this->registerPublishing();
         $this->registerCommands();
+
+        Coroutine::addAfterCreatingHook(function () {
+            $keys = [
+                Hub::CONTEXT_STACK_KEY => [],
+            ];
+            foreach ($keys as $key => $default) {
+                Context::set($key, Context::get($key, $default, Coroutine::parentId()));
+            }
+        });
     }
 
     public static function getProviderConfig(): array

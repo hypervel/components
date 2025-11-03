@@ -10,7 +10,7 @@ use Hyperf\Collection\Arr;
 use Hyperf\Collection\Collection;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Stringable\Str;
-use Hypervel\Context\ParentContext;
+use Hypervel\Context\Context;
 use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
 use Hypervel\Http\Contracts\RequestContract;
 use Hypervel\Log\Events\MessageLogged;
@@ -40,6 +40,10 @@ class Telescope
     public const SHOULD_RECORD = 'telescope.should_record';
 
     public const IS_RECORDING = 'telescope.is_recording';
+
+    public const HAS_STORED = 'telescope.is_stored';
+
+    public const BATCH_ID = 'telescope.batch_id';
 
     /**
      * The callbacks that filter the entries that should be recorded.
@@ -111,6 +115,8 @@ class Telescope
      */
     protected static array $ignoredUris = [];
 
+    protected static ?EntriesRepository $store = null;
+
     /**
      * Register the Telescope watchers and start recording if necessary.
      */
@@ -125,6 +131,7 @@ class Telescope
         static::registerMailableTagExtractor();
 
         static::$started = true;
+        static::$store = $app->get(EntriesRepository::class);
     }
 
     /**
@@ -208,7 +215,7 @@ class Telescope
      */
     public static function startRecording(): void
     {
-        if (ParentContext::get(static::SHOULD_RECORD, null)) {
+        if (Context::get(static::SHOULD_RECORD, null)) {
             return;
         }
 
@@ -221,7 +228,9 @@ class Telescope
         } catch (Exception) {
         }
 
-        ParentContext::set(static::SHOULD_RECORD, ! $recordingPaused);
+        Context::set(static::SHOULD_RECORD, ! $recordingPaused);
+        // Ensure batch ID is set when starting recording
+        static::getBatchId();
     }
 
     /**
@@ -229,7 +238,7 @@ class Telescope
      */
     public static function stopRecording(): void
     {
-        ParentContext::set(static::SHOULD_RECORD, false);
+        Context::set(static::SHOULD_RECORD, false);
     }
 
     /**
@@ -244,7 +253,7 @@ class Telescope
         try {
             return call_user_func($callback);
         } finally {
-            ParentContext::set(static::SHOULD_RECORD, $shouldRecord);
+            Context::set(static::SHOULD_RECORD, $shouldRecord);
         }
     }
 
@@ -257,7 +266,7 @@ class Telescope
             return false;
         }
 
-        return ParentContext::get(static::SHOULD_RECORD, false);
+        return Context::get(static::SHOULD_RECORD, false);
     }
 
     /**
@@ -269,11 +278,18 @@ class Telescope
             return;
         }
 
-        if (ParentContext::get(static::IS_RECORDING, false)) {
+        if (Context::get(static::IS_RECORDING, false)) {
             return;
         }
 
-        ParentContext::set(static::IS_RECORDING, true);
+        if (! Context::get(static::HAS_STORED, false)) {
+            defer(function () {
+                static::store(static::$store);
+            });
+            Context::set(static::HAS_STORED, true);
+        }
+
+        Context::set(static::IS_RECORDING, true);
 
         try {
             if (Auth::hasUser()) {
@@ -289,7 +305,7 @@ class Telescope
 
         static::withoutRecording(function () use ($entry) {
             if (Collection::make(static::$filterUsing)->every->__invoke($entry)) {
-                ParentContext::override(static::ENTRIES_QUEUE, function ($entries) use ($entry) {
+                Context::override(static::ENTRIES_QUEUE, function ($entries) use ($entry) {
                     return array_merge($entries ?? [], [$entry]);
                 });
             }
@@ -299,7 +315,7 @@ class Telescope
             }
         });
 
-        ParentContext::set(static::IS_RECORDING, false);
+        Context::set(static::IS_RECORDING, false);
     }
 
     /**
@@ -307,7 +323,7 @@ class Telescope
      */
     public static function getEntriesQueue(): array
     {
-        return ParentContext::get(static::ENTRIES_QUEUE, []);
+        return Context::get(static::ENTRIES_QUEUE, []);
     }
 
     /**
@@ -315,7 +331,7 @@ class Telescope
      */
     public static function getUpdatesQueue(): array
     {
-        return ParentContext::get(static::UPDATES_QUEUE, []);
+        return Context::get(static::UPDATES_QUEUE, []);
     }
 
     /**
@@ -327,7 +343,7 @@ class Telescope
             return;
         }
 
-        ParentContext::override(static::UPDATES_QUEUE, function ($updates) use ($update) {
+        Context::override(static::UPDATES_QUEUE, function ($updates) use ($update) {
             return array_merge($updates ?? [], [$update]);
         });
     }
@@ -481,7 +497,7 @@ class Telescope
      */
     public static function flushEntries(): static
     {
-        ParentContext::set(static::ENTRIES_QUEUE, []);
+        Context::set(static::ENTRIES_QUEUE, []);
 
         return new static();
     }
@@ -491,7 +507,7 @@ class Telescope
      */
     public static function flushUpdates(): static
     {
-        ParentContext::set(static::UPDATES_QUEUE, []);
+        Context::set(static::UPDATES_QUEUE, []);
 
         return new static();
     }
@@ -585,7 +601,7 @@ class Telescope
             }
 
             try {
-                $batchId = Str::orderedUuid()->toString();
+                $batchId = static::getBatchId();
 
                 $storage->store(static::collectEntries($batchId));
 
@@ -646,15 +662,20 @@ class Telescope
             });
     }
 
+    protected static function getBatchId(): string
+    {
+        return Context::getOrSet(static::BATCH_ID,  Str::orderedUuid()->toString());
+    }
+
     /**
      * Hide the given request header.
      */
     public static function hideRequestHeaders(array $headers): static
     {
         static::$hiddenRequestHeaders = array_values(array_unique(array_merge(
-            static::$hiddenRequestHeaders,
-            $headers
-        )));
+                    static::$hiddenRequestHeaders,
+                    $headers
+                )));
 
         return new static();
     }
@@ -678,9 +699,9 @@ class Telescope
     public static function hideResponseParameters(array $attributes): static
     {
         static::$hiddenResponseParameters = array_values(array_unique(array_merge(
-            static::$hiddenResponseParameters,
-            $attributes
-        )));
+                    static::$hiddenResponseParameters,
+                    $attributes
+                )));
 
         return new static();
     }

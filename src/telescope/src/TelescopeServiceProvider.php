@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope;
 
+use Hypervel\Context\Context;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Telescope\Contracts\ClearableRepository;
@@ -32,6 +34,16 @@ class TelescopeServiceProvider extends ServiceProvider
 
         Telescope::start($this->app);
         Telescope::listenForStorageOpportunities($this->app);
+        Coroutine::addAfterCreatingHook(function () {
+            $keys = [
+                Telescope::SHOULD_RECORD => false,
+                Telescope::IS_RECORDING => false,
+                Telescope::BATCH_ID => null,
+            ];
+            foreach ($keys as $key => $default) {
+                Context::set($key, Context::get($key, $default, Coroutine::parentId()));
+            }
+        });
     }
 
     /**

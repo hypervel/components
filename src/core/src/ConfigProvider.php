@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel;
 
 use Hyperf\Command\Concerns\Confirmable;
+use Hyperf\Coroutine\Coroutine;
 use Hyperf\Database\Commands\Migrations\BaseCommand as MigrationBaseCommand;
 use Hyperf\Database\Commands\Migrations\FreshCommand;
 use Hyperf\Database\Commands\Migrations\InstallCommand;
@@ -50,6 +51,7 @@ class ConfigProvider
                     'class_map' => [
                         MigrationBaseCommand::class => __DIR__ . '/../class_map/Database/Commands/Migrations/BaseCommand.php',
                         Confirmable::class => __DIR__ . '/../class_map/Command/Concerns/Confirmable.php',
+                        Coroutine::class => __DIR__ . '/../class_map/Coroutine/Coroutine.php',
                     ],
                 ],
             ],
