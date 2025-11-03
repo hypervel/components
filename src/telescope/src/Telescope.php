@@ -664,7 +664,7 @@ class Telescope
 
     protected static function getBatchId(): string
     {
-        return Context::getOrSet(static::BATCH_ID,  Str::orderedUuid()->toString());
+        return Context::getOrSet(static::BATCH_ID, Str::orderedUuid()->toString());
     }
 
     /**
@@ -673,9 +673,9 @@ class Telescope
     public static function hideRequestHeaders(array $headers): static
     {
         static::$hiddenRequestHeaders = array_values(array_unique(array_merge(
-                    static::$hiddenRequestHeaders,
-                    $headers
-                )));
+            static::$hiddenRequestHeaders,
+            $headers
+        )));
 
         return new static();
     }
@@ -699,9 +699,9 @@ class Telescope
     public static function hideResponseParameters(array $attributes): static
     {
         static::$hiddenResponseParameters = array_values(array_unique(array_merge(
-                    static::$hiddenResponseParameters,
-                    $attributes
-                )));
+            static::$hiddenResponseParameters,
+            $attributes
+        )));
 
         return new static();
     }

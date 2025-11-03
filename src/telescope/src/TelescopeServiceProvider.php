@@ -34,6 +34,7 @@ class TelescopeServiceProvider extends ServiceProvider
 
         Telescope::start($this->app);
         Telescope::listenForStorageOpportunities($this->app);
+        /* @phpstan-ignore-next-line */
         Coroutine::addAfterCreatingHook(function () {
             $keys = [
                 Telescope::SHOULD_RECORD => false,
