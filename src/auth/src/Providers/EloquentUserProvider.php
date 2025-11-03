@@ -38,8 +38,10 @@ class EloquentUserProvider implements UserProvider
     {
         $model = $this->createModel();
 
+        /* @phpstan-ignore-next-line */
         return $this->newModelQuery($model)
-            ->where($model->getAuthIdentifierName(), $identifier) // @phpstan-ignore-line
+            /* @phpstan-ignore-next-line */
+            ->where($model->getAuthIdentifierName(), $identifier)
             ->first();
     }
 
@@ -73,6 +75,7 @@ class EloquentUserProvider implements UserProvider
             }
         }
 
+        /* @phpstan-ignore-next-line */
         return $query->first();
     }
 
@@ -104,8 +107,8 @@ class EloquentUserProvider implements UserProvider
     protected function newModelQuery(?Model $model = null): Builder
     {
         $query = is_null($model)
-                ? $this->createModel()->newQuery()
-                : $model->newQuery();
+            ? $this->createModel()->newQuery()
+            : $model->newQuery();
 
         with($query, $this->queryCallback);
 
@@ -174,6 +177,7 @@ class EloquentUserProvider implements UserProvider
      * Sets the callback to modify the query before retrieving users.
      *
      * @param null|(Closure(\Hyperf\Database\Model\Builder):mixed) $queryCallback
+     *
      * @return $this
      */
     public function withQuery($queryCallback = null): static
