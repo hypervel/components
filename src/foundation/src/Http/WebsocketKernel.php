@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Http;
 
 use Hyperf\Context\Context;
-use Hyperf\Contract\ConfigInterface;
 use Hyperf\Coordinator\Constants;
 use Hyperf\Coordinator\CoordinatorManager;
 use Hyperf\Engine\Constant;
@@ -16,10 +15,11 @@ use Hyperf\Support\SafeCaller;
 use Hyperf\WebSocketServer\Collector\FdCollector;
 use Hyperf\WebSocketServer\Context as WsContext;
 use Hyperf\WebSocketServer\CoreMiddleware;
-use Hyperf\WebSocketServer\Exception\Handler\WebSocketExceptionHandler;
 use Hyperf\WebSocketServer\Exception\WebSocketHandShakeException;
 use Hyperf\WebSocketServer\Security;
 use Hyperf\WebSocketServer\Server as WebSocketServer;
+use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Foundation\Exceptions\Handler as ExceptionHandler;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Foundation\Http\Traits\HasMiddleware;
 use Psr\Http\Message\ResponseInterface;
@@ -39,10 +39,15 @@ class WebsocketKernel extends WebSocketServer implements MiddlewareContract
         $this->serverName = $serverName;
         $this->coreMiddleware = make(CoreMiddleware::class, [$this->container, $serverName]);
 
-        $config = $this->container->get(ConfigInterface::class);
-        $this->exceptionHandlers = $config->get('exceptions.handler.' . $serverName, [
-            WebSocketExceptionHandler::class,
-        ]);
+        $this->initExceptionHandlers();
+    }
+
+    protected function initExceptionHandlers(): void
+    {
+        /* @phpstan-ignore-next-line */
+        $this->exceptionHandlers = $this->container->bound(ExceptionHandlerContract::class)
+            ? [ExceptionHandlerContract::class]
+            : [ExceptionHandler::class];
     }
 
     /**
