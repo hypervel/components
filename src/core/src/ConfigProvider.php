@@ -51,7 +51,7 @@ class ConfigProvider
                     'class_map' => [
                         MigrationBaseCommand::class => __DIR__ . '/../class_map/Database/Commands/Migrations/BaseCommand.php',
                         Confirmable::class => __DIR__ . '/../class_map/Command/Concerns/Confirmable.php',
-                        Coroutine::class => __DIR__ . '/../class_map/Coroutine/Coroutine.php',
+                        Coroutine::class => __DIR__ . '/../class_map/Hyperf/Coroutine/Coroutine.php',
                     ],
                 ],
             ],
