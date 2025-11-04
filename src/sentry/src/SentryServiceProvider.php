@@ -33,7 +33,7 @@ class SentryServiceProvider extends ServiceProvider
         $this->registerCommands();
 
         /* @phpstan-ignore-next-line */
-        Coroutine::addAfterCreatingHook(function () {
+        Coroutine::afterCreated(function () {
             $keys = [
                 Hub::CONTEXT_STACK_KEY => [],
             ];

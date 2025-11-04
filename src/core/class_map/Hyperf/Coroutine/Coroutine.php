@@ -18,7 +18,7 @@ class Coroutine
     /**
      * @var array<callable>
      */
-    private static array $afterCreatingHooks = [];
+    private static array $afterCreatedCallbacks = [];
 
     /**
      * Returns the current coroutine ID.
@@ -30,11 +30,11 @@ class Coroutine
     }
 
     /**
-     * Register a hook to be called after a coroutine is created.
+     * Register a callback to be called after a coroutine is created.
      */
-    public static function addAfterCreatingHook(callable $hook): void
+    public static function afterCreated(callable $callback): void
     {
-        static::$afterCreatingHooks[] = $hook;
+        static::$afterCreatedCallbacks[] = $callback;
     }
 
     public static function defer(callable $callable): void
@@ -84,10 +84,10 @@ class Coroutine
     {
         $coroutine = Co::create(static function () use ($callable) {
             try {
-                // Execute afterCreated hooks
-                foreach (static::$afterCreatingHooks as $hook) {
+                // Execute afterCreated callbacks.
+                foreach (static::$afterCreatedCallbacks as $callback) {
                     try {
-                        $hook();
+                        $callback();
                     } catch (Throwable $throwable) {
                         static::printLog($throwable);
                     }

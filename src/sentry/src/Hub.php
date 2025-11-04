@@ -59,9 +59,9 @@ class Hub implements HubInterface
     {
         $clonedScope = clone $this->getScope();
         Context::override(static::CONTEXT_STACK_KEY, function (array $layers) use ($clonedScope) {
-            $currentLayers[] = new Layer($this->getClient(), $clonedScope);
+            $layers[] = new Layer($this->getClient(), $clonedScope);
 
-            return $currentLayers;
+            return $layers;
         });
 
         return $clonedScope;
