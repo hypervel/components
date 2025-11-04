@@ -6,8 +6,6 @@ namespace Hypervel\Sentry;
 
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
-use Hypervel\Context\RequestContext;
-use Hypervel\Coroutine\Coroutine;
 use Psr\Log\NullLogger;
 use Sentry\Breadcrumb;
 use Sentry\CheckIn;
@@ -32,11 +30,11 @@ use function sprintf;
 
 class Hub implements HubInterface
 {
-    protected const CONTEXT_STACK_KEY = 'sentry.stack';
+    public const CONTEXT_STACK_KEY = 'sentry.stack';
 
-    protected const CONTEXT_LAST_EVENT_ID_KEY = 'sentry.last_event_id';
+    public const CONTEXT_LAST_EVENT_ID_KEY = 'sentry.last_event_id';
 
-    protected const CONTEXT_REQUEST_COROUTINE_ID_KEY = 'sentry.coroutine_id';
+    public const CONTEXT_REQUEST_COROUTINE_ID_KEY = 'sentry.coroutine_id';
 
     public function __construct(protected ?ClientInterface $client = null, protected ?Scope $scope = null)
     {
@@ -60,23 +58,24 @@ class Hub implements HubInterface
     public function pushScope(): Scope
     {
         $clonedScope = clone $this->getScope();
-        $currentLayers = Context::get(static::CONTEXT_STACK_KEY, [], $this->getRequestCoroutineId());
-        $currentLayers[] = new Layer($this->getClient(), $clonedScope);
+        Context::override(static::CONTEXT_STACK_KEY, function (array $layers) use ($clonedScope) {
+            $layers[] = new Layer($this->getClient(), $clonedScope);
 
-        Context::set(static::CONTEXT_STACK_KEY, $currentLayers, $this->getRequestCoroutineId());
+            return $layers;
+        });
 
         return $clonedScope;
     }
 
     public function popScope(): bool
     {
-        $currentLayers = Context::get(static::CONTEXT_STACK_KEY, [], $this->getRequestCoroutineId());
+        $currentLayers = Context::get(static::CONTEXT_STACK_KEY, []);
         if (count($currentLayers) === 1) {
             return false; // Cannot pop the last scope, as it would leave no layers in the stack
         }
 
         array_pop($currentLayers);
-        Context::set(static::CONTEXT_STACK_KEY, $currentLayers, $this->getRequestCoroutineId());
+        Context::set(static::CONTEXT_STACK_KEY, $currentLayers);
 
         return true;
     }
@@ -394,7 +393,7 @@ class Hub implements HubInterface
             $scope = $this->scope ?? new Scope();
 
             return [new Layer($this->getClient(), $scope)];
-        }, $this->getRequestCoroutineId());
+        });
 
         return end($stack);
     }
@@ -436,33 +435,5 @@ class Hub implements HubInterface
         }
 
         return $fallbackSampleRate;
-    }
-
-    private function getRequestCoroutineId(): ?int
-    {
-        if (! RequestContext::has()) {
-            return Coroutine::id();
-        }
-
-        if (! Coroutine::inCoroutine()) {
-            return null;
-        }
-
-        if (Coroutine::parentId() === 0) {
-            $this->setRequestCoroutineId(Coroutine::id());
-
-            return null;
-        }
-
-        $parentId = Context::get(static::CONTEXT_REQUEST_COROUTINE_ID_KEY, null, Coroutine::parentId());
-
-        $this->setRequestCoroutineId($parentId ?? Coroutine::parentId());
-
-        return $parentId;
-    }
-
-    private function setRequestCoroutineId(int $coroutineId): void
-    {
-        Context::set(static::CONTEXT_REQUEST_COROUTINE_ID_KEY, $coroutineId);
     }
 }

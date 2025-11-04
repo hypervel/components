@@ -8,7 +8,6 @@ use Hyperf\Collection\Arr;
 use Hyperf\Collection\Collection;
 use Hyperf\Context\Context;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Engine\Coroutine;
 use Hyperf\HttpServer\Event\RequestHandled;
 use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\HttpServer\Server as HttpServer;
@@ -272,7 +271,7 @@ class RequestWatcher extends Watcher
     protected function getContext(): array
     {
         $result = [];
-        foreach (Coroutine::getContextFor() as $key => $value) {
+        foreach (Context::getContainer() as $key => $value) {
             if ($key === 'di.depth') {
                 continue;
             }
