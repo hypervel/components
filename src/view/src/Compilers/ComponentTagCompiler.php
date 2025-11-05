@@ -16,10 +16,6 @@ use Hypervel\View\ViewFinderInterface;
 use InvalidArgumentException;
 use ReflectionClass;
 
-/**
- * @author Spatie bvba <info@spatie.be>
- * @author Taylor Otwell <taylor@laravel.com>
- */
 class ComponentTagCompiler
 {
     /**
@@ -30,33 +26,22 @@ class ComponentTagCompiler
     protected $blade;
 
     /**
-     * The component class aliases.
-     *
-     * @var array
+     * The Blade compiler instance.
      */
-    protected $aliases = [];
+    protected BladeCompiler $blade;
+
+    /**
+     * The component class aliases.
+     */
+    protected array $aliases = [];
 
     /**
      * The component class namespaces.
-     *
-     * @var array
      */
-    protected $namespaces = [];
-
-    /**
-     * The "bind:" attributes that have been compiled for the current component.
-     *
-     * @var array
-     */
-    protected $boundAttributes = [];
+    protected array $namespaces = [];
 
     /**
      * Create a new component tag compiler.
-     *
-     * @param  array  $aliases
-     * @param  array  $namespaces
-     * @param  \Hypervel\View\Compilers\BladeCompiler|null  $blade
-     * @return void
      */
     public function __construct(array $aliases = [], array $namespaces = [], ?BladeCompiler $blade = null)
     {
@@ -68,11 +53,8 @@ class ComponentTagCompiler
 
     /**
      * Compile the component and slot tags within the given string.
-     *
-     * @param  string  $value
-     * @return string
      */
-    public function compile(string $value)
+    public function compile(string $value): string
     {
         $value = $this->compileSlots($value);
 
@@ -82,12 +64,9 @@ class ComponentTagCompiler
     /**
      * Compile the tags within the given string.
      *
-     * @param  string  $value
-     * @return string
-     *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
-    public function compileTags(string $value)
+    public function compileTags(string $value): string
     {
         $value = $this->compileSelfClosingTags($value);
         $value = $this->compileOpeningTags($value);
@@ -99,12 +78,9 @@ class ComponentTagCompiler
     /**
      * Compile the opening tags within the given string.
      *
-     * @param  string  $value
-     * @return string
-     *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
-    protected function compileOpeningTags(string $value)
+    protected function compileOpeningTags(string $value): string
     {
         $pattern = "/
             <
@@ -163,12 +139,9 @@ class ComponentTagCompiler
     /**
      * Compile the self-closing tags within the given string.
      *
-     * @param  string  $value
-     * @return string
-     *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
-    protected function compileSelfClosingTags(string $value)
+    protected function compileSelfClosingTags(string $value): string
     {
         $pattern = "/
             <
@@ -216,7 +189,7 @@ class ComponentTagCompiler
         /x";
 
         return preg_replace_callback($pattern, function (array $matches) {
-            $this->boundAttributes = [];
+            $this->clearBoundAttributes();
 
             $attributes = $this->getAttributesFromAttributeString($matches['attributes']);
 
@@ -227,13 +200,9 @@ class ComponentTagCompiler
     /**
      * Compile the Blade component string for the given component and attributes.
      *
-     * @param  string  $component
-     * @param  array  $attributes
-     * @return string
-     *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
-    protected function componentString(string $component, array $attributes)
+    protected function componentString(string $component, array $attributes): string
     {
         $class = $this->componentClass($component);
 
@@ -271,14 +240,11 @@ class ComponentTagCompiler
     /**
      * Get the component class for a given component alias.
      *
-     * @param  string  $component
-     * @return string
-     *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
-    public function componentClass(string $component)
+    public function componentClass(string $component): string
     {
-        $viewFactory = Container::getInstance()->make(Factory::class);
+        $viewFactory = Container::getInstance()->get(Factory::class);
 
         if (isset($this->aliases[$component])) {
             if (class_exists($alias = $this->aliases[$component])) {
@@ -322,12 +288,8 @@ class ComponentTagCompiler
 
     /**
      * Attempt to find an anonymous component using the registered anonymous component paths.
-     *
-     * @param  \Hypervel\Contracts\View\Factory  $viewFactory
-     * @param  string  $component
-     * @return string|null
      */
-    protected function guessAnonymousComponentUsingPaths(Factory $viewFactory, string $component)
+    protected function guessAnonymousComponentUsingPaths(Factory $viewFactory, string $component): ?string
     {
         $delimiter = ViewFinderInterface::HINT_PATH_DELIMITER;
 
@@ -354,16 +316,14 @@ class ComponentTagCompiler
                 //
             }
         }
+
+        return null;
     }
 
     /**
      * Attempt to find an anonymous component using the registered anonymous component namespaces.
-     *
-     * @param  \Hypervel\Contracts\View\Factory  $viewFactory
-     * @param  string  $component
-     * @return string|null
      */
-    protected function guessAnonymousComponentUsingNamespaces(Factory $viewFactory, string $component)
+    protected function guessAnonymousComponentUsingNamespaces(Factory $viewFactory, string $component): ?string
     {
         return (new Collection($this->blade->getAnonymousComponentNamespaces()))
             ->filter(function ($directory, $prefix) use ($component) {
@@ -395,32 +355,28 @@ class ComponentTagCompiler
 
     /**
      * Find the class for the given component using the registered namespaces.
-     *
-     * @param  string  $component
-     * @return string|null
      */
-    public function findClassByComponent(string $component)
+    public function findClassByComponent(string $component): ?string
     {
         $segments = explode('::', $component);
 
         $prefix = $segments[0];
 
         if (! isset($this->namespaces[$prefix], $segments[1])) {
-            return;
+            return null;
         }
 
         if (class_exists($class = $this->namespaces[$prefix].'\\'.$this->formatClassName($segments[1]))) {
             return $class;
         }
+
+        return null;
     }
 
     /**
      * Guess the class name for the given component.
-     *
-     * @param  string  $component
-     * @return string
      */
-    public function guessClassName(string $component)
+    public function guessClassName(string $component): string
     {
         $namespace = Container::getInstance()
             ->make(Application::class)
@@ -433,11 +389,8 @@ class ComponentTagCompiler
 
     /**
      * Format the class name for the given component.
-     *
-     * @param  string  $component
-     * @return string
      */
-    public function formatClassName(string $component)
+    public function formatClassName(string $component): string
     {
         $componentPieces = array_map(function ($componentPiece) {
             return ucfirst(Str::camel($componentPiece));
@@ -448,12 +401,8 @@ class ComponentTagCompiler
 
     /**
      * Guess the view name for the given component.
-     *
-     * @param  string  $name
-     * @param  string  $prefix
-     * @return string
      */
-    public function guessViewName($name, $prefix = 'components.')
+    public function guessViewName(string $name, string $prefix = 'components.'): string
     {
         if (! Str::endsWith($prefix, '.')) {
             $prefix .= '.';
@@ -470,12 +419,8 @@ class ComponentTagCompiler
 
     /**
      * Partition the data and extra attributes from the given array of attributes.
-     *
-     * @param  string  $class
-     * @param  array  $attributes
-     * @return array
      */
-    public function partitionDataAndAttributes($class, array $attributes)
+    public function partitionDataAndAttributes(string $class, array $attributes): array
     {
         // If the class doesn't exist, we'll assume it is a class-less component and
         // return all of the attributes as both data and attributes since we have
@@ -497,22 +442,16 @@ class ComponentTagCompiler
 
     /**
      * Compile the closing tags within the given string.
-     *
-     * @param  string  $value
-     * @return string
      */
-    protected function compileClosingTags(string $value)
+    protected function compileClosingTags(string $value): string
     {
         return preg_replace("/<\/\s*x[-\:][\w\-\:\.]*\s*>/", ' @endComponentClass##END-COMPONENT-CLASS##', $value);
     }
 
     /**
      * Compile the slot tags within the given string.
-     *
-     * @param  string  $value
-     * @return string
      */
-    public function compileSlots(string $value)
+    public function compileSlots(string $value): string
     {
         $pattern = "/
             <
@@ -570,7 +509,6 @@ class ComponentTagCompiler
                 $name = "'{$name}'";
             }
 
-            $this->boundAttributes = [];
 
             $attributes = $this->getAttributesFromAttributeString($matches['attributes']);
 
@@ -589,11 +527,8 @@ class ComponentTagCompiler
 
     /**
      * Get an array of attributes from the given attribute string.
-     *
-     * @param  string  $attributeString
-     * @return array
      */
-    protected function getAttributesFromAttributeString(string $attributeString)
+    protected function getAttributesFromAttributeString(string $attributeString): array
     {
         $attributeString = $this->parseShortAttributeSyntax($attributeString);
         $attributeString = $this->parseAttributeBag($attributeString);
@@ -651,11 +586,8 @@ class ComponentTagCompiler
 
     /**
      * Parses a short attribute syntax like :$foo into a fully-qualified syntax like :foo="$foo".
-     *
-     * @param  string  $value
-     * @return string
      */
-    protected function parseShortAttributeSyntax(string $value)
+    protected function parseShortAttributeSyntax(string $value): string
     {
         $pattern = "/\s\:\\\$(\w+)/x";
 
@@ -666,11 +598,8 @@ class ComponentTagCompiler
 
     /**
      * Parse the attribute bag in a given attribute string into its fully-qualified syntax.
-     *
-     * @param  string  $attributeString
-     * @return string
      */
-    protected function parseAttributeBag(string $attributeString)
+    protected function parseAttributeBag(string $attributeString): string
     {
         $pattern = "/
             (?:^|\s+)                                        # start of the string or whitespace between attributes
@@ -682,11 +611,8 @@ class ComponentTagCompiler
 
     /**
      * Parse @class statements in a given attribute string into their fully-qualified syntax.
-     *
-     * @param  string  $attributeString
-     * @return string
      */
-    protected function parseComponentTagClassStatements(string $attributeString)
+    protected function parseComponentTagClassStatements(string $attributeString): string
     {
         return preg_replace_callback(
             '/@(class)(\( ( (?>[^()]+) | (?2) )* \))/x', function ($match) {
@@ -703,11 +629,8 @@ class ComponentTagCompiler
 
     /**
      * Parse @style statements in a given attribute string into their fully-qualified syntax.
-     *
-     * @param  string  $attributeString
-     * @return string
      */
-    protected function parseComponentTagStyleStatements(string $attributeString)
+    protected function parseComponentTagStyleStatements(string $attributeString): string
     {
         return preg_replace_callback(
             '/@(style)(\( ( (?>[^()]+) | (?2) )* \))/x', function ($match) {
@@ -724,11 +647,8 @@ class ComponentTagCompiler
 
     /**
      * Parse the "bind" attributes in a given attribute string into their fully-qualified syntax.
-     *
-     * @param  string  $attributeString
-     * @return string
      */
-    protected function parseBindAttributes(string $attributeString)
+    protected function parseBindAttributes(string $attributeString): string
     {
         $pattern = "/
             (?:^|\s+)     # start of the string or whitespace between attributes
@@ -744,11 +664,8 @@ class ComponentTagCompiler
      * Compile any Blade echo statements that are present in the attribute string.
      *
      * These echo statements need to be converted to string concatenation statements.
-     *
-     * @param  string  $attributeString
-     * @return string
      */
-    protected function compileAttributeEchos(string $attributeString)
+    protected function compileAttributeEchos(string $attributeString): string
     {
         $value = $this->blade->compileEchos($attributeString);
 
@@ -762,11 +679,8 @@ class ComponentTagCompiler
 
     /**
      * Escape the single quotes in the given string that are outside of PHP blocks.
-     *
-     * @param  string  $value
-     * @return string
      */
-    protected function escapeSingleQuotesOutsideOfPhpBlocks(string $value)
+    protected function escapeSingleQuotesOutsideOfPhpBlocks(string $value): string
     {
         return (new Collection(token_get_all($value)))->map(function ($token) {
             if (! is_array($token)) {
@@ -781,12 +695,8 @@ class ComponentTagCompiler
 
     /**
      * Convert an array of attributes to a string.
-     *
-     * @param  array  $attributes
-     * @param  bool  $escapeBound
-     * @return string
      */
-    protected function attributesToString(array $attributes, $escapeBound = true)
+    protected function attributesToString(array $attributes, bool $escapeBound = true): string
     {
         return (new Collection($attributes))
             ->map(function (string $value, string $attribute) use ($escapeBound) {
@@ -799,11 +709,8 @@ class ComponentTagCompiler
 
     /**
      * Strip any quotes from the given string.
-     *
-     * @param  string  $value
-     * @return string
      */
-    public function stripQuotes(string $value)
+    public function stripQuotes(string $value): string
     {
         return Str::startsWith($value, ['"', '\''])
                     ? substr($value, 1, -1)

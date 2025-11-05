@@ -8,9 +8,6 @@ trait CompilesComments
 {
     /**
      * Compile Blade comments into an empty string.
-     *
-     * @param  string  $value
-     * @return string
      */
     protected function compileComments(string $value): string
     {

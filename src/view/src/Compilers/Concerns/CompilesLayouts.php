@@ -8,16 +8,11 @@ trait CompilesLayouts
 {
     /**
      * The name of the last section that was started.
-     *
-     * @var string|null
      */
     protected ?string $lastSection = null;
 
     /**
      * Compile the extends statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileExtends(string $expression): string
     {
@@ -32,9 +27,6 @@ trait CompilesLayouts
 
     /**
      * Compile the extends-first statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileExtendsFirst(string $expression): string
     {
@@ -49,9 +41,6 @@ trait CompilesLayouts
 
     /**
      * Compile the section statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileSection(string $expression): string
     {
@@ -62,8 +51,6 @@ trait CompilesLayouts
 
     /**
      * Replace the @parent directive to a placeholder.
-     *
-     * @return string
      */
     protected function compileParent(): string
     {
@@ -74,9 +61,6 @@ trait CompilesLayouts
 
     /**
      * Compile the yield statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileYield(string $expression): string
     {
@@ -85,8 +69,6 @@ trait CompilesLayouts
 
     /**
      * Compile the show statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileShow(): string
     {
@@ -95,8 +77,6 @@ trait CompilesLayouts
 
     /**
      * Compile the append statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileAppend(): string
     {
@@ -105,8 +85,6 @@ trait CompilesLayouts
 
     /**
      * Compile the overwrite statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileOverwrite(): string
     {
@@ -115,8 +93,6 @@ trait CompilesLayouts
 
     /**
      * Compile the stop statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileStop(): string
     {
@@ -125,8 +101,6 @@ trait CompilesLayouts
 
     /**
      * Compile the end-section statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileEndsection(): string
     {

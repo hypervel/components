@@ -18,15 +18,11 @@ class CompilerEngine extends PhpEngine
 {
     /**
      * The Blade compiler instance.
-     *
-     * @var \Hypervel\View\Compilers\CompilerInterface
      */
     protected CompilerInterface $compiler;
 
     /**
      * A stack of the last compiled templates.
-     *
-     * @var array
      */
     protected array $lastCompiled = [];
 
@@ -39,10 +35,6 @@ class CompilerEngine extends PhpEngine
 
     /**
      * Create a new compiler engine instance.
-     *
-     * @param  \Hypervel\View\Compilers\CompilerInterface  $compiler
-     * @param  \Hypervel\Filesystem\Filesystem|null  $files
-     * @return void
      */
     public function __construct(CompilerInterface $compiler, ?Filesystem $files = null)
     {
@@ -54,9 +46,7 @@ class CompilerEngine extends PhpEngine
     /**
      * Get the evaluated contents of the view.
      *
-     * @param  string  $path
-     * @param  array  $data
-     * @return string
+     * @throws ViewException
      */
     public function get(string $path, array $data = []): string
     {
@@ -99,11 +89,7 @@ class CompilerEngine extends PhpEngine
     /**
      * Handle a view exception.
      *
-     * @param  \Throwable  $e
-     * @param  int  $obLevel
-     * @return void
-     *
-     * @throws \Throwable
+     * @throws Throwable
      */
     protected function handleViewException(Throwable $e, int $obLevel): void
     {
@@ -121,9 +107,6 @@ class CompilerEngine extends PhpEngine
 
     /**
      * Get the exception message for an exception.
-     *
-     * @param  \Throwable  $e
-     * @return string
      */
     protected function getMessage(Throwable $e): string
     {
@@ -132,8 +115,6 @@ class CompilerEngine extends PhpEngine
 
     /**
      * Get the compiler implementation.
-     *
-     * @return \Hypervel\View\Compilers\CompilerInterface
      */
     public function getCompiler(): CompilerInterface
     {
@@ -142,8 +123,6 @@ class CompilerEngine extends PhpEngine
 
     /**
      * Clear the cache of views that were compiled or not expired.
-     *
-     * @return void
      */
     public function forgetCompiledOrNotExpired(): void
     {

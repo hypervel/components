@@ -6,20 +6,17 @@ namespace Hypervel\View\Engines;
 
 use Closure;
 use InvalidArgumentException;
+use Hypervel\View\Contracts\Engine;
 
 class EngineResolver
 {
     /**
      * The array of engine resolvers.
-     *
-     * @var array
      */
     protected array $resolvers = [];
 
     /**
      * The resolved engine instances.
-     *
-     * @var array
      */
     protected array $resolved = [];
 
@@ -27,10 +24,6 @@ class EngineResolver
      * Register a new engine resolver.
      *
      * The engine string typically corresponds to a file extension.
-     *
-     * @param  string  $engine
-     * @param  \Closure  $resolver
-     * @return void
      */
     public function register(string $engine, Closure $resolver): void
     {
@@ -42,12 +35,9 @@ class EngineResolver
     /**
      * Resolve an engine instance by name.
      *
-     * @param  string  $engine
-     * @return \Hypervel\Contracts\View\Engine
-     *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
-    public function resolve(string $engine): mixed
+    public function resolve(string $engine): Engine
     {
         if (isset($this->resolved[$engine])) {
             return $this->resolved[$engine];
@@ -62,9 +52,6 @@ class EngineResolver
 
     /**
      * Remove a resolved engine.
-     *
-     * @param  string  $engine
-     * @return void
      */
     public function forget(string $engine): void
     {
