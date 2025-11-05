@@ -41,7 +41,7 @@ class Telescope
 
     public const IS_RECORDING = 'telescope.is_recording';
 
-    public const HAS_STORED = 'telescope.is_stored';
+    public const HAS_STORED = 'telescope.has_stored';
 
     public const BATCH_ID = 'telescope.batch_id';
 
