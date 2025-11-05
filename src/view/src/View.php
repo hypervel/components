@@ -35,8 +35,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * The engine implementation.
-     *
-     * @var \Hypervel\Contracts\View\Engine
      */
     protected Engine $engine;
 
@@ -206,7 +204,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      *
      * @return string
      */
-    protected function getContents()
+    protected function getContents(): string
     {
         return $this->engine->get($this->path, $this->gatherData());
     }
@@ -216,7 +214,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      *
      * @return array
      */
-    public function gatherData()
+    public function gatherData(): array
     {
         $data = array_merge($this->factory->getShared(), $this->data);
 
@@ -236,7 +234,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      *
      * @throws \Throwable
      */
-    public function renderSections()
+    public function renderSections(): array
     {
         return $this->render(function () {
             return $this->factory->getSections();
@@ -250,7 +248,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      * @param  mixed  $value
      * @return $this
      */
-    public function with($key, $value = null)
+    public function with(string|array $key, mixed $value = null): static
     {
         if (is_array($key)) {
             $this->data = array_merge($this->data, $key);
@@ -269,7 +267,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      * @param  array  $data
      * @return $this
      */
-    public function nest($key, $view, array $data = [])
+    public function nest(string $key, string $view, array $data = []): static
     {
         return $this->with($key, $this->factory->make($view, $data));
     }
@@ -281,7 +279,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      * @param  string  $bag
      * @return $this
      */
-    public function withErrors($provider, $bag = 'default')
+    public function withErrors(MessageProvider|array|string $provider, string $bag = 'default'): static
     {
         return $this->with('errors', (new ViewErrorBag)->put(
             $bag, $this->formatErrors($provider)
@@ -294,7 +292,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      * @param  \Hypervel\Contracts\Support\MessageProvider|array|string  $provider
      * @return \Hypervel\Support\MessageBag
      */
-    protected function formatErrors($provider)
+    protected function formatErrors(MessageProvider|array|string $provider): MessageBag
     {
         return $provider instanceof MessageProvider
                         ? $provider->getMessageBag()
@@ -306,7 +304,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      *
      * @return string
      */
-    public function name()
+    public function name(): string
     {
         return $this->getName();
     }
@@ -316,7 +314,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      *
      * @return string
      */
-    public function getName()
+    public function getName(): string
     {
         return $this->view;
     }
@@ -326,7 +324,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      *
      * @return array
      */
-    public function getData()
+    public function getData(): array
     {
         return $this->data;
     }
@@ -336,7 +334,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      *
      * @return string
      */
-    public function getPath()
+    public function getPath(): string
     {
         return $this->path;
     }
@@ -347,7 +345,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      * @param  string  $path
      * @return void
      */
-    public function setPath($path)
+    public function setPath(string $path): void
     {
         $this->path = $path;
     }
@@ -357,17 +355,15 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      *
      * @return \Hypervel\View\Factory
      */
-    public function getFactory()
+    public function getFactory(): Factory
     {
         return $this->factory;
     }
 
     /**
      * Get the view's rendering engine.
-     *
-     * @return \Hypervel\Contracts\View\Engine
      */
-    public function getEngine()
+    public function getEngine(): Engine
     {
         return $this->engine;
     }
@@ -378,7 +374,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      * @param  string  $key
      * @return bool
      */
-    public function offsetExists($key): bool
+    public function offsetExists(mixed $key): bool
     {
         return array_key_exists($key, $this->data);
     }
@@ -389,7 +385,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      * @param  string  $key
      * @return mixed
      */
-    public function offsetGet($key): mixed
+    public function offsetGet(mixed $key): mixed
     {
         return $this->data[$key];
     }
@@ -401,7 +397,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      * @param  mixed  $value
      * @return void
      */
-    public function offsetSet($key, $value): void
+    public function offsetSet(mixed $key, mixed $value): void
     {
         $this->with($key, $value);
     }
@@ -412,7 +408,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      * @param  string  $key
      * @return void
      */
-    public function offsetUnset($key): void
+    public function offsetUnset(mixed $key): void
     {
         unset($this->data[$key]);
     }
@@ -423,7 +419,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      * @param  string  $key
      * @return mixed
      */
-    public function &__get($key)
+    public function &__get(string $key): mixed
     {
         return $this->data[$key];
     }
@@ -435,7 +431,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      * @param  mixed  $value
      * @return void
      */
-    public function __set($key, $value)
+    public function __set(string $key, mixed $value): void
     {
         $this->with($key, $value);
     }
@@ -446,7 +442,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      * @param  string  $key
      * @return bool
      */
-    public function __isset($key)
+    public function __isset(string $key): bool
     {
         return isset($this->data[$key]);
     }
@@ -457,7 +453,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      * @param  string  $key
      * @return void
      */
-    public function __unset($key)
+    public function __unset(string $key): void
     {
         unset($this->data[$key]);
     }
@@ -471,7 +467,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      *
      * @throws \BadMethodCallException
      */
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         if (static::hasMacro($method)) {
             return $this->macroCall($method, $parameters);
@@ -491,7 +487,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      *
      * @return string
      */
-    public function toHtml()
+    public function toHtml(): string
     {
         return $this->render();
     }
@@ -503,7 +499,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      *
      * @throws \Throwable
      */
-    public function __toString()
+    public function __toString(): string
     {
         return $this->render();
     }

@@ -49,7 +49,7 @@ trait CompilesComponents
      * @param  string  $component
      * @return string
      */
-    public static function newComponentHash(string $component)
+    public static function newComponentHash(string $component): string
     {
         static::$componentHashStack[] = $hash = hash('xxh128', $component);
 

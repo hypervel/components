@@ -18,10 +18,7 @@ trait CompilesLoops
     /**
      * Compile the for-else statements into valid PHP.
      *
-     * @param  string|null  $expression
-     * @return string
-     *
-     * @throws \Hypervel\Contracts\View\ViewCompilationException
+     * @throws ViewCompilationException
      */
     protected function compileForelse(?string $expression): string
     {
@@ -46,9 +43,6 @@ trait CompilesLoops
 
     /**
      * Compile the for-else-empty and empty statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileEmpty(?string $expression): string
     {
@@ -63,8 +57,6 @@ trait CompilesLoops
 
     /**
      * Compile the end-for-else statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileEndforelse(): string
     {
@@ -73,8 +65,6 @@ trait CompilesLoops
 
     /**
      * Compile the end-empty statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileEndEmpty(): string
     {
@@ -83,9 +73,6 @@ trait CompilesLoops
 
     /**
      * Compile the for statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileFor(string $expression): string
     {
@@ -95,10 +82,7 @@ trait CompilesLoops
     /**
      * Compile the for-each statements into valid PHP.
      *
-     * @param  string|null  $expression
-     * @return string
-     *
-     * @throws \Hypervel\Contracts\View\ViewCompilationException
+     * @throws ViewCompilationException
      */
     protected function compileForeach(?string $expression): string
     {
@@ -121,11 +105,8 @@ trait CompilesLoops
 
     /**
      * Compile the break statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
-    protected function compileBreak(?string $expression): string
+    protected function compileBreak(?string $expression = null): string
     {
         if ($expression) {
             preg_match('/\(\s*(-?\d+)\s*\)$/', $expression, $matches);
@@ -138,9 +119,6 @@ trait CompilesLoops
 
     /**
      * Compile the continue statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileContinue(?string $expression): string
     {
@@ -155,8 +133,6 @@ trait CompilesLoops
 
     /**
      * Compile the end-for statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileEndfor(): string
     {
@@ -165,8 +141,6 @@ trait CompilesLoops
 
     /**
      * Compile the end-for-each statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileEndforeach(): string
     {
@@ -175,9 +149,6 @@ trait CompilesLoops
 
     /**
      * Compile the while statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileWhile(string $expression): string
     {
@@ -186,8 +157,6 @@ trait CompilesLoops
 
     /**
      * Compile the end-while statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileEndwhile(): string
     {

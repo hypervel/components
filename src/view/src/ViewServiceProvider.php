@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\View;
 
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Events\Dispatcher;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Engines\CompilerEngine;
@@ -71,7 +72,7 @@ class ViewServiceProvider extends ServiceProvider
      * @param  \Hypervel\Contracts\Events\Dispatcher  $events
      * @return \Hypervel\View\Factory
      */
-    protected function createFactory($resolver, $finder, $events): Factory
+    protected function createFactory(EngineResolver $resolver, ViewFinderInterface $finder, Dispatcher $events): Factory
     {
         return new Factory($resolver, $finder, $events);
     }

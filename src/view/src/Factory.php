@@ -400,7 +400,7 @@ class Factory implements FactoryContract
      * @param  string  $id
      * @return bool
      */
-    public function hasRenderedOnce(string $id)
+    public function hasRenderedOnce(string $id): bool
     {
         return isset($this->renderedOnce[$id]);
     }
