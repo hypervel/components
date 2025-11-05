@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\View\Compilers;
 
 use Hypervel\Container\Container;
+use Hypervel\Context\Context;
 use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\View\Contracts\Factory as ViewFactory;
 use Hypervel\View\Contracts\View;
@@ -18,6 +19,8 @@ use InvalidArgumentException;
 
 class BladeCompiler extends Compiler implements CompilerInterface
 {
+    protected const RAW_BLOCKS_CONTEXT_KEY = 'hypervel.view.blade_compiler.raw_blocks';
+
     use Concerns\CompilesAuthorizations,
         Concerns\CompilesClasses,
         Concerns\CompilesComments,
@@ -136,21 +139,20 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public function compile(string $path): void
     {
-        if ($path) {
-            $this->setPath($path);
+        $contents = $this->compileString($this->files->get($path));
+
+        if (! empty($path)) {
+            $contents = $this->appendFilePath($contents, $path);
         }
 
-        if (! is_null($this->cachePath)) {
-            $contents = $this->compileString($this->files->get($this->getPath()));
+        $this->ensureCompiledDirectoryExists(
+            $compiledPath = $this->getCompiledPath($path)
+        );
 
-            if (! empty($this->getPath())) {
-                $contents = $this->appendFilePath($contents);
-            }
+        $needSaveCompiledFile = ! $this->files->exists($compiledPath)
+            || $this->files->hash($compiledPath, 'xxh128') !== hash('xxh128', $contents);
 
-            $this->ensureCompiledDirectoryExists(
-                $compiledPath = $this->getCompiledPath($this->getPath())
-            );
-
+        if ($needSaveCompiledFile) {
             $this->files->put($compiledPath, $contents);
         }
     }
@@ -166,7 +168,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
             $contents .= ' ?>';
         }
 
-        return $contents."<?php /**PATH {$this->getPath()} ENDPATH**/ ?>";
+        return $contents."<?php /**PATH {$path} ENDPATH**/ ?>";
     }
 
     /**
@@ -175,31 +177,10 @@ class BladeCompiler extends Compiler implements CompilerInterface
     protected function getOpenAndClosingPhpTokens(string $contents): Collection
     {
         return (new Collection(token_get_all($contents)))
-            ->pluck(0)
+            ->pluck('0')
             ->filter(function ($token) {
                 return in_array($token, [T_OPEN_TAG, T_OPEN_TAG_WITH_ECHO, T_CLOSE_TAG]);
             });
-    }
-
-    /**
-     * Get the path currently being compiled.
-     *
-     * @return string
-     */
-    public function getPath()
-    {
-        return $this->path;
-    }
-
-    /**
-     * Set the path currently being compiled.
-     *
-     * @param  string  $path
-     * @return void
-     */
-    public function setPath($path)
-    {
-        $this->path = $path;
     }
 
     /**
@@ -233,7 +214,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
             $result .= is_array($token) ? $this->parseToken($token) : $token;
         }
 
-        if (! empty($this->rawBlocks)) {
+        if (! empty(Context::get(static::RAW_BLOCKS_CONTEXT_KEY))) {
             $result = $this->restoreRawContent($result);
         }
 
@@ -251,7 +232,8 @@ class BladeCompiler extends Compiler implements CompilerInterface
         return str_replace(
             ['##BEGIN-COMPONENT-CLASS##', '##END-COMPONENT-CLASS##'],
             '',
-            $result);
+            $result
+        );
     }
 
     /**
@@ -348,7 +330,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
     protected function storeRawBlock(string $value): string
     {
         return $this->getRawPlaceholder(
-            array_push($this->rawBlocks, $value) - 1
+            $this->pushRawBlock($value) - 1
         );
     }
 
@@ -357,7 +339,15 @@ class BladeCompiler extends Compiler implements CompilerInterface
      *
      * @return int The number of raw blocks in the stack after pushing the new one.
      */
-    protected function compileComponentTags($value)
+    protected function pushRawBlock(string $value): int
+    {
+        $stack = Context::get(static::RAW_BLOCKS_CONTEXT_KEY, []);
+        $stack[] = $value;
+        Context::set(static::RAW_BLOCKS_CONTEXT_KEY, $stack);
+
+        return count($stack);
+    }
+
     /**
      * Compile the component tags.
      */
@@ -377,11 +367,13 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     protected function restoreRawContent(string $result): string
     {
-        $result = preg_replace_callback('/'.$this->getRawPlaceholder('(\d+)').'/', function ($matches) {
-            return $this->rawBlocks[$matches[1]];
+        $rawBlocks = Context::get(static::RAW_BLOCKS_CONTEXT_KEY);
+
+        $result = preg_replace_callback('/'.$this->getRawPlaceholder('(\d+)').'/', function ($matches) use ($rawBlocks) {
+            return $rawBlocks[$matches[1]];
         }, $result);
 
-        $this->rawBlocks = [];
+        $rawBlocks = Context::set(static::RAW_BLOCKS_CONTEXT_KEY, []);
 
         return $result;
     }
@@ -490,7 +482,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
         $search = (string) $search;
 
         if ($search === '') {
-            return $subject;
+            return [$subject, 0];
         }
 
         $position = strpos($subject, $search, $offset);

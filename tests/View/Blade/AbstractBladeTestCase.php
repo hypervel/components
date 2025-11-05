@@ -2,7 +2,6 @@
 
 namespace Hypervel\Tests\View\Blade;
 
-use Hypervel\Container\Container;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Component;
@@ -25,7 +24,6 @@ abstract class AbstractBladeTestCase extends TestCase
 
     protected function tearDown(): void
     {
-        Container::setInstance(null);
         Component::flushCache();
         Component::forgetComponentsResolver();
         Component::forgetFactory();

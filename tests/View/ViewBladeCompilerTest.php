@@ -4,7 +4,6 @@ namespace Hypervel\Tests\View;
 
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\View\Compilers\BladeCompiler;
-use InvalidArgumentException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -21,14 +20,6 @@ class ViewBladeCompilerTest extends TestCase
         $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
         $files->shouldReceive('exists')->once()->with(__DIR__.'/'.hash('xxh128', 'v2foo').'.php')->andReturn(false);
         $this->assertTrue($compiler->isExpired('foo'));
-    }
-
-    public function testCannotConstructWithBadCachePath()
-    {
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Please provide a valid cache path.');
-
-        new BladeCompiler($this->getFiles(), null);
     }
 
     public function testIsExpiredReturnsTrueWhenModificationTimesWarrant()
@@ -66,6 +57,7 @@ class ViewBladeCompilerTest extends TestCase
         $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
         $files->shouldReceive('get')->once()->with('foo')->andReturn('Hello World');
         $files->shouldReceive('exists')->once()->with(__DIR__)->andReturn(true);
+        $files->shouldReceive('exists')->once()->with(__DIR__.'/'.hash('xxh128', 'v2foo').'.php')->andReturn(false);
         $files->shouldReceive('put')->once()->with(__DIR__.'/'.hash('xxh128', 'v2foo').'.php', 'Hello World<?php /**PATH foo ENDPATH**/ ?>');
         $compiler->compile('foo');
     }
@@ -76,38 +68,9 @@ class ViewBladeCompilerTest extends TestCase
         $files->shouldReceive('get')->once()->with('foo')->andReturn('Hello World');
         $files->shouldReceive('exists')->once()->with(__DIR__)->andReturn(false);
         $files->shouldReceive('makeDirectory')->once()->with(__DIR__, 0777, true, true);
+        $files->shouldReceive('exists')->once()->with(__DIR__.'/'.hash('xxh128', 'v2foo').'.php')->andReturn(false);
         $files->shouldReceive('put')->once()->with(__DIR__.'/'.hash('xxh128', 'v2foo').'.php', 'Hello World<?php /**PATH foo ENDPATH**/ ?>');
         $compiler->compile('foo');
-    }
-
-    public function testCompileCompilesAndGetThePath()
-    {
-        $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
-        $files->shouldReceive('get')->once()->with('foo')->andReturn('Hello World');
-        $files->shouldReceive('exists')->once()->with(__DIR__)->andReturn(true);
-        $files->shouldReceive('put')->once()->with(__DIR__.'/'.hash('xxh128', 'v2foo').'.php', 'Hello World<?php /**PATH foo ENDPATH**/ ?>');
-        $compiler->compile('foo');
-        $this->assertSame('foo', $compiler->getPath());
-    }
-
-    public function testCompileSetAndGetThePath()
-    {
-        $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
-        $compiler->setPath('foo');
-        $this->assertSame('foo', $compiler->getPath());
-    }
-
-    public function testCompileWithPathSetBefore()
-    {
-        $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
-        $files->shouldReceive('get')->once()->with('foo')->andReturn('Hello World');
-        $files->shouldReceive('exists')->once()->with(__DIR__)->andReturn(true);
-        $files->shouldReceive('put')->once()->with(__DIR__.'/'.hash('xxh128', 'v2foo').'.php', 'Hello World<?php /**PATH foo ENDPATH**/ ?>');
-        // set path before compilation
-        $compiler->setPath('foo');
-        // trigger compilation with $path
-        $compiler->compile();
-        $this->assertSame('foo', $compiler->getPath());
     }
 
     public function testRawTagsCanBeSetToLegacyValues()

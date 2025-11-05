@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\View\Compilers;
 
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Context\Context;
+use Hypervel\Foundation\Contracts\Application;
 use Hypervel\View\Contracts\Factory;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
@@ -19,11 +20,9 @@ use ReflectionClass;
 class ComponentTagCompiler
 {
     /**
-     * The Blade compiler instance.
-     *
-     * @var \Hypervel\View\Compilers\BladeCompiler
+     * The "bind:" attributes that have been compiled for the current component.
      */
-    protected $blade;
+    protected const BOUND_ATTRIBUTES_CONTEXT_KEY = 'hypervel.view.component_tag_compiler.bound_attributes';
 
     /**
      * The Blade compiler instance.
@@ -128,12 +127,38 @@ class ComponentTagCompiler
         /x";
 
         return preg_replace_callback($pattern, function (array $matches) {
-            $this->boundAttributes = [];
+            $this->clearBoundAttributes();
 
             $attributes = $this->getAttributesFromAttributeString($matches['attributes']);
 
             return $this->componentString($matches[1], $attributes);
         }, $value);
+    }
+
+    /**
+     * Clear the bound attributes for the current component.
+     */
+    protected function clearBoundAttributes(): void
+    {
+        Context::set(self::BOUND_ATTRIBUTES_CONTEXT_KEY, []);
+    }
+
+    /**
+     * Set a bound attribute for the current component.
+     */
+    protected function setBoundAttribute($attribute): void
+    {
+        $boundAttributes = Context::get(self::BOUND_ATTRIBUTES_CONTEXT_KEY, []);
+        $boundAttributes[$attribute] = true;
+        Context::set(self::BOUND_ATTRIBUTES_CONTEXT_KEY, $boundAttributes);
+    }
+
+    /**
+     * Get the bound attributes for the current component.
+     */
+    protected function getBoundAttributes(): array
+    {
+        return Context::get(self::BOUND_ATTRIBUTES_CONTEXT_KEY, []);
     }
 
     /**
@@ -509,6 +534,7 @@ class ComponentTagCompiler
                 $name = "'{$name}'";
             }
 
+            $this->clearBoundAttributes();
 
             $attributes = $this->getAttributesFromAttributeString($matches['attributes']);
 
@@ -571,7 +597,7 @@ class ComponentTagCompiler
             if (str_starts_with($attribute, 'bind:')) {
                 $attribute = Str::after($attribute, 'bind:');
 
-                $this->boundAttributes[$attribute] = true;
+                $this->setBoundAttribute($attribute);
             } else {
                 $value = "'".$this->compileAttributeEchos($value)."'";
             }
@@ -698,9 +724,11 @@ class ComponentTagCompiler
      */
     protected function attributesToString(array $attributes, bool $escapeBound = true): string
     {
+        $boundAttributes = $this->getBoundAttributes();
+
         return (new Collection($attributes))
-            ->map(function (string $value, string $attribute) use ($escapeBound) {
-                return $escapeBound && isset($this->boundAttributes[$attribute]) && $value !== 'true' && ! is_numeric($value)
+            ->map(function (string $value, string $attribute) use ($escapeBound, $boundAttributes) {
+                return $escapeBound && isset($boundAttributes[$attribute]) && $value !== 'true' && ! is_numeric($value)
                             ? "'{$attribute}' => \Hypervel\View\Compilers\BladeCompiler::sanitizeComponentAttribute({$value})"
                             : "'{$attribute}' => {$value}";
             })

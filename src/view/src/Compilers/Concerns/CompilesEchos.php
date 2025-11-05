@@ -149,7 +149,7 @@ trait CompilesEchos
                 return $str->beforeLast(';');
             });
 
-        return empty($this->echoHandlers) ? $value : '$__bladeCompiler->applyEchoHandler('.$value.')';
+        return empty($this->echoHandlers) ? (string) $value : '$__bladeCompiler->applyEchoHandler('.$value.')';
     }
 
     /**

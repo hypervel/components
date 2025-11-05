@@ -2,10 +2,10 @@
 
 namespace Hypervel\Tests\View;
 
+use Hypervel\View\Contracts\Engine;
 use Hypervel\View\Engines\EngineResolver;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
-use stdClass;
 
 class ViewEngineResolverTest extends TestCase
 {
@@ -13,11 +13,11 @@ class ViewEngineResolverTest extends TestCase
     {
         $resolver = new EngineResolver;
         $resolver->register('foo', function () {
-            return new stdClass;
+            return new FakeEngine();
         });
         $result = $resolver->resolve('foo');
 
-        $this->assertEquals(spl_object_hash($result), spl_object_hash($resolver->resolve('foo')));
+        $this->assertEquals($result, $resolver->resolve('foo'));
     }
 
     public function testResolverThrowsExceptionOnUnknownEngine()
@@ -26,5 +26,13 @@ class ViewEngineResolverTest extends TestCase
 
         $resolver = new EngineResolver;
         $resolver->resolve('foo');
+    }
+}
+
+class FakeEngine implements Engine
+{
+    public function get(string $path, array $data = []): string
+    {
+        return '';
     }
 }

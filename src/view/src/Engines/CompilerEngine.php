@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Engines;
 
+use Hypervel\Context\Context;
 use Hypervel\Database\RecordNotFoundException;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Filesystem\Filesystem;
@@ -16,6 +17,11 @@ use Throwable;
 
 class CompilerEngine extends PhpEngine
 {
+    /**
+     * The context key for the compiled template path.
+     */
+    protected const COMPILED_PATH_CONTEXT_KEY = 'hypervel.view.compiler_engine.compiled_path';
+
     /**
      * The Blade compiler instance.
      */
@@ -50,7 +56,7 @@ class CompilerEngine extends PhpEngine
      */
     public function get(string $path, array $data = []): string
     {
-        $this->lastCompiled[] = $path;
+        $this->pushCompiledPath($path);
 
         // If this given view has expired, which means it has simply been edited since
         // it was last compiled, we will re-compile the views so we can evaluate a
@@ -81,9 +87,23 @@ class CompilerEngine extends PhpEngine
 
         $this->compiledOrNotExpired[$path] = true;
 
-        array_pop($this->lastCompiled);
+        $this->popCompiledPath();
 
         return $results;
+    }
+
+    protected function pushCompiledPath(string $path): void
+    {
+        $stack = Context::get(static::COMPILED_PATH_CONTEXT_KEY, []);
+        $stack[] = $path;
+        Context::set(static::COMPILED_PATH_CONTEXT_KEY, $stack);
+    }
+
+    protected function popCompiledPath(): void
+    {
+        $stack = Context::get(static::COMPILED_PATH_CONTEXT_KEY, []);
+        array_pop($stack);
+        Context::set(static::COMPILED_PATH_CONTEXT_KEY, $stack);
     }
 
     /**
@@ -110,7 +130,9 @@ class CompilerEngine extends PhpEngine
      */
     protected function getMessage(Throwable $e): string
     {
-        return $e->getMessage().' (View: '.realpath(last($this->lastCompiled)).')';
+        $stack = Context::get(static::COMPILED_PATH_CONTEXT_KEY);
+
+        return $e->getMessage().' (View: '.realpath(last($stack)).')';
     }
 
     /**

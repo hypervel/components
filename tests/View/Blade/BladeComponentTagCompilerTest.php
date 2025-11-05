@@ -2,14 +2,19 @@
 
 namespace Hypervel\Tests\View\Blade;
 
+use Closure;
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Foundation\Application;
-use Hypervel\Contracts\View\Factory;
+use Hypervel\Container\DefinitionSource;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\View\Contracts\Factory;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Foundation\Application;
+use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Compilers\ComponentTagCompiler;
 use Hypervel\View\Component;
 use Hypervel\View\ComponentAttributeBag;
+use Hypervel\View\Contracts\View;
 use InvalidArgumentException;
 use Mockery as m;
 
@@ -90,7 +95,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
     public function testSlotsWithDynamicAttributesCanBeCompiled()
     {
         $this->mockViewFactory();
-        $result = $this->compiler()->compileSlots('<x-slot name="foo" :class="$classes">
+        $result = $this->compiler()->compileSlots('<x-slot name="foo" @class($classes)>
 </x-slot>');
 
         $this->assertSame(
@@ -917,11 +922,17 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 
     protected function mockViewFactory($existsSucceeds = true)
     {
-        $container = new Container;
-        $container->instance(Factory::class, $factory = m::mock(Factory::class));
-        $container->alias(Factory::class, 'view');
+        $factory = m::mock(Factory::class);
         $factory->shouldReceive('exists')->andReturn($existsSucceeds);
-        Container::setInstance($container);
+        $container = new Application(
+            new DefinitionSource([
+                Factory::class => fn () => $factory,
+            ]),
+            'bath_path',
+        );
+        $container->alias(Factory::class, 'view');
+
+        ApplicationContext::setContainer($container);
     }
 
     protected function compiler(array $aliases = [], array $namespaces = [], ?BladeCompiler $blade = null)
@@ -941,7 +952,7 @@ class TestAlertComponent extends Component
         $this->title = $title;
     }
 
-    public function render()
+    public function render(): View|Htmlable|Closure|string
     {
         return 'alert';
     }
@@ -956,7 +967,7 @@ class TestProfileComponent extends Component
         $this->userId = $userId;
     }
 
-    public function render()
+    public function render(): View|Htmlable|Closure|string
     {
         return 'profile';
     }
@@ -966,14 +977,14 @@ class TestInputComponent extends Component
 {
     public $userId;
 
-    public function __construct($name, $label, $value)
-    {
-        $this->name = $name;
-        $this->label = $label;
-        $this->value = $value;
+    public function __construct(
+        protected $name,
+        protected $label,
+        protected $value,
+    ) {
     }
 
-    public function render()
+    public function render(): View|Htmlable|Closure|string
     {
         return 'input';
     }
@@ -981,7 +992,7 @@ class TestInputComponent extends Component
 
 class TestContainerComponent extends Component
 {
-    public function render()
+    public function render(): View|Htmlable|Closure|string
     {
         return 'container';
     }
@@ -989,11 +1000,14 @@ class TestContainerComponent extends Component
 
 namespace App\View\Components\Card;
 
+use Closure;
+use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\View\Component;
+use Hypervel\View\Contracts\View;
 
 class Card extends Component
 {
-    public function render()
+    public function render(): View|Htmlable|Closure|string
     {
         return 'card';
     }
