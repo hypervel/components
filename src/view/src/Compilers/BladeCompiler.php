@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\View\Compilers;
 
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\View\Contracts\Factory as ViewFactory;
 use Hypervel\View\Contracts\View;
 use Hypervel\Support\Arr;

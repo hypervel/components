@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Concerns;
 
-use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\View\Contracts\View;
 use Hypervel\Support\Arr;
 use Hypervel\View\ComponentSlot;

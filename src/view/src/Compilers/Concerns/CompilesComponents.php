@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Compilers\Concerns;
 
-use Hypervel\Contracts\Support\CanBeEscapedWhenCastToString;
+use Hypervel\Support\Contracts\CanBeEscapedWhenCastToString;
 use Hypervel\Support\Str;
 use Hypervel\View\AnonymousComponent;
 use Hypervel\View\ComponentAttributeBag;

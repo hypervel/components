@@ -6,7 +6,7 @@ namespace Hypervel\View;
 
 use ArrayIterator;
 use Closure;
-use Hypervel\Contracts\Support\DeferringDisplayableValue;
+use Hypervel\Support\Contracts\DeferringDisplayableValue;
 use Hypervel\Support\Enumerable;
 use IteratorAggregate;
 use Stringable;

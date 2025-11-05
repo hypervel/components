@@ -6,7 +6,7 @@ namespace Hypervel\View;
 
 use ArrayAccess;
 use ArrayIterator;
-use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\HtmlString;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\View;
 
-use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Support\Contracts\Htmlable;
 use InvalidArgumentException;
 use Stringable;
 

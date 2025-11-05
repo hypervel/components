@@ -2,7 +2,7 @@
 
 namespace Hypervel\Tests\View\Blade;
 
-use Hypervel\Contracts\View\ViewCompilationException;
+use Hypervel\View\Contracts\ViewCompilationException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 class BladeForeachStatementsTest extends AbstractBladeTestCase

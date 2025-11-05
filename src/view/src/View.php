@@ -6,10 +6,10 @@ namespace Hypervel\View;
 
 use ArrayAccess;
 use BadMethodCallException;
-use Hypervel\Contracts\Support\Arrayable;
-use Hypervel\Contracts\Support\Htmlable;
-use Hypervel\Contracts\Support\MessageProvider;
-use Hypervel\Contracts\Support\Renderable;
+use Hypervel\Support\Contracts\Arrayable;
+use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Support\Contracts\MessageProvider;
+use Hypervel\Support\Contracts\Renderable;
 use Hypervel\View\Contracts\Engine;
 use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\Support\Collection;

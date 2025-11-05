@@ -6,7 +6,7 @@ namespace Hypervel\View;
 
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Events\Dispatcher;
-use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Support\Contracts\Arrayable;
 use Hypervel\View\Contracts\Engine;
 use Hypervel\View\Contracts\Factory as FactoryContract;
 use Hypervel\Support\Arr;
