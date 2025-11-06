@@ -121,7 +121,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
                 fn () => $this->callBeforeApplicationDestroyedCallbacks()
             );
             $this->flushApplication();
-            /** @phpstan-ignore-next-line */
+            /* @phpstan-ignore-next-line */
             Coroutine::flushAfterCreated();
         }
 
