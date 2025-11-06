@@ -141,7 +141,7 @@ class Coroutine
     /**
      * Flush after created callbacks.
      */
-    public static function flushAfterCreated()
+    public static function flushAfterCreated(): void
     {
         static::$afterCreatedCallbacks = [];
     }
