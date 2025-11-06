@@ -121,6 +121,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
                 fn () => $this->callBeforeApplicationDestroyedCallbacks()
             );
             $this->flushApplication();
+            Coroutine::flushAfterCreated();
         }
 
         $this->afterApplicationCreatedCallbacks = [];

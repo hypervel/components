@@ -138,6 +138,14 @@ class Coroutine
         return Co::list();
     }
 
+    /**
+     * Flush after created callbacks.
+     */
+    public static function flushAfterCreated()
+    {
+        static::$afterCreatedCallbacks = [];
+    }
+
     private static function printLog(Throwable $throwable): void
     {
         if (ApplicationContext::hasContainer()) {
