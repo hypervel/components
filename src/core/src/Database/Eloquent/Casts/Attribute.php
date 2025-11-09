@@ -9,7 +9,7 @@ class Attribute
     /**
      * The attribute accessor.
      *
-     * @var callable
+     * @var callable|null
      */
     public $get;
 
