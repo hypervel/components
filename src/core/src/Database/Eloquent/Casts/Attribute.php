@@ -16,7 +16,7 @@ class Attribute
     /**
      * The attribute mutator.
      *
-     * @var callable
+     * @var callable|null
      */
     public $set;
 
