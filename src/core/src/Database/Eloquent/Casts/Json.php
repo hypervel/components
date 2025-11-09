@@ -14,7 +14,7 @@ class Json
     protected static $encoder;
 
     /**
-     * The custom JSON decode.
+     * The custom JSON decoder.
      *
      * @var callable|null
      */
