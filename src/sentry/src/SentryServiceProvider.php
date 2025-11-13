@@ -35,7 +35,7 @@ class SentryServiceProvider extends ServiceProvider
         /* @phpstan-ignore-next-line */
         Coroutine::afterCreated(function () {
             $keys = [
-                Hub::CONTEXT_STACK_KEY => [],
+                Hub::CONTEXT_STACK_KEY => null,
             ];
             foreach ($keys as $key => $default) {
                 Context::set($key, Context::get($key, $default, Coroutine::parentId()));
