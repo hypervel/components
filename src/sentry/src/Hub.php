@@ -58,7 +58,8 @@ class Hub implements HubInterface
     public function pushScope(): Scope
     {
         $clonedScope = clone $this->getScope();
-        Context::override(static::CONTEXT_STACK_KEY, function (array $layers) use ($clonedScope) {
+        Context::override(static::CONTEXT_STACK_KEY, function ($layers) use ($clonedScope) {
+            $layers = $layers ?? [];
             $layers[] = new Layer($this->getClient(), $clonedScope);
 
             return $layers;
