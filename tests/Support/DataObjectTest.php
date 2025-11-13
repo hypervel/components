@@ -81,6 +81,40 @@ class DataObjectTest extends TestCase
     }
 
     /**
+     * Test mutating a data object and refreshing data.
+     */
+    public function testUpdate(): void
+    {
+        $data = [
+            'string_value' => 'test',
+            'int_value' => '42', // String that should be converted to int
+            'float_value' => '3.14', // String that should be converted to float
+            'bool_value' => 1, // Int that should be converted to bool
+            'array_value' => ['item1', 'item2'],
+            'object_value' => new stdClass(),
+        ];
+
+        $object = TestDataObject::make($data);
+        $object->update([
+            'string_value' => 'test_changed',
+            'int_value' => 100,
+            'float_value' => 6.28,
+            'bool_value' => false,
+            'array_value' => ['item3', 'item4'],
+        ]);
+
+        $this->assertInstanceOf(TestDataObject::class, $object);
+        $this->assertSame('test_changed', $object->stringValue);
+        $this->assertSame(100, $object->intValue);
+        $this->assertSame(6.28, $object->floatValue);
+        $this->assertFalse($object->boolValue);
+        $this->assertSame(['item3', 'item4'], $object->arrayValue);
+        $this->assertInstanceOf(stdClass::class, $object->objectValue);
+        $this->assertSame('default value', $object->withDefaultValue);
+        $this->assertNull($object->nullableValue);
+    }
+
+    /**
      * Test creating a data object with massing data.
      */
     public function testMakeWithMissingConfig(): void

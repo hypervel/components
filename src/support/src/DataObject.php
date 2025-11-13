@@ -489,6 +489,21 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
     }
 
     /**
+     * Update the object properties with the provided data array.
+     */
+    public function update(array $data): static
+    {
+        $properties = static::getPropertyMap();
+        foreach ($data as $key => $value) {
+            $this->{$properties[$key]} = $value;
+        }
+
+        $this->refresh();
+
+        return $this;
+    }
+
+    /**
      * Check if the offset exists.
      */
     public function offsetExists(mixed $offset): bool
