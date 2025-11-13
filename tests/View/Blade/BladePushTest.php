@@ -3,6 +3,10 @@
 namespace Hypervel\Tests\View\Blade;
 
 use Hypervel\Support\Str;
+use Mockery;
+use Ramsey\Uuid\Uuid;
+use Ramsey\Uuid\UuidFactoryInterface;
+use Ramsey\Uuid\UuidInterface;
 
 class BladePushTest extends AbstractBladeTestCase
 {
@@ -44,7 +48,11 @@ test
 
     public function testPushOnceIsCompiledWhenIdIsMissing()
     {
-        Str::createUuidsUsing(fn () => 'e60e8f77-9ac3-4f71-9f8e-a044ef481d7f');
+        $uuid = Mockery::mock(UuidInterface::class);
+        $uuid->shouldReceive('__toString')->andReturn('e60e8f77-9ac3-4f71-9f8e-a044ef481d7f');
+        $factory = Mockery::mock(UuidFactoryInterface::class);
+        $factory->shouldReceive('uuid4')->andReturn($uuid);
+        Uuid::setFactory($factory);
 
         $string = '@pushOnce(\'foo\')
 test

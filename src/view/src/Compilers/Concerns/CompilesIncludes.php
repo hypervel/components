@@ -8,9 +8,6 @@ trait CompilesIncludes
 {
     /**
      * Compile the each statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileEach(string $expression): string
     {
@@ -19,9 +16,6 @@ trait CompilesIncludes
 
     /**
      * Compile the include statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileInclude(string $expression): string
     {
@@ -32,9 +26,6 @@ trait CompilesIncludes
 
     /**
      * Compile the include-if statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileIncludeIf(string $expression): string
     {
@@ -45,9 +36,6 @@ trait CompilesIncludes
 
     /**
      * Compile the include-when statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileIncludeWhen(string $expression): string
     {
@@ -58,9 +46,6 @@ trait CompilesIncludes
 
     /**
      * Compile the include-unless statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileIncludeUnless(string $expression): string
     {
@@ -71,9 +56,6 @@ trait CompilesIncludes
 
     /**
      * Compile the include-first statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileIncludeFirst(string $expression): string
     {

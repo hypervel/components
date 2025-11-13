@@ -4,16 +4,34 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Compilers\Concerns;
 
+use Hypervel\Context\Context;
 use Hypervel\View\Contracts\ViewCompilationException;
 
 trait CompilesLoops
 {
     /**
      * Counter to keep track of nested forelse statements.
-     *
-     * @var int
      */
-    protected int $forElseCounter = 0;
+    protected const FOR_ELSE_COUNTER_CONTEXT_KEY = 'hypervel.view.compiles_loops.for_else_counter';
+
+    protected function incrementForElseCounter(): int
+    {
+        return Context::override(self::FOR_ELSE_COUNTER_CONTEXT_KEY, function ($value) {
+            return is_null($value) ? 1 : $value + 1;
+        });
+    }
+
+    protected function decrementForElseCounter(): int
+    {
+        return Context::override(self::FOR_ELSE_COUNTER_CONTEXT_KEY, function ($value) {
+            return is_null($value) ? 0 : max(0, $value - 1);
+        });
+    }
+
+    protected function getForElseCounter(): int
+    {
+        return Context::get(self::FOR_ELSE_COUNTER_CONTEXT_KEY, 0);
+    }
 
     /**
      * Compile the for-else statements into valid PHP.
@@ -22,7 +40,8 @@ trait CompilesLoops
      */
     protected function compileForelse(?string $expression): string
     {
-        $empty = '$__empty_'.++$this->forElseCounter;
+        $this->incrementForElseCounter();
+        $empty = '$__empty_' . $this->getForElseCounter();
 
         preg_match('/\( *(.+) +as +(.+)\)$/is', $expression ?? '', $matches);
 
@@ -50,7 +69,8 @@ trait CompilesLoops
             return "<?php if(empty{$expression}): ?>";
         }
 
-        $empty = '$__empty_'.$this->forElseCounter--;
+        $empty = '$__empty_' . $this->getForElseCounter();
+        $this->decrementForElseCounter();
 
         return "<?php endforeach; \$__env->popLoop(); \$loop = \$__env->getLastLoop(); if ({$empty}): ?>";
     }

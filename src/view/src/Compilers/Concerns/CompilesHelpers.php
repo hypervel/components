@@ -10,8 +10,6 @@ trait CompilesHelpers
 {
     /**
      * Compile the CSRF statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileCsrf(): string
     {
@@ -20,9 +18,6 @@ trait CompilesHelpers
 
     /**
      * Compile the "dd" statements into valid PHP.
-     *
-     * @param  string  $arguments
-     * @return string
      */
     protected function compileDd(string $arguments): string
     {
@@ -31,9 +26,6 @@ trait CompilesHelpers
 
     /**
      * Compile the "dump" statements into valid PHP.
-     *
-     * @param  string  $arguments
-     * @return string
      */
     protected function compileDump(string $arguments): string
     {
@@ -42,9 +34,6 @@ trait CompilesHelpers
 
     /**
      * Compile the method statements into valid PHP.
-     *
-     * @param  string  $method
-     * @return string
      */
     protected function compileMethod(string $method): string
     {
@@ -53,9 +42,6 @@ trait CompilesHelpers
 
     /**
      * Compile the "vite" statements into valid PHP.
-     *
-     * @param  string|null  $arguments
-     * @return string
      */
     protected function compileVite(?string $arguments): string
     {
@@ -68,8 +54,6 @@ trait CompilesHelpers
 
     /**
      * Compile the "viteReactRefresh" statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileViteReactRefresh(): string
     {

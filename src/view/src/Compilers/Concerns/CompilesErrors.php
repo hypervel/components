@@ -8,9 +8,6 @@ trait CompilesErrors
 {
     /**
      * Compile the error statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileError(string $expression): string
     {
@@ -25,11 +22,8 @@ $message = $__bag->first($__errorArgs[0]); ?>';
 
     /**
      * Compile the enderror statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
-    protected function compileEnderror(string $expression): string
+    protected function compileEnderror(): string
     {
         return '<?php unset($message);
 if (isset($__messageOriginal)) { $message = $__messageOriginal; }

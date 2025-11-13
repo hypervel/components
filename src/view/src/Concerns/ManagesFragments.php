@@ -4,63 +4,65 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Concerns;
 
+use Hypervel\Context\Context;
 use InvalidArgumentException;
 
 trait ManagesFragments
 {
     /**
      * All of the captured, rendered fragments.
-     *
-     * @var array
      */
-    protected array $fragments = [];
+    protected const FRAGMENTS_CONTEXT_KEY = 'hypervel.view.manages_fragments.fragments';
 
     /**
      * The stack of in-progress fragment renders.
-     *
-     * @var array
      */
-    protected array $fragmentStack = [];
+    protected const FRAGMENT_STACK_CONTEXT_KEY = 'hypervel.view.manages_fragments.fragment_stack';
 
     /**
      * Start injecting content into a fragment.
-     *
-     * @param  string  $fragment
-     * @return void
      */
     public function startFragment(string $fragment): void
     {
         if (ob_start()) {
-            $this->fragmentStack[] = $fragment;
+            $this->pushFragmentStack($fragment);
         }
+    }
+
+    protected function pushFragmentStack(string $fragment): void
+    {
+        Context::override(self::FRAGMENT_STACK_CONTEXT_KEY, function (?array $stack) use ($fragment) {
+            $stack = $stack ?? [];
+            $stack[] = $fragment;
+            return $stack;
+        });
     }
 
     /**
      * Stop injecting content into a fragment.
      *
-     * @return string
-     *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     public function stopFragment(): string
     {
-        if (empty($this->fragmentStack)) {
+        $fragmentStack = Context::get(self::FRAGMENT_STACK_CONTEXT_KEY);
+
+        if (empty($fragmentStack)) {
             throw new InvalidArgumentException('Cannot end a fragment without first starting one.');
         }
 
-        $last = array_pop($this->fragmentStack);
+        $last = array_pop($fragmentStack);
+        Context::set(self::FRAGMENT_STACK_CONTEXT_KEY, $fragmentStack);
 
-        $this->fragments[$last] = ob_get_clean();
+        $fragments = Context::get(self::FRAGMENTS_CONTEXT_KEY, []);
+        $fragments[$last] = ob_get_clean();
+        Context::set(self::FRAGMENTS_CONTEXT_KEY, $fragments);
 
-        return $this->fragments[$last];
+        return $fragments[$last];
     }
 
     /**
      * Get the contents of a fragment.
-     *
-     * @param  string  $name
-     * @param  string|null  $default
-     * @return mixed
      */
     public function getFragment(string $name, ?string $default = null): mixed
     {
@@ -69,22 +71,18 @@ trait ManagesFragments
 
     /**
      * Get the entire array of rendered fragments.
-     *
-     * @return array
      */
     public function getFragments(): array
     {
-        return $this->fragments;
+        return Context::get(self::FRAGMENTS_CONTEXT_KEY, []);
     }
 
     /**
      * Flush all of the fragments.
-     *
-     * @return void
      */
     public function flushFragments(): void
     {
-        $this->fragments = [];
-        $this->fragmentStack = [];
+        Context::set(self::FRAGMENTS_CONTEXT_KEY, []);
+        Context::set(self::FRAGMENT_STACK_CONTEXT_KEY, []);
     }
 }

@@ -8,9 +8,6 @@ trait CompilesClasses
 {
     /**
      * Compile the conditional class statement into valid PHP.
-     *
-     * @param  string|null  $expression
-     * @return string
      */
     protected function compileClass(?string $expression): string
     {

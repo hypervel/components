@@ -3,6 +3,9 @@
 namespace Hypervel\Tests\View\Blade;
 
 use Exception;
+use Hypervel\Container\DefinitionSource;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Foundation\Application;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\Stringable;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -60,11 +63,24 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
             throw new Exception('The fluent object has been successfully handled!');
         });
 
-        app()->instance('blade.compiler', $this->compiler);
+
+        $app = $this->createApplication();
+        $app->instance('blade.compiler', $this->compiler);
 
         $exampleObject = new Fluent();
 
         eval((new Stringable($this->compiler->compileString($blade)))->remove(['<?php', '?>']));
+    }
+
+    protected function createApplication()
+    {
+        $container = new Application(
+            new DefinitionSource([]),
+            'bath_path',
+        );
+        ApplicationContext::setContainer($container);
+
+        return $container;
     }
 
     public static function handlerLogicDataProvider()
@@ -82,7 +98,8 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
     {
         $this->compiler->stringable('iterable', $closure);
 
-        app()->instance('blade.compiler', $this->compiler);
+        $app = $this->createApplication();
+        $app->instance('blade.compiler', $this->compiler);
 
         ob_start();
         eval((new Stringable($this->compiler->compileString($blade)))->remove(['<?php', '?>']));
@@ -95,16 +112,19 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
     public static function handlerWorksWithIterableDataProvider()
     {
         return [
-            ['{{[1,"two",3]}}', function (iterable $arr) {
-                return implode(', ', $arr);
-            }, '1, two, 3'],
+            [
+                '{{[1,"two",3]}}',
+                fn (iterable $arr) => implode(', ', $arr),
+                '1, two, 3'
+            ],
         ];
     }
 
     #[DataProvider('nonStringableDataProvider')]
     public function testHandlerWorksWithNonStringables($blade, $expectedOutput)
     {
-        app()->instance('blade.compiler', $this->compiler);
+        $app = $this->createApplication();
+        $app->instance('blade.compiler', $this->compiler);
 
         ob_start();
         eval((new Stringable($this->compiler->compileString($blade)))->remove(['<?php', '?>']));

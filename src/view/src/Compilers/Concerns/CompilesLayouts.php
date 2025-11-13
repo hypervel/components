@@ -20,7 +20,7 @@ trait CompilesLayouts
 
         $echo = "<?php echo \$__env->make({$expression}, array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>";
 
-        $this->footer[] = $echo;
+        $this->pushFooter($echo);
 
         return '';
     }
@@ -34,7 +34,7 @@ trait CompilesLayouts
 
         $echo = "<?php echo \$__env->first({$expression}, array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>";
 
-        $this->footer[] = $echo;
+        $this->pushFooter($echo);
 
         return '';
     }

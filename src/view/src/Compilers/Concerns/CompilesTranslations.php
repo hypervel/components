@@ -8,9 +8,6 @@ trait CompilesTranslations
 {
     /**
      * Compile the lang statements into valid PHP.
-     *
-     * @param  string|null  $expression
-     * @return string
      */
     protected function compileLang(?string $expression): string
     {
@@ -25,8 +22,6 @@ trait CompilesTranslations
 
     /**
      * Compile the end-lang statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileEndlang(): string
     {
@@ -35,9 +30,6 @@ trait CompilesTranslations
 
     /**
      * Compile the choice statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileChoice(string $expression): string
     {

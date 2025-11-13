@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Compilers;
 
+use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Support\Contracts\Htmlable;
@@ -19,7 +20,20 @@ use InvalidArgumentException;
 
 class BladeCompiler extends Compiler implements CompilerInterface
 {
+    /*
+     * Temporarily store the raw blocks found in the template.
+     */
     protected const RAW_BLOCKS_CONTEXT_KEY = 'hypervel.view.blade_compiler.raw_blocks';
+
+    /*
+     * Footer lines to be added to the template.
+     */
+    protected const FOOTER_CONTEXT_KEY = 'hypervel.view.blade_compiler.footer';
+
+    /**
+     * The "regular" / legacy echo string format.
+     */
+    protected const ECHO_FORMAT_CONTEXT_KEY = 'hypervel.view.blade_compiler.echo_format';
 
     use Concerns\CompilesAuthorizations,
         Concerns\CompilesClasses,
@@ -98,11 +112,6 @@ class BladeCompiler extends Compiler implements CompilerInterface
      * Array of opening and closing tags for escaped echos.
      */
     protected array $escapedTags = ['{{{', '}}}'];
-
-    /**
-     * The "regular" / legacy echo string format.
-     */
-    protected string $echoFormat = 'e(%s)';
 
     /**
      * Array of footer lines to be added to the template.
@@ -188,7 +197,8 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public function compileString(string $value): string
     {
-        [$this->footer, $result] = [[], ''];
+        Context::set(static::FOOTER_CONTEXT_KEY, []);
+        $result = '';
 
         foreach ($this->prepareStringsForCompilationUsing as $callback) {
             $value = $callback($value);
@@ -221,8 +231,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
         // If there are any footer lines that need to get added to a template we will
         // add them here at the end of the template. This gets used mainly for the
         // template inheritance via the extends keyword that should be appended.
-        if (count($this->footer) > 0) {
-            $result = $this->addFooters($result);
+        $footer = Context::get(static::FOOTER_CONTEXT_KEY, []);
+        if (count($footer) > 0) {
+            $result = $this->addFooters($result, $footer);
         }
 
         if (! empty($this->echoHandlers)) {
@@ -250,7 +261,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
                 $this->template = $template;
             }
 
-            public function render()
+            public function render(): View|Htmlable|Closure|string
             {
                 return $this->template;
             }
@@ -383,16 +394,16 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     protected function getRawPlaceholder(int|string $replace): string
     {
-        return str_replace('#', $replace, '@__raw_block_#__@');
+        return str_replace('#', (string) $replace, '@__raw_block_#__@');
     }
 
     /**
      * Add the stored footers onto the given content.
      */
-    protected function addFooters(string $result): string
+    protected function addFooters(string $result, array $footer): string
     {
         return ltrim($result, "\n")
-                ."\n".implode("\n", array_reverse($this->footer));
+                ."\n".implode("\n", array_reverse($footer));
     }
 
     /**
@@ -824,7 +835,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public function usingEchoFormat(string $format, callable $callback): string
     {
-        $originalEchoFormat = $this->echoFormat;
+        $originalEchoFormat = $this->getEchoFormat();
 
         $this->setEchoFormat($format);
 
@@ -840,9 +851,17 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Set the echo format to be used by the compiler.
      */
-    public function setEchoFormat(string $format): void
+    protected function setEchoFormat(string $format): void
     {
-        $this->echoFormat = $format;
+        Context::set(static::ECHO_FORMAT_CONTEXT_KEY, $format);
+    }
+
+    /**
+     * Get the echo format to be used by the compiler.
+     */
+    protected function getEchoFormat(): string
+    {
+        return Context::get(static::ECHO_FORMAT_CONTEXT_KEY, 'e(%s)');
     }
 
     /**
@@ -867,5 +886,12 @@ class BladeCompiler extends Compiler implements CompilerInterface
     public function withoutComponentTags(): void
     {
         $this->compilesComponentTags = false;
+    }
+
+    protected function pushFooter($footer)
+    {
+        $stack = Context::get(static::FOOTER_CONTEXT_KEY, []);
+        $stack[] = $footer;
+        Context::set(static::FOOTER_CONTEXT_KEY, $stack);
     }
 }

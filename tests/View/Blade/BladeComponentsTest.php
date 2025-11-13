@@ -2,8 +2,10 @@
 
 namespace Hypervel\Tests\View\Blade;
 
+use Closure;
+use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\View\Component;
-use Hypervel\View\ComponentAttributeBag;
 use Mockery as m;
 
 class BladeComponentsTest extends AbstractBladeTestCase
@@ -16,8 +18,8 @@ class BladeComponentsTest extends AbstractBladeTestCase
 
     public function testClassComponentsAreCompiled()
     {
-        $this->assertSame(str_replace("\r\n", "\n", '<?php if (isset($component)) { $__componentOriginal2dda3d2f2f9b76bd400bf03f0b84e87f = $component; } ?>
-<?php if (isset($attributes)) { $__attributesOriginal2dda3d2f2f9b76bd400bf03f0b84e87f = $attributes; } ?>
+        $this->assertSame(str_replace("\r\n", "\n", '<?php if (isset($component)) { $__componentOriginal840388efd2c3908da4effc26be795247 = $component; } ?>
+<?php if (isset($attributes)) { $__attributesOriginal840388efd2c3908da4effc26be795247 = $attributes; } ?>
 <?php $component = Hypervel\Tests\View\Blade\ComponentStub::class::resolve(["foo" => "bar"] + (isset($attributes) && $attributes instanceof Hypervel\View\ComponentAttributeBag ? $attributes->all() : [])); ?>
 <?php $component->withName(\'test\'); ?>
 <?php if ($component->shouldRender()): ?>
@@ -60,9 +62,7 @@ class BladeComponentsTest extends AbstractBladeTestCase
 
     public function testPropsAreExtractedFromParentAttributesCorrectlyForClassComponents()
     {
-        $attributes = new ComponentAttributeBag(['foo' => 'baz', 'other' => 'ok']);
-
-        $component = m::mock(Component::class);
+        $component = m::mock(ComponentStub::class);
         $component->shouldReceive('withName', 'test');
         $component->shouldReceive('shouldRender')->andReturn(false);
 
@@ -78,7 +78,7 @@ class BladeComponentsTest extends AbstractBladeTestCase
 
 class ComponentStub extends Component
 {
-    public function render()
+    public function render(): ViewContract|Htmlable|Closure|string
     {
         return '';
     }

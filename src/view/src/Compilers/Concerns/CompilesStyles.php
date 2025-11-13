@@ -8,9 +8,6 @@ trait CompilesStyles
 {
     /**
      * Compile the conditional style statement into valid PHP.
-     *
-     * @param  string|null  $expression
-     * @return string
      */
     protected function compileStyle(?string $expression): string
     {

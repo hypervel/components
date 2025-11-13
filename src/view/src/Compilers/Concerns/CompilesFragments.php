@@ -8,16 +8,11 @@ trait CompilesFragments
 {
     /**
      * The last compiled fragment.
-     *
-     * @var string|null
      */
     protected ?string $lastFragment = null;
 
     /**
      * Compile the fragment statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileFragment(string $expression): string
     {
@@ -28,8 +23,6 @@ trait CompilesFragments
 
     /**
      * Compile the end-fragment statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileEndfragment(): string
     {

@@ -8,9 +8,6 @@ trait CompilesInjections
 {
     /**
      * Compile the inject statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileInject(string $expression): string
     {

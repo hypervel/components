@@ -8,9 +8,6 @@ trait CompilesUseStatements
 {
     /**
      * Compile the use statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileUse(string $expression): string
     {

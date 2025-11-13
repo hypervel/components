@@ -10,9 +10,6 @@ trait CompilesStacks
 {
     /**
      * Compile the stack statements into the content.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileStack(string $expression): string
     {
@@ -21,9 +18,6 @@ trait CompilesStacks
 
     /**
      * Compile the push statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compilePush(string $expression): string
     {
@@ -32,9 +26,6 @@ trait CompilesStacks
 
     /**
      * Compile the push-once statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compilePushOnce(string $expression): string
     {
@@ -50,8 +41,6 @@ $__env->startPush('.$stack.'); ?>';
 
     /**
      * Compile the end-push statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileEndpush(): string
     {
@@ -60,8 +49,6 @@ $__env->startPush('.$stack.'); ?>';
 
     /**
      * Compile the end-push-once statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileEndpushOnce(): string
     {
@@ -70,9 +57,6 @@ $__env->startPush('.$stack.'); ?>';
 
     /**
      * Compile the prepend statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compilePrepend(string $expression): string
     {
@@ -81,9 +65,6 @@ $__env->startPush('.$stack.'); ?>';
 
     /**
      * Compile the prepend-once statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compilePrependOnce(string $expression): string
     {
@@ -99,8 +80,6 @@ $__env->startPrepend('.$stack.'); ?>';
 
     /**
      * Compile the end-prepend statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileEndprepend(): string
     {
@@ -109,8 +88,6 @@ $__env->startPrepend('.$stack.'); ?>';
 
     /**
      * Compile the end-prepend-once statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileEndprependOnce(): string
     {

@@ -8,9 +8,6 @@ trait CompilesRawPhp
 {
     /**
      * Compile the raw PHP statements into valid PHP.
-     *
-     * @param  string|null  $expression
-     * @return string
      */
     protected function compilePhp(?string $expression): string
     {
@@ -23,9 +20,6 @@ trait CompilesRawPhp
 
     /**
      * Compile the unset statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileUnset(string $expression): string
     {

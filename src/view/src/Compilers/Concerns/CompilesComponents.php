@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Compilers\Concerns;
 
-use Hypervel\Support\Contracts\CanBeEscapedWhenCastToString;
+use Hyperf\Contract\CanBeEscapedWhenCastToString;
+use Hyperf\DbConnection\Model\Model;
+use Hypervel\Context\Context;
 use Hypervel\Support\Str;
 use Hypervel\View\AnonymousComponent;
 use Hypervel\View\ComponentAttributeBag;
@@ -13,16 +15,11 @@ trait CompilesComponents
 {
     /**
      * The component name hash stack.
-     *
-     * @var array<string>
      */
-    protected static array $componentHashStack = [];
+    protected const COMPONENT_HASH_STACK_CONTEXT_KEY = 'hypervel.view.compilers_components.component_hash_stack';
 
     /**
      * Compile the component statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileComponent(string $expression): string
     {
@@ -45,25 +42,22 @@ trait CompilesComponents
 
     /**
      * Get a new component hash for a component name.
-     *
-     * @param  string  $component
-     * @return string
      */
     public static function newComponentHash(string $component): string
     {
-        static::$componentHashStack[] = $hash = hash('xxh128', $component);
+        $hash = hash('xxh128', $component);
+
+        Context::override(static::COMPONENT_HASH_STACK_CONTEXT_KEY, function ($stack) use ($hash) {
+            $stack ??= [];
+            $stack[] = $hash;
+            return $stack;
+        });
 
         return $hash;
     }
 
     /**
      * Compile a class component opening.
-     *
-     * @param  string  $component
-     * @param  string  $alias
-     * @param  string  $data
-     * @param  string  $hash
-     * @return string
      */
     public static function compileClassComponentOpening(string $component, string $alias, string $data, string $hash): string
     {
@@ -79,8 +73,6 @@ trait CompilesComponents
 
     /**
      * Compile the end-component statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileEndComponent(): string
     {
@@ -89,12 +81,10 @@ trait CompilesComponents
 
     /**
      * Compile the end-component statements into valid PHP.
-     *
-     * @return string
      */
     public function compileEndComponentClass(): string
     {
-        $hash = array_pop(static::$componentHashStack);
+        $hash = $this->popComponentHashStack();
 
         return $this->compileEndComponent()."\n".implode("\n", [
             '<?php endif; ?>',
@@ -109,11 +99,19 @@ trait CompilesComponents
         ]);
     }
 
+    protected function popComponentHashStack(): string
+    {
+        $stack = Context::get(static::COMPONENT_HASH_STACK_CONTEXT_KEY, []);
+
+        $hash = array_pop($stack);
+
+        Context::set(static::COMPONENT_HASH_STACK_CONTEXT_KEY, $stack);
+
+        return $hash;
+    }
+
     /**
      * Compile the slot statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileSlot(string $expression): string
     {
@@ -122,8 +120,6 @@ trait CompilesComponents
 
     /**
      * Compile the end-slot statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileEndSlot(): string
     {
@@ -132,9 +128,6 @@ trait CompilesComponents
 
     /**
      * Compile the component-first statements into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileComponentFirst(string $expression): string
     {
@@ -143,8 +136,6 @@ trait CompilesComponents
 
     /**
      * Compile the end-component-first statements into valid PHP.
-     *
-     * @return string
      */
     protected function compileEndComponentFirst(): string
     {
@@ -153,9 +144,6 @@ trait CompilesComponents
 
     /**
      * Compile the prop statement into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileProps(string $expression): string
     {
@@ -192,9 +180,6 @@ unset(\$__defined_vars); ?>";
 
     /**
      * Compile the aware statement into valid PHP.
-     *
-     * @param  string  $expression
-     * @return string
      */
     protected function compileAware(string $expression): string
     {
@@ -206,9 +191,6 @@ unset(\$__defined_vars); ?>";
 
     /**
      * Sanitize the given component attribute value.
-     *
-     * @param  mixed  $value
-     * @return mixed
      */
     public static function sanitizeComponentAttribute(mixed $value): mixed
     {
@@ -217,7 +199,7 @@ unset(\$__defined_vars); ?>";
         }
 
         return is_string($value) ||
-               (is_object($value) && ! $value instanceof ComponentAttributeBag && method_exists($value, '__toString'))
+               (is_object($value) && ! $value instanceof Model && ! $value instanceof ComponentAttributeBag && method_exists($value, '__toString'))
                         ? e($value)
                         : $value;
     }

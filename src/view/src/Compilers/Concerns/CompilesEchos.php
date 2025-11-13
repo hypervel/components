@@ -18,10 +18,6 @@ trait CompilesEchos
 
     /**
      * Add a handler to be executed before echoing a given class.
-     *
-     * @param  string|callable  $class
-     * @param  callable|null  $handler
-     * @return void
      */
     public function stringable(string|callable $class, ?callable $handler = null): void
     {
@@ -34,9 +30,6 @@ trait CompilesEchos
 
     /**
      * Compile Blade echos into valid PHP.
-     *
-     * @param  string  $value
-     * @return string
      */
     public function compileEchos(string $value): string
     {
@@ -63,9 +56,6 @@ trait CompilesEchos
 
     /**
      * Compile the "raw" echo statements.
-     *
-     * @param  string  $value
-     * @return string
      */
     protected function compileRawEchos(string $value): string
     {
@@ -84,9 +74,6 @@ trait CompilesEchos
 
     /**
      * Compile the "regular" echo statements.
-     *
-     * @param  string  $value
-     * @return string
      */
     protected function compileRegularEchos(string $value): string
     {
@@ -95,7 +82,7 @@ trait CompilesEchos
         $callback = function ($matches) {
             $whitespace = empty($matches[3]) ? '' : $matches[3].$matches[3];
 
-            $wrapped = sprintf($this->echoFormat, $this->wrapInEchoHandler($matches[2]));
+            $wrapped = sprintf($this->getEchoFormat(), $this->wrapInEchoHandler($matches[2]));
 
             return $matches[1] ? substr($matches[0], 1) : "<?php echo {$wrapped}; ?>{$whitespace}";
         };
@@ -105,9 +92,6 @@ trait CompilesEchos
 
     /**
      * Compile the escaped echo statements.
-     *
-     * @param  string  $value
-     * @return string
      */
     protected function compileEscapedEchos(string $value): string
     {
@@ -126,9 +110,6 @@ trait CompilesEchos
 
     /**
      * Add an instance of the blade echo handler to the start of the compiled string.
-     *
-     * @param  string  $result
-     * @return string
      */
     protected function addBladeCompilerVariable(string $result): string
     {
@@ -137,9 +118,6 @@ trait CompilesEchos
 
     /**
      * Wrap the echoable value in an echo handler if applicable.
-     *
-     * @param  string  $value
-     * @return string
      */
     protected function wrapInEchoHandler(string $value): string
     {
@@ -154,9 +132,6 @@ trait CompilesEchos
 
     /**
      * Apply the echo handler for the value if it exists.
-     *
-     * @param  mixed  $value
-     * @return mixed
      */
     public function applyEchoHandler(mixed $value): mixed
     {
