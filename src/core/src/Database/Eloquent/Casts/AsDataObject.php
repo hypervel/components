@@ -10,8 +10,6 @@ use InvalidArgumentException;
 
 class AsDataObject implements CastsAttributes
 {
-    protected static $reflectionCache = [];
-
     public function __construct(
         protected string $argument
     ) {
