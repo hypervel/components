@@ -175,13 +175,13 @@ trait HasMiddleware
 
     public function parseMiddleware(string $middleware, array $parameters = []): ParsedMiddleware
     {
-        if ($parsedMiddleware = $this->parsedMiddleware[$middleware] ?? null) {
-            return $parsedMiddleware;
-        }
-
         // It's only for passing parameters in alias or group.
         if ($parameters) {
             $middleware .= ':' . implode(',', $parameters);
+        }
+
+        if ($parsedMiddleware = $this->parsedMiddleware[$middleware] ?? null) {
+            return $parsedMiddleware;
         }
 
         return $this->parsedMiddleware[$middleware] = new ParsedMiddleware($middleware);
