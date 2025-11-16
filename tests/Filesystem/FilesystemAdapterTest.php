@@ -613,7 +613,7 @@ class FilesystemAdapterTest extends TestCase
         $filesystem = new FilesystemManager(m::mock(ContainerInterface::class));
         $filesystemAdapter = $filesystem->createS3Driver([
             'region' => 'us-west-1',
-            'bucket' => 'laravel',
+            'bucket' => 'hypervel',
         ]);
 
         $this->assertTrue($filesystemAdapter->providesTemporaryUrls());

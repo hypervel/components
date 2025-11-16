@@ -7,6 +7,8 @@ namespace Hypervel\Filesystem;
 use Aws\S3\S3Client;
 use Closure;
 use Google\Cloud\Storage\StorageClient as GcsClient;
+use GuzzleHttp\Handler\StreamHandler;
+use GuzzleHttp\HandlerStack;
 use Hyperf\Collection\Arr;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Stringable\Str;
@@ -276,6 +278,14 @@ class FilesystemManager implements FactoryContract
 
         if (! empty($config['token'])) {
             $config['credentials']['token'] = $config['token'];
+        }
+
+        if (! isset($config['http'])) {
+            $config['http'] = [];
+        }
+
+        if (! array_key_exists('handler', $config['http'])) {
+            $config['http']['handler'] = HandlerStack::create(new StreamHandler());
         }
 
         return Arr::except($config, ['token']);
