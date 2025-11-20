@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Foundation;
 
 use Hyperf\Contract\ApplicationInterface;
-use Hyperf\Coordinator\Listener\ResumeExitCoordinatorListener;
 use Hyperf\ExceptionHandler\Listener\ErrorExceptionHandler;
 use Hyperf\Server\Listener\InitProcessTitleListener;
 use Hypervel\Console\ApplicationFactory;
@@ -27,7 +26,6 @@ class ConfigProvider
             ],
             'listeners' => [
                 ErrorExceptionHandler::class,
-                ResumeExitCoordinatorListener::class,
                 ReloadDotenvAndConfig::class,
             ],
             'commands' => [
