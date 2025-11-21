@@ -504,6 +504,26 @@ trait HasQueue
         return count($this->jobs[$queue]);
     }
 
+    public function pendingSize(?string $queue = null): int
+    {
+        return count($this->jobs[$queue]);
+    }
+
+    public function delayedSize(?string $queue = null): int
+    {
+        return 0;
+    }
+
+    public function reservedSize(?string $queue = null): int
+    {
+        return 0;
+    }
+
+    public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
+    {
+        return null;
+    }
+
     public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
     {
         $this->jobs[$queue][] = $job;

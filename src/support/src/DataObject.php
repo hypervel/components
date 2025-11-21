@@ -220,8 +220,10 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
     {
         foreach ($type->getTypes() as $namedType) {
             $className = $namedType->getName();
-            if (is_subclass_of($className, DataObject::class)
-                || is_subclass_of($className, DateTimeInterface::class)) {
+            if (
+                is_subclass_of($className, DataObject::class)
+                || is_subclass_of($className, DateTimeInterface::class)
+            ) {
                 return $namedType;
             }
         }
@@ -284,10 +286,18 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
                 ];
                 continue;
             }
+            $dataKey = static::isAutoCasting()
+                ? static::convertPropertyToDataKey($property->getName())
+                : $property->getName();
+            if (enum_exists($typeName)) {
+                $result[$dataKey] = [
+                    'handler' => [$typeName, 'from'],
+                    'nullable' => $allowsNull,
+                    'children' => [],
+                ];
+                continue;
+            }
             if ($resolver = $customizedDependencies[$typeName] ?? null) {
-                $dataKey = static::isAutoCasting()
-                    ? static::convertPropertyToDataKey($property->getName())
-                    : $property->getName();
                 $result[$dataKey] = [
                     'handler' => $resolver,
                     'nullable' => $allowsNull,
@@ -476,6 +486,21 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
         return static::$reversedPropertyMapCache[static::class] = array_flip(
             static::getPropertyMap()
         );
+    }
+
+    /**
+     * Update the object properties with the provided data array.
+     */
+    public function update(array $data): static
+    {
+        $properties = static::getPropertyMap();
+        foreach ($data as $key => $value) {
+            $this->{$properties[$key]} = $value;
+        }
+
+        $this->refresh();
+
+        return $this;
     }
 
     /**

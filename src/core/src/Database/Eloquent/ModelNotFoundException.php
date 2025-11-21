@@ -18,6 +18,7 @@ class ModelNotFoundException extends BaseModelNotFoundException
      */
     public function getModel(): ?string
     {
+        /* @phpstan-ignore-next-line */
         return parent::getModel();
     }
 
