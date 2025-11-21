@@ -7,7 +7,6 @@ namespace Hypervel\Support;
 use Hyperf\Stringable\Str as BaseStr;
 use Ramsey\Uuid\Exception\InvalidUuidStringException;
 use Ramsey\Uuid\Rfc4122\FieldsInterface;
-use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactory;
 
 class Str extends BaseStr

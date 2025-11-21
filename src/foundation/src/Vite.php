@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation;
 
-use Exception;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Contracts\Htmlable;
-use Hypervel\Support\Facades\URL;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Js;
 use Hypervel\Support\Str;
@@ -348,7 +346,7 @@ class Vite implements Htmlable
      *
      * @param string|string[] $entrypoints
      *
-     * @throws Exception
+     * @throws \Exception
      */
     public function __invoke(string|array $entrypoints, ?string $buildDirectory = null): HtmlString
     {
@@ -900,7 +898,7 @@ class Vite implements Htmlable
     protected function chunk(array $manifest, string $file): array
     {
         if (! isset($manifest[$file])) {
-            throw new ViteException("Unable to locate file in Vite manifest: {$file}.");
+            throw new ViteException("Unable to locate file in Vite manifest: {$file}");
         }
 
         return $manifest[$file];

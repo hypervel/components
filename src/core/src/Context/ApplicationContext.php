@@ -11,7 +11,7 @@ use TypeError;
 class ApplicationContext extends HyperfApplicationContext
 {
     /**
-     * @return \Hypervel\Container\Contracts\Container
+     * @return \Psr\Container\ContainerInterface
      * @throws TypeError
      */
     public static function getContainer(): ContainerInterface
