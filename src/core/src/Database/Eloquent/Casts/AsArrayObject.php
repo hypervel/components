@@ -5,21 +5,19 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Casts;
 
 use ArrayObject;
-use Hypervel\Foundation\Http\Contracts\Castable;
 use Hyperf\Contract\CastsAttributes;
+use Hypervel\Foundation\Http\Contracts\Castable;
 
 class AsArrayObject implements Castable
 {
     /**
      * Get the caster class to use when casting from / to this cast target.
      *
-     * @param  array  $arguments
-     * @return \Hyperf\Contract\CastsAttributes<\ArrayObject<array-key, mixed>, iterable>
+     * @return \Hyperf\Contract\CastsAttributes<ArrayObject<array-key, mixed>, iterable>
      */
     public static function castUsing(array $arguments = []): CastsAttributes
     {
-        return new class implements CastsAttributes
-        {
+        return new class implements CastsAttributes {
             public function get($model, $key, $value, $attributes)
             {
                 if (! isset($attributes[$key])) {
