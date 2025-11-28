@@ -143,7 +143,7 @@ class Mailable implements MailableContract, Renderable
     /**
      * The name of the mailer that should send the message.
      */
-    public string $mailer = '';
+    public ?string $mailer = null;
 
     /**
      * The rendered mailable views for testing / assertions.
@@ -1470,7 +1470,7 @@ class Mailable implements MailableContract, Renderable
     /**
      * Set the name of the mailer that should send the message.
      */
-    public function mailer(string $mailer): static
+    public function mailer(?string $mailer): static
     {
         $this->mailer = $mailer;
 

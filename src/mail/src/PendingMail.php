@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail;
 
+use DateInterval;
+use DateTimeInterface;
 use Hyperf\Conditionable\Conditionable;
 use Hypervel\Mail\Contracts\Mailable as MailableContract;
 use Hypervel\Mail\Contracts\Mailer as MailerContract;
@@ -100,6 +102,29 @@ class PendingMail
     public function sendNow(MailableContract $mailable): ?SentMessage
     {
         return $this->mailer->sendNow($this->fill($mailable));
+    }
+
+    /**
+     * Push the given mailable onto the queue.
+     */
+    public function queue(MailableContract $mailable): mixed
+    {
+        /* @phpstan-ignore-next-line */
+        return $this->mailer->queue(
+            $this->fill($mailable)
+        );
+    }
+
+    /**
+     * Deliver the queued message after (n) seconds.
+     */
+    public function later(DateTimeInterface|DateInterval|int $delay, MailableContract $mailable): mixed
+    {
+        /* @phpstan-ignore-next-line */
+        return $this->mailer->later(
+            $delay,
+            $this->fill($mailable)
+        );
     }
 
     /**
