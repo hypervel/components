@@ -118,7 +118,7 @@ class PendingMail
     /**
      * Deliver the queued message after (n) seconds.
      */
-    public function later(DateTimeInterface|DateInterval|int $delay, MailableContract $mailable): mixed
+    public function later(DateInterval|DateTimeInterface|int $delay, MailableContract $mailable): mixed
     {
         /* @phpstan-ignore-next-line */
         return $this->mailer->later(
