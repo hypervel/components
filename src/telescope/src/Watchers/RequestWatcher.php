@@ -280,7 +280,9 @@ class RequestWatcher extends Watcher
             } elseif (is_array($value)) {
                 $value = 'array(' . count($value) . ')';
             } elseif (is_string($value)) {
-                $value = $this->contentWithinLimits($value);
+                $value = $this->contentWithinLimits($value)
+                    ? $value
+                    : 'Purged By Telescope';
             }
             $result[$key] = $value;
         }
