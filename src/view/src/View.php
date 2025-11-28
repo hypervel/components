@@ -27,40 +27,20 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
     }
 
     /**
-     * The view factory instance.
-     */
-    protected Factory $factory;
-
-    /**
-     * The engine implementation.
-     */
-    protected Engine $engine;
-
-    /**
-     * The name of the view.
-     */
-    protected string $view;
-
-    /**
      * The array of view data.
      */
     protected array $data;
 
     /**
-     * The path to the view file.
-     */
-    protected string $path;
-
-    /**
      * Create a new view instance.
      */
-    public function __construct(Factory $factory, Engine $engine, string $view, string $path, mixed $data = [])
-    {
-        $this->view = $view;
-        $this->path = $path;
-        $this->engine = $engine;
-        $this->factory = $factory;
-
+    public function __construct(
+        protected Factory $factory,
+        protected Engine $engine,
+        protected string $view,
+        protected string $path,
+        mixed $data = []
+    ) {
         $this->data = $data instanceof Arrayable ? $data->toArray() : (array) $data;
     }
 

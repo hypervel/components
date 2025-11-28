@@ -13,11 +13,6 @@ use Hypervel\View\Compilers\ComponentTagCompiler;
 class DynamicComponent extends Component
 {
     /**
-     * The name of the component.
-     */
-    public string $component;
-
-    /**
      * The component tag compiler instance.
      */
     protected static ?ComponentTagCompiler $compiler = null;
@@ -30,9 +25,9 @@ class DynamicComponent extends Component
     /**
      * Create a new component instance.
      */
-    public function __construct(string $component)
-    {
-        $this->component = $component;
+    public function __construct(
+        public string $component
+    ) {
     }
 
     /**

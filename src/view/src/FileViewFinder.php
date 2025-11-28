@@ -10,11 +10,6 @@ use InvalidArgumentException;
 class FileViewFinder implements ViewFinderInterface
 {
     /**
-     * The filesystem instance.
-     */
-    protected Filesystem $files;
-
-    /**
      * The array of active view paths.
      */
     protected array $paths;
@@ -39,9 +34,11 @@ class FileViewFinder implements ViewFinderInterface
     /**
      * Create a new file view loader instance.
      */
-    public function __construct(Filesystem $files, array $paths, ?array $extensions = null)
-    {
-        $this->files = $files;
+    public function __construct(
+        protected Filesystem $files,
+        array $paths,
+        ?array $extensions = null
+    ) {
         $this->paths = array_map([$this, 'resolvePath'], $paths);
 
         if (isset($extensions)) {

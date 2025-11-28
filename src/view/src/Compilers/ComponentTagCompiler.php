@@ -30,23 +30,13 @@ class ComponentTagCompiler
     protected BladeCompiler $blade;
 
     /**
-     * The component class aliases.
-     */
-    protected array $aliases = [];
-
-    /**
-     * The component class namespaces.
-     */
-    protected array $namespaces = [];
-
-    /**
      * Create a new component tag compiler.
      */
-    public function __construct(array $aliases = [], array $namespaces = [], ?BladeCompiler $blade = null)
-    {
-        $this->aliases = $aliases;
-        $this->namespaces = $namespaces;
-
+    public function __construct(
+        protected array $aliases = [],
+        protected array $namespaces = [],
+        ?BladeCompiler $blade = null
+    ) {
         $this->blade = $blade ?: new BladeCompiler(new Filesystem, sys_get_temp_dir());
     }
 

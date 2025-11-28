@@ -16,16 +16,11 @@ use Traversable;
 class InvokableComponentVariable implements DeferringDisplayableValue, IteratorAggregate, Stringable
 {
     /**
-     * The callable instance to resolve the variable value.
-     */
-    protected Closure $callable;
-
-    /**
      * Create a new variable instance.
      */
-    public function __construct(Closure $callable)
-    {
-        $this->callable = $callable;
+    public function __construct(
+        protected Closure $callable
+    ) {
     }
 
     /**

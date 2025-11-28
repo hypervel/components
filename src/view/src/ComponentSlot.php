@@ -16,17 +16,12 @@ class ComponentSlot implements Htmlable, Stringable
     public ComponentAttributeBag $attributes;
 
     /**
-     * The slot contents.
-     */
-    protected string $contents;
-
-    /**
      * Create a new slot instance.
      */
-    public function __construct(string $contents = '', array $attributes = [])
-    {
-        $this->contents = $contents;
-
+    public function __construct(
+        protected string $contents = '',
+        array $attributes = []
+    ) {
         $this->withAttributes($attributes);
     }
 

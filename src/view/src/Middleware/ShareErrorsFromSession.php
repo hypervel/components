@@ -11,16 +11,11 @@ use Hypervel\Support\ViewErrorBag;
 class ShareErrorsFromSession
 {
     /**
-     * The view factory implementation.
-     */
-    protected ViewFactory $view;
-
-    /**
      * Create a new error binder instance.
      */
-    public function __construct(ViewFactory $view)
-    {
-        $this->view = $view;
+    public function __construct(
+        protected ViewFactory $view
+    ) {
     }
 
     /**

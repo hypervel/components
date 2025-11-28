@@ -9,16 +9,11 @@ use Stringable;
 class AppendableAttributeValue implements Stringable
 {
     /**
-     * The attribute value.
-     */
-    public mixed $value;
-
-    /**
      * Create a new appendable attribute value.
      */
-    public function __construct(mixed $value)
-    {
-        $this->value = $value;
+    public function __construct(
+        public mixed $value
+    ) {
     }
 
     /**

@@ -24,11 +24,6 @@ class CompilerEngine extends PhpEngine
     protected const COMPILED_PATH_CONTEXT_KEY = 'compiled_path';
 
     /**
-     * The Blade compiler instance.
-     */
-    protected CompilerInterface $compiler;
-
-    /**
      * The view paths that were compiled or are not expired, keyed by the path.
      *
      * @var array<string, true>
@@ -38,11 +33,11 @@ class CompilerEngine extends PhpEngine
     /**
      * Create a new compiler engine instance.
      */
-    public function __construct(CompilerInterface $compiler, ?Filesystem $files = null)
-    {
+    public function __construct(
+        protected CompilerInterface $compiler,
+        ?Filesystem $files = null
+    ) {
         parent::__construct($files ?: new Filesystem);
-
-        $this->compiler = $compiler;
     }
 
     /**

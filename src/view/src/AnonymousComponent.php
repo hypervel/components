@@ -7,22 +7,12 @@ namespace Hypervel\View;
 class AnonymousComponent extends Component
 {
     /**
-     * The component view.
-     */
-    protected string $view;
-
-    /**
-     * The component data.
-     */
-    protected array $data = [];
-
-    /**
      * Create a new anonymous component instance.
      */
-    public function __construct(string $view, array $data)
-    {
-        $this->view = $view;
-        $this->data = $data;
+    public function __construct(
+        protected string $view,
+        protected array $data = []
+    ) {
     }
 
     /**

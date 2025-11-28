@@ -11,16 +11,11 @@ use Throwable;
 class PhpEngine implements Engine
 {
     /**
-     * The filesystem instance.
-     */
-    protected Filesystem $files;
-
-    /**
      * Create a new file engine instance.
      */
-    public function __construct(Filesystem $files)
-    {
-        $this->files = $files;
+    public function __construct(
+        protected Filesystem $files
+    ) {
     }
 
     /**
