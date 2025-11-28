@@ -1,5 +1,5 @@
 <?php
 
-use Symfony\Component\HttpKernel\Exception\HttpException;
+use Hypervel\HttpMessage\Exceptions\HttpException;
 
 throw new HttpException(403, 'http exception message');

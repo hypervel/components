@@ -7,15 +7,15 @@ namespace Hypervel\View;
 use ErrorException;
 use Hypervel\Container\Container;
 use Hypervel\Support\Reflector;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
 
 class ViewException extends ErrorException
 {
     /**
      * Report the exception.
-     *
-     * @return bool|null
      */
-    public function report(): bool|null
+    public function report(): ?bool
     {
         $exception = $this->getPrevious();
 
@@ -28,11 +28,8 @@ class ViewException extends ErrorException
 
     /**
      * Render the exception into an HTTP response.
-     *
-     * @param  \Hypervel\Http\Request  $request
-     * @return \Hypervel\Http\Response|null
      */
-    public function render($request): mixed
+    public function render(RequestInterface $request): ?ResponseInterface
     {
         $exception = $this->getPrevious();
 

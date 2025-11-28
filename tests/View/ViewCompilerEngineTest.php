@@ -4,14 +4,14 @@ namespace Hypervel\Tests\View;
 
 use ErrorException;
 use Exception;
-use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Http\Exceptions\FileNotFoundException;
+use Hypervel\HttpMessage\Exceptions\HttpException;
 use Hypervel\View\Compilers\CompilerInterface;
 use Hypervel\View\Engines\CompilerEngine;
 use Hypervel\View\ViewException;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Symfony\Component\HttpKernel\Exception\HttpException;
 
 class ViewCompilerEngineTest extends TestCase
 {
@@ -28,7 +28,8 @@ class ViewCompilerEngineTest extends TestCase
         $engine->getCompiler()->shouldReceive('compile')->once()->with(__DIR__.'/fixtures/foo.php');
         $results = $engine->get(__DIR__.'/fixtures/foo.php');
 
-        $this->assertSame('Hello World' . PHP_EOL, $results);
+        $this->assertSame('Hello World
+', $results);
     }
 
     public function testViewsAreNotRecompiledIfTheyAreNotExpired()

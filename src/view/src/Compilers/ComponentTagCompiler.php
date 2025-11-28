@@ -22,7 +22,7 @@ class ComponentTagCompiler
     /**
      * The "bind:" attributes that have been compiled for the current component.
      */
-    protected const BOUND_ATTRIBUTES_CONTEXT_KEY = 'hypervel.view.component_tag_compiler.bound_attributes';
+    protected const BOUND_ATTRIBUTES_CONTEXT_KEY = 'bound_attributes';
 
     /**
      * The Blade compiler instance.

@@ -16,7 +16,7 @@ trait CompilesComponents
     /**
      * The component name hash stack.
      */
-    protected const COMPONENT_HASH_STACK_CONTEXT_KEY = 'hypervel.view.compilers_components.component_hash_stack';
+    protected const COMPONENT_HASH_STACK_CONTEXT_KEY = 'component_hash_stack';
 
     /**
      * Compile the component statements into valid PHP.

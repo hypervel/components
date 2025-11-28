@@ -7,8 +7,6 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\Arrayable;
 use Hyperf\HttpMessage\Cookie\Cookie;
 use Hyperf\Stringable\Stringable;
-use Hyperf\ViewEngine\Contract\FactoryInterface;
-use Hyperf\ViewEngine\Contract\ViewInterface;
 use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
 use Hypervel\Auth\Contracts\Gate;
 use Hypervel\Auth\Contracts\Guard;
@@ -33,6 +31,8 @@ use Hypervel\Support\Mix;
 use Hypervel\Translation\Contracts\Translator as TranslatorContract;
 use Hypervel\Validation\Contracts\Factory as ValidatorFactoryContract;
 use Hypervel\Validation\Contracts\Validator as ValidatorContract;
+use Hypervel\View\Contracts\Factory as FactoryContract;
+use Hypervel\View\Contracts\View as ViewContract;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
 
@@ -734,9 +734,9 @@ if (! function_exists('view')) {
      * @param null|string $view
      * @param array $mergeData
      */
-    function view($view = null, array|Arrayable $data = [], $mergeData = []): FactoryInterface|ViewInterface
+    function view($view = null, array|Arrayable $data = [], $mergeData = []): ViewContract
     {
-        $factory = app(FactoryInterface::class);
+        $factory = app(FactoryContract::class);
 
         if (func_num_args() === 0) {
             return $factory;

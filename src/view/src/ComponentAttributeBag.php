@@ -24,16 +24,11 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * The raw array of attributes.
-     *
-     * @var array
      */
     protected array $attributes = [];
 
     /**
      * Create a new component attribute bag instance.
-     *
-     * @param  array  $attributes
-     * @return void
      */
     public function __construct(array $attributes = [])
     {
@@ -42,8 +37,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Get all of the attribute values.
-     *
-     * @return array
      */
     public function all(): array
     {
@@ -52,9 +45,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Get the first attribute's value.
-     *
-     * @param  mixed  $default
-     * @return mixed
      */
     public function first(mixed $default = null): mixed
     {
@@ -63,10 +53,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Get a given attribute from the attribute array.
-     *
-     * @param  string  $key
-     * @param  mixed  $default
-     * @return mixed
      */
     public function get(string $key, mixed $default = null): mixed
     {
@@ -75,9 +61,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Determine if a given attribute exists in the attribute array.
-     *
-     * @param  array|string  $key
-     * @return bool
      */
     public function has(array|string $key): bool
     {
@@ -94,9 +77,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Determine if any of the keys exist in the attribute array.
-     *
-     * @param  array|string  $key
-     * @return bool
      */
     public function hasAny(array|string $key): bool
     {
@@ -117,9 +97,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Determine if a given attribute is missing from the attribute array.
-     *
-     * @param  string  $key
-     * @return bool
      */
     public function missing(string $key): bool
     {
@@ -128,9 +105,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Only include the given attribute from the attribute array.
-     *
-     * @param  mixed  $keys
-     * @return static
      */
     public function only(mixed $keys): static
     {
@@ -147,9 +121,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Exclude the given attribute from the attribute array.
-     *
-     * @param  mixed|array  $keys
-     * @return static
      */
     public function except(mixed $keys): static
     {
@@ -166,9 +137,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Filter the attributes, returning a bag of attributes that pass the filter.
-     *
-     * @param  callable  $callback
-     * @return static
      */
     public function filter(callable $callback): static
     {
@@ -179,7 +147,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
      * Return a bag of attributes that have keys starting with the given value / pattern.
      *
      * @param  string|string[]  $needles
-     * @return static
      */
     public function whereStartsWith(string|array $needles): static
     {
@@ -192,7 +159,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
      * Return a bag of attributes with keys that do not start with the given value / pattern.
      *
      * @param  string|string[]  $needles
-     * @return static
      */
     public function whereDoesntStartWith(string|array $needles): static
     {
@@ -205,7 +171,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
      * Return a bag of attributes that have keys starting with the given value / pattern.
      *
      * @param  string|string[]  $needles
-     * @return static
      */
     public function thatStartWith(string|array $needles): static
     {
@@ -214,9 +179,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Only include the given attribute from the attribute array.
-     *
-     * @param  mixed|array  $keys
-     * @return static
      */
     public function onlyProps(mixed $keys): static
     {
@@ -225,9 +187,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Exclude the given attribute from the attribute array.
-     *
-     * @param  mixed|array  $keys
-     * @return static
      */
     public function exceptProps(mixed $keys): static
     {
@@ -236,9 +195,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Conditionally merge classes into the attribute bag.
-     *
-     * @param  mixed|array  $classList
-     * @return static
      */
     public function class(mixed $classList): static
     {
@@ -249,9 +205,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Conditionally merge styles into the attribute bag.
-     *
-     * @param  mixed|array  $styleList
-     * @return static
      */
     public function style(mixed $styleList): static
     {
@@ -262,10 +215,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Merge additional attributes / values into the attribute bag.
-     *
-     * @param  array  $attributeDefaults
-     * @param  bool  $escape
-     * @return static
      */
     public function merge(array $attributeDefaults = [], bool $escape = true): static
     {
@@ -300,10 +249,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Determine if the specific attribute value should be escaped.
-     *
-     * @param  bool  $escape
-     * @param  mixed  $value
-     * @return bool
      */
     protected function shouldEscapeAttributeValue(bool $escape, mixed $value): bool
     {
@@ -318,9 +263,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Create a new appendable attribute value.
-     *
-     * @param  mixed  $value
-     * @return \Hypervel\View\AppendableAttributeValue
      */
     public function prepends(mixed $value): AppendableAttributeValue
     {
@@ -329,11 +271,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Resolve an appendable attribute value default value.
-     *
-     * @param  array  $attributeDefaults
-     * @param  string  $key
-     * @param  bool  $escape
-     * @return mixed
      */
     protected function resolveAppendableAttributeDefault(array $attributeDefaults, string $key, bool $escape): mixed
     {
@@ -346,8 +283,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Determine if the attribute bag is empty.
-     *
-     * @return bool
      */
     public function isEmpty(): bool
     {
@@ -356,8 +291,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Determine if the attribute bag is not empty.
-     *
-     * @return bool
      */
     public function isNotEmpty(): bool
     {
@@ -366,8 +299,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Get all of the raw attributes.
-     *
-     * @return array
      */
     public function getAttributes(): array
     {
@@ -376,9 +307,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Set the underlying attributes.
-     *
-     * @param  array  $attributes
-     * @return void
      */
     public function setAttributes(array $attributes): void
     {
@@ -396,9 +324,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Extract "prop" names from given keys.
-     *
-     * @param  array  $keys
-     * @return array
      */
     public static function extractPropNames(array $keys): array
     {
@@ -416,8 +341,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Get content as a string of HTML.
-     *
-     * @return string
      */
     public function toHtml(): string
     {
@@ -426,9 +349,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Merge additional attributes / values into the attribute bag.
-     *
-     * @param  array  $attributeDefaults
-     * @return \Hypervel\Support\HtmlString
      */
     public function __invoke(array $attributeDefaults = []): HtmlString
     {
@@ -437,9 +357,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Determine if the given offset exists.
-     *
-     * @param  string  $offset
-     * @return bool
      */
     public function offsetExists(mixed $offset): bool
     {
@@ -448,9 +365,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Get the value at the given offset.
-     *
-     * @param  string  $offset
-     * @return mixed
      */
     public function offsetGet(mixed $offset): mixed
     {
@@ -459,10 +373,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Set the value at a given offset.
-     *
-     * @param  string  $offset
-     * @param  mixed  $value
-     * @return void
      */
     public function offsetSet(mixed $offset, mixed $value): void
     {
@@ -471,9 +381,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Remove the value at the given offset.
-     *
-     * @param  string  $offset
-     * @return void
      */
     public function offsetUnset(mixed $offset): void
     {
@@ -482,8 +389,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Get an iterator for the items.
-     *
-     * @return \ArrayIterator
      */
     public function getIterator(): Traversable
     {
@@ -492,8 +397,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Convert the object into a JSON serializable form.
-     *
-     * @return mixed
      */
     public function jsonSerialize(): mixed
     {
@@ -502,8 +405,6 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
 
     /**
      * Implode the attributes into a single HTML ready string.
-     *
-     * @return string
      */
     public function __toString(): string
     {
@@ -518,7 +419,7 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
                 $value = $key === 'x-data' || str_starts_with($key, 'wire:') ? '' : $key;
             }
 
-            $string .= ' '.$key.'="'.str_replace('"', '\\"', trim($value)).'"';
+            $string .= ' '.$key.'="'.str_replace('"', '\\"', trim((string) $value)).'"';
         }
 
         return trim($string);

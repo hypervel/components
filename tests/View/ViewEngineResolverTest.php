@@ -17,7 +17,7 @@ class ViewEngineResolverTest extends TestCase
         });
         $result = $resolver->resolve('foo');
 
-        $this->assertEquals($result, $resolver->resolve('foo'));
+        $this->assertTrue($result === $resolver->resolve('foo'));
     }
 
     public function testResolverThrowsExceptionOnUnknownEngine()

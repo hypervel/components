@@ -2,6 +2,9 @@
 
 namespace Hypervel\Tests\View;
 
+use Closure;
+use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\View\Component;
 use Hypervel\View\ComponentAttributeBag;
 use Hypervel\View\ComponentSlot;
@@ -25,9 +28,9 @@ class ViewComponentTest extends TestCase
     {
         $component = new class extends Component
         {
-            protected $except = ['goodbye'];
+            protected array $except = ['goodbye'];
 
-            public function render()
+            public function render(): ViewContract|Htmlable|Closure|string
             {
                 return 'test';
             }
@@ -149,7 +152,7 @@ class TestViewComponent extends Component
 {
     public $votes = 10;
 
-    public function render()
+    public function render(): ViewContract|Htmlable|Closure|string
     {
         return 'test';
     }
@@ -170,7 +173,7 @@ class TestSampleViewComponent extends Component
 
     private $privateCounter = 0;
 
-    public function render()
+    public function render(): ViewContract|Htmlable|Closure|string
     {
         return 'test';
     }
@@ -202,7 +205,7 @@ class TestSampleViewComponent extends Component
 
 class TestExceptedViewComponent extends Component
 {
-    protected $except = ['hello', 'hello2', 'taylor'];
+    protected array $except = ['hello', 'hello2', 'taylor'];
 
     public $taylor = 'Otwell';
 
@@ -216,7 +219,7 @@ class TestExceptedViewComponent extends Component
         return $this->taylor = '';
     }
 
-    public function render()
+    public function render(): ViewContract|Htmlable|Closure|string
     {
         return 'test';
     }
@@ -224,7 +227,7 @@ class TestExceptedViewComponent extends Component
 
 class TestHelloPropertyHelloMethodComponent extends Component
 {
-    public function render()
+    public function render(): ViewContract|Htmlable|Closure|string
     {
         return 'test';
     }
@@ -251,7 +254,7 @@ class TestDefaultAttributesComponent extends Component
         $this->withAttributes(['class' => 'text-red-500']);
     }
 
-    public function render()
+    public function render(): ViewContract|Htmlable|Closure|string
     {
         return $this->attributes->get('id');
     }

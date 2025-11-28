@@ -23,17 +23,17 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /*
      * Temporarily store the raw blocks found in the template.
      */
-    protected const RAW_BLOCKS_CONTEXT_KEY = 'hypervel.view.blade_compiler.raw_blocks';
+    protected const RAW_BLOCKS_CONTEXT_KEY = 'raw_blocks';
 
     /*
      * Footer lines to be added to the template.
      */
-    protected const FOOTER_CONTEXT_KEY = 'hypervel.view.blade_compiler.footer';
+    protected const FOOTER_CONTEXT_KEY = 'footer';
 
     /**
      * The "regular" / legacy echo string format.
      */
-    protected const ECHO_FORMAT_CONTEXT_KEY = 'hypervel.view.blade_compiler.echo_format';
+    protected const ECHO_FORMAT_CONTEXT_KEY = 'echo_format';
 
     use Concerns\CompilesAuthorizations,
         Concerns\CompilesClasses,
@@ -158,12 +158,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
             $compiledPath = $this->getCompiledPath($path)
         );
 
-        $needSaveCompiledFile = ! $this->files->exists($compiledPath)
-            || $this->files->hash($compiledPath, 'xxh128') !== hash('xxh128', $contents);
-
-        if ($needSaveCompiledFile) {
-            $this->files->put($compiledPath, $contents);
-        }
+        $this->files->put($compiledPath, $contents);
     }
 
     /**
@@ -851,7 +846,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Set the echo format to be used by the compiler.
      */
-    protected function setEchoFormat(string $format): void
+    public function setEchoFormat(string $format): void
     {
         Context::set(static::ECHO_FORMAT_CONTEXT_KEY, $format);
     }

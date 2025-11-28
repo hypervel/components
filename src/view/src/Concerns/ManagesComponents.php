@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Concerns;
 
+use Closure;
+use Hypervel\Context\Context;
 use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\View\Contracts\View;
 use Hypervel\Support\Arr;
@@ -12,64 +14,78 @@ use Hypervel\View\ComponentSlot;
 trait ManagesComponents
 {
     /**
-     * The components being rendered.
-     *
-     * @var array
+     * Context key for the components being rendered.
      */
-    protected array $componentStack = [];
+    protected const COMPONENT_STACK_CONTEXT_KEY = 'component_stack';
 
     /**
-     * The original data passed to the component.
-     *
-     * @var array
+     * Context key for the original data passed to the component.
      */
-    protected array $componentData = [];
+    protected const COMPONENT_DATA_CONTEXT_KEY = 'component_data';
 
     /**
-     * The component data for the component that is currently being rendered.
-     *
-     * @var array
+     * Context key for the component data for the component that is currently being rendered.
      */
-    protected array $currentComponentData = [];
+    protected const CURRENT_COMPONENT_DATA_CONTEXT_KEY = 'current_component_data';
 
     /**
-     * The slot contents for the component.
-     *
-     * @var array
+     * Context key for the slot contents for the component.
      */
-    protected array $slots = [];
+    protected const SLOTS_CONTEXT_KEY = 'slots';
 
     /**
-     * The names of the slots being rendered.
-     *
-     * @var array
+     * Context key for the names of the slots being rendered.
      */
-    protected array $slotStack = [];
+    protected const SLOT_STACK_CONTEXT_KEY = 'slot_stack';
 
     /**
      * Start a component rendering process.
-     *
-     * @param  \Hypervel\Contracts\View\View|\Hypervel\Contracts\Support\Htmlable|\Closure|string  $view
-     * @param  array  $data
-     * @return void
      */
-    public function startComponent(mixed $view, array $data = []): void
+    public function startComponent(View|Htmlable|Closure|string $view, array $data = []): void
     {
         if (ob_start()) {
-            $this->componentStack[] = $view;
+            $this->pushComponentStack($view);
 
-            $this->componentData[$this->currentComponent()] = $data;
+            $this->appendComponentData($data);
 
-            $this->slots[$this->currentComponent()] = [];
+            $this->createSlotContext();
         }
+    }
+
+    protected function pushComponentStack(View|Htmlable|Closure|string $view): int
+    {
+        $componentStack = Context::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
+        $componentStack[] = $view;
+        Context::set(static::COMPONENT_STACK_CONTEXT_KEY, $componentStack);
+
+        return count($componentStack);
+    }
+
+    protected function popComponentStack(): View|Htmlable|Closure|string
+    {
+        $componentStack = Context::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
+        $view = array_pop($componentStack);
+        Context::set(static::COMPONENT_STACK_CONTEXT_KEY, $componentStack);
+
+        return $view;
+    }
+
+    protected function appendComponentData(array $data): void
+    {
+        $componentData = Context::get(static::COMPONENT_DATA_CONTEXT_KEY, []);
+        $componentData[$this->currentComponent()] = $data;
+        Context::set(static::COMPONENT_DATA_CONTEXT_KEY, $componentData);
+    }
+
+    protected function createSlotContext()
+    {
+        $slots = Context::get(static::SLOTS_CONTEXT_KEY, []);
+        $slots[$this->currentComponent()] = [];
+        Context::set(static::SLOTS_CONTEXT_KEY, $slots);
     }
 
     /**
      * Get the first view that actually exists from the given list, and start a component.
-     *
-     * @param  array  $names
-     * @param  array  $data
-     * @return void
      */
     public function startComponentFirst(array $names, array $data = []): void
     {
@@ -82,17 +98,16 @@ trait ManagesComponents
 
     /**
      * Render the current component.
-     *
-     * @return string
      */
     public function renderComponent(): string
     {
-        $view = array_pop($this->componentStack);
+        $view = $this->popComponentStack();
 
-        $this->currentComponentData = array_merge(
-            $previousComponentData = $this->currentComponentData,
-            $data = $this->componentData()
-        );
+        $previousComponentData = Context::get(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, []);
+        $data = $this->componentData();
+
+        $currentComponentData = array_merge($previousComponentData, $data);
+        Context::set(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, $currentComponentData);
 
         try {
             $view = value($view, $data);
@@ -105,52 +120,57 @@ trait ManagesComponents
                 return $this->make($view, $data)->render();
             }
         } finally {
-            $this->currentComponentData = $previousComponentData;
+            Context::set(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, $previousComponentData);
         }
     }
 
     /**
      * Get the data for the given component.
-     *
-     * @return array
      */
     protected function componentData(): array
     {
         $defaultSlot = new ComponentSlot(trim(ob_get_clean()));
 
+        $componentStack = Context::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
+        $componentData = Context::get(static::COMPONENT_DATA_CONTEXT_KEY, []);
+        $slotsData = Context::get(static::SLOTS_CONTEXT_KEY, []);
+
+        $stackCount = count($componentStack);
+
         $slots = array_merge([
             '__default' => $defaultSlot,
-        ], $this->slots[count($this->componentStack)]);
+        ], $slotsData[$stackCount] ?? []);
 
         return array_merge(
-            $this->componentData[count($this->componentStack)],
+            $componentData[$stackCount] ?? [],
             ['slot' => $defaultSlot],
-            $this->slots[count($this->componentStack)],
+            $slotsData[$stackCount] ?? [],
             ['__laravel_slots' => $slots]
         );
     }
 
     /**
      * Get an item from the component data that exists above the current component.
-     *
-     * @param  string  $key
-     * @param  mixed  $default
-     * @return mixed|null
      */
     public function getConsumableComponentData(string $key, mixed $default = null): mixed
     {
-        if (array_key_exists($key, $this->currentComponentData)) {
-            return $this->currentComponentData[$key];
+        $currentComponentData = Context::get(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, []);
+
+        if (array_key_exists($key, $currentComponentData)) {
+            return $currentComponentData[$key];
         }
 
-        $currentComponent = count($this->componentStack);
+        $componentStack = Context::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
+        $currentComponent = count($componentStack);
 
         if ($currentComponent === 0) {
             return value($default);
         }
 
+        $componentData = Context::get(static::COMPONENT_DATA_CONTEXT_KEY, []);
+
         for ($i = $currentComponent - 1; $i >= 0; $i--) {
-            $data = $this->componentData[$i] ?? [];
+            $data = $componentData[$i] ?? [];
 
             if (array_key_exists($key, $data)) {
                 return $data[$key];
@@ -162,62 +182,77 @@ trait ManagesComponents
 
     /**
      * Start the slot rendering process.
-     *
-     * @param  string  $name
-     * @param  string|null  $content
-     * @param  array  $attributes
-     * @return void
      */
     public function slot(string $name, ?string $content = null, array $attributes = []): void
     {
         if (func_num_args() === 2 || $content !== null) {
-            $this->slots[$this->currentComponent()][$name] = $content;
+            $this->setSlotData($name, $content);
         } elseif (ob_start()) {
-            $this->slots[$this->currentComponent()][$name] = '';
+            $this->setSlotData($name, '');
 
-            $this->slotStack[$this->currentComponent()][] = [$name, $attributes];
+            $this->pushSlotStack([$name, $attributes]);
         }
+    }
+
+    protected function setSlotData(string $name, null|string|ComponentSlot $content): void
+    {
+        $currentComponent = $this->currentComponent();
+
+        $slots = Context::get(static::SLOTS_CONTEXT_KEY, []);
+        $slots[$currentComponent][$name] = $content;
+        Context::set(static::SLOTS_CONTEXT_KEY, $slots);
+    }
+
+    protected function pushSlotStack(array $value): void
+    {
+        $currentComponent = $this->currentComponent();
+
+        $slotStack = Context::get(static::SLOT_STACK_CONTEXT_KEY, []);
+        $slotStack[$currentComponent][] = $value;
+        Context::set(static::SLOT_STACK_CONTEXT_KEY, $slotStack);
+    }
+
+    protected function popSlotStack(): array
+    {
+        $currentComponent = $this->currentComponent();
+
+        $slotStack = Context::get(static::SLOT_STACK_CONTEXT_KEY, []);
+        $value = array_pop($slotStack[$currentComponent]);
+        Context::set(static::SLOT_STACK_CONTEXT_KEY, $slotStack);
+
+        return $value;
     }
 
     /**
      * Save the slot content for rendering.
-     *
-     * @return void
      */
     public function endSlot(): void
     {
-        last($this->componentStack);
-
-        $currentSlot = array_pop(
-            $this->slotStack[$this->currentComponent()]
-        );
+        $currentSlot = $this->popSlotStack();
 
         [$currentName, $currentAttributes] = $currentSlot;
 
-        $this->slots[$this->currentComponent()][$currentName] = new ComponentSlot(
+        $this->setSlotData($currentName, new ComponentSlot(
             trim(ob_get_clean()), $currentAttributes
-        );
+        ));
     }
 
     /**
      * Get the index for the current component.
-     *
-     * @return int
      */
     protected function currentComponent(): int
     {
-        return count($this->componentStack) - 1;
+        $componentStack = Context::get(static::COMPONENT_STACK_CONTEXT_KEY, []);
+        return count($componentStack) - 1;
     }
 
     /**
      * Flush all of the component state.
-     *
-     * @return void
      */
     protected function flushComponents(): void
     {
-        $this->componentStack = [];
-        $this->componentData = [];
-        $this->currentComponentData = [];
+        Context::set(static::COMPONENT_STACK_CONTEXT_KEY, []);
+        Context::set(static::COMPONENT_DATA_CONTEXT_KEY, []);
+        Context::set(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, []);
     }
 }

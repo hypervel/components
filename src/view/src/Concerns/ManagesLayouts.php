@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Concerns;
 
+use Hypervel\Context\Context;
 use Hypervel\View\Contracts\View;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
@@ -11,57 +12,38 @@ use InvalidArgumentException;
 trait ManagesLayouts
 {
     /**
-     * All of the finished, captured sections.
-     *
-     * @var array
+     * Context key for finished, captured sections.
      */
-    protected array $sections = [];
+    protected const SECTIONS_CONTEXT_KEY = 'sections';
 
     /**
-     * The stack of in-progress sections.
-     *
-     * @var array
+     * Context key for the stack of in-progress sections.
      */
-    protected array $sectionStack = [];
+    protected const SECTION_STACK_CONTEXT_KEY = 'section_stack';
 
     /**
-     * The parent placeholder for the request.
-     *
-     * @var mixed
+     * Context key for the parent placeholder.
      */
-    protected static array $parentPlaceholder = [];
-
-    /**
-     * The parent placeholder salt for the request.
-     *
-     * @var string
-     */
-    protected static ?string $parentPlaceholderSalt = null;
+    protected const PARENT_PLACEHOLDER_CONTEXT_KEY = 'parent_placeholder';
 
     /**
      * Start injecting content into a section.
-     *
-     * @param  string  $section
-     * @param  string|null  $content
-     * @return void
      */
-    public function startSection(string $section, mixed $content = null): void
+    public function startSection(string $section, string|View|null $content = null): void
     {
         if ($content === null) {
             if (ob_start()) {
-                $this->sectionStack[] = $section;
+                $sectionStack = Context::get(static::SECTION_STACK_CONTEXT_KEY, []);
+                $sectionStack[] = $section;
+                Context::set(static::SECTION_STACK_CONTEXT_KEY, $sectionStack);
             }
         } else {
-            $this->extendSection($section, $content instanceof View ? $content : e($content));
+            $this->extendSection($section, $content instanceof View ? (string) $content : e($content));
         }
     }
 
     /**
      * Inject inline content into a section.
-     *
-     * @param  string  $section
-     * @param  string  $content
-     * @return void
      */
     public function inject(string $section, string $content): void
     {
@@ -70,12 +52,12 @@ trait ManagesLayouts
 
     /**
      * Stop injecting content into a section and return its contents.
-     *
-     * @return string
      */
     public function yieldSection(): string
     {
-        if (empty($this->sectionStack)) {
+        $sectionStack = Context::get(static::SECTION_STACK_CONTEXT_KEY, []);
+
+        if (empty($sectionStack)) {
             return '';
         }
 
@@ -85,21 +67,23 @@ trait ManagesLayouts
     /**
      * Stop injecting content into a section.
      *
-     * @param  bool  $overwrite
-     * @return string
-     *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     public function stopSection(bool $overwrite = false): string
     {
-        if (empty($this->sectionStack)) {
+        $sectionStack = Context::get(static::SECTION_STACK_CONTEXT_KEY, []);
+
+        if (empty($sectionStack)) {
             throw new InvalidArgumentException('Cannot end a section without first starting one.');
         }
 
-        $last = array_pop($this->sectionStack);
+        $last = array_pop($sectionStack);
+        Context::set(static::SECTION_STACK_CONTEXT_KEY, $sectionStack);
 
         if ($overwrite) {
-            $this->sections[$last] = ob_get_clean();
+            $sections = Context::get(static::SECTIONS_CONTEXT_KEY, []);
+            $sections[$last] = ob_get_clean();
+            Context::set(static::SECTIONS_CONTEXT_KEY, $sections);
         } else {
             $this->extendSection($last, ob_get_clean());
         }
@@ -110,112 +94,91 @@ trait ManagesLayouts
     /**
      * Stop injecting content into a section and append it.
      *
-     * @return string
-     *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     public function appendSection(): string
     {
-        if (empty($this->sectionStack)) {
+        $sectionStack = Context::get(static::SECTION_STACK_CONTEXT_KEY, []);
+
+        if (empty($sectionStack)) {
             throw new InvalidArgumentException('Cannot end a section without first starting one.');
         }
 
-        $last = array_pop($this->sectionStack);
+        $last = array_pop($sectionStack);
+        Context::set(static::SECTION_STACK_CONTEXT_KEY, $sectionStack);
 
-        if (isset($this->sections[$last])) {
-            $this->sections[$last] .= ob_get_clean();
+        $sections = Context::get(static::SECTIONS_CONTEXT_KEY, []);
+        if (isset($sections[$last])) {
+            $sections[$last] .= ob_get_clean();
         } else {
-            $this->sections[$last] = ob_get_clean();
+            $sections[$last] = ob_get_clean();
         }
+        Context::set(static::SECTIONS_CONTEXT_KEY, $sections);
 
         return $last;
     }
 
     /**
      * Append content to a given section.
-     *
-     * @param  string  $section
-     * @param  string  $content
-     * @return void
      */
     protected function extendSection(string $section, string $content): void
     {
-        if (isset($this->sections[$section])) {
-            $content = str_replace(static::parentPlaceholder($section), $content, $this->sections[$section]);
+        $sections = Context::get(static::SECTIONS_CONTEXT_KEY, []);
+
+        if (isset($sections[$section])) {
+            $content = str_replace($this->getParentPlaceholder($section), $content, $sections[$section]);
         }
 
-        $this->sections[$section] = $content;
+        $sections[$section] = $content;
+        Context::set(static::SECTIONS_CONTEXT_KEY, $sections);
     }
 
     /**
      * Get the string contents of a section.
-     *
-     * @param  string  $section
-     * @param  string  $default
-     * @return string
      */
-    public function yieldContent(string $section, string $default = ''): string
+    public function yieldContent(string $section, string|View $default = ''): string
     {
-        $sectionContent = $default instanceof View ? $default : e($default);
+        $sectionContent = $default instanceof View ? (string) $default : e($default);
 
-        if (isset($this->sections[$section])) {
-            $sectionContent = $this->sections[$section];
+        $sections = Context::get(static::SECTIONS_CONTEXT_KEY, []);
+        if (isset($sections[$section])) {
+            $sectionContent = $sections[$section];
         }
 
         $sectionContent = str_replace('@@parent', '--parent--holder--', $sectionContent);
 
         return str_replace(
-            '--parent--holder--', '@parent', str_replace(static::parentPlaceholder($section), '', $sectionContent)
+            '--parent--holder--', '@parent', str_replace($this->getParentPlaceholder($section), '', $sectionContent)
         );
     }
 
     /**
      * Get the parent placeholder for the current request.
-     *
-     * @param  string  $section
-     * @return string
      */
-    public static function parentPlaceholder(string $section = ''): string
+    public function getParentPlaceholder(string $section = ''): string
     {
-        if (! isset(static::$parentPlaceholder[$section])) {
-            $salt = static::parentPlaceholderSalt();
+        $parentPlaceholder = Context::get(static::PARENT_PLACEHOLDER_CONTEXT_KEY, []);
 
-            static::$parentPlaceholder[$section] = '##parent-placeholder-'.hash('xxh128', $salt.$section).'##';
+        if (! isset($parentPlaceholder[$section])) {
+            $salt = Str::random(40);
+            $parentPlaceholder[$section] = '##parent-placeholder-'.hash('xxh128', $salt.$section).'##';
+            Context::set(static::PARENT_PLACEHOLDER_CONTEXT_KEY, $parentPlaceholder);
         }
 
-        return static::$parentPlaceholder[$section];
-    }
-
-    /**
-     * Get the parent placeholder salt.
-     *
-     * @return string
-     */
-    protected static function parentPlaceholderSalt(): string
-    {
-        if (! static::$parentPlaceholderSalt) {
-            return static::$parentPlaceholderSalt = Str::random(40);
-        }
-
-        return static::$parentPlaceholderSalt;
+        return $parentPlaceholder[$section];
     }
 
     /**
      * Check if section exists.
-     *
-     * @param  string  $name
-     * @return bool
      */
     public function hasSection(string $name): bool
     {
-        return array_key_exists($name, $this->sections);
+        $sections = Context::get(static::SECTIONS_CONTEXT_KEY, []);
+        return array_key_exists($name, $sections);
     }
 
     /**
      * Check if section does not exist.
-     *
-     * @param  string  $name
-     * @return bool
      */
     public function sectionMissing(string $name): bool
     {
@@ -224,34 +187,27 @@ trait ManagesLayouts
 
     /**
      * Get the contents of a section.
-     *
-     * @param  string  $name
-     * @param  string|null  $default
-     * @return mixed
      */
     public function getSection(string $name, ?string $default = null): mixed
     {
-        return $this->getSections()[$name] ?? $default;
+        $sections = Context::get(static::SECTIONS_CONTEXT_KEY, []);
+        return $sections[$name] ?? $default;
     }
 
     /**
      * Get the entire array of sections.
-     *
-     * @return array
      */
     public function getSections(): array
     {
-        return $this->sections;
+        return Context::get(static::SECTIONS_CONTEXT_KEY, []);
     }
 
     /**
      * Flush all of the sections.
-     *
-     * @return void
      */
     public function flushSections(): void
     {
-        $this->sections = [];
-        $this->sectionStack = [];
+        Context::set(static::SECTIONS_CONTEXT_KEY, []);
+        Context::set(static::SECTION_STACK_CONTEXT_KEY, []);
     }
 }

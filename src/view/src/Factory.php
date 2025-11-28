@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\View;
 
-use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Events\Dispatcher;
+use Closure;
+use Hypervel\Container\Contracts\Container;
+use Hypervel\Context\Context;
+use Hypervel\Event\Contracts\Dispatcher;
 use Hypervel\Support\Contracts\Arrayable;
 use Hypervel\View\Contracts\Engine;
 use Hypervel\View\Contracts\Factory as FactoryContract;
+use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\View\Engines\EngineResolver;
@@ -16,6 +19,21 @@ use InvalidArgumentException;
 
 class Factory implements FactoryContract
 {
+    /**
+     * Data that should be available to all templates.
+     */
+    protected const SHARE_CONTEXT_KEY = 'share';
+
+    /**
+     * The number of active rendering operations.
+     */
+    protected const RENDER_COUNT_CONTEXT_KEY = 'render_count';
+
+    /**
+     * The "once" block IDs that have been rendered.
+     */
+    protected const RENDERED_ONCE_CONTEXT_KEY = 'rendered_once';
+
     use Macroable,
         Concerns\ManagesComponents,
         Concerns\ManagesEvents,
@@ -27,43 +45,26 @@ class Factory implements FactoryContract
 
     /**
      * The engine implementation.
-     *
-     * @var \Hypervel\View\Engines\EngineResolver
      */
     protected EngineResolver $engines;
 
     /**
      * The view finder implementation.
-     *
-     * @var \Hypervel\View\ViewFinderInterface
      */
     protected ViewFinderInterface $finder;
 
     /**
      * The event dispatcher instance.
-     *
-     * @var \Hypervel\Contracts\Events\Dispatcher
      */
     protected Dispatcher $events;
 
     /**
      * The IoC container instance.
-     *
-     * @var \Hypervel\Contracts\Container\Container
      */
     protected Container $container;
 
     /**
-     * Data that should be available to all templates.
-     *
-     * @var array
-     */
-    protected array $shared = [];
-
-    /**
      * The extension to engine bindings.
-     *
-     * @var array
      */
     protected array $extensions = [
         'blade.php' => 'blade',
@@ -74,46 +75,21 @@ class Factory implements FactoryContract
 
     /**
      * The view composer events.
-     *
-     * @var array
      */
     protected array $composers = [];
 
     /**
-     * The number of active rendering operations.
-     *
-     * @var int
-     */
-    protected int $renderCount = 0;
-
-    /**
-     * The "once" block IDs that have been rendered.
-     *
-     * @var array
-     */
-    protected array $renderedOnce = [];
-
-    /**
      * The cached array of engines for paths.
-     *
-     * @var array
      */
     protected array $pathEngineCache = [];
 
     /**
      * The cache of normalized names for views.
-     *
-     * @var array
      */
     protected array $normalizedNameCache = [];
 
     /**
      * Create a new view factory instance.
-     *
-     * @param  \Hypervel\View\Engines\EngineResolver  $engines
-     * @param  \Hypervel\View\ViewFinderInterface  $finder
-     * @param  \Hypervel\Contracts\Events\Dispatcher  $events
-     * @return void
      */
     public function __construct(EngineResolver $engines, ViewFinderInterface $finder, Dispatcher $events)
     {
@@ -126,10 +102,6 @@ class Factory implements FactoryContract
 
     /**
      * Get the evaluated view contents for the given view.
-     *
-     * @param  string  $path
-     * @param  \Hypervel\Contracts\Support\Arrayable|array  $data
-     * @param  array  $mergeData
      * @return \Hypervel\Contracts\View\View
      */
     public function file(string $path, Arrayable|array $data = [], array $mergeData = []): View
@@ -143,13 +115,8 @@ class Factory implements FactoryContract
 
     /**
      * Get the evaluated view contents for the given view.
-     *
-     * @param  string  $view
-     * @param  \Hypervel\Contracts\Support\Arrayable|array  $data
-     * @param  array  $mergeData
-     * @return \Hypervel\Contracts\View\View
      */
-    public function make(string $view, Arrayable|array $data = [], array $mergeData = []): View
+    public function make(string $view, Arrayable|array $data = [], array $mergeData = []): ViewContract
     {
         $path = $this->finder->find(
             $view = $this->normalizeName($view)
@@ -168,14 +135,9 @@ class Factory implements FactoryContract
     /**
      * Get the first view that actually exists from the given list.
      *
-     * @param  array  $views
-     * @param  \Hypervel\Contracts\Support\Arrayable|array  $data
-     * @param  array  $mergeData
-     * @return \Hypervel\Contracts\View\View
-     *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
-    public function first(array $views, Arrayable|array $data = [], array $mergeData = []): View
+    public function first(array $views, Arrayable|array $data = [], array $mergeData = []): ViewContract
     {
         $view = Arr::first($views, function ($view) {
             return $this->exists($view);
@@ -190,12 +152,6 @@ class Factory implements FactoryContract
 
     /**
      * Get the rendered content of the view based on a given condition.
-     *
-     * @param  bool  $condition
-     * @param  string  $view
-     * @param  \Hypervel\Contracts\Support\Arrayable|array  $data
-     * @param  array  $mergeData
-     * @return string
      */
     public function renderWhen(bool $condition, string $view, Arrayable|array $data = [], array $mergeData = []): string
     {
@@ -208,12 +164,6 @@ class Factory implements FactoryContract
 
     /**
      * Get the rendered content of the view based on the negation of a given condition.
-     *
-     * @param  bool  $condition
-     * @param  string  $view
-     * @param  \Hypervel\Contracts\Support\Arrayable|array  $data
-     * @param  array  $mergeData
-     * @return string
      */
     public function renderUnless(bool $condition, string $view, Arrayable|array $data = [], array $mergeData = []): string
     {
@@ -222,12 +172,6 @@ class Factory implements FactoryContract
 
     /**
      * Get the rendered contents of a partial from a loop.
-     *
-     * @param  string  $view
-     * @param  array  $data
-     * @param  string  $iterator
-     * @param  string  $empty
-     * @return string
      */
     public function renderEach(string $view, array $data, string $iterator, string $empty = 'raw|'): string
     {
@@ -258,9 +202,6 @@ class Factory implements FactoryContract
 
     /**
      * Normalize a view name.
-     *
-     * @param  string  $name
-     * @return string
      */
     protected function normalizeName(string $name): string
     {
@@ -269,9 +210,6 @@ class Factory implements FactoryContract
 
     /**
      * Parse the given data into a raw array.
-     *
-     * @param  mixed  $data
-     * @return array
      */
     protected function parseData(mixed $data): array
     {
@@ -280,22 +218,14 @@ class Factory implements FactoryContract
 
     /**
      * Create a new view instance from the given arguments.
-     *
-     * @param  string  $view
-     * @param  string  $path
-     * @param  \Hypervel\Contracts\Support\Arrayable|array  $data
-     * @return \Hypervel\Contracts\View\View
      */
-    protected function viewInstance(string $view, string $path, Arrayable|array $data): View
+    protected function viewInstance(string $view, string $path, Arrayable|array $data): ViewContract
     {
         return new View($this, $this->getEngineFromPath($path), $view, $path, $data);
     }
 
     /**
      * Determine if a given view exists.
-     *
-     * @param  string  $view
-     * @return bool
      */
     public function exists(string $view): bool
     {
@@ -311,10 +241,7 @@ class Factory implements FactoryContract
     /**
      * Get the appropriate view engine for the given path.
      *
-     * @param  string  $path
-     * @return \Hypervel\Contracts\View\Engine
-     *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     public function getEngineFromPath(string $path): Engine
     {
@@ -333,9 +260,6 @@ class Factory implements FactoryContract
 
     /**
      * Get the extension used by the view file.
-     *
-     * @param  string  $path
-     * @return string|null
      */
     protected function getExtension(string $path): ?string
     {
@@ -348,79 +272,83 @@ class Factory implements FactoryContract
 
     /**
      * Add a piece of shared data to the environment.
-     *
-     * @param  array|string  $key
-     * @param  mixed|null  $value
-     * @return mixed
      */
     public function share(array|string $key, mixed $value = null): mixed
     {
         $keys = is_array($key) ? $key : [$key => $value];
 
+        $shared = $this->getShared();
+
         foreach ($keys as $key => $value) {
-            $this->shared[$key] = $value;
+            $shared[$key] = $value;
         }
+
+        $this->setShared($shared);
 
         return $value;
     }
 
     /**
      * Increment the rendering counter.
-     *
-     * @return void
      */
     public function incrementRender(): void
     {
-        $this->renderCount++;
+        Context::override(self::RENDER_COUNT_CONTEXT_KEY, function ($value) {
+            return ($value ?? 0) + 1;
+        });
     }
 
     /**
      * Decrement the rendering counter.
-     *
-     * @return void
      */
     public function decrementRender(): void
     {
-        $this->renderCount--;
+        Context::override(self::RENDER_COUNT_CONTEXT_KEY, function ($value) {
+            return ($value ?? 1) - 1;
+        });
+    }
+
+    /**
+     * Get the rendering counter.
+     */
+    protected function getRenderCount(): int
+    {
+        return Context::get(self::RENDER_COUNT_CONTEXT_KEY, 0);
     }
 
     /**
      * Check if there are no active render operations.
-     *
-     * @return bool
      */
     public function doneRendering(): bool
     {
-        return $this->renderCount == 0;
+        return Context::get(self::RENDER_COUNT_CONTEXT_KEY, 0) === 0;
     }
 
     /**
      * Determine if the given once token has been rendered.
-     *
-     * @param  string  $id
-     * @return bool
      */
     public function hasRenderedOnce(string $id): bool
     {
-        return isset($this->renderedOnce[$id]);
+        $renderedOnce = Context::get(self::RENDERED_ONCE_CONTEXT_KEY, []);
+
+        return isset($renderedOnce[$id]);
     }
 
     /**
      * Mark the given once token as having been rendered.
-     *
-     * @param  string  $id
-     * @return void
      */
     public function markAsRenderedOnce(string $id): void
     {
-        $this->renderedOnce[$id] = true;
+        Context::override(self::RENDERED_ONCE_CONTEXT_KEY, function ($value) use ($id) {
+            $value ??= [];
+            $value[$id] = true;
+
+            return $value;
+        });
     }
 
     /**
      * Add a location to the array of view locations.
-     *
-     * @param  string  $location
-     * @return void
      */
     public function addLocation(string $location): void
     {
@@ -429,9 +357,6 @@ class Factory implements FactoryContract
 
     /**
      * Prepend a location to the array of view locations.
-     *
-     * @param  string  $location
-     * @return void
      */
     public function prependLocation(string $location): void
     {
@@ -440,10 +365,6 @@ class Factory implements FactoryContract
 
     /**
      * Add a new namespace to the loader.
-     *
-     * @param  string  $namespace
-     * @param  string|array  $hints
-     * @return $this
      */
     public function addNamespace(string $namespace, string|array $hints): static
     {
@@ -454,10 +375,6 @@ class Factory implements FactoryContract
 
     /**
      * Prepend a new namespace to the loader.
-     *
-     * @param  string  $namespace
-     * @param  string|array  $hints
-     * @return $this
      */
     public function prependNamespace(string $namespace, string|array $hints): static
     {
@@ -468,10 +385,6 @@ class Factory implements FactoryContract
 
     /**
      * Replace the namespace hints for the given namespace.
-     *
-     * @param  string  $namespace
-     * @param  string|array  $hints
-     * @return $this
      */
     public function replaceNamespace(string $namespace, string|array $hints): static
     {
@@ -482,13 +395,8 @@ class Factory implements FactoryContract
 
     /**
      * Register a valid view extension and its engine.
-     *
-     * @param  string  $extension
-     * @param  string  $engine
-     * @param  \Closure|null  $resolver
-     * @return void
      */
-    public function addExtension(string $extension, string $engine, \Closure $resolver = null): void
+    public function addExtension(string $extension, string $engine, ?Closure $resolver = null): void
     {
         $this->finder->addExtension($extension);
 
@@ -505,13 +413,11 @@ class Factory implements FactoryContract
 
     /**
      * Flush all of the factory state like sections and stacks.
-     *
-     * @return void
      */
     public function flushState(): void
     {
-        $this->renderCount = 0;
-        $this->renderedOnce = [];
+        Context::set(self::RENDER_COUNT_CONTEXT_KEY, 0);
+        Context::set(self::RENDERED_ONCE_CONTEXT_KEY, []);
 
         $this->flushSections();
         $this->flushStacks();
@@ -521,8 +427,6 @@ class Factory implements FactoryContract
 
     /**
      * Flush all of the section contents if done rendering.
-     *
-     * @return void
      */
     public function flushStateIfDoneRendering(): void
     {
@@ -533,8 +437,6 @@ class Factory implements FactoryContract
 
     /**
      * Get the extension to engine bindings.
-     *
-     * @return array
      */
     public function getExtensions(): array
     {
@@ -543,8 +445,6 @@ class Factory implements FactoryContract
 
     /**
      * Get the engine resolver instance.
-     *
-     * @return \Hypervel\View\Engines\EngineResolver
      */
     public function getEngineResolver(): EngineResolver
     {
@@ -553,8 +453,6 @@ class Factory implements FactoryContract
 
     /**
      * Get the view finder instance.
-     *
-     * @return \Hypervel\View\ViewFinderInterface
      */
     public function getFinder(): ViewFinderInterface
     {
@@ -563,9 +461,6 @@ class Factory implements FactoryContract
 
     /**
      * Set the view finder instance.
-     *
-     * @param  \Hypervel\View\ViewFinderInterface  $finder
-     * @return void
      */
     public function setFinder(ViewFinderInterface $finder): void
     {
@@ -574,8 +469,6 @@ class Factory implements FactoryContract
 
     /**
      * Flush the cache of views located by the finder.
-     *
-     * @return void
      */
     public function flushFinderCache(): void
     {
@@ -584,8 +477,6 @@ class Factory implements FactoryContract
 
     /**
      * Get the event dispatcher instance.
-     *
-     * @return \Hypervel\Contracts\Events\Dispatcher
      */
     public function getDispatcher(): Dispatcher
     {
@@ -594,9 +485,6 @@ class Factory implements FactoryContract
 
     /**
      * Set the event dispatcher instance.
-     *
-     * @param  \Hypervel\Contracts\Events\Dispatcher  $events
-     * @return void
      */
     public function setDispatcher(Dispatcher $events): void
     {
@@ -605,8 +493,6 @@ class Factory implements FactoryContract
 
     /**
      * Get the IoC container instance.
-     *
-     * @return \Hypervel\Contracts\Container\Container
      */
     public function getContainer(): Container
     {
@@ -615,9 +501,6 @@ class Factory implements FactoryContract
 
     /**
      * Set the IoC container instance.
-     *
-     * @param  \Hypervel\Contracts\Container\Container  $container
-     * @return void
      */
     public function setContainer(Container $container): void
     {
@@ -626,23 +509,25 @@ class Factory implements FactoryContract
 
     /**
      * Get an item from the shared data.
-     *
-     * @param  string  $key
-     * @param  mixed  $default
-     * @return mixed
      */
     public function shared(string $key, mixed $default = null): mixed
     {
-        return Arr::get($this->shared, $key, $default);
+        return Arr::get($this->getShared(), $key, $default);
     }
 
     /**
      * Get all of the shared data for the environment.
-     *
-     * @return array
      */
     public function getShared(): array
     {
-        return $this->shared;
+        return Context::get(self::SHARE_CONTEXT_KEY, []);
+    }
+
+    /**
+     * Set the shared data for the environment.
+     */
+    public function setShared(array $data): void
+    {
+        Context::set(self::SHARE_CONTEXT_KEY, $data);
     }
 }

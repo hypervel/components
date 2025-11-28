@@ -12,16 +12,11 @@ class ShareErrorsFromSession
 {
     /**
      * The view factory implementation.
-     *
-     * @var \Hypervel\Contracts\View\Factory
      */
     protected ViewFactory $view;
 
     /**
      * Create a new error binder instance.
-     *
-     * @param  \Hypervel\Contracts\View\Factory  $view
-     * @return void
      */
     public function __construct(ViewFactory $view)
     {
@@ -30,10 +25,6 @@ class ShareErrorsFromSession
 
     /**
      * Handle an incoming request.
-     *
-     * @param  mixed  $request
-     * @param  \Closure  $next
-     * @return mixed
      */
     public function handle(mixed $request, Closure $next): mixed
     {

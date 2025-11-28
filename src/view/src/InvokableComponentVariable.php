@@ -6,8 +6,9 @@ namespace Hypervel\View;
 
 use ArrayIterator;
 use Closure;
+use Hyperf\Collection\Enumerable;
 use Hypervel\Support\Contracts\DeferringDisplayableValue;
-use Hypervel\Support\Enumerable;
+use Hypervel\Support\Contracts\Htmlable;
 use IteratorAggregate;
 use Stringable;
 use Traversable;
@@ -16,16 +17,11 @@ class InvokableComponentVariable implements DeferringDisplayableValue, IteratorA
 {
     /**
      * The callable instance to resolve the variable value.
-     *
-     * @var \Closure
      */
     protected Closure $callable;
 
     /**
      * Create a new variable instance.
-     *
-     * @param  \Closure  $callable
-     * @return void
      */
     public function __construct(Closure $callable)
     {
@@ -34,18 +30,14 @@ class InvokableComponentVariable implements DeferringDisplayableValue, IteratorA
 
     /**
      * Resolve the displayable value that the class is deferring.
-     *
-     * @return \Hypervel\Contracts\Support\Htmlable|string
      */
-    public function resolveDisplayableValue(): mixed
+    public function resolveDisplayableValue(): Htmlable|string
     {
         return $this->__invoke();
     }
 
     /**
      * Get an iterator instance for the variable.
-     *
-     * @return \ArrayIterator
      */
     public function getIterator(): Traversable
     {
@@ -56,9 +48,6 @@ class InvokableComponentVariable implements DeferringDisplayableValue, IteratorA
 
     /**
      * Dynamically proxy attribute access to the variable.
-     *
-     * @param  string  $key
-     * @return mixed
      */
     public function __get(string $key): mixed
     {
@@ -67,10 +56,6 @@ class InvokableComponentVariable implements DeferringDisplayableValue, IteratorA
 
     /**
      * Dynamically proxy method access to the variable.
-     *
-     * @param  string  $method
-     * @param  array  $parameters
-     * @return mixed
      */
     public function __call(string $method, array $parameters): mixed
     {
@@ -79,8 +64,6 @@ class InvokableComponentVariable implements DeferringDisplayableValue, IteratorA
 
     /**
      * Resolve the variable.
-     *
-     * @return mixed
      */
     public function __invoke(): mixed
     {
@@ -89,8 +72,6 @@ class InvokableComponentVariable implements DeferringDisplayableValue, IteratorA
 
     /**
      * Resolve the variable as a string.
-     *
-     * @return string
      */
     public function __toString(): string
     {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\View;
 
+use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -13,30 +14,21 @@ class DynamicComponent extends Component
 {
     /**
      * The name of the component.
-     *
-     * @var string
      */
     public string $component;
 
     /**
      * The component tag compiler instance.
-     *
-     * @var \Hypervel\View\Compilers\ComponentTagCompiler
      */
     protected static ?ComponentTagCompiler $compiler = null;
 
     /**
      * The cached component classes.
-     *
-     * @var array
      */
     protected static array $componentClasses = [];
 
     /**
      * Create a new component instance.
-     *
-     * @param  string  $component
-     * @return void
      */
     public function __construct(string $component)
     {
@@ -45,10 +37,8 @@ class DynamicComponent extends Component
 
     /**
      * Get the view / contents that represent the component.
-     *
-     * @return \Hypervel\Contracts\View\View|string
      */
-    public function render(): \Closure
+    public function render(): Closure
     {
         $template = <<<'EOF'
 <?php extract((new \Hypervel\Support\Collection($attributes->getAttributes()))->mapWithKeys(function ($value, $key) { return [Hypervel\Support\Str::camel(str_replace([':', '.'], ' ', $key)) => $value]; })->all(), EXTR_SKIP); ?>
@@ -86,9 +76,6 @@ EOF;
 
     /**
      * Compile the @props directive for the component.
-     *
-     * @param  array  $bindings
-     * @return string
      */
     protected function compileProps(array $bindings): string
     {
@@ -116,9 +103,6 @@ EOF;
 
     /**
      * Compile the slots for the component.
-     *
-     * @param  array  $slots
-     * @return string
      */
     protected function compileSlots(array $slots): string
     {
@@ -130,8 +114,6 @@ EOF;
 
     /**
      * Get the class for the current component.
-     *
-     * @return string
      */
     protected function classForComponent(): string
     {
@@ -145,9 +127,6 @@ EOF;
 
     /**
      * Get the names of the variables that should be bound to the component.
-     *
-     * @param  string  $class
-     * @return array
      */
     protected function bindings(string $class): array
     {
@@ -158,8 +137,6 @@ EOF;
 
     /**
      * Get an instance of the Blade tag compiler.
-     *
-     * @return \Hypervel\View\Compilers\ComponentTagCompiler
      */
     protected function compiler(): ComponentTagCompiler
     {

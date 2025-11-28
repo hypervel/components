@@ -21,7 +21,7 @@ class CompilerEngine extends PhpEngine
     /**
      * The context key for a stack of the compiled template path.
      */
-    protected const COMPILED_PATH_CONTEXT_KEY = 'hypervel.view.compiler_engine.compiled_path';
+    protected const COMPILED_PATH_CONTEXT_KEY = 'compiled_path';
 
     /**
      * The Blade compiler instance.

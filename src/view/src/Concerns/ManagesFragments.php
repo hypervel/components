@@ -12,12 +12,12 @@ trait ManagesFragments
     /**
      * All of the captured, rendered fragments.
      */
-    protected const FRAGMENTS_CONTEXT_KEY = 'hypervel.view.manages_fragments.fragments';
+    protected const FRAGMENTS_CONTEXT_KEY = 'fragments';
 
     /**
      * The stack of in-progress fragment renders.
      */
-    protected const FRAGMENT_STACK_CONTEXT_KEY = 'hypervel.view.manages_fragments.fragment_stack';
+    protected const FRAGMENT_STACK_CONTEXT_KEY = 'fragment_stack';
 
     /**
      * Start injecting content into a fragment.

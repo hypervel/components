@@ -4,33 +4,33 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Concerns;
 
+use Closure;
+use Generator;
+use Hypervel\Context\Context;
 use Hypervel\Support\Arr;
 use Hypervel\Support\LazyCollection;
+use stdClass;
 
 trait ManagesLoops
 {
     /**
-     * The stack of in-progress loops.
-     *
-     * @var array
+     * The context key for loops stack.
      */
-    protected array $loopsStack = [];
+    protected const LOOPS_STACK_CONTEXT_KEY = 'loops_stack';
 
     /**
      * Add new loop to the stack.
-     *
-     * @param  \Countable|array  $data
-     * @return void
      */
-    public function addLoop(mixed $data): void
+    public function addLoop(Closure|array|Generator|LazyCollection $data): void
     {
         $length = is_countable($data) && ! $data instanceof LazyCollection
                             ? count($data)
                             : null;
 
-        $parent = Arr::last($this->loopsStack);
+        $loopsStack = Context::get(static::LOOPS_STACK_CONTEXT_KEY, []);
+        $parent = Arr::last($loopsStack);
 
-        $this->loopsStack[] = [
+        $loopsStack[] = [
             'iteration' => 0,
             'index' => 0,
             'remaining' => $length ?? null,
@@ -39,21 +39,22 @@ trait ManagesLoops
             'last' => isset($length) ? $length == 1 : null,
             'odd' => false,
             'even' => true,
-            'depth' => count($this->loopsStack) + 1,
+            'depth' => count($loopsStack) + 1,
             'parent' => $parent ? (object) $parent : null,
         ];
+
+        Context::set(static::LOOPS_STACK_CONTEXT_KEY, $loopsStack);
     }
 
     /**
      * Increment the top loop's indices.
-     *
-     * @return void
      */
     public function incrementLoopIndices(): void
     {
-        $loop = $this->loopsStack[$index = count($this->loopsStack) - 1];
+        $loopsStack = Context::get(static::LOOPS_STACK_CONTEXT_KEY, []);
+        $loop = $loopsStack[$index = count($loopsStack) - 1];
 
-        $this->loopsStack[$index] = array_merge($this->loopsStack[$index], [
+        $loopsStack[$index] = array_merge($loopsStack[$index], [
             'iteration' => $loop['iteration'] + 1,
             'index' => $loop['iteration'],
             'first' => $loop['iteration'] == 0,
@@ -62,37 +63,36 @@ trait ManagesLoops
             'remaining' => isset($loop['count']) ? $loop['remaining'] - 1 : null,
             'last' => isset($loop['count']) ? $loop['iteration'] == $loop['count'] - 1 : null,
         ]);
+
+        Context::set(static::LOOPS_STACK_CONTEXT_KEY, $loopsStack);
     }
 
     /**
      * Pop a loop from the top of the loop stack.
-     *
-     * @return void
      */
     public function popLoop(): void
     {
-        array_pop($this->loopsStack);
+        $loopsStack = Context::get(static::LOOPS_STACK_CONTEXT_KEY, []);
+        array_pop($loopsStack);
+        Context::set(static::LOOPS_STACK_CONTEXT_KEY, $loopsStack);
     }
 
     /**
      * Get an instance of the last loop in the stack.
-     *
-     * @return \stdClass|null
      */
-    public function getLastLoop(): ?\stdClass
+    public function getLastLoop(): ?stdClass
     {
-        if ($last = Arr::last($this->loopsStack)) {
+        $loopsStack = Context::get(static::LOOPS_STACK_CONTEXT_KEY, []);
+        if ($last = Arr::last($loopsStack)) {
             return (object) $last;
         }
     }
 
     /**
      * Get the entire loop stack.
-     *
-     * @return array
      */
     public function getLoopStack(): array
     {
-        return $this->loopsStack;
+        return Context::get(static::LOOPS_STACK_CONTEXT_KEY, []);
     }
 }

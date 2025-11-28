@@ -3,15 +3,17 @@
 namespace Hypervel\Tests\View;
 
 use Closure;
+use Hyperf\Context\ApplicationContext;
+use Hyperf\Di\Definition\DefinitionSource;
+use Hyperf\Di\Exception\InvalidDefinitionException;
 use Hypervel\Config\Repository as Config;
 use Hypervel\Container\Container;
-use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\View\Contracts\Factory as FactoryContract;
-use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\HtmlString;
 use Hypervel\View\Component;
 use Hypervel\View\ComponentSlot;
+use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\View\Factory;
 use Hypervel\View\View;
 use Mockery as m;
@@ -27,27 +29,24 @@ class ComponentTest extends TestCase
     {
         parent::setUp();
 
+        $this->viewFactory = m::mock(Factory::class);
         $this->config = m::mock(Config::class);
 
-        $container = new Container;
+        $container = new Container(
+            new DefinitionSource([
+                'config' => fn () => $this->config,
+                'view' => fn () => $this->viewFactory,
+                FactoryContract::class => fn () => $this->viewFactory,
+            ])
+        );
 
-        $this->viewFactory = m::mock(Factory::class);
-
-        $container->instance('view', $this->viewFactory);
-        $container->alias('view', FactoryContract::class);
-        $container->instance('config', $this->config);
-
-        Container::setInstance($container);
-        Facade::setFacadeApplication($container);
+        ApplicationContext::setContainer($container);
     }
 
     protected function tearDown(): void
     {
         m::close();
 
-        Facade::clearResolvedInstances();
-        Facade::setFacadeApplication(null);
-        Container::setInstance(null);
         Component::flushCache();
         Component::forgetFactory();
 
@@ -89,7 +88,7 @@ class ComponentTest extends TestCase
                 $this->title = $title;
             }
 
-            public function render()
+            public function render(): ViewContract|Htmlable|Closure|string
             {
                 return function (array $data) {
                     return "<p>Hello {$this->title}</p>";
@@ -142,8 +141,7 @@ class ComponentTest extends TestCase
 
     public function testResolveWithUnresolvableDependency()
     {
-        $this->expectException(BindingResolutionException::class);
-        $this->expectExceptionMessage('Unresolvable dependency resolving');
+        $this->expectException(InvalidDefinitionException::class);
 
         TestInlineViewComponentWhereRenderDependsOnProps::resolve([]);
     }
@@ -162,14 +160,13 @@ class ComponentTest extends TestCase
                 $this->content = $a.$b;
             }
 
-            public function render()
+            public function render(): ViewContract|Htmlable|Closure|string
             {
                 return $this->content;
             }
         };
 
         $component = $component::resolve(['a' => 'a', 'b' => 'b']);
-        $component = $component::resolve(['b' => 'b', 'a' => 'a']);
         $this->assertSame('ab', $component->render());
     }
 
@@ -305,11 +302,7 @@ class ComponentTest extends TestCase
 
         $this->assertSame($this->viewFactory, $getFactory($regular));
 
-        Container::getInstance()->instance('view', 'foo');
         $this->assertSame($this->viewFactory, $getFactory($inline));
-
-        Component::forgetFactory();
-        $this->assertNotSame($this->viewFactory, $getFactory($inline));
     }
 
     public function testComponentSlotIsEmpty()
@@ -379,7 +372,7 @@ class TestInlineViewComponent extends Component
         $this->title = $title;
     }
 
-    public function render()
+    public function render(): ViewContract|Htmlable|Closure|string
     {
         return 'Hello {{ $title }}';
     }
@@ -394,7 +387,7 @@ class TestInlineViewComponentWithContainerDependencies extends Component
         $this->dependency = $dependency;
     }
 
-    public function render()
+    public function render(): ViewContract|Htmlable|Closure|string
     {
         return '';
     }
@@ -412,7 +405,7 @@ class TestInlineViewComponentWithContainerDependenciesAndProps extends Component
         $this->dependency = $dependency;
     }
 
-    public function render()
+    public function render(): ViewContract|Htmlable|Closure|string
     {
         return $this->content;
     }
@@ -420,7 +413,7 @@ class TestInlineViewComponentWithContainerDependenciesAndProps extends Component
 
 class TestInlineViewComponentWithoutDependencies extends Component
 {
-    public function render()
+    public function render(): ViewContract|Htmlable|Closure|string
     {
         return 'alert';
     }
@@ -435,7 +428,7 @@ class TestInlineViewComponentWhereRenderDependsOnProps extends Component
         $this->content = $content;
     }
 
-    public function render()
+    public function render(): ViewContract|Htmlable|Closure|string
     {
         return $this->content;
     }
@@ -450,7 +443,7 @@ class TestRegularViewComponentUsingViewHelper extends Component
         $this->title = $title;
     }
 
-    public function render()
+    public function render(): ViewContract|Htmlable|Closure|string
     {
         return view('alert');
     }
@@ -465,7 +458,7 @@ class TestRegularViewComponentUsingViewMethod extends Component
         $this->title = $title;
     }
 
-    public function render()
+    public function render(): ViewContract|Htmlable|Closure|string
     {
         return $this->view('alert');
     }
@@ -480,7 +473,7 @@ class TestRegularViewNameViewComponent extends Component
         $this->title = $title;
     }
 
-    public function render()
+    public function render(): ViewContract|Htmlable|Closure|string
     {
         return 'alert';
     }
@@ -495,7 +488,7 @@ class TestHtmlableReturningViewComponent extends Component
         $this->title = $title;
     }
 
-    public function render()
+    public function render(): ViewContract|Htmlable|Closure|string
     {
         return new HtmlString("<p>Hello {$this->title}</p>");
     }

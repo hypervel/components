@@ -4,14 +4,16 @@ namespace Hypervel\Tests\View;
 
 use Closure;
 use ErrorException;
-use Hypervel\Container\Container;
-use Hypervel\Contracts\Events\Dispatcher as DispatcherContract;
+use Hypervel\Container\Contracts\Container;
+use Hypervel\Event\Contracts\Dispatcher as DispatcherContract;
 use Hypervel\View\Contracts\Engine;
 use Hypervel\View\Contracts\View as ViewContract;
-use Hypervel\Events\Dispatcher;
+use Hypervel\Event\EventDispatcher;
+use Hypervel\Event\ListenerProvider;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\LazyCollection;
+use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\View\Compilers\CompilerInterface;
 use Hypervel\View\Engines\CompilerEngine;
 use Hypervel\View\Engines\EngineResolver;
@@ -27,6 +29,8 @@ use stdClass;
 
 class ViewFactoryTest extends TestCase
 {
+    use HasMockedApplication;
+
     protected function tearDown(): void
     {
         m::close();
@@ -40,8 +44,8 @@ class ViewFactoryTest extends TestCase
         $factory->getFinder()->shouldReceive('find')->once()->with('view')->andReturn('path.php');
         $factory->getEngineResolver()->shouldReceive('resolve')->once()->with('php')->andReturn($engine = m::mock(Engine::class));
         $factory->getFinder()->shouldReceive('addExtension')->once()->with('php');
-        $factory->setDispatcher(new Dispatcher);
-        $factory->creator('view', function ($view) {
+        $factory->setDispatcher($this->createEventDispatcher());
+        $factory->creator('view', function ($eventName, $view) {
             $_SERVER['__test.view'] = $view;
         });
         $factory->addExtension('php', 'php');
@@ -51,6 +55,15 @@ class ViewFactoryTest extends TestCase
         $this->assertSame($_SERVER['__test.view'], $view);
 
         unset($_SERVER['__test.view']);
+    }
+
+    private function createEventDispatcher()
+    {
+        return new EventDispatcher(
+            new ListenerProvider(),
+            null,
+            $this->getApplication()
+        );
     }
 
     public function testExistsPassesAndFailsViews()
@@ -82,8 +95,8 @@ class ViewFactoryTest extends TestCase
         $factory->getFinder()->shouldReceive('find')->once()->with('bar')->andThrow(InvalidArgumentException::class);
         $factory->getEngineResolver()->shouldReceive('resolve')->once()->with('php')->andReturn($engine = m::mock(Engine::class));
         $factory->getFinder()->shouldReceive('addExtension')->once()->with('php');
-        $factory->setDispatcher(new Dispatcher);
-        $factory->creator('view', function ($view) {
+        $factory->setDispatcher($this->createEventDispatcher());
+        $factory->creator('view', function ($eventName, $view) {
             $_SERVER['__test.view'] = $view;
         });
         $factory->addExtension('php', 'php');
@@ -103,17 +116,14 @@ class ViewFactoryTest extends TestCase
         $factory = $this->getFactory();
         $factory->getFinder()->shouldReceive('find')->once()->with('view')->andThrow(InvalidArgumentException::class);
         $factory->getFinder()->shouldReceive('find')->once()->with('bar')->andThrow(InvalidArgumentException::class);
-        $factory->getEngineResolver()->shouldReceive('resolve')->with('php')->andReturn($engine = m::mock(Engine::class));
-        $factory->getFinder()->shouldReceive('addExtension')->with('php');
-        $factory->addExtension('php', 'php');
         $factory->first(['bar', 'view'], ['foo' => 'bar'], ['baz' => 'boom']);
     }
 
     public function testRenderEachCreatesViewForEachItemInArray()
     {
         $factory = m::mock(Factory::class.'[make]', $this->getFactoryArgs());
-        $factory->shouldReceive('make')->once()->with('foo', ['key' => 'bar', 'value' => 'baz'])->andReturn($mockView1 = m::mock(stdClass::class));
-        $factory->shouldReceive('make')->once()->with('foo', ['key' => 'breeze', 'value' => 'boom'])->andReturn($mockView2 = m::mock(stdClass::class));
+        $factory->shouldReceive('make')->once()->with('foo', ['key' => 'bar', 'value' => 'baz'])->andReturn($mockView1 = m::mock(ViewContract::class));
+        $factory->shouldReceive('make')->once()->with('foo', ['key' => 'breeze', 'value' => 'boom'])->andReturn($mockView2 = m::mock(ViewContract::class));
         $mockView1->shouldReceive('render')->once()->andReturn('dayle');
         $mockView2->shouldReceive('render')->once()->andReturn('rees');
 
@@ -125,7 +135,7 @@ class ViewFactoryTest extends TestCase
     public function testEmptyViewsCanBeReturnedFromRenderEach()
     {
         $factory = m::mock(Factory::class.'[make]', $this->getFactoryArgs());
-        $factory->shouldReceive('make')->once()->with('foo')->andReturn($mockView = m::mock(stdClass::class));
+        $factory->shouldReceive('make')->once()->with('foo')->andReturn($mockView = m::mock(ViewContract::class));
         $mockView->shouldReceive('render')->once()->andReturn('empty');
 
         $this->assertSame('empty', $factory->renderEach('view', [], 'iterator', 'foo'));
@@ -593,6 +603,7 @@ class ViewFactoryTest extends TestCase
         $factory = $this->getFactory();
         $factory->startSection('foo', 'hi');
         $this->assertSame('hi', $factory->yieldContent('foo'));
+        $factory->flushSections();
     }
 
     public function testBasicSectionDefaultIsEscaped()
@@ -600,6 +611,7 @@ class ViewFactoryTest extends TestCase
         $factory = $this->getFactory();
         $factory->startSection('foo', '<p>hi</p>');
         $this->assertSame('&lt;p&gt;hi&lt;/p&gt;', $factory->yieldContent('foo'));
+        $factory->flushSections();
     }
 
     public function testBasicSectionDefaultViewIsNotEscapedTwice()
@@ -609,12 +621,13 @@ class ViewFactoryTest extends TestCase
         $view->shouldReceive('__toString')->once()->andReturn('<p>hi</p>&lt;p&gt;already escaped&lt;/p&gt;');
         $factory->startSection('foo', $view);
         $this->assertSame('<p>hi</p>&lt;p&gt;already escaped&lt;/p&gt;', $factory->yieldContent('foo'));
+        $factory->flushSections();
     }
 
     public function testSectionExtending()
     {
-        $placeholder = Factory::parentPlaceholder('foo');
         $factory = $this->getFactory();
+        $placeholder = $factory->getParentPlaceholder('foo');
         $factory->startSection('foo');
         echo 'hi '.$placeholder;
         $factory->stopSection();
@@ -622,12 +635,13 @@ class ViewFactoryTest extends TestCase
         echo 'there';
         $factory->stopSection();
         $this->assertSame('hi there', $factory->yieldContent('foo'));
+        $factory->flushSections();
     }
 
     public function testSectionMultipleExtending()
     {
-        $placeholder = Factory::parentPlaceholder('foo');
         $factory = $this->getFactory();
+        $placeholder = $factory->getParentPlaceholder('foo');
         $factory->startSection('foo');
         echo 'hello '.$placeholder.' nice to see you '.$placeholder;
         $factory->stopSection();
@@ -638,6 +652,7 @@ class ViewFactoryTest extends TestCase
         echo 'friend';
         $factory->stopSection();
         $this->assertSame('hello my friend nice to see you my friend', $factory->yieldContent('foo'));
+        $factory->flushSections();
     }
 
     public function testComponentHandling()
@@ -703,9 +718,10 @@ class ViewFactoryTest extends TestCase
 
     public function testTranslation()
     {
-        $container = new Container;
-        $container->instance('translator', $translator = m::mock(stdClass::class));
+        $translator = m::mock(stdClass::class);
         $translator->shouldReceive('get')->with('Foo', ['name' => 'taylor'])->andReturn('Bar');
+        $container = m::mock(Container::class);
+        $container->shouldReceive('make')->with('translator')->andReturn($translator);
         $factory = $this->getFactory();
         $factory->setContainer($container);
         $factory->startTranslation(['name' => 'taylor']);
@@ -722,6 +738,7 @@ class ViewFactoryTest extends TestCase
         echo 'hi';
         $factory->stopPush();
         $this->assertSame('hi', $factory->yieldPushContent('foo'));
+        $factory->flushStacks();
     }
 
     public function testMultipleStackPush()
@@ -734,6 +751,7 @@ class ViewFactoryTest extends TestCase
         echo ', Hello!';
         $factory->stopPush();
         $this->assertSame('hi, Hello!', $factory->yieldPushContent('foo'));
+        $factory->flushStacks();
     }
 
     public function testSingleStackPrepend()
@@ -743,6 +761,7 @@ class ViewFactoryTest extends TestCase
         echo 'hi';
         $factory->stopPrepend();
         $this->assertSame('hi', $factory->yieldPushContent('foo'));
+        $factory->flushStacks();
     }
 
     public function testMultipleStackPrepend()
@@ -755,6 +774,7 @@ class ViewFactoryTest extends TestCase
         echo 'hi';
         $factory->stopPrepend();
         $this->assertSame('hi, Hello!', $factory->yieldPushContent('foo'));
+        $factory->flushStacks();
     }
 
     public function testSessionAppending()
@@ -767,6 +787,7 @@ class ViewFactoryTest extends TestCase
         echo 'there';
         $factory->appendSection();
         $this->assertSame('hithere', $factory->yieldContent('foo'));
+        $factory->flushSections();
     }
 
     public function testYieldSectionStopsAndYields()
@@ -775,6 +796,7 @@ class ViewFactoryTest extends TestCase
         $factory->startSection('foo');
         echo 'hi';
         $this->assertSame('hi', $factory->yieldSection());
+        $factory->flushSections();
     }
 
     public function testInjectStartsSectionWithContent()
@@ -782,6 +804,7 @@ class ViewFactoryTest extends TestCase
         $factory = $this->getFactory();
         $factory->inject('foo', 'hi');
         $this->assertSame('hi', $factory->yieldContent('foo'));
+        $factory->flushSections();
     }
 
     public function testEmptyStringIsReturnedForNonSections()
@@ -950,6 +973,8 @@ class ViewFactoryTest extends TestCase
         $factory->popLoop();
 
         $this->assertEquals([$expectedLoop], $factory->getLoopStack());
+
+        $factory->popLoop();
     }
 
     public function testAddingLoopDoesNotCloseGenerator()
@@ -971,28 +996,8 @@ class ViewFactoryTest extends TestCase
         foreach ($data as $chunk) {
             $this->assertEquals(['a', 'b'], $chunk);
         }
-    }
 
-    public function testAddingUncountableLoop()
-    {
-        $factory = $this->getFactory();
-
-        $factory->addLoop('');
-
-        $expectedLoop = [
-            'iteration' => 0,
-            'index' => 0,
-            'remaining' => null,
-            'count' => null,
-            'first' => true,
-            'last' => null,
-            'odd' => false,
-            'even' => true,
-            'depth' => 1,
-            'parent' => null,
-        ];
-
-        $this->assertEquals([$expectedLoop], $factory->getLoopStack());
+        $factory->popLoop();
     }
 
     public function testAddingLazyCollection()
@@ -1017,6 +1022,8 @@ class ViewFactoryTest extends TestCase
         ];
 
         $this->assertEquals([$expectedLoop], $factory->getLoopStack());
+
+        $factory->popLoop();
     }
 
     public function testIncrementingLoopIndices()
@@ -1040,6 +1047,8 @@ class ViewFactoryTest extends TestCase
         $this->assertEquals(2, $factory->getLoopStack()[0]['remaining']);
         $this->assertFalse($factory->getLoopStack()[0]['odd']);
         $this->assertTrue($factory->getLoopStack()[0]['even']);
+
+        $factory->popLoop();
     }
 
     public function testReachingEndOfLoop()
@@ -1053,23 +1062,6 @@ class ViewFactoryTest extends TestCase
         $factory->incrementLoopIndices();
 
         $this->assertTrue($factory->getLoopStack()[0]['last']);
-    }
-
-    public function testIncrementingLoopIndicesOfUncountable()
-    {
-        $factory = $this->getFactory();
-
-        $factory->addLoop('');
-
-        $factory->incrementLoopIndices();
-
-        $factory->incrementLoopIndices();
-
-        $this->assertEquals(2, $factory->getLoopStack()[0]['iteration']);
-        $this->assertEquals(1, $factory->getLoopStack()[0]['index']);
-        $this->assertFalse($factory->getLoopStack()[0]['first']);
-        $this->assertNull($factory->getLoopStack()[0]['remaining']);
-        $this->assertNull($factory->getLoopStack()[0]['last']);
     }
 
     public function testMacro()

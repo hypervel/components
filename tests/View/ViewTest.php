@@ -77,15 +77,19 @@ class ViewTest extends TestCase
 
     public function testRenderSectionsReturnsEnvironmentSections()
     {
-        $view = m::mock(View::class.'[render]', [
-            m::mock(Factory::class),
-            m::mock(Engine::class),
-            'view',
-            'path',
-            [],
-        ]);
+        $view = $this->getMockBuilder(View::class)
+            ->setConstructorArgs([
+                $factory = m::mock(Factory::class),
+                m::mock(Engine::class),
+                'view',
+                'path',
+                [],
+            ])
+            ->onlyMethods(['renderContents'])
+            ->getMock();
 
-        $view->shouldReceive('render')->with(m::type(Closure::class))->once()->andReturn($sections = ['foo' => 'bar']);
+        $factory->shouldReceive('getSections')->with()->once()->andReturn($sections = ['foo' => 'bar']);
+        $factory->shouldReceive('flushStateIfDoneRendering')->with()->once();
 
         $this->assertEquals($sections, $view->renderSections());
     }

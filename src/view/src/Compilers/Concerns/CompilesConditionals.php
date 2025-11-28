@@ -12,7 +12,7 @@ trait CompilesConditionals
     /**
      * Identifier for the first case in the switch statement.
      */
-    protected const FIRST_CASE_IN_SWITCH_CONTEXT_KEY = 'hypervel.view.compiles_conditionals.first_case_in_switch';
+    protected const FIRST_CASE_IN_SWITCH_CONTEXT_KEY = 'first_case_in_switch';
 
     /**
      * Compile the if-auth statements into valid PHP.

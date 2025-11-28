@@ -4,99 +4,104 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Concerns;
 
+use Hypervel\Context\Context;
 use InvalidArgumentException;
 
 trait ManagesStacks
 {
     /**
-     * All of the finished, captured push sections.
-     *
-     * @var array
+     * Context key for finished, captured push sections.
      */
-    protected array $pushes = [];
+    protected const PUSHES_CONTEXT_KEY = 'pushes';
 
     /**
-     * All of the finished, captured prepend sections.
-     *
-     * @var array
+     * Context key for finished, captured prepend sections.
      */
-    protected array $prepends = [];
+    protected const PREPENDS_CONTEXT_KEY = 'prepends';
 
     /**
-     * The stack of in-progress push sections.
-     *
-     * @var array
+     * Context key for the stack of in-progress push sections.
      */
-    protected array $pushStack = [];
+    protected const PUSH_STACK_CONTEXT_KEY = 'push_stack';
 
     /**
      * Start injecting content into a push section.
-     *
-     * @param  string  $section
-     * @param  string  $content
-     * @return void
      */
     public function startPush(string $section, string $content = ''): void
     {
         if ($content === '') {
             if (ob_start()) {
-                $this->pushStack[] = $section;
+                $this->pushStack($section);
             }
         } else {
             $this->extendPush($section, $content);
         }
     }
 
+    protected function pushStack(string $section): void
+    {
+        $pushStack = Context::get(static::PUSH_STACK_CONTEXT_KEY, []);
+        $pushStack[] = $section;
+        Context::set(static::PUSH_STACK_CONTEXT_KEY, $pushStack);
+    }
+
+    private function popStack(): string
+    {
+        $pushStack = Context::get(static::PUSH_STACK_CONTEXT_KEY, []);
+        $last = array_pop($pushStack);
+        Context::set(static::PUSH_STACK_CONTEXT_KEY, $pushStack);
+
+        return $last;
+    }
+
     /**
      * Stop injecting content into a push section.
      *
-     * @return string
-     *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     public function stopPush(): string
     {
-        if (empty($this->pushStack)) {
+        $last = $this->popStack();
+
+        if (empty($last)) {
             throw new InvalidArgumentException('Cannot end a push stack without first starting one.');
         }
 
-        return tap(array_pop($this->pushStack), function ($last) {
+        return tap($last, function ($last) {
             $this->extendPush($last, ob_get_clean());
         });
     }
 
     /**
      * Append content to a given push section.
-     *
-     * @param  string  $section
-     * @param  string  $content
-     * @return void
      */
     protected function extendPush(string $section, string $content): void
     {
-        if (! isset($this->pushes[$section])) {
-            $this->pushes[$section] = [];
+        $pushes = Context::get(static::PUSHES_CONTEXT_KEY, []);
+
+        if (! isset($pushes[$section])) {
+            $pushes[$section] = [];
         }
 
-        if (! isset($this->pushes[$section][$this->renderCount])) {
-            $this->pushes[$section][$this->renderCount] = $content;
+        $renderCount = $this->getRenderCount();
+
+        if (! isset($pushes[$section][$renderCount])) {
+            $pushes[$section][$renderCount] = $content;
         } else {
-            $this->pushes[$section][$this->renderCount] .= $content;
+            $pushes[$section][$renderCount] .= $content;
         }
+
+        Context::set(static::PUSHES_CONTEXT_KEY, $pushes);
     }
 
     /**
      * Start prepending content into a push section.
-     *
-     * @param  string  $section
-     * @param  string  $content
-     * @return void
      */
     public function startPrepend(string $section, string $content = ''): void
     {
         if ($content === '') {
             if (ob_start()) {
-                $this->pushStack[] = $section;
+                $this->pushStack($section);
             }
         } else {
             $this->extendPrepend($section, $content);
@@ -106,62 +111,63 @@ trait ManagesStacks
     /**
      * Stop prepending content into a push section.
      *
-     * @return string
-     *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     public function stopPrepend(): string
     {
-        if (empty($this->pushStack)) {
+        $last = $this->popStack();
+
+        if (empty($last)) {
             throw new InvalidArgumentException('Cannot end a prepend operation without first starting one.');
         }
 
-        return tap(array_pop($this->pushStack), function ($last) {
+        return tap($last, function ($last) {
             $this->extendPrepend($last, ob_get_clean());
         });
     }
 
     /**
      * Prepend content to a given stack.
-     *
-     * @param  string  $section
-     * @param  string  $content
-     * @return void
      */
     protected function extendPrepend(string $section, string $content): void
     {
-        if (! isset($this->prepends[$section])) {
-            $this->prepends[$section] = [];
+        $prepends = Context::get(static::PREPENDS_CONTEXT_KEY, []);
+
+        if (! isset($prepends[$section])) {
+            $prepends[$section] = [];
         }
 
-        if (! isset($this->prepends[$section][$this->renderCount])) {
-            $this->prepends[$section][$this->renderCount] = $content;
+        $renderCount = $this->getRenderCount();
+
+        if (! isset($prepends[$section][$renderCount])) {
+            $prepends[$section][$renderCount] = $content;
         } else {
-            $this->prepends[$section][$this->renderCount] = $content.$this->prepends[$section][$this->renderCount];
+            $prepends[$section][$renderCount] = $content.$prepends[$section][$renderCount];
         }
+
+        Context::set(static::PREPENDS_CONTEXT_KEY, $prepends);
     }
 
     /**
      * Get the string contents of a push section.
-     *
-     * @param  string  $section
-     * @param  string  $default
-     * @return string
      */
     public function yieldPushContent(string $section, string $default = ''): string
     {
-        if (! isset($this->pushes[$section]) && ! isset($this->prepends[$section])) {
+        $pushes = Context::get(static::PUSHES_CONTEXT_KEY, []);
+        $prepends = Context::get(static::PREPENDS_CONTEXT_KEY, []);
+
+        if (! isset($pushes[$section]) && ! isset($prepends[$section])) {
             return $default;
         }
 
         $output = '';
 
-        if (isset($this->prepends[$section])) {
-            $output .= implode(array_reverse($this->prepends[$section]));
+        if (isset($prepends[$section])) {
+            $output .= implode(array_reverse($prepends[$section]));
         }
 
-        if (isset($this->pushes[$section])) {
-            $output .= implode($this->pushes[$section]);
+        if (isset($pushes[$section])) {
+            $output .= implode($pushes[$section]);
         }
 
         return $output;
@@ -169,13 +175,11 @@ trait ManagesStacks
 
     /**
      * Flush all of the stacks.
-     *
-     * @return void
      */
     public function flushStacks(): void
     {
-        $this->pushes = [];
-        $this->prepends = [];
-        $this->pushStack = [];
+        Context::set(static::PUSHES_CONTEXT_KEY, []);
+        Context::set(static::PREPENDS_CONTEXT_KEY, []);
+        Context::set(static::PUSH_STACK_CONTEXT_KEY, []);
     }
 }

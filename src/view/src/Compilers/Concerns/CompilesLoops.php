@@ -12,7 +12,7 @@ trait CompilesLoops
     /**
      * Counter to keep track of nested forelse statements.
      */
-    protected const FOR_ELSE_COUNTER_CONTEXT_KEY = 'hypervel.view.compiles_loops.for_else_counter';
+    protected const FOR_ELSE_COUNTER_CONTEXT_KEY = 'for_else_counter';
 
     protected function incrementForElseCounter(): int
     {

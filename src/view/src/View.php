@@ -6,9 +6,9 @@ namespace Hypervel\View;
 
 use ArrayAccess;
 use BadMethodCallException;
+use Hyperf\Contract\MessageProvider;
 use Hypervel\Support\Contracts\Arrayable;
 use Hypervel\Support\Contracts\Htmlable;
-use Hypervel\Support\Contracts\MessageProvider;
 use Hypervel\Support\Contracts\Renderable;
 use Hypervel\View\Contracts\Engine;
 use Hypervel\View\Contracts\View as ViewContract;
@@ -28,8 +28,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * The view factory instance.
-     *
-     * @var \Hypervel\View\Factory
      */
     protected Factory $factory;
 
@@ -40,34 +38,21 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * The name of the view.
-     *
-     * @var string
      */
     protected string $view;
 
     /**
      * The array of view data.
-     *
-     * @var array
      */
     protected array $data;
 
     /**
      * The path to the view file.
-     *
-     * @var string
      */
     protected string $path;
 
     /**
      * Create a new view instance.
-     *
-     * @param  \Hypervel\View\Factory  $factory
-     * @param  \Hypervel\Contracts\View\Engine  $engine
-     * @param  string  $view
-     * @param  string  $path
-     * @param  mixed  $data
-     * @return void
      */
     public function __construct(Factory $factory, Engine $engine, string $view, string $path, mixed $data = [])
     {
@@ -81,9 +66,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Get the evaluated contents of a given fragment.
-     *
-     * @param  string  $fragment
-     * @return string
      */
     public function fragment(string $fragment): string
     {
@@ -94,9 +76,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Get the evaluated contents for a given array of fragments or return all fragments.
-     *
-     * @param  array|null  $fragments
-     * @return string
      */
     public function fragments(?array $fragments = null): string
     {
@@ -107,10 +86,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Get the evaluated contents of a given fragment if the given condition is true.
-     *
-     * @param  bool  $boolean
-     * @param  string  $fragment
-     * @return string
      */
     public function fragmentIf(bool $boolean, string $fragment): string
     {
@@ -123,10 +98,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Get the evaluated contents for a given array of fragments if the given condition is true.
-     *
-     * @param  bool  $boolean
-     * @param  array|null  $fragments
-     * @return string
      */
     public function fragmentsIf(bool $boolean, ?array $fragments = null): string
     {
@@ -139,8 +110,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Get all fragments as a single string.
-     *
-     * @return string
      */
     protected function allFragments(): string
     {
@@ -150,10 +119,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
     /**
      * Get the string contents of the view.
      *
-     * @param  callable|null  $callback
-     * @return string
-     *
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function render(?callable $callback = null): string
     {
@@ -177,8 +143,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Get the contents of the view instance.
-     *
-     * @return string
      */
     protected function renderContents(): string
     {
@@ -201,8 +165,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Get the evaluated contents of the view.
-     *
-     * @return string
      */
     protected function getContents(): string
     {
@@ -211,8 +173,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Get the data bound to the view instance.
-     *
-     * @return array
      */
     public function gatherData(): array
     {
@@ -230,23 +190,33 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
     /**
      * Get the sections of the rendered view.
      *
-     * @return array
+     * This function is similar to render. We need to call `renderContents` function first.
+     * Because sections are only populated during the view rendering process.
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function renderSections(): array
     {
-        return $this->render(function () {
-            return $this->factory->getSections();
-        });
+        try {
+            $this->renderContents();
+
+            $response = $this->factory->getSections();
+
+            // Once we have the contents of the view, we will flush the sections if we are
+            // done rendering all views so that there is nothing left hanging over when
+            // another view gets rendered in the future by the application developer.
+            $this->factory->flushStateIfDoneRendering();
+
+            return $response;
+        } catch (Throwable $e) {
+            $this->factory->flushState();
+
+            throw $e;
+        }
     }
 
     /**
      * Add a piece of data to the view.
-     *
-     * @param  string|array  $key
-     * @param  mixed  $value
-     * @return $this
      */
     public function with(string|array $key, mixed $value = null): static
     {
@@ -261,11 +231,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Add a view instance to the view data.
-     *
-     * @param  string  $key
-     * @param  string  $view
-     * @param  array  $data
-     * @return $this
      */
     public function nest(string $key, string $view, array $data = []): static
     {
@@ -274,10 +239,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Add validation errors to the view.
-     *
-     * @param  \Hypervel\Contracts\Support\MessageProvider|array|string  $provider
-     * @param  string  $bag
-     * @return $this
      */
     public function withErrors(MessageProvider|array|string $provider, string $bag = 'default'): static
     {
@@ -288,9 +249,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Parse the given errors into an appropriate value.
-     *
-     * @param  \Hypervel\Contracts\Support\MessageProvider|array|string  $provider
-     * @return \Hypervel\Support\MessageBag
      */
     protected function formatErrors(MessageProvider|array|string $provider): MessageBag
     {
@@ -301,8 +259,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Get the name of the view.
-     *
-     * @return string
      */
     public function name(): string
     {
@@ -311,8 +267,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Get the name of the view.
-     *
-     * @return string
      */
     public function getName(): string
     {
@@ -321,8 +275,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Get the array of view data.
-     *
-     * @return array
      */
     public function getData(): array
     {
@@ -331,8 +283,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Get the path to the view file.
-     *
-     * @return string
      */
     public function getPath(): string
     {
@@ -341,9 +291,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Set the path to the view.
-     *
-     * @param  string  $path
-     * @return void
      */
     public function setPath(string $path): void
     {
@@ -352,8 +299,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Get the view factory instance.
-     *
-     * @return \Hypervel\View\Factory
      */
     public function getFactory(): Factory
     {
@@ -370,9 +315,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Determine if a piece of data is bound.
-     *
-     * @param  string  $key
-     * @return bool
      */
     public function offsetExists(mixed $key): bool
     {
@@ -381,9 +323,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Get a piece of bound data to the view.
-     *
-     * @param  string  $key
-     * @return mixed
      */
     public function offsetGet(mixed $key): mixed
     {
@@ -392,10 +331,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Set a piece of data on the view.
-     *
-     * @param  string  $key
-     * @param  mixed  $value
-     * @return void
      */
     public function offsetSet(mixed $key, mixed $value): void
     {
@@ -404,9 +339,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Unset a piece of data from the view.
-     *
-     * @param  string  $key
-     * @return void
      */
     public function offsetUnset(mixed $key): void
     {
@@ -415,9 +347,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Get a piece of data from the view.
-     *
-     * @param  string  $key
-     * @return mixed
      */
     public function &__get(string $key): mixed
     {
@@ -426,10 +355,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Set a piece of data on the view.
-     *
-     * @param  string  $key
-     * @param  mixed  $value
-     * @return void
      */
     public function __set(string $key, mixed $value): void
     {
@@ -438,9 +363,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Check if a piece of data is bound to the view.
-     *
-     * @param  string  $key
-     * @return bool
      */
     public function __isset(string $key): bool
     {
@@ -449,9 +371,6 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
     /**
      * Remove a piece of bound data from the view.
-     *
-     * @param  string  $key
-     * @return void
      */
     public function __unset(string $key): void
     {
@@ -461,11 +380,9 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
     /**
      * Dynamically bind parameters to the view.
      *
-     * @param  string  $method
-     * @param  array  $parameters
-     * @return \Hypervel\View\View
+     * @return static
      *
-     * @throws \BadMethodCallException
+     * @throws BadMethodCallException
      */
     public function __call(string $method, array $parameters): mixed
     {
@@ -485,7 +402,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
     /**
      * Get content as a string of HTML.
      *
-     * @return string
+     * @throws Throwable
      */
     public function toHtml(): string
     {
@@ -495,9 +412,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
     /**
      * Get the string contents of the view.
      *
-     * @return string
-     *
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function __toString(): string
     {
