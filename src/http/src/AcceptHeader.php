@@ -13,13 +13,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Http;
 
+use Stringable;
+
 /**
  * Represents an Accept-* header.
  *
  * An accept header is compound with a list of items,
  * sorted by descending quality.
  */
-class AcceptHeader
+class AcceptHeader implements Stringable
 {
     /**
      * @var AcceptHeaderItem[]

@@ -13,10 +13,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Http;
 
+use Stringable;
+
 /**
  * Represents an Accept-* header item.
  */
-class AcceptHeaderItem
+class AcceptHeaderItem implements Stringable
 {
     private string $value;
 

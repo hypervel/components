@@ -6,12 +6,13 @@ namespace Hypervel\Mail\Transport;
 
 use Hyperf\Stringable\Str;
 use Psr\Log\LoggerInterface;
+use Stringable;
 use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 use Symfony\Component\Mime\RawMessage;
 
-class LogTransport implements TransportInterface
+class LogTransport implements Stringable, TransportInterface
 {
     /**
      * Create a new log transport instance.

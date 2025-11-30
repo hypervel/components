@@ -6,8 +6,9 @@ namespace Hypervel\Sanctum;
 
 use Hypervel\Support\Contracts\Arrayable;
 use Hypervel\Support\Contracts\Jsonable;
+use Stringable;
 
-class NewAccessToken implements Arrayable, Jsonable
+class NewAccessToken implements Stringable, Arrayable, Jsonable
 {
     /**
      * Create a new access token result.
