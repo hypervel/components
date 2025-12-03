@@ -176,4 +176,11 @@ class ApiRequestTest extends TestCase
 
         $this->assertSame([$userAgent], $request->toPsrRequest()->getHeader('User-Agent'));
     }
+
+    public function testWithQuery(): void
+    {
+        $request = $this->request->withQuery(['param1' => 'value1', 'param2' => 'value2']);
+
+        $this->assertSame('param1=value1&param2=value2', $request->toPsrRequest()->getUri()->getQuery());
+    }
 }
