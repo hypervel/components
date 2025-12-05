@@ -6,11 +6,14 @@ namespace Hypervel\Broadcasting;
 
 use Ably\AblyRest;
 use Closure;
+use Exception;
 use GuzzleHttp\Client as GuzzleClient;
+use Hyperf\Collection\Arr;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Router\DispatcherFactory as RouterDispatcherFactory;
 use Hyperf\Redis\RedisFactory;
+use Hypervel\Auth\AuthManager;
 use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\LogBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\NullBroadcaster;
@@ -18,19 +21,27 @@ use Hypervel\Broadcasting\Broadcasters\PusherBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\RedisBroadcaster;
 use Hypervel\Broadcasting\Contracts\Broadcaster;
 use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactoryContract;
+use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
 use Hypervel\Broadcasting\Contracts\ShouldBeUnique;
 use Hypervel\Broadcasting\Contracts\ShouldBroadcastNow;
 use Hypervel\Bus\Contracts\Dispatcher;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Cache\Contracts\Factory as Cache;
 use Hypervel\Foundation\Http\Kernel;
+use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Queue\Contracts\Factory as Queue;
+use Hypervel\Router\Contracts\UrlRoutable;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Reflector;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Pusher\Pusher;
+use ReflectionClass;
+use ReflectionFunction;
+use ReflectionParameter;
 
 /**
  * @mixin \Hypervel\Broadcasting\Contracts\Broadcaster
@@ -58,6 +69,20 @@ class BroadcastManager implements BroadcastingFactoryContract
      * The array of drivers which will be wrapped as pool proxies.
      */
     protected array $poolables = ['ably', 'pusher'];
+
+    /**
+     * The registered channel authenticators.
+     *
+     * Channels are stored here in the singleton BroadcastManager rather than
+     * on individual Broadcaster instances to ensure they're shared across all
+     * pooled broadcaster instances.
+     */
+    protected array $channels = [];
+
+    /**
+     * The registered channel options.
+     */
+    protected array $channelOptions = [];
 
     /**
      * Create a new manager instance.
@@ -114,6 +139,273 @@ class BroadcastManager implements BroadcastingFactoryContract
     public function channelRoutes(?array $attributes = null): void
     {
         $this->routes($attributes);
+    }
+
+    /**
+     * Register a channel authenticator.
+     *
+     * We handle this here instead of proxying to the driver to ensure channels are
+     * stored in the singleton manager and shared across all pooled broadcaster instances.
+     */
+    public function channel(HasBroadcastChannel|string $channel, callable|string $callback, array $options = []): static
+    {
+        if ($channel instanceof HasBroadcastChannel) {
+            $channel = $channel->broadcastChannelRoute();
+        } elseif (is_string($channel) && class_exists($channel) && is_a($channel, HasBroadcastChannel::class, true)) {
+            $channel = (new $channel())->broadcastChannelRoute();
+        }
+
+        $this->channels[$channel] = $callback;
+        $this->channelOptions[$channel] = $options;
+
+        return $this;
+    }
+
+    /**
+     * Authenticate the incoming request for a given channel.
+     *
+     * Authorization logic is here in order to access the shared channels array.
+     * Only signature generation is delegated to the driver.
+     *
+     * @throws AccessDeniedHttpException
+     */
+    public function auth(RequestInterface $request): mixed
+    {
+        $channelName = $request->input('channel_name');
+
+        if (empty($channelName)) {
+            throw new AccessDeniedHttpException();
+        }
+
+        $normalizedChannel = $this->normalizeChannelName($channelName);
+
+        // Check if this is a guarded channel (private or presence)
+        if ($this->isGuardedChannel($channelName)) {
+            $user = $this->retrieveUser($normalizedChannel);
+            if (! $user) {
+                throw new AccessDeniedHttpException();
+            }
+        }
+
+        // Verify the user can access this channel using the registered callbacks
+        return $this->verifyUserCanAccessChannel($request, $normalizedChannel);
+    }
+
+    /**
+     * Authenticate the incoming request for a given channel.
+     *
+     * @throws AccessDeniedHttpException
+     */
+    protected function verifyUserCanAccessChannel(RequestInterface $request, string $channel): mixed
+    {
+        foreach ($this->channels as $pattern => $callback) {
+            if (! $this->channelNameMatchesPattern($channel, $pattern)) {
+                continue;
+            }
+
+            $parameters = $this->extractAuthParameters($pattern, $channel, $callback);
+            $handler = $this->normalizeChannelHandlerToCallable($callback);
+            $result = $handler($this->retrieveUser($channel), ...$parameters);
+
+            if ($result === false) {
+                throw new AccessDeniedHttpException();
+            }
+
+            if ($result) {
+                // Delegate signature generation to the driver (which may be pooled)
+                return $this->driver()->validAuthenticationResponse($request, $result);
+            }
+        }
+
+        throw new AccessDeniedHttpException();
+    }
+
+    /**
+     * Normalize the channel name by removing private-/presence- prefix.
+     */
+    protected function normalizeChannelName(string $channelName): string
+    {
+        if (str_starts_with($channelName, 'private-')) {
+            return substr($channelName, 8);
+        }
+
+        if (str_starts_with($channelName, 'presence-')) {
+            return substr($channelName, 9);
+        }
+
+        return $channelName;
+    }
+
+    /**
+     * Determine if the channel is a private or presence channel.
+     */
+    protected function isGuardedChannel(string $channelName): bool
+    {
+        return str_starts_with($channelName, 'private-')
+            || str_starts_with($channelName, 'presence-');
+    }
+
+    /**
+     * Extract the parameters from the given pattern and channel.
+     */
+    protected function extractAuthParameters(string $pattern, string $channel, callable|string $callback): array
+    {
+        $callbackParameters = $this->extractParameters($callback);
+
+        return collect($this->extractChannelKeys($pattern, $channel))
+            ->reject(fn ($value, $key) => is_numeric($key))
+            ->map(fn ($value, $key) => $this->resolveBinding($key, $value, $callbackParameters))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Extracts the parameters out of what the user passed to handle the channel authentication.
+     *
+     * @return ReflectionParameter[]
+     */
+    protected function extractParameters(callable|string $callback): array
+    {
+        return match (true) {
+            is_callable($callback) => (new ReflectionFunction($callback))->getParameters(),
+            is_string($callback) => $this->extractParametersFromClass($callback),
+            default => [],
+        };
+    }
+
+    /**
+     * Extracts the parameters out of a class channel's "join" method.
+     *
+     * @return ReflectionParameter[]
+     *
+     * @throws Exception
+     */
+    protected function extractParametersFromClass(string $callback): array
+    {
+        $reflection = new ReflectionClass($callback);
+
+        if (! $reflection->hasMethod('join')) {
+            throw new Exception('Class based channel must define a "join" method.');
+        }
+
+        return $reflection->getMethod('join')->getParameters();
+    }
+
+    /**
+     * Extract the channel keys from the incoming channel name.
+     */
+    protected function extractChannelKeys(string $pattern, string $channel): array
+    {
+        preg_match('/^' . preg_replace('/\{(.*?)\}/', '(?<$1>[^\.]+)', $pattern) . '/', $channel, $keys);
+
+        return $keys;
+    }
+
+    /**
+     * Resolve the given parameter binding.
+     */
+    protected function resolveBinding(string $key, string $value, array $callbackParameters): mixed
+    {
+        return $this->resolveImplicitBindingIfPossible($key, $value, $callbackParameters);
+    }
+
+    /**
+     * Resolve an implicit parameter binding if applicable.
+     *
+     * @throws AccessDeniedHttpException
+     */
+    protected function resolveImplicitBindingIfPossible(string $key, string $value, array $callbackParameters): mixed
+    {
+        foreach ($callbackParameters as $parameter) {
+            if (! $this->isImplicitlyBindable($key, $parameter)) {
+                continue;
+            }
+
+            $className = Reflector::getParameterClassName($parameter);
+
+            if (is_null($model = (new $className())->resolveRouteBinding($value))) {
+                throw new AccessDeniedHttpException();
+            }
+
+            return $model;
+        }
+
+        return $value;
+    }
+
+    /**
+     * Determine if a given key and parameter is implicitly bindable.
+     */
+    protected function isImplicitlyBindable(string $key, ReflectionParameter $parameter): bool
+    {
+        return $parameter->getName() === $key
+            && Reflector::isParameterSubclassOf($parameter, UrlRoutable::class);
+    }
+
+    /**
+     * Normalize the given callback into a callable.
+     */
+    protected function normalizeChannelHandlerToCallable(callable|string $callback): callable
+    {
+        return is_callable($callback) ? $callback : function (...$args) use ($callback) {
+            return $this->app->get($callback)->join(...$args);
+        };
+    }
+
+    /**
+     * Retrieve the authenticated user using the configured guard (if any).
+     */
+    protected function retrieveUser(string $channel): mixed
+    {
+        $options = $this->retrieveChannelOptions($channel);
+        $guards = $options['guards'] ?? null;
+
+        $auth = $this->app->get(AuthManager::class);
+
+        if (is_null($guards)) {
+            return $auth->user();
+        }
+
+        foreach (Arr::wrap($guards) as $guard) {
+            $user = $auth->guard($guard)->user();
+            if ($user) {
+                return $user;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Retrieve options for a certain channel.
+     */
+    protected function retrieveChannelOptions(string $channel): array
+    {
+        foreach ($this->channelOptions as $pattern => $options) {
+            if (! $this->channelNameMatchesPattern($channel, $pattern)) {
+                continue;
+            }
+
+            return $options;
+        }
+
+        return [];
+    }
+
+    /**
+     * Check if the channel name from the request matches a pattern from registered channels.
+     */
+    protected function channelNameMatchesPattern(string $channel, string $pattern): bool
+    {
+        return (bool) preg_match('/^' . preg_replace('/\{(.*?)\}/', '([^\.]+)', $pattern) . '$/', $channel);
+    }
+
+    /**
+     * Get all of the registered channels.
+     */
+    public function getChannels(): Collection
+    {
+        return Collection::make($this->channels);
     }
 
     /**
