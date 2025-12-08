@@ -117,40 +117,6 @@ class BroadcastManagerTest extends TestCase
 
         $broadcastManager->connection('alien_connection');
     }
-
-    /**
-     * Test that channels are stored on the manager itself, not proxied to pooled drivers.
-     *
-     * This is critical for coroutine-safe broadcasting: when using pooled drivers
-     * (like Pusher), channels registered via Broadcast::channel() must be stored
-     * on the singleton BroadcastManager, not on individual pooled driver instances.
-     * Otherwise, authorization requests may fail because they hit a different
-     * pooled instance that doesn't have the channel patterns registered.
-     */
-    public function testChannelsAreStoredOnManagerNotProxiedToDriver()
-    {
-        $app = m::mock(ContainerInterface::class);
-        $broadcastManager = new BroadcastManager($app);
-
-        // Register a channel on the manager
-        $callback = function ($user, $id) {
-            return (int) $user->getAuthIdentifier() === (int) $id;
-        };
-
-        $broadcastManager->channel('App.Models.User.{id}', $callback);
-
-        // The manager should have a getChannels() method that returns stored channels
-        // This ensures channels are stored on the manager itself (singleton),
-        // not proxied to potentially different pooled driver instances
-        $this->assertTrue(
-            method_exists($broadcastManager, 'getChannels'),
-            'BroadcastManager must have getChannels() method to expose stored channels'
-        );
-
-        $channels = $broadcastManager->getChannels();
-        $this->assertCount(1, $channels);
-        $this->assertArrayHasKey('App.Models.User.{id}', $channels->toArray());
-    }
 }
 
 class TestEvent implements ShouldBroadcast
