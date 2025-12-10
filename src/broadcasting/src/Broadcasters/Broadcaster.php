@@ -35,12 +35,12 @@ abstract class Broadcaster implements BroadcasterContract
     /**
      * The registered channel authenticators.
      */
-    protected array $channels = [];
+    protected static array $channels = [];
 
     /**
      * The registered channel options.
      */
-    protected array $channelOptions = [];
+    protected static array $channelOptions = [];
 
     /**
      * Resolve the authenticated user payload for the incoming connection request.
@@ -77,9 +77,9 @@ abstract class Broadcaster implements BroadcasterContract
             $channel = (new $channel())->broadcastChannelRoute();
         }
 
-        $this->channels[$channel] = $callback;
+        static::$channels[$channel] = $callback;
 
-        $this->channelOptions[$channel] = $options;
+        static::$channelOptions[$channel] = $options;
 
         return $this;
     }
@@ -91,7 +91,7 @@ abstract class Broadcaster implements BroadcasterContract
      */
     protected function verifyUserCanAccessChannel(RequestInterface $request, string $channel): mixed
     {
-        foreach ($this->channels as $pattern => $callback) {
+        foreach (static::$channels as $pattern => $callback) {
             if (! $this->channelNameMatchesPattern($channel, $pattern)) {
                 continue;
             }
@@ -266,7 +266,7 @@ abstract class Broadcaster implements BroadcasterContract
      */
     protected function retrieveChannelOptions(string $channel): array
     {
-        foreach ($this->channelOptions as $pattern => $options) {
+        foreach (static::$channelOptions as $pattern => $options) {
             if (! $this->channelNameMatchesPattern($channel, $pattern)) {
                 continue;
             }
@@ -290,6 +290,15 @@ abstract class Broadcaster implements BroadcasterContract
      */
     public function getChannels(): Collection
     {
-        return Collection::make($this->channels);
+        return Collection::make(static::$channels);
+    }
+
+    /**
+     * Flush the registered channels.
+     */
+    public static function flushChannels(): void
+    {
+        static::$channels = [];
+        static::$channelOptions = [];
     }
 }
