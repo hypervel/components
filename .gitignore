@@ -1,5 +1,6 @@
 .idea
 /.phpunit.cache
+/.tmp
 /vendor
 composer.lock
 /phpunit.xml
