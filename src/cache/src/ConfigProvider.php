@@ -10,6 +10,7 @@ use Hypervel\Cache\Contracts\Factory;
 use Hypervel\Cache\Contracts\Store;
 use Hypervel\Cache\Listeners\CreateSwooleTable;
 use Hypervel\Cache\Listeners\CreateTimer;
+use Hypervel\Cache\Redis\Console\PruneStaleTagsCommand;
 
 class ConfigProvider
 {
@@ -27,6 +28,7 @@ class ConfigProvider
             'commands' => [
                 ClearCommand::class,
                 PruneDbExpiredCommand::class,
+                PruneStaleTagsCommand::class,                
             ],
             'publish' => [
                 [
