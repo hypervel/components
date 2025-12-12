@@ -119,6 +119,10 @@ class SerializationTest extends TestCase
 
     public function testSerializeForLuaAppliesCompressionWhenEnabled(): void
     {
+        if (! defined('Redis::COMPRESSION_LZF')) {
+            $this->markTestSkipped('Redis::COMPRESSION_LZF not available (phpredis compiled without LZF support)');
+        }
+
         $connection = m::mock(RedisConnection::class);
         $client = m::mock(Redis::class);
 
@@ -166,6 +170,10 @@ class SerializationTest extends TestCase
 
     public function testSerializeForLuaCastsNumericToStringWithCompression(): void
     {
+        if (! defined('Redis::COMPRESSION_LZF')) {
+            $this->markTestSkipped('Redis::COMPRESSION_LZF not available (phpredis compiled without LZF support)');
+        }
+
         $connection = m::mock(RedisConnection::class);
         $client = m::mock(Redis::class);
 

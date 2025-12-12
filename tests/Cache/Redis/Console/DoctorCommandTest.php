@@ -16,13 +16,14 @@ use Hypervel\Cache\RedisStore;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\Attributes\RequiresPhpExtensionVersion;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 use Symfony\Component\Console\Output\NullOutput;
 
 /**
  * Tests for the cache:redis-doctor command.
+ *
+ * @group redis-integration
  *
  * @internal
  * @coversNothing
@@ -57,7 +58,6 @@ class DoctorCommandTest extends TestCase
         $this->assertSame(1, $result);
     }
 
-    #[RequiresPhpExtensionVersion('redis', '6.3.0')]
     public function testDoctorDetectsRedisStoreFromConfig(): void
     {
         // Set up config with a redis store
@@ -113,7 +113,6 @@ class DoctorCommandTest extends TestCase
         $this->assertStringContainsString('Tag Mode: any', $outputText);
     }
 
-    #[RequiresPhpExtensionVersion('redis', '6.3.0')]
     public function testDoctorUsesSpecifiedStore(): void
     {
         $config = m::mock(ConfigInterface::class);
@@ -160,7 +159,6 @@ class DoctorCommandTest extends TestCase
         $this->assertStringContainsString('custom-redis', $outputText);
     }
 
-    #[RequiresPhpExtensionVersion('redis', '6.3.0')]
     public function testDoctorDisplaysTagMode(): void
     {
         $config = m::mock(ConfigInterface::class);
@@ -231,7 +229,6 @@ class DoctorCommandTest extends TestCase
         $this->assertStringContainsString('Could not detect', $outputText);
     }
 
-    #[RequiresPhpExtensionVersion('redis', '6.3.0')]
     public function testDoctorDisplaysSystemInformation(): void
     {
         $config = m::mock(ConfigInterface::class);
