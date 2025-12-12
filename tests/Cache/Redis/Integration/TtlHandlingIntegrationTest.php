@@ -25,7 +25,7 @@ use Hypervel\Support\Facades\Cache;
  * @internal
  * @coversNothing
  */
-class TtlHandlingIntegrationTest extends CacheRedisIntegrationTestCase
+class TtlHandlingIntegrationTest extends RedisCacheIntegrationTestCase
 {
     // =========================================================================
     // INTEGER SECONDS TTL - BOTH MODES

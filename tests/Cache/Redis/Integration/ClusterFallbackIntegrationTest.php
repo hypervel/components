@@ -65,7 +65,7 @@ class ClusterModeRedisStore extends RedisStore
  * @internal
  * @coversNothing
  */
-class ClusterFallbackIntegrationTest extends CacheRedisIntegrationTestCase
+class ClusterFallbackIntegrationTest extends RedisCacheIntegrationTestCase
 {
     private ?ClusterModeRedisStore $clusterStore = null;
 

@@ -19,7 +19,7 @@ use Hypervel\Support\Facades\Cache;
  * @internal
  * @coversNothing
  */
-class ConcurrencyIntegrationTest extends CacheRedisIntegrationTestCase
+class ConcurrencyIntegrationTest extends RedisCacheIntegrationTestCase
 {
     // =========================================================================
     // CONCURRENT WRITES - BOTH MODES

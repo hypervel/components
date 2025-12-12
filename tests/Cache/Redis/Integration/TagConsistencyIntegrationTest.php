@@ -25,7 +25,7 @@ use Hypervel\Support\Facades\Redis;
  * @internal
  * @coversNothing
  */
-class TagConsistencyIntegrationTest extends CacheRedisIntegrationTestCase
+class TagConsistencyIntegrationTest extends RedisCacheIntegrationTestCase
 {
     // =========================================================================
     // FULL FLUSH CLEANUP - BOTH MODES

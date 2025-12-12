@@ -140,4 +140,103 @@ abstract class RedisIntegrationTestCase extends TestCase
             // Ignore errors during cleanup
         }
     }
+
+    // =========================================================================
+    // CUSTOM CONNECTION HELPERS (for OPT_PREFIX testing)
+    // =========================================================================
+
+    /**
+     * Track custom connections created during tests for cleanup.
+     *
+     * @var array<string>
+     */
+    private array $customConnections = [];
+
+    /**
+     * Create a Redis connection with a specific OPT_PREFIX.
+     *
+     * This allows testing different prefix configurations:
+     * - Empty string for no OPT_PREFIX
+     * - Custom string for specific OPT_PREFIX
+     *
+     * The connection is registered in config and can be used to create stores.
+     *
+     * @param string $optPrefix The OPT_PREFIX to set (empty string for none)
+     * @return string The connection name to use with RedisStore
+     */
+    protected function createConnectionWithOptPrefix(string $optPrefix): string
+    {
+        $connectionName = 'test_opt_' . ($optPrefix === '' ? 'none' : md5($optPrefix));
+
+        // Don't recreate if already exists
+        if (in_array($connectionName, $this->customConnections, true)) {
+            return $connectionName;
+        }
+
+        $config = $this->app->get(ConfigInterface::class);
+
+        // Build connection config with correct test database
+        // Note: We can't rely on redis.default because FoundationServiceProvider
+        // copies database.redis.* to redis.* at boot (before test's setUp runs)
+        $connectionConfig = [
+            'host' => env('REDIS_HOST', '127.0.0.1'),
+            'auth' => env('REDIS_AUTH', null) ?: null,
+            'port' => (int) env('REDIS_PORT', 6379),
+            'db' => (int) env('REDIS_DB', $this->redisDatabase),
+            'pool' => [
+                'min_connections' => 1,
+                'max_connections' => 10,
+                'connect_timeout' => 10.0,
+                'wait_timeout' => 3.0,
+                'heartbeat' => -1,
+                'max_idle_time' => 60.0,
+            ],
+            'options' => [
+                'prefix' => $optPrefix,
+            ],
+        ];
+
+        // Register the new connection directly to redis.* (runtime config location)
+        $config->set("redis.{$connectionName}", $connectionConfig);
+
+        $this->customConnections[] = $connectionName;
+
+        return $connectionName;
+    }
+
+    /**
+     * Get a raw phpredis client without any OPT_PREFIX.
+     *
+     * Useful for verifying actual key names in Redis.
+     */
+    protected function rawRedisClientWithoutPrefix(): \Redis
+    {
+        $client = new \Redis();
+        $client->connect(
+            env('REDIS_HOST', '127.0.0.1'),
+            (int) env('REDIS_PORT', 6379)
+        );
+
+        $auth = env('REDIS_AUTH');
+        if ($auth) {
+            $client->auth($auth);
+        }
+
+        $client->select((int) env('REDIS_DB', $this->redisDatabase));
+
+        return $client;
+    }
+
+    /**
+     * Clean up keys matching a pattern using raw client.
+     */
+    protected function cleanupKeysWithPattern(string $pattern): void
+    {
+        $client = $this->rawRedisClientWithoutPrefix();
+        $keys = $client->keys($pattern);
+        if (! empty($keys)) {
+            $client->del(...$keys);
+        }
+        $client->close();
+    }
 }

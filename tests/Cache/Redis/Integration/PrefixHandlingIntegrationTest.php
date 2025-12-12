@@ -21,7 +21,7 @@ use Hypervel\Cache\RedisStore;
  * @internal
  * @coversNothing
  */
-class PrefixHandlingIntegrationTest extends CacheRedisIntegrationTestCase
+class PrefixHandlingIntegrationTest extends RedisCacheIntegrationTestCase
 {
     /**
      * Create a store with specific cache prefix.

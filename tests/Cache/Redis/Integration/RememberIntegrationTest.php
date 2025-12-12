@@ -23,7 +23,7 @@ use RuntimeException;
  * @internal
  * @coversNothing
  */
-class RememberIntegrationTest extends CacheRedisIntegrationTestCase
+class RememberIntegrationTest extends RedisCacheIntegrationTestCase
 {
     // =========================================================================
     // ALL MODE - REMEMBER OPERATIONS

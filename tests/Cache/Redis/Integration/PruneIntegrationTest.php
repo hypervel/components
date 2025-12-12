@@ -21,7 +21,7 @@ use Hypervel\Support\Facades\Cache;
  * @internal
  * @coversNothing
  */
-class PruneIntegrationTest extends CacheRedisIntegrationTestCase
+class PruneIntegrationTest extends RedisCacheIntegrationTestCase
 {
     // =========================================================================
     // ANY MODE - ORPHAN CREATION

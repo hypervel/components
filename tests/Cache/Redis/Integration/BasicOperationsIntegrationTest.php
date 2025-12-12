@@ -18,7 +18,7 @@ use Hypervel\Support\Facades\Cache;
  * @internal
  * @coversNothing
  */
-class BasicOperationsIntegrationTest extends CacheRedisIntegrationTestCase
+class BasicOperationsIntegrationTest extends RedisCacheIntegrationTestCase
 {
     // =========================================================================
     // BASIC OPERATIONS (NO TAGS) - BOTH MODES

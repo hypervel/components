@@ -22,7 +22,7 @@ use Hypervel\Support\Facades\Cache;
  * @internal
  * @coversNothing
  */
-class HashLifecycleIntegrationTest extends CacheRedisIntegrationTestCase
+class HashLifecycleIntegrationTest extends RedisCacheIntegrationTestCase
 {
     protected function setUp(): void
     {

@@ -22,7 +22,7 @@ use Hypervel\Support\Facades\Cache;
  * @internal
  * @coversNothing
  */
-class KeyNamingIntegrationTest extends CacheRedisIntegrationTestCase
+class KeyNamingIntegrationTest extends RedisCacheIntegrationTestCase
 {
     // =========================================================================
     // ALL MODE - KEY STRUCTURE VERIFICATION

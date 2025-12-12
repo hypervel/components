@@ -25,7 +25,7 @@ use Hypervel\Support\Facades\Cache;
  * @internal
  * @coversNothing
  */
-class EdgeCasesIntegrationTest extends CacheRedisIntegrationTestCase
+class EdgeCasesIntegrationTest extends RedisCacheIntegrationTestCase
 {
     // =========================================================================
     // SPECIAL CHARACTERS IN CACHE KEYS - BOTH MODES

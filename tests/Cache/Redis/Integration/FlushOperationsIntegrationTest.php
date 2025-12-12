@@ -20,7 +20,7 @@ use Throwable;
  * @internal
  * @coversNothing
  */
-class FlushOperationsIntegrationTest extends CacheRedisIntegrationTestCase
+class FlushOperationsIntegrationTest extends RedisCacheIntegrationTestCase
 {
     // =========================================================================
     // ANY MODE - UNION FLUSH BEHAVIOR

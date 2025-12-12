@@ -19,7 +19,7 @@ use Hypervel\Support\Facades\Cache;
  * @internal
  * @coversNothing
  */
-class TaggedOperationsIntegrationTest extends CacheRedisIntegrationTestCase
+class TaggedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
 {
     // =========================================================================
     // ALL MODE - TAG STRUCTURE VERIFICATION
@@ -426,5 +426,82 @@ class TaggedOperationsIntegrationTest extends CacheRedisIntegrationTestCase
         $this->assertContains('batch', $this->getAnyModeReverseIndex('item:1'));
         $this->assertContains('batch', $this->getAnyModeReverseIndex('item:2'));
         $this->assertContains('batch', $this->getAnyModeReverseIndex('item:3'));
+    }
+
+    public function testAllModeLargePutManyChunking(): void
+    {
+        $this->setTagMode(TagMode::All);
+
+        $values = [];
+        for ($i = 0; $i < 1500; ++$i) {
+            $values["large_key_{$i}"] = "value_{$i}";
+        }
+
+        $result = Cache::tags(['large_batch'])->putMany($values, 60);
+        $this->assertTrue($result);
+
+        // Verify first and last items exist
+        $this->assertSame('value_0', Cache::tags(['large_batch'])->get('large_key_0'));
+        $this->assertSame('value_1499', Cache::tags(['large_batch'])->get('large_key_1499'));
+
+        // Verify tag structure has all entries
+        $entries = $this->getAllModeTagEntries('large_batch');
+        $this->assertCount(1500, $entries);
+
+        // Flush and verify
+        Cache::tags(['large_batch'])->flush();
+        $this->assertNull(Cache::tags(['large_batch'])->get('large_key_0'));
+    }
+
+    public function testAnyModeLargePutManyChunking(): void
+    {
+        $this->setTagMode(TagMode::Any);
+
+        $values = [];
+        for ($i = 0; $i < 1500; ++$i) {
+            $values["large_key_{$i}"] = "value_{$i}";
+        }
+
+        $result = Cache::tags(['large_batch'])->putMany($values, 60);
+        $this->assertTrue($result);
+
+        // Verify first and last items exist
+        $this->assertSame('value_0', Cache::get('large_key_0'));
+        $this->assertSame('value_1499', Cache::get('large_key_1499'));
+
+        // Verify tag structure has all entries
+        $entries = $this->getAnyModeTagEntries('large_batch');
+        $this->assertCount(1500, $entries);
+
+        // Flush and verify
+        Cache::tags(['large_batch'])->flush();
+        $this->assertNull(Cache::get('large_key_0'));
+    }
+
+    public function testAnyModePutManyFlushByOneTag(): void
+    {
+        $this->setTagMode(TagMode::Any);
+
+        $items = [
+            'pm_key1' => 'value1',
+            'pm_key2' => 'value2',
+            'pm_key3' => 'value3',
+        ];
+
+        // Store with multiple tags
+        Cache::tags(['pm_tag1', 'pm_tag2'])->putMany($items, 60);
+
+        // Verify all exist
+        $this->assertSame('value1', Cache::get('pm_key1'));
+        $this->assertSame('value2', Cache::get('pm_key2'));
+        $this->assertSame('value3', Cache::get('pm_key3'));
+
+        // Flush only ONE of the tags - items should still be removed (any mode behavior)
+        Cache::tags(['pm_tag1'])->flush();
+
+        // All items should be gone because any mode removes items tagged with ANY of the flushed tags
+        $this->assertNull(Cache::get('pm_key1'));
+        $this->assertNull(Cache::get('pm_key2'));
+        $this->assertNull(Cache::get('pm_key3'));
     }
 }
