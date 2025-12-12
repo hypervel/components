@@ -116,7 +116,7 @@ class HashLifecycleIntegrationTest extends CacheRedisIntegrationTestCase
         $this->assertRedisKeyExists($tagHash);
         $this->assertEquals(1, $this->redis()->hlen($tagHash));
 
-        // Manually delete the cache key (simulates lazy mode flush of another tag)
+        // Manually delete the cache key (simulates flush of another tag)
         Cache::forget('lifecycle:orphan');
 
         // Hash field still exists even though cache key is gone
@@ -140,7 +140,7 @@ class HashLifecycleIntegrationTest extends CacheRedisIntegrationTestCase
         $this->assertRedisKeyExists($tagHash);
         $this->assertEquals(1, $this->redis()->hlen($tagHash));
 
-        // Simulate lazy mode flush by deleting cache key but leaving field
+        // Simulate flush by deleting cache key but leaving field
         Cache::forget('lifecycle:temp');
 
         // Orphaned field still exists

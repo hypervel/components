@@ -372,7 +372,7 @@ class FlushOperationsIntegrationTest extends CacheRedisIntegrationTestCase
     }
 
     // =========================================================================
-    // FLUSH WITH SHARED TAGS (ORPHAN CREATION IN LAZY MODE)
+    // FLUSH WITH SHARED TAGS (ORPHAN CREATION)
     // =========================================================================
 
     public function testAnyModeFlushCreatesOrphanedFieldsInOtherTags(): void
@@ -395,7 +395,7 @@ class FlushOperationsIntegrationTest extends CacheRedisIntegrationTestCase
         // Alpha hash should be deleted
         $this->assertRedisKeyNotExists($this->anyModeTagKey('alpha'));
 
-        // In lazy mode, beta hash may still have an orphaned field
+        // Beta hash may still have an orphaned field
         // (this is expected behavior - prune command cleans these up)
         // The field will have expired TTL or the cache key won't exist
     }
@@ -417,7 +417,7 @@ class FlushOperationsIntegrationTest extends CacheRedisIntegrationTestCase
         // Alpha ZSET should be deleted
         $this->assertRedisKeyNotExists($this->allModeTagKey('alpha'));
 
-        // In lazy mode, beta ZSET may still have an orphaned entry
+        // Beta ZSET may still have an orphaned entry
         // (this is expected behavior - prune command cleans these up)
     }
 }
