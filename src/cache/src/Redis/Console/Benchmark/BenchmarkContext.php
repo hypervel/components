@@ -56,9 +56,12 @@ class BenchmarkContext
 
     /**
      * Get the cache repository for this context.
+     *
+     * @return Repository
      */
-    public function getStore(): Repository
+    public function getStore(): \Hypervel\Cache\Contracts\Repository
     {
+        /** @var Repository */
         return $this->cacheManager->store($this->storeName);
     }
 

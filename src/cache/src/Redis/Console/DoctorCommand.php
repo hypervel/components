@@ -159,7 +159,7 @@ class DoctorCommand extends Command
         $redis = $context->withConnection(fn (RedisConnection $conn) => $conn);
 
         return [
-            new PhpRedisCheck($tagMode),
+            new PhpRedisCheck(),
             new RedisVersionCheck($redis, $tagMode),
             new HexpireCheck($redis, $tagMode),
             new CacheStoreCheck($storeName, 'redis', $tagMode),

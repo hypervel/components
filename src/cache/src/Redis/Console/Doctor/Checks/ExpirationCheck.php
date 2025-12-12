@@ -100,7 +100,9 @@ final class ExpirationCheck implements CheckInterface
         );
 
         // Run cleanup to remove stale entries
-        $ctx->cache->tags([$tag])->flushStale();
+        /** @var \Hypervel\Cache\Redis\AllTaggedCache $taggedCache */
+        $taggedCache = $ctx->cache->tags([$tag]);
+        $taggedCache->flushStale();
 
         // Now the ZSET entry should be gone
         $scoreAfterCleanup = $ctx->redis->zScore($tagSetKey, $namespacedKey);
