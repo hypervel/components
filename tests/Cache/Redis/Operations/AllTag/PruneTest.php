@@ -10,7 +10,7 @@ use Hyperf\Redis\RedisFactory;
 use Hypervel\Cache\Redis\Operations\AllTag\Prune;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Redis\RedisConnection;
-use Hypervel\Tests\Cache\Redis\Stub\FakeRedisClient;
+use Hypervel\Tests\Redis\Stub\FakeRedisClient;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 

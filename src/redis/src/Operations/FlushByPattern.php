@@ -2,10 +2,8 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Cache\Redis\Flush;
+namespace Hypervel\Redis\Operations;
 
-use Hypervel\Cache\Redis\Query\SafeScan;
-use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
 use Redis;
 
@@ -28,17 +26,23 @@ use Redis;
  *
  * ## Usage
  *
- * ```php
- * $flushByPattern = new FlushByPattern($storeContext);
+ * Typically used via RedisConnection convenience method:
  *
- * // Delete all keys matching "cache:users:*"
- * // (OPT_PREFIX is handled automatically)
+ * ```php
+ * // Via connection method (recommended)
+ * $connection->flushByPattern('cache:users:*');
+ *
+ * // Via Redis facade (handles connection lifecycle)
+ * Redis::flushByPattern('cache:users:*');
+ *
+ * // Direct instantiation (when you have a held connection)
+ * $flushByPattern = new FlushByPattern($connection);
  * $deletedCount = $flushByPattern->execute('cache:users:*');
  * ```
  *
  * ## Warning
  *
- * This bypasses tag management. Only use for:
+ * When used with cache, this bypasses tag management. Only use for:
  * - Non-tagged items
  * - Administrative cleanup where orphaned tag references are acceptable
  * - Test/benchmark data cleanup
@@ -53,9 +57,11 @@ final class FlushByPattern
 
     /**
      * Create a new pattern flush instance.
+     *
+     * @param RedisConnection $connection A held Redis connection (not released until done)
      */
     public function __construct(
-        private readonly StoreContext $context,
+        private readonly RedisConnection $connection,
     ) {}
 
     /**
@@ -67,32 +73,30 @@ final class FlushByPattern
      */
     public function execute(string $pattern): int
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($pattern) {
-            $client = $conn->client();
-            $optPrefix = (string) $client->getOption(Redis::OPT_PREFIX);
+        $client = $this->connection->client();
+        $optPrefix = (string) $client->getOption(Redis::OPT_PREFIX);
 
-            $safeScan = new SafeScan($client, $optPrefix);
+        $safeScan = new SafeScan($client, $optPrefix);
 
-            $deletedCount = 0;
-            $buffer = [];
+        $deletedCount = 0;
+        $buffer = [];
 
-            // Iterate using the memory-safe generator
-            foreach ($safeScan->execute($pattern) as $key) {
-                $buffer[] = $key;
+        // Iterate using the memory-safe generator
+        foreach ($safeScan->execute($pattern) as $key) {
+            $buffer[] = $key;
 
-                if (count($buffer) >= self::BUFFER_SIZE) {
-                    $deletedCount += $this->deleteKeys($conn, $buffer);
-                    $buffer = [];
-                }
+            if (count($buffer) >= self::BUFFER_SIZE) {
+                $deletedCount += $this->deleteKeys($buffer);
+                $buffer = [];
             }
+        }
 
-            // Delete any remaining keys in the buffer
-            if (! empty($buffer)) {
-                $deletedCount += $this->deleteKeys($conn, $buffer);
-            }
+        // Delete any remaining keys in the buffer
+        if (! empty($buffer)) {
+            $deletedCount += $this->deleteKeys($buffer);
+        }
 
-            return $deletedCount;
-        });
+        return $deletedCount;
     }
 
     /**
@@ -101,19 +105,17 @@ final class FlushByPattern
      * Uses UNLINK (async delete) when available for better performance,
      * falls back to DEL for older Redis versions.
      *
-     * @param RedisConnection $conn The Redis connection
      * @param array<string> $keys Keys to delete (without OPT_PREFIX - phpredis adds it)
      * @return int Number of keys deleted
      */
-    private function deleteKeys(RedisConnection $conn, array $keys): int
+    private function deleteKeys(array $keys): int
     {
         if (empty($keys)) {
             return 0;
         }
 
         // UNLINK is non-blocking (async) delete, available since Redis 4.0
-        // The connection wrapper handles the command execution
-        $result = $conn->unlink(...$keys);
+        $result = $this->connection->unlink(...$keys);
 
         return is_int($result) ? $result : 0;
     }

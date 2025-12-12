@@ -2,15 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Flush;
+namespace Hypervel\Tests\Redis\Operations;
 
-use Hyperf\Redis\Pool\PoolFactory;
-use Hyperf\Redis\Pool\RedisPool;
-use Hypervel\Cache\Redis\Flush\FlushByPattern;
-use Hypervel\Cache\Redis\Support\StoreContext;
-use Hypervel\Cache\Redis\TagMode;
+use Hypervel\Redis\Operations\FlushByPattern;
 use Hypervel\Redis\RedisConnection;
-use Hypervel\Tests\Cache\Redis\Stub\FakeRedisClient;
+use Hypervel\Tests\Redis\Stub\FakeRedisClient;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -38,14 +34,12 @@ class FlushByPatternTest extends TestCase
 
         $connection = m::mock(RedisConnection::class);
         $connection->shouldReceive('client')->andReturn($client);
-        $connection->shouldReceive('release');
         $connection->shouldReceive('unlink')
             ->once()
             ->with('cache:test:key1', 'cache:test:key2', 'cache:test:key3')
             ->andReturn(3);
 
-        $context = $this->createContext($connection);
-        $flushByPattern = new FlushByPattern($context);
+        $flushByPattern = new FlushByPattern($connection);
 
         $deletedCount = $flushByPattern->execute('cache:test:*');
 
@@ -62,12 +56,10 @@ class FlushByPatternTest extends TestCase
 
         $connection = m::mock(RedisConnection::class);
         $connection->shouldReceive('client')->andReturn($client);
-        $connection->shouldReceive('release');
         // unlink should NOT be called when no keys found
         $connection->shouldNotReceive('unlink');
 
-        $context = $this->createContext($connection);
-        $flushByPattern = new FlushByPattern($context);
+        $flushByPattern = new FlushByPattern($connection);
 
         $deletedCount = $flushByPattern->execute('cache:nonexistent:*');
 
@@ -87,7 +79,6 @@ class FlushByPatternTest extends TestCase
 
         $connection = m::mock(RedisConnection::class);
         $connection->shouldReceive('client')->andReturn($client);
-        $connection->shouldReceive('release');
         // Keys passed to unlink should have OPT_PREFIX stripped
         // (phpredis will auto-add it back)
         $connection->shouldReceive('unlink')
@@ -95,8 +86,7 @@ class FlushByPatternTest extends TestCase
             ->with('cache:test:key1', 'cache:test:key2')
             ->andReturn(2);
 
-        $context = $this->createContext($connection);
-        $flushByPattern = new FlushByPattern($context);
+        $flushByPattern = new FlushByPattern($connection);
 
         $deletedCount = $flushByPattern->execute('cache:test:*');
 
@@ -129,15 +119,13 @@ class FlushByPatternTest extends TestCase
 
         $connection = m::mock(RedisConnection::class);
         $connection->shouldReceive('client')->andReturn($client);
-        $connection->shouldReceive('release');
 
         // Should be called 3 times (1000 + 1000 + 500)
         $connection->shouldReceive('unlink')
             ->times(3)
             ->andReturn(1000, 1000, 500);
 
-        $context = $this->createContext($connection);
-        $flushByPattern = new FlushByPattern($context);
+        $flushByPattern = new FlushByPattern($connection);
 
         $deletedCount = $flushByPattern->execute('cache:test:*');
 
@@ -155,15 +143,13 @@ class FlushByPatternTest extends TestCase
 
         $connection = m::mock(RedisConnection::class);
         $connection->shouldReceive('client')->andReturn($client);
-        $connection->shouldReceive('release');
         // All keys should be collected and deleted together (under buffer size)
         $connection->shouldReceive('unlink')
             ->once()
             ->with('cache:test:key1', 'cache:test:key2', 'cache:test:key3')
             ->andReturn(3);
 
-        $context = $this->createContext($connection);
-        $flushByPattern = new FlushByPattern($context);
+        $flushByPattern = new FlushByPattern($connection);
 
         $deletedCount = $flushByPattern->execute('cache:test:*');
 
@@ -180,14 +166,12 @@ class FlushByPatternTest extends TestCase
 
         $connection = m::mock(RedisConnection::class);
         $connection->shouldReceive('client')->andReturn($client);
-        $connection->shouldReceive('release');
         // unlink might return false on error
         $connection->shouldReceive('unlink')
             ->once()
             ->andReturn(false);
 
-        $context = $this->createContext($connection);
-        $flushByPattern = new FlushByPattern($context);
+        $flushByPattern = new FlushByPattern($connection);
 
         $deletedCount = $flushByPattern->execute('cache:test:*');
 
@@ -204,30 +188,13 @@ class FlushByPatternTest extends TestCase
 
         $connection = m::mock(RedisConnection::class);
         $connection->shouldReceive('client')->andReturn($client);
-        $connection->shouldReceive('release');
 
-        $context = $this->createContext($connection);
-        $flushByPattern = new FlushByPattern($context);
+        $flushByPattern = new FlushByPattern($connection);
 
         $flushByPattern->execute('cache:users:*');
 
         // Verify the pattern was passed to scan
         $this->assertSame(1, $client->getScanCallCount());
         $this->assertSame('cache:users:*', $client->getScanCalls()[0]['pattern']);
-    }
-
-    private function createContext(m\MockInterface $connection): StoreContext
-    {
-        $poolFactory = m::mock(PoolFactory::class);
-        $pool = m::mock(RedisPool::class);
-
-        $poolFactory->shouldReceive('getPool')
-            ->with('default')
-            ->andReturn($pool);
-
-        $pool->shouldReceive('get')
-            ->andReturn($connection);
-
-        return new StoreContext($poolFactory, 'default', 'cache:', TagMode::Any);
     }
 }

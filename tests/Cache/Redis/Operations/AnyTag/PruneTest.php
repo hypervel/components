@@ -11,7 +11,7 @@ use Hypervel\Cache\Redis\Operations\AnyTag\Prune;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
-use Hypervel\Tests\Cache\Redis\Stub\FakeRedisClient;
+use Hypervel\Tests\Redis\Stub\FakeRedisClient;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 

@@ -9,7 +9,7 @@ use Hyperf\Command\Command;
 use Hypervel\Cache\Contracts\Factory as CacheContract;
 use Hypervel\Cache\Exceptions\BenchmarkMemoryException;
 use Hypervel\Cache\Repository;
-use Hypervel\Cache\Redis\Flush\FlushByPattern;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Support\SystemInfo;
@@ -118,26 +118,33 @@ class BenchmarkContext
     }
 
     /**
-     * Get a pattern to match all tag storage structures with a given tag name prefix.
+     * Get patterns to match all tag storage structures with a given tag name prefix.
      *
-     * Uses TagMode to build correct pattern for current mode:
+     * Returns patterns for BOTH tag modes to ensure complete cleanup
+     * regardless of current mode (important for --compare-tag-modes):
      * - Any mode: {cachePrefix}_any:tag:{tagNamePrefix}*
      * - All mode: {cachePrefix}_all:tag:{tagNamePrefix}*
      *
      * @param string $tagNamePrefix The prefix to match tag names against
-     * @return string The pattern to use with SCAN/KEYS commands
+     * @return array<string> Patterns to use with SCAN/KEYS commands
      */
-    public function getTagStoragePattern(string $tagNamePrefix): string
+    public function getTagStoragePatterns(string $tagNamePrefix): array
     {
-        $tagMode = $this->getTagMode();
+        $prefix = $this->getCachePrefix();
 
-        return $this->getCachePrefix() . $tagMode->tagSegment() . $tagNamePrefix . '*';
+        return [
+            // Any mode tag storage: {cachePrefix}_any:tag:{tagNamePrefix}*
+            $prefix . TagMode::Any->tagSegment() . $tagNamePrefix . '*',
+            // All mode tag storage: {cachePrefix}_all:tag:{tagNamePrefix}*
+            $prefix . TagMode::All->tagSegment() . $tagNamePrefix . '*',
+        ];
     }
 
     /**
      * Get patterns to match all cache value keys with a given key prefix.
      *
-     * Returns an array because all mode needs multiple patterns:
+     * Returns patterns for BOTH tag modes to ensure complete cleanup
+     * regardless of current mode (important for --compare-tag-modes):
      * - Untagged keys: {cachePrefix}{keyPrefix}* (same in both modes)
      * - Tagged keys in all mode: {cachePrefix}{sha1}:{keyPrefix}* (namespaced)
      *
@@ -148,15 +155,12 @@ class BenchmarkContext
     {
         $prefix = $this->getCachePrefix();
 
-        // Untagged cache values are always at {cachePrefix}{keyName} in both modes
-        $patterns = [$prefix . $keyPrefix . '*'];
-
-        if ($this->isAllMode()) {
-            // All mode also has tagged values at {cachePrefix}{sha1}:{keyName}
-            $patterns[] = $prefix . '*:' . $keyPrefix . '*';
-        }
-
-        return $patterns;
+        return [
+            // Untagged cache values (both modes) and any-mode tagged values
+            $prefix . $keyPrefix . '*',
+            // All-mode tagged values at {cachePrefix}{sha1}:{keyName}
+            $prefix . '*:' . $keyPrefix . '*',
+        ];
     }
 
     /**
@@ -268,8 +272,10 @@ class BenchmarkContext
         }
 
         // 3. Clean up any remaining tag storage structures matching benchmark prefix
-        $tagStoragePattern = $this->getTagStoragePattern(self::KEY_PREFIX);
-        $this->flushKeysByPattern($storeInstance, $tagStoragePattern);
+        // Uses patterns for BOTH modes to ensure complete cleanup after --compare-tag-modes
+        foreach ($this->getTagStoragePatterns(self::KEY_PREFIX) as $pattern) {
+            $this->flushKeysByPattern($storeInstance, $pattern);
+        }
 
         // 4. Any mode: clean up benchmark entries from the tag registry
         if ($this->isAnyMode()) {
@@ -289,14 +295,15 @@ class BenchmarkContext
     }
 
     /**
-     * Flush keys by pattern using FlushByPattern (handles OPT_PREFIX correctly).
+     * Flush keys by pattern using RedisConnection::flushByPattern().
      *
      * @param RedisStore $store The Redis store instance
      * @param string $pattern The pattern to match (should include cache prefix, NOT OPT_PREFIX)
      */
     private function flushKeysByPattern(RedisStore $store, string $pattern): void
     {
-        $flushByPattern = new FlushByPattern($store->getContext());
-        $flushByPattern->execute($pattern);
+        $store->getContext()->withConnection(
+            fn (RedisConnection $conn) => $conn->flushByPattern($pattern)
+        );
     }
 }

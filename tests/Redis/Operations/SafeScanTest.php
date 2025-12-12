@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Query;
+namespace Hypervel\Tests\Redis\Operations;
 
-use Hypervel\Cache\Redis\Query\SafeScan;
-use Hypervel\Tests\Cache\Redis\Stub\FakeRedisClient;
+use Hypervel\Redis\Operations\SafeScan;
+use Hypervel\Tests\Redis\Stub\FakeRedisClient;
 use Hypervel\Tests\TestCase;
 
 /**

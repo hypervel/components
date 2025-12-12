@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis;
 
+use Generator;
 use Hyperf\Redis\RedisConnection as HyperfRedisConnection;
+use Hypervel\Redis\Operations\FlushByPattern;
+use Hypervel\Redis\Operations\SafeScan;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Redis;
@@ -786,5 +789,49 @@ class RedisConnection extends HyperfRedisConnection
         }
 
         return array_map($this->connection->_pack(...), $values);
+    }
+
+    /**
+     * Get the underlying Redis client instance.
+     *
+     * @return Redis|RedisCluster
+     */
+    public function client(): mixed
+    {
+        return $this->connection;
+    }
+
+    /**
+     * Safely scan the Redis keyspace for keys matching a pattern.
+     *
+     * This method handles the phpredis OPT_PREFIX complexity correctly:
+     * - Automatically prepends OPT_PREFIX to the scan pattern
+     * - Strips OPT_PREFIX from returned keys so they work with other commands
+     *
+     * @param string $pattern The pattern to match (e.g., "cache:users:*").
+     *                        Should NOT include OPT_PREFIX - it's handled automatically.
+     * @param int $count The COUNT hint for SCAN (not a limit, just a hint to Redis)
+     * @return Generator<string> Yields keys with OPT_PREFIX stripped
+     */
+    public function safeScan(string $pattern, int $count = 1000): Generator
+    {
+        $optPrefix = (string) $this->connection->getOption(Redis::OPT_PREFIX);
+
+        return (new SafeScan($this->connection, $optPrefix))->execute($pattern, $count);
+    }
+
+    /**
+     * Flush (delete) all Redis keys matching a pattern.
+     *
+     * This method uses SCAN to iterate keys efficiently and deletes them in batches.
+     * It correctly handles OPT_PREFIX to avoid the double-prefixing bug.
+     *
+     * @param string $pattern The pattern to match (e.g., "cache:test:*").
+     *                        Should NOT include OPT_PREFIX - it's handled automatically.
+     * @return int Number of keys deleted
+     */
+    public function flushByPattern(string $pattern): int
+    {
+        return (new FlushByPattern($this))->execute($pattern);
     }
 }

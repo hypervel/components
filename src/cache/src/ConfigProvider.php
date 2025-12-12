@@ -28,11 +28,11 @@ class ConfigProvider
                 CreateTimer::class,
             ],
             'commands' => [
-                BenchmarkCommand::class,                
+                BenchmarkCommand::class,
                 ClearCommand::class,
                 DoctorCommand::class,
                 PruneDbExpiredCommand::class,
-                PruneStaleTagsCommand::class,                
+                PruneStaleTagsCommand::class,
             ],
             'publish' => [
                 [

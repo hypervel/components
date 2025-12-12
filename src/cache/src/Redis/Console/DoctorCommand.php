@@ -9,7 +9,6 @@ use Hyperf\Command\Command;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Cache\Contracts\Factory as CacheContract;
 use Hypervel\Cache\Redis\Console\Concerns\DetectsRedisStore;
-use Hypervel\Cache\Redis\Console\Concerns\PerformsKeyspaceOperations;
 use Hypervel\Cache\Redis\Console\Doctor\CheckResult;
 use Hypervel\Cache\Redis\Console\Doctor\Checks\AddOperationsCheck;
 use Hypervel\Cache\Redis\Console\Doctor\Checks\BasicOperationsCheck;
@@ -45,7 +44,6 @@ class DoctorCommand extends Command
 {
     use DetectsRedisStore;
     use HasLaravelStyleCommand;
-    use PerformsKeyspaceOperations;
 
     /**
      * The console command name.
@@ -383,12 +381,15 @@ class DoctorCommand extends Command
             }
         }
 
-        // Delete tag storage structures for dynamically-created test tags (mode-aware)
+        // Delete tag storage structures for dynamically-created test tags
+        // Uses patterns for BOTH modes to ensure complete cleanup regardless of current mode
         // e.g., tagA-{random}, tagB-{random} from SharedTagFlushCheck
-        try {
-            $this->flushKeysByPattern($context->store, $context->getTagStoragePattern(self::TEST_PREFIX));
-        } catch (Exception) {
-            // Ignore cleanup errors
+        foreach ($context->getTagStoragePatterns(self::TEST_PREFIX) as $pattern) {
+            try {
+                $this->flushKeysByPattern($context->store, $pattern);
+            } catch (Exception) {
+                // Ignore cleanup errors
+            }
         }
 
         // Any mode: clean up test entries from the tag registry
@@ -458,5 +459,15 @@ class DoctorCommand extends Command
         return [
             ['store', null, InputOption::VALUE_OPTIONAL, 'The cache store to test (defaults to detecting redis driver)'],
         ];
+    }
+
+    /**
+     * Flush keys matching a pattern.
+     */
+    private function flushKeysByPattern(RedisStore $store, string $pattern): void
+    {
+        $store->getContext()->withConnection(
+            fn (RedisConnection $conn) => $conn->flushByPattern($pattern)
+        );
     }
 }

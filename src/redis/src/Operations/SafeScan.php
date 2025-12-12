@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Cache\Redis\Query;
+namespace Hypervel\Redis\Operations;
 
 use Generator;
 use Redis;

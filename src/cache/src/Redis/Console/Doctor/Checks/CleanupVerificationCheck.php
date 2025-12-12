@@ -58,9 +58,11 @@ final class CleanupVerificationCheck implements CheckInterface
     {
         $remainingKeys = [];
 
-        // Get patterns to check
-        $patterns = $ctx->getCacheValuePatterns($testPrefix);
-        $patterns[] = $ctx->getTagStoragePattern($testPrefix);
+        // Get patterns to check (includes both mode patterns for comprehensive verification)
+        $patterns = array_merge(
+            $ctx->getCacheValuePatterns($testPrefix),
+            $ctx->getTagStoragePatterns($testPrefix),
+        );
 
         // Get OPT_PREFIX for SCAN pattern
         $optPrefix = (string) $ctx->redis->getOption(Redis::OPT_PREFIX);

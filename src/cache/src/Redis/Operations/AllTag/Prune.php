@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Operations\AllTag;
 
-use Hypervel\Cache\Redis\Query\SafeScan;
 use Hypervel\Cache\Redis\Support\StoreContext;
+use Hypervel\Redis\Operations\SafeScan;
 use Hypervel\Redis\RedisConnection;
 use Redis;
 use RedisCluster;

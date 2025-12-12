@@ -126,29 +126,33 @@ final class DoctorContext
     }
 
     /**
-     * Get a pattern to match all tag storage structures with a given tag name prefix.
+     * Get patterns to match all tag storage structures with a given tag name prefix.
      *
      * Used for cleanup operations to delete dynamically-created test tags.
-     * Uses TagMode to build correct pattern for current mode:
+     * Returns patterns for BOTH tag modes to ensure complete cleanup
+     * regardless of current mode (e.g., if config changed between runs):
      * - Any mode: {cachePrefix}_any:tag:{tagNamePrefix}*
      * - All mode: {cachePrefix}_all:tag:{tagNamePrefix}*
      *
      * @param string $tagNamePrefix The prefix to match tag names against
-     * @return string The pattern to use with SCAN/KEYS commands
+     * @return array<string> Patterns to use with SCAN/KEYS commands
      */
-    public function getTagStoragePattern(string $tagNamePrefix): string
+    public function getTagStoragePatterns(string $tagNamePrefix): array
     {
-        // Use TagMode's tagSegment() for the mode-specific prefix
-        $tagMode = $this->store->getTagMode();
-
-        return $this->cachePrefix . $tagMode->tagSegment() . $tagNamePrefix . '*';
+        return [
+            // Any mode tag storage: {cachePrefix}_any:tag:{tagNamePrefix}*
+            $this->cachePrefix . TagMode::Any->tagSegment() . $tagNamePrefix . '*',
+            // All mode tag storage: {cachePrefix}_all:tag:{tagNamePrefix}*
+            $this->cachePrefix . TagMode::All->tagSegment() . $tagNamePrefix . '*',
+        ];
     }
 
     /**
      * Get patterns to match all cache value keys with a given key prefix.
      *
      * Used for cleanup operations to delete test cache values.
-     * Returns an array because all mode needs multiple patterns:
+     * Returns patterns for BOTH tag modes to ensure complete cleanup
+     * regardless of current mode (e.g., if config changed between runs):
      * - Untagged keys: {cachePrefix}{keyPrefix}* (same in both modes)
      * - Tagged keys in all mode: {cachePrefix}{sha1}:{keyPrefix}* (namespaced)
      *
@@ -157,14 +161,11 @@ final class DoctorContext
      */
     public function getCacheValuePatterns(string $keyPrefix): array
     {
-        // Untagged cache values are always at {cachePrefix}{keyName} in both modes
-        $patterns = [$this->cachePrefix . $keyPrefix . '*'];
-
-        if ($this->isAllMode()) {
-            // All mode also has tagged values at {cachePrefix}{sha1}:{keyName}
-            $patterns[] = $this->cachePrefix . '*:' . $keyPrefix . '*';
-        }
-
-        return $patterns;
+        return [
+            // Untagged cache values (both modes) and any-mode tagged values
+            $this->cachePrefix . $keyPrefix . '*',
+            // All-mode tagged values at {cachePrefix}{sha1}:{keyName}
+            $this->cachePrefix . '*:' . $keyPrefix . '*',
+        ];
     }
 }

@@ -15,6 +15,11 @@ use Hypervel\Testbench\TestCase;
  * These tests require a real Redis server and are skipped by default.
  * Set RUN_REDIS_INTEGRATION_TESTS=true in .env to enable them.
  *
+ * Parallel Test Safety (paratest):
+ * - Uses TEST_TOKEN env var to create unique OPT_PREFIX per worker
+ * - e.g., worker 1 gets prefix "int_test_1:", worker 2 gets "int_test_2:"
+ * - flushByPattern('*') only flushes keys under that worker's prefix
+ *
  * @internal
  * @coversNothing
  */
@@ -23,15 +28,20 @@ abstract class RedisIntegrationTestCase extends TestCase
     use RunTestsInCoroutine;
 
     /**
-     * Redis database number used for integration tests.
-     * Using DB 15 to avoid conflicts with other data.
+     * Redis database number for integration tests.
+     * Using DB 8 to avoid conflicts with other data.
      */
-    protected int $redisDatabase = 15;
+    protected int $redisDatabase = 8;
 
     /**
-     * Cache key prefix for integration tests.
+     * Base cache key prefix for integration tests.
      */
-    protected string $cachePrefix = 'integration_test:';
+    protected string $redisBasePrefix = 'int_test';
+
+    /**
+     * Computed prefix (includes TEST_TOKEN if running in parallel).
+     */
+    protected string $cachePrefix;
 
     protected function setUp(): void
     {
@@ -41,10 +51,30 @@ abstract class RedisIntegrationTestCase extends TestCase
             );
         }
 
+        $this->computeParallelSafeConfig();
+
         parent::setUp();
 
         $this->configureRedis();
         $this->configureCache();
+        $this->flushTestDatabase();
+    }
+
+    /**
+     * Compute parallel-safe prefix based on TEST_TOKEN from paratest.
+     *
+     * Each worker gets a unique prefix (e.g., int_test_1:, int_test_2:).
+     * This provides isolation without needing separate databases.
+     */
+    protected function computeParallelSafeConfig(): void
+    {
+        $testToken = env('TEST_TOKEN', '');
+
+        if ($testToken !== '') {
+            $this->cachePrefix = "{$this->redisBasePrefix}_{$testToken}:";
+        } else {
+            $this->cachePrefix = "{$this->redisBasePrefix}:";
+        }
     }
 
     protected function tearDown(): void
@@ -94,12 +124,15 @@ abstract class RedisIntegrationTestCase extends TestCase
     }
 
     /**
-     * Flush all keys in the test Redis database.
+     * Flush all keys matching the test prefix.
+     *
+     * Uses flushByPattern('*') which, combined with OPT_PREFIX, only deletes
+     * keys belonging to this test. Safer than flushdb() for parallel tests.
      */
     protected function flushTestDatabase(): void
     {
         try {
-            Redis::flushdb();
+            Redis::flushByPattern('*');
         } catch (\Throwable) {
             // Ignore errors during cleanup
         }

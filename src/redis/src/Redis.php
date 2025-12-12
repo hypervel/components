@@ -143,4 +143,31 @@ class Redis
             ->get(RedisFactory::class)
             ->get($name);
     }
+
+    /**
+     * Flush (delete) all Redis keys matching a pattern.
+     *
+     * This method handles the connection lifecycle automatically - it gets a
+     * connection from the pool, performs the flush, and releases the connection.
+     *
+     * Uses SCAN to iterate keys efficiently and deletes them in batches.
+     * Correctly handles OPT_PREFIX to avoid the double-prefixing bug.
+     *
+     * @param string $pattern The pattern to match (e.g., "cache:test:*").
+     *                        Should NOT include OPT_PREFIX - it's handled automatically.
+     * @return int Number of keys deleted
+     */
+    public function flushByPattern(string $pattern): int
+    {
+        $pool = $this->factory->getPool($this->poolName);
+
+        /** @var RedisConnection $connection */
+        $connection = $pool->get();
+
+        try {
+            return $connection->flushByPattern($pattern);
+        } finally {
+            $connection->release();
+        }
+    }
 }
