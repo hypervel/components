@@ -8,6 +8,7 @@ use Hyperf\Redis\RedisConnection as HyperfRedisConnection;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Redis;
+use RedisCluster;
 use Throwable;
 
 /**
@@ -33,6 +34,9 @@ use Throwable;
  * @method mixed evalsha(string $script, int $numkeys, mixed ...$arguments) Evaluate Lua script by SHA1
  * @method mixed flushdb(mixed ...$arguments) Flush database
  * @method mixed executeRaw(array $parameters) Execute raw Redis command
+ * @method static string _digest(mixed $value)
+ * @method static string _pack(mixed $value)
+ * @method static mixed _unpack(string $value)
  * @method static mixed acl(string $subcmd, string ...$args)
  * @method static \Redis|int|false append(string $key, mixed $value)
  * @method static \Redis|bool auth(mixed $credentials)
@@ -62,6 +66,9 @@ use Throwable;
  * @method static \Redis|int|false decr(string $key, int $by = 1)
  * @method static \Redis|int|false decrBy(string $key, int $value)
  * @method static \Redis|int|false del(array|string $key, string ...$other_keys)
+ * @method static \Redis|int|false delex(string $key, array|null $options = null)
+ * @method static \Redis|int|false delifeq(string $key, mixed $value)
+ * @method static \Redis|string|false digest(string $key)
  * @method static \Redis|bool discard()
  * @method static \Redis|string|false dump(string $key)
  * @method static \Redis|string|false echo(string $str)
@@ -107,10 +114,23 @@ use Throwable;
  * @method static float|false getTimeout()
  * @method static array getTransferredBytes()
  * @method static void clearTransferredBytes()
+ * @method static \Redis|array|false getWithMeta(string $key)
  * @method static \Redis|int|false hDel(string $key, string $field, string ...$other_fields)
+ * @method static \Redis|array|false hexpire(string $key, int $ttl, array $fields, string|null $mode = null)
+ * @method static \Redis|array|false hpexpire(string $key, int $ttl, array $fields, string|null $mode = null)
+ * @method static \Redis|array|false hexpireat(string $key, int $time, array $fields, string|null $mode = null)
+ * @method static \Redis|array|false hpexpireat(string $key, int $mstime, array $fields, string|null $mode = null)
+ * @method static \Redis|array|false httl(string $key, array $fields)
+ * @method static \Redis|array|false hpttl(string $key, array $fields)
+ * @method static \Redis|array|false hexpiretime(string $key, array $fields)
+ * @method static \Redis|array|false hpexpiretime(string $key, array $fields)
+ * @method static \Redis|array|false hpersist(string $key, array $fields)
  * @method static \Redis|bool hExists(string $key, string $field)
  * @method static mixed hGet(string $key, string $member)
  * @method static \Redis|array|false hGetAll(string $key)
+ * @method static mixed hGetWithMeta(string $key, string $member)
+ * @method static \Redis|array|false hgetdel(string $key, array $fields)
+ * @method static \Redis|array|false hgetex(string $key, array $fields, string|array|null $expiry = null)
  * @method static \Redis|int|false hIncrBy(string $key, string $field, int $value)
  * @method static \Redis|float|false hIncrByFloat(string $key, string $field, float $value)
  * @method static \Redis|array|false hKeys(string $key)
@@ -120,6 +140,7 @@ use Throwable;
  * @method static \Redis|array|string|false hRandField(string $key, array|null $options = null)
  * @method static \Redis|int|false hSet(string $key, mixed ...$fields_and_vals)
  * @method static \Redis|bool hSetNx(string $key, string $field, mixed $value)
+ * @method static \Redis|int|false hsetex(string $key, array $fields, array|null $expiry = null)
  * @method static \Redis|int|false hStrLen(string $key, string $field)
  * @method static \Redis|array|false hVals(string $key)
  * @method static \Redis|int|false incr(string $key, int $by = 1)
@@ -146,6 +167,7 @@ use Throwable;
  * @method static \Redis|bool migrate(string $host, int $port, array|string $key, int $dstdb, int $timeout, bool $copy = false, bool $replace = false, mixed $credentials = null)
  * @method static \Redis|bool move(string $key, int $index)
  * @method static \Redis|bool mset(array $key_values)
+ * @method static \Redis|int|false msetex(array $key_values, int|float|array|null $expiry = null)
  * @method static \Redis|bool msetnx(array $key_values)
  * @method static \Redis|bool multi(int $value = 1)
  * @method static \Redis|string|int|false object(string $subcommand, string $key)
@@ -190,6 +212,8 @@ use Throwable;
  * @method static \Redis|int|false scard(string $key)
  * @method static mixed script(string $command, mixed ...$args)
  * @method static \Redis|bool select(int $db)
+ * @method static string|false serverName()
+ * @method static string|false serverVersion()
  * @method static \Redis|int|false setBit(string $key, int $idx, bool $value)
  * @method static \Redis|int|false setRange(string $key, int $index, string $value)
  * @method static bool setOption(int $option, mixed $value)
@@ -212,6 +236,19 @@ use Throwable;
  * @method static \Redis|int|false unlink(array|string $key, string ...$other_keys)
  * @method static \Redis|array|bool unsubscribe(array $channels)
  * @method static \Redis|bool unwatch()
+ * @method static \Redis|int|false vadd(string $key, array $values, mixed $element, array|null $options = null)
+ * @method static \Redis|int|false vcard(string $key)
+ * @method static \Redis|int|false vdim(string $key)
+ * @method static \Redis|array|false vemb(string $key, mixed $member, bool $raw = false)
+ * @method static \Redis|array|string|false vgetattr(string $key, mixed $member, bool $decode = true)
+ * @method static \Redis|array|false vinfo(string $key)
+ * @method static \Redis|bool vismember(string $key, mixed $member)
+ * @method static \Redis|array|false vlinks(string $key, mixed $member, bool $withscores = false)
+ * @method static \Redis|array|string|false vrandmember(string $key, int $count = 0)
+ * @method static \Redis|array|false vrange(string $key, string $min, string $max, int $count = -1)
+ * @method static \Redis|int|false vrem(string $key, mixed $member)
+ * @method static \Redis|int|false vsetattr(string $key, mixed $member, array|string $attributes)
+ * @method static \Redis|array|false vsim(string $key, mixed $member, array|null $options = null)
  * @method static \Redis|bool watch(array|string $key, string ...$other_keys)
  * @method static int|false wait(int $numreplicas, int $timeout)
  * @method static int|false xack(string $key, string $group, array $ids)
@@ -219,6 +256,7 @@ use Throwable;
  * @method static \Redis|array|bool xautoclaim(string $key, string $group, string $consumer, int $min_idle, string $start, int $count = -1, bool $justid = false)
  * @method static \Redis|array|bool xclaim(string $key, string $group, string $consumer, int $min_idle, array $ids, array $options)
  * @method static \Redis|int|false xdel(string $key, array $ids)
+ * @method static \Redis|array|false xdelex(string $key, array $ids, string|null $mode = null)
  * @method static mixed xgroup(string $operation, string|null $key = null, string|null $group = null, string|null $id_or_consumer = null, bool $mkstream = false, int $entries_read = -2)
  * @method static mixed xinfo(string $operation, string|null $arg1 = null, string|null $arg2 = null, int $count = -1)
  * @method static \Redis|int|false xlen(string $key)
@@ -710,5 +748,54 @@ class RedisConnection extends HyperfRedisConnection
             $channels,
             $callback = fn ($redis, $pattern, $channel, $message) => $callback($message, $channel),
         ];
+    }
+
+    /**
+     * Get the underlying Redis client instance.
+     *
+     * Use this for operations requiring direct client access,
+     * such as evalSha with pre-computed SHA hashes.
+     */
+    public function client(): Redis|RedisCluster
+    {
+        return $this->connection;
+    }
+
+    /**
+     * Determine if a custom serializer is configured on the connection.
+     */
+    public function serialized(): bool
+    {
+        return defined('Redis::OPT_SERIALIZER')
+            && $this->connection->getOption(Redis::OPT_SERIALIZER) !== Redis::SERIALIZER_NONE;
+    }
+
+    /**
+     * Determine if compression is configured on the connection.
+     */
+    public function compressed(): bool
+    {
+        return defined('Redis::OPT_COMPRESSION')
+            && $this->connection->getOption(Redis::OPT_COMPRESSION) !== Redis::COMPRESSION_NONE;
+    }
+
+    /**
+     * Pack values for use in Lua script ARGV parameters.
+     *
+     * Unlike regular Redis commands where phpredis auto-serializes,
+     * Lua ARGV parameters must be pre-serialized strings.
+     *
+     * Requires phpredis 6.0+ which provides the _pack() method.
+     *
+     * @param array<int|string, mixed> $values
+     * @return array<int|string, string>
+     */
+    public function pack(array $values): array
+    {
+        if (empty($values)) {
+            return $values;
+        }
+
+        return array_map($this->connection->_pack(...), $values);
     }
 }
