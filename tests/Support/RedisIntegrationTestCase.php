@@ -97,7 +97,7 @@ abstract class RedisIntegrationTestCase extends TestCase
     {
         $config = $this->app->get(ConfigInterface::class);
 
-        $config->set('database.redis.default', [
+        $connectionConfig = [
             'host' => env('REDIS_HOST', '127.0.0.1'),
             'auth' => env('REDIS_AUTH', null) ?: null,
             'port' => (int) env('REDIS_PORT', 6379),
@@ -110,9 +110,16 @@ abstract class RedisIntegrationTestCase extends TestCase
                 'heartbeat' => -1,
                 'max_idle_time' => 60.0,
             ],
-        ]);
+            'options' => [
+                'prefix' => $this->testPrefix,
+            ],
+        ];
 
-        $config->set('database.redis.options.prefix', $this->testPrefix);
+        // Set both locations - database.redis.* (source) and redis.* (runtime)
+        // FoundationServiceProvider copies database.redis.* to redis.* at boot,
+        // but we run AFTER boot, so we must set redis.* directly
+        $config->set('database.redis.default', $connectionConfig);
+        $config->set('redis.default', $connectionConfig);
     }
 
     /**
