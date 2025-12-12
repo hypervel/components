@@ -9,6 +9,7 @@ use Hyperf\Redis\Exception\InvalidRedisConnectionException;
 use Hyperf\Redis\Pool\PoolFactory;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
+use Hypervel\Redis\Traits\MultiExec;
 use Throwable;
 
 /**
@@ -16,6 +17,8 @@ use Throwable;
  */
 class Redis
 {
+    use MultiExec;
+
     protected string $poolName = 'default';
 
     public function __construct(
