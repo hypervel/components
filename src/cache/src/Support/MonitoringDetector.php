@@ -17,7 +17,8 @@ class MonitoringDetector
 {
     public function __construct(
         private readonly ConfigInterface $config,
-    ) {}
+    ) {
+    }
 
     /**
      * Detect active monitoring/profiling tools.

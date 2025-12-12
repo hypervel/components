@@ -25,7 +25,8 @@ class Add
     public function __construct(
         private readonly StoreContext $context,
         private readonly Serialization $serialization,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the add operation with tag tracking.

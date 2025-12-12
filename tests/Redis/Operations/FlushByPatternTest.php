@@ -100,13 +100,13 @@ class FlushByPatternTest extends TestCase
         $batch2Keys = [];
         $batch3Keys = [];
 
-        for ($i = 0; $i < 1000; $i++) {
+        for ($i = 0; $i < 1000; ++$i) {
             $batch1Keys[] = "cache:test:key{$i}";
         }
-        for ($i = 1000; $i < 2000; $i++) {
+        for ($i = 1000; $i < 2000; ++$i) {
             $batch2Keys[] = "cache:test:key{$i}";
         }
-        for ($i = 2000; $i < 2500; $i++) {
+        for ($i = 2000; $i < 2500; ++$i) {
             $batch3Keys[] = "cache:test:key{$i}";
         }
 

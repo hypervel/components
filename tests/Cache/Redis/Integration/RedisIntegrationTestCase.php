@@ -8,6 +8,7 @@ use Hyperf\Contract\ConfigInterface;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
+use Throwable;
 
 /**
  * Base test case for Redis integration tests.
@@ -136,7 +137,7 @@ abstract class RedisIntegrationTestCase extends TestCase
     {
         try {
             Redis::flushByPattern('*');
-        } catch (\Throwable) {
+        } catch (Throwable) {
             // Ignore errors during cleanup
         }
     }

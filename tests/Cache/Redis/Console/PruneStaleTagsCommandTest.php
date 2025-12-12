@@ -6,13 +6,13 @@ namespace Hypervel\Tests\Cache\Redis\Console;
 
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\Contracts\Factory as CacheContract;
-use Hypervel\Cache\Redis\Console\PruneStaleTagsCommand;
 use Hypervel\Cache\Contracts\Repository;
 use Hypervel\Cache\Contracts\Store;
-use Hypervel\Cache\Redis\Operations\AllTagOperations;
+use Hypervel\Cache\Redis\Console\PruneStaleTagsCommand;
 use Hypervel\Cache\Redis\Operations\AllTag\Prune as IntersectionPrune;
-use Hypervel\Cache\Redis\Operations\AnyTagOperations;
+use Hypervel\Cache\Redis\Operations\AllTagOperations;
 use Hypervel\Cache\Redis\Operations\AnyTag\Prune as UnionPrune;
+use Hypervel\Cache\Redis\Operations\AnyTagOperations;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Testbench\TestCase;

@@ -21,7 +21,6 @@ use Redis;
  */
 class Serialization
 {
-
     /**
      * Serialize a value for storage in Redis.
      *

@@ -20,7 +20,8 @@ class FlushStale
 {
     public function __construct(
         private readonly StoreContext $context,
-    ) {}
+    ) {
+    }
 
     /**
      * Flush stale entries from the given tag sorted sets.

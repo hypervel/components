@@ -37,7 +37,8 @@ class Prune
      */
     public function __construct(
         private readonly StoreContext $context,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the prune operation.
@@ -68,7 +69,7 @@ class Prune
             $safeScan = new SafeScan($client, $optPrefix);
 
             foreach ($safeScan->execute($pattern, $scanCount) as $tagKey) {
-                $stats['tags_scanned']++;
+                ++$stats['tags_scanned'];
 
                 // Step 1: Remove TTL-expired entries (stale by time)
                 $staleRemoved = $client->zRemRangeByScore($tagKey, '0', (string) $now);
@@ -82,7 +83,7 @@ class Prune
                 // Step 3: Delete if empty
                 if ($client->zCard($tagKey) === 0) {
                     $client->del($tagKey);
-                    $stats['empty_sets_deleted']++;
+                    ++$stats['empty_sets_deleted'];
                 }
 
                 // Throttle between tags to let Redis breathe
@@ -96,7 +97,6 @@ class Prune
     /**
      * Remove orphaned entries from a sorted set where the cache key no longer exists.
      *
-     * @param Redis|RedisCluster $client
      * @param string $tagKey The tag sorted set key (without OPT_PREFIX, phpredis auto-adds it)
      * @param string $prefix The cache prefix (e.g., "cache:")
      * @param int $scanCount Number of members per ZSCAN iteration

@@ -25,7 +25,8 @@ class Increment
 
     public function __construct(
         private readonly StoreContext $context,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the increment operation with tag tracking.
@@ -33,7 +34,7 @@ class Increment
      * @param string $key The cache key (already namespaced by caller)
      * @param int $value The value to increment by
      * @param array<string> $tagIds Array of tag identifiers
-     * @return int|false The new value after incrementing, or false on failure
+     * @return false|int The new value after incrementing, or false on failure
      */
     public function execute(string $key, int $value, array $tagIds): int|false
     {

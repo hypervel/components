@@ -38,7 +38,7 @@ class ReadPerformanceScenario implements ScenarioInterface
 
         $tag = $ctx->prefixed('read:tag');
 
-        for ($i = 0; $i < $items; $i++) {
+        for ($i = 0; $i < $items; ++$i) {
             $store->tags([$tag])->put($ctx->prefixed("read:{$i}"), 'value', 3600);
 
             if ($i % $chunkSize === 0) {
@@ -58,7 +58,7 @@ class ReadPerformanceScenario implements ScenarioInterface
         // In 'all' mode, items must be read with the same tags used when storing
         $isAnyMode = $ctx->getStoreInstance()->getTagMode()->isAnyMode();
 
-        for ($i = 0; $i < $items; $i++) {
+        for ($i = 0; $i < $items; ++$i) {
             if ($isAnyMode) {
                 $store->get($ctx->prefixed("read:{$i}"));
             } else {

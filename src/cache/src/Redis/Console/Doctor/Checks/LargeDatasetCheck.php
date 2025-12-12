@@ -30,7 +30,7 @@ final class LargeDatasetCheck implements CheckInterface
         // Bulk insert
         $startTime = microtime(true);
 
-        for ($i = 0; $i < $count; $i++) {
+        for ($i = 0; $i < $count; ++$i) {
             $ctx->cache->tags([$tag])->put($ctx->prefixed("large:item{$i}"), "value{$i}", 60);
         }
 

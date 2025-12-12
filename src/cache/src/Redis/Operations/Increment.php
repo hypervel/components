@@ -17,7 +17,8 @@ class Increment
      */
     public function __construct(
         private readonly StoreContext $context,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the increment operation.

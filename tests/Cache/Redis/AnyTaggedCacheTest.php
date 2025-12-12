@@ -11,7 +11,7 @@ use Hypervel\Cache\Redis\AnyTagSet;
 use Hypervel\Cache\TaggedCache;
 use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
+use RuntimeException;
 
 /**
  * Tests for AnyTaggedCache behavior.
@@ -491,7 +491,7 @@ class AnyTaggedCacheTest extends TestCase
         $callCount = 0;
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->remember('mykey', 60, function () use (&$callCount) {
-            $callCount++;
+            ++$callCount;
 
             return 'computed_value';
         });
@@ -631,12 +631,12 @@ class AnyTaggedCacheTest extends TestCase
             ->with('prefix:mykey')
             ->andReturnNull();
 
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Callback failed');
 
         $store = $this->createStore($connection);
         $store->setTagMode('any')->tags(['users'])->remember('mykey', 60, function () {
-            throw new \RuntimeException('Callback failed');
+            throw new RuntimeException('Callback failed');
         });
     }
 
@@ -654,12 +654,12 @@ class AnyTaggedCacheTest extends TestCase
             ->with('prefix:mykey')
             ->andReturnNull();
 
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Forever callback failed');
 
         $store = $this->createStore($connection);
         $store->setTagMode('any')->tags(['users'])->rememberForever('mykey', function () {
-            throw new \RuntimeException('Forever callback failed');
+            throw new RuntimeException('Forever callback failed');
         });
     }
 
@@ -680,7 +680,7 @@ class AnyTaggedCacheTest extends TestCase
         $callCount = 0;
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->remember('mykey', 60, function () use (&$callCount) {
-            $callCount++;
+            ++$callCount;
 
             return 'new_value';
         });

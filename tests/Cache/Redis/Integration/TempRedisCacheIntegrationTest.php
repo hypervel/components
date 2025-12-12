@@ -79,7 +79,7 @@ class TempRedisCacheIntegrationTest extends RedisIntegrationTestCase
     public function testParallelIsolationUniqueValue(): void
     {
         $key = 'isolation_test';
-        $uniqueValue = 'worker_' . ($this->cachePrefix) . '_' . uniqid();
+        $uniqueValue = 'worker_' . $this->cachePrefix . '_' . uniqid();
 
         Cache::put($key, $uniqueValue, 60);
 
@@ -90,8 +90,8 @@ class TempRedisCacheIntegrationTest extends RedisIntegrationTestCase
         $this->assertSame(
             $uniqueValue,
             $retrieved,
-            "Value was modified by another worker. Expected '{$uniqueValue}', got '{$retrieved}'. " .
-            'This indicates key isolation is not working properly.'
+            "Value was modified by another worker. Expected '{$uniqueValue}', got '{$retrieved}'. "
+            . 'This indicates key isolation is not working properly.'
         );
     }
 
@@ -110,7 +110,7 @@ class TempRedisCacheIntegrationTest extends RedisIntegrationTestCase
         Cache::forget($key);
 
         // Increment the counter multiple times
-        for ($i = 0; $i < $increments; $i++) {
+        for ($i = 0; $i < $increments; ++$i) {
             Cache::increment($key);
             usleep(10000); // 10ms delay between increments
         }
@@ -119,9 +119,9 @@ class TempRedisCacheIntegrationTest extends RedisIntegrationTestCase
         $this->assertSame(
             $increments,
             $finalValue,
-            "Counter value was {$finalValue}, expected {$increments}. " .
-            'Another worker may have incremented the same key. ' .
-            'This indicates key isolation is not working properly.'
+            "Counter value was {$finalValue}, expected {$increments}. "
+            . 'Another worker may have incremented the same key. '
+            . 'This indicates key isolation is not working properly.'
         );
     }
 
@@ -176,8 +176,8 @@ class TempRedisCacheIntegrationTest extends RedisIntegrationTestCase
             $this->assertSame(
                 $expectedValue,
                 $actualValue,
-                "Key '{$key}' was modified. Expected '{$expectedValue}', got '{$actualValue}'. " .
-                'This indicates key isolation is not working properly.'
+                "Key '{$key}' was modified. Expected '{$expectedValue}', got '{$actualValue}'. "
+                . 'This indicates key isolation is not working properly.'
             );
         }
     }
@@ -192,7 +192,7 @@ class TempRedisCacheIntegrationTest extends RedisIntegrationTestCase
         $key = 'rapid_write_test';
         $workerIdentifier = $this->cachePrefix . uniqid();
 
-        for ($i = 0; $i < 20; $i++) {
+        for ($i = 0; $i < 20; ++$i) {
             $value = "{$workerIdentifier}_{$i}";
             Cache::put($key, $value, 60);
             usleep(5000); // 5ms
@@ -219,7 +219,7 @@ class TempRedisCacheIntegrationTest extends RedisIntegrationTestCase
 
         Cache::forget($key);
 
-        for ($i = 0; $i < $iterations; $i++) {
+        for ($i = 0; $i < $iterations; ++$i) {
             Cache::increment($key);
         }
 

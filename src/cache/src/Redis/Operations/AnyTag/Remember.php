@@ -30,7 +30,8 @@ class Remember
     public function __construct(
         private readonly StoreContext $context,
         private readonly Serialization $serialization,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the remember operation with tags.
@@ -38,7 +39,7 @@ class Remember
      * @param string $key The cache key (without prefix)
      * @param int $seconds TTL in seconds (must be > 0)
      * @param Closure $callback The callback to execute on cache miss
-     * @param array<int, string|int> $tags Array of tag names (will be cast to strings)
+     * @param array<int, int|string> $tags Array of tag names (will be cast to strings)
      * @return array{0: mixed, 1: bool} Tuple of [value, wasHit]
      */
     public function execute(string $key, int $seconds, Closure $callback, array $tags): array

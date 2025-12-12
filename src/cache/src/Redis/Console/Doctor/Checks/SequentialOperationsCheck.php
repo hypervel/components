@@ -26,7 +26,7 @@ final class SequentialOperationsCheck implements CheckInterface
         // Rapid writes to same key
         $rapidTag = $ctx->prefixed('rapid');
         $rapidKey = $ctx->prefixed('concurrent:key');
-        for ($i = 0; $i < 10; $i++) {
+        for ($i = 0; $i < 10; ++$i) {
             $ctx->cache->tags([$rapidTag])->put($rapidKey, "value{$i}", 60);
         }
 
@@ -43,7 +43,7 @@ final class SequentialOperationsCheck implements CheckInterface
         // Multiple increments
         $ctx->cache->put($ctx->prefixed('concurrent:counter'), 0, 60);
 
-        for ($i = 0; $i < 50; $i++) {
+        for ($i = 0; $i < 50; ++$i) {
             $ctx->cache->increment($ctx->prefixed('concurrent:counter'));
         }
 
@@ -56,7 +56,7 @@ final class SequentialOperationsCheck implements CheckInterface
         $ctx->cache->forget($ctx->prefixed('concurrent:add'));
         $results = [];
 
-        for ($i = 0; $i < 5; $i++) {
+        for ($i = 0; $i < 5; ++$i) {
             $results[] = $ctx->cache->add($ctx->prefixed('concurrent:add'), "value{$i}", 60);
         }
 

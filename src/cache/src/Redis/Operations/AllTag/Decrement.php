@@ -25,7 +25,8 @@ class Decrement
 
     public function __construct(
         private readonly StoreContext $context,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the decrement operation with tag tracking.
@@ -33,7 +34,7 @@ class Decrement
      * @param string $key The cache key (already namespaced by caller)
      * @param int $value The value to decrement by
      * @param array<string> $tagIds Array of tag identifiers
-     * @return int|false The new value after decrementing, or false on failure
+     * @return false|int The new value after decrementing, or false on failure
      */
     public function execute(string $key, int $value, array $tagIds): int|false
     {

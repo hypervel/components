@@ -28,7 +28,8 @@ class Remember
     public function __construct(
         private readonly StoreContext $context,
         private readonly Serialization $serialization,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the remember operation with tag tracking.

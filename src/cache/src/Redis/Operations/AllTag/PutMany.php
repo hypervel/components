@@ -19,7 +19,8 @@ class PutMany
     public function __construct(
         private readonly StoreContext $context,
         private readonly Serialization $serialization,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the putMany operation with tag tracking.

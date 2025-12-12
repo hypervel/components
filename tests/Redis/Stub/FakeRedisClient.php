@@ -207,10 +207,10 @@ class FakeRedisClient extends Redis
     /**
      * Simulate Redis SCAN with proper reference parameter handling.
      *
-     * @param int|string|null $iterator Cursor (modified by reference)
-     * @param string|null $pattern Optional pattern to match
+     * @param null|int|string $iterator Cursor (modified by reference)
+     * @param null|string $pattern Optional pattern to match
      * @param int $count Optional count hint
-     * @param string|null $type Optional type filter
+     * @param null|string $type Optional type filter
      * @return array<string>|false
      */
     public function scan(int|string|null &$iterator, ?string $pattern = null, int $count = 0, ?string $type = null): array|false
@@ -225,7 +225,7 @@ class FakeRedisClient extends Redis
 
         $result = $this->scanResults[$this->scanCallIndex];
         $iterator = $result['iterator'];
-        $this->scanCallIndex++;
+        ++$this->scanCallIndex;
 
         return $result['keys'];
     }
@@ -252,10 +252,10 @@ class FakeRedisClient extends Redis
      * Simulate Redis HSCAN with proper reference parameter handling.
      *
      * @param string $key Hash key
-     * @param int|string|null $iterator Cursor (modified by reference)
-     * @param string|null $pattern Optional pattern to match
+     * @param null|int|string $iterator Cursor (modified by reference)
+     * @param null|string $pattern Optional pattern to match
      * @param int $count Optional count hint
-     * @return Redis|array<string, string>|bool
+     * @return array<string, string>|bool|Redis
      */
     public function hscan(string $key, int|string|null &$iterator, ?string $pattern = null, int $count = 0): Redis|array|bool
     {
@@ -274,7 +274,7 @@ class FakeRedisClient extends Redis
 
         $result = $this->hScanResults[$key][$this->hScanCallIndex[$key]];
         $iterator = $result['iterator'];
-        $this->hScanCallIndex[$key]++;
+        ++$this->hScanCallIndex[$key];
 
         return $result['fields'];
     }
@@ -312,7 +312,7 @@ class FakeRedisClient extends Redis
     /**
      * Simulate zRange to get sorted set members.
      *
-     * @return Redis|array<string>|false
+     * @return array<string>|false|Redis
      */
     public function zRange(string $key, string|int $start, string|int $end, array|bool|null $options = null): Redis|array|false
     {
@@ -330,7 +330,7 @@ class FakeRedisClient extends Redis
     /**
      * Queue exists in pipeline or execute directly.
      *
-     * @return $this|int|bool
+     * @return $this|bool|int
      */
     public function exists(mixed $key, mixed ...$other_keys): Redis|int|bool
     {
@@ -346,7 +346,7 @@ class FakeRedisClient extends Redis
     /**
      * Queue hDel in pipeline or execute directly.
      *
-     * @return $this|int|false
+     * @return $this|false|int
      */
     public function hDel(string $key, string ...$fields): Redis|int|false
     {
@@ -380,7 +380,7 @@ class FakeRedisClient extends Redis
 
         if (isset($this->execResults[$this->execCallIndex])) {
             $result = $this->execResults[$this->execCallIndex];
-            $this->execCallIndex++;
+            ++$this->execCallIndex;
             return $result;
         }
 
@@ -391,7 +391,7 @@ class FakeRedisClient extends Redis
     /**
      * Queue zRemRangeByScore in pipeline or execute directly.
      *
-     * @return $this|int|false
+     * @return $this|false|int
      */
     public function zRemRangeByScore(string $key, string $min, string $max): Redis|int|false
     {
@@ -405,7 +405,7 @@ class FakeRedisClient extends Redis
     /**
      * Queue zCard in pipeline or execute directly.
      *
-     * @return $this|int|false
+     * @return $this|false|int
      */
     public function zCard(string $key): Redis|int|false
     {
@@ -419,7 +419,7 @@ class FakeRedisClient extends Redis
     /**
      * Queue del in pipeline or execute directly.
      *
-     * @return $this|int|false
+     * @return $this|false|int
      */
     public function del(array|string $key, string ...$other_keys): Redis|int|false
     {
@@ -436,10 +436,10 @@ class FakeRedisClient extends Redis
      * Simulate Redis ZSCAN with proper reference parameter handling.
      *
      * @param string $key Sorted set key
-     * @param int|string|null $iterator Cursor (modified by reference)
-     * @param string|null $pattern Optional pattern to match
+     * @param null|int|string $iterator Cursor (modified by reference)
+     * @param null|string $pattern Optional pattern to match
      * @param int $count Optional count hint
-     * @return Redis|array<string, float>|false
+     * @return array<string, float>|false|Redis
      */
     public function zscan(string $key, int|string|null &$iterator, ?string $pattern = null, int $count = 0): Redis|array|false
     {
@@ -458,7 +458,7 @@ class FakeRedisClient extends Redis
 
         $result = $this->zScanResults[$key][$this->zScanCallIndex[$key]];
         $iterator = $result['iterator'];
-        $this->zScanCallIndex[$key]++;
+        ++$this->zScanCallIndex[$key];
 
         return $result['members'];
     }
@@ -476,7 +476,7 @@ class FakeRedisClient extends Redis
     /**
      * Simulate Redis ZREM.
      *
-     * @return int|false Number of members removed
+     * @return false|int Number of members removed
      */
     public function zRem(mixed $key, mixed $member, mixed ...$other_members): Redis|int|false
     {

@@ -29,7 +29,8 @@ final class RedisVersionCheck implements EnvironmentCheckInterface
     public function __construct(
         private readonly RedisConnection $redis,
         private readonly string $taggingMode,
-    ) {}
+    ) {
+    }
 
     public function name(): string
     {

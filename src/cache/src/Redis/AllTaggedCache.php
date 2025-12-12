@@ -35,7 +35,7 @@ class AllTaggedCache extends TaggedCache
     /**
      * Store an item in the cache if the key does not exist.
      */
-    public function add(string $key, mixed $value, null|DateInterval|DateTimeInterface|int $ttl = null): bool
+    public function add(string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         if ($ttl !== null) {
             $seconds = $this->getSeconds($ttl);
@@ -73,7 +73,7 @@ class AllTaggedCache extends TaggedCache
     /**
      * Store an item in the cache.
      */
-    public function put(array|string $key, mixed $value, null|DateInterval|DateTimeInterface|int $ttl = null): bool
+    public function put(array|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         if (is_array($key)) {
             return $this->putMany($key, $value);
@@ -106,7 +106,7 @@ class AllTaggedCache extends TaggedCache
     /**
      * Store multiple items in the cache for a given number of seconds.
      */
-    public function putMany(array $values, null|DateInterval|DateTimeInterface|int $ttl = null): bool
+    public function putMany(array $values, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         if ($ttl === null) {
             return $this->putManyForever($values);
@@ -212,7 +212,7 @@ class AllTaggedCache extends TaggedCache
      * @param Closure(): TCacheValue $callback
      * @return TCacheValue
      */
-    public function remember(string $key, null|DateInterval|DateTimeInterface|int $ttl, Closure $callback): mixed
+    public function remember(string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed
     {
         if ($ttl === null) {
             return $this->rememberForever($key, $callback);

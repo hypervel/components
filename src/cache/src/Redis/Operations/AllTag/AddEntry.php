@@ -21,7 +21,8 @@ class AddEntry
 {
     public function __construct(
         private readonly StoreContext $context,
-    ) {}
+    ) {
+    }
 
     /**
      * Add a cache key entry to tag sorted sets.
@@ -33,7 +34,7 @@ class AddEntry
      * @param string $key The cache key (without prefix)
      * @param int $ttl TTL in seconds (0 means forever, stored as -1 score)
      * @param array<string> $tagIds Array of tag identifiers (e.g., "_all:tag:users:entries")
-     * @param string|null $updateWhen Optional ZADD flag: 'NX' (only add new), 'XX' (only update existing), 'GT'/'LT'
+     * @param null|string $updateWhen Optional ZADD flag: 'NX' (only add new), 'XX' (only update existing), 'GT'/'LT'
      */
     public function execute(string $key, int $ttl, array $tagIds, ?string $updateWhen = null): void
     {

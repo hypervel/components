@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Testing\Concerns;
 
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Support\Facades\Redis;
+use Throwable;
 
 /**
  * Provides Redis integration testing support with parallel test isolation.
@@ -123,7 +124,7 @@ trait InteractsWithRedis
             // Since $this->redisTestPrefix IS the OPT_PREFIX, passing '*' matches
             // all keys under that prefix. flushByPattern handles OPT_PREFIX internally.
             Redis::connection($this->redisTestConnection)->flushByPattern('*');
-        } catch (\Throwable) {
+        } catch (Throwable) {
             // Ignore errors during cleanup - Redis may not be available
         }
     }

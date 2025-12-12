@@ -24,14 +24,15 @@ class PutMany
     public function __construct(
         private readonly StoreContext $context,
         private readonly Serialization $serialization,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the putMany operation.
      *
      * @param array<string, mixed> $values Array of key => value pairs
      * @param int $seconds TTL in seconds
-     * @param array<int, string|int> $tags Array of tag names
+     * @param array<int, int|string> $tags Array of tag names
      * @return bool True if successful, false on failure
      */
     public function execute(array $values, int $seconds, array $tags): bool
@@ -77,7 +78,7 @@ class PutMany
 
                 foreach ($chunk as $key => $value) {
                     $oldTags = $oldTagsResults[$i] ?? [];
-                    $i++;
+                    ++$i;
 
                     // Calculate tags to remove (Old Tags - New Tags)
                     $tagsToRemove = array_diff($oldTags, $tags);
@@ -182,7 +183,7 @@ class PutMany
 
                 foreach ($chunk as $key => $value) {
                     $oldTags = $oldTagsResults[$i] ?? [];
-                    $i++;
+                    ++$i;
 
                     // Calculate tags to remove (Old Tags - New Tags)
                     $tagsToRemove = array_diff($oldTags, $tags);

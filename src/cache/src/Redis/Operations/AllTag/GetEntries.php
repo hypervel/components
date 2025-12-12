@@ -19,7 +19,8 @@ class GetEntries
 {
     public function __construct(
         private readonly StoreContext $context,
-    ) {}
+    ) {
+    }
 
     /**
      * Get all cache key entries across the given tag sorted sets.

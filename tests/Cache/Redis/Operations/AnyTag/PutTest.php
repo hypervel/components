@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Cache\Redis\Operations\AnyTag;
 
 use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 
 /**
  * Tests for the Put operation (union tags).

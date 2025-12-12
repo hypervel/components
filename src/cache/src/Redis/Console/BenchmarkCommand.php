@@ -333,7 +333,7 @@ class BenchmarkCommand extends Command
         /** @var array<int, array<string, ScenarioResult>> $allRunResults */
         $allRunResults = [];
 
-        for ($run = 1; $run <= $runs; $run++) {
+        for ($run = 1; $run <= $runs; ++$run) {
             if ($runs > 1) {
                 $this->line("<fg=yellow>Run {$run}/{$runs}</>");
             }

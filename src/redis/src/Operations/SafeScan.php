@@ -75,7 +75,8 @@ final class SafeScan
     public function __construct(
         private readonly Redis|RedisCluster $client,
         private readonly string $optPrefix,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the scan operation.
@@ -83,8 +84,8 @@ final class SafeScan
      * @param string $pattern The pattern to match (e.g., "cache:users:*").
      *                        Should NOT include OPT_PREFIX - it will be added automatically.
      * @param int $count The COUNT hint for SCAN (not a limit, just a hint to Redis)
-     * @return Generator<string> Yields keys with OPT_PREFIX stripped, safe for use with
-     *                           other phpredis commands that auto-add the prefix.
+     * @return Generator<string> yields keys with OPT_PREFIX stripped, safe for use with
+     *                           other phpredis commands that auto-add the prefix
      */
     public function execute(string $pattern, int $count = 1000): Generator
     {
@@ -181,7 +182,7 @@ final class SafeScan
      *
      * phpredis 6.1.0+ uses null as initial cursor, older versions use 0.
      */
-    private function getInitialCursor(): int|null
+    private function getInitialCursor(): ?int
     {
         return match (true) {
             version_compare(phpversion('redis') ?: '0', '6.1.0', '>=') => null,

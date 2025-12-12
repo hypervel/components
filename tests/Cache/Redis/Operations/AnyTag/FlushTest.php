@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AnyTag;
 
+use Generator;
 use Hypervel\Cache\Redis\Operations\AnyTag\Flush;
 use Hypervel\Cache\Redis\Operations\AnyTag\GetTaggedKeys;
 use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
@@ -329,9 +330,9 @@ class FlushTest extends TestCase
      * Helper to convert array to generator.
      *
      * @param array<string> $items
-     * @return \Generator<string>
+     * @return Generator<string>
      */
-    private function arrayToGenerator(array $items): \Generator
+    private function arrayToGenerator(array $items): Generator
     {
         foreach ($items as $item) {
             yield $item;

@@ -61,7 +61,7 @@ class RememberForeverTest extends TestCase
         $callCount = 0;
         $redis = $this->createStore($connection);
         [$value, $wasHit] = $redis->rememberForever('foo', function () use (&$callCount) {
-            $callCount++;
+            ++$callCount;
 
             return 'computed_value';
         });
@@ -86,7 +86,7 @@ class RememberForeverTest extends TestCase
         $callCount = 0;
         $redis = $this->createStore($connection);
         [$value, $wasHit] = $redis->rememberForever('foo', function () use (&$callCount) {
-            $callCount++;
+            ++$callCount;
 
             return 'new_value';
         });

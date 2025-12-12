@@ -8,11 +8,11 @@ use Exception;
 use Hyperf\Command\Command;
 use Hypervel\Cache\Contracts\Factory as CacheContract;
 use Hypervel\Cache\Exceptions\BenchmarkMemoryException;
-use Hypervel\Cache\Repository;
-use Hypervel\Redis\RedisConnection;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Cache\Repository;
 use Hypervel\Cache\Support\SystemInfo;
+use Hypervel\Redis\RedisConnection;
 use RuntimeException;
 use Symfony\Component\Console\Helper\ProgressBar;
 
@@ -52,7 +52,8 @@ class BenchmarkContext
         public readonly int $heavyTags,
         public readonly Command $command,
         private readonly CacheContract $cacheManager,
-    ) {}
+    ) {
+    }
 
     /**
      * Get the cache repository for this context.
@@ -253,12 +254,12 @@ class BenchmarkContext
         ];
 
         // Standard tags (max 10)
-        for ($i = 0; $i < 10; $i++) {
+        for ($i = 0; $i < 10; ++$i) {
             $tags[] = $this->prefixed("tag:{$i}");
         }
 
         // Heavy tags (max 60 to cover extreme scale)
-        for ($i = 0; $i < 60; $i++) {
+        for ($i = 0; $i < 60; ++$i) {
             $tags[] = $this->prefixed("heavy:tag:{$i}");
         }
 

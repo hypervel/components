@@ -59,7 +59,7 @@ class RememberTest extends TestCase
         $callCount = 0;
         $redis = $this->createStore($connection);
         $result = $redis->remember('foo', 60, function () use (&$callCount) {
-            $callCount++;
+            ++$callCount;
 
             return 'computed_value';
         });
@@ -83,7 +83,7 @@ class RememberTest extends TestCase
         $callCount = 0;
         $redis = $this->createStore($connection);
         $result = $redis->remember('foo', 60, function () use (&$callCount) {
-            $callCount++;
+            ++$callCount;
 
             return 'new_value';
         });

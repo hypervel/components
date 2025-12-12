@@ -35,7 +35,7 @@ class StandardTaggingScenario implements ScenarioInterface
         // Build tags array
         $tags = [];
 
-        for ($i = 0; $i < $tagsPerItem; $i++) {
+        for ($i = 0; $i < $tagsPerItem; ++$i) {
             $tags[] = $ctx->prefixed("tag:{$i}");
         }
 
@@ -47,7 +47,7 @@ class StandardTaggingScenario implements ScenarioInterface
         $store = $ctx->getStore();
         $chunkSize = 100;
 
-        for ($i = 0; $i < $items; $i++) {
+        for ($i = 0; $i < $items; ++$i) {
             $store->tags($tags)->put($ctx->prefixed("item:{$i}"), 'value', 3600);
 
             if ($i % $chunkSize === 0) {
@@ -74,7 +74,7 @@ class StandardTaggingScenario implements ScenarioInterface
         $start = hrtime(true);
         $bar = $ctx->createProgressBar($items);
 
-        for ($i = 0; $i < $items; $i++) {
+        for ($i = 0; $i < $items; ++$i) {
             $store->tags($tags)->add($ctx->prefixed("item:add:{$i}"), 'value', 3600);
 
             if ($i % $chunkSize === 0) {
@@ -97,7 +97,7 @@ class StandardTaggingScenario implements ScenarioInterface
         $bar = $ctx->createProgressBar($rememberItems);
         $rememberChunk = 10;
 
-        for ($i = 0; $i < $rememberItems; $i++) {
+        for ($i = 0; $i < $rememberItems; ++$i) {
             $store->tags($tags)->remember($ctx->prefixed("item:remember:{$i}"), 3600, function (): string {
                 return 'computed_value';
             });
@@ -122,7 +122,7 @@ class StandardTaggingScenario implements ScenarioInterface
 
         $buffer = [];
 
-        for ($i = 0; $i < $items; $i++) {
+        for ($i = 0; $i < $items; ++$i) {
             $buffer[$ctx->prefixed("item:bulk:{$i}")] = 'value';
 
             if (count($buffer) >= $bulkChunkSize) {

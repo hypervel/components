@@ -83,7 +83,7 @@ class RememberTest extends TestCase
         $redis = $this->createStore($connection);
         $redis->setTagMode('any');
         [$value, $wasHit] = $redis->anyTagOps()->remember()->execute('foo', 60, function () use (&$callCount) {
-            $callCount++;
+            ++$callCount;
 
             return 'computed_value';
         }, ['users']);
@@ -138,7 +138,7 @@ class RememberTest extends TestCase
         $redis = $this->createStore($connection);
         $redis->setTagMode('any');
         [$value, $wasHit] = $redis->anyTagOps()->remember()->execute('foo', 60, function () use (&$callCount) {
-            $callCount++;
+            ++$callCount;
 
             return 'new_value';
         }, ['users']);

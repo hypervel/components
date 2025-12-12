@@ -61,7 +61,8 @@ class AllTagOperations
     public function __construct(
         private readonly StoreContext $context,
         private readonly Serialization $serialization,
-    ) {}
+    ) {
+    }
 
     /**
      * Get the Put operation for storing items with tag tracking.

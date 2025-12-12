@@ -6,6 +6,7 @@ namespace Hypervel\Cache\Redis\Operations\AllTag;
 
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
+use Redis;
 use RedisCluster;
 
 /**
@@ -26,7 +27,8 @@ class Flush
     public function __construct(
         private readonly StoreContext $context,
         private readonly GetEntries $getEntries,
-    ) {}
+    ) {
+    }
 
     /**
      * Flush all cache entries for the given tags.
@@ -84,7 +86,7 @@ class Flush
     /**
      * Delete a chunk of keys using pipeline.
      *
-     * @param \Redis|object $client The Redis client (or mock in tests)
+     * @param object|Redis $client The Redis client (or mock in tests)
      * @param array<string> $keys Keys to delete
      */
     private function deleteChunkPipelined(mixed $client, array $keys): void

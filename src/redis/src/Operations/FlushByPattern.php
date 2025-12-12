@@ -62,7 +62,8 @@ final class FlushByPattern
      */
     public function __construct(
         private readonly RedisConnection $connection,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the pattern flush operation.

@@ -44,7 +44,7 @@ class CleanupScenario implements ScenarioInterface
         $bar = $ctx->createProgressBar($adjustedItems);
         $store = $ctx->getStore();
 
-        for ($i = 0; $i < $adjustedItems; $i++) {
+        for ($i = 0; $i < $adjustedItems; ++$i) {
             $store->tags($allTags)->put($ctx->prefixed("cleanup:{$i}"), 'value', 3600);
 
             if ($i % 100 === 0) {

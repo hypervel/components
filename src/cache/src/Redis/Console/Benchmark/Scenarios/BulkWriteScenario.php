@@ -39,7 +39,7 @@ class BulkWriteScenario implements ScenarioInterface
         $tag = $ctx->prefixed('bulk:tag');
         $buffer = [];
 
-        for ($i = 0; $i < $items; $i++) {
+        for ($i = 0; $i < $items; ++$i) {
             $buffer[$ctx->prefixed("bulk:{$i}")] = 'value';
 
             if (count($buffer) >= $chunkSize) {

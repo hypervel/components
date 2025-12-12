@@ -12,11 +12,12 @@ class ScenarioResult
     /**
      * Create a new scenario result instance.
      *
-     * @param  array<string, float>  $metrics  Metric name => value (e.g., ['write_rate' => 1234.5, 'flush_time' => 0.05])
+     * @param array<string, float> $metrics Metric name => value (e.g., ['write_rate' => 1234.5, 'flush_time' => 0.05])
      */
     public function __construct(
         public readonly array $metrics,
-    ) {}
+    ) {
+    }
 
     /**
      * Get a specific metric value.

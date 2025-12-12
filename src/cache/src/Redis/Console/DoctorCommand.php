@@ -254,10 +254,10 @@ class DoctorCommand extends Command
     {
         foreach ($result->assertions as $assertion) {
             if ($assertion['passed']) {
-                $this->testsPassed++;
+                ++$this->testsPassed;
                 $this->line("  <fg=green>✓</> {$assertion['description']}");
             } else {
-                $this->testsFailed++;
+                ++$this->testsFailed;
                 $this->failures[] = $assertion['description'];
                 $this->line("  <fg=red>✗</> {$assertion['description']}");
             }

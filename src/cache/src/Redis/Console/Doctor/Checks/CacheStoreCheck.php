@@ -18,7 +18,8 @@ final class CacheStoreCheck implements EnvironmentCheckInterface
         private readonly string $storeName,
         private readonly string $driver,
         private readonly string $taggingMode,
-    ) {}
+    ) {
+    }
 
     public function name(): string
     {

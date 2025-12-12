@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
+use Closure;
 use Hyperf\Redis\Pool\PoolFactory;
 use Hyperf\Redis\RedisFactory;
 use Hyperf\Redis\RedisProxy;
@@ -13,16 +14,15 @@ use Hypervel\Cache\Redis\AllTaggedCache;
 use Hypervel\Cache\Redis\AllTagSet;
 use Hypervel\Cache\Redis\AnyTaggedCache;
 use Hypervel\Cache\Redis\AnyTagSet;
-use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\Redis\Operations\Add;
-use Hypervel\Cache\Redis\Operations\Decrement;
-use Hypervel\Cache\Redis\Operations\Flush;
-use Hypervel\Cache\Redis\Operations\Forget;
-use Hypervel\Cache\Redis\Operations\Forever;
-use Hypervel\Cache\Redis\Operations\Get;
-use Hypervel\Cache\Redis\Operations\Increment;
 use Hypervel\Cache\Redis\Operations\AllTagOperations;
 use Hypervel\Cache\Redis\Operations\AnyTagOperations;
+use Hypervel\Cache\Redis\Operations\Decrement;
+use Hypervel\Cache\Redis\Operations\Flush;
+use Hypervel\Cache\Redis\Operations\Forever;
+use Hypervel\Cache\Redis\Operations\Forget;
+use Hypervel\Cache\Redis\Operations\Get;
+use Hypervel\Cache\Redis\Operations\Increment;
 use Hypervel\Cache\Redis\Operations\Many;
 use Hypervel\Cache\Redis\Operations\Put;
 use Hypervel\Cache\Redis\Operations\PutMany;
@@ -30,6 +30,7 @@ use Hypervel\Cache\Redis\Operations\Remember;
 use Hypervel\Cache\Redis\Operations\RememberForever;
 use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
+use Hypervel\Cache\Redis\TagMode;
 
 class RedisStore extends TaggableStore implements LockProvider
 {
@@ -222,9 +223,9 @@ class RedisStore extends TaggableStore implements LockProvider
      * Optimized to use a single connection for both GET and SET operations,
      * avoiding double pool overhead for cache misses.
      *
-     * @param \Closure(): mixed $callback
+     * @param Closure(): mixed $callback
      */
-    public function remember(string $key, int $seconds, \Closure $callback): mixed
+    public function remember(string $key, int $seconds, Closure $callback): mixed
     {
         return $this->getRememberOperation()->execute($key, $seconds, $callback);
     }
@@ -235,10 +236,10 @@ class RedisStore extends TaggableStore implements LockProvider
      * Optimized to use a single connection for both GET and SET operations,
      * avoiding double pool overhead for cache misses.
      *
-     * @param \Closure(): mixed $callback
+     * @param Closure(): mixed $callback
      * @return array{0: mixed, 1: bool} Tuple of [value, wasHit]
      */
-    public function rememberForever(string $key, \Closure $callback): array
+    public function rememberForever(string $key, Closure $callback): array
     {
         return $this->getRememberForeverOperation()->execute($key, $callback);
     }

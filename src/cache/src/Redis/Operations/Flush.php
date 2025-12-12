@@ -17,7 +17,8 @@ class Flush
      */
     public function __construct(
         private readonly StoreContext $context,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the flush operation.

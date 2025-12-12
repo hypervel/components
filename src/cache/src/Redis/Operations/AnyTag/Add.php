@@ -24,7 +24,8 @@ class Add
     public function __construct(
         private readonly StoreContext $context,
         private readonly Serialization $serialization,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the add operation.
@@ -32,7 +33,7 @@ class Add
      * @param string $key The cache key (without prefix)
      * @param mixed $value The value to store (will be serialized)
      * @param int $seconds TTL in seconds (must be > 0)
-     * @param array<int, string|int> $tags Array of tag names (will be cast to strings)
+     * @param array<int, int|string> $tags Array of tag names (will be cast to strings)
      * @return bool True if item was added, false if it already exists
      */
     public function execute(string $key, mixed $value, int $seconds, array $tags): bool

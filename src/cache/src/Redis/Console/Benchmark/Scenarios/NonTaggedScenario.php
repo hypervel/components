@@ -38,7 +38,7 @@ class NonTaggedScenario implements ScenarioInterface
         $start = hrtime(true);
         $bar = $ctx->createProgressBar($items);
 
-        for ($i = 0; $i < $items; $i++) {
+        for ($i = 0; $i < $items; ++$i) {
             $store->put($ctx->prefixed("nontagged:put:{$i}"), 'value', 3600);
 
             if ($i % $chunkSize === 0) {
@@ -58,7 +58,7 @@ class NonTaggedScenario implements ScenarioInterface
         $start = hrtime(true);
         $bar = $ctx->createProgressBar($items);
 
-        for ($i = 0; $i < $items; $i++) {
+        for ($i = 0; $i < $items; ++$i) {
             $store->get($ctx->prefixed("nontagged:put:{$i}"));
 
             if ($i % $chunkSize === 0) {
@@ -78,7 +78,7 @@ class NonTaggedScenario implements ScenarioInterface
         $start = hrtime(true);
         $bar = $ctx->createProgressBar($items);
 
-        for ($i = 0; $i < $items; $i++) {
+        for ($i = 0; $i < $items; ++$i) {
             $store->forget($ctx->prefixed("nontagged:put:{$i}"));
 
             if ($i % $chunkSize === 0) {
@@ -100,7 +100,7 @@ class NonTaggedScenario implements ScenarioInterface
         $bar = $ctx->createProgressBar($rememberItems);
         $rememberChunk = 10;
 
-        for ($i = 0; $i < $rememberItems; $i++) {
+        for ($i = 0; $i < $rememberItems; ++$i) {
             $store->remember($ctx->prefixed("nontagged:remember:{$i}"), 3600, function (): string {
                 return 'computed_value';
             });
@@ -125,7 +125,7 @@ class NonTaggedScenario implements ScenarioInterface
 
         $buffer = [];
 
-        for ($i = 0; $i < $items; $i++) {
+        for ($i = 0; $i < $items; ++$i) {
             $buffer[$ctx->prefixed("nontagged:bulk:{$i}")] = 'value';
 
             if (count($buffer) >= $bulkChunkSize) {
@@ -152,7 +152,7 @@ class NonTaggedScenario implements ScenarioInterface
         $start = hrtime(true);
         $bar = $ctx->createProgressBar($items);
 
-        for ($i = 0; $i < $items; $i++) {
+        for ($i = 0; $i < $items; ++$i) {
             $store->add($ctx->prefixed("nontagged:add:{$i}"), 'value', 3600);
 
             if ($i % $chunkSize === 0) {

@@ -6,6 +6,8 @@ namespace Hypervel\Cache\Redis\Operations\AnyTag;
 
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
+use Redis;
+use RedisCluster;
 
 /**
  * Prune orphaned fields from any tag hashes.
@@ -35,7 +37,8 @@ class Prune
      */
     public function __construct(
         private readonly StoreContext $context,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the prune operation.
@@ -89,12 +92,12 @@ class Prune
                 $tagHash = $this->context->tagHashKey($tag);
                 $result = $this->cleanupTagHashPipeline($client, $tagHash, $prefix, $scanCount);
 
-                $stats['hashes_scanned']++;
+                ++$stats['hashes_scanned'];
                 $stats['fields_checked'] += $result['checked'];
                 $stats['orphans_removed'] += $result['removed'];
 
                 if ($result['deleted']) {
-                    $stats['empty_hashes_deleted']++;
+                    ++$stats['empty_hashes_deleted'];
                 }
 
                 // Small sleep to let Redis breathe between tag hashes
@@ -142,12 +145,12 @@ class Prune
                 $tagHash = $this->context->tagHashKey($tag);
                 $result = $this->cleanupTagHashCluster($client, $tagHash, $prefix, $scanCount);
 
-                $stats['hashes_scanned']++;
+                ++$stats['hashes_scanned'];
                 $stats['fields_checked'] += $result['checked'];
                 $stats['orphans_removed'] += $result['removed'];
 
                 if ($result['deleted']) {
-                    $stats['empty_hashes_deleted']++;
+                    ++$stats['empty_hashes_deleted'];
                 }
 
                 // Small sleep to let Redis breathe between tag hashes
@@ -161,7 +164,7 @@ class Prune
     /**
      * Clean up orphaned fields from a single tag hash using pipeline.
      *
-     * @param \Redis|\RedisCluster $client
+     * @param Redis|RedisCluster $client
      * @return array{checked: int, removed: int, deleted: bool}
      */
     private function cleanupTagHashPipeline(mixed $client, string $tagHash, string $prefix, int $scanCount): array
@@ -226,7 +229,7 @@ class Prune
     /**
      * Clean up orphaned fields from a single tag hash using sequential commands (cluster mode).
      *
-     * @param \Redis|\RedisCluster $client
+     * @param Redis|RedisCluster $client
      * @return array{checked: int, removed: int, deleted: bool}
      */
     private function cleanupTagHashCluster(mixed $client, string $tagHash, string $prefix, int $scanCount): array

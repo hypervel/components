@@ -61,8 +61,8 @@ class AnyTaggedCache extends TaggedCache
     public function get(array|string $key, mixed $default = null): mixed
     {
         throw new BadMethodCallException(
-            'Cannot get items via tags in any mode. Tags are for writing and flushing only. ' .
-            'Use Cache::get() directly with the full key.'
+            'Cannot get items via tags in any mode. Tags are for writing and flushing only. '
+            . 'Use Cache::get() directly with the full key.'
         );
     }
 
@@ -74,8 +74,8 @@ class AnyTaggedCache extends TaggedCache
     public function many(array $keys): array
     {
         throw new BadMethodCallException(
-            'Cannot get items via tags in any mode. Tags are for writing and flushing only. ' .
-            'Use Cache::many() directly with the full keys.'
+            'Cannot get items via tags in any mode. Tags are for writing and flushing only. '
+            . 'Use Cache::many() directly with the full keys.'
         );
     }
 
@@ -87,8 +87,8 @@ class AnyTaggedCache extends TaggedCache
     public function has(array|string $key): bool
     {
         throw new BadMethodCallException(
-            'Cannot check existence via tags in any mode. Tags are for writing and flushing only. ' .
-            'Use Cache::has() directly with the full key.'
+            'Cannot check existence via tags in any mode. Tags are for writing and flushing only. '
+            . 'Use Cache::has() directly with the full key.'
         );
     }
 
@@ -100,8 +100,8 @@ class AnyTaggedCache extends TaggedCache
     public function pull(string $key, mixed $default = null): mixed
     {
         throw new BadMethodCallException(
-            'Cannot pull items via tags in any mode. Tags are for writing and flushing only. ' .
-            'Use Cache::pull() directly with the full key.'
+            'Cannot pull items via tags in any mode. Tags are for writing and flushing only. '
+            . 'Use Cache::pull() directly with the full key.'
         );
     }
 
@@ -113,15 +113,15 @@ class AnyTaggedCache extends TaggedCache
     public function forget(string $key): bool
     {
         throw new BadMethodCallException(
-            'Cannot forget items via tags in any mode. Tags are for writing and flushing only. ' .
-            'Use Cache::forget() directly with the full key, or flush() to remove all tagged items.'
+            'Cannot forget items via tags in any mode. Tags are for writing and flushing only. '
+            . 'Use Cache::forget() directly with the full key, or flush() to remove all tagged items.'
         );
     }
 
     /**
      * Store an item in the cache.
      */
-    public function put(array|string $key, mixed $value, null|DateInterval|DateTimeInterface|int $ttl = null): bool
+    public function put(array|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         if (is_array($key)) {
             return $this->putMany($key, $value);
@@ -150,7 +150,7 @@ class AnyTaggedCache extends TaggedCache
     /**
      * Store multiple items in the cache for a given number of seconds.
      */
-    public function putMany(array $values, null|DateInterval|DateTimeInterface|int $ttl = null): bool
+    public function putMany(array $values, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         if ($ttl === null) {
             return $this->putManyForever($values);
@@ -176,7 +176,7 @@ class AnyTaggedCache extends TaggedCache
     /**
      * Store an item in the cache if the key does not exist.
      */
-    public function add(string $key, mixed $value, null|DateInterval|DateTimeInterface|int $ttl = null): bool
+    public function add(string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         if ($ttl === null) {
             // Default to 1 year for "null" TTL on add
@@ -259,7 +259,7 @@ class AnyTaggedCache extends TaggedCache
      * @param Closure(): TCacheValue $callback
      * @return TCacheValue
      */
-    public function remember(string $key, null|DateInterval|DateTimeInterface|int $ttl, Closure $callback): mixed
+    public function remember(string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed
     {
         if ($ttl === null) {
             return $this->rememberForever($key, $callback);

@@ -83,7 +83,7 @@ final class ConcurrencyCheck implements CheckInterface
         $tag2 = $ctx->prefixed('concurrent-flush-b-' . Str::random(8));
 
         // Create 5 items with both tags
-        for ($i = 0; $i < 5; $i++) {
+        for ($i = 0; $i < 5; ++$i) {
             $ctx->cache->tags([$tag1, $tag2])->put($ctx->prefixed("flush-item-{$i}"), "value-{$i}", 60);
         }
 

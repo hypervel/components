@@ -8,6 +8,7 @@ use Hyperf\Redis\Redis;
 use Hypervel\Cache\RedisLock;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
+use RuntimeException;
 
 /**
  * @internal
@@ -176,10 +177,10 @@ class RedisLockTest extends TestCase
 
         $lock = new RedisLock($redis, 'lock:foo', 60);
 
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(RuntimeException::class);
 
         $lock->get(function () {
-            throw new \RuntimeException('test exception');
+            throw new RuntimeException('test exception');
         });
     }
 }

@@ -126,7 +126,7 @@ class FlushTest extends TestCase
 
         // Create more than CHUNK_SIZE (1000) entries
         $entries = [];
-        for ($i = 1; $i <= 1500; $i++) {
+        for ($i = 1; $i <= 1500; ++$i) {
             $entries[] = "key{$i}";
         }
 
@@ -139,7 +139,7 @@ class FlushTest extends TestCase
 
         // First chunk: 1000 entries (via pipeline on client)
         $firstChunkArgs = [];
-        for ($i = 1; $i <= 1000; $i++) {
+        for ($i = 1; $i <= 1000; ++$i) {
             $firstChunkArgs[] = "prefix:key{$i}";
         }
         $client->shouldReceive('del')
@@ -149,7 +149,7 @@ class FlushTest extends TestCase
 
         // Second chunk: 500 entries (via pipeline on client)
         $secondChunkArgs = [];
-        for ($i = 1001; $i <= 1500; $i++) {
+        for ($i = 1001; $i <= 1500; ++$i) {
             $secondChunkArgs[] = "prefix:key{$i}";
         }
         $client->shouldReceive('del')
@@ -292,7 +292,7 @@ class FlushTest extends TestCase
 
         // Create more than CHUNK_SIZE (1000) entries
         $entries = [];
-        for ($i = 1; $i <= 1500; $i++) {
+        for ($i = 1; $i <= 1500; ++$i) {
             $entries[] = "key{$i}";
         }
 
@@ -308,7 +308,7 @@ class FlushTest extends TestCase
 
         // First chunk: 1000 entries (sequential DEL)
         $firstChunkArgs = [];
-        for ($i = 1; $i <= 1000; $i++) {
+        for ($i = 1; $i <= 1000; ++$i) {
             $firstChunkArgs[] = "prefix:key{$i}";
         }
         $clusterClient->shouldReceive('del')
@@ -318,7 +318,7 @@ class FlushTest extends TestCase
 
         // Second chunk: 500 entries (sequential DEL)
         $secondChunkArgs = [];
-        for ($i = 1001; $i <= 1500; $i++) {
+        for ($i = 1001; $i <= 1500; ++$i) {
             $secondChunkArgs[] = "prefix:key{$i}";
         }
         $clusterClient->shouldReceive('del')

@@ -24,7 +24,7 @@ enum TagMode: string
     }
 
     /**
-     * Tag segment prefix: "_any:tag:" or "_all:tag:"
+     * Tag segment prefix: "_any:tag:" or "_all:tag:".
      */
     public function tagSegment(): string
     {
@@ -32,7 +32,7 @@ enum TagMode: string
     }
 
     /**
-     * Tag identifier (without cache prefix): "_any:tag:{tagName}:entries"
+     * Tag identifier (without cache prefix): "_any:tag:{tagName}:entries".
      *
      * Used by All mode for namespace computation (sha1 of sorted tag IDs).
      */
@@ -42,7 +42,7 @@ enum TagMode: string
     }
 
     /**
-     * Full tag key (with cache prefix): "{prefix}_any:tag:{tagName}:entries"
+     * Full tag key (with cache prefix): "{prefix}_any:tag:{tagName}:entries".
      */
     public function tagKey(string $prefix, string $tagName): string
     {
@@ -50,7 +50,7 @@ enum TagMode: string
     }
 
     /**
-     * Reverse index suffix: ":_any:tags"
+     * Reverse index suffix: ":_any:tags".
      */
     public function reverseIndexSuffix(): string
     {
@@ -58,7 +58,7 @@ enum TagMode: string
     }
 
     /**
-     * Full reverse index key: "{prefix}{cacheKey}:_any:tags"
+     * Full reverse index key: "{prefix}{cacheKey}:_any:tags".
      *
      * Tracks which tags a cache key belongs to (Any mode only).
      */
@@ -68,7 +68,7 @@ enum TagMode: string
     }
 
     /**
-     * Registry key: "{prefix}_any:tag:registry"
+     * Registry key: "{prefix}_any:tag:registry".
      *
      * Sorted set tracking all active tags (Any mode only).
      */

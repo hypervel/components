@@ -39,7 +39,7 @@ class DeepTaggingScenario implements ScenarioInterface
 
         $chunkSize = 100;
 
-        for ($i = 0; $i < $items; $i++) {
+        for ($i = 0; $i < $items; ++$i) {
             $store->tags([$tag])->put($ctx->prefixed("deep:{$i}"), 'value', 3600);
 
             if ($i % $chunkSize === 0) {

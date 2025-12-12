@@ -26,12 +26,13 @@ class GetTagItems
         private readonly StoreContext $context,
         private readonly Serialization $serialization,
         private readonly GetTaggedKeys $getTaggedKeys,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the query.
      *
-     * @param array<int, string|int> $tags Array of tag names
+     * @param array<int, int|string> $tags Array of tag names
      * @return Generator Yields key => value pairs
      */
     public function execute(array $tags): Generator

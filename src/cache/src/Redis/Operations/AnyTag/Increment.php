@@ -23,15 +23,16 @@ class Increment
      */
     public function __construct(
         private readonly StoreContext $context,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the increment operation.
      *
      * @param string $key The cache key (without prefix)
      * @param int $value The amount to increment by
-     * @param array<int, string|int> $tags Array of tag names (will be cast to strings)
-     * @return int|false The new value after incrementing, or false on failure
+     * @param array<int, int|string> $tags Array of tag names (will be cast to strings)
+     * @return false|int The new value after incrementing, or false on failure
      */
     public function execute(string $key, int $value, array $tags): int|bool
     {

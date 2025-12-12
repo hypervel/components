@@ -32,7 +32,8 @@ class GetTaggedKeys
     public function __construct(
         private readonly StoreContext $context,
         private readonly int $scanThreshold = self::DEFAULT_SCAN_THRESHOLD,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the query.

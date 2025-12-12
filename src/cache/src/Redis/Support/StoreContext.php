@@ -37,7 +37,8 @@ class StoreContext
         private readonly string $connectionName,
         private readonly string $prefix,
         private readonly TagMode $tagMode,
-    ) {}
+    ) {
+    }
 
     /**
      * Get the cache key prefix.

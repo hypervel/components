@@ -17,7 +17,8 @@ class Decrement
      */
     public function __construct(
         private readonly StoreContext $context,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the decrement operation.

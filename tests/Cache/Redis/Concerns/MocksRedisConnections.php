@@ -140,7 +140,7 @@ trait MocksRedisConnections
      * @param m\MockInterface|RedisConnection $connection The mocked connection (from mockConnection())
      * @param string $prefix Cache key prefix
      * @param string $connectionName Redis connection name
-     * @param string|null $tagMode Optional tag mode ('any' or 'all'). If provided, setTagMode() is called.
+     * @param null|string $tagMode Optional tag mode ('any' or 'all'). If provided, setTagMode() is called.
      */
     protected function createStore(
         m\MockInterface|RedisConnection $connection,
@@ -178,7 +178,7 @@ trait MocksRedisConnections
      *
      * @param string $prefix Cache key prefix
      * @param string $connectionName Redis connection name
-     * @param string|null $tagMode Optional tag mode ('any' or 'all')
+     * @param null|string $tagMode Optional tag mode ('any' or 'all')
      * @return array{0: RedisStore, 1: m\MockInterface, 2: m\MockInterface} [store, clusterClient, connection]
      */
     protected function createClusterStore(

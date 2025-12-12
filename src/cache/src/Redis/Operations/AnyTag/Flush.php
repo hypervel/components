@@ -6,6 +6,8 @@ namespace Hypervel\Cache\Redis\Operations\AnyTag;
 
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
+use Redis;
+use RedisCluster;
 
 /**
  * Flush tags using lazy cleanup mode (fast).
@@ -31,12 +33,13 @@ class Flush
     public function __construct(
         private readonly StoreContext $context,
         private readonly GetTaggedKeys $getTaggedKeys,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the lazy flush.
      *
-     * @param array<int, string|int> $tags Array of tag names to flush
+     * @param array<int, int|string> $tags Array of tag names to flush
      * @return bool True if successful, false on failure
      */
     public function execute(array $tags): bool
@@ -74,7 +77,7 @@ class Flush
 
             foreach ($keyGenerator() as $key) {
                 $buffer[$key] = true;
-                $bufferSize++;
+                ++$bufferSize;
 
                 if ($bufferSize >= self::CHUNK_SIZE) {
                     $this->processChunkCluster($client, array_keys($buffer));
@@ -124,7 +127,7 @@ class Flush
 
             foreach ($keyGenerator() as $key) {
                 $buffer[$key] = true;
-                $bufferSize++;
+                ++$bufferSize;
 
                 if ($bufferSize >= self::CHUNK_SIZE) {
                     $this->processChunkPipeline($client, array_keys($buffer));
@@ -156,7 +159,7 @@ class Flush
     /**
      * Process a chunk of keys for lazy flush (Cluster Mode).
      *
-     * @param \Redis|\RedisCluster $client
+     * @param Redis|RedisCluster $client
      * @param array<int, string> $keys Array of cache keys (without prefix)
      */
     private function processChunkCluster(mixed $client, array $keys): void
@@ -187,7 +190,7 @@ class Flush
     /**
      * Process a chunk of keys for lazy flush (Pipeline Mode).
      *
-     * @param \Redis|\RedisCluster $client
+     * @param Redis|RedisCluster $client
      * @param array<int, string> $keys Array of cache keys (without prefix)
      */
     private function processChunkPipeline(mixed $client, array $keys): void

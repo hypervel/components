@@ -23,7 +23,8 @@ class Put
     public function __construct(
         private readonly StoreContext $context,
         private readonly Serialization $serialization,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the put operation with tag tracking.

@@ -17,7 +17,8 @@ class Forget
      */
     public function __construct(
         private readonly StoreContext $context,
-    ) {}
+    ) {
+    }
 
     /**
      * Execute the forget (delete) operation.

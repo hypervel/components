@@ -14,7 +14,6 @@ use Hyperf\Macroable\Macroable;
 use Hyperf\Support\Traits\InteractsWithTime;
 use Hypervel\Cache\Contracts\Repository as CacheContract;
 use Hypervel\Cache\Contracts\Store;
-use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Events\CacheFlushed;
 use Hypervel\Cache\Events\CacheFlushFailed;
 use Hypervel\Cache\Events\CacheFlushing;

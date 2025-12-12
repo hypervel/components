@@ -160,9 +160,6 @@ class AnyTagSet extends TagSet
      */
     protected function getRedisStore(): RedisStore
     {
-        /** @var RedisStore $store */
-        $store = $this->store;
-
-        return $store;
+        return $this->store;
     }
 }

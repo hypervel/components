@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Redis\Console\Doctor;
 
 use Hypervel\Cache\Redis\TagMode;
-use Hypervel\Cache\Repository;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Cache\Repository;
 use Hypervel\Redis\RedisConnection;
 
 /**
@@ -32,7 +32,8 @@ final class DoctorContext
         public readonly RedisConnection $redis,
         public readonly string $cachePrefix,
         public readonly string $storeName,
-    ) {}
+    ) {
+    }
 
     /**
      * Get a value prefixed with the unique doctor test prefix.

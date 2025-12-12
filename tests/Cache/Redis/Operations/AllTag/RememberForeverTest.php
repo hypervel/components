@@ -94,7 +94,7 @@ class RememberForeverTest extends TestCase
         $callCount = 0;
         $redis = $this->createStore($connection);
         [$value, $wasHit] = $redis->allTagOps()->rememberForever()->execute('ns:foo', function () use (&$callCount) {
-            $callCount++;
+            ++$callCount;
 
             return 'computed_value';
         }, ['tag1:entries']);
@@ -120,7 +120,7 @@ class RememberForeverTest extends TestCase
         $callCount = 0;
         $redis = $this->createStore($connection);
         [$value, $wasHit] = $redis->allTagOps()->rememberForever()->execute('ns:foo', function () use (&$callCount) {
-            $callCount++;
+            ++$callCount;
 
             return 'new_value';
         }, ['tag1:entries']);

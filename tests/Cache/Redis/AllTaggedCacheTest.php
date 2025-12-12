@@ -7,8 +7,8 @@ namespace Hypervel\Tests\Cache\Redis;
 use Carbon\Carbon;
 use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use Redis;
+use RuntimeException;
 
 /**
  * Tests for AllTaggedCache behavior.
@@ -416,7 +416,7 @@ class AllTaggedCacheTest extends TestCase
         $callCount = 0;
         $store = $this->createStore($connection);
         $result = $store->tags(['users'])->remember('profile', 60, function () use (&$callCount) {
-            $callCount++;
+            ++$callCount;
 
             return 'computed_value';
         });
@@ -443,7 +443,7 @@ class AllTaggedCacheTest extends TestCase
         $callCount = 0;
         $store = $this->createStore($connection);
         $result = $store->tags(['users'])->remember('data', 60, function () use (&$callCount) {
-            $callCount++;
+            ++$callCount;
 
             return 'new_value';
         });
@@ -516,12 +516,12 @@ class AllTaggedCacheTest extends TestCase
             ->with("prefix:{$key}")
             ->andReturnNull();
 
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Callback failed');
 
         $store = $this->createStore($connection);
         $store->tags(['users'])->remember('data', 60, function () {
-            throw new \RuntimeException('Callback failed');
+            throw new RuntimeException('Callback failed');
         });
     }
 
@@ -540,12 +540,12 @@ class AllTaggedCacheTest extends TestCase
             ->with("prefix:{$key}")
             ->andReturnNull();
 
-        $this->expectException(\RuntimeException::class);
+        $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('Forever callback failed');
 
         $store = $this->createStore($connection);
         $store->tags(['config'])->rememberForever('data', function () {
-            throw new \RuntimeException('Forever callback failed');
+            throw new RuntimeException('Forever callback failed');
         });
     }
 
