@@ -31,15 +31,28 @@ class RedisLock extends Lock
         if ($this->seconds > 0) {
             return $this->redis->set($this->name, $this->owner, ['EX' => $this->seconds, 'NX']) == true;
         }
+
         return $this->redis->setnx($this->name, $this->owner) == true;
     }
 
     /**
      * Release the lock.
+     *
+     * Uses a Lua script to atomically check ownership before deleting.
      */
     public function release(): bool
     {
-        return (bool) $this->redis->eval(LuaScripts::releaseLock(), [$this->name, $this->owner], 1);
+        return (bool) $this->redis->eval(
+            <<<'LUA'
+                if redis.call("get",KEYS[1]) == ARGV[1] then
+                    return redis.call("del",KEYS[1])
+                else
+                    return 0
+                end
+                LUA,
+            [$this->name, $this->owner],
+            1
+        );
     }
 
     /**
