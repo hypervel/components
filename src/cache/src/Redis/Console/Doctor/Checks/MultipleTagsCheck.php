@@ -62,9 +62,9 @@ final class MultipleTagsCheck implements CheckInterface
     {
         // Verify in all tag hashes
         $result->assert(
-            $ctx->redis->hexists($ctx->tagHashKey($tags[0]), $key) === true
-            && $ctx->redis->hexists($ctx->tagHashKey($tags[1]), $key) === true
-            && $ctx->redis->hexists($ctx->tagHashKey($tags[2]), $key) === true,
+            $ctx->redis->hExists($ctx->tagHashKey($tags[0]), $key) === true
+            && $ctx->redis->hExists($ctx->tagHashKey($tags[1]), $key) === true
+            && $ctx->redis->hExists($ctx->tagHashKey($tags[2]), $key) === true,
             'Item appears in all tag hashes (any mode)'
         );
 

@@ -51,7 +51,7 @@ final class EdgeCasesCheck implements CheckInterface
 
         if ($ctx->isAnyMode()) {
             $result->assert(
-                $ctx->redis->hexists($ctx->tagHashKey($ctx->prefixed('123')), $numericTagKey) === true,
+                $ctx->redis->hExists($ctx->tagHashKey($ctx->prefixed('123')), $numericTagKey) === true,
                 'Numeric tags are handled (cast to strings, any mode)'
             );
         } else {

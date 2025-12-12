@@ -61,7 +61,7 @@ class Increment
             }
 
             // INCRBY for the value
-            $pipeline->incrby($prefix . $key, $value);
+            $pipeline->incrBy($prefix . $key, $value);
 
             $results = $pipeline->exec();
 
@@ -89,7 +89,7 @@ class Increment
             }
 
             // INCRBY for the value
-            return $client->incrby($prefix . $key, $value);
+            return $client->incrBy($prefix . $key, $value);
         });
     }
 }

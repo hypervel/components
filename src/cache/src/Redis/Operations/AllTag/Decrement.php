@@ -61,7 +61,7 @@ class Decrement
             }
 
             // DECRBY for the value
-            $pipeline->decrby($prefix . $key, $value);
+            $pipeline->decrBy($prefix . $key, $value);
 
             $results = $pipeline->exec();
 
@@ -89,7 +89,7 @@ class Decrement
             }
 
             // DECRBY for the value
-            return $client->decrby($prefix . $key, $value);
+            return $client->decrBy($prefix . $key, $value);
         });
     }
 }

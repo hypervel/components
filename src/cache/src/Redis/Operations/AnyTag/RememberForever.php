@@ -106,7 +106,7 @@ class RememberForever
             // 1. Add to each tag's hash without expiration (Cross-slot, sequential)
             foreach ($tags as $tag) {
                 $tag = (string) $tag;
-                $client->hset($this->context->tagHashKey($tag), $key, StoreContext::TAG_FIELD_VALUE);
+                $client->hSet($this->context->tagHashKey($tag), $key, StoreContext::TAG_FIELD_VALUE);
                 // No HEXPIRE for forever items
             }
 

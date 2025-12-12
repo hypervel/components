@@ -25,7 +25,7 @@ class Increment
     public function execute(string $key, int $value = 1): int
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value) {
-            return $conn->incrby($this->context->prefix() . $key, $value);
+            return $conn->incrBy($this->context->prefix() . $key, $value);
         });
     }
 }

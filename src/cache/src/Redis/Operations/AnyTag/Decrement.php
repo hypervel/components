@@ -96,7 +96,7 @@ class Decrement
                         // Use HSETEX for atomic operation
                         $client->hsetex($tagHashKey, [$key => StoreContext::TAG_FIELD_VALUE], ['EX' => $ttl]);
                     } else {
-                        $client->hset($tagHashKey, $key, StoreContext::TAG_FIELD_VALUE);
+                        $client->hSet($tagHashKey, $key, StoreContext::TAG_FIELD_VALUE);
                     }
                 }
 

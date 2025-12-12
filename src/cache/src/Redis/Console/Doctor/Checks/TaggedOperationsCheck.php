@@ -73,7 +73,7 @@ final class TaggedOperationsCheck implements CheckInterface
         // Verify hash structure exists
         $tagKey = $ctx->tagHashKey($tag);
         $result->assert(
-            $ctx->redis->hexists($tagKey, $key) === true,
+            $ctx->redis->hExists($tagKey, $key) === true,
             'Tag hash contains the cache key (any mode)'
         );
 

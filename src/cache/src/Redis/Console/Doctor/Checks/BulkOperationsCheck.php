@@ -62,8 +62,8 @@ final class BulkOperationsCheck implements CheckInterface
 
         if ($ctx->isAnyMode()) {
             $result->assert(
-                $ctx->redis->hexists($ctx->tagHashKey($bulkTag), $taggedKey1) === true
-                && $ctx->redis->hexists($ctx->tagHashKey($bulkTag), $taggedKey2) === true,
+                $ctx->redis->hExists($ctx->tagHashKey($bulkTag), $taggedKey1) === true
+                && $ctx->redis->hExists($ctx->tagHashKey($bulkTag), $taggedKey2) === true,
                 'putMany() with tags adds all items to tag hash (any mode)'
             );
         } else {

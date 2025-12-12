@@ -45,7 +45,7 @@ final class HexpireCheck implements EnvironmentCheckInterface
             // Try to use HEXPIRE on a test key
             $testKey = 'erc:doctor:hexpire-test:' . bin2hex(random_bytes(4));
 
-            $this->redis->hset($testKey, 'field', '1');
+            $this->redis->hSet($testKey, 'field', '1');
             $this->redis->hexpire($testKey, 60, ['field']);
             $this->redis->del($testKey);
 

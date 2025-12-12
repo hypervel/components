@@ -63,7 +63,7 @@ final class MemoryLeakPreventionCheck implements CheckInterface
 
         // Hypervel uses lazy cleanup mode - orphans remain until prune command runs
         $result->assert(
-            $ctx->redis->hexists($ctx->tagHashKey($ctx->prefixed('beta')), $ctx->prefixed('leak:shared')),
+            $ctx->redis->hExists($ctx->tagHashKey($ctx->prefixed('beta')), $ctx->prefixed('leak:shared')),
             'Orphaned field exists in shared tag hash (lazy cleanup - will be cleaned by prune command)'
         );
     }

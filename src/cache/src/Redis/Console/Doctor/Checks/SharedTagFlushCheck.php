@@ -66,7 +66,7 @@ final class SharedTagFlushCheck implements CheckInterface
         $tagBKey = $ctx->tagHashKey($tagB);
 
         $result->assert(
-            $ctx->redis->hexists($tagAKey, $key) && $ctx->redis->hexists($tagBKey, $key),
+            $ctx->redis->hExists($tagAKey, $key) && $ctx->redis->hExists($tagBKey, $key),
             'Key exists in both tag hashes (any mode)'
         );
 
@@ -81,7 +81,7 @@ final class SharedTagFlushCheck implements CheckInterface
         // In lazy mode (Hypervel default), orphans remain in Tag B hash
         // They will be cleaned by the scheduled prune command
         $result->assert(
-            $ctx->redis->hexists($tagBKey, $key),
+            $ctx->redis->hExists($tagBKey, $key),
             'Orphaned field exists in shared tag (lazy cleanup - will be cleaned by prune command)'
         );
     }

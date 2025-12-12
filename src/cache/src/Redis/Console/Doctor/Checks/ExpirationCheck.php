@@ -72,7 +72,7 @@ final class ExpirationCheck implements CheckInterface
         $tagKey = $ctx->tagHashKey($tag);
 
         $result->assert(
-            ! $connection->hexists($tagKey, $key),
+            ! $connection->hExists($tagKey, $key),
             'Tag hash field expired (HEXPIRE cleanup)'
         );
     }

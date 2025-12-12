@@ -45,12 +45,12 @@ final class HashStructuresCheck implements CheckInterface
 
         // Verify field exists
         $result->assert(
-            $ctx->redis->hexists($tagKey, $ctx->prefixed('hash:item')) === true,
+            $ctx->redis->hExists($tagKey, $ctx->prefixed('hash:item')) === true,
             'Cache key is added as hash field'
         );
 
         // Verify field value
-        $value = $ctx->redis->hget($tagKey, $ctx->prefixed('hash:item'));
+        $value = $ctx->redis->hGet($tagKey, $ctx->prefixed('hash:item'));
         $result->assert(
             $value === '1',
             'Hash field value is "1" (minimal metadata)'
