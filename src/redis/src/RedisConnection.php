@@ -755,8 +755,10 @@ class RedisConnection extends HyperfRedisConnection
      *
      * Use this for operations requiring direct client access,
      * such as evalSha with pre-computed SHA hashes.
+     *
+     * @return Redis|RedisCluster
      */
-    public function client(): Redis|RedisCluster
+    public function client(): mixed
     {
         return $this->connection;
     }
