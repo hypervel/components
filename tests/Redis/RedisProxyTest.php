@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Redis\Tests;
+namespace Hypervel\Tests\Redis;
 
 use Hyperf\Redis\Pool\PoolFactory;
 use Hyperf\Redis\Pool\RedisPool;
@@ -34,9 +34,6 @@ class RedisProxyTest extends TestCase
         Context::destroy('redis.connection.cache');
     }
 
-    /**
-     * @test
-     */
     public function testProxyUsesSpecifiedPoolName(): void
     {
         $cacheConnection = $this->mockConnection();
@@ -57,9 +54,6 @@ class RedisProxyTest extends TestCase
         $this->assertSame('cached', $result);
     }
 
-    /**
-     * @test
-     */
     public function testProxyContextKeyUsesPoolName(): void
     {
         $connection = $this->mockConnection();

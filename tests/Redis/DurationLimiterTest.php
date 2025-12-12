@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Redis\Tests;
+namespace Hypervel\Tests\Redis;
 
 use Hyperf\Redis\RedisFactory;
 use Hyperf\Redis\RedisProxy;
@@ -21,9 +21,6 @@ use Mockery as m;
  */
 class DurationLimiterTest extends TestCase
 {
-    /**
-     * @test
-     */
     public function testAcquireSucceedsWhenBelowLimit(): void
     {
         $redis = $this->mockRedis();
@@ -41,9 +38,6 @@ class DurationLimiterTest extends TestCase
         $this->assertSame(4, $limiter->remaining);
     }
 
-    /**
-     * @test
-     */
     public function testAcquireFailsWhenAtLimit(): void
     {
         $redis = $this->mockRedis();
@@ -61,9 +55,6 @@ class DurationLimiterTest extends TestCase
         $this->assertSame(0, $limiter->remaining);
     }
 
-    /**
-     * @test
-     */
     public function testRemainingIsNeverNegative(): void
     {
         $redis = $this->mockRedis();
@@ -80,9 +71,6 @@ class DurationLimiterTest extends TestCase
         $this->assertSame(0, $limiter->remaining);
     }
 
-    /**
-     * @test
-     */
     public function testTooManyAttemptsReturnsTrueWhenNoRemaining(): void
     {
         $redis = $this->mockRedis();
@@ -99,9 +87,6 @@ class DurationLimiterTest extends TestCase
         $this->assertSame(0, $limiter->remaining);
     }
 
-    /**
-     * @test
-     */
     public function testTooManyAttemptsReturnsFalseWhenHasRemaining(): void
     {
         $redis = $this->mockRedis();
@@ -118,9 +103,6 @@ class DurationLimiterTest extends TestCase
         $this->assertSame(3, $limiter->remaining);
     }
 
-    /**
-     * @test
-     */
     public function testClearDeletesKey(): void
     {
         $redis = $this->mockRedis();
@@ -137,9 +119,6 @@ class DurationLimiterTest extends TestCase
         // Mockery verifies del() was called
     }
 
-    /**
-     * @test
-     */
     public function testBlockExecutesCallbackOnSuccess(): void
     {
         $redis = $this->mockRedis();
@@ -160,9 +139,6 @@ class DurationLimiterTest extends TestCase
         $this->assertSame('callback-result', $result);
     }
 
-    /**
-     * @test
-     */
     public function testBlockThrowsExceptionAfterTimeout(): void
     {
         $redis = $this->mockRedis();
@@ -179,9 +155,6 @@ class DurationLimiterTest extends TestCase
         $limiter->block(0, null, 1); // 1ms sleep between retries
     }
 
-    /**
-     * @test
-     */
     public function testUsesSpecifiedConnectionName(): void
     {
         $cacheRedis = $this->mockRedis();

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Redis\Tests;
+namespace Hypervel\Tests\Redis;
 
 use Hyperf\Redis\Pool\PoolFactory;
 use Hyperf\Redis\Pool\RedisPool;
@@ -29,9 +29,6 @@ class MultiExecTest extends TestCase
         Context::destroy('redis.connection.default');
     }
 
-    /**
-     * @test
-     */
     public function testPipelineWithoutCallbackReturnsInstanceForChaining(): void
     {
         $pipelineInstance = m::mock(PhpRedis::class);
@@ -50,9 +47,6 @@ class MultiExecTest extends TestCase
         $this->assertSame($pipelineInstance, $result);
     }
 
-    /**
-     * @test
-     */
     public function testPipelineWithCallbackExecutesAndReturnsResults(): void
     {
         $execResults = ['OK', 'OK', 'value'];
@@ -78,9 +72,6 @@ class MultiExecTest extends TestCase
         $this->assertSame($execResults, $result);
     }
 
-    /**
-     * @test
-     */
     public function testTransactionWithoutCallbackReturnsInstanceForChaining(): void
     {
         $multiInstance = m::mock(PhpRedis::class);
@@ -99,9 +90,6 @@ class MultiExecTest extends TestCase
         $this->assertSame($multiInstance, $result);
     }
 
-    /**
-     * @test
-     */
     public function testTransactionWithCallbackExecutesAndReturnsResults(): void
     {
         $execResults = ['OK', 5];
@@ -126,9 +114,6 @@ class MultiExecTest extends TestCase
         $this->assertSame($execResults, $result);
     }
 
-    /**
-     * @test
-     */
     public function testPipelineWithCallbackDoesNotReleaseExistingContextConnection(): void
     {
         $pipelineInstance = m::mock(PhpRedis::class);
@@ -152,9 +137,6 @@ class MultiExecTest extends TestCase
         });
     }
 
-    /**
-     * @test
-     */
     public function testPipelineWithCallbackReleasesOnException(): void
     {
         $pipelineInstance = m::mock(PhpRedis::class);

@@ -13,6 +13,7 @@ use Hypervel\Tests\Redis\Stubs\RedisConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery;
 use Psr\Container\ContainerInterface;
+use Redis;
 
 /**
  * @internal
@@ -489,6 +490,255 @@ class RedisConnectionTest extends TestCase
         $result = $connection->__call('zunionstore', ['output', ['set1', 'set2']]);
 
         $this->assertEquals(5, $result);
+    }
+
+    public function testGetTransformsFalseToNull(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('get')
+            ->with('key')
+            ->once()
+            ->andReturn(false);
+
+        $result = $connection->__call('get', ['key']);
+
+        $this->assertNull($result);
+    }
+
+    public function testSetWithoutOptions(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('set')
+            ->with('key', 'value', null)
+            ->once()
+            ->andReturn(true);
+
+        $result = $connection->__call('set', ['key', 'value']);
+
+        $this->assertTrue($result);
+    }
+
+    public function testSetnxReturnsZeroOnFailure(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('setNx')
+            ->with('key', 'value')
+            ->once()
+            ->andReturn(false);
+
+        $result = $connection->__call('setnx', ['key', 'value']);
+
+        $this->assertEquals(0, $result);
+    }
+
+    public function testHmsetWithAlternatingKeyValuePairs(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('hMSet')
+            ->with('hash', ['field1' => 'value1', 'field2' => 'value2'])
+            ->once()
+            ->andReturn(true);
+
+        // Laravel style: key, value, key, value
+        $result = $connection->__call('hmset', ['hash', 'field1', 'value1', 'field2', 'value2']);
+
+        $this->assertTrue($result);
+    }
+
+    public function testZaddWithScoreMemberPairs(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('zAdd')
+            ->with('zset', [], 1.0, 'member1', 2.0, 'member2')
+            ->once()
+            ->andReturn(2);
+
+        $result = $connection->__call('zadd', ['zset', 1.0, 'member1', 2.0, 'member2']);
+
+        $this->assertEquals(2, $result);
+    }
+
+    public function testZrangebyscoreWithListLimitPassesThrough(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('zRangeByScore')
+            ->with('zset', '-inf', '+inf', ['limit' => [5, 20]])
+            ->once()
+            ->andReturn(['member1']);
+
+        // Already in list format - passes through
+        $result = $connection->__call('zrangebyscore', ['zset', '-inf', '+inf', ['limit' => [5, 20]]]);
+
+        $this->assertEquals(['member1'], $result);
+    }
+
+    public function testZrevrangebyscoreWithLimitOption(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('zRevRangeByScore')
+            ->with('zset', '+inf', '-inf', ['limit' => [0, 5]])
+            ->once()
+            ->andReturn(['member2', 'member1']);
+
+        $result = $connection->__call('zrevrangebyscore', ['zset', '+inf', '-inf', ['limit' => ['offset' => 0, 'count' => 5]]]);
+
+        $this->assertEquals(['member2', 'member1'], $result);
+    }
+
+    public function testZinterstoreDefaultsAggregate(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('zinterstore')
+            ->with('output', ['set1', 'set2'], null, 'sum')
+            ->once()
+            ->andReturn(2);
+
+        $result = $connection->__call('zinterstore', ['output', ['set1', 'set2']]);
+
+        $this->assertEquals(2, $result);
+    }
+
+    public function testCallWithoutTransformPassesDirectly(): void
+    {
+        $connection = $this->mockRedisConnection(transform: false);
+
+        // Without transform, get() returns false (not null)
+        $connection->getConnection()
+            ->shouldReceive('get')
+            ->with('key')
+            ->once()
+            ->andReturn(false);
+
+        $result = $connection->__call('get', ['key']);
+
+        $this->assertFalse($result);
+    }
+
+    public function testSerializedReturnsTrueWhenSerializerConfigured(): void
+    {
+        $connection = $this->mockRedisConnection();
+
+        $connection->getConnection()
+            ->shouldReceive('getOption')
+            ->with(Redis::OPT_SERIALIZER)
+            ->andReturn(Redis::SERIALIZER_PHP);
+
+        $this->assertTrue($connection->serialized());
+    }
+
+    public function testSerializedReturnsFalseWhenNoSerializer(): void
+    {
+        $connection = $this->mockRedisConnection();
+
+        $connection->getConnection()
+            ->shouldReceive('getOption')
+            ->with(Redis::OPT_SERIALIZER)
+            ->andReturn(Redis::SERIALIZER_NONE);
+
+        $this->assertFalse($connection->serialized());
+    }
+
+    public function testCompressedReturnsTrueWhenCompressionConfigured(): void
+    {
+        if (! defined('Redis::COMPRESSION_LZF')) {
+            $this->markTestSkipped('Redis::COMPRESSION_LZF is not defined.');
+        }
+
+        $connection = $this->mockRedisConnection();
+
+        $connection->getConnection()
+            ->shouldReceive('getOption')
+            ->with(Redis::OPT_COMPRESSION)
+            ->andReturn(Redis::COMPRESSION_LZF);
+
+        $this->assertTrue($connection->compressed());
+    }
+
+    public function testCompressedReturnsFalseWhenNoCompression(): void
+    {
+        $connection = $this->mockRedisConnection();
+
+        $connection->getConnection()
+            ->shouldReceive('getOption')
+            ->with(Redis::OPT_COMPRESSION)
+            ->andReturn(Redis::COMPRESSION_NONE);
+
+        $this->assertFalse($connection->compressed());
+    }
+
+    public function testPackReturnsEmptyArrayForEmptyInput(): void
+    {
+        $connection = $this->mockRedisConnection();
+
+        $result = $connection->pack([]);
+
+        $this->assertSame([], $result);
+    }
+
+    public function testPackUsesNativePackMethod(): void
+    {
+        $connection = $this->mockRedisConnection();
+
+        $connection->getConnection()
+            ->shouldReceive('_pack')
+            ->with('value1')
+            ->once()
+            ->andReturn('packed1');
+        $connection->getConnection()
+            ->shouldReceive('_pack')
+            ->with('value2')
+            ->once()
+            ->andReturn('packed2');
+
+        $result = $connection->pack(['value1', 'value2']);
+
+        $this->assertSame(['packed1', 'packed2'], $result);
+    }
+
+    public function testPackPreservesArrayKeys(): void
+    {
+        $connection = $this->mockRedisConnection();
+
+        $connection->getConnection()
+            ->shouldReceive('_pack')
+            ->with('value1')
+            ->once()
+            ->andReturn('packed1');
+        $connection->getConnection()
+            ->shouldReceive('_pack')
+            ->with('value2')
+            ->once()
+            ->andReturn('packed2');
+
+        $result = $connection->pack(['key1' => 'value1', 'key2' => 'value2']);
+
+        $this->assertSame([
+            'key1' => 'packed1',
+            'key2' => 'packed2',
+        ], $result);
+    }
+
+    public function testClientReturnsUnderlyingRedisInstance(): void
+    {
+        $connection = $this->mockRedisConnection();
+
+        $this->assertSame($connection->getConnection(), $connection->client());
     }
 
     protected function mockRedisConnection(?ContainerInterface $container = null, ?PoolInterface $pool = null, array $options = [], bool $transform = false): RedisConnection

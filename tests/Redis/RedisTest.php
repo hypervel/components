@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Redis\Tests;
+namespace Hypervel\Tests\Redis;
 
 use Hyperf\Redis\Pool\PoolFactory;
 use Hyperf\Redis\Pool\RedisPool;
@@ -34,9 +34,6 @@ class RedisTest extends TestCase
         Context::destroy('redis.connection.default');
     }
 
-    /**
-     * @test
-     */
     public function testCommandIsProxiedToConnection(): void
     {
         $connection = $this->mockConnection();
@@ -50,9 +47,6 @@ class RedisTest extends TestCase
         $this->assertSame('bar', $result);
     }
 
-    /**
-     * @test
-     */
     public function testConnectionIsStoredInContextForMulti(): void
     {
         $multiInstance = m::mock(PhpRedis::class);
@@ -71,9 +65,6 @@ class RedisTest extends TestCase
         $this->assertTrue(Context::has('redis.connection.default'));
     }
 
-    /**
-     * @test
-     */
     public function testConnectionIsStoredInContextForPipeline(): void
     {
         $pipelineInstance = m::mock(PhpRedis::class);
@@ -91,9 +82,6 @@ class RedisTest extends TestCase
         $this->assertTrue(Context::has('redis.connection.default'));
     }
 
-    /**
-     * @test
-     */
     public function testConnectionIsStoredInContextForSelect(): void
     {
         $connection = $this->mockConnection();
@@ -110,9 +98,6 @@ class RedisTest extends TestCase
         $this->assertTrue(Context::has('redis.connection.default'));
     }
 
-    /**
-     * @test
-     */
     public function testExistingContextConnectionIsReused(): void
     {
         $connection = $this->mockConnection();
@@ -134,9 +119,6 @@ class RedisTest extends TestCase
         $this->assertSame('value2', $result2);
     }
 
-    /**
-     * @test
-     */
     public function testExceptionIsPropagated(): void
     {
         $connection = $this->mockConnection();
@@ -153,9 +135,6 @@ class RedisTest extends TestCase
         $redis->get('key');
     }
 
-    /**
-     * @test
-     */
     public function testNullReturnedOnExceptionWhenContextConnectionExists(): void
     {
         $connection = $this->mockConnection();

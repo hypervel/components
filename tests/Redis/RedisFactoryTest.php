@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Redis\Tests;
+namespace Hypervel\Tests\Redis;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Redis\Exception\InvalidRedisProxyException;
@@ -23,9 +23,6 @@ use ReflectionClass;
  */
 class RedisFactoryTest extends TestCase
 {
-    /**
-     * @test
-     */
     public function testGetReturnsProxyForConfiguredPool(): void
     {
         $factory = $this->createFactoryWithProxies([
@@ -38,9 +35,6 @@ class RedisFactoryTest extends TestCase
         $this->assertInstanceOf(RedisProxy::class, $proxy);
     }
 
-    /**
-     * @test
-     */
     public function testGetReturnsDifferentProxiesForDifferentPools(): void
     {
         $defaultProxy = m::mock(RedisProxy::class);
@@ -55,9 +49,6 @@ class RedisFactoryTest extends TestCase
         $this->assertSame($cacheProxy, $factory->get('cache'));
     }
 
-    /**
-     * @test
-     */
     public function testGetThrowsExceptionForUnconfiguredPool(): void
     {
         $factory = $this->createFactoryWithProxies([
@@ -70,9 +61,6 @@ class RedisFactoryTest extends TestCase
         $factory->get('nonexistent');
     }
 
-    /**
-     * @test
-     */
     public function testGetReturnsSameProxyInstanceOnMultipleCalls(): void
     {
         $proxy = m::mock(RedisProxy::class);
