@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Console\Doctor;
 
-use Hypervel\Cache\Contracts\Repository;
 use Hypervel\Cache\Redis\TagMode;
+use Hypervel\Cache\Repository;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Redis\RedisConnection;
 

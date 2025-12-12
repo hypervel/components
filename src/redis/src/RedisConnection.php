@@ -56,7 +56,7 @@ use Throwable;
  * @method static \Redis|array|false|null blmpop(float $timeout, array $keys, string $from, int $count = 1)
  * @method static \Redis|array|false|null lmpop(array $keys, string $from, int $count = 1)
  * @method static bool clearLastError()
- * @method static mixed client(string $opt, mixed ...$args)
+ * @method static mixed client(string $opt = '', mixed ...$args)
  * @method static mixed command(string|null $opt = null, mixed ...$args)
  * @method static mixed config(string $operation, array|string|null $key_or_settings = null, string|null $value = null)
  * @method static bool connect(string $host, int $port = 6379, float $timeout = 0, string|null $persistent_id = null, int $retry_interval = 0, float $read_timeout = 0, array|null $context = null)
