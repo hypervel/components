@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Integration;
+namespace Hypervel\Tests\Support;
 
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
@@ -13,16 +13,16 @@ use Throwable;
 /**
  * Base test case for Redis integration tests.
  *
- * These tests require a real Redis server and are skipped by default.
- * Set RUN_REDIS_INTEGRATION_TESTS=true in .env to enable them.
+ * Provides parallel-safe Redis testing infrastructure:
+ * - Uses TEST_TOKEN env var (from paratest) to create unique prefixes per worker
+ * - Configures Redis connection from environment variables
+ * - Flushes only keys matching the test prefix (safe for parallel execution)
  *
- * Parallel Test Safety (paratest):
- * - Uses TEST_TOKEN env var to create unique OPT_PREFIX per worker
- * - e.g., worker 1 gets prefix "int_test_1:", worker 2 gets "int_test_2:"
- * - flushByPattern('*') only flushes keys under that worker's prefix
+ * Subclasses should override configurePackage() to add package-specific
+ * configuration (e.g., setting cache.default, queue.default, etc.).
  *
- * NOTE: Concrete test classes extending this MUST add @group redis-integration
- * for proper test filtering. PHPUnit doesn't inherit groups from abstract classes.
+ * NOTE: Concrete test classes extending this (or its subclasses) MUST add
+ * @group redis-integration for proper test filtering in CI.
  *
  * @internal
  * @coversNothing
@@ -35,17 +35,17 @@ abstract class RedisIntegrationTestCase extends TestCase
      * Default Redis database number for integration tests.
      * Can be overridden via REDIS_DB env var.
      */
-    protected int $redisDefaultDatabase = 8;
+    protected int $redisDatabase = 8;
 
     /**
-     * Base cache key prefix for integration tests.
+     * Base key prefix for integration tests.
      */
-    protected string $redisBasePrefix = 'int_test';
+    protected string $basePrefix = 'int_test';
 
     /**
      * Computed prefix (includes TEST_TOKEN if running in parallel).
      */
-    protected string $cachePrefix;
+    protected string $testPrefix;
 
     protected function setUp(): void
     {
@@ -55,13 +55,22 @@ abstract class RedisIntegrationTestCase extends TestCase
             );
         }
 
-        $this->computeParallelSafeConfig();
+        $this->computeTestPrefix();
 
         parent::setUp();
 
         $this->configureRedis();
-        $this->configureCache();
-        $this->flushTestDatabase();
+        $this->configurePackage();
+        $this->flushTestKeys();
+    }
+
+    protected function tearDown(): void
+    {
+        if (env('RUN_REDIS_INTEGRATION_TESTS', false)) {
+            $this->flushTestKeys();
+        }
+
+        parent::tearDown();
     }
 
     /**
@@ -70,25 +79,15 @@ abstract class RedisIntegrationTestCase extends TestCase
      * Each worker gets a unique prefix (e.g., int_test_1:, int_test_2:).
      * This provides isolation without needing separate databases.
      */
-    protected function computeParallelSafeConfig(): void
+    protected function computeTestPrefix(): void
     {
         $testToken = env('TEST_TOKEN', '');
 
         if ($testToken !== '') {
-            $this->cachePrefix = "{$this->redisBasePrefix}_{$testToken}:";
+            $this->testPrefix = "{$this->basePrefix}_{$testToken}:";
         } else {
-            $this->cachePrefix = "{$this->redisBasePrefix}:";
+            $this->testPrefix = "{$this->basePrefix}:";
         }
-    }
-
-    protected function tearDown(): void
-    {
-        // Flush the test database to clean up after tests
-        if (env('RUN_REDIS_INTEGRATION_TESTS', false)) {
-            $this->flushTestDatabase();
-        }
-
-        parent::tearDown();
     }
 
     /**
@@ -102,7 +101,7 @@ abstract class RedisIntegrationTestCase extends TestCase
             'host' => env('REDIS_HOST', '127.0.0.1'),
             'auth' => env('REDIS_AUTH', null) ?: null,
             'port' => (int) env('REDIS_PORT', 6379),
-            'db' => (int) env('REDIS_DB', $this->redisDefaultDatabase),
+            'db' => (int) env('REDIS_DB', $this->redisDatabase),
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => 10,
@@ -113,18 +112,18 @@ abstract class RedisIntegrationTestCase extends TestCase
             ],
         ]);
 
-        $config->set('database.redis.options.prefix', $this->cachePrefix);
+        $config->set('database.redis.options.prefix', $this->testPrefix);
     }
 
     /**
-     * Configure cache to use Redis as the default driver.
+     * Configure package-specific settings.
+     *
+     * Override this method in subclasses to add package-specific configuration
+     * (e.g., cache.default, cache.prefix for cache tests).
      */
-    protected function configureCache(): void
+    protected function configurePackage(): void
     {
-        $config = $this->app->get(ConfigInterface::class);
-
-        $config->set('cache.default', 'redis');
-        $config->set('cache.prefix', $this->cachePrefix);
+        // Override in subclasses
     }
 
     /**
@@ -133,7 +132,7 @@ abstract class RedisIntegrationTestCase extends TestCase
      * Uses flushByPattern('*') which, combined with OPT_PREFIX, only deletes
      * keys belonging to this test. Safer than flushdb() for parallel tests.
      */
-    protected function flushTestDatabase(): void
+    protected function flushTestKeys(): void
     {
         try {
             Redis::flushByPattern('*');

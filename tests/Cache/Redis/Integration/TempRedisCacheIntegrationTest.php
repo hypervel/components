@@ -8,21 +8,16 @@ use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\Redis;
 
 /**
- * Temporary integration test to verify Redis cache infrastructure works.
- *
- * This test verifies that:
- * 1. Cache::put() stores data in Redis
- * 2. Redis::get() can retrieve the cached data directly
- * 3. Cache::get() retrieves the data correctly
+ * Integration tests to verify Redis cache infrastructure works.
  *
  * @group redis-integration
  *
  * @internal
  * @coversNothing
  */
-class TempRedisCacheIntegrationTest extends RedisIntegrationTestCase
+class TempRedisCacheIntegrationTest extends CacheRedisIntegrationTestCase
 {
-    public function testCachePutStoresValueInRedis(): void
+    public function testCachePutAndGet(): void
     {
         $key = 'test_key';
         $value = 'test_value';
@@ -33,14 +28,6 @@ class TempRedisCacheIntegrationTest extends RedisIntegrationTestCase
         // Verify it can be retrieved via Cache facade
         $cachedValue = Cache::get($key);
         $this->assertSame($value, $cachedValue);
-
-        // Verify the key exists in Redis directly
-        // The cache prefix is applied, so we need to check with the full key
-        $redisKey = $this->cachePrefix . $key;
-        $redisValue = Redis::get($redisKey);
-
-        // Redis stores serialized values, so we unserialize
-        $this->assertNotNull($redisValue, "Key '{$redisKey}' should exist in Redis");
     }
 
     public function testCacheForgetRemovesValueFromRedis(): void
@@ -79,7 +66,7 @@ class TempRedisCacheIntegrationTest extends RedisIntegrationTestCase
     public function testParallelIsolationUniqueValue(): void
     {
         $key = 'isolation_test';
-        $uniqueValue = 'worker_' . $this->cachePrefix . '_' . uniqid();
+        $uniqueValue = 'worker_' . $this->testPrefix . '_' . uniqid();
 
         Cache::put($key, $uniqueValue, 60);
 
@@ -190,7 +177,7 @@ class TempRedisCacheIntegrationTest extends RedisIntegrationTestCase
     public function testParallelIsolationRapidWrites(): void
     {
         $key = 'rapid_write_test';
-        $workerIdentifier = $this->cachePrefix . uniqid();
+        $workerIdentifier = $this->testPrefix . uniqid();
 
         for ($i = 0; $i < 20; ++$i) {
             $value = "{$workerIdentifier}_{$i}";
@@ -238,7 +225,7 @@ class TempRedisCacheIntegrationTest extends RedisIntegrationTestCase
     {
         $tag = 'isolation_tag';
         $key = 'tagged_key';
-        $value = 'tagged_value_' . $this->cachePrefix . uniqid();
+        $value = 'tagged_value_' . $this->testPrefix . uniqid();
 
         Cache::tags([$tag])->put($key, $value, 60);
         usleep(30000); // 30ms

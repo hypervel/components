@@ -65,7 +65,7 @@ jobs:
           - 6379:6379
 
     container:
-      image: phpswoole/swoole:6.0.2-php8.4
+      image: phpswoole/swoole:6.1.4-php8.4
 
     steps:
       - name: Checkout code
