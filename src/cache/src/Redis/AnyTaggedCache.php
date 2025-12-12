@@ -37,6 +37,13 @@ class AnyTaggedCache extends TaggedCache
     protected Store $store;
 
     /**
+     * The tag set instance.
+     *
+     * @var AnyTagSet
+     */
+    protected \Hypervel\Cache\TagSet $tags;
+
+    /**
      * Create a new tagged cache instance.
      */
     public function __construct(

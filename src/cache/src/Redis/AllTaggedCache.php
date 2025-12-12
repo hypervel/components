@@ -26,6 +26,13 @@ class AllTaggedCache extends TaggedCache
     protected Store $store;
 
     /**
+     * The tag set instance.
+     *
+     * @var AllTagSet
+     */
+    protected \Hypervel\Cache\TagSet $tags;
+
+    /**
      * Store an item in the cache if the key does not exist.
      */
     public function add(string $key, mixed $value, null|DateInterval|DateTimeInterface|int $ttl = null): bool
