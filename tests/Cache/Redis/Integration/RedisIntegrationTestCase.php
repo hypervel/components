@@ -20,6 +20,9 @@ use Hypervel\Testbench\TestCase;
  * - e.g., worker 1 gets prefix "int_test_1:", worker 2 gets "int_test_2:"
  * - flushByPattern('*') only flushes keys under that worker's prefix
  *
+ * NOTE: Concrete test classes extending this MUST add @group redis-integration
+ * for proper test filtering. PHPUnit doesn't inherit groups from abstract classes.
+ *
  * @internal
  * @coversNothing
  */
@@ -28,10 +31,10 @@ abstract class RedisIntegrationTestCase extends TestCase
     use RunTestsInCoroutine;
 
     /**
-     * Redis database number for integration tests.
-     * Using DB 8 to avoid conflicts with other data.
+     * Default Redis database number for integration tests.
+     * Can be overridden via REDIS_DB env var.
      */
-    protected int $redisDatabase = 8;
+    protected int $redisDefaultDatabase = 8;
 
     /**
      * Base cache key prefix for integration tests.
@@ -98,7 +101,7 @@ abstract class RedisIntegrationTestCase extends TestCase
             'host' => env('REDIS_HOST', '127.0.0.1'),
             'auth' => env('REDIS_AUTH', null) ?: null,
             'port' => (int) env('REDIS_PORT', 6379),
-            'db' => $this->redisDatabase,
+            'db' => (int) env('REDIS_DB', $this->redisDefaultDatabase),
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => 10,

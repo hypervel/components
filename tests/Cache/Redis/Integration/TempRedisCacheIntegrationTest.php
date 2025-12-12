@@ -15,6 +15,8 @@ use Hypervel\Support\Facades\Redis;
  * 2. Redis::get() can retrieve the cached data directly
  * 3. Cache::get() retrieves the data correctly
  *
+ * @group redis-integration
+ *
  * @internal
  * @coversNothing
  */

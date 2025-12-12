@@ -147,8 +147,12 @@ class Redis
     /**
      * Flush (delete) all Redis keys matching a pattern.
      *
-     * This method handles the connection lifecycle automatically - it gets a
-     * connection from the pool, performs the flush, and releases the connection.
+     * Use this for standalone/one-off flush operations. It handles the connection
+     * lifecycle automatically (get from pool, flush, release). Uses the default
+     * connection, or specify one via Redis::connection($name)->flushByPattern().
+     *
+     * If you already have a connection (e.g., inside withConnection()), call
+     * $connection->flushByPattern() directly to avoid redundant pool operations.
      *
      * Uses SCAN to iterate keys efficiently and deletes them in batches.
      * Correctly handles OPT_PREFIX to avoid the double-prefixing bug.

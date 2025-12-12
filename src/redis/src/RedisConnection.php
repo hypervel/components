@@ -823,8 +823,15 @@ class RedisConnection extends HyperfRedisConnection
     /**
      * Flush (delete) all Redis keys matching a pattern.
      *
-     * This method uses SCAN to iterate keys efficiently and deletes them in batches.
-     * It correctly handles OPT_PREFIX to avoid the double-prefixing bug.
+     * Use this when you already have a connection (e.g., inside withConnection()
+     * or when doing multiple operations on the same connection). No connection
+     * lifecycle overhead since you're operating on an existing connection.
+     *
+     * For standalone/one-off operations, use Redis::flushByPattern() instead,
+     * which handles connection lifecycle automatically.
+     *
+     * Uses SCAN to iterate keys efficiently and deletes them in batches.
+     * Correctly handles OPT_PREFIX to avoid the double-prefixing bug.
      *
      * @param string $pattern The pattern to match (e.g., "cache:test:*").
      *                        Should NOT include OPT_PREFIX - it's handled automatically.
