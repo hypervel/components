@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Cache\Redis\Integration;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Support\Facades\Cache;
+use Redis;
 
 /**
  * Integration tests for key naming conventions.
@@ -53,7 +54,7 @@ class KeyNamingIntegrationTest extends RedisCacheIntegrationTestCase
 
         $tagZsetKey = $this->allModeTagKey('category');
         $this->assertRedisKeyExists($tagZsetKey);
-        $this->assertEquals(\Redis::REDIS_ZSET, $this->redis()->type($tagZsetKey));
+        $this->assertEquals(Redis::REDIS_ZSET, $this->redis()->type($tagZsetKey));
     }
 
     public function testAllModeCreatesMultipleTagZsets(): void
@@ -68,9 +69,9 @@ class KeyNamingIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertRedisKeyExists($this->allModeTagKey('user:123'));
 
         // All should be ZSET type
-        $this->assertEquals(\Redis::REDIS_ZSET, $this->redis()->type($this->allModeTagKey('posts')));
-        $this->assertEquals(\Redis::REDIS_ZSET, $this->redis()->type($this->allModeTagKey('featured')));
-        $this->assertEquals(\Redis::REDIS_ZSET, $this->redis()->type($this->allModeTagKey('user:123')));
+        $this->assertEquals(Redis::REDIS_ZSET, $this->redis()->type($this->allModeTagKey('posts')));
+        $this->assertEquals(Redis::REDIS_ZSET, $this->redis()->type($this->allModeTagKey('featured')));
+        $this->assertEquals(Redis::REDIS_ZSET, $this->redis()->type($this->allModeTagKey('user:123')));
     }
 
     public function testAllModeStoresNamespacedKeyInZset(): void
@@ -165,10 +166,10 @@ class KeyNamingIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertRedisKeyExists($this->anyModeRegistryKey());
 
         // Verify correct types
-        $this->assertEquals(\Redis::REDIS_STRING, $this->redis()->type($prefix . 'product123'));
-        $this->assertEquals(\Redis::REDIS_HASH, $this->redis()->type($this->anyModeTagKey('category')));
-        $this->assertEquals(\Redis::REDIS_SET, $this->redis()->type($this->anyModeReverseIndexKey('product123')));
-        $this->assertEquals(\Redis::REDIS_ZSET, $this->redis()->type($this->anyModeRegistryKey()));
+        $this->assertEquals(Redis::REDIS_STRING, $this->redis()->type($prefix . 'product123'));
+        $this->assertEquals(Redis::REDIS_HASH, $this->redis()->type($this->anyModeTagKey('category')));
+        $this->assertEquals(Redis::REDIS_SET, $this->redis()->type($this->anyModeReverseIndexKey('product123')));
+        $this->assertEquals(Redis::REDIS_ZSET, $this->redis()->type($this->anyModeRegistryKey()));
     }
 
     public function testAnyModeCreatesMultipleTagHashes(): void
@@ -183,9 +184,9 @@ class KeyNamingIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertRedisKeyExists($this->anyModeTagKey('user:123'));
 
         // All should be HASH type
-        $this->assertEquals(\Redis::REDIS_HASH, $this->redis()->type($this->anyModeTagKey('posts')));
-        $this->assertEquals(\Redis::REDIS_HASH, $this->redis()->type($this->anyModeTagKey('featured')));
-        $this->assertEquals(\Redis::REDIS_HASH, $this->redis()->type($this->anyModeTagKey('user:123')));
+        $this->assertEquals(Redis::REDIS_HASH, $this->redis()->type($this->anyModeTagKey('posts')));
+        $this->assertEquals(Redis::REDIS_HASH, $this->redis()->type($this->anyModeTagKey('featured')));
+        $this->assertEquals(Redis::REDIS_HASH, $this->redis()->type($this->anyModeTagKey('user:123')));
     }
 
     public function testAnyModeReverseIndexContainsTagNames(): void
@@ -323,8 +324,8 @@ class KeyNamingIntegrationTest extends RedisCacheIntegrationTestCase
         $this->assertNotEquals($tagHashKey, $registryKey);
 
         // Verify they are different types
-        $this->assertEquals(\Redis::REDIS_HASH, $this->redis()->type($tagHashKey));
-        $this->assertEquals(\Redis::REDIS_ZSET, $this->redis()->type($registryKey));
+        $this->assertEquals(Redis::REDIS_HASH, $this->redis()->type($tagHashKey));
+        $this->assertEquals(Redis::REDIS_ZSET, $this->redis()->type($registryKey));
 
         // Verify both work correctly
         $this->assertSame('value', Cache::get('item'));

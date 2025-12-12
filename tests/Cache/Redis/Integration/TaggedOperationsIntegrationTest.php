@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Cache\Redis\Integration;
 
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Support\Facades\Cache;
+use Redis;
 
 /**
  * Integration tests for tagged cache operations.
@@ -35,7 +36,7 @@ class TaggedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
         $tagKey = $this->allModeTagKey('posts');
         $type = $this->redis()->type($tagKey);
 
-        $this->assertEquals(\Redis::REDIS_ZSET, $type, 'Tag structure should be a ZSET in all mode');
+        $this->assertEquals(Redis::REDIS_ZSET, $type, 'Tag structure should be a ZSET in all mode');
     }
 
     public function testAllModeStoresNamespacedKeyInZset(): void
@@ -125,7 +126,7 @@ class TaggedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
         $tagKey = $this->anyModeTagKey('posts');
         $type = $this->redis()->type($tagKey);
 
-        $this->assertEquals(\Redis::REDIS_HASH, $type, 'Tag structure should be a HASH in any mode');
+        $this->assertEquals(Redis::REDIS_HASH, $type, 'Tag structure should be a HASH in any mode');
     }
 
     public function testAnyModeStoresCacheKeyAsHashField(): void
@@ -151,7 +152,7 @@ class TaggedOperationsIntegrationTest extends RedisCacheIntegrationTestCase
         $reverseKey = $this->anyModeReverseIndexKey('post:1');
         $type = $this->redis()->type($reverseKey);
 
-        $this->assertEquals(\Redis::REDIS_SET, $type, 'Reverse index should be a SET');
+        $this->assertEquals(Redis::REDIS_SET, $type, 'Reverse index should be a SET');
 
         // Verify it contains both tags
         $tags = $this->getAnyModeReverseIndex('post:1');

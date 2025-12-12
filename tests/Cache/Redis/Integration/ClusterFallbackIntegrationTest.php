@@ -8,7 +8,6 @@ use Hyperf\Redis\Pool\PoolFactory;
 use Hypervel\Cache\Redis\AnyTaggedCache;
 use Hypervel\Cache\Redis\AnyTagSet;
 use Hypervel\Cache\Redis\Support\StoreContext;
-use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Support\Facades\Cache;
 

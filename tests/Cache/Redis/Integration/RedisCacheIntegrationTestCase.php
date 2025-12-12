@@ -103,7 +103,7 @@ abstract class RedisCacheIntegrationTestCase extends RedisIntegrationTestCase
 
     /**
      * Get the tag ZSET key for all mode.
-     * Format: {prefix}_all:tag:{name}:entries
+     * Format: {prefix}_all:tag:{name}:entries.
      */
     protected function allModeTagKey(string $tagName): string
     {
@@ -139,7 +139,7 @@ abstract class RedisCacheIntegrationTestCase extends RedisIntegrationTestCase
 
     /**
      * Get the tag HASH key for any mode.
-     * Format: {prefix}_any:tag:{name}:entries
+     * Format: {prefix}_any:tag:{name}:entries.
      */
     protected function anyModeTagKey(string $tagName): string
     {
@@ -148,7 +148,7 @@ abstract class RedisCacheIntegrationTestCase extends RedisIntegrationTestCase
 
     /**
      * Get the reverse index SET key for any mode.
-     * Format: {prefix}{cacheKey}:_any:tags
+     * Format: {prefix}{cacheKey}:_any:tags.
      */
     protected function anyModeReverseIndexKey(string $cacheKey): string
     {
@@ -157,7 +157,7 @@ abstract class RedisCacheIntegrationTestCase extends RedisIntegrationTestCase
 
     /**
      * Get the tag registry ZSET key for any mode.
-     * Format: {prefix}_any:tag:registry
+     * Format: {prefix}_any:tag:registry.
      */
     protected function anyModeRegistryKey(): string
     {
