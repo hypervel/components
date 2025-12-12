@@ -751,19 +751,6 @@ class RedisConnection extends HyperfRedisConnection
     }
 
     /**
-     * Get the underlying Redis client instance.
-     *
-     * Use this for operations requiring direct client access,
-     * such as evalSha with pre-computed SHA hashes.
-     *
-     * @return Redis|RedisCluster
-     */
-    public function client(): mixed
-    {
-        return $this->connection;
-    }
-
-    /**
      * Determine if a custom serializer is configured on the connection.
      */
     public function serialized(): bool

@@ -734,13 +734,6 @@ class RedisConnectionTest extends TestCase
         ], $result);
     }
 
-    public function testClientReturnsUnderlyingRedisInstance(): void
-    {
-        $connection = $this->mockRedisConnection();
-
-        $this->assertSame($connection->getConnection(), $connection->client());
-    }
-
     protected function mockRedisConnection(?ContainerInterface $container = null, ?PoolInterface $pool = null, array $options = [], bool $transform = false): RedisConnection
     {
         $connection = new RedisConnectionStub(
