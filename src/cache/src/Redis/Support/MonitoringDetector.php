@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Cache\Support;
+namespace Hypervel\Cache\Redis\Support;
 
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Telescope\Telescope;

@@ -2,10 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Cache\Support;
+namespace Hypervel\Support;
 
 use Exception;
-use Hypervel\Support\Number;
 
 /**
  * System information utilities for benchmarking and diagnostics.
