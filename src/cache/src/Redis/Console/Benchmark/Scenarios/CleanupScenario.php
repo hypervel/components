@@ -64,7 +64,7 @@ class CleanupScenario implements ScenarioInterface
         $ctx->newLine();
         $start = hrtime(true);
 
-        $ctx->call('cache:prune-stale-tags', ['store' => $ctx->storeName]);
+        $ctx->call('cache:prune-redis-stale-tags', ['store' => $ctx->storeName]);
 
         $cleanupTime = (hrtime(true) - $start) / 1e9;
 

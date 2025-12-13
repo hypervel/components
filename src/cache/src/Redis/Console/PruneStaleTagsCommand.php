@@ -17,7 +17,7 @@ class PruneStaleTagsCommand extends Command
     /**
      * The console command name.
      */
-    protected ?string $name = 'cache:prune-stale-tags';
+    protected ?string $name = 'cache:prune-redis-stale-tags';
 
     /**
      * The console command description.
