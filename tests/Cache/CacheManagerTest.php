@@ -6,15 +6,22 @@ namespace Hypervel\Tests\Cache;
 
 use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
+use Hyperf\Redis\Pool\PoolFactory;
+use Hyperf\Redis\Pool\RedisPool;
+use Hyperf\Redis\RedisFactory;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\Contracts\Repository;
 use Hypervel\Cache\NullStore;
+use Hypervel\Cache\Redis\TagMode;
+use Hypervel\Cache\RedisStore;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use Mockery\MockInterface;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Redis;
 
 /**
  * @internal
@@ -311,11 +318,127 @@ class CacheManagerTest extends TestCase
         $cacheManager->store('alien_store');
     }
 
+    public function testRedisDriverDefaultsToIntersectionTaggingMode(): void
+    {
+        $userConfig = [
+            'cache' => [
+                'prefix' => 'test',
+                'stores' => [
+                    'redis' => [
+                        'driver' => 'redis',
+                        'connection' => 'default',
+                    ],
+                ],
+            ],
+        ];
+
+        $app = $this->getAppWithRedis($userConfig);
+        $cacheManager = new CacheManager($app);
+
+        $repository = $cacheManager->store('redis');
+        $store = $repository->getStore();
+
+        $this->assertInstanceOf(RedisStore::class, $store);
+        $this->assertSame(TagMode::All, $store->getTagMode());
+    }
+
+    public function testRedisDriverUsesConfiguredTagMode(): void
+    {
+        $userConfig = [
+            'cache' => [
+                'prefix' => 'test',
+                'stores' => [
+                    'redis' => [
+                        'driver' => 'redis',
+                        'connection' => 'default',
+                        'tag_mode' => 'any',
+                    ],
+                ],
+            ],
+        ];
+
+        $app = $this->getAppWithRedis($userConfig);
+        $cacheManager = new CacheManager($app);
+
+        $repository = $cacheManager->store('redis');
+        $store = $repository->getStore();
+
+        $this->assertInstanceOf(RedisStore::class, $store);
+        $this->assertSame(TagMode::Any, $store->getTagMode());
+    }
+
+    public function testRedisDriverFallsBackToAllForInvalidTagMode(): void
+    {
+        $userConfig = [
+            'cache' => [
+                'prefix' => 'test',
+                'stores' => [
+                    'redis' => [
+                        'driver' => 'redis',
+                        'connection' => 'default',
+                        'tag_mode' => 'invalid',
+                    ],
+                ],
+            ],
+        ];
+
+        $app = $this->getAppWithRedis($userConfig);
+        $cacheManager = new CacheManager($app);
+
+        $repository = $cacheManager->store('redis');
+        $store = $repository->getStore();
+
+        $this->assertInstanceOf(RedisStore::class, $store);
+        $this->assertSame(TagMode::All, $store->getTagMode());
+    }
+
     protected function getApp(array $userConfig)
     {
         /** @var ContainerInterface|MockInterface */
         $app = m::mock(ContainerInterface::class);
         $app->shouldReceive('get')->with(ConfigInterface::class)->andReturn(new Config($userConfig));
+
+        return $app;
+    }
+
+    protected function getAppWithRedis(array $userConfig)
+    {
+        $app = $this->getApp($userConfig);
+
+        // Mock Redis client
+        $redisClient = m::mock();
+        $redisClient->shouldReceive('getOption')
+            ->with(Redis::OPT_COMPRESSION)
+            ->andReturn(Redis::COMPRESSION_NONE);
+        $redisClient->shouldReceive('getOption')
+            ->with(Redis::OPT_PREFIX)
+            ->andReturn('');
+
+        // Mock RedisConnection
+        $connection = m::mock(RedisConnection::class);
+        $connection->shouldReceive('release')->zeroOrMoreTimes();
+        $connection->shouldReceive('serialized')->andReturn(false);
+        $connection->shouldReceive('client')->andReturn($redisClient);
+
+        // Mock RedisPool
+        $pool = m::mock(RedisPool::class);
+        $pool->shouldReceive('get')->andReturn($connection);
+
+        // Mock PoolFactory
+        $poolFactory = m::mock(PoolFactory::class);
+        $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
+
+        // Mock RedisFactory
+        $redisFactory = m::mock(RedisFactory::class);
+
+        $app->shouldReceive('get')->with(RedisFactory::class)->andReturn($redisFactory);
+        $app->shouldReceive('has')->with(EventDispatcherInterface::class)->andReturnFalse();
+
+        // Override make() to return our mocked PoolFactory
+        // Since make() uses container internally, we need to handle this
+        \Hyperf\Context\ApplicationContext::setContainer($app);
+        $app->shouldReceive('get')->with(PoolFactory::class)->andReturn($poolFactory);
+        $app->shouldReceive('make')->with(PoolFactory::class, m::any())->andReturn($poolFactory);
 
         return $app;
     }

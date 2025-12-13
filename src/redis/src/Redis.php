@@ -9,6 +9,7 @@ use Hyperf\Redis\Exception\InvalidRedisConnectionException;
 use Hyperf\Redis\Pool\PoolFactory;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
+use Hypervel\Redis\Traits\MultiExec;
 use Throwable;
 
 /**
@@ -16,6 +17,8 @@ use Throwable;
  */
 class Redis
 {
+    use MultiExec;
+
     protected string $poolName = 'default';
 
     public function __construct(
@@ -139,5 +142,36 @@ class Redis
         return ApplicationContext::getContainer()
             ->get(RedisFactory::class)
             ->get($name);
+    }
+
+    /**
+     * Flush (delete) all Redis keys matching a pattern.
+     *
+     * Use this for standalone/one-off flush operations. It handles the connection
+     * lifecycle automatically (get from pool, flush, release). Uses the default
+     * connection, or specify one via Redis::connection($name)->flushByPattern().
+     *
+     * If you already have a connection (e.g., inside withConnection()), call
+     * $connection->flushByPattern() directly to avoid redundant pool operations.
+     *
+     * Uses SCAN to iterate keys efficiently and deletes them in batches.
+     * Correctly handles OPT_PREFIX to avoid the double-prefixing bug.
+     *
+     * @param string $pattern The pattern to match (e.g., "cache:test:*").
+     *                        Should NOT include OPT_PREFIX - it's handled automatically.
+     * @return int Number of keys deleted
+     */
+    public function flushByPattern(string $pattern): int
+    {
+        $pool = $this->factory->getPool($this->poolName);
+
+        /** @var RedisConnection $connection */
+        $connection = $pool->get();
+
+        try {
+            return $connection->flushByPattern($pattern);
+        } finally {
+            $connection->release();
+        }
     }
 }
