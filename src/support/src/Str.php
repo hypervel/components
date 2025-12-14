@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
+use BackedEnum;
 use Hyperf\Stringable\Str as BaseStr;
 use Ramsey\Uuid\Exception\InvalidUuidStringException;
 use Ramsey\Uuid\Rfc4122\FieldsInterface;
@@ -11,6 +12,32 @@ use Ramsey\Uuid\UuidFactory;
 
 class Str extends BaseStr
 {
+    /**
+     * Get a string from a BackedEnum or return the value as-is.
+     *
+     * Useful for APIs that accept either a string or an enum, such as
+     * cache tags, session keys, or Sanctum token abilities.
+     */
+    public static function from(string|int|BackedEnum $value): string
+    {
+        if ($value instanceof BackedEnum) {
+            return (string) $value->value;
+        }
+
+        return (string) $value;
+    }
+
+    /**
+     * Get strings from an array of BackedEnums or scalar values.
+     *
+     * @param array<BackedEnum|int|string> $values
+     * @return array<string>
+     */
+    public static function fromAll(array $values): array
+    {
+        return array_map(self::from(...), $values);
+    }
+
     /**
      * Determine if a given string matches a given pattern.
      *
