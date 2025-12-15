@@ -4,30 +4,33 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Http;
 
+use Hyperf\Context\Context;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Http\Cors;
-use PHPUnit\Framework\TestCase;
-use ReflectionClass;
-use ReflectionProperty;
+use Hypervel\Http\CorsOptions;
+use Hypervel\Tests\TestCase;
 use TypeError;
 
 /**
- * @phpstan-type CorsNormalizedOptions array{
- *  'allowedOrigins': string[],
- *  'allowedOriginsPatterns': string[],
- *  'supportsCredentials': bool,
- *  'allowedHeaders': string[],
- *  'allowedMethods': string[],
- *  'exposedHeaders': string[],
- *  'maxAge': int|bool|null,
- *  'allowAllOrigins': bool,
- *  'allowAllHeaders': bool,
- *  'allowAllMethods': bool,
- * }
  * @internal
  * @coversNothing
  */
 class CorsTest extends TestCase
 {
+    use RunTestsInCoroutine;
+
+    /**
+     * Context key used by Cors class.
+     */
+    private const CORS_CONTEXT_KEY = '__cors.options';
+
+    protected function tearDown(): void
+    {
+        // Clean up context between tests
+        Context::destroy(self::CORS_CONTEXT_KEY);
+        parent::tearDown();
+    }
+
     public function testCanHaveOptions(): void
     {
         $options = [
@@ -42,22 +45,22 @@ class CorsTest extends TestCase
 
         $service = new Cors($options);
 
-        $normalized = $this->getOptionsFromService($service);
+        $corsOptions = $this->getOptionsFromContext();
 
-        $this->assertEquals($options['allowedOrigins'], $normalized['allowedOrigins']);
-        $this->assertEquals($options['allowedOriginsPatterns'], $normalized['allowedOriginsPatterns']);
-        $this->assertEquals($options['allowedHeaders'], $normalized['allowedHeaders']);
-        $this->assertEquals($options['allowedMethods'], $normalized['allowedMethods']);
-        $this->assertEquals($options['maxAge'], $normalized['maxAge']);
-        $this->assertEquals($options['supportsCredentials'], $normalized['supportsCredentials']);
-        $this->assertEquals($options['exposedHeaders'], $normalized['exposedHeaders']);
+        $this->assertEquals($options['allowedOrigins'], $corsOptions->allowedOrigins);
+        $this->assertEquals($options['allowedOriginsPatterns'], $corsOptions->allowedOriginsPatterns);
+        $this->assertEquals(['x-custom'], $corsOptions->allowedHeaders); // lowercased
+        $this->assertEquals($options['allowedMethods'], $corsOptions->allowedMethods);
+        $this->assertEquals($options['maxAge'], $corsOptions->maxAge);
+        $this->assertEquals($options['supportsCredentials'], $corsOptions->supportsCredentials);
+        $this->assertEquals($options['exposedHeaders'], $corsOptions->exposedHeaders);
     }
 
     public function testCanSetOptions(): void
     {
         $service = new Cors();
-        $normalized = $this->getOptionsFromService($service);
-        $this->assertEquals([], $normalized['allowedOrigins']);
+        $corsOptions = $this->getOptionsFromContext();
+        $this->assertEquals([], $corsOptions->allowedOrigins);
 
         $options = [
             'allowedOrigins' => ['localhost'],
@@ -71,23 +74,23 @@ class CorsTest extends TestCase
 
         $service->setOptions($options);
 
-        $normalized = $this->getOptionsFromService($service);
+        $corsOptions = $this->getOptionsFromContext();
 
-        $this->assertEquals($options['allowedOrigins'], $normalized['allowedOrigins']);
-        $this->assertEquals($options['allowedOriginsPatterns'], $normalized['allowedOriginsPatterns']);
-        $this->assertEquals($options['allowedHeaders'], $normalized['allowedHeaders']);
-        $this->assertEquals($options['allowedMethods'], $normalized['allowedMethods']);
-        $this->assertEquals($options['maxAge'], $normalized['maxAge']);
-        $this->assertEquals($options['supportsCredentials'], $normalized['supportsCredentials']);
-        $this->assertEquals($options['exposedHeaders'], $normalized['exposedHeaders']);
+        $this->assertEquals($options['allowedOrigins'], $corsOptions->allowedOrigins);
+        $this->assertEquals($options['allowedOriginsPatterns'], $corsOptions->allowedOriginsPatterns);
+        $this->assertEquals(['x-custom'], $corsOptions->allowedHeaders); // lowercased
+        $this->assertEquals($options['allowedMethods'], $corsOptions->allowedMethods);
+        $this->assertEquals($options['maxAge'], $corsOptions->maxAge);
+        $this->assertEquals($options['supportsCredentials'], $corsOptions->supportsCredentials);
+        $this->assertEquals($options['exposedHeaders'], $corsOptions->exposedHeaders);
     }
 
     public function testCanOverwriteSetOptions(): void
     {
         $service = new Cors(['allowedOrigins' => ['example.com']]);
-        $normalized = $this->getOptionsFromService($service);
+        $corsOptions = $this->getOptionsFromContext();
 
-        $this->assertEquals(['example.com'], $normalized['allowedOrigins']);
+        $this->assertEquals(['example.com'], $corsOptions->allowedOrigins);
 
         $options = [
             'allowedOrigins' => ['localhost'],
@@ -101,68 +104,68 @@ class CorsTest extends TestCase
 
         $service->setOptions($options);
 
-        $normalized = $this->getOptionsFromService($service);
+        $corsOptions = $this->getOptionsFromContext();
 
-        $this->assertEquals($options['allowedOrigins'], $normalized['allowedOrigins']);
-        $this->assertEquals($options['allowedOriginsPatterns'], $normalized['allowedOriginsPatterns']);
-        $this->assertEquals($options['allowedHeaders'], $normalized['allowedHeaders']);
-        $this->assertEquals($options['allowedMethods'], $normalized['allowedMethods']);
-        $this->assertEquals($options['maxAge'], $normalized['maxAge']);
-        $this->assertEquals($options['supportsCredentials'], $normalized['supportsCredentials']);
-        $this->assertEquals($options['exposedHeaders'], $normalized['exposedHeaders']);
+        $this->assertEquals($options['allowedOrigins'], $corsOptions->allowedOrigins);
+        $this->assertEquals($options['allowedOriginsPatterns'], $corsOptions->allowedOriginsPatterns);
+        $this->assertEquals(['x-custom'], $corsOptions->allowedHeaders); // lowercased
+        $this->assertEquals($options['allowedMethods'], $corsOptions->allowedMethods);
+        $this->assertEquals($options['maxAge'], $corsOptions->maxAge);
+        $this->assertEquals($options['supportsCredentials'], $corsOptions->supportsCredentials);
+        $this->assertEquals($options['exposedHeaders'], $corsOptions->exposedHeaders);
     }
 
     public function testCanHaveNoOptions(): void
     {
         $service = new Cors();
-        $normalized = $this->getOptionsFromService($service);
+        $corsOptions = $this->getOptionsFromContext();
 
-        $this->assertEquals([], $normalized['allowedOrigins']);
-        $this->assertEquals([], $normalized['allowedOriginsPatterns']);
-        $this->assertEquals([], $normalized['allowedHeaders']);
-        $this->assertEquals([], $normalized['allowedMethods']);
-        $this->assertEquals([], $normalized['exposedHeaders']);
-        $this->assertEquals(0, $normalized['maxAge']);
-        $this->assertFalse($normalized['supportsCredentials']);
+        $this->assertEquals([], $corsOptions->allowedOrigins);
+        $this->assertEquals([], $corsOptions->allowedOriginsPatterns);
+        $this->assertEquals([], $corsOptions->allowedHeaders);
+        $this->assertEquals([], $corsOptions->allowedMethods);
+        $this->assertEquals([], $corsOptions->exposedHeaders);
+        $this->assertEquals(0, $corsOptions->maxAge);
+        $this->assertFalse($corsOptions->supportsCredentials);
     }
 
     public function testCanHaveEmptyOptions(): void
     {
         $service = new Cors([]);
-        $normalized = $this->getOptionsFromService($service);
+        $corsOptions = $this->getOptionsFromContext();
 
-        $this->assertEquals([], $normalized['allowedOrigins']);
-        $this->assertEquals([], $normalized['allowedOriginsPatterns']);
-        $this->assertEquals([], $normalized['allowedHeaders']);
-        $this->assertEquals([], $normalized['allowedMethods']);
-        $this->assertEquals([], $normalized['exposedHeaders']);
-        $this->assertEquals(0, $normalized['maxAge']);
-        $this->assertFalse($normalized['supportsCredentials']);
+        $this->assertEquals([], $corsOptions->allowedOrigins);
+        $this->assertEquals([], $corsOptions->allowedOriginsPatterns);
+        $this->assertEquals([], $corsOptions->allowedHeaders);
+        $this->assertEquals([], $corsOptions->allowedMethods);
+        $this->assertEquals([], $corsOptions->exposedHeaders);
+        $this->assertEquals(0, $corsOptions->maxAge);
+        $this->assertFalse($corsOptions->supportsCredentials);
     }
 
     public function testNormalizesFalseExposedHeaders(): void
     {
         $service = new Cors(['exposedHeaders' => false]);
-        $this->assertEquals([], $this->getOptionsFromService($service)['exposedHeaders']);
+        $this->assertEquals([], $this->getOptionsFromContext()->exposedHeaders);
     }
 
     public function testAllowsNullMaxAge(): void
     {
         $service = new Cors(['maxAge' => null]);
-        $this->assertNull($this->getOptionsFromService($service)['maxAge']);
+        $this->assertNull($this->getOptionsFromContext()->maxAge);
     }
 
     public function testAllowsZeroMaxAge(): void
     {
         $service = new Cors(['maxAge' => 0]);
-        $this->assertEquals(0, $this->getOptionsFromService($service)['maxAge']);
+        $this->assertEquals(0, $this->getOptionsFromContext()->maxAge);
     }
 
     public function testThrowsExceptionOnInvalidExposedHeaders(): void
     {
         $this->expectException(TypeError::class);
 
-        /** @phpstan-ignore-next-line */
+        /** @phpstan-ignore argument.type */
         $service = new Cors(['exposedHeaders' => true]);
     }
 
@@ -170,33 +173,33 @@ class CorsTest extends TestCase
     {
         $this->expectException(TypeError::class);
 
-        /** @phpstan-ignore-next-line */
+        /** @phpstan-ignore argument.type */
         $service = new Cors(['allowedOrigins' => 'string']);
     }
 
     public function testNormalizesWildcardOrigins(): void
     {
         $service = new Cors(['allowedOrigins' => ['*']]);
-        $this->assertTrue($this->getOptionsFromService($service)['allowAllOrigins']);
+        $this->assertTrue($this->getOptionsFromContext()->allowAllOrigins);
     }
 
     public function testNormalizesWildcardHeaders(): void
     {
         $service = new Cors(['allowedHeaders' => ['*']]);
-        $this->assertTrue($this->getOptionsFromService($service)['allowAllHeaders']);
+        $this->assertTrue($this->getOptionsFromContext()->allowAllHeaders);
     }
 
     public function testNormalizesWildcardMethods(): void
     {
         $service = new Cors(['allowedMethods' => ['*']]);
-        $this->assertTrue($this->getOptionsFromService($service)['allowAllMethods']);
+        $this->assertTrue($this->getOptionsFromContext()->allowAllMethods);
     }
 
     public function testConvertsWildcardOriginPatterns(): void
     {
         $service = new Cors(['allowedOrigins' => ['*.mydomain.com']]);
 
-        $patterns = $this->getOptionsFromService($service)['allowedOriginsPatterns'];
+        $patterns = $this->getOptionsFromContext()->allowedOriginsPatterns;
         $this->assertEquals(['#^.*\.mydomain\.com\z#u'], $patterns);
     }
 
@@ -213,38 +216,42 @@ class CorsTest extends TestCase
         ];
 
         $service = new Cors($options);
+        $corsOptions = $this->getOptionsFromContext();
 
-        $this->assertEquals($options['allowed_origins'], $this->getOptionsFromService($service)['allowedOrigins']);
-        $this->assertEquals(
-            $options['allowed_origins_patterns'],
-            $this->getOptionsFromService($service)['allowedOriginsPatterns']
-        );
-        $this->assertEquals($options['allowed_headers'], $this->getOptionsFromService($service)['allowedHeaders']);
-        $this->assertEquals($options['allowed_methods'], $this->getOptionsFromService($service)['allowedMethods']);
-        $this->assertEquals($options['exposed_headers'], $this->getOptionsFromService($service)['exposedHeaders']);
-        $this->assertEquals($options['max_age'], $this->getOptionsFromService($service)['maxAge']);
-        $this->assertEquals(
-            $options['supports_credentials'],
-            $this->getOptionsFromService($service)['supportsCredentials']
-        );
+        $this->assertEquals($options['allowed_origins'], $corsOptions->allowedOrigins);
+        $this->assertEquals($options['allowed_origins_patterns'], $corsOptions->allowedOriginsPatterns);
+        $this->assertEquals(['x-custom'], $corsOptions->allowedHeaders); // lowercased
+        $this->assertEquals($options['allowed_methods'], $corsOptions->allowedMethods);
+        $this->assertEquals($options['exposed_headers'], $corsOptions->exposedHeaders);
+        $this->assertEquals($options['max_age'], $corsOptions->maxAge);
+        $this->assertEquals($options['supports_credentials'], $corsOptions->supportsCredentials);
+    }
+
+    public function testOptionsAreIsolatedBetweenCoroutines(): void
+    {
+        $service = new Cors(['allowedOrigins' => ['main.com']]);
+
+        $this->assertEquals(['main.com'], $this->getOptionsFromContext()->allowedOrigins);
+
+        // Simulate another coroutine with different options
+        \Hyperf\Coroutine\Coroutine::create(function () use ($service) {
+            // In a new coroutine, options should be empty (defaults)
+            $this->assertEquals([], $this->getOptionsFromContext()->allowedOrigins);
+
+            // Set different options in this coroutine
+            $service->setOptions(['allowedOrigins' => ['other.com']]);
+            $this->assertEquals(['other.com'], $this->getOptionsFromContext()->allowedOrigins);
+        });
+
+        // Back in original coroutine, options should be unchanged
+        $this->assertEquals(['main.com'], $this->getOptionsFromContext()->allowedOrigins);
     }
 
     /**
-     * @return CorsNormalizedOptions
+     * Get CORS options from Context.
      */
-    private function getOptionsFromService(Cors $service): array
+    private function getOptionsFromContext(): CorsOptions
     {
-        $reflected = new ReflectionClass($service);
-
-        $properties = $reflected->getProperties(ReflectionProperty::IS_PRIVATE);
-
-        $options = [];
-        foreach ($properties as $property) {
-            $property->setAccessible(true);
-            $options[$property->getName()] = $property->getValue($service);
-        }
-
-        /** @var CorsNormalizedOptions $options */
-        return $options;
+        return Context::get(self::CORS_CONTEXT_KEY) ?? new CorsOptions();
     }
 }

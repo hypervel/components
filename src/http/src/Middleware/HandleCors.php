@@ -26,9 +26,7 @@ class HandleCors implements MiddlewareInterface
         protected RequestContract $request,
         protected Cors $cors,
     ) {
-        $this->cors->setOptions(
-            $this->config = $container->get(ConfigInterface::class)->get('cors', [])
-        );
+        $this->config = $container->get(ConfigInterface::class)->get('cors', []);
     }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -36,6 +34,9 @@ class HandleCors implements MiddlewareInterface
         if (! $this->hasMatchingPath($this->request)) {
             return $handler->handle($request);
         }
+
+        // Set CORS options per-request for coroutine isolation
+        $this->cors->setOptions($this->config);
 
         if ($this->cors->isPreflightRequest($this->request)) {
             $response = $this->cors->handlePreflightRequest($this->request);
