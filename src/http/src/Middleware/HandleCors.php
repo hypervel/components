@@ -36,7 +36,7 @@ class HandleCors implements MiddlewareInterface
         }
 
         // Set CORS options per-request for coroutine isolation
-        $this->cors->setOptions($this->config);
+        $this->cors->setOptions($this->getCorsConfig());
 
         if ($this->cors->isPreflightRequest($this->request)) {
             $response = $this->cors->handlePreflightRequest($this->request);
@@ -101,5 +101,16 @@ class HandleCors implements MiddlewareInterface
         return array_filter($paths, function ($path) {
             return is_string($path);
         });
+    }
+
+    /**
+     * Get the CORS configuration.
+     *
+     * Override this method to provide custom CORS configuration,
+     * such as tenant-specific allowed origins.
+     */
+    protected function getCorsConfig(): array
+    {
+        return $this->config;
     }
 }
