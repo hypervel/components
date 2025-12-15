@@ -247,11 +247,139 @@ class CorsTest extends TestCase
         $this->assertEquals(['main.com'], $this->getOptionsFromContext()->allowedOrigins);
     }
 
+    public function testLowercasesAllowedHeaders(): void
+    {
+        $service = new Cors(['allowedHeaders' => ['X-Custom-Header', 'CONTENT-TYPE', 'Accept']]);
+
+        $this->assertEquals(
+            ['x-custom-header', 'content-type', 'accept'],
+            $this->getOptionsFromContext()->allowedHeaders
+        );
+    }
+
+    public function testUppercasesAllowedMethods(): void
+    {
+        $service = new Cors(['allowedMethods' => ['get', 'Post', 'DELETE']]);
+
+        $this->assertEquals(
+            ['GET', 'POST', 'DELETE'],
+            $this->getOptionsFromContext()->allowedMethods
+        );
+    }
+
+    public function testPartialOptionsUpdatePreservesExisting(): void
+    {
+        $service = new Cors([
+            'allowedOrigins' => ['example.com'],
+            'allowedMethods' => ['GET', 'POST'],
+            'maxAge' => 600,
+        ]);
+
+        // Update only maxAge
+        $service->setOptions(['maxAge' => 3600]);
+
+        $options = $this->getOptionsFromContext();
+        $this->assertEquals(['example.com'], $options->allowedOrigins);
+        $this->assertEquals(['GET', 'POST'], $options->allowedMethods);
+        $this->assertEquals(3600, $options->maxAge);
+    }
+
+    public function testIsOriginAllowedWithExactMatch(): void
+    {
+        $service = new Cors(['allowedOrigins' => ['https://example.com', 'https://other.com']]);
+
+        $request = $this->createMockRequest('https://example.com');
+        $this->assertTrue($service->isOriginAllowed($request));
+
+        $request = $this->createMockRequest('https://other.com');
+        $this->assertTrue($service->isOriginAllowed($request));
+
+        $request = $this->createMockRequest('https://notallowed.com');
+        $this->assertFalse($service->isOriginAllowed($request));
+    }
+
+    public function testIsOriginAllowedWithPatternMatch(): void
+    {
+        $service = new Cors(['allowedOrigins' => ['https://*.example.com']]);
+
+        $request = $this->createMockRequest('https://sub.example.com');
+        $this->assertTrue($service->isOriginAllowed($request));
+
+        $request = $this->createMockRequest('https://deep.sub.example.com');
+        $this->assertTrue($service->isOriginAllowed($request));
+
+        $request = $this->createMockRequest('https://example.com');
+        $this->assertFalse($service->isOriginAllowed($request));
+
+        $request = $this->createMockRequest('https://other.com');
+        $this->assertFalse($service->isOriginAllowed($request));
+    }
+
+    public function testIsOriginAllowedWithWildcard(): void
+    {
+        $service = new Cors(['allowedOrigins' => ['*']]);
+
+        $request = $this->createMockRequest('https://anything.com');
+        $this->assertTrue($service->isOriginAllowed($request));
+    }
+
+    public function testVaryHeaderAddsNewHeader(): void
+    {
+        $service = new Cors();
+        $response = new \Hyperf\HttpMessage\Server\Response();
+
+        $response = $service->varyHeader($response, 'Origin');
+
+        $this->assertEquals('Origin', $response->getHeaderLine('Vary'));
+    }
+
+    public function testVaryHeaderAppendsToExisting(): void
+    {
+        $service = new Cors();
+        $response = new \Hyperf\HttpMessage\Server\Response();
+        $response = $response->withHeader('Vary', 'Accept-Encoding');
+
+        $response = $service->varyHeader($response, 'Origin');
+
+        $this->assertEquals('Accept-Encoding, Origin', $response->getHeaderLine('Vary'));
+    }
+
+    public function testVaryHeaderDoesNotDuplicate(): void
+    {
+        $service = new Cors();
+        $response = new \Hyperf\HttpMessage\Server\Response();
+        $response = $response->withHeader('Vary', 'Origin');
+
+        $response = $service->varyHeader($response, 'Origin');
+
+        $this->assertEquals('Origin', $response->getHeaderLine('Vary'));
+    }
+
     /**
      * Get CORS options from Context.
      */
     private function getOptionsFromContext(): CorsOptions
     {
         return Context::get(self::CORS_CONTEXT_KEY) ?? new CorsOptions();
+    }
+
+    /**
+     * Create a mock request with the given Origin header.
+     */
+    private function createMockRequest(string $origin): \Hypervel\Http\Contracts\RequestContract
+    {
+        $request = $this->createMock(\Hypervel\Http\Contracts\RequestContract::class);
+        $request->expects($this->any())
+            ->method('header')
+            ->willReturnCallback(function ($name) use ($origin) {
+                return $name === 'Origin' ? $origin : null;
+            });
+        $request->expects($this->any())
+            ->method('hasHeader')
+            ->willReturnCallback(function ($name) use ($origin) {
+                return $name === 'Origin' && $origin !== '';
+            });
+
+        return $request;
     }
 }
