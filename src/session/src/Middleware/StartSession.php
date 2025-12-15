@@ -189,7 +189,7 @@ class StartSession implements MiddlewareInterface
             $session->getId(),
             $this->getCookieExpirationDate(),
             $config['path'] ?? '/',
-            $config['domain'] ?? '',
+            $this->getSessionCookieDomain($config),
             $config['secure'] ?? false,
             $config['http_only'] ?? true,
             false,
@@ -199,6 +199,18 @@ class StartSession implements MiddlewareInterface
 
         /** @var \Hyperf\HttpMessage\Server\Response $response */
         return $response->withCookie($cookie);
+    }
+
+    /**
+     * Get the session cookie domain.
+     *
+     * Override this method to dynamically set the session cookie domain,
+     * for example in multi-tenant applications where each tenant has
+     * a different domain.
+     */
+    protected function getSessionCookieDomain(array $config): string
+    {
+        return $config['domain'] ?? '';
     }
 
     /**

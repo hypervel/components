@@ -87,4 +87,41 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
 
         $this->assertFalse(EnsureFrontendRequestsAreStateful::fromFrontend($request));
     }
+
+    public function testStatefulDomainsReturnsConfiguredDomains(): void
+    {
+        $domains = EnsureFrontendRequestsAreStateful::statefulDomains();
+
+        $this->assertIsArray($domains);
+        $this->assertContains('test.com', $domains);
+        $this->assertContains('*.test.com', $domains);
+    }
+
+    public function testStatefulDomainsCanBeOverridden(): void
+    {
+        $request = Mockery::mock(RequestInterface::class);
+        $request->shouldReceive('header')
+            ->with('referer')
+            ->andReturn('https://custom-tenant.example.com');
+        $request->shouldReceive('header')
+            ->with('origin')
+            ->andReturn(null);
+
+        // Default middleware should NOT match custom domain
+        $this->assertFalse(EnsureFrontendRequestsAreStateful::fromFrontend($request));
+
+        // Custom middleware with overridden statefulDomains SHOULD match
+        $this->assertTrue(CustomStatefulMiddleware::fromFrontend($request));
+    }
+}
+
+/**
+ * Custom middleware for testing statefulDomains override.
+ */
+class CustomStatefulMiddleware extends EnsureFrontendRequestsAreStateful
+{
+    public static function statefulDomains(): array
+    {
+        return ['custom-tenant.example.com'];
+    }
 }

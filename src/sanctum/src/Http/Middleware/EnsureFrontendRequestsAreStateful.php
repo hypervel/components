@@ -64,11 +64,25 @@ class EnsureFrontendRequestsAreStateful implements MiddlewareInterface
         $domain = Str::replaceFirst('http://', '', $domain);
         $domain = Str::endsWith($domain, '/') ? $domain : "{$domain}/";
 
-        $stateful = array_filter(config('sanctum.stateful', []));
+        $stateful = array_filter(static::statefulDomains());
 
         return Str::is(Collection::make($stateful)->map(function ($uri) {
             return trim($uri) . '/*';
         })->all(), $domain);
+    }
+
+    /**
+     * Get the domains that should be treated as stateful.
+     *
+     * Override this method to dynamically determine stateful domains,
+     * for example in multi-tenant applications where each tenant has
+     * a different domain.
+     *
+     * @return array<int, string>
+     */
+    public static function statefulDomains(): array
+    {
+        return config('sanctum.stateful', []);
     }
 
     /**
