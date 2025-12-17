@@ -20,11 +20,6 @@ use InvalidArgumentException;
 class Factory implements FactoryContract
 {
     /**
-     * Data that should be available to all templates.
-     */
-    protected const SHARE_CONTEXT_KEY = 'share';
-
-    /**
      * The number of active rendering operations.
      */
     protected const RENDER_COUNT_CONTEXT_KEY = 'render_count';
@@ -47,6 +42,11 @@ class Factory implements FactoryContract
      * The IoC container instance.
      */
     protected Container $container;
+
+    /**
+     * Data that should be available to all templates.
+     */
+    protected array $shared = [];
 
     /**
      * The extension to engine bindings.
@@ -261,13 +261,9 @@ class Factory implements FactoryContract
     {
         $keys = is_array($key) ? $key : [$key => $value];
 
-        $shared = $this->getShared();
-
         foreach ($keys as $key => $value) {
-            $shared[$key] = $value;
+            $this->shared[$key] = $value;
         }
-
-        $this->setShared($shared);
 
         return $value;
     }
@@ -496,22 +492,16 @@ class Factory implements FactoryContract
      */
     public function shared(string $key, mixed $default = null): mixed
     {
-        return Arr::get($this->getShared(), $key, $default);
+        return Arr::get($this->shared, $key, $default);
     }
 
     /**
      * Get all of the shared data for the environment.
+     *
+     * @return array
      */
-    public function getShared(): array
+    public function getShared()
     {
-        return Context::get(self::SHARE_CONTEXT_KEY, []);
-    }
-
-    /**
-     * Set the shared data for the environment.
-     */
-    public function setShared(array $data): void
-    {
-        Context::set(self::SHARE_CONTEXT_KEY, $data);
+        return $this->shared;
     }
 }

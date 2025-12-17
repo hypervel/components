@@ -83,9 +83,10 @@ trait ManagesLoops
     public function getLastLoop(): ?stdClass
     {
         $loopsStack = Context::get(static::LOOPS_STACK_CONTEXT_KEY, []);
-        if ($last = Arr::last($loopsStack)) {
-            return (object) $last;
-        }
+
+        return ! empty($loopsStack)
+            ? (object) end($loopsStack)
+            : null;
     }
 
     /**

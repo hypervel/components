@@ -56,7 +56,7 @@ trait CompilesLayouts
     {
         $escapedLastSection = strtr($this->lastSection, ['\\' => '\\\\', "'" => "\\'"]);
 
-        return "<?php echo \Hypervel\View\Factory::parentPlaceholder('{$escapedLastSection}'); ?>";
+        return "<?php echo \$__env->getParentPlaceholder('{$escapedLastSection}'); ?>";
     }
 
     /**

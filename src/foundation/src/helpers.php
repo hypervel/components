@@ -734,7 +734,7 @@ if (! function_exists('view')) {
      * @param null|string $view
      * @param array $mergeData
      */
-    function view($view = null, array|Arrayable $data = [], $mergeData = []): ViewContract
+    function view($view = null, array|Arrayable $data = [], $mergeData = []): FactoryContract|ViewContract
     {
         $factory = app(FactoryContract::class);
 

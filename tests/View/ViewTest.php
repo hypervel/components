@@ -4,7 +4,6 @@ namespace Hypervel\Tests\View;
 
 use ArrayAccess;
 use BadMethodCallException;
-use Closure;
 use Hypervel\Support\Contracts\Arrayable;
 use Hypervel\Support\Contracts\Renderable;
 use Hypervel\View\Contracts\Engine;

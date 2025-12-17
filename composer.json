@@ -205,7 +205,6 @@
         "hyperf/devtool": "~3.1.0",
         "hyperf/redis": "~3.1.0",
         "hyperf/testing": "~3.1.0",
-        "hyperf/view-engine": "~3.1.0",
         "league/flysystem": "^3.0",
         "league/flysystem-aws-s3-v3": "^3.0",
         "league/flysystem-google-cloud-storage": "^3.0",
@@ -261,7 +260,8 @@
             "providers": [
                 "Hypervel\\Notifications\\NotificationServiceProvider",
                 "Hypervel\\Telescope\\TelescopeServiceProvider",
-                "Hypervel\\Sentry\\SentryServiceProvider"
+                "Hypervel\\Sentry\\SentryServiceProvider",
+                "Hypervel\\View\\ViewServiceProvider"
             ]
         },
         "branch-alias": {

@@ -27,7 +27,7 @@ class ComponentCommand extends GeneratorCommand
 
     protected function getDefaultNamespace(): string
     {
-        return $this->getConfig()['namespace'] ?? 'App\View\Component';
+        return $this->getConfig()['namespace'] ?? 'App\View\Components';
     }
 
     protected function buildClass(string $name): string

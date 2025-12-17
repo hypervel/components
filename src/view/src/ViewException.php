@@ -36,5 +36,7 @@ class ViewException extends ErrorException
         if ($exception && method_exists($exception, 'render')) {
             return $exception->render($request);
         }
+
+        return null;
     }
 }

@@ -78,10 +78,6 @@ class ViewCompilerEngineTest extends TestCase
         $engine->get(__DIR__.'/fixtures/foo.php');
         $engine->get(__DIR__.'/fixtures/foo.php');
         $engine->get(__DIR__.'/fixtures/foo.php');
-
-        $engine->forgetCompiledOrNotExpired();
-
-        $engine->get(__DIR__.'/fixtures/foo.php');
     }
 
     public function testViewsAreRecompiledWhenCompiledViewIsMissingViaFileNotFoundException()

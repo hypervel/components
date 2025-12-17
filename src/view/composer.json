@@ -1,6 +1,5 @@
 {
     "name": "hypervel/view",
-    "type": "library",
     "description": "The view package for Hypervel.",
     "license": "MIT",
     "keywords": [
@@ -10,41 +9,42 @@
         "view",
         "hypervel"
     ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
     "authors": [
         {
             "name": "Albert Chen",
             "email": "albert@hypervel.org"
         }
     ],
-    "support": {
-        "issues": "https://github.com/hypervel/components/issues",
-        "source": "https://github.com/hypervel/components"
+    "require": {
+        "php": "^8.2",
+        "ext-tokenizer": "*",
+        "hyperf/view": "~3.1.0",
+        "hypervel/container": "^0.3",
+        "hypervel/event": "^0.3",
+        "hypervel/filesystem": "^0.3",
+        "hypervel/support": "^0.3"
     },
     "autoload": {
         "psr-4": {
             "Hypervel\\View\\": "src/"
         }
     },
-    "require": {
-        "php": "^8.2",
-        "ext-tokenizer": "*",
-        "hyperf/contract": "~3.1.0",
-        "hyperf/http-server": "~3.1.0",
-        "hyperf/pool": "~3.1.0",
-        "hypervel/collections": "^0.3",
-        "hypervel/container": "^0.3",
-        "hypervel/contracts": "^0.3",
-        "hypervel/events": "^0.3",
-        "hypervel/filesystem": "^0.3",
-        "hypervel/macroable": "^0.3",
-        "hypervel/support": "^0.3"
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.3-dev"
+        },
+        "hypervel": {
+            "providers": [
+                "Hypervel\\View\\ViewServiceProvider"
+            ]
+        }
     },
     "config": {
         "sort-packages": true
     },
-    "extra": {
-        "branch-alias": {
-            "dev-main": "0.3-dev"
-        }
-    }
+    "minimum-stability": "dev"
 }
