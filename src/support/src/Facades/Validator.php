@@ -7,6 +7,10 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Validation\Contracts\Factory as FactoryContract;
 
 /**
+ * @method static \Hypervel\Validation\Validator make(array $data, array $rules, array $messages = [], array $attributes = [])
+ * @method static void extend(string $rule, \Closure|string $extension, string|null $message = null)
+ * @method static void extendImplicit(string $rule, \Closure|string $extension, string|null $message = null)
+ * @method static void replacer(string $rule, \Closure|string $replacer)
  * @method static array parseData(array $data)
  * @method static \Hypervel\Validation\Validator after(callable|array|string $callback)
  * @method static bool passes()
