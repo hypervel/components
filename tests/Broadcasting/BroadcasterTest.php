@@ -45,6 +45,8 @@ class BroadcasterTest extends TestCase
         parent::tearDown();
 
         m::close();
+
+        FakeBroadcaster::flushChannels();
     }
 
     public function testExtractingParametersWhileCheckingForUserAccess()
@@ -378,6 +380,24 @@ class BroadcasterTest extends TestCase
             ['customer.order.1', 'order.{id}', false],
             ['customerorder.1', 'order.{id}', false],
         ];
+    }
+
+    public function testChannelsAreSharedAcrossBroadcasterInstances()
+    {
+        // Simulate boot time: register channel on first broadcaster instance
+        $broadcasterA = new FakeBroadcaster(m::mock(ContainerInterface::class));
+        $broadcasterA->channel('App.Models.User.{id}', function ($user, $id) {
+            return (int) $user->id === (int) $id;
+        });
+
+        // Simulate auth request time: create a second broadcaster instance
+        $broadcasterB = new FakeBroadcaster(m::mock(ContainerInterface::class));
+
+        // The second instance should see the channel registered on the first
+        $channels = $broadcasterB->getChannels();
+
+        $this->assertCount(1, $channels);
+        $this->assertArrayHasKey('App.Models.User.{id}', $channels->toArray());
     }
 }
 

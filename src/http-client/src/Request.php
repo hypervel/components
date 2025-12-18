@@ -207,9 +207,9 @@ class Request implements ArrayAccess
 
     public function withQuery(array $query = []): Request
     {
-        $new = $this->request->getUri()->withQuery(http_build_query(array_merge($this->query(), $query)));
-
-        $this->request = $this->request->withUri($new);
+        $this->request = $this->request->withUri(
+            $this->request->getUri()->withQuery(http_build_query(array_merge($this->query(), $query)))
+        );
 
         return $this;
     }
