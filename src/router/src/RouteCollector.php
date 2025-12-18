@@ -72,12 +72,11 @@ class RouteCollector extends BaseRouteCollector
                 }
             }
 
-            $middleware = array_diff(
-                Arr::wrap($options['middleware'] ?? []),
-                Arr::wrap($options['without_middleware'] ?? [])
-            );
+            // Store middleware without filtering - exclusions are applied after group expansion
+            MiddlewareManager::addMiddlewares($this->server, $route, $method, Arr::wrap($options['middleware'] ?? []));
 
-            MiddlewareManager::addMiddlewares($this->server, $route, $method, $middleware);
+            // Store exclusions separately for post-expansion filtering
+            MiddlewareExclusionManager::addExcluded($this->server, $route, $method, Arr::wrap($options['without_middleware'] ?? []));
         }
     }
 
