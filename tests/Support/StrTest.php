@@ -8,6 +8,7 @@ use BackedEnum;
 use Hypervel\Support\Str;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use Stringable;
 
 /**
  * @internal
@@ -49,6 +50,13 @@ class StrTest extends TestCase
         $this->assertSame('500', Str::from(TestIntStatus::ServerError));
     }
 
+    public function testFromWithStringable(): void
+    {
+        $this->assertSame('stringable-value', Str::from(new TestStringable('stringable-value')));
+        $this->assertSame('', Str::from(new TestStringable('')));
+        $this->assertSame('with spaces', Str::from(new TestStringable('with spaces')));
+    }
+
     public function testFromAllWithStrings(): void
     {
         $result = Str::fromAll(['users', 'posts', 'comments']);
@@ -77,6 +85,16 @@ class StrTest extends TestCase
         $this->assertSame(['200', '404'], $result);
     }
 
+    public function testFromAllWithStringables(): void
+    {
+        $result = Str::fromAll([
+            new TestStringable('first'),
+            new TestStringable('second'),
+        ]);
+
+        $this->assertSame(['first', 'second'], $result);
+    }
+
     public function testFromAllWithMixedInput(): void
     {
         $result = Str::fromAll([
@@ -84,10 +102,11 @@ class StrTest extends TestCase
             TestStringStatus::Active,
             42,
             TestIntStatus::NotFound,
+            new TestStringable('dynamic-tag'),
             'legacy-tag',
         ]);
 
-        $this->assertSame(['users', 'active', '42', '404', 'legacy-tag'], $result);
+        $this->assertSame(['users', 'active', '42', '404', 'dynamic-tag', 'legacy-tag'], $result);
     }
 
     public function testFromAllWithEmptyArray(): void
@@ -111,7 +130,7 @@ class StrTest extends TestCase
     }
 
     #[DataProvider('fromDataProvider')]
-    public function testFromWithDataProvider(string|int|BackedEnum $input, string $expected): void
+    public function testFromWithDataProvider(string|int|BackedEnum|Stringable $input, string $expected): void
     {
         $this->assertSame($expected, Str::from($input));
     }
@@ -125,6 +144,7 @@ class StrTest extends TestCase
         yield 'negative integer' => [-42, '-42'];
         yield 'string-backed enum' => [TestStringStatus::Active, 'active'];
         yield 'int-backed enum' => [TestIntStatus::Ok, '200'];
+        yield 'stringable' => [new TestStringable('from-stringable'), 'from-stringable'];
     }
 }
 
@@ -140,4 +160,17 @@ enum TestIntStatus: int
     case Ok = 200;
     case NotFound = 404;
     case ServerError = 500;
+}
+
+class TestStringable implements Stringable
+{
+    public function __construct(
+        private readonly string $value,
+    ) {
+    }
+
+    public function __toString(): string
+    {
+        return $this->value;
+    }
 }
