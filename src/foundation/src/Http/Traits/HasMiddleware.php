@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Http\Traits;
 use Hyperf\HttpServer\MiddlewareManager;
 use Hyperf\HttpServer\Router\Dispatched;
 use Hypervel\Dispatcher\ParsedMiddleware;
+use Hypervel\Router\Exceptions\InvalidMiddlewareExclusionException;
 use Hypervel\Router\MiddlewareExclusionManager;
 use InvalidArgumentException;
 use Psr\Http\Message\ServerRequestInterface;
@@ -150,12 +151,18 @@ trait HasMiddleware
      *
      * @param array $excluded The middleware to exclude
      * @return string[] The expanded list of middleware class names to exclude
+     * @throws InvalidMiddlewareExclusionException If exclusion contains parameters
      */
     protected function expandExcludedMiddleware(array $excluded): array
     {
         $expanded = [];
 
         foreach ($excluded as $middleware) {
+            // Parameters don't belong in exclusions - you're excluding the middleware entirely
+            if (str_contains($middleware, ':')) {
+                throw new InvalidMiddlewareExclusionException($middleware);
+            }
+
             // Check if it's an alias
             if (isset($this->middlewareAliases[$middleware])) {
                 $expanded[] = $this->middlewareAliases[$middleware];

@@ -13,6 +13,7 @@ use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\HttpServer\Router\Handler;
 use Hypervel\Dispatcher\ParsedMiddleware;
 use Hypervel\Foundation\Http\Kernel;
+use Hypervel\Router\Exceptions\InvalidMiddlewareExclusionException;
 use Hypervel\Router\MiddlewareExclusionManager;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
@@ -215,6 +216,27 @@ class KernelTest extends TestCase
         // All middleware should be present
         $this->assertContains('session_middleware', $signatures);
         $this->assertContains('csrf_middleware', $signatures);
+    }
+
+    public function testMiddlewareExclusionThrowsExceptionForParameterizedExclusion()
+    {
+        $kernel = $this->getKernel();
+        $kernel->setMiddlewareAliases([
+            'throttle' => 'App\Http\Middleware\Throttle',
+        ]);
+        $kernel->setMiddlewareGroups([
+            'api' => ['throttle:60,1', 'api_middleware'],
+        ]);
+
+        MiddlewareManager::addMiddlewares('http', '/test', 'POST', ['api']);
+
+        // Exclusion with parameters should throw - parameters don't belong in exclusions
+        MiddlewareExclusionManager::addExcluded('http', '/test', 'POST', ['throttle:60,1']);
+
+        $this->expectException(InvalidMiddlewareExclusionException::class);
+        $this->expectExceptionMessage("Middleware exclusion 'throttle:60,1' should not contain parameters. Use 'throttle' instead.");
+
+        $kernel->getMiddlewareForRequest($this->getFoundRequest('/test', 'POST'));
     }
 
     protected function getKernel(string $serverName = 'http'): Kernel
