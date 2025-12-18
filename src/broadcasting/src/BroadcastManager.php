@@ -77,8 +77,8 @@ class BroadcastManager implements BroadcastingFactoryContract
             $attributes = $attributes ?: ['middleware' => ['web']];
         }
 
-        // Exclude from CSRF verification. These routes receive POST requests from
-        // Pusher/Soketi JavaScript clients which cannot include CSRF tokens.
+        // Exclude from CSRF verification. These routes receive POST requests
+        // from Pusher JavaScript clients which cannot include CSRF tokens.
         VerifyCsrfToken::except(['broadcasting/auth']);
 
         $kernels = $this->app->get(ConfigInterface::class)
@@ -102,8 +102,8 @@ class BroadcastManager implements BroadcastingFactoryContract
     {
         $attributes = $attributes ?: ['middleware' => ['web']];
 
-        // Exclude from CSRF verification. These routes receive POST requests from
-        // Pusher/Soketi JavaScript clients which cannot include CSRF tokens.
+        // Exclude from CSRF verification. These routes receive POST requests
+        // from Pusher JavaScript clients which cannot include CSRF tokens.
         VerifyCsrfToken::except(['broadcasting/user-auth']);
 
         $this->app->get(RouterDispatcherFactory::class)->getRouter()
