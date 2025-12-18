@@ -7,6 +7,8 @@ namespace Hypervel\Tests\Broadcasting;
 use Exception;
 use Hyperf\Context\RequestContext;
 use Hyperf\Database\Model\Booted;
+use Hyperf\Di\Container;
+use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\HttpMessage\Server\Request as ServerRequest;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Request;
@@ -384,7 +386,9 @@ class BroadcasterTest extends TestCase
 
     public function testChannelsAreSharedAcrossBroadcasterInstances()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = new Container(
+            new DefinitionSource([])
+        );
 
         // Simulate boot time: register channel on first broadcaster instance
         $broadcasterA = new FakeBroadcaster($container);
