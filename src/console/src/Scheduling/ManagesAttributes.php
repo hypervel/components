@@ -23,7 +23,7 @@ trait ManagesAttributes
     /**
      * The timezone the date should be evaluated on.
      */
-    public null|DateTimeZone|string $timezone = null;
+    public DateTimeZone|string|null $timezone = null;
 
     /**
      * The user the command should run as.

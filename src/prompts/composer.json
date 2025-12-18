@@ -31,7 +31,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.2-dev"
+            "dev-main": "0.3-dev"
         }
     },
     "prefer-stable": true,

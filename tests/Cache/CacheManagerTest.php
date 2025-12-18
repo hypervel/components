@@ -74,6 +74,7 @@ class CacheManagerTest extends TestCase
                 'stores' => [
                     'my_store' => [
                         'driver' => 'array',
+                        'events' => true,
                     ],
                 ],
             ],
@@ -85,7 +86,7 @@ class CacheManagerTest extends TestCase
         $app->shouldReceive('get')->with(EventDispatcherInterface::class)->once()->andReturn($eventDispatcher = m::mock(EventDispatcherInterface::class));
 
         $cacheManager = new CacheManager($app);
-        $repo = $cacheManager->repository($theStore = new NullStore());
+        $repo = $cacheManager->repository($theStore = new NullStore(), ['events' => true]);
 
         $this->assertNull($repo->getEventDispatcher());
         $this->assertSame($theStore, $repo->getStore());
@@ -95,7 +96,7 @@ class CacheManagerTest extends TestCase
         $this->assertSame($theStore, $repo->getStore());
 
         $cacheManager = new CacheManager($app);
-        $repo = $cacheManager->repository(new NullStore());
+        $repo = $cacheManager->repository(new NullStore(), ['events' => true]);
         // now that the $app has a Dispatcher, the newly born repository will also have one.
         $this->assertSame($eventDispatcher, $repo->getEventDispatcher());
     }
@@ -107,9 +108,11 @@ class CacheManagerTest extends TestCase
                 'stores' => [
                     'store_1' => [
                         'driver' => 'array',
+                        'events' => true,
                     ],
                     'store_2' => [
                         'driver' => 'array',
+                        'events' => true,
                     ],
                 ],
             ],

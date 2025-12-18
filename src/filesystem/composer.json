@@ -34,7 +34,7 @@
         "hyperf/macroable": "~3.1.0",
         "hyperf/support": "~3.1.0",
         "hyperf/conditionable": "~3.1.0",
-        "hypervel/object-pool": "^0.2"
+        "hypervel/object-pool": "^0.3"
     },
     "suggest": {
         "ext-fileinfo": "Required to use the Filesystem class.",
@@ -57,7 +57,7 @@
             "config": "Hypervel\\Filesystem\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.2-dev"
+            "dev-main": "0.3-dev"
         }
     }
 }

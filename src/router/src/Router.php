@@ -7,8 +7,11 @@ namespace Hypervel\Router;
 use Closure;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Database\Model\Model;
+use Hyperf\HttpServer\Request;
+use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\HttpServer\Router\DispatcherFactory;
 use Hyperf\HttpServer\Router\RouteCollector;
+use Hypervel\Http\DispatchedRoute;
 use RuntimeException;
 
 /**
@@ -50,6 +53,9 @@ class Router
             ->{$name}(...$arguments);
     }
 
+    /**
+     * Register a route group with a prefix and source.
+     */
     public function group(string $prefix, callable|string $source, array $options = []): void
     {
         if (is_string($source)) {
@@ -61,11 +67,19 @@ class Router
             ->addGroup($prefix, $source, $options);
     }
 
+    /**
+     * Register a route group with a prefix and source.
+     */
     public function addGroup(string $prefix, callable|string $source, array $options = []): void
     {
         $this->group($prefix, $source, $options);
     }
 
+    /**
+     * Register a route file.
+     *
+     * @throws RuntimeException
+     */
     protected function registerRouteFile(string $routeFile): Closure
     {
         if (! file_exists($routeFile)) {
@@ -75,12 +89,18 @@ class Router
         return fn () => require $routeFile;
     }
 
+    /**
+     * Get the route collector for the current server.
+     */
     public function getRouter(): RouteCollector
     {
         return $this->dispatcherFactory
             ->getRouter($this->serverName);
     }
 
+    /**
+     * Register a model binder for a wildcard.
+     */
     public function model(string $param, string $modelClass): void
     {
         if (! class_exists($modelClass)) {
@@ -94,19 +114,70 @@ class Router
         $this->modelBindings[$param] = $modelClass;
     }
 
+    /**
+     * Add a new route parameter binder.
+     */
     public function bind(string $param, Closure $callback): void
     {
         $this->explicitBindings[$param] = $callback;
     }
 
+    /**
+     * Get the model binding for a given route parameter.
+     */
     public function getModelBinding(string $param): ?string
     {
         return $this->modelBindings[$param] ?? null;
     }
 
+    /**
+     * Get the explicit binding for a given route parameter.
+     */
     public function getExplicitBinding(string $param): ?Closure
     {
         return $this->explicitBindings[$param] ?? null;
+    }
+
+    /**
+     * Get the currently dispatched route instance.
+     */
+    public function current(): ?DispatchedRoute
+    {
+        return ApplicationContext::getContainer()
+            ->get(Request::class)
+            ->route();
+    }
+
+    /**
+     * Get the currently dispatched route instance.
+     */
+    public function getCurrentRoute(): ?DispatchedRoute
+    {
+        return $this->current();
+    }
+
+    /**
+     * Get the current route name.
+     */
+    public function currentRouteName(): ?string
+    {
+        if (! $route = $this->current() ?? null) {
+            return null;
+        }
+
+        return $route->getName();
+    }
+
+    /**
+     * Get a route parameter for the current route.
+     */
+    public function input(string $key, ?string $default = null): mixed
+    {
+        if (! $route = $this->current() ?? null) {
+            return $default;
+        }
+
+        return $route->parameter($key, $default);
     }
 
     public static function __callStatic(string $name, array $arguments)

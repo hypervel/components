@@ -52,7 +52,7 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
     /**
      * Assert if a mailable was sent based on a truth-test callback.
      */
-    public function assertSent(Closure|string $mailable, null|array|callable|int|string $callback = null): void
+    public function assertSent(Closure|string $mailable, array|callable|int|string|null $callback = null): void
     {
         [$mailable, $callback] = $this->prepareMailableAndCallback($mailable, $callback);
 
@@ -108,7 +108,7 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
     /**
      * Determine if a mailable was not sent based on a truth-test callback.
      */
-    public function assertNotSent(Closure|string $mailable, null|array|callable|string $callback = null): void
+    public function assertNotSent(Closure|string $mailable, array|callable|string|null $callback = null): void
     {
         if (is_string($callback) || is_array($callback)) {
             foreach (Arr::wrap($callback) as $address) {
@@ -157,7 +157,7 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
     /**
      * Assert if a mailable was queued based on a truth-test callback.
      */
-    public function assertQueued(Closure|string $mailable, null|array|callable|int|string $callback = null): void
+    public function assertQueued(Closure|string $mailable, array|callable|int|string|null $callback = null): void
     {
         [$mailable, $callback] = $this->prepareMailableAndCallback($mailable, $callback);
 
@@ -202,7 +202,7 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
     /**
      * Determine if a mailable was not queued based on a truth-test callback.
      */
-    public function assertNotQueued(Closure|string $mailable, null|array|callable|string $callback = null): void
+    public function assertNotQueued(Closure|string $mailable, array|callable|string|null $callback = null): void
     {
         if (is_string($callback) || is_array($callback)) {
             foreach (Arr::wrap($callback) as $address) {
@@ -392,7 +392,7 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
     /**
      * Send a new message using a view.
      */
-    public function send(array|Mailable|string $view, array $data = [], null|Closure|string $callback = null): ?SentMessage
+    public function send(array|Mailable|string $view, array $data = [], Closure|string|null $callback = null): ?SentMessage
     {
         $this->sendMail($view, $view instanceof ShouldQueue);
 
@@ -402,7 +402,7 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
     /**
      * Send a new message synchronously using a view.
      */
-    public function sendNow(array|Mailable|string $mailable, array $data = [], null|Closure|string $callback = null): ?SentMessage
+    public function sendNow(array|Mailable|string $mailable, array $data = [], Closure|string|null $callback = null): ?SentMessage
     {
         $this->sendMail($mailable, false);
 
@@ -460,7 +460,7 @@ class MailFake implements Factory, Fake, Mailer, MailQueue
     /**
      * Infer mailable class using reflection if a typehinted closure is passed to assertion.
      */
-    protected function prepareMailableAndCallback(Closure|string $mailable, ?callable $callback): array
+    protected function prepareMailableAndCallback(Closure|string $mailable, callable|string|null $callback): array
     {
         if ($mailable instanceof Closure) {
             return [$this->firstClosureParameterType($mailable), $mailable];

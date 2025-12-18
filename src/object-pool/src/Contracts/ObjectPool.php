@@ -52,10 +52,10 @@ interface ObjectPool
     /**
      * Get the last time the pool was recycled.
      */
-    public function getLastRecycledAt(): null|DateTime|int;
+    public function getLastRecycledAt(): DateTime|int|null;
 
     /**
      * Set the last time the pool was recycled.
      */
-    public function setLastRecycledAt(null|DateTime|int $lastRecycledAt): static;
+    public function setLastRecycledAt(DateTime|int|null $lastRecycledAt): static;
 }

@@ -88,12 +88,17 @@ return (new Config())
         // Since PHP 8.3, default null values can be declared as nullable.
         'nullable_type_declaration_for_default_null_value' => true,
         'single_line_empty_body' => false,
+        'ordered_types' => [
+            'null_adjustment' => 'always_last',
+            'sort_algorithm' => 'none',
+        ],
     ])
     ->setFinder(
         PhpCsFixer\Finder::create()
             ->exclude('bin')
             ->exclude('overrides')
             ->exclude('vendor')
+            ->notPath('tests/Foundation/fixtures/fake-compiled-view.php')
             ->in(__DIR__)
     )
     ->setUsingCache(false);

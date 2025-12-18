@@ -7,8 +7,9 @@ namespace Hypervel\Prompts\Themes\Default;
 use Hypervel\Prompts\Concerns\Colors;
 use Hypervel\Prompts\Concerns\Truncation;
 use Hypervel\Prompts\Prompt;
+use Stringable;
 
-abstract class Renderer
+abstract class Renderer implements Stringable
 {
     use Colors;
     use Truncation;

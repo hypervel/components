@@ -21,7 +21,10 @@ use Hypervel\Support\Traits\HasLaravelStyleCommand;
 use Hypervel\Support\Traits\InteractsWithTime;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use Symfony\Component\Console\Terminal;
 use Throwable;
+
+use function Termwind\terminal;
 
 class WorkCommand extends Command
 {
@@ -84,10 +87,6 @@ class WorkCommand extends Command
      */
     public function handle(): ?int
     {
-        if ($this->option('once')) {
-            return $this->worker->sleep((float) $this->option('sleep'));
-        }
-
         // We'll listen to the processed and failed events so we can write information
         // to the console as jobs are processed, which will let the developer watch
         // which jobs are coming through a queue and be informed on its progress.
@@ -101,7 +100,7 @@ class WorkCommand extends Command
         // connection being run for the queue operation currently being executed.
         $queue = $this->getQueue($connection);
 
-        if (! $this->outputUsingJson()) {
+        if (! $this->outputUsingJson() && Terminal::hasSttyAvailable()) {
             $this->info(
                 sprintf('Processing jobs from the [%s] %s.', $queue, Str::of('queue')->plural(explode(',', $queue)))
             );
@@ -203,20 +202,43 @@ class WorkCommand extends Command
      */
     protected function writeOutputForCli(Job $job, string $status): void
     {
-        $type = match ($status) {
-            'Processing' => 'comment',
-            'Processed' => 'info',
-            'Failed' => 'error',
-            default => 'comment',
-        };
-
-        $this->output->writeln(sprintf(
-            "<{$type}>[%s][%s] %s</{$type}> %s",
-            Carbon::now()->format('Y-m-d H:i:s'),
-            $job->getJobId(),
-            str_pad("{$status}:", 11),
-            $job->resolveName()
+        $this->output->write(sprintf(
+            '  <fg=gray>%s</> %s%s',
+            $this->now()->format('Y-m-d H:i:s'),
+            $job->resolveName(),
+            $this->output->isVerbose()
+                ? sprintf(' <fg=gray>%s</>', $job->getJobId())
+                : ''
         ));
+
+        if ($status == 'starting') {
+            $this->latestStartedAt = microtime(true);
+
+            $dots = max(terminal()->width() - mb_strlen($job->resolveName()) - (
+                $this->output->isVerbose() ? (mb_strlen($job->getJobId()) + 1) : 0
+            ) - 33, 0);
+
+            $this->output->write(' ' . str_repeat('<fg=gray>.</>', $dots));
+
+            $this->output->writeln(' <fg=yellow;options=bold>RUNNING</>');
+
+            return;
+        }
+
+        $runTime = $this->runTimeForHumans($this->latestStartedAt);
+
+        $dots = max(terminal()->width() - mb_strlen($job->resolveName()) - (
+            $this->output->isVerbose() ? (mb_strlen($job->getJobId()) + 1) : 0
+        ) - mb_strlen($runTime) - 31, 0);
+
+        $this->output->write(' ' . str_repeat('<fg=gray>.</>', $dots));
+        $this->output->write(" <fg=gray>{$runTime}</>");
+
+        $this->output->writeln(match ($status) {
+            'success' => ' <fg=green;options=bold>DONE</>',
+            'released_after_exception' => ' <fg=yellow;options=bold>FAIL</>',
+            default => ' <fg=red;options=bold>FAIL</>',
+        });
     }
 
     /**

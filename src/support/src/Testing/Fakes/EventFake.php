@@ -97,7 +97,7 @@ class EventFake implements Fake, EventDispatcherInterface
     /**
      * Assert if an event was dispatched based on a truth-test callback.
      */
-    public function assertDispatched(Closure|string $event, null|callable|int $callback = null): void
+    public function assertDispatched(Closure|string $event, callable|int|null $callback = null): void
     {
         if ($event instanceof Closure) {
             [$event, $callback] = [$this->firstClosureParameterType($event), $event];

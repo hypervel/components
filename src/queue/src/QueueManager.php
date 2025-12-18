@@ -11,8 +11,10 @@ use Hyperf\Redis\RedisFactory;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Queue\Connectors\BeanstalkdConnector;
 use Hypervel\Queue\Connectors\ConnectorInterface;
+use Hypervel\Queue\Connectors\CoroutineConnector;
 use Hypervel\Queue\Connectors\DatabaseConnector;
 use Hypervel\Queue\Connectors\DeferConnector;
+use Hypervel\Queue\Connectors\FailoverConnector;
 use Hypervel\Queue\Connectors\NullConnector;
 use Hypervel\Queue\Connectors\RedisConnector;
 use Hypervel\Queue\Connectors\SqsConnector;
@@ -163,7 +165,8 @@ class QueueManager implements FactoryContract, MonitorContract
         $resolver = fn () => $this->getConnector($config['driver'])
             ->connect($config)
             ->setConnectionName($name)
-            ->setContainer($this->app);
+            ->setContainer($this->app)
+            ->setConfig($config);
 
         if (in_array($config['driver'], $this->poolables)) {
             return $this->createPoolProxy(
@@ -284,6 +287,8 @@ class QueueManager implements FactoryContract, MonitorContract
         $this->registerBeanstalkdConnector();
         $this->registerSqsConnector();
         $this->registerDeferConnector();
+        $this->registerCoroutineConnector();
+        $this->registerFailoverConnector();
     }
 
     /**
@@ -357,6 +362,29 @@ class QueueManager implements FactoryContract, MonitorContract
     {
         $this->addConnector('defer', function () {
             return new DeferConnector();
+        });
+    }
+
+    /**
+     * Register the Coroutine queue connector.
+     */
+    protected function registerCoroutineConnector(): void
+    {
+        $this->addConnector('coroutine', function () {
+            return new CoroutineConnector();
+        });
+    }
+
+    /**
+     * Register the Failover queue connector.
+     */
+    protected function registerFailoverConnector(): void
+    {
+        $this->addConnector('failover', function () {
+            return new FailoverConnector(
+                $this,
+                $this->app->get(EventDispatcherInterface::class)
+            );
         });
     }
 }

@@ -173,7 +173,7 @@ class Number
         $displayExponent = $numberExponent - ($numberExponent % 3);
         $number /= pow(10, $displayExponent);
 
-        return trim(sprintf('%s%s', static::format($number, $precision, $maxPrecision), $units[$displayExponent] ?? ''));
+        return trim(sprintf('%s%s', static::format($number, $precision, $maxPrecision), $units[(string) $displayExponent] ?? ''));
     }
 
     /**

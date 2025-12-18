@@ -56,7 +56,7 @@ class JwtGuard implements Guard
         }
 
         $header = $this->request->header('Authorization', '');
-        if (Str::startsWith($header, 'Bearer ')) {
+        if ($header && Str::startsWith($header, 'Bearer ')) {
             return Str::substr($header, 7);
         }
 

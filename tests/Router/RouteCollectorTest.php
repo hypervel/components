@@ -44,6 +44,22 @@ class RouteCollectorTest extends TestCase
         $this->assertSame('Handler::ApiPost', $data['POST']['/api']->callback);
     }
 
+    public function testAddWithPrefix()
+    {
+        $parser = new Std();
+        $generator = new DataGenerator();
+        $collector = new RouteCollector($parser, $generator);
+
+        $collector->get('/foo', 'Handler::Get', ['prefix' => 'bar']);
+        $collector->addGroup('/api', function ($collector) {
+            $collector->post('/', 'Handler::ApiPost');
+        }, ['prefix' => 'foo']);
+
+        $data = $collector->getData()[0];
+        $this->assertSame('Handler::Get', $data['GET']['/bar/foo']->callback);
+        $this->assertSame('Handler::ApiPost', $data['POST']['/foo/api']->callback);
+    }
+
     public function testGetRouteParser()
     {
         $parser = new Std();

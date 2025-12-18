@@ -9,11 +9,16 @@ use Hyperf\Collection\Collection;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\HttpMessage\Upload\UploadedFile;
-use Hyperf\HttpMessage\Uri\Uri;
+use Hyperf\HttpMessage\Uri\Uri as HyperfUri;
+use Hyperf\HttpServer\Request as HyperfRequest;
+use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\Stringable\Stringable;
+use Hypervel\Http\DispatchedRoute;
 use Hypervel\Http\Request;
 use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Router\RouteHandler;
 use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Support\Uri;
 use Hypervel\Validation\Contracts\Factory as ValidatorFactoryContract;
 use Mockery;
 use PHPUnit\Framework\TestCase;
@@ -32,7 +37,9 @@ class RequestTest extends TestCase
     {
         Mockery::close();
         Context::destroy(ServerRequestInterface::class);
-        Context::set('http.request.parsedData', null);
+        Context::destroy('http.request.parsedData');
+        Context::destroy(HyperfRequest::class . '.properties.requestUri');
+        Context::destroy(HyperfRequest::class . '.properties.pathInfo');
     }
 
     public function testAllFiles()
@@ -257,22 +264,48 @@ class RequestTest extends TestCase
         $this->assertEquals(8080, $request->getPort());
     }
 
-    public function testGetScheme()
+    public function testGetSchemeWithHttp()
     {
         $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getServerParams')
-            ->andReturn(['HTTPS' => 'on']);
+        $psrRequest->shouldReceive('getUri')->andReturn(
+            new HyperfUri('http://localhost/path')
+        );
+        Context::set(ServerRequestInterface::class, $psrRequest);
+        $request = new Request();
+
+        $this->assertEquals('http', $request->getScheme());
+    }
+
+    public function testGetSchemeWithHttps()
+    {
+        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest->shouldReceive('getUri')->andReturn(
+            new HyperfUri('https://localhost/path')
+        );
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
 
         $this->assertEquals('https', $request->getScheme());
     }
 
-    public function testIsSecure()
+    public function testIsSecureWithHttp()
     {
         $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getServerParams')
-            ->andReturn(['HTTPS' => 'on']);
+        $psrRequest->shouldReceive('getUri')->andReturn(
+            new HyperfUri('http://localhost/path')
+        );
+        Context::set(ServerRequestInterface::class, $psrRequest);
+        $request = new Request();
+
+        $this->assertFalse($request->isSecure());
+    }
+
+    public function testIsSecureWithHttps()
+    {
+        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest->shouldReceive('getUri')->andReturn(
+            new HyperfUri('https://localhost/path')
+        );
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
 
@@ -405,9 +438,11 @@ class RequestTest extends TestCase
     public function testSchemeAndHttpHost()
     {
         $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getServerParams')->andReturn(['HTTPS' => 'on']);
         $psrRequest->shouldReceive('hasHeader')->with('HOST')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('HOST')->andReturn('example.com:8080');
+        $psrRequest->shouldReceive('getUri')->andReturn(
+            new HyperfUri('https://example.com:8080')
+        );
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
 
@@ -564,7 +599,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getQueryParams')->andReturn(['key' => 'value']);
         $psrRequest->shouldReceive('getServerParams')->andReturn([]);
         $psrRequest->shouldReceive('getUri')->andReturn(
-            new Uri('http://localhost/path')
+            new HyperfUri('http://localhost/path')
         );
 
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -579,7 +614,7 @@ class RequestTest extends TestCase
         $psrRequest->shouldReceive('getQueryParams')->andReturn(['key' => 'value', 'foo' => 'bar']);
         $psrRequest->shouldReceive('getServerParams')->andReturn([]);
         $psrRequest->shouldReceive('getUri')->andReturn(
-            new Uri('http://localhost/path')
+            new HyperfUri('http://localhost/path')
         );
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
@@ -590,9 +625,11 @@ class RequestTest extends TestCase
     public function testRoot()
     {
         $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getServerParams')->andReturn(['HTTPS' => 'on']);
         $psrRequest->shouldReceive('hasHeader')->with('HOST')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('HOST')->andReturn('example.com:8080');
+        $psrRequest->shouldReceive('getUri')->andReturn(
+            new HyperfUri('https://example.com:8080')
+        );
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
 
@@ -607,6 +644,22 @@ class RequestTest extends TestCase
         $request = new Request();
 
         $this->assertSame('GET', $request->method());
+    }
+
+    public function testUri()
+    {
+        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest->shouldReceive('getQueryParams')->andReturn(['key' => 'value']);
+        $psrRequest->shouldReceive('getServerParams')->andReturn([]);
+        $psrRequest->shouldReceive('getUri')->andReturn(
+            new HyperfUri($uri = 'http://localhost/path')
+        );
+
+        Context::set(ServerRequestInterface::class, $psrRequest);
+        $request = new Request();
+
+        $this->assertInstanceOf(Uri::class, $request->uri());
+        $this->assertSame($uri, (string) $request->uri());
     }
 
     public function testBearerToken()
@@ -674,7 +727,8 @@ class RequestTest extends TestCase
     public function testPrefetch()
     {
         $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
-        $psrRequest->shouldReceive('getServerParams')->andReturn(['HTTP_X_MOZ' => 'prefetch']);
+        $psrRequest->shouldReceive('hasHeader')->with('X-MOZ')->andReturn(true);
+        $psrRequest->shouldReceive('getHeaderLine')->with('X-MOZ')->andReturn('prefetch');
 
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
@@ -863,6 +917,167 @@ class RequestTest extends TestCase
         $this->expectExceptionMessage('RequestContext is not set, please use RequestContext::set() to set the request.');
 
         (new Request())->getPsr7Request();
+    }
+
+    public function testGetDispatchedRoute()
+    {
+        $handler = new RouteHandler('TestController@index', '/test', ['as' => 'test.index']);
+        $dispatched = new DispatchedRoute([1, $handler, ['id' => '123']]);
+
+        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest->shouldReceive('getAttribute')
+            ->with(Dispatched::class)
+            ->andReturn($dispatched);
+
+        Context::set(ServerRequestInterface::class, $psrRequest);
+        $request = new Request();
+
+        $result = $request->getDispatchedRoute();
+        $this->assertInstanceOf(Dispatched::class, $result);
+        $this->assertSame($dispatched, $result);
+    }
+
+    public function testSegment()
+    {
+        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest->shouldReceive('getServerParams')
+            ->andReturn(['request_uri' => '/users/123/posts/456']);
+
+        Context::set(ServerRequestInterface::class, $psrRequest);
+        $request = new Request();
+
+        $this->assertEquals('users', $request->segment(1));
+        $this->assertEquals('123', $request->segment(2));
+        $this->assertEquals('posts', $request->segment(3));
+        $this->assertEquals('456', $request->segment(4));
+        $this->assertNull($request->segment(5));
+        $this->assertEquals('default', $request->segment(5, 'default'));
+    }
+
+    public function testSegmentWithRootPath()
+    {
+        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest->shouldReceive('getServerParams')
+            ->andReturn(['request_uri' => '/']);
+
+        Context::set(ServerRequestInterface::class, $psrRequest);
+        $request = new Request();
+
+        $this->assertNull($request->segment(1));
+        $this->assertEquals('default', $request->segment(1, 'default'));
+    }
+
+    public function testSegments()
+    {
+        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest->shouldReceive('getServerParams')->andReturn(['request_uri' => '/api/v1/users/123']);
+
+        Context::set(ServerRequestInterface::class, $psrRequest);
+        $request = new Request();
+
+        $segments = $request->segments();
+        $this->assertEquals(['api', 'v1', 'users', '123'], $segments);
+    }
+
+    public function testSegmentsWithRootPath()
+    {
+        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest->shouldReceive('getServerParams')->andReturn(['request_uri' => '/']);
+
+        Context::set(ServerRequestInterface::class, $psrRequest);
+        $request = new Request();
+
+        $segments = $request->segments();
+        $this->assertEquals([], $segments);
+    }
+
+    public function testSegmentsWithSingleSegment()
+    {
+        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest->shouldReceive('getServerParams')->andReturn(['request_uri' => '/home']);
+
+        Context::set(ServerRequestInterface::class, $psrRequest);
+        $request = new Request();
+
+        $segments = $request->segments();
+        $this->assertEquals(['home'], $segments);
+    }
+
+    public function testRouteIs()
+    {
+        $handler = new RouteHandler('TestController@index', '/test', ['as' => 'user.profile']);
+        $dispatched = new DispatchedRoute([1, $handler, []]);
+
+        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest->shouldReceive('getAttribute')
+            ->with(Dispatched::class)
+            ->andReturn($dispatched);
+
+        Context::set(ServerRequestInterface::class, $psrRequest);
+        $request = new Request();
+
+        $this->assertTrue($request->routeIs('user.profile'));
+        $this->assertTrue($request->routeIs('user.*'));
+        $this->assertTrue($request->routeIs('*.profile'));
+        $this->assertFalse($request->routeIs('admin.profile'));
+        $this->assertFalse($request->routeIs('user.settings'));
+
+        // Test multiple patterns
+        $this->assertTrue($request->routeIs('admin.*', 'user.*'));
+        $this->assertFalse($request->routeIs('admin.*', 'guest.*'));
+    }
+
+    public function testRouteIsWithNoRouteName()
+    {
+        $handler = new RouteHandler('TestController@index', '/test', []);
+        $dispatched = new DispatchedRoute([1, $handler, []]);
+
+        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest->shouldReceive('getAttribute')
+            ->with(Dispatched::class)
+            ->andReturn($dispatched);
+
+        Context::set(ServerRequestInterface::class, $psrRequest);
+        $request = new Request();
+
+        $this->assertFalse($request->routeIs('any.route'));
+        $this->assertFalse($request->routeIs('*'));
+    }
+
+    public function testFullUrlIs()
+    {
+        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest->shouldReceive('getQueryParams')->andReturn(['key' => 'value']);
+        $psrRequest->shouldReceive('getServerParams')->andReturn(['query_string' => 'key=value', 'request_uri' => '/api/users?key=value']);
+        $psrRequest->shouldReceive('getUri')->andReturn(new HyperfUri('http://localhost/api/users'));
+
+        Context::set(ServerRequestInterface::class, $psrRequest);
+        $request = new Request();
+
+        $this->assertTrue($request->fullUrlIs('http://localhost/api/users?key=value'));
+        $this->assertTrue($request->fullUrlIs('http://localhost/api/*'));
+        $this->assertTrue($request->fullUrlIs('*://localhost/api/users?key=value'));
+        $this->assertFalse($request->fullUrlIs('http://localhost/api/posts?key=value'));
+        $this->assertFalse($request->fullUrlIs('https://localhost/api/users?key=value'));
+
+        // Test multiple patterns
+        $this->assertTrue($request->fullUrlIs('http://example.com/*', 'http://localhost/api/*'));
+        $this->assertFalse($request->fullUrlIs('http://example.com/*', 'https://localhost/*'));
+    }
+
+    public function testFullUrlIsWithoutQuery()
+    {
+        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
+        $psrRequest->shouldReceive('getServerParams')->andReturn(['query_string' => '', 'request_uri' => '/api/users']);
+        $psrRequest->shouldReceive('getUri')->andReturn(new HyperfUri('http://localhost/api/users'));
+
+        Context::set(ServerRequestInterface::class, $psrRequest);
+        $request = new Request();
+
+        $this->assertTrue($request->fullUrlIs('http://localhost/api/users'));
+        $this->assertTrue($request->fullUrlIs('http://localhost/api/*'));
+        $this->assertFalse($request->fullUrlIs('http://localhost/api/users?key=value'));
     }
 }
 

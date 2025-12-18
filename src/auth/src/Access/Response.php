@@ -24,7 +24,7 @@ class Response implements Arrayable, Stringable
     public function __construct(
         protected bool $allowed,
         protected ?string $message = '',
-        protected null|int|string $code = null
+        protected int|string|null $code = null
     ) {
         $this->code = $code;
         $this->allowed = $allowed;
@@ -34,7 +34,7 @@ class Response implements Arrayable, Stringable
     /**
      * Create a new "allow" Response.
      */
-    public static function allow(?string $message = null, null|int|string $code = null): static
+    public static function allow(?string $message = null, int|string|null $code = null): static
     {
         return new static(true, $message, $code);
     }
@@ -42,7 +42,7 @@ class Response implements Arrayable, Stringable
     /**
      * Create a new "deny" Response.
      */
-    public static function deny(?string $message = null, null|int|string $code = null): static
+    public static function deny(?string $message = null, int|string|null $code = null): static
     {
         return new static(false, $message, $code);
     }
@@ -50,7 +50,7 @@ class Response implements Arrayable, Stringable
     /**
      * Create a new "deny" Response with a HTTP status code.
      */
-    public static function denyWithStatus(int $status, ?string $message = null, null|int|string $code = null): static
+    public static function denyWithStatus(int $status, ?string $message = null, int|string|null $code = null): static
     {
         return static::deny($message, $code)->withStatus($status);
     }
@@ -58,7 +58,7 @@ class Response implements Arrayable, Stringable
     /**
      * Create a new "deny" Response with a 404 HTTP status code.
      */
-    public static function denyAsNotFound(?string $message = null, null|int|string $code = null): static
+    public static function denyAsNotFound(?string $message = null, int|string|null $code = null): static
     {
         return static::denyWithStatus(404, $message, $code);
     }
@@ -90,7 +90,7 @@ class Response implements Arrayable, Stringable
     /**
      * Get the response code / reason.
      */
-    public function code(): null|int|string
+    public function code(): int|string|null
     {
         return $this->code;
     }

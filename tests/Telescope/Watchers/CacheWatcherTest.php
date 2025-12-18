@@ -30,13 +30,8 @@ class CacheWatcherTest extends FeatureTestCase
                     ],
                 ],
             ]);
-        $this->app->get(ConfigInterface::class)
-            ->set('cache.default', 'array');
-        $this->app->get(ConfigInterface::class)
-            ->set('cache.stores.array', [
-                'driver' => 'array',
-                'serialize' => false,
-            ]);
+
+        CacheWatcher::enableCacheEvents($this->app);
 
         $this->startTelescope();
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use DateTime;
 use Hypervel\Support\DataObject;
 use Hypervel\Support\Str;
 use LogicException;
@@ -40,6 +41,74 @@ class DataObjectTest extends TestCase
         $this->assertSame(3.14, $object->floatValue);
         $this->assertTrue($object->boolValue);
         $this->assertSame(['item1', 'item2'], $object->arrayValue);
+        $this->assertInstanceOf(stdClass::class, $object->objectValue);
+        $this->assertSame('default value', $object->withDefaultValue);
+        $this->assertNull($object->nullableValue);
+    }
+
+    /**
+     * Test mutating a data object and refreshing data.
+     */
+    public function testMutationAndRefreshData(): void
+    {
+        $data = [
+            'string_value' => 'test',
+            'int_value' => '42', // String that should be converted to int
+            'float_value' => '3.14', // String that should be converted to float
+            'bool_value' => 1, // Int that should be converted to bool
+            'array_value' => ['item1', 'item2'],
+            'object_value' => new stdClass(),
+        ];
+
+        $object = TestDataObject::make($data);
+        $object->stringValue = 'test_changed';
+        $object->intValue = 100;
+        $object->floatValue = 6.28;
+        $object->boolValue = false;
+        $object->arrayValue = ['item3', 'item4'];
+
+        $object->refresh();
+
+        $this->assertInstanceOf(TestDataObject::class, $object);
+        $this->assertSame('test_changed', $object->stringValue);
+        $this->assertSame(100, $object->intValue);
+        $this->assertSame(6.28, $object->floatValue);
+        $this->assertFalse($object->boolValue);
+        $this->assertSame(['item3', 'item4'], $object->arrayValue);
+        $this->assertInstanceOf(stdClass::class, $object->objectValue);
+        $this->assertSame('default value', $object->withDefaultValue);
+        $this->assertNull($object->nullableValue);
+    }
+
+    /**
+     * Test mutating a data object and refreshing data.
+     */
+    public function testUpdate(): void
+    {
+        $data = [
+            'string_value' => 'test',
+            'int_value' => '42', // String that should be converted to int
+            'float_value' => '3.14', // String that should be converted to float
+            'bool_value' => 1, // Int that should be converted to bool
+            'array_value' => ['item1', 'item2'],
+            'object_value' => new stdClass(),
+        ];
+
+        $object = TestDataObject::make($data);
+        $object->update([
+            'string_value' => 'test_changed',
+            'int_value' => 100,
+            'float_value' => 6.28,
+            'bool_value' => false,
+            'array_value' => ['item3', 'item4'],
+        ]);
+
+        $this->assertInstanceOf(TestDataObject::class, $object);
+        $this->assertSame('test_changed', $object->stringValue);
+        $this->assertSame(100, $object->intValue);
+        $this->assertSame(6.28, $object->floatValue);
+        $this->assertFalse($object->boolValue);
+        $this->assertSame(['item3', 'item4'], $object->arrayValue);
         $this->assertInstanceOf(stdClass::class, $object->objectValue);
         $this->assertSame('default value', $object->withDefaultValue);
         $this->assertNull($object->nullableValue);
@@ -99,16 +168,22 @@ class DataObjectTest extends TestCase
      */
     public function testArrayAccess(): void
     {
-        $object = TestDataObject::make($this->getData());
+        $object = TestDataObject::make(
+            array_merge($this->getData(), [
+                'nullable_value' => null,
+            ])
+        );
 
         // Test offsetExists
         $this->assertTrue(isset($object['string_value']));
         $this->assertTrue(isset($object['int_value']));
         $this->assertFalse(isset($object['non_existent']));
+        $this->assertTrue(isset($object['nullable_value']));
 
         // Test offsetGet
         $this->assertSame('test', $object['string_value']);
         $this->assertSame(42, $object['int_value']);
+        $this->assertNull($object['nullable_value']);
 
         // Test accessing properties that don't exist
         $this->expectException(OutOfBoundsException::class);
@@ -202,6 +277,111 @@ class DataObjectTest extends TestCase
         $this->assertSame('nested', $decoded['object_value']['string_value']);
     }
 
+    /**
+     * Test autoResolve = false (default behavior).
+     */
+    public function testMakeWithoutAutoResolve(): void
+    {
+        $data = [
+            'name' => 'John Doe',
+            'address' => [
+                'street' => '123 Main St',
+                'city' => 'New York',
+                'zipCode' => '10001',
+            ],
+            'gender' => TestGenderEnum::Male,
+            'created_at' => '2023-01-01 12:00:00',
+        ];
+
+        $user = TestUserDataObject::make($data, false);
+
+        $this->assertSame('John Doe', $user->name);
+        $this->assertIsArray($user->address);
+        $this->assertSame(['street' => '123 Main St', 'city' => 'New York', 'zipCode' => '10001'], $user->address);
+        $this->assertIsString($user->createdAt);
+        $this->assertSame('2023-01-01 12:00:00', $user->createdAt);
+        $this->assertSame(TestGenderEnum::Male, $user->gender);
+    }
+
+    /**
+     * Test autoResolve = true with nested DataObject conversion.
+     */
+    public function testMakeWithAutoResolveDataObject(): void
+    {
+        $data = [
+            'name' => 'John Doe',
+            'address' => [
+                'street' => '123 Main St',
+                'city' => 'New York',
+                'zip_code' => '10001',
+            ],
+            'gender' => 'male',
+            'created_at' => '2023-01-01 12:00:00',
+        ];
+
+        $user = TestUserDataObject::make($data, true);
+
+        $this->assertSame('John Doe', $user->name);
+        $this->assertInstanceOf(TestAddressDataObject::class, $user->address);
+        $this->assertSame('123 Main St', $user->address->street);
+        $this->assertSame('New York', $user->address->city);
+        $this->assertSame('10001', $user->address->zipCode);
+        $this->assertInstanceOf(DateTime::class, $user->createdAt);
+        $this->assertSame('2023-01-01 12:00:00', $user->createdAt->format('Y-m-d H:i:s'));
+        $this->assertSame(TestGenderEnum::Male, $user->gender);
+    }
+
+    /**
+     * Test autoResolve with deep nesting.
+     */
+    public function testMakeWithAutoResolveDeepNesting(): void
+    {
+        $data = [
+            'name' => 'Company Inc',
+            'employee' => [
+                'name' => 'Jane Smith',
+                'address' => [
+                    'street' => '456 Oak Ave',
+                    'city' => 'Boston',
+                    'zip_code' => '02101',
+                ],
+                'gender' => 'male',
+                'created_at' => '2023-06-15 09:30:00',
+            ],
+        ];
+
+        $company = TestCompanyDataObject::make($data, true);
+
+        $this->assertSame('Company Inc', $company->name);
+        $this->assertInstanceOf(TestUserDataObject::class, $company->employee);
+        $this->assertSame('Jane Smith', $company->employee->name);
+        $this->assertInstanceOf(TestAddressDataObject::class, $company->employee->address);
+        $this->assertSame('456 Oak Ave', $company->employee->address->street);
+        $this->assertSame('Boston', $company->employee->address->city);
+        $this->assertInstanceOf(DateTime::class, $company->employee->createdAt);
+        $this->assertSame(TestGenderEnum::Male, $company->employee->gender);
+    }
+
+    /**
+     * Test autoResolve with null values.
+     */
+    public function testMakeWithAutoResolveNullValues(): void
+    {
+        $data = [
+            'name' => 'John Doe',
+            'address' => null,
+            'created_at' => null,
+            'gender' => 'male',
+        ];
+
+        $user = TestUserDataObject::make($data, true);
+
+        $this->assertSame('John Doe', $user->name);
+        $this->assertNull($user->address);
+        $this->assertNull($user->createdAt);
+        $this->assertSame(TestGenderEnum::Male, $user->gender);
+    }
+
     protected function getData(): array
     {
         return [
@@ -245,20 +425,65 @@ class TestOverrideDataObject extends DataObject
     }
 
     /**
-     * Convert the parameter name to the data key format.
+     * Convert the property name to the data key format.
      * It converts camelCase to snake_case by default.
      */
-    protected static function convertDataKeyToProperty(string $input): string
+    public static function convertPropertyToDataKey(string $input): string
     {
         return Str::camel($input);
     }
 
     /**
-     * Convert the property name to the data key format.
+     * Convert the data key to the property name format.
      * It converts snake_case to camelCase by default.
      */
-    protected static function convertPropertyToDataKey(string $input): string
+    public static function convertDataKeyToProperty(string $input): string
     {
         return Str::snake($input);
     }
+}
+
+/**
+ * Test DataObject for address.
+ */
+class TestAddressDataObject extends DataObject
+{
+    public function __construct(
+        public string $street,
+        public string $city,
+        public string $zipCode,
+    ) {
+    }
+}
+
+/**
+ * Test DataObject for user with nested address and DateTime.
+ */
+class TestUserDataObject extends DataObject
+{
+    public function __construct(
+        public string $name,
+        public TestGenderEnum $gender,
+        public TestAddressDataObject|array|null $address,
+        public DateTime|string|null $createdAt,
+    ) {
+    }
+}
+
+/**
+ * Test DataObject for company with nested user.
+ */
+class TestCompanyDataObject extends DataObject
+{
+    public function __construct(
+        public string $name,
+        public TestUserDataObject|array $employee,
+    ) {
+    }
+}
+
+enum TestGenderEnum: string
+{
+    case Male = 'male';
+    case Female = 'female';
 }

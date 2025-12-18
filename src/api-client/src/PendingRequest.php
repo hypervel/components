@@ -165,7 +165,7 @@ class PendingRequest
      * @return TResource
      * @throws ConnectionException
      */
-    public function get(string $url, null|array|JsonSerializable|string $query = null): ApiResource
+    public function get(string $url, array|JsonSerializable|string|null $query = null): ApiResource
     {
         return $this->sendRequest('get', $url, $query);
     }
@@ -176,7 +176,7 @@ class PendingRequest
      * @return TResource
      * @throws ConnectionException
      */
-    public function head(string $url, null|array|string $query = null): ApiResource
+    public function head(string $url, array|string|null $query = null): ApiResource
     {
         return $this->sendRequest('head', $url, $query);
     }

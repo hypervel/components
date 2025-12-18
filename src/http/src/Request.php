@@ -11,12 +11,14 @@ use Hyperf\Collection\Arr;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\HttpServer\Request as HyperfRequest;
+use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\Stringable\Str;
 use Hypervel\Context\RequestContext;
 use Hypervel\Http\Contracts\RequestContract;
 use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Session\Contracts\Session as SessionContract;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Uri;
 use Hypervel\Validation\Contracts\Factory as ValidatorFactoryContract;
 use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
@@ -80,7 +82,7 @@ class Request extends HyperfRequest implements RequestContract
     /**
      * Retrieve input from the request as a collection.
      */
-    public function collect(null|array|string $key = null): Collection
+    public function collect(array|string|null $key = null): Collection
     {
         if (is_null($key)) {
             return Collection::make($this->all());
@@ -207,14 +209,13 @@ class Request extends HyperfRequest implements RequestContract
     /**
      * Returns the host name.
      *
-     * This method can read the client host name from the "HOST" header
-     * or SERVER_NAME from server params, or SERVER_ADDR from server params
+     * This method can read the client host name from the "HOST" header.
      */
     public function getHost(): string
     {
-        $host = $this->header('HOST') ?? $this->server('SERVER_NAME') ?? $this->server('SERVER_ADDR') ?? '';
-
-        return strtolower(preg_replace('/:\d+$/', '', trim($host)));
+        return strtolower(
+            preg_replace('/:\d+$/', '', trim($this->header('HOST') ?? ''))
+        );
     }
 
     /**
@@ -238,7 +239,7 @@ class Request extends HyperfRequest implements RequestContract
     public function getPort(): int|string
     {
         if (! $host = $this->header('HOST', '')) {
-            return $this->server('SERVER_PORT');
+            return $this->server('server_port');
         }
 
         if ($host[0] === '[') {
@@ -259,19 +260,16 @@ class Request extends HyperfRequest implements RequestContract
      */
     public function getScheme(): string
     {
-        return $this->isSecure() ? 'https' : 'http';
+        return $this->getUri()
+            ->getScheme();
     }
 
     /**
      * Checks whether the request is secure or not.
-     *
-     * This method can read the client protocol from the HTTPS from server params.
      */
     public function isSecure(): bool
     {
-        $https = $this->server('HTTPS', '');
-
-        return ! empty($https) && strtolower($https) !== 'off';
+        return $this->getScheme() === 'https';
     }
 
     /**
@@ -661,11 +659,95 @@ class Request extends HyperfRequest implements RequestContract
     }
 
     /**
+     * Get the dispatched route.
+     */
+    public function getDispatchedRoute(): DispatchedRoute
+    {
+        return $this->getAttribute(Dispatched::class);
+    }
+
+    /**
+     * Get a segment from the URI (1 based index).
+     */
+    public function segment(int $index, ?string $default = null): ?string
+    {
+        return $this->segments()[$index - 1] ?? $default;
+    }
+
+    /**
+     * Get all of the segments for the request path.
+     */
+    public function segments(): array
+    {
+        $segments = explode('/', $this->decodedPath());
+
+        return array_values(array_filter($segments, function ($value) {
+            return $value !== '';
+        }));
+    }
+
+    /**
+     * Get the route handling the request.
+     *
+     * @return ($param is null ? \Hypervel\Http\DispatchedRoute : mixed)
+     */
+    public function route(?string $param = null, mixed $default = null): mixed
+    {
+        $route = $this->getDispatchedRoute();
+        if (is_null($param)) {
+            return $route;
+        }
+
+        return $route->parameter($param, $default);
+    }
+
+    /**
+     * Determine if the route name matches a given pattern.
+     */
+    public function routeIs(mixed ...$patterns): bool
+    {
+        if (is_null($routeName = $this->getDispatchedRoute()->getName())) {
+            return false;
+        }
+
+        foreach ($patterns as $pattern) {
+            if (Str::is($pattern, $routeName)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Determine if the current request URL and query string match a pattern.
+     */
+    public function fullUrlIs(mixed ...$patterns): bool
+    {
+        $fullUrl = $this->fullUrl();
+        foreach ($patterns as $pattern) {
+            if (Str::is($pattern, $fullUrl)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
      * Get the request method.
      */
     public function method(): string
     {
         return $this->getMethod();
+    }
+
+    /**
+     * Get a URI instance for the request.
+     */
+    public function uri(): Uri
+    {
+        return Uri::of($this->fullUrl());
     }
 
     /**
@@ -760,7 +842,7 @@ class Request extends HyperfRequest implements RequestContract
      */
     public function prefetch(): bool
     {
-        return strcasecmp($this->server('HTTP_X_MOZ') ?? '', 'prefetch') === 0
+        return strcasecmp($this->header('X-MOZ') ?? '', 'prefetch') === 0
             || strcasecmp($this->header('Purpose') ?? '', 'prefetch') === 0
             || strcasecmp($this->header('Sec-Purpose') ?? '', 'prefetch') === 0;
     }

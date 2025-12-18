@@ -201,7 +201,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     /**
      * Retrieve a language line out the loaded array.
      */
-    protected function getLine(string $namespace, string $group, string $locale, ?string $item, array $replace): null|array|string
+    protected function getLine(string $namespace, string $group, string $locale, ?string $item, array $replace): array|string|null
     {
         $this->load($namespace, $group, $locale);
 

@@ -13,8 +13,6 @@ use ReflectionProperty;
 use Throwable;
 
 /**
- * @internal
- *
  * @mixin Assert
  */
 class TestResponseAssert

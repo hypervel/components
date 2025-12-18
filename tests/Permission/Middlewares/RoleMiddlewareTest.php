@@ -151,6 +151,6 @@ class RoleMiddlewareTest extends PermissionTestCase
             'manager',
         ]);
 
-        $this->assertEquals('admin,viewer,manager', $result);
+        $this->assertEquals('admin|viewer|manager', $result);
     }
 }

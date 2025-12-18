@@ -207,7 +207,7 @@ class MailManager implements FactoryContract
             $config['host'],
             $config['username'] ?? null,
             $config['password'] ?? null,
-            $config['port'] ?? null,
+            isset($config['port']) ? (int) $config['port'] : null,
             $config
         ));
 

@@ -40,6 +40,11 @@ abstract class Queue
     protected string $connectionName;
 
     /**
+     * The original configuration for the queue.
+     */
+    protected array $config = [];
+
+    /**
      * Indicates that jobs should be dispatched after all database transactions have committed.
      */
     protected bool $dispatchAfterCommit = false;
@@ -271,7 +276,7 @@ abstract class Queue
      *
      * @param Closure|object|string $job
      */
-    protected function enqueueUsing(object|string $job, ?string $payload, ?string $queue, null|DateInterval|DateTimeInterface|int $delay, callable $callback): mixed
+    protected function enqueueUsing(object|string $job, ?string $payload, ?string $queue, DateInterval|DateTimeInterface|int|null $delay, callable $callback): mixed
     {
         if ($this->shouldDispatchAfterCommit($job)
             && $this->container->has(TransactionManager::class)
@@ -318,7 +323,7 @@ abstract class Queue
      *
      * @param Closure|object|string $job
      */
-    protected function raiseJobQueueingEvent(?string $queue, object|string $job, string $payload, null|DateInterval|DateTimeInterface|int $delay): void
+    protected function raiseJobQueueingEvent(?string $queue, object|string $job, string $payload, DateInterval|DateTimeInterface|int|null $delay): void
     {
         if ($this->container->has(EventDispatcherInterface::class)) {
             $delay = ! is_null($delay) ? $this->secondsUntil($delay) : $delay;
@@ -333,7 +338,7 @@ abstract class Queue
      *
      * @param Closure|object|string $job
      */
-    protected function raiseJobQueuedEvent(?string $queue, mixed $jobId, object|string $job, string $payload, null|DateInterval|DateTimeInterface|int $delay): void
+    protected function raiseJobQueuedEvent(?string $queue, mixed $jobId, object|string $job, string $payload, DateInterval|DateTimeInterface|int|null $delay): void
     {
         if ($this->container->has(EventDispatcherInterface::class)) {
             $delay = ! is_null($delay) ? $this->secondsUntil($delay) : $delay;
@@ -357,6 +362,24 @@ abstract class Queue
     public function setConnectionName(string $name): static
     {
         $this->connectionName = $name;
+
+        return $this;
+    }
+
+    /**
+     * Get the queue configuration array.
+     */
+    public function getConfig(): array
+    {
+        return $this->config;
+    }
+
+    /**
+     * Set the queue configuration array.
+     */
+    public function setConfig(array $config): static
+    {
+        $this->config = $config;
 
         return $this;
     }

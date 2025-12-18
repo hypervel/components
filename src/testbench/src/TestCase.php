@@ -13,6 +13,7 @@ use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Foundation\Testing\TestCase as BaseTestCase;
+use Hypervel\Queue\Queue;
 use Swoole\Timer;
 use Workbench\App\Exceptions\ExceptionHandler;
 
@@ -48,5 +49,12 @@ class TestCase extends BaseTestCase
         ApplicationContext::setContainer($app);
 
         return $app;
+    }
+
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+
+        Queue::createPayloadUsing(null);
     }
 }

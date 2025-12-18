@@ -4497,7 +4497,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, [
-            'x' => new class {
+            'x' => new class implements \Stringable {
                 public function __toString()
                 {
                     return 'aslsdlks';
@@ -4507,7 +4507,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, [
-            'x' => new class {
+            'x' => new class implements \Stringable {
                 public function __toString()
                 {
                     return 'foo@gmail.com';

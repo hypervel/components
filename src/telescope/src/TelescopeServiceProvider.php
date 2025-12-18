@@ -4,12 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope;
 
+use Hypervel\Context\Context;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Telescope\Contracts\ClearableRepository;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Contracts\PrunableRepository;
 use Hypervel\Telescope\Storage\DatabaseEntriesRepository;
+use Hypervel\Telescope\Watchers\CacheWatcher;
 use Hypervel\Telescope\Watchers\RedisWatcher;
 
 class TelescopeServiceProvider extends ServiceProvider
@@ -31,6 +34,17 @@ class TelescopeServiceProvider extends ServiceProvider
 
         Telescope::start($this->app);
         Telescope::listenForStorageOpportunities($this->app);
+        /* @phpstan-ignore-next-line */
+        Coroutine::afterCreated(function () {
+            $keys = [
+                Telescope::SHOULD_RECORD => false,
+                Telescope::IS_RECORDING => false,
+                Telescope::BATCH_ID => null,
+            ];
+            foreach ($keys as $key => $default) {
+                Context::set($key, Context::get($key, $default, Coroutine::parentId()));
+            }
+        });
     }
 
     /**
@@ -103,8 +117,8 @@ class TelescopeServiceProvider extends ServiceProvider
         );
 
         $this->registerStorageDriver();
-
         $this->registerRedisEvents();
+        $this->registerCacheEvents();
     }
 
     /**
@@ -117,6 +131,18 @@ class TelescopeServiceProvider extends ServiceProvider
         }
 
         RedisWatcher::enableRedisEvents($this->app);
+    }
+
+    /**
+     * Register the Cache events if the watcher is enabled.
+     */
+    protected function registerCacheEvents(): void
+    {
+        if (! config('telescope.watchers.' . CacheWatcher::class, false)) {
+            return;
+        }
+
+        CacheWatcher::enableCacheEvents($this->app);
     }
 
     /**

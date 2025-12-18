@@ -18,6 +18,14 @@ class ConfigProvider
                 ServerRequestInterface::class => Request::class,
                 HyperfCoreMiddleware::class => CoreMiddleware::class,
             ],
+            'publish' => [
+                [
+                    'id' => 'config',
+                    'description' => 'The configuration file of cors.',
+                    'source' => __DIR__ . '/../publish/cors.php',
+                    'destination' => BASE_PATH . '/config/autoload/cors.php',
+                ],
+            ],
         ];
     }
 }

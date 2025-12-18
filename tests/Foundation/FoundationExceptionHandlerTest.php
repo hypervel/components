@@ -502,6 +502,19 @@ class FoundationExceptionHandlerTest extends TestCase
         $this->assertSame($reported, [$one, $two]);
     }
 
+    public function testAfterResponseCallbacks()
+    {
+        $this->handler->afterResponse(function (ResponseInterface $response) {
+            return $response->withHeader('X-After-Error', 'true');
+        });
+        $this->request->shouldReceive('expectsJson')->once()->andReturn(true);
+
+        $response = $this->handler->render($this->request, new Exception('Test exception'));
+
+        $this->assertTrue($response->hasHeader('X-After-Error'));
+        $this->assertSame('true', $response->getHeaderLine('X-After-Error'));
+    }
+
     protected function getConfig(array $config = []): Repository
     {
         return new Repository(array_merge([

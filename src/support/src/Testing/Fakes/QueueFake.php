@@ -72,7 +72,7 @@ class QueueFake extends QueueManager implements Fake, Queue
     /**
      * Assert if a job was pushed based on a truth-test callback.
      */
-    public function assertPushed(Closure|string $job, null|callable|int $callback = null): void
+    public function assertPushed(Closure|string $job, callable|int|null $callback = null): void
     {
         if ($job instanceof Closure) {
             [$job, $callback] = [$this->firstClosureParameterType($job), $job];
@@ -189,7 +189,7 @@ class QueueFake extends QueueManager implements Fake, Queue
     /**
      * Assert if a closure was pushed based on a truth-test callback.
      */
-    public function assertClosurePushed(null|callable|int $callback = null): void
+    public function assertClosurePushed(callable|int|null $callback = null): void
     {
         $this->assertPushed(CallQueuedClosure::class, $callback);
     }
@@ -290,6 +290,38 @@ class QueueFake extends QueueManager implements Fake, Queue
         return Collection::make($this->jobs)->flatten(1)->filter(
             fn ($job) => $job['queue'] === $queue
         )->count();
+    }
+
+    /**
+     * Get the number of pending jobs.
+     */
+    public function pendingSize(?string $queue = null): int
+    {
+        return 0;
+    }
+
+    /**
+     * Get the number of delayed jobs.
+     */
+    public function delayedSize(?string $queue = null): int
+    {
+        return 0;
+    }
+
+    /**
+     * Get the number of reserved jobs.
+     */
+    public function reservedSize(?string $queue = null): int
+    {
+        return 0;
+    }
+
+    /**
+     * Get the creation timestamp of the oldest pending job, excluding delayed jobs.
+     */
+    public function creationTimeOfOldestPendingJob(?string $queue = null): ?int
+    {
+        return 0;
     }
 
     /**

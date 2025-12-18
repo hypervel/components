@@ -153,6 +153,6 @@ class PermissionMiddlewareTest extends PermissionTestCase
             'manage',
         ]);
 
-        $this->assertEquals('view,edit,manage', $result);
+        $this->assertEquals('view|edit|manage', $result);
     }
 }

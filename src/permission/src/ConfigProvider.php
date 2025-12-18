@@ -25,6 +25,12 @@ class ConfigProvider
                     'source' => __DIR__ . '/../publish/permission.php',
                     'destination' => BASE_PATH . '/config/autoload/permission.php',
                 ],
+                [
+                    'id' => 'migrations',
+                    'description' => 'The migrations for permission.',
+                    'source' => __DIR__ . '/../database/migrations/2025_07_02_000000_create_permission_tables.php',
+                    'destination' => BASE_PATH . '/database/migrations/2025_07_02_000000_create_permission_tables.php',
+                ],
             ],
         ];
     }

@@ -1,0 +1,48 @@
+{
+    "name": "hypervel/sanctum",
+    "description": "The Sanctum package for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "sanctum",
+        "swoole",
+        "hypervel"
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "hyperf/database": "~3.1.0",
+        "hyperf/http-server": "~3.1.0",
+        "hypervel/auth": "^0.3",
+        "hypervel/support": "^0.3",
+        "nesbot/carbon": "^2.72.6"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Sanctum\\": "src/"
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.3-dev"
+        },
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Sanctum\\SanctumServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev"
+}

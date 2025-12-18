@@ -28,7 +28,7 @@ class DatabasePresenceVerifier implements DatabasePresenceVerifierInterface
     /**
      * Count the number of objects in a collection having the given value.
      */
-    public function getCount(string $collection, string $column, mixed $value, null|int|string $excludeId = null, ?string $idColumn = null, array $extra = []): int
+    public function getCount(string $collection, string $column, mixed $value, int|string|null $excludeId = null, ?string $idColumn = null, array $extra = []): int
     {
         $query = $this->table($collection)->where($column, '=', $value);
 

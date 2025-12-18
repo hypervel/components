@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
+use Hyperf\Contract\ConfigInterface;
 use Hyperf\Stringable\Str;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
@@ -17,16 +18,39 @@ use Psr\EventDispatcher\EventDispatcherInterface;
 class CacheWatcher extends Watcher
 {
     /**
+     * Indicates if the cache event is enabled.
+     */
+    protected static bool $eventsEnabled = false;
+
+    /**
      * Register the watcher.
      */
     public function register(ContainerInterface $app): void
     {
+        if (! static::$eventsEnabled) {
+            return;
+        }
+
         $event = $app->get(EventDispatcherInterface::class);
 
         $event->listen(CacheHit::class, [$this, 'recordCacheHit']);
         $event->listen(CacheMissed::class, [$this, 'recordCacheMissed']);
         $event->listen(KeyWritten::class, [$this, 'recordKeyWritten']);
         $event->listen(KeyForgotten::class, [$this, 'recordKeyForgotten']);
+    }
+
+    /**
+     * Enable Cache events.
+     * This function needs to be called before the Cache is initialized.
+     */
+    public static function enableCacheEvents(ContainerInterface $app): void
+    {
+        $config = $app->get(ConfigInterface::class);
+        foreach (array_keys($config->get('cache.stores', [])) as $store) {
+            $config->set("cache.stores.{$store}.events", true);
+        }
+
+        static::$eventsEnabled = true;
     }
 
     /**

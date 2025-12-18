@@ -12,11 +12,12 @@ use Hyperf\Support\Traits\ForwardsCalls;
 use Hypervel\HttpClient\Request;
 use Hypervel\HttpClient\Response;
 use JsonSerializable;
+use Stringable;
 
 /**
  * @mixin ApiResponse
  */
-class ApiResource implements ArrayAccess, JsonSerializable, Arrayable, Jsonable
+class ApiResource implements Stringable, ArrayAccess, JsonSerializable, Arrayable, Jsonable
 {
     use ForwardsCalls;
 

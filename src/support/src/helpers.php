@@ -53,7 +53,7 @@ if (! function_exists('e')) {
     /**
      * Encode HTML special characters in a string.
      */
-    function e(null|BackedEnum|DeferringDisplayableValue|float|Htmlable|int|string $value, bool $doubleEncode = true): string
+    function e(BackedEnum|DeferringDisplayableValue|float|Htmlable|int|string|null $value, bool $doubleEncode = true): string
     {
         if ($value instanceof DeferringDisplayableValue) {
             $value = $value->resolveDisplayableValue();
@@ -121,7 +121,7 @@ if (! function_exists('data_get')) {
     /**
      * Get an item from an array or object using "dot" notation.
      */
-    function data_get(mixed $target, null|array|int|string $key, mixed $default = null): mixed
+    function data_get(mixed $target, array|int|string|null $key, mixed $default = null): mixed
     {
         return \Hyperf\Collection\data_get($target, $key, $default);
     }
@@ -141,7 +141,7 @@ if (! function_exists('data_forget')) {
     /**
      * Remove / unset an item from an array or object using "dot" notation.
      */
-    function data_forget(mixed &$target, null|array|int|string $key): mixed
+    function data_forget(mixed &$target, array|int|string|null $key): mixed
     {
         return \Hyperf\Collection\data_forget($target, $key);
     }
