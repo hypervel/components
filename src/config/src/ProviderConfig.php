@@ -6,6 +6,7 @@ namespace Hypervel\Config;
 
 use Hyperf\Collection\Arr;
 use Hyperf\Config\ProviderConfig as HyperfProviderConfig;
+use Hyperf\Di\Definition\PriorityDefinition;
 use Hyperf\Support\Composer;
 use Hypervel\Support\ServiceProvider;
 use Throwable;
@@ -84,5 +85,48 @@ class ProviderConfig extends HyperfProviderConfig
         }
 
         return array_merge($packages, $project);
+    }
+
+    /**
+     * Merge provider config arrays using Arr::merge.
+     *
+     * Arr::merge correctly:
+     * - Combines list arrays by appending values (with deduplication)
+     * - Replaces scalar values in associative arrays (latest wins)
+     * - Recursively merges nested associative arrays
+     *
+     * @return array<string, mixed>
+     */
+    protected static function merge(...$arrays): array
+    {
+        if (empty($arrays)) {
+            return [];
+        }
+
+        $result = array_reduce(
+            array_slice($arrays, 1),
+            fn (array $carry, array $item) => Arr::merge($carry, $item),
+            $arrays[0]
+        );
+
+        // Special handling for dependencies with PriorityDefinition
+        if (isset($result['dependencies'])) {
+            $result['dependencies'] = [];
+            foreach ($arrays as $item) {
+                foreach ($item['dependencies'] ?? [] as $key => $value) {
+                    $depend = $result['dependencies'][$key] ?? null;
+                    if (! $depend instanceof PriorityDefinition) {
+                        $result['dependencies'][$key] = $value;
+                        continue;
+                    }
+
+                    if ($value instanceof PriorityDefinition) {
+                        $depend->merge($value);
+                    }
+                }
+            }
+        }
+
+        return $result;
     }
 }
