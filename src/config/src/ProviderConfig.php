@@ -88,12 +88,12 @@ class ProviderConfig extends HyperfProviderConfig
     }
 
     /**
-     * Merge provider config arrays using Arr::merge.
+     * Merge provider config arrays.
      *
-     * Arr::merge correctly:
-     * - Combines list arrays by appending values (with deduplication)
-     * - Replaces scalar values in associative arrays (latest wins)
-     * - Recursively merges nested associative arrays
+     * Correctly handles:
+     * - Pure lists (numeric keys): appends values with deduplication
+     * - Associative arrays (string keys): recursively merges, later wins for scalars
+     * - Mixed arrays (e.g. listeners with priorities): appends numeric, merges string keys
      *
      * @return array<string, mixed>
      */
@@ -105,7 +105,7 @@ class ProviderConfig extends HyperfProviderConfig
 
         $result = array_reduce(
             array_slice($arrays, 1),
-            fn (array $carry, array $item) => Arr::merge($carry, $item),
+            [static::class, 'mergeTwo'],
             $arrays[0]
         );
 
@@ -124,6 +124,34 @@ class ProviderConfig extends HyperfProviderConfig
                         $depend->merge($value);
                     }
                 }
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Merge two config arrays.
+     */
+    private static function mergeTwo(array $base, array $override): array
+    {
+        $result = $base;
+
+        foreach ($override as $key => $value) {
+            if (is_int($key)) {
+                // Numeric key - append if not already present (deduplicate)
+                if (! in_array($value, $result, true)) {
+                    $result[] = $value;
+                }
+            } elseif (! array_key_exists($key, $result)) {
+                // New string key - just add it
+                $result[$key] = $value;
+            } elseif (is_array($value) && is_array($result[$key])) {
+                // Both are arrays - recursively merge
+                $result[$key] = self::mergeTwo($result[$key], $value);
+            } else {
+                // Scalar or mixed types - override wins
+                $result[$key] = $value;
             }
         }
 

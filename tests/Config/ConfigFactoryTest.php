@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Config;
 
-use Hyperf\Collection\Arr;
+use Hypervel\Config\ProviderConfig;
 use PHPUnit\Framework\TestCase;
+use ReflectionMethod;
 
 /**
  * Tests for ConfigFactory merge behavior.
@@ -176,21 +177,15 @@ class ConfigFactoryTest extends TestCase
     }
 
     /**
-     * Simulate ConfigFactory's merge behavior using Arr::merge.
+     * Use ProviderConfig::merge() since ConfigFactory uses the same merge logic.
      *
-     * Arr::merge correctly handles both list arrays (commands, listeners)
-     * and associative arrays (config values).
+     * Both ConfigFactory and ProviderConfig need identical merge semantics,
+     * so we test the shared behavior via ProviderConfig's merge method.
      */
     private function mergeConfigs(array ...$configs): array
     {
-        if (empty($configs)) {
-            return [];
-        }
+        $method = new ReflectionMethod(ProviderConfig::class, 'merge');
 
-        return array_reduce(
-            array_slice($configs, 1),
-            fn (array $carry, array $item) => Arr::merge($carry, $item),
-            $configs[0]
-        );
+        return $method->invoke(null, ...$configs);
     }
 }
