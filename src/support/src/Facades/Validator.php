@@ -7,7 +7,7 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Validation\Contracts\Factory as FactoryContract;
 
 /**
- * @method static \Hypervel\Validation\Validator make(array $data, array $rules, array $messages = [], array $attributes = [])
+ * @method static \Hypervel\Validation\Contracts\Validator make(array $data, array $rules, array $messages = [], array $attributes = [])
  * @method static void extend(string $rule, \Closure|string $extension, string|null $message = null)
  * @method static void extendImplicit(string $rule, \Closure|string $extension, string|null $message = null)
  * @method static void replacer(string $rule, \Closure|string $replacer)
@@ -180,6 +180,7 @@ use Hypervel\Validation\Contracts\Factory as FactoryContract;
  * @method static array|null parseNamedParameters(array $parameters)
  * @method static void requireParameterCount(int $count, array $parameters, string $rule)
  *
+ * @see \Hypervel\Validation\Contracts\Factory
  * @see \Hypervel\Validation\Validator
  */
 class Validator extends Facade
