@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Closure;
 use Hyperf\DbConnection\Db as HyperfDb;
 
 /**

@@ -7,15 +7,24 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Validation\Contracts\Factory as FactoryContract;
 
 /**
- * @method static \Hypervel\Validation\Contracts\Validator make(array $data, array $rules, array $messages = [], array $attributes = [])
+ * @method static \Hypervel\Validation\Validator make(array $data, array $rules, array $messages = [], array $attributes = [])
+ * @method static array validate(array $data, array $rules, array $messages = [], array $attributes = [])
  * @method static void extend(string $rule, \Closure|string $extension, string|null $message = null)
  * @method static void extendImplicit(string $rule, \Closure|string $extension, string|null $message = null)
+ * @method static void extendDependent(string $rule, \Closure|string $extension, string|null $message = null)
  * @method static void replacer(string $rule, \Closure|string $replacer)
+ * @method static void includeUnvalidatedArrayKeys()
+ * @method static void excludeUnvalidatedArrayKeys()
+ * @method static void resolver(\Closure $resolver)
+ * @method static \Hypervel\Translation\Contracts\Translator getTranslator()
+ * @method static \Hypervel\Validation\PresenceVerifierInterface getPresenceVerifier()
+ * @method static void setPresenceVerifier(\Hypervel\Validation\PresenceVerifierInterface $presenceVerifier)
+ * @method static \Psr\Container\ContainerInterface|null getContainer()
+ * @method static \Hypervel\Validation\Factory setContainer(\Psr\Container\ContainerInterface $container)
  * @method static array parseData(array $data)
  * @method static \Hypervel\Validation\Validator after(callable|array|string $callback)
  * @method static bool passes()
  * @method static bool fails()
- * @method static array validate()
  * @method static array validateWithBag(string $errorBag)
  * @method static \Hypervel\Support\ValidatedInput|array safe(array|null $keys = null)
  * @method static array validated()
@@ -53,14 +62,10 @@ use Hypervel\Validation\Contracts\Factory as FactoryContract;
  * @method static \Hypervel\Validation\Validator setValueNames(array $values)
  * @method static \Hypervel\Validation\Validator addCustomValues(array $customValues)
  * @method static void setFallbackMessages(array $messages)
- * @method static \Hypervel\Validation\PresenceVerifierInterface getPresenceVerifier(string|null $connection = null)
- * @method static void setPresenceVerifier(\Hypervel\Validation\PresenceVerifierInterface $presenceVerifier)
  * @method static string getException()
  * @method static \Hypervel\Validation\Validator setException(string|\Throwable $exception)
  * @method static \Hypervel\Validation\Validator ensureExponentWithinAllowedRangeUsing(\Closure $callback)
- * @method static \Hypervel\Translation\Contracts\Translator getTranslator()
  * @method static void setTranslator(\Hypervel\Translation\Contracts\Translator $translator)
- * @method static void setContainer(\Psr\Container\ContainerInterface $container)
  * @method static string makeReplacements(string $message, string $attribute, string $rule, array $parameters)
  * @method static string getDisplayableAttribute(string $attribute)
  * @method static string getDisplayableValue(string $attribute, mixed $value)
@@ -180,7 +185,7 @@ use Hypervel\Validation\Contracts\Factory as FactoryContract;
  * @method static array|null parseNamedParameters(array $parameters)
  * @method static void requireParameterCount(int $count, array $parameters, string $rule)
  *
- * @see \Hypervel\Validation\Contracts\Factory
+ * @see \Hypervel\Validation\Factory
  * @see \Hypervel\Validation\Validator
  */
 class Validator extends Facade
