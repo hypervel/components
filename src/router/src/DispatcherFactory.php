@@ -25,9 +25,8 @@ class DispatcherFactory extends BaseDispatcherFactory
 
         MiddlewareManager::$container = [];
 
-        // Fetch route files at initialization time, not construction time.
-        // This ensures routes added via loadRoutesFrom() in service provider
-        // boot() methods are included.
+        // Fetch route files at initialization time
+        // Ensures routes added via loadRoutesFrom() in service providers are included
         $routes = $this->container->get(RouteFileCollector::class)->getRouteFiles();
 
         foreach ($routes as $route) {
