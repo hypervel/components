@@ -16,18 +16,21 @@ class DispatcherFactory extends BaseDispatcherFactory
 
     public function __construct(protected ContainerInterface $container)
     {
-        $this->routes = $container->get(RouteFileCollector::class)
-            ->getRouteFiles();
         $this->initAnnotationRoute(AnnotationCollector::list());
     }
 
-    public function initRoutes()
+    public function initRoutes(): void
     {
         $this->initialized = true;
 
         MiddlewareManager::$container = [];
 
-        foreach ($this->routes as $route) {
+        // Fetch route files at initialization time, not construction time.
+        // This ensures routes added via loadRoutesFrom() in service provider
+        // boot() methods are included.
+        $routes = $this->container->get(RouteFileCollector::class)->getRouteFiles();
+
+        foreach ($routes as $route) {
             if (file_exists($route)) {
                 require $route;
             }
