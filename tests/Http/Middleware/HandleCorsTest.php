@@ -252,6 +252,24 @@ class HandleCorsTest extends TestCase
         $this->assertEquals(422, $crawler->getStatusCode());
     }
 
+    public function testSubclassCanOverrideCorsConfig(): void
+    {
+        // Replace middleware with custom subclass that allows a different origin
+        $this->setGlobalMiddleware([
+            CustomHandleCors::class,
+        ]);
+
+        // Request with the custom origin (not in the base config)
+        $crawler = $this->options('api/ping', [], [
+            'Origin' => 'http://custom.example.com',
+            'Access-Control-Request-Method' => 'POST',
+        ]);
+
+        // The custom origin should be allowed because CustomHandleCors adds it
+        $this->assertSame('http://custom.example.com', $crawler->getHeaderLine('Access-Control-Allow-Origin'));
+        $this->assertEquals(204, $crawler->getStatusCode());
+    }
+
     protected function registerRoutes()
     {
         $router = $this->app->get(Router::class);
@@ -279,5 +297,21 @@ class HandleCorsTest extends TestCase
 
             return 'ok';
         });
+    }
+}
+
+/**
+ * Custom HandleCors subclass for testing the extension pattern.
+ */
+class CustomHandleCors extends HandleCors
+{
+    protected function getCorsConfig(): array
+    {
+        $config = parent::getCorsConfig();
+
+        // Add a custom allowed origin
+        $config['allowed_origins'][] = 'http://custom.example.com';
+
+        return $config;
     }
 }
