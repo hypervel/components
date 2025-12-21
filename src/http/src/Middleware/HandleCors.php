@@ -35,12 +35,11 @@ class HandleCors implements MiddlewareInterface
             return $handler->handle($request);
         }
 
-        // Set CORS options per-request for coroutine isolation
-        $this->cors->setOptions($this->getCorsConfig());
+        $cors = $this->getCors();
 
-        if ($this->cors->isPreflightRequest($this->request)) {
-            $response = $this->cors->handlePreflightRequest($this->request);
-            return $this->cors->varyHeader($response, 'Access-Control-Request-Method');
+        if ($cors->isPreflightRequest($this->request)) {
+            $response = $cors->handlePreflightRequest($this->request);
+            return $cors->varyHeader($response, 'Access-Control-Request-Method');
         }
 
         try {
@@ -61,11 +60,13 @@ class HandleCors implements MiddlewareInterface
      */
     protected function addRequestHeaders(ResponseInterface $response): ResponseInterface
     {
+        $cors = $this->getCors();
+
         if ($this->request->getMethod() === 'OPTIONS') {
-            $response = $this->cors->varyHeader($response, 'Access-Control-Request-Method');
+            $response = $cors->varyHeader($response, 'Access-Control-Request-Method');
         }
 
-        return $this->cors->addActualRequestHeaders($response, $this->request);
+        return $cors->addActualRequestHeaders($response, $this->request);
     }
 
     /**
@@ -104,10 +105,19 @@ class HandleCors implements MiddlewareInterface
     }
 
     /**
+     * Get the Cors service instance.
+     *
+     * Override this method to provide a custom Cors instance.
+     */
+    protected function getCors(): Cors
+    {
+        return new Cors($this->getCorsConfig());
+    }
+
+    /**
      * Get the CORS configuration.
      *
-     * Override this method to provide custom CORS configuration,
-     * such as tenant-specific allowed origins.
+     * Override this method to provide custom CORS configuration.
      */
     protected function getCorsConfig(): array
     {

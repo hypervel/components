@@ -11,19 +11,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Http;
 
-use Hyperf\Context\Context;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Http\Contracts\RequestContract;
 use Hypervel\Http\Contracts\ResponseContract;
 use Psr\Http\Message\ResponseInterface;
 
 /**
- * CORS service with coroutine-safe options storage.
- *
- * Options are stored in coroutine-local Context as an immutable CorsOptions
- * object, making this service safe for concurrent use in Swoole's coroutine
- * environment. Each request gets its own isolated CORS configuration.
- *
  * @phpstan-type CorsInputOptions array{
  *  'allowedOrigins'?: string[],
  *  'allowedOriginsPatterns'?: string[],
@@ -43,89 +36,87 @@ use Psr\Http\Message\ResponseInterface;
  */
 class Cors
 {
-    /**
-     * Context key for storing CORS options.
-     */
-    private const CONTEXT_KEY = '__cors.options';
+    /** @var string[] */
+    private array $allowedOrigins = [];
+
+    /** @var string[] */
+    private array $allowedOriginsPatterns = [];
+
+    /** @var string[] */
+    private array $allowedMethods = [];
+
+    /** @var string[] */
+    private array $allowedHeaders = [];
+
+    /** @var string[] */
+    private array $exposedHeaders = [];
+
+    private bool $supportsCredentials = false;
+
+    private ?int $maxAge = 0;
+
+    private bool $allowAllOrigins = false;
+
+    private bool $allowAllMethods = false;
+
+    private bool $allowAllHeaders = false;
 
     /**
      * @param CorsInputOptions $options
      */
     public function __construct(array $options = [])
     {
-        if ($options !== []) {
+        if ($options) {
             $this->setOptions($options);
         }
     }
 
     /**
-     * Set CORS options for the current request.
-     *
-     * Options are normalized and stored in coroutine-local Context as an
-     * immutable CorsOptions object, ensuring isolation between concurrent
-     * requests. Type validation is handled by CorsOptions' typed properties.
-     *
      * @param CorsInputOptions $options
      */
     public function setOptions(array $options): void
     {
-        $current = $this->getOptions();
+        $this->allowedOrigins = $options['allowedOrigins'] ?? $options['allowed_origins'] ?? $this->allowedOrigins;
+        $this->allowedOriginsPatterns
+            = $options['allowedOriginsPatterns'] ?? $options['allowed_origins_patterns'] ?? $this->allowedOriginsPatterns;
+        $this->allowedMethods = $options['allowedMethods'] ?? $options['allowed_methods'] ?? $this->allowedMethods;
+        $this->allowedHeaders = $options['allowedHeaders'] ?? $options['allowed_headers'] ?? $this->allowedHeaders;
+        $this->supportsCredentials
+            = $options['supportsCredentials'] ?? $options['supports_credentials'] ?? $this->supportsCredentials;
 
-        $allowedOrigins = $options['allowedOrigins'] ?? $options['allowed_origins'] ?? $current->allowedOrigins;
-        $allowedOriginsPatterns = $options['allowedOriginsPatterns'] ?? $options['allowed_origins_patterns'] ?? $current->allowedOriginsPatterns;
-        $allowedMethods = $options['allowedMethods'] ?? $options['allowed_methods'] ?? $current->allowedMethods;
-        $allowedHeaders = $options['allowedHeaders'] ?? $options['allowed_headers'] ?? $current->allowedHeaders;
-        $supportsCredentials = $options['supportsCredentials'] ?? $options['supports_credentials'] ?? $current->supportsCredentials;
-
-        $maxAge = $current->maxAge;
+        $maxAge = $this->maxAge;
         if (array_key_exists('maxAge', $options)) {
             $maxAge = $options['maxAge'];
         } elseif (array_key_exists('max_age', $options)) {
             $maxAge = $options['max_age'];
         }
-        $maxAge = $maxAge === null ? null : (int) $maxAge;
+        $this->maxAge = $maxAge === null ? null : (int) $maxAge;
 
-        $exposedHeaders = $options['exposedHeaders'] ?? $options['exposed_headers'] ?? $current->exposedHeaders;
-        $exposedHeaders = $exposedHeaders === false ? [] : $exposedHeaders;
+        $exposedHeaders = $options['exposedHeaders'] ?? $options['exposed_headers'] ?? $this->exposedHeaders;
+        $this->exposedHeaders = $exposedHeaders === false ? [] : $exposedHeaders;
 
+        $this->normalizeOptions();
+    }
+
+    private function normalizeOptions(): void
+    {
         // Normalize case
-        $allowedHeaders = array_map('strtolower', $allowedHeaders);
-        $allowedMethods = array_map('strtoupper', $allowedMethods);
+        $this->allowedHeaders = array_map('strtolower', $this->allowedHeaders);
+        $this->allowedMethods = array_map('strtoupper', $this->allowedMethods);
 
-        // Normalize ['*'] to flags
-        $allowAllOrigins = in_array('*', $allowedOrigins);
-        $allowAllHeaders = in_array('*', $allowedHeaders);
-        $allowAllMethods = in_array('*', $allowedMethods);
+        // Normalize ['*'] to true
+        $this->allowAllOrigins = in_array('*', $this->allowedOrigins);
+        $this->allowAllHeaders = in_array('*', $this->allowedHeaders);
+        $this->allowAllMethods = in_array('*', $this->allowedMethods);
 
-        // Transform wildcard patterns in origins
-        if (! $allowAllOrigins) {
-            foreach ($allowedOrigins as $origin) {
+        // Transform wildcard pattern
+        if (! $this->allowAllOrigins) {
+            foreach ($this->allowedOrigins as $origin) {
                 if (strpos($origin, '*') !== false) {
-                    $allowedOriginsPatterns[] = $this->convertWildcardToPattern($origin);
+                    $this->allowedOriginsPatterns[] = $this->convertWildcardToPattern($origin);
                 }
             }
         }
-
-        Context::set(self::CONTEXT_KEY, new CorsOptions(
-            allowedOrigins: $allowedOrigins,
-            allowedOriginsPatterns: $allowedOriginsPatterns,
-            supportsCredentials: $supportsCredentials,
-            allowedHeaders: $allowedHeaders,
-            allowedMethods: $allowedMethods,
-            exposedHeaders: $exposedHeaders,
-            maxAge: $maxAge,
-            allowAllOrigins: $allowAllOrigins,
-            allowAllHeaders: $allowAllHeaders,
-            allowAllMethods: $allowAllMethods,
-        ));
-    }
-
-    /**
-     * Get the current CORS options from Context.
-     */
-    private function getOptions(): CorsOptions
-    {
-        return Context::get(self::CONTEXT_KEY) ?? new CorsOptions();
     }
 
     /**
@@ -181,19 +172,17 @@ class Cors
 
     public function isOriginAllowed(RequestContract $request): bool
     {
-        $options = $this->getOptions();
-
-        if ($options->allowAllOrigins) {
+        if ($this->allowAllOrigins === true) {
             return true;
         }
 
         $origin = $request->header('Origin') ?: '';
 
-        if (in_array($origin, $options->allowedOrigins)) {
+        if (in_array($origin, $this->allowedOrigins)) {
             return true;
         }
 
-        foreach ($options->allowedOriginsPatterns as $pattern) {
+        foreach ($this->allowedOriginsPatterns as $pattern) {
             if (preg_match($pattern, $origin)) {
                 return true;
             }
@@ -216,14 +205,12 @@ class Cors
 
     private function configureAllowedOrigin(ResponseInterface $response, RequestContract $request): ResponseInterface
     {
-        $options = $this->getOptions();
-
-        if ($options->allowAllOrigins && ! $options->supportsCredentials) {
+        if ($this->allowAllOrigins === true && ! $this->supportsCredentials) {
             // Safe+cacheable, allow everything
             $response = $response->withHeader('Access-Control-Allow-Origin', '*');
         } elseif ($this->isSingleOriginAllowed()) {
             // Single origins can be safely set
-            $response = $response->withHeader('Access-Control-Allow-Origin', array_values($options->allowedOrigins)[0]);
+            $response = $response->withHeader('Access-Control-Allow-Origin', array_values($this->allowedOrigins)[0]);
         } else {
             // For dynamic headers, set the requested Origin header when set and allowed
             if ($this->isCorsRequest($request) && $this->isOriginAllowed($request)) {
@@ -238,24 +225,20 @@ class Cors
 
     private function isSingleOriginAllowed(): bool
     {
-        $options = $this->getOptions();
-
-        if ($options->allowAllOrigins || count($options->allowedOriginsPatterns) > 0) {
+        if ($this->allowAllOrigins === true || count($this->allowedOriginsPatterns) > 0) {
             return false;
         }
 
-        return count($options->allowedOrigins) === 1;
+        return count($this->allowedOrigins) === 1;
     }
 
     private function configureAllowedMethods(ResponseInterface $response, RequestContract $request): ResponseInterface
     {
-        $options = $this->getOptions();
-
-        if ($options->allowAllMethods) {
+        if ($this->allowAllMethods === true) {
             $allowMethods = strtoupper($request->header('Access-Control-Request-Method'));
             $response = $this->varyHeader($response, 'Access-Control-Request-Method');
         } else {
-            $allowMethods = implode(', ', $options->allowedMethods);
+            $allowMethods = implode(', ', $this->allowedMethods);
         }
 
         return $response->withHeader('Access-Control-Allow-Methods', $allowMethods);
@@ -263,13 +246,11 @@ class Cors
 
     private function configureAllowedHeaders(ResponseInterface $response, RequestContract $request): ResponseInterface
     {
-        $options = $this->getOptions();
-
-        if ($options->allowAllHeaders) {
+        if ($this->allowAllHeaders === true) {
             $allowHeaders = $request->header('Access-Control-Request-Headers');
             $this->varyHeader($response, 'Access-Control-Request-Headers');
         } else {
-            $allowHeaders = implode(', ', $options->allowedHeaders);
+            $allowHeaders = implode(', ', $this->allowedHeaders);
         }
 
         return $response->withHeader('Access-Control-Allow-Headers', $allowHeaders);
@@ -277,9 +258,7 @@ class Cors
 
     private function configureAllowCredentials(ResponseInterface $response, RequestContract $request): ResponseInterface
     {
-        $options = $this->getOptions();
-
-        if ($options->supportsCredentials) {
+        if ($this->supportsCredentials) {
             $response = $response->withHeader('Access-Control-Allow-Credentials', 'true');
         }
 
@@ -288,10 +267,8 @@ class Cors
 
     private function configureExposedHeaders(ResponseInterface $response, RequestContract $request): ResponseInterface
     {
-        $options = $this->getOptions();
-
-        if ($options->exposedHeaders !== []) {
-            $response = $response->withHeader('Access-Control-Expose-Headers', implode(', ', $options->exposedHeaders));
+        if ($this->exposedHeaders) {
+            $response = $response->withHeader('Access-Control-Expose-Headers', implode(', ', $this->exposedHeaders));
         }
 
         return $response;
@@ -299,10 +276,8 @@ class Cors
 
     private function configureMaxAge(ResponseInterface $response, RequestContract $request): ResponseInterface
     {
-        $options = $this->getOptions();
-
-        if ($options->maxAge !== null) {
-            $response = $response->withHeader('Access-Control-Max-Age', (string) $options->maxAge);
+        if ($this->maxAge !== null) {
+            $response = $response->withHeader('Access-Control-Max-Age', (string) $this->maxAge);
         }
 
         return $response;
