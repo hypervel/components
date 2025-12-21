@@ -405,6 +405,31 @@ class UrlGenerator implements UrlGeneratorContract
     }
 
     /**
+     * Set the forced root URL.
+     *
+     * This is stored in coroutine Context for request isolation.
+     */
+    public function forceRootUrl(?string $root): void
+    {
+        if ($root !== null) {
+            Context::set('__url.forced_root', rtrim($root, '/'));
+        } else {
+            Context::destroy('__url.forced_root');
+        }
+
+        // Clear the cached root so it will be recalculated
+        Context::destroy('__request.root.uri');
+    }
+
+    /**
+     * Set the URL origin for all generated URLs.
+     */
+    public function useOrigin(?string $root): void
+    {
+        $this->forceRootUrl($root);
+    }
+
+    /**
      * Set a callback to be used to format the host of generated URLs.
      */
     public function formatHostUsing(Closure $callback): static
@@ -469,6 +494,16 @@ class UrlGenerator implements UrlGeneratorContract
 
     protected function getRootUrl(string $scheme): string
     {
+        // Check for forced root first (coroutine-safe)
+        $forcedRoot = Context::get('__url.forced_root');
+        if ($forcedRoot !== null) {
+            $root = new Uri($forcedRoot);
+
+            return $root->withScheme(
+                str_replace('://', '', $scheme)
+            )->toString();
+        }
+
         $root = Context::getOrSet('__request.root.uri', function () {
             $requestUri = $this->getRequestUri()->toString();
             $root = preg_replace(';^([^:]+://[^/?#]+).*$;', '\1', $requestUri);

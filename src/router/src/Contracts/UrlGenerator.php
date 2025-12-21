@@ -130,6 +130,16 @@ interface UrlGenerator
     public function forceHttps(bool $force = true): void;
 
     /**
+     * Set the forced root URL.
+     */
+    public function forceRootUrl(?string $root): void;
+
+    /**
+     * Set the URL origin for all generated URLs.
+     */
+    public function useOrigin(?string $root): void;
+
+    /**
      * Set a callback to be used to format the host of generated URLs.
      */
     public function formatHostUsing(Closure $callback): static;
