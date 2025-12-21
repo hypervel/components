@@ -66,16 +66,7 @@ trait HasMiddleware
     public function getMiddlewareForRequest(ServerRequestInterface $request): array
     {
         $dispatched = $request->getAttribute(Dispatched::class);
-
         $dispatchFound = $dispatched->isFound();
-        $registeredMiddleware = $dispatchFound
-            ? MiddlewareManager::get($this->serverName, $dispatched->handler->route, $request->getMethod())
-            : [];
-
-        // Get excluded middleware for this route
-        $excludedMiddleware = $dispatchFound
-            ? MiddlewareExclusionManager::get($this->serverName, $dispatched->handler->route, $request->getMethod())
-            : [];
 
         $cacheKey = $dispatchFound
             ? "{$this->serverName}_{$dispatched->handler->route}_{$request->getMethod()}"
@@ -84,6 +75,15 @@ trait HasMiddleware
         if (! is_null($cache = $this->cachedMiddleware[$cacheKey] ?? null)) {
             return $cache;
         }
+
+        // Fetch registered and excluded middleware only on cache miss
+        $registeredMiddleware = $dispatchFound
+            ? MiddlewareManager::get($this->serverName, $dispatched->handler->route, $request->getMethod())
+            : [];
+
+        $excludedMiddleware = $dispatchFound
+            ? MiddlewareExclusionManager::get($this->serverName, $dispatched->handler->route, $request->getMethod())
+            : [];
 
         $middleware = $this->resolveMiddleware(
             array_merge($this->middleware, $registeredMiddleware),
