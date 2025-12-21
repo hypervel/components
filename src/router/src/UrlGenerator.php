@@ -486,7 +486,7 @@ class UrlGenerator implements UrlGeneratorContract
 
     protected function getRootUrl(string $scheme): string
     {
-        // Check for forced root first (coroutine-safe)
+        // Check for forced root first
         $forcedRoot = Context::get('__url.forced_root');
         if ($forcedRoot !== null) {
             $root = new Uri($forcedRoot);
