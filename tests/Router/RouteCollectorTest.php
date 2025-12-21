@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Router;
 use FastRoute\DataGenerator\GroupCountBased as DataGenerator;
 use FastRoute\RouteParser\Std;
 use Hyperf\HttpServer\MiddlewareManager;
+use Hypervel\Router\MiddlewareExclusionManager;
 use Hypervel\Router\RouteCollector;
 use Hypervel\Tests\Router\Stub\RouteCollectorStub;
 use Hypervel\Tests\TestCase;
@@ -22,6 +23,7 @@ class RouteCollectorTest extends TestCase
         parent::tearDown();
 
         MiddlewareManager::$container = [];
+        MiddlewareExclusionManager::clear();
     }
 
     public function testAddRoute()
@@ -123,7 +125,7 @@ class RouteCollectorTest extends TestCase
         $this->assertSame(['ApiGetMiddleware', 'ApiSelfGetMiddleware'], $middle['test']['/api']['GET']);
     }
 
-    public function testAddWithoutMiddleware()
+    public function testAddWithoutMiddlewareStoresExclusionsSeparately()
     {
         $parser = new Std();
         $generator = new DataGenerator();
@@ -146,11 +148,18 @@ class RouteCollectorTest extends TestCase
             'without_middleware' => ['FooGetMiddleware'],
         ]);
 
+        // Middleware is stored WITHOUT filtering (exclusions applied later at resolution time)
         $middleware = MiddlewareManager::$container['http'];
+        $this->assertSame(['GetMiddleware', 'PostMiddleware'], $middleware['/']['GET']);
+        $this->assertSame(['ApiGetMiddleware', 'ApiSelfGetMiddleware'], $middleware['/api']['GET']);
+        $this->assertSame(['ApiGetMiddleware', 'FooGetMiddleware', 'BarGetMiddleware'], $middleware['/api/foo']['GET']);
 
-        $this->assertSame(['GetMiddleware'], $middleware['/']['GET']);
-        $this->assertSame(['ApiSelfGetMiddleware'], $middleware['/api']['GET']);
-        $this->assertSame(['ApiGetMiddleware', 'BarGetMiddleware'], $middleware['/api/foo']['GET']);
+        // Exclusions are stored separately in MiddlewareExclusionManager
+        // Note: array_merge_recursive merges group and route exclusions
+        $exclusions = MiddlewareExclusionManager::$container['http'];
+        $this->assertSame(['PostMiddleware'], $exclusions['/']['GET']);
+        $this->assertSame(['FooGetMiddleware', 'ApiGetMiddleware'], $exclusions['/api']['GET']); // Group + route exclusions merged
+        $this->assertSame(['FooGetMiddleware'], $exclusions['/api/foo']['GET']); // Only group exclusion
     }
 
     public function testRouterCollectorMergeOptions()
