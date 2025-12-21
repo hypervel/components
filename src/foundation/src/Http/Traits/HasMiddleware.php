@@ -204,7 +204,7 @@ trait HasMiddleware
             array_unshift($this->middleware, $middleware);
         }
 
-        $this->cachedMiddleware[] = [];
+        $this->cachedMiddleware = [];
 
         return $this;
     }
@@ -218,7 +218,7 @@ trait HasMiddleware
             $this->middleware[] = $middleware;
         }
 
-        $this->cachedMiddleware[] = [];
+        $this->cachedMiddleware = [];
 
         return $this;
     }
@@ -238,7 +238,7 @@ trait HasMiddleware
             array_unshift($this->middlewareGroups[$group], $middleware);
         }
 
-        $this->cachedMiddleware[] = [];
+        $this->cachedMiddleware = [];
 
         return $this;
     }
@@ -258,7 +258,7 @@ trait HasMiddleware
             $this->middlewareGroups[$group][] = $middleware;
         }
 
-        $this->cachedMiddleware[] = [];
+        $this->cachedMiddleware = [];
 
         return $this;
     }
@@ -272,7 +272,7 @@ trait HasMiddleware
             array_unshift($this->middlewarePriority, $middleware);
         }
 
-        $this->cachedMiddleware[] = [];
+        $this->cachedMiddleware = [];
 
         return $this;
     }
@@ -286,7 +286,63 @@ trait HasMiddleware
             $this->middlewarePriority[] = $middleware;
         }
 
-        $this->cachedMiddleware[] = [];
+        $this->cachedMiddleware = [];
+
+        return $this;
+    }
+
+    /**
+     * Add the given middleware to the middleware priority list before other middleware.
+     *
+     * @param array<int, string>|string $before
+     */
+    public function addToMiddlewarePriorityBefore(string|array $before, string $middleware): static
+    {
+        return $this->addToMiddlewarePriorityRelative($before, $middleware, after: false);
+    }
+
+    /**
+     * Add the given middleware to the middleware priority list after other middleware.
+     *
+     * @param array<int, string>|string $after
+     */
+    public function addToMiddlewarePriorityAfter(string|array $after, string $middleware): static
+    {
+        return $this->addToMiddlewarePriorityRelative($after, $middleware, after: true);
+    }
+
+    /**
+     * Add the given middleware to the middleware priority list relative to other middleware.
+     *
+     * @param array<int, string>|string $existing
+     */
+    protected function addToMiddlewarePriorityRelative(string|array $existing, string $middleware, bool $after = true): static
+    {
+        if (! in_array($middleware, $this->middlewarePriority)) {
+            $index = $after ? 0 : count($this->middlewarePriority);
+
+            foreach ((array) $existing as $existingMiddleware) {
+                if (in_array($existingMiddleware, $this->middlewarePriority)) {
+                    $middlewareIndex = array_search($existingMiddleware, $this->middlewarePriority);
+
+                    if ($after && $middlewareIndex > $index) {
+                        $index = $middlewareIndex + 1;
+                    } elseif ($after === false && $middlewareIndex < $index) {
+                        $index = $middlewareIndex;
+                    }
+                }
+            }
+
+            if ($index === 0 && $after === false) {
+                array_unshift($this->middlewarePriority, $middleware);
+            } elseif (($after && $index === 0) || $index === count($this->middlewarePriority)) {
+                $this->middlewarePriority[] = $middleware;
+            } else {
+                array_splice($this->middlewarePriority, $index, 0, $middleware);
+            }
+        }
+
+        $this->cachedMiddleware = [];
 
         return $this;
     }
@@ -314,7 +370,7 @@ trait HasMiddleware
     {
         $this->middleware = $middleware;
 
-        $this->cachedMiddleware[] = [];
+        $this->cachedMiddleware = [];
 
         return $this;
     }
@@ -334,7 +390,7 @@ trait HasMiddleware
     {
         $this->middlewareGroups = $groups;
 
-        $this->cachedMiddleware[] = [];
+        $this->cachedMiddleware = [];
 
         return $this;
     }
@@ -350,7 +406,7 @@ trait HasMiddleware
 
         $this->middlewareGroups[$group] = $middleware;
 
-        $this->cachedMiddleware[] = [];
+        $this->cachedMiddleware = [];
 
         return $this;
     }
@@ -370,7 +426,7 @@ trait HasMiddleware
     {
         $this->middlewareAliases = $aliases;
 
-        $this->cachedMiddleware[] = [];
+        $this->cachedMiddleware = [];
 
         return $this;
     }
@@ -382,7 +438,7 @@ trait HasMiddleware
     {
         $this->middlewarePriority = $priority;
 
-        $this->cachedMiddleware[] = [];
+        $this->cachedMiddleware = [];
 
         return $this;
     }
