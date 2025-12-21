@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Config;
 
+use Hyperf\Di\Definition\PriorityDefinition;
 use Hypervel\Config\ProviderConfig;
 use PHPUnit\Framework\TestCase;
 use ReflectionMethod;
@@ -532,6 +533,181 @@ class ProviderConfigTest extends TestCase
         $this->assertTrue($result['database']['connections']['sqlite']['foreign_key_constraints']);
         $this->assertSame(5432, $result['database']['connections']['pgsql']['port']);
         $this->assertSame(3306, $result['database']['connections']['mysql']['port']);
+    }
+
+    /**
+     * Test that PriorityDefinition objects are merged correctly.
+     *
+     * When multiple providers define the same dependency using PriorityDefinition,
+     * the definitions should be merged and the highest priority implementation wins.
+     */
+    public function testMergeDependenciesWithPriorityDefinition(): void
+    {
+        $configA = [
+            'dependencies' => [
+                'SomeInterface' => new PriorityDefinition('ImplementationA', 5),
+            ],
+        ];
+
+        $configB = [
+            'dependencies' => [
+                'SomeInterface' => new PriorityDefinition('ImplementationB', 10),
+            ],
+        ];
+
+        $result = $this->callMerge($configA, $configB);
+
+        // The result should be a PriorityDefinition
+        $this->assertArrayHasKey('SomeInterface', $result['dependencies']);
+        $definition = $result['dependencies']['SomeInterface'];
+        $this->assertInstanceOf(PriorityDefinition::class, $definition);
+
+        // Higher priority (10) should win when getting the definition
+        $this->assertSame('ImplementationB', $definition->getDefinition());
+
+        // Both implementations should be tracked in the definition
+        $dependencies = $definition->getDependencies();
+        $this->assertArrayHasKey('ImplementationA', $dependencies);
+        $this->assertArrayHasKey('ImplementationB', $dependencies);
+        $this->assertSame(5, $dependencies['ImplementationA']);
+        $this->assertSame(10, $dependencies['ImplementationB']);
+    }
+
+    /**
+     * Test merging three configs with PriorityDefinition.
+     *
+     * The implementation with the highest priority should win regardless of order.
+     */
+    public function testMergeThreeConfigsWithPriorityDefinition(): void
+    {
+        $configA = [
+            'dependencies' => [
+                'CacheInterface' => new PriorityDefinition('RedisCache', 10),
+            ],
+        ];
+
+        $configB = [
+            'dependencies' => [
+                'CacheInterface' => new PriorityDefinition('MemoryCache', 5),
+            ],
+        ];
+
+        $configC = [
+            'dependencies' => [
+                'CacheInterface' => new PriorityDefinition('FileCache', 15),
+            ],
+        ];
+
+        $result = $this->callMerge($configA, $configB, $configC);
+
+        $definition = $result['dependencies']['CacheInterface'];
+        $this->assertInstanceOf(PriorityDefinition::class, $definition);
+
+        // FileCache has highest priority (15), should win
+        $this->assertSame('FileCache', $definition->getDefinition());
+
+        // All three should be tracked
+        $dependencies = $definition->getDependencies();
+        $this->assertCount(3, $dependencies);
+        $this->assertSame(10, $dependencies['RedisCache']);
+        $this->assertSame(5, $dependencies['MemoryCache']);
+        $this->assertSame(15, $dependencies['FileCache']);
+    }
+
+    /**
+     * Test that plain dependency value followed by PriorityDefinition works.
+     *
+     * When a plain value is defined first and then a PriorityDefinition,
+     * the PriorityDefinition should take over.
+     */
+    public function testMergePlainDependencyThenPriorityDefinition(): void
+    {
+        $configA = [
+            'dependencies' => [
+                'LoggerInterface' => 'FileLogger',
+            ],
+        ];
+
+        $configB = [
+            'dependencies' => [
+                'LoggerInterface' => new PriorityDefinition('DatabaseLogger', 10),
+            ],
+        ];
+
+        $result = $this->callMerge($configA, $configB);
+
+        // The PriorityDefinition should take over
+        $definition = $result['dependencies']['LoggerInterface'];
+        $this->assertInstanceOf(PriorityDefinition::class, $definition);
+        $this->assertSame('DatabaseLogger', $definition->getDefinition());
+    }
+
+    /**
+     * Test that PriorityDefinition followed by plain value preserves PriorityDefinition.
+     *
+     * This is the intended Hyperf behavior: when a PriorityDefinition is defined first
+     * and a plain value comes later, the plain value is ignored because PriorityDefinition
+     * is only merged with other PriorityDefinitions.
+     */
+    public function testMergePriorityDefinitionThenPlainDependency(): void
+    {
+        $configA = [
+            'dependencies' => [
+                'LoggerInterface' => new PriorityDefinition('DatabaseLogger', 10),
+            ],
+        ];
+
+        $configB = [
+            'dependencies' => [
+                'LoggerInterface' => 'FileLogger',
+            ],
+        ];
+
+        $result = $this->callMerge($configA, $configB);
+
+        // The PriorityDefinition should be preserved (plain value ignored)
+        // This matches Hyperf's behavior - PriorityDefinition only merges with PriorityDefinition
+        $definition = $result['dependencies']['LoggerInterface'];
+        $this->assertInstanceOf(PriorityDefinition::class, $definition);
+        $this->assertSame('DatabaseLogger', $definition->getDefinition());
+    }
+
+    /**
+     * Test mixed dependencies - some plain, some with PriorityDefinition.
+     */
+    public function testMergeMixedDependencies(): void
+    {
+        $configA = [
+            'dependencies' => [
+                'CacheInterface' => new PriorityDefinition('RedisCache', 5),
+                'LoggerInterface' => 'FileLogger',
+                'QueueInterface' => 'SyncQueue',
+            ],
+        ];
+
+        $configB = [
+            'dependencies' => [
+                'CacheInterface' => new PriorityDefinition('MemoryCache', 10),
+                'LoggerInterface' => 'DatabaseLogger',
+                'MailerInterface' => 'SmtpMailer',
+            ],
+        ];
+
+        $result = $this->callMerge($configA, $configB);
+
+        // CacheInterface: PriorityDefinition merged, higher priority wins
+        $cacheDefinition = $result['dependencies']['CacheInterface'];
+        $this->assertInstanceOf(PriorityDefinition::class, $cacheDefinition);
+        $this->assertSame('MemoryCache', $cacheDefinition->getDefinition());
+
+        // LoggerInterface: Plain values, last wins
+        $this->assertSame('DatabaseLogger', $result['dependencies']['LoggerInterface']);
+
+        // QueueInterface: Only in first config, preserved
+        $this->assertSame('SyncQueue', $result['dependencies']['QueueInterface']);
+
+        // MailerInterface: Only in second config, added
+        $this->assertSame('SmtpMailer', $result['dependencies']['MailerInterface']);
     }
 
     /**
