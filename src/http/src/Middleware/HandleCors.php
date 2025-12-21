@@ -106,8 +106,6 @@ class HandleCors implements MiddlewareInterface
 
     /**
      * Get the Cors service instance.
-     *
-     * Override this method to provide a custom Cors instance.
      */
     protected function getCors(): Cors
     {
@@ -116,8 +114,6 @@ class HandleCors implements MiddlewareInterface
 
     /**
      * Get the CORS configuration.
-     *
-     * Override this method to provide custom CORS configuration.
      */
     protected function getCorsConfig(): array
     {
