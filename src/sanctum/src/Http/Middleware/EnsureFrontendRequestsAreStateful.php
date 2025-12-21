@@ -74,10 +74,6 @@ class EnsureFrontendRequestsAreStateful implements MiddlewareInterface
     /**
      * Get the domains that should be treated as stateful.
      *
-     * Override this method to dynamically determine stateful domains,
-     * for example in multi-tenant applications where each tenant has
-     * a different domain.
-     *
      * @return array<int, string>
      */
     public static function statefulDomains(): array

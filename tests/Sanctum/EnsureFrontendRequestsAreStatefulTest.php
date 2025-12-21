@@ -102,7 +102,7 @@ class EnsureFrontendRequestsAreStatefulTest extends TestCase
         $request = Mockery::mock(RequestInterface::class);
         $request->shouldReceive('header')
             ->with('referer')
-            ->andReturn('https://custom-tenant.example.com');
+            ->andReturn('https://custom.example.com');
         $request->shouldReceive('header')
             ->with('origin')
             ->andReturn(null);
@@ -122,6 +122,6 @@ class CustomStatefulMiddleware extends EnsureFrontendRequestsAreStateful
 {
     public static function statefulDomains(): array
     {
-        return ['custom-tenant.example.com'];
+        return ['custom.example.com'];
     }
 }

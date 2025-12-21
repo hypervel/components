@@ -203,10 +203,6 @@ class StartSession implements MiddlewareInterface
 
     /**
      * Get the session cookie domain.
-     *
-     * Override this method to dynamically set the session cookie domain,
-     * for example in multi-tenant applications where each tenant has
-     * a different domain.
      */
     protected function getSessionCookieDomain(array $config): string
     {
