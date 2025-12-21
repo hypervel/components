@@ -21,7 +21,14 @@ class ConfigFactory
 
         $rootConfig = $this->readConfig($configPath . '/hyperf.php');
         $autoloadConfig = $this->readPaths($loadPaths, ['hyperf.php']);
-        $merged = array_replace_recursive(ProviderConfig::load(), $rootConfig, ...$autoloadConfig);
+
+        // Merge all config sources: provider configs + root config + autoload configs
+        $allConfigs = [ProviderConfig::load(), $rootConfig, ...$autoloadConfig];
+        $merged = array_reduce(
+            array_slice($allConfigs, 1),
+            ProviderConfig::mergeTwo(...),
+            $allConfigs[0]
+        );
 
         return new Repository($merged);
     }
