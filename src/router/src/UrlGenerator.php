@@ -405,11 +405,11 @@ class UrlGenerator implements UrlGeneratorContract
     }
 
     /**
-     * Set the forced root URL.
+     * Set the URL origin for all generated URLs.
      *
      * This is stored in coroutine Context for request isolation.
      */
-    public function forceRootUrl(?string $root): void
+    public function useOrigin(?string $root): void
     {
         if ($root !== null) {
             Context::set('__url.forced_root', rtrim($root, '/'));
@@ -419,14 +419,6 @@ class UrlGenerator implements UrlGeneratorContract
 
         // Clear the cached root so it will be recalculated
         Context::destroy('__request.root.uri');
-    }
-
-    /**
-     * Set the URL origin for all generated URLs.
-     */
-    public function useOrigin(?string $root): void
-    {
-        $this->forceRootUrl($root);
     }
 
     /**

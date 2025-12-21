@@ -555,71 +555,6 @@ class UrlGeneratorTest extends TestCase
         Request::create($urlGenerator->signedRoute('foo', ['expires' => 253402300799]));
     }
 
-    public function testForceRootUrl()
-    {
-        $this->mockRequest();
-
-        $urlGenerator = new UrlGenerator($this->container);
-
-        // Test original URL
-        $this->assertEquals('http://example.com/foo', $urlGenerator->to('foo'));
-
-        // Test forcing root URL
-        $urlGenerator->forceRootUrl('https://tenant.example.com');
-        $this->assertEquals('http://tenant.example.com/foo', $urlGenerator->to('foo'));
-
-        // Test with secure
-        $this->assertEquals('https://tenant.example.com/foo', $urlGenerator->to('foo', [], true));
-
-        // Test forcing different root
-        $urlGenerator->forceRootUrl('https://other-tenant.example.com');
-        $this->assertEquals('http://other-tenant.example.com/bar', $urlGenerator->to('bar'));
-
-        // Test clearing forced root (passing null)
-        $urlGenerator->forceRootUrl(null);
-        $this->assertEquals('http://example.com/baz', $urlGenerator->to('baz'));
-    }
-
-    public function testForceRootUrlWithTrailingSlash()
-    {
-        $this->mockRequest();
-
-        $urlGenerator = new UrlGenerator($this->container);
-
-        // Test forcing root URL with trailing slash (should be trimmed)
-        $urlGenerator->forceRootUrl('https://tenant.example.com/');
-        $this->assertEquals('http://tenant.example.com/foo', $urlGenerator->to('foo'));
-    }
-
-    public function testForceRootUrlWithSchemeOverride()
-    {
-        $this->mockRequest();
-
-        $urlGenerator = new UrlGenerator($this->container);
-
-        // Force root with https, but use http scheme in to()
-        $urlGenerator->forceRootUrl('https://tenant.example.com');
-        $this->assertEquals('http://tenant.example.com/foo', $urlGenerator->to('foo', [], false));
-
-        // Force root with http, but use https scheme in to()
-        $urlGenerator->forceRootUrl('http://tenant.example.com');
-        $this->assertEquals('https://tenant.example.com/foo', $urlGenerator->to('foo', [], true));
-    }
-
-    public function testForceRootUrlAffectsAsset()
-    {
-        $this->mockRequest();
-
-        $urlGenerator = new UrlGenerator($this->container);
-
-        // Test original asset URL
-        $this->assertEquals('http://example.com/css/app.css', $urlGenerator->asset('css/app.css'));
-
-        // Test forcing root URL affects asset generation
-        $urlGenerator->forceRootUrl('https://tenant.example.com');
-        $this->assertEquals('http://tenant.example.com/css/app.css', $urlGenerator->asset('css/app.css'));
-    }
-
     public function testUseOrigin()
     {
         $this->mockRequest();
@@ -629,16 +564,63 @@ class UrlGeneratorTest extends TestCase
         // Test original URL
         $this->assertEquals('http://example.com/foo', $urlGenerator->to('foo'));
 
-        // Test using useOrigin (should behave same as forceRootUrl)
+        // Test forcing root URL
         $urlGenerator->useOrigin('https://tenant.example.com');
         $this->assertEquals('http://tenant.example.com/foo', $urlGenerator->to('foo'));
 
-        // Test clearing with useOrigin
+        // Test with secure
+        $this->assertEquals('https://tenant.example.com/foo', $urlGenerator->to('foo', [], true));
+
+        // Test forcing different root
+        $urlGenerator->useOrigin('https://other-tenant.example.com');
+        $this->assertEquals('http://other-tenant.example.com/bar', $urlGenerator->to('bar'));
+
+        // Test clearing forced root (passing null)
         $urlGenerator->useOrigin(null);
-        $this->assertEquals('http://example.com/foo', $urlGenerator->to('foo'));
+        $this->assertEquals('http://example.com/baz', $urlGenerator->to('baz'));
     }
 
-    public function testForceRootUrlClearsCache()
+    public function testUseOriginWithTrailingSlash()
+    {
+        $this->mockRequest();
+
+        $urlGenerator = new UrlGenerator($this->container);
+
+        // Test forcing root URL with trailing slash (should be trimmed)
+        $urlGenerator->useOrigin('https://tenant.example.com/');
+        $this->assertEquals('http://tenant.example.com/foo', $urlGenerator->to('foo'));
+    }
+
+    public function testUseOriginWithSchemeOverride()
+    {
+        $this->mockRequest();
+
+        $urlGenerator = new UrlGenerator($this->container);
+
+        // Force root with https, but use http scheme in to()
+        $urlGenerator->useOrigin('https://tenant.example.com');
+        $this->assertEquals('http://tenant.example.com/foo', $urlGenerator->to('foo', [], false));
+
+        // Force root with http, but use https scheme in to()
+        $urlGenerator->useOrigin('http://tenant.example.com');
+        $this->assertEquals('https://tenant.example.com/foo', $urlGenerator->to('foo', [], true));
+    }
+
+    public function testUseOriginAffectsAsset()
+    {
+        $this->mockRequest();
+
+        $urlGenerator = new UrlGenerator($this->container);
+
+        // Test original asset URL
+        $this->assertEquals('http://example.com/css/app.css', $urlGenerator->asset('css/app.css'));
+
+        // Test forcing root URL affects asset generation
+        $urlGenerator->useOrigin('https://tenant.example.com');
+        $this->assertEquals('http://tenant.example.com/css/app.css', $urlGenerator->asset('css/app.css'));
+    }
+
+    public function testUseOriginClearsCache()
     {
         $this->mockRequest();
 
@@ -648,8 +630,8 @@ class UrlGeneratorTest extends TestCase
         $this->assertEquals('http://example.com/foo', $urlGenerator->to('foo'));
         $this->assertNotNull(Context::get('__request.root.uri'));
 
-        // Force root URL should clear the cache
-        $urlGenerator->forceRootUrl('https://tenant.example.com');
+        // useOrigin should clear the cache
+        $urlGenerator->useOrigin('https://tenant.example.com');
         $this->assertNull(Context::get('__request.root.uri'));
 
         // New URL should use forced root
