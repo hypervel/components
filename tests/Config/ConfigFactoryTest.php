@@ -177,10 +177,11 @@ class ConfigFactoryTest extends TestCase
     }
 
     /**
-     * Use ProviderConfig::merge() since ConfigFactory uses the same merge logic.
+     * Simulate ConfigFactory's merge behavior using ProviderConfig::merge().
      *
-     * Both ConfigFactory and ProviderConfig need identical merge semantics,
-     * so we test the shared behavior via ProviderConfig's merge method.
+     * ConfigFactory uses ProviderConfig::mergeTwo() directly for merging.
+     * We test via ProviderConfig::merge() which uses the same mergeTwo() method
+     * internally, ensuring identical merge semantics.
      */
     private function mergeConfigs(array ...$configs): array
     {

@@ -711,6 +711,50 @@ class ProviderConfigTest extends TestCase
     }
 
     /**
+     * Test that mergeTwo() is callable as a public static method.
+     *
+     * This method is public so ConfigFactory can use the same merge semantics
+     * without duplicating the implementation.
+     */
+    public function testMergeTwoIsPublicAndWorksDirectly(): void
+    {
+        $base = [
+            'commands' => ['CommandA', 'CommandB'],
+            'database' => [
+                'default' => 'sqlite',
+                'connections' => [
+                    'sqlite' => ['driver' => 'sqlite'],
+                ],
+            ],
+        ];
+
+        $override = [
+            'commands' => ['CommandC'],
+            'database' => [
+                'default' => 'pgsql',
+                'connections' => [
+                    'pgsql' => ['driver' => 'pgsql', 'host' => 'localhost'],
+                ],
+            ],
+        ];
+
+        // Call directly without reflection - this verifies it's public
+        $result = ProviderConfig::mergeTwo($base, $override);
+
+        // Numeric arrays are combined
+        $this->assertSame(['CommandA', 'CommandB', 'CommandC'], $result['commands']);
+
+        // Scalar values are overridden
+        $this->assertSame('pgsql', $result['database']['default']);
+
+        // Nested arrays are merged recursively
+        $this->assertArrayHasKey('sqlite', $result['database']['connections']);
+        $this->assertArrayHasKey('pgsql', $result['database']['connections']);
+        $this->assertSame('sqlite', $result['database']['connections']['sqlite']['driver']);
+        $this->assertSame('pgsql', $result['database']['connections']['pgsql']['driver']);
+    }
+
+    /**
      * Call the protected merge method via reflection.
      */
     private function callMerge(array ...$arrays): array

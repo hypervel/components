@@ -132,8 +132,17 @@ class ProviderConfig extends HyperfProviderConfig
 
     /**
      * Merge two config arrays.
+     *
+     * Correctly handles:
+     * - Pure lists (numeric keys): appends values with deduplication
+     * - Associative arrays (string keys): recursively merges, later wins for scalars
+     * - Mixed arrays (e.g. listeners with priorities): appends numeric, merges string keys
+     *
+     * This method is public so ConfigFactory can use the same merge semantics.
+     *
+     * @return array<string, mixed>
      */
-    private static function mergeTwo(array $base, array $override): array
+    public static function mergeTwo(array $base, array $override): array
     {
         $result = $base;
 
