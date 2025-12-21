@@ -137,10 +137,6 @@ class ProviderConfigTest extends TestCase
      * Hyperf's listener config uses a mixed pattern where:
      * - Simple listeners are numeric-keyed: ['ListenerA', 'ListenerB']
      * - Listeners with priority use string keys: ['PriorityListener' => 99]
-     *
-     * This is a regression test for a bug where Arr::merge would treat
-     * the mixed array as a list and lose the string keys, resulting in
-     * just the priority value (99) being appended without its class name.
      */
     public function testMergePreservesListenersWithPriority(): void
     {
@@ -334,7 +330,7 @@ class ProviderConfigTest extends TestCase
     /**
      * Test that duplicate values in numeric arrays are deduplicated.
      *
-     * Arr::merge deduplicates by default, which prevents listeners
+     *  The merge logic deduplicates by default, which prevents listeners
      * from firing twice when multiple providers include the same class.
      */
     public function testMergeDeduplicatesNumericArrays(): void
