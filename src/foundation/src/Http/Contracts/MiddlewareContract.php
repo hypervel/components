@@ -60,6 +60,20 @@ interface MiddlewareContract
     public function appendToMiddlewarePriority(string $middleware): static;
 
     /**
+     * Add the given middleware to the middleware priority list before other middleware.
+     *
+     * @param array<int, string>|string $before
+     */
+    public function addToMiddlewarePriorityBefore(string|array $before, string $middleware): static;
+
+    /**
+     * Add the given middleware to the middleware priority list after other middleware.
+     *
+     * @param array<int, string>|string $after
+     */
+    public function addToMiddlewarePriorityAfter(string|array $after, string $middleware): static;
+
+    /**
      * Get the priority-sorted list of middleware.
      */
     public function getMiddlewarePriority(): array;
