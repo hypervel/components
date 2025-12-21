@@ -184,17 +184,19 @@ class StartSession implements MiddlewareInterface
             return $response;
         }
 
+        $cookieConfig = $this->getSessionCookieConfig($config);
+
         $cookie = new Cookie(
             $session->getName(),
             $session->getId(),
             $this->getCookieExpirationDate(),
-            $config['path'] ?? '/',
-            $this->getSessionCookieDomain($config),
-            $config['secure'] ?? false,
-            $config['http_only'] ?? true,
+            $cookieConfig['path'],
+            $cookieConfig['domain'],
+            $cookieConfig['secure'],
+            $cookieConfig['http_only'],
             false,
-            $config['same_site'] ?? null,
-            $config['partitioned'] ?? false
+            $cookieConfig['same_site'],
+            $cookieConfig['partitioned']
         );
 
         /** @var \Hyperf\HttpMessage\Server\Response $response */
@@ -202,11 +204,20 @@ class StartSession implements MiddlewareInterface
     }
 
     /**
-     * Get the session cookie domain.
+     * Get the session cookie configuration.
+     *
+     * @return array{path: string, domain: string, secure: bool, http_only: bool, same_site: ?string, partitioned: bool}
      */
-    protected function getSessionCookieDomain(array $config): string
+    protected function getSessionCookieConfig(array $config): array
     {
-        return $config['domain'] ?? '';
+        return [
+            'path' => $config['path'] ?? '/',
+            'domain' => $config['domain'] ?? '',
+            'secure' => $config['secure'] ?? false,
+            'http_only' => $config['http_only'] ?? true,
+            'same_site' => $config['same_site'] ?? null,
+            'partitioned' => $config['partitioned'] ?? false,
+        ];
     }
 
     /**
