@@ -64,7 +64,6 @@ class BroadcastManagerTest extends TestCase
         m::close();
 
         Facade::clearResolvedInstances();
-        VerifyCsrfToken::flushState();
     }
 
     public function testEventCanBeBroadcastNow()
@@ -122,10 +121,17 @@ class BroadcastManagerTest extends TestCase
         $broadcastManager->connection('alien_connection');
     }
 
-    public function testRoutesExcludesCsrfVerification()
+    public function testRoutesExcludesCsrfMiddleware(): void
     {
+        $capturedAttributes = null;
+
         $router = m::mock('router');
-        $router->shouldReceive('addRoute')->once();
+        $router->shouldReceive('addRoute')
+            ->once()
+            ->withArgs(function ($methods, $path, $handler, $attributes) use (&$capturedAttributes) {
+                $capturedAttributes = $attributes;
+                return true;
+            });
 
         $routerFactory = m::mock('routerFactory');
         $routerFactory->shouldReceive('getRouter')
@@ -145,19 +151,21 @@ class BroadcastManagerTest extends TestCase
         $broadcastManager = new BroadcastManager($app);
         $broadcastManager->routes();
 
-        // Verify the broadcasting/auth path is excluded from CSRF verification
-        $middleware = new VerifyCsrfToken(
-            m::mock(ContainerInterface::class),
-            m::mock(ConfigInterface::class),
-            m::mock(\Hyperf\HttpServer\Request::class)
-        );
-        $this->assertContains('broadcasting/auth', $middleware->getExcludedPaths());
+        $this->assertSame(['web'], $capturedAttributes['middleware']);
+        $this->assertSame([VerifyCsrfToken::class], $capturedAttributes['without_middleware']);
     }
 
-    public function testUserRoutesExcludesCsrfVerification()
+    public function testUserRoutesExcludesCsrfMiddleware(): void
     {
+        $capturedAttributes = null;
+
         $router = m::mock('router');
-        $router->shouldReceive('addRoute')->once();
+        $router->shouldReceive('addRoute')
+            ->once()
+            ->withArgs(function ($methods, $path, $handler, $attributes) use (&$capturedAttributes) {
+                $capturedAttributes = $attributes;
+                return true;
+            });
 
         $routerFactory = m::mock('routerFactory');
         $routerFactory->shouldReceive('getRouter')
@@ -169,13 +177,8 @@ class BroadcastManagerTest extends TestCase
         $broadcastManager = new BroadcastManager($app);
         $broadcastManager->userRoutes();
 
-        // Verify the broadcasting/user-auth path is excluded from CSRF verification
-        $middleware = new VerifyCsrfToken(
-            m::mock(ContainerInterface::class),
-            m::mock(ConfigInterface::class),
-            m::mock(\Hyperf\HttpServer\Request::class)
-        );
-        $this->assertContains('broadcasting/user-auth', $middleware->getExcludedPaths());
+        $this->assertSame(['web'], $capturedAttributes['middleware']);
+        $this->assertSame([VerifyCsrfToken::class], $capturedAttributes['without_middleware']);
     }
 }
 

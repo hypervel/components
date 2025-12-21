@@ -74,12 +74,11 @@ class BroadcastManager implements BroadcastingFactoryContract
     public function routes(array $attributes = []): void
     {
         if ($this->app->has(Kernel::class)) {
-            $attributes = $attributes ?: ['middleware' => ['web']];
+            $attributes = $attributes ?: [
+                'middleware' => ['web'],
+                'without_middleware' => [VerifyCsrfToken::class],
+            ];
         }
-
-        // Exclude from CSRF verification. These routes receive POST requests
-        // from Pusher JavaScript clients which cannot include CSRF tokens.
-        VerifyCsrfToken::except(['broadcasting/auth']);
 
         $kernels = $this->app->get(ConfigInterface::class)
             ->get('server.kernels', []);
@@ -100,11 +99,10 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function userRoutes(?array $attributes = null): void
     {
-        $attributes = $attributes ?: ['middleware' => ['web']];
-
-        // Exclude from CSRF verification. These routes receive POST requests
-        // from Pusher JavaScript clients which cannot include CSRF tokens.
-        VerifyCsrfToken::except(['broadcasting/user-auth']);
+        $attributes = $attributes ?: [
+            'middleware' => ['web'],
+            'without_middleware' => [VerifyCsrfToken::class],
+        ];
 
         $this->app->get(RouterDispatcherFactory::class)->getRouter()
             ->addRoute(
