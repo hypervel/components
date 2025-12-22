@@ -17,6 +17,7 @@ use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\HttpServer\Router\DispatcherFactory;
 use Hyperf\Server\Exception\ServerException;
 use Hyperf\View\RenderInterface;
+use Hyperf\ViewEngine\Contract\Htmlable;
 use Hyperf\ViewEngine\Contract\Renderable;
 use Hyperf\ViewEngine\Contract\ViewInterface;
 use Hypervel\Context\ResponseContext;
@@ -63,6 +64,12 @@ class CoreMiddleware implements CoreMiddlewareInterface
             return $this->response()
                 ->setHeader('Content-Type', $this->container->get(RenderInterface::class)->getContentType())
                 ->setBody(new SwooleStream($response->render()));
+        }
+
+        if ($response instanceof Htmlable) {
+            return $this->response()
+                ->addHeader('content-type', 'text/html')
+                ->setBody(new SwooleStream((string) $response));
         }
 
         if (is_string($response)) {
