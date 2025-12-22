@@ -7,6 +7,8 @@ namespace Hypervel\Foundation\Http\Traits;
 use Hyperf\HttpServer\MiddlewareManager;
 use Hyperf\HttpServer\Router\Dispatched;
 use Hypervel\Dispatcher\ParsedMiddleware;
+use Hypervel\Router\Exceptions\InvalidMiddlewareExclusionException;
+use Hypervel\Router\MiddlewareExclusionManager;
 use InvalidArgumentException;
 use Psr\Http\Message\ServerRequestInterface;
 
@@ -64,11 +66,7 @@ trait HasMiddleware
     public function getMiddlewareForRequest(ServerRequestInterface $request): array
     {
         $dispatched = $request->getAttribute(Dispatched::class);
-
         $dispatchFound = $dispatched->isFound();
-        $registeredMiddleware = $dispatchFound
-            ? MiddlewareManager::get($this->serverName, $dispatched->handler->route, $request->getMethod())
-            : [];
 
         $cacheKey = $dispatchFound
             ? "{$this->serverName}_{$dispatched->handler->route}_{$request->getMethod()}"
@@ -78,8 +76,18 @@ trait HasMiddleware
             return $cache;
         }
 
+        // Fetch registered and excluded middleware only on cache miss
+        $registeredMiddleware = $dispatchFound
+            ? MiddlewareManager::get($this->serverName, $dispatched->handler->route, $request->getMethod())
+            : [];
+
+        $excludedMiddleware = $dispatchFound
+            ? MiddlewareExclusionManager::get($this->serverName, $dispatched->handler->route, $request->getMethod())
+            : [];
+
         $middleware = $this->resolveMiddleware(
-            array_merge($this->middleware, $registeredMiddleware)
+            array_merge($this->middleware, $registeredMiddleware),
+            $excludedMiddleware
         );
 
         if ($middleware && $this->middlewarePriority) {
@@ -89,7 +97,14 @@ trait HasMiddleware
         return $this->cachedMiddleware[$cacheKey] = $middleware;
     }
 
-    protected function resolveMiddleware(array $middlewares): array
+    /**
+     * Resolve middleware, expanding groups and aliases, then applying exclusions.
+     *
+     * @param array $middlewares The middleware to resolve
+     * @param array $excluded The middleware to exclude (applied after group expansion)
+     * @return ParsedMiddleware[]
+     */
+    protected function resolveMiddleware(array $middlewares, array $excluded = []): array
     {
         $resolved = [];
         foreach ($middlewares as $middleware) {
@@ -119,7 +134,59 @@ trait HasMiddleware
             $resolved[$signature] = $parsedMiddleware;
         }
 
+        // Apply exclusions after group expansion
+        if ($excluded) {
+            $expandedExcluded = $this->expandExcludedMiddleware($excluded);
+            $resolved = array_filter(
+                $resolved,
+                fn (ParsedMiddleware $m) => ! in_array($m->getName(), $expandedExcluded, true)
+            );
+        }
+
         return array_values($resolved);
+    }
+
+    /**
+     * Expand excluded middleware, resolving aliases and groups to class names.
+     *
+     * @param array $excluded The middleware to exclude
+     * @return string[] The expanded list of middleware class names to exclude
+     * @throws InvalidMiddlewareExclusionException If exclusion contains parameters
+     */
+    protected function expandExcludedMiddleware(array $excluded): array
+    {
+        $expanded = [];
+
+        foreach ($excluded as $middleware) {
+            // Parameters don't belong in exclusions - you're excluding the middleware entirely
+            if (str_contains($middleware, ':')) {
+                throw new InvalidMiddlewareExclusionException($middleware);
+            }
+
+            // Check if it's an alias
+            if (isset($this->middlewareAliases[$middleware])) {
+                $expanded[] = $this->middlewareAliases[$middleware];
+                continue;
+            }
+
+            // Check if it's a group - expand all middleware in the group
+            if (isset($this->middlewareGroups[$middleware])) {
+                foreach ($this->middlewareGroups[$middleware] as $groupMiddleware) {
+                    // Resolve alias within group
+                    if (isset($this->middlewareAliases[$groupMiddleware])) {
+                        $expanded[] = $this->middlewareAliases[$groupMiddleware];
+                    } else {
+                        $expanded[] = $groupMiddleware;
+                    }
+                }
+                continue;
+            }
+
+            // It's a class name
+            $expanded[] = $middleware;
+        }
+
+        return $expanded;
     }
 
     protected function sortMiddleware(array $middlewares): array
