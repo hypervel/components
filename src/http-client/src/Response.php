@@ -98,6 +98,10 @@ class Response implements ArrayAccess, Stringable
 
     /**
      * Set a custom decode callback.
+     *
+     * The callback will be invoked with the following parameters:
+     * - string $body: The raw response body.
+     * - bool   $asObject: When true, the decoder should return an array of objects.
      */
     public function decodeUsing(?Closure $callback): static
     {
