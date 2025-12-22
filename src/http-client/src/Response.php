@@ -34,6 +34,11 @@ class Response implements ArrayAccess, Stringable
     protected array $decoded = [];
 
     /**
+     * The custom decode callback.
+     */
+    protected ?Closure $decodeUsing = null;
+
+    /**
      * The request cookies.
      */
     public ?CookieJar $cookies = null;
@@ -64,7 +69,7 @@ class Response implements ArrayAccess, Stringable
     public function json(?string $key = null, mixed $default = null): mixed
     {
         if (! $this->decoded) {
-            $this->decoded = json_decode($this->body(), true) ?? [];
+            $this->decoded = $this->decode($this->body());
         }
 
         if (is_null($key)) {
@@ -88,7 +93,29 @@ class Response implements ArrayAccess, Stringable
      */
     public function object(): array|object|null
     {
-        return json_decode($this->body(), false);
+        return $this->decode($this->body(), true);
+    }
+
+    /**
+     * Set a custom decode callback.
+     */
+    public function decodeUsing(?Closure $callback): static
+    {
+        $this->decodeUsing = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Decode the given response body.
+     */
+    protected function decode(string $body, bool $asObject = false): array|object|null
+    {
+        if ($this->decodeUsing instanceof Closure) {
+            return ($this->decodeUsing)($body, $asObject);
+        }
+
+        return json_decode($body, ! $asObject);
     }
 
     /**
