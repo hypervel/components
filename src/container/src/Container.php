@@ -106,7 +106,7 @@ class Container extends HyperfContainer implements ContainerContract, ArrayAcces
      * @throws \Hyperf\Di\Exception\NotFoundException no entry found for the given name
      * @throws InvalidArgumentException the name parameter must be of type string
      */
-    public function make(string $name, array $parameters = [])
+    public function make(string $name, array $parameters = []): mixed
     {
         if ($this->isAlias($name)) {
             $name = $this->getAlias($name);
@@ -134,9 +134,9 @@ class Container extends HyperfContainer implements ContainerContract, ArrayAcces
     /**
      * Finds an entry of the container by its identifier and returns it.
      *
-     * @param string $id identifier of the entry to look for
+     * @param mixed $id identifier of the entry to look for
      */
-    public function get($id)
+    public function get($id): mixed
     {
         if ($this->isAlias($id)) {
             $id = $this->getAlias($id);
