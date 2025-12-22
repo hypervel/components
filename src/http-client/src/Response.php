@@ -106,6 +106,7 @@ class Response implements ArrayAccess, Stringable
     public function decodeUsing(?Closure $callback): static
     {
         $this->decodeUsing = $callback;
+        $this->decoded = [];
 
         return $this;
     }
