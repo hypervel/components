@@ -124,7 +124,7 @@ class ViewServiceProvider extends ServiceProvider
     protected function registerFileEngine(EngineResolver $resolver): void
     {
         $resolver->register('file', function () {
-            return new FileEngine(Container::getInstance()->make('files'));
+            return new FileEngine(Container::getInstance()->get('files'));
         });
     }
 
@@ -134,7 +134,7 @@ class ViewServiceProvider extends ServiceProvider
     protected function registerPhpEngine(EngineResolver $resolver): void
     {
         $resolver->register('php', function () {
-            return new PhpEngine(Container::getInstance()->make('files'));
+            return new PhpEngine(Container::getInstance()->get('files'));
         });
     }
 
@@ -147,8 +147,8 @@ class ViewServiceProvider extends ServiceProvider
             $app = Container::getInstance();
 
             $compiler = new CompilerEngine(
-                $app->make('blade.compiler'),
-                $app->make('files'),
+                $app->get('blade.compiler'),
+                $app->get('files'),
             );
 
             return $compiler;

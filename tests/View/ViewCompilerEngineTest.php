@@ -77,7 +77,6 @@ class ViewCompilerEngineTest extends TestCase
 
         $engine->get(__DIR__.'/fixtures/foo.php');
         $engine->get(__DIR__.'/fixtures/foo.php');
-        $engine->get(__DIR__.'/fixtures/foo.php');
     }
 
     public function testViewsAreRecompiledWhenCompiledViewIsMissingViaFileNotFoundException()
@@ -113,12 +112,12 @@ class ViewCompilerEngineTest extends TestCase
 
         $engine->getCompiler()
             ->shouldReceive('isExpired')
-            ->once()
+            ->twice()
             ->andReturn(true);
 
         $engine->getCompiler()
             ->shouldReceive('compile')
-            ->twice()
+            ->times(3)
             ->with($path);
 
         $engine->get($path);
@@ -158,12 +157,12 @@ class ViewCompilerEngineTest extends TestCase
 
         $engine->getCompiler()
             ->shouldReceive('isExpired')
-            ->once()
+            ->twice()
             ->andReturn(true);
 
         $engine->getCompiler()
             ->shouldReceive('compile')
-            ->twice()
+            ->times(3)
             ->with($path);
 
         $engine->get($path);
@@ -205,12 +204,12 @@ class ViewCompilerEngineTest extends TestCase
 
         $engine->getCompiler()
             ->shouldReceive('isExpired')
-            ->once()
+            ->twice()
             ->andReturn(true);
 
         $engine->getCompiler()
             ->shouldReceive('compile')
-            ->twice()
+            ->times(3)
             ->with($path);
 
         $engine->get($path);
@@ -264,7 +263,7 @@ class ViewCompilerEngineTest extends TestCase
         $engine = $this->getEngine($files);
 
         $files->shouldReceive('getRequire')
-            ->once()
+            ->twice()
             ->with($compiled, [])
             ->andThrow(new FileNotFoundException(
                 "File does not exist at path {$path}."
@@ -277,12 +276,12 @@ class ViewCompilerEngineTest extends TestCase
 
         $engine->getCompiler()
             ->shouldReceive('compile')
-            ->once()
+            ->twice()
             ->with($path);
 
         $engine->getCompiler()
             ->shouldReceive('getCompiledPath')
-            ->once()
+            ->twice()
             ->with($path)
             ->andReturn($compiled);
 

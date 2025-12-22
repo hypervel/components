@@ -13,6 +13,7 @@ use Hypervel\Support\Contracts\Renderable;
 use Hypervel\View\Contracts\Engine;
 use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\Support\Collection;
+use Hypervel\Support\HtmlString;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
@@ -47,11 +48,13 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
     /**
      * Get the evaluated contents of a given fragment.
      */
-    public function fragment(string $fragment): string
+    public function fragment(string $fragment): HtmlString
     {
-        return $this->render(function () use ($fragment) {
+        $content = $this->render(function () use ($fragment) {
             return $this->factory->getFragment($fragment);
         });
+
+        return new HtmlString($content);
     }
 
     /**
