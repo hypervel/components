@@ -134,7 +134,7 @@ class Container extends HyperfContainer implements ContainerContract, ArrayAcces
     /**
      * Finds an entry of the container by its identifier and returns it.
      *
-     * @param mixed $id identifier of the entry to look for
+     * @param string $id identifier of the entry to look for
      */
     public function get($id): mixed
     {
