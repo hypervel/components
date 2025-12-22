@@ -7,19 +7,42 @@ namespace Hypervel\View\Compilers;
 use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
-use Hypervel\Support\Contracts\Htmlable;
-use Hypervel\View\Contracts\Factory as ViewFactory;
-use Hypervel\View\Contracts\View;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Traits\ReflectsClosures;
 use Hypervel\View\Component;
+use Hypervel\View\Contracts\Factory as ViewFactory;
+use Hypervel\View\Contracts\View;
 use InvalidArgumentException;
 
 class BladeCompiler extends Compiler implements CompilerInterface
 {
+    use Concerns\CompilesAuthorizations;
+    use Concerns\CompilesClasses;
+    use Concerns\CompilesComments;
+    use Concerns\CompilesComponents;
+    use Concerns\CompilesConditionals;
+    use Concerns\CompilesEchos;
+    use Concerns\CompilesErrors;
+    use Concerns\CompilesFragments;
+    use Concerns\CompilesHelpers;
+    use Concerns\CompilesIncludes;
+    use Concerns\CompilesInjections;
+    use Concerns\CompilesJson;
+    use Concerns\CompilesJs;
+    use Concerns\CompilesLayouts;
+    use Concerns\CompilesLoops;
+    use Concerns\CompilesRawPhp;
+    use Concerns\CompilesSessions;
+    use Concerns\CompilesStacks;
+    use Concerns\CompilesStyles;
+    use Concerns\CompilesTranslations;
+    use Concerns\CompilesUseStatements;
+    use ReflectsClosures;
+
     /*
      * Temporarily store the raw blocks found in the template.
      */
@@ -34,29 +57,6 @@ class BladeCompiler extends Compiler implements CompilerInterface
      * The "regular" / legacy echo string format.
      */
     protected const ECHO_FORMAT_CONTEXT_KEY = 'echo_format';
-
-    use Concerns\CompilesAuthorizations,
-        Concerns\CompilesClasses,
-        Concerns\CompilesComments,
-        Concerns\CompilesComponents,
-        Concerns\CompilesConditionals,
-        Concerns\CompilesEchos,
-        Concerns\CompilesErrors,
-        Concerns\CompilesFragments,
-        Concerns\CompilesHelpers,
-        Concerns\CompilesIncludes,
-        Concerns\CompilesInjections,
-        Concerns\CompilesJson,
-        Concerns\CompilesJs,
-        Concerns\CompilesLayouts,
-        Concerns\CompilesLoops,
-        Concerns\CompilesRawPhp,
-        Concerns\CompilesSessions,
-        Concerns\CompilesStacks,
-        Concerns\CompilesStyles,
-        Concerns\CompilesTranslations,
-        Concerns\CompilesUseStatements,
-        ReflectsClosures;
 
     /**
      * All of the registered extensions.
@@ -172,7 +172,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
             $contents .= ' ?>';
         }
 
-        return $contents."<?php /**PATH {$path} ENDPATH**/ ?>";
+        return $contents . "<?php /**PATH {$path} ENDPATH**/ ?>";
     }
 
     /**
@@ -247,8 +247,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     public static function render(string $string, array $data = [], bool $deleteCachedView = false): string
     {
-        $component = new class($string) extends Component
-        {
+        $component = new class($string) extends Component {
             protected $template;
 
             public function __construct($template)
@@ -284,14 +283,14 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
         if ($view instanceof View) {
             return $view->with($data)->render();
-        } elseif ($view instanceof Htmlable) {
-            return $view->toHtml();
-        } else {
-            return Container::getInstance()
-                ->make(ViewFactory::class)
-                ->make($view, $data)
-                ->render();
         }
+        if ($view instanceof Htmlable) {
+            return $view->toHtml();
+        }
+        return Container::getInstance()
+            ->make(ViewFactory::class)
+            ->make($view, $data)
+            ->render();
     }
 
     /**
@@ -316,7 +315,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
     protected function storeVerbatimBlocks(string $value): string
     {
         return preg_replace_callback('/(?<!@)@verbatim(\s*)(.*?)@endverbatim/s', function ($matches) {
-            return $matches[1].$this->storeRawBlock($matches[2]);
+            return $matches[1] . $this->storeRawBlock($matches[2]);
         }, $value);
     }
 
@@ -343,7 +342,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
     /**
      * Temporarily store the raw block found in the template.
      *
-     * @return int The number of raw blocks in the stack after pushing the new one.
+     * @return int the number of raw blocks in the stack after pushing the new one
      */
     protected function pushRawBlock(string $value): int
     {
@@ -364,7 +363,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
         }
 
         return (new ComponentTagCompiler(
-            $this->classComponentAliases, $this->classComponentNamespaces, $this
+            $this->classComponentAliases,
+            $this->classComponentNamespaces,
+            $this
         ))->compile($value);
     }
 
@@ -375,7 +376,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
     {
         $rawBlocks = Context::get(static::RAW_BLOCKS_CONTEXT_KEY);
 
-        $result = preg_replace_callback('/'.$this->getRawPlaceholder('(\d+)').'/', function ($matches) use ($rawBlocks) {
+        $result = preg_replace_callback('/' . $this->getRawPlaceholder('(\d+)') . '/', function ($matches) use ($rawBlocks) {
             return $rawBlocks[$matches[1]];
         }, $result);
 
@@ -398,7 +399,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
     protected function addFooters(string $result, array $footer): string
     {
         return ltrim($result, "\n")
-                ."\n".implode("\n", array_reverse($footer));
+                . "\n" . implode("\n", array_reverse($footer));
     }
 
     /**
@@ -438,7 +439,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
         $offset = 0;
 
-        for ($i = 0; isset($matches[0][$i]); $i++) {
+        for ($i = 0; isset($matches[0][$i]); ++$i) {
             $match = [
                 $matches[0][$i],
                 $matches[1][$i],
@@ -450,23 +451,23 @@ class BladeCompiler extends Compiler implements CompilerInterface
             // Here we check to see if we have properly found the closing parenthesis by
             // regex pattern or not, and will recursively continue on to the next ")"
             // then check again until the tokenizer confirms we find the right one.
-            while (isset($match[4]) &&
-                   Str::endsWith($match[0], ')') &&
-                   ! $this->hasEvenNumberOfParentheses($match[0])) {
+            while (isset($match[4])
+                   && Str::endsWith($match[0], ')')
+                   && ! $this->hasEvenNumberOfParentheses($match[0])) {
                 if (($after = Str::after($template, $match[0])) === $template) {
                     break;
                 }
 
                 $rest = Str::before($after, ')');
 
-                if (isset($matches[0][$i + 1]) && Str::contains($rest.')', $matches[0][$i + 1])) {
+                if (isset($matches[0][$i + 1]) && Str::contains($rest . ')', $matches[0][$i + 1])) {
                     unset($matches[0][$i + 1]);
-                    $i++;
+                    ++$i;
                 }
 
-                $match[0] = $match[0].$rest.')';
-                $match[3] = $match[3].$rest.')';
-                $match[4] = $match[4].$rest;
+                $match[0] = $match[0] . $rest . ')';
+                $match[3] = $match[3] . $rest . ')';
+                $match[4] = $match[4] . $rest;
             }
 
             [$template, $offset] = $this->replaceFirstStatement(
@@ -508,7 +509,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
      */
     protected function hasEvenNumberOfParentheses(string $expression): bool
     {
-        $tokens = token_get_all('<?php '.$expression);
+        $tokens = token_get_all('<?php ' . $expression);
 
         if (Arr::last($tokens) !== ')') {
             return false;
@@ -519,9 +520,9 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
         foreach ($tokens as $token) {
             if ($token == ')') {
-                $closing++;
+                ++$closing;
             } elseif ($token == '(') {
-                $opening++;
+                ++$opening;
             }
         }
 
@@ -534,16 +535,16 @@ class BladeCompiler extends Compiler implements CompilerInterface
     protected function compileStatement(array $match): string
     {
         if (str_contains($match[1], '@')) {
-            $match[0] = isset($match[3]) ? $match[1].$match[3] : $match[1];
+            $match[0] = isset($match[3]) ? $match[1] . $match[3] : $match[1];
         } elseif (isset($this->customDirectives[$match[1]])) {
             $match[0] = $this->callCustomDirective($match[1], Arr::get($match, 3));
-        } elseif (method_exists($this, $method = 'compile'.ucfirst($match[1]))) {
-            $match[0] = $this->$method(Arr::get($match, 3));
+        } elseif (method_exists($this, $method = 'compile' . ucfirst($match[1]))) {
+            $match[0] = $this->{$method}(Arr::get($match, 3));
         } else {
             return $match[0];
         }
 
-        return isset($match[3]) ? $match[0] : $match[0].$match[2];
+        return isset($match[3]) ? $match[0] : $match[0] . $match[2];
     }
 
     /**
@@ -597,23 +598,23 @@ class BladeCompiler extends Compiler implements CompilerInterface
 
         $this->directive($name, function ($expression) use ($name) {
             return $expression !== ''
-                    ? "<?php if (\Hypervel\Support\Facades\Blade::check('{$name}', {$expression})): ?>"
-                    : "<?php if (\Hypervel\Support\Facades\Blade::check('{$name}')): ?>";
+                    ? "<?php if (\\Hypervel\\Support\\Facades\\Blade::check('{$name}', {$expression})): ?>"
+                    : "<?php if (\\Hypervel\\Support\\Facades\\Blade::check('{$name}')): ?>";
         });
 
-        $this->directive('unless'.$name, function ($expression) use ($name) {
+        $this->directive('unless' . $name, function ($expression) use ($name) {
             return $expression !== ''
-                ? "<?php if (! \Hypervel\Support\Facades\Blade::check('{$name}', {$expression})): ?>"
-                : "<?php if (! \Hypervel\Support\Facades\Blade::check('{$name}')): ?>";
+                ? "<?php if (! \\Hypervel\\Support\\Facades\\Blade::check('{$name}', {$expression})): ?>"
+                : "<?php if (! \\Hypervel\\Support\\Facades\\Blade::check('{$name}')): ?>";
         });
 
-        $this->directive('else'.$name, function ($expression) use ($name) {
+        $this->directive('else' . $name, function ($expression) use ($name) {
             return $expression !== ''
-                ? "<?php elseif (\Hypervel\Support\Facades\Blade::check('{$name}', {$expression})): ?>"
-                : "<?php elseif (\Hypervel\Support\Facades\Blade::check('{$name}')): ?>";
+                ? "<?php elseif (\\Hypervel\\Support\\Facades\\Blade::check('{$name}', {$expression})): ?>"
+                : "<?php elseif (\\Hypervel\\Support\\Facades\\Blade::check('{$name}')): ?>";
         });
 
-        $this->directive('end'.$name, function () {
+        $this->directive('end' . $name, function () {
             return '<?php endif; ?>';
         });
     }
@@ -636,15 +637,15 @@ class BladeCompiler extends Compiler implements CompilerInterface
         }
 
         if (is_null($alias)) {
-            $alias = str_contains($class, '\\View\\Components\\')
-                            ? (new Collection(explode('\\', Str::after($class, '\\View\\Components\\'))))->map(function ($segment) {
+            $alias = str_contains($class, '\View\Components\\')
+                            ? (new Collection(explode('\\', Str::after($class, '\View\Components\\'))))->map(function ($segment) {
                                 return Str::kebab($segment);
                             })->implode(':')
                             : Str::kebab(class_basename($class));
         }
 
         if (! empty($prefix)) {
-            $alias = $prefix.'-'.$alias;
+            $alias = $prefix . '-' . $alias;
         }
 
         $this->classComponentAliases[$alias] = $class;
@@ -748,7 +749,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
                         : "<?php \$__env->startComponent('{$path}'); ?>";
         });
 
-        $this->directive('end'.$alias, function ($expression) {
+        $this->directive('end' . $alias, function ($expression) {
             return '<?php echo $__env->renderComponent(); ?>';
         });
     }

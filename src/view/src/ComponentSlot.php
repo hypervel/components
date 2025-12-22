@@ -71,7 +71,7 @@ class ComponentSlot implements Htmlable, Stringable
         return filter_var(
             $this->contents,
             FILTER_CALLBACK,
-            ['options' => $callable ?? fn ($input) => trim(preg_replace("/<!--([\s\S]*?)-->/", '', $input))]
+            ['options' => $callable ?? fn ($input) => trim(preg_replace('/<!--([\\s\\S]*?)-->/', '', $input))]
         ) !== '';
     }
 

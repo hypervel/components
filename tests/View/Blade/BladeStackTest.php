@@ -1,7 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Tests\View\Blade;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class BladeStackTest extends AbstractBladeTestCase
 {
     public function testStackIsCompiled()

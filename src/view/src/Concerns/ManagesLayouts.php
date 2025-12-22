@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\View\Concerns;
 
 use Hypervel\Context\Context;
-use Hypervel\View\Contracts\View;
 use Hypervel\Support\Str;
+use Hypervel\View\Contracts\View;
 use InvalidArgumentException;
 
 trait ManagesLayouts
@@ -148,7 +148,9 @@ trait ManagesLayouts
         $sectionContent = str_replace('@@parent', '--parent--holder--', $sectionContent);
 
         return str_replace(
-            '--parent--holder--', '@parent', str_replace($this->getParentPlaceholder($section), '', $sectionContent)
+            '--parent--holder--',
+            '@parent',
+            str_replace($this->getParentPlaceholder($section), '', $sectionContent)
         );
     }
 
@@ -161,7 +163,7 @@ trait ManagesLayouts
 
         if (! isset($parentPlaceholder[$section])) {
             $salt = Str::random(40);
-            $parentPlaceholder[$section] = '##parent-placeholder-'.hash('xxh128', $salt.$section).'##';
+            $parentPlaceholder[$section] = '##parent-placeholder-' . hash('xxh128', $salt . $section) . '##';
             Context::set(static::PARENT_PLACEHOLDER_CONTEXT_KEY, $parentPlaceholder);
         }
 

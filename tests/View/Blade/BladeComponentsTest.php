@@ -1,13 +1,19 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Tests\View\Blade;
 
 use Closure;
 use Hypervel\Support\Contracts\Htmlable;
-use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\View\Component;
+use Hypervel\View\Contracts\View as ViewContract;
 use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class BladeComponentsTest extends AbstractBladeTestCase
 {
     public function testComponentsAreCompiled()
@@ -71,7 +77,7 @@ class BladeComponentsTest extends AbstractBladeTestCase
         $template = $this->compiler->compileString('@component(\'Hypervel\Tests\View\Blade\ComponentStub::class\', \'test\', ["foo" => "bar"])');
 
         ob_start();
-        eval(" ?> $template <?php endif; ");
+        eval(" ?> {$template} <?php endif; ");
         ob_get_clean();
     }
 }

@@ -13,6 +13,6 @@ trait CompilesClasses
     {
         $expression = is_null($expression) ? '([])' : $expression;
 
-        return "class=\"<?php echo \Hypervel\Support\Arr::toCssClasses{$expression}; ?>\"";
+        return "class=\"<?php echo \\Hypervel\\Support\\Arr::toCssClasses{$expression}; ?>\"";
     }
 }

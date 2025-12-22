@@ -6,9 +6,9 @@ namespace Hypervel\View;
 
 use ArrayAccess;
 use ArrayIterator;
-use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
@@ -20,7 +20,8 @@ use Traversable;
 
 class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSerializable, Htmlable, Stringable
 {
-    use Conditionable, Macroable;
+    use Conditionable;
+    use Macroable;
 
     /**
      * The raw array of attributes.
@@ -146,7 +147,7 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
     /**
      * Return a bag of attributes that have keys starting with the given value / pattern.
      *
-     * @param  string|string[]  $needles
+     * @param string|string[] $needles
      */
     public function whereStartsWith(string|array $needles): static
     {
@@ -158,7 +159,7 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
     /**
      * Return a bag of attributes with keys that do not start with the given value / pattern.
      *
-     * @param  string|string[]  $needles
+     * @param string|string[] $needles
      */
     public function whereDoesntStartWith(string|array $needles): static
     {
@@ -170,7 +171,7 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
     /**
      * Return a bag of attributes that have keys starting with the given value / pattern.
      *
-     * @param  string|string[]  $needles
+     * @param string|string[] $needles
      */
     public function thatStartWith(string|array $needles): static
     {
@@ -227,8 +228,8 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
         [$appendableAttributes, $nonAppendableAttributes] = (new Collection($this->attributes))
             ->partition(function ($value, $key) use ($attributeDefaults) {
                 return $key === 'class' || $key === 'style' || (
-                    isset($attributeDefaults[$key]) &&
-                    $attributeDefaults[$key] instanceof AppendableAttributeValue
+                    isset($attributeDefaults[$key])
+                    && $attributeDefaults[$key] instanceof AppendableAttributeValue
                 );
             });
 
@@ -256,9 +257,9 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
             return false;
         }
 
-        return ! is_object($value) &&
-               ! is_null($value) &&
-               ! is_bool($value);
+        return ! is_object($value)
+               && ! is_null($value)
+               && ! is_bool($value);
     }
 
     /**
@@ -310,8 +311,8 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
      */
     public function setAttributes(array $attributes): void
     {
-        if (isset($attributes['attributes']) &&
-            $attributes['attributes'] instanceof self) {
+        if (isset($attributes['attributes'])
+            && $attributes['attributes'] instanceof self) {
             $parentBag = $attributes['attributes'];
 
             unset($attributes['attributes']);
@@ -419,7 +420,7 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
                 $value = $key === 'x-data' || str_starts_with($key, 'wire:') ? '' : $key;
             }
 
-            $string .= ' '.$key.'="'.str_replace('"', '\\"', trim((string) $value)).'"';
+            $string .= ' ' . $key . '="' . str_replace('"', '\"', trim((string) $value)) . '"';
         }
 
         return trim($string);

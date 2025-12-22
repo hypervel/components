@@ -19,6 +19,6 @@ class ViewName
 
         [$namespace, $name] = explode($delimiter, $name);
 
-        return $namespace.$delimiter.str_replace('/', '.', $name);
+        return $namespace . $delimiter . str_replace('/', '.', $name);
     }
 }

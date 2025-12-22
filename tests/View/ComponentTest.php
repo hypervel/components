@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Tests\View;
 
 use Closure;
@@ -9,16 +11,20 @@ use Hyperf\Di\Exception\InvalidDefinitionException;
 use Hypervel\Config\Repository as Config;
 use Hypervel\Container\Container;
 use Hypervel\Support\Contracts\Htmlable;
-use Hypervel\View\Contracts\Factory as FactoryContract;
 use Hypervel\Support\HtmlString;
 use Hypervel\View\Component;
 use Hypervel\View\ComponentSlot;
+use Hypervel\View\Contracts\Factory as FactoryContract;
 use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\View\Factory;
 use Hypervel\View\View;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class ComponentTest extends TestCase
 {
     protected $viewFactory;
@@ -59,7 +65,7 @@ class ComponentTest extends TestCase
         $this->viewFactory->shouldReceive('exists')->once()->andReturn(false);
         $this->viewFactory->shouldReceive('addNamespace')->once()->with('__components', '/tmp');
 
-        $component = new TestInlineViewComponent;
+        $component = new TestInlineViewComponent();
         $this->assertSame('__components::57b7a54afa0eb51fd9b88eec031c9e9e', $component->resolveView());
     }
 
@@ -68,7 +74,7 @@ class ComponentTest extends TestCase
         $view = m::mock(View::class);
         $this->viewFactory->shouldReceive('make')->once()->with('alert', [], [])->andReturn($view);
 
-        $component = new TestRegularViewComponentUsingViewHelper;
+        $component = new TestRegularViewComponentUsingViewHelper();
 
         $this->assertSame($view, $component->resolveView());
     }
@@ -79,8 +85,7 @@ class ComponentTest extends TestCase
         $this->viewFactory->shouldReceive('exists')->once()->andReturn(false);
         $this->viewFactory->shouldReceive('addNamespace')->once()->with('__components', '/tmp');
 
-        $component = new class() extends Component
-        {
+        $component = new class extends Component {
             protected $title;
 
             public function __construct($title = 'World')
@@ -114,7 +119,7 @@ class ComponentTest extends TestCase
         $view = m::mock(View::class);
         $this->viewFactory->shouldReceive('make')->once()->with('alert', [], [])->andReturn($view);
 
-        $component = new TestRegularViewComponentUsingViewMethod;
+        $component = new TestRegularViewComponentUsingViewMethod();
 
         $this->assertSame($view, $component->resolveView());
     }
@@ -124,14 +129,14 @@ class ComponentTest extends TestCase
         $this->viewFactory->shouldReceive('exists')->once()->andReturn(true);
         $this->viewFactory->shouldReceive('addNamespace')->never();
 
-        $component = new TestRegularViewNameViewComponent;
+        $component = new TestRegularViewNameViewComponent();
 
         $this->assertSame('alert', $component->resolveView());
     }
 
     public function testHtmlableGetReturned()
     {
-        $component = new TestHtmlableReturningViewComponent;
+        $component = new TestHtmlableReturningViewComponent();
 
         $view = $component->resolveView();
 
@@ -151,13 +156,12 @@ class ComponentTest extends TestCase
         $component = TestInlineViewComponentWhereRenderDependsOnProps::resolve(['content' => 'foo']);
         $this->assertSame('foo', $component->render());
 
-        $component = new class extends Component
-        {
+        $component = new class extends Component {
             public $content;
 
             public function __construct($a = null, $b = null)
             {
-                $this->content = $a.$b;
+                $this->content = $a . $b;
             }
 
             public function render(): ViewContract|Htmlable|Closure|string
@@ -182,7 +186,7 @@ class ComponentTest extends TestCase
 
     public function testResolveComponentsUsing()
     {
-        $component = new TestInlineViewComponent;
+        $component = new TestInlineViewComponent();
 
         Component::resolveComponentsUsing(function ($class, $data) use ($component) {
             $this->assertSame(Component::class, $class, 'It takes the component class name as the first parameter.');
@@ -196,7 +200,7 @@ class ComponentTest extends TestCase
 
     public function testBladeViewCacheWithRegularViewNameViewComponent()
     {
-        $component = new TestRegularViewNameViewComponent;
+        $component = new TestRegularViewNameViewComponent();
 
         $this->viewFactory->shouldReceive('exists')->twice()->andReturn(true);
 
@@ -206,7 +210,7 @@ class ComponentTest extends TestCase
         $this->assertSame('alert', $component->resolveView());
 
         $cache = (fn () => $component::$bladeViewCache)->call($component);
-        $this->assertSame([$component::class.'::alert' => 'alert'], $cache);
+        $this->assertSame([$component::class . '::alert' => 'alert'], $cache);
 
         $component::flushCache();
 
@@ -221,7 +225,7 @@ class ComponentTest extends TestCase
 
     public function testBladeViewCacheWithInlineViewComponent()
     {
-        $component = new TestInlineViewComponent;
+        $component = new TestInlineViewComponent();
 
         $this->viewFactory->shouldReceive('exists')->twice()->andReturn(false);
 
@@ -233,7 +237,7 @@ class ComponentTest extends TestCase
 
         $compiledViewName = '__components::57b7a54afa0eb51fd9b88eec031c9e9e';
         $contents = '::Hello {{ $title }}';
-        $cacheKey = $component::class.$contents;
+        $cacheKey = $component::class . $contents;
 
         $this->assertSame($compiledViewName, $component->resolveView());
         $this->assertSame($compiledViewName, $component->resolveView());
@@ -269,8 +273,8 @@ class ComponentTest extends TestCase
 
         $compiledViewNameA = '__components::9b0498cbe3839becd0d496e05c553485';
         $compiledViewNameB = '__components::9d1b9bc4078a3e7274d3766ca02423f3';
-        $cacheAKey = $componentA::class.'::A';
-        $cacheBKey = $componentB::class.'::B';
+        $cacheAKey = $componentA::class . '::A';
+        $cacheBKey = $componentB::class . '::B';
 
         $this->assertSame($compiledViewNameA, $componentA->resolveView());
         $this->assertSame($compiledViewNameA, $componentA->resolveView());
@@ -295,8 +299,8 @@ class ComponentTest extends TestCase
 
     public function testFactoryGetsSharedBetweenComponents()
     {
-        $regular = new TestRegularViewNameViewComponent;
-        $inline = new TestInlineViewComponent;
+        $regular = new TestRegularViewNameViewComponent();
+        $inline = new TestInlineViewComponent();
 
         $getFactory = fn ($component) => (fn () => $component->factory())->call($component);
 

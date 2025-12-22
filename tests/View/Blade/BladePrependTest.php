@@ -1,13 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Tests\View\Blade;
 
-use Hypervel\Support\Str;
 use Mockery;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactoryInterface;
 use Ramsey\Uuid\UuidInterface;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class BladePrependTest extends AbstractBladeTestCase
 {
     public function testPrependIsCompiled()

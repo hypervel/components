@@ -1,7 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Tests\View\Blade;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class BladePhpStatementsTest extends AbstractBladeTestCase
 {
     public function testPhpStatementsWithExpressionAreCompiled()
@@ -40,14 +46,14 @@ class BladePhpStatementsTest extends AbstractBladeTestCase
     public function testVerbatimAndPhpStatementsDontGetMixedUp()
     {
         $string = "@verbatim {{ Hello, I'm not blade! }}"
-                ."\n@php echo 'And I'm not PHP!' @endphp"
-                ."\n@endverbatim {{ 'I am Blade' }}"
-                ."\n@php echo 'I am PHP {{ not Blade }}' @endphp";
+                . "\n@php echo 'And I'm not PHP!' @endphp"
+                . "\n@endverbatim {{ 'I am Blade' }}"
+                . "\n@php echo 'I am PHP {{ not Blade }}' @endphp";
 
         $expected = " {{ Hello, I'm not blade! }}"
-                ."\n@php echo 'And I'm not PHP!' @endphp"
-                ."\n <?php echo e('I am Blade'); ?>"
-                ."\n\n<?php echo 'I am PHP {{ not Blade }}' ?>";
+                . "\n@php echo 'And I'm not PHP!' @endphp"
+                . "\n <?php echo e('I am Blade'); ?>"
+                . "\n\n<?php echo 'I am PHP {{ not Blade }}' ?>";
 
         $this->assertEquals($expected, $this->compiler->compileString($string));
     }
@@ -122,12 +128,12 @@ class BladePhpStatementsTest extends AbstractBladeTestCase
     public function testUnclosedParenthesisForBladeTags()
     {
         $string = "<span @class(['(']></span>";
-        $expected = "<span class=\"<?php echo \Hypervel\Support\Arr::toCssClasses([]); ?>\"(['(']></span>";
+        $expected = "<span class=\"<?php echo \\Hypervel\\Support\\Arr::toCssClasses([]); ?>\"(['(']></span>";
 
         $this->assertEquals($expected, $this->compiler->compileString($string));
 
         $string = "<span @class(['']></span>";
-        $expected = "<span class=\"<?php echo \Hypervel\Support\Arr::toCssClasses([]); ?>\"(['']></span>";
+        $expected = "<span class=\"<?php echo \\Hypervel\\Support\\Arr::toCssClasses([]); ?>\"(['']></span>";
 
         $this->assertEquals($expected, $this->compiler->compileString($string));
 
@@ -175,7 +181,7 @@ class BladePhpStatementsTest extends AbstractBladeTestCase
 
     public function testItDoesNotCompileInvalidSyntax()
     {
-        $template = "<a @class(['k\' => ()])></a>";
+        $template = "<a @class(['k\\' => ()])></a>";
         $this->assertEquals($template, $this->compiler->compileString($template));
     }
 }

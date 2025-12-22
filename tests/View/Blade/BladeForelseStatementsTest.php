@@ -1,10 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Tests\View\Blade;
 
 use Hypervel\View\Contracts\ViewCompilationException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class BladeForelseStatementsTest extends AbstractBladeTestCase
 {
     public function testForelseStatementsAreCompiled()
@@ -86,7 +92,7 @@ empty
     {
         $this->expectException(ViewCompilationException::class);
         $this->expectExceptionMessage('Malformed @forelse statement.');
-        $string = "$initialStatement
+        $string = "{$initialStatement}
 breeze
 @empty
 tag empty

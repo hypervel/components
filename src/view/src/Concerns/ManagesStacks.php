@@ -142,7 +142,7 @@ trait ManagesStacks
         if (! isset($prepends[$section][$renderCount])) {
             $prepends[$section][$renderCount] = $content;
         } else {
-            $prepends[$section][$renderCount] = $content.$prepends[$section][$renderCount];
+            $prepends[$section][$renderCount] = $content . $prepends[$section][$renderCount];
         }
 
         Context::set(static::PREPENDS_CONTEXT_KEY, $prepends);

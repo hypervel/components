@@ -31,7 +31,7 @@ class ViewErrorBag implements Countable, Stringable
      */
     public function getBag(string $key)
     {
-        return Arr::get($this->bags, $key) ?: new MessageBag;
+        return Arr::get($this->bags, $key) ?: new MessageBag();
     }
 
     /**
@@ -73,13 +73,13 @@ class ViewErrorBag implements Countable, Stringable
      */
     public function __call(string $method, array $parameters): mixed
     {
-        return $this->getBag('default')->$method(...$parameters);
+        return $this->getBag('default')->{$method}(...$parameters);
     }
 
     /**
      * Dynamically access a view error bag.
      *
-     * @param  string  $key
+     * @param string $key
      * @return MessageBagContract
      */
     public function __get($key)
@@ -90,9 +90,8 @@ class ViewErrorBag implements Countable, Stringable
     /**
      * Dynamically set a view error bag.
      *
-     * @param  string  $key
-     * @param  MessageBagContract  $value
-     * @return void
+     * @param string $key
+     * @param MessageBagContract $value
      */
     public function __set($key, $value)
     {

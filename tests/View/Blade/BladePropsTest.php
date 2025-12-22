@@ -1,9 +1,15 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Tests\View\Blade;
 
 use Hypervel\View\ComponentAttributeBag;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class BladePropsTest extends AbstractBladeTestCase
 {
     public function testPropsAreCompiled()
@@ -48,7 +54,7 @@ unset($__defined_vars); ?>', $this->compiler->compileString('@props([\'one\' => 
         $template = $this->compiler->compileString('@props([\'test1\' => \'default\', \'test2\', \'test4\' => \'default\'])');
 
         ob_start();
-        eval(" ?> $template <?php ");
+        eval(" ?> {$template} <?php ");
         ob_get_clean();
 
         $this->assertSame($test1, 'value1');

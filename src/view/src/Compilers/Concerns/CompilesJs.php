@@ -14,8 +14,9 @@ trait CompilesJs
     protected function compileJs(string $expression): string
     {
         return sprintf(
-            "<?php echo \%s::from(%s)->toHtml() ?>",
-            Js::class, $this->stripParentheses($expression)
+            '<?php echo \\%s::from(%s)->toHtml() ?>',
+            Js::class,
+            $this->stripParentheses($expression)
         );
     }
 }

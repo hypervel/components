@@ -7,17 +7,17 @@ namespace Hypervel\View;
 use ArrayAccess;
 use BadMethodCallException;
 use Hyperf\Contract\MessageProvider;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Contracts\Arrayable;
 use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\Support\Contracts\Renderable;
-use Hypervel\View\Contracts\Engine;
-use Hypervel\View\Contracts\View as ViewContract;
-use Hypervel\Support\Collection;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\ViewErrorBag;
+use Hypervel\View\Contracts\Engine;
+use Hypervel\View\Contracts\View as ViewContract;
 use Stringable;
 use Throwable;
 
@@ -225,8 +225,9 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      */
     public function withErrors(MessageProvider|array|string $provider, string $bag = 'default'): static
     {
-        return $this->with('errors', (new ViewErrorBag)->put(
-            $bag, $this->formatErrors($provider)
+        return $this->with('errors', (new ViewErrorBag())->put(
+            $bag,
+            $this->formatErrors($provider)
         ));
     }
 
@@ -375,7 +376,9 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
 
         if (! str_starts_with($method, 'with')) {
             throw new BadMethodCallException(sprintf(
-                'Method %s::%s does not exist.', static::class, $method
+                'Method %s::%s does not exist.',
+                static::class,
+                $method
             ));
         }
 

@@ -34,7 +34,7 @@ trait CompilesEchos
     public function compileEchos(string $value): string
     {
         foreach ($this->getEchoMethods() as $method) {
-            $value = $this->$method($value);
+            $value = $this->{$method}($value);
         }
 
         return $value;
@@ -62,7 +62,7 @@ trait CompilesEchos
         $pattern = sprintf('/(@)?%s\s*(.+?)\s*%s(\r?\n)?/s', $this->rawTags[0], $this->rawTags[1]);
 
         $callback = function ($matches) {
-            $whitespace = empty($matches[3]) ? '' : $matches[3].$matches[3];
+            $whitespace = empty($matches[3]) ? '' : $matches[3] . $matches[3];
 
             return $matches[1]
                 ? substr($matches[0], 1)
@@ -80,7 +80,7 @@ trait CompilesEchos
         $pattern = sprintf('/(@)?%s\s*(.+?)\s*%s(\r?\n)?/s', $this->contentTags[0], $this->contentTags[1]);
 
         $callback = function ($matches) {
-            $whitespace = empty($matches[3]) ? '' : $matches[3].$matches[3];
+            $whitespace = empty($matches[3]) ? '' : $matches[3] . $matches[3];
 
             $wrapped = sprintf($this->getEchoFormat(), $this->wrapInEchoHandler($matches[2]));
 
@@ -98,7 +98,7 @@ trait CompilesEchos
         $pattern = sprintf('/(@)?%s\s*(.+?)\s*%s(\r?\n)?/s', $this->escapedTags[0], $this->escapedTags[1]);
 
         $callback = function ($matches) {
-            $whitespace = empty($matches[3]) ? '' : $matches[3].$matches[3];
+            $whitespace = empty($matches[3]) ? '' : $matches[3] . $matches[3];
 
             return $matches[1]
                 ? $matches[0]
@@ -113,7 +113,7 @@ trait CompilesEchos
      */
     protected function addBladeCompilerVariable(string $result): string
     {
-        return "<?php \$__bladeCompiler = app('blade.compiler'); ?>".$result;
+        return "<?php \$__bladeCompiler = app('blade.compiler'); ?>" . $result;
     }
 
     /**
@@ -127,7 +127,7 @@ trait CompilesEchos
                 return $str->beforeLast(';');
             });
 
-        return empty($this->echoHandlers) ? (string) $value : '$__bladeCompiler->applyEchoHandler('.$value.')';
+        return empty($this->echoHandlers) ? (string) $value : '$__bladeCompiler->applyEchoHandler(' . $value . ')';
     }
 
     /**

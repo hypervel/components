@@ -6,11 +6,11 @@ namespace Hypervel\View;
 
 use Closure;
 use Hypervel\Container\Container;
-use Hypervel\Support\Contracts\Htmlable;
-use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Contracts\Arrayable;
+use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\View\Contracts\Factory;
+use Hypervel\View\Contracts\View as ViewContract;
 use ReflectionClass;
 use ReflectionMethod;
 use ReflectionProperty;
@@ -40,7 +40,7 @@ abstract class Component
     /**
      * The component resolver callback.
      *
-     * @var (Closure(string, array): Component)|null
+     * @var null|(Closure(string, array): Component)
      */
     protected static ?Closure $componentsResolver = null;
 
@@ -173,7 +173,7 @@ abstract class Component
             $directory = Container::getInstance()['config']->get('view.compiled')
         );
 
-        if (! is_file($viewFile = $directory.'/'.hash('xxh128', $contents).'.blade.php')) {
+        if (! is_file($viewFile = $directory . '/' . hash('xxh128', $contents) . '.blade.php')) {
             if (! is_dir($directory)) {
                 mkdir($directory, 0755, true);
             }
@@ -181,13 +181,11 @@ abstract class Component
             file_put_contents($viewFile, $contents);
         }
 
-        return '__components::'.basename($viewFile, '.blade.php');
+        return '__components::' . basename($viewFile, '.blade.php');
     }
 
     /**
      * Get the data that should be supplied to the view.
-     *
-     * @return array
      */
     public function data(): array
     {
@@ -271,8 +269,8 @@ abstract class Component
      */
     protected function shouldIgnore(string $name): bool
     {
-        return str_starts_with($name, '__') ||
-               in_array($name, $this->ignoredMethods());
+        return str_starts_with($name, '__')
+               || in_array($name, $this->ignoredMethods());
     }
 
     /**
@@ -409,7 +407,7 @@ abstract class Component
     /**
      * Set the callback that should be used to resolve components within views.
      *
-     * @param  Closure(string $component, array $data): Component  $resolver
+     * @param Closure(string $component, array $data): Component $resolver
      *
      * @internal
      */

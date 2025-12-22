@@ -12,8 +12,8 @@ use Hypervel\Event\Contracts\Dispatcher;
 use Hypervel\Foundation\Application;
 use Hypervel\Support\Arr;
 use Hypervel\Support\ServiceProvider;
-use Hypervel\View\Contracts\Factory as FactoryContract;
 use Hypervel\View\Compilers\BladeCompiler;
+use Hypervel\View\Contracts\Factory as FactoryContract;
 use Hypervel\View\Engines\CompilerEngine;
 use Hypervel\View\Engines\EngineResolver;
 use Hypervel\View\Engines\FileEngine;
@@ -105,13 +105,13 @@ class ViewServiceProvider extends ServiceProvider
     protected function registerEngineResolver(): void
     {
         $this->app->bind('view.engine.resolver', function () {
-            $resolver = new EngineResolver;
+            $resolver = new EngineResolver();
 
             // Next, we will register the various view engines with the resolver so that the
             // environment will resolve the engines needed for various views based on the
             // extension of view file. We call a method for each of the view's engines.
             foreach (['file', 'php', 'blade'] as $engine) {
-                $this->{'register'.ucfirst($engine).'Engine'}($resolver);
+                $this->{'register' . ucfirst($engine) . 'Engine'}($resolver);
             }
 
             return $resolver;
@@ -146,12 +146,10 @@ class ViewServiceProvider extends ServiceProvider
         $resolver->register('blade', function () {
             $app = Container::getInstance();
 
-            $compiler = new CompilerEngine(
+            return new CompilerEngine(
                 $app->get('blade.compiler'),
                 $app->get('files'),
             );
-
-            return $compiler;
         });
     }
 
@@ -176,7 +174,7 @@ class ViewServiceProvider extends ServiceProvider
                 'components',
             ]);
             $hyperfViewConfig = $customHyperfViewConfig + [
-                'engine' =>  HyperfViewEngine::class,
+                'engine' => HyperfViewEngine::class,
                 'mode' => Mode::SYNC,
                 'config' => [
                     'view_path' => base_path('resources/views'),

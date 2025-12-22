@@ -6,12 +6,12 @@ namespace Hypervel\View\Compilers;
 
 use Hypervel\Container\Container;
 use Hypervel\Context\Context;
-use Hypervel\Foundation\Contracts\Application;
-use Hypervel\View\Contracts\Factory;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Foundation\Contracts\Application;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\View\AnonymousComponent;
+use Hypervel\View\Contracts\Factory;
 use Hypervel\View\DynamicComponent;
 use Hypervel\View\ViewFinderInterface;
 use InvalidArgumentException;
@@ -37,7 +37,7 @@ class ComponentTagCompiler
         protected array $namespaces = [],
         ?BladeCompiler $blade = null
     ) {
-        $this->blade = $blade ?: new BladeCompiler(new Filesystem, sys_get_temp_dir());
+        $this->blade = $blade ?: new BladeCompiler(new Filesystem(), sys_get_temp_dir());
     }
 
     /**
@@ -59,9 +59,7 @@ class ComponentTagCompiler
     {
         $value = $this->compileSelfClosingTags($value);
         $value = $this->compileOpeningTags($value);
-        $value = $this->compileClosingTags($value);
-
-        return $value;
+        return $this->compileClosingTags($value);
     }
 
     /**
@@ -73,46 +71,46 @@ class ComponentTagCompiler
     {
         $pattern = "/
             <
-                \s*
-                x[-\:]([\w\-\:\.]*)
+                \\s*
+                x[-\\:]([\\w\\-\\:\\.]*)
                 (?<attributes>
                     (?:
-                        \s+
+                        \\s+
                         (?:
                             (?:
-                                @(?:class)(\( (?: (?>[^()]+) | (?-1) )* \))
+                                @(?:class)(\\( (?: (?>[^()]+) | (?-1) )* \\))
                             )
                             |
                             (?:
-                                @(?:style)(\( (?: (?>[^()]+) | (?-1) )* \))
+                                @(?:style)(\\( (?: (?>[^()]+) | (?-1) )* \\))
                             )
                             |
                             (?:
-                                \{\{\s*\\\$attributes(?:[^}]+?)?\s*\}\}
+                                \\{\\{\\s*\\\$attributes(?:[^}]+?)?\\s*\\}\\}
                             )
                             |
                             (?:
-                                (\:\\\$)(\w+)
+                                (\\:\\\$)(\\w+)
                             )
                             |
                             (?:
-                                [\w\-:.@%]+
+                                [\\w\\-:.@%]+
                                 (
                                     =
                                     (?:
                                         \\\"[^\\\"]*\\\"
                                         |
-                                        \'[^\']*\'
+                                        \\'[^\\']*\\'
                                         |
-                                        [^\'\\\"=<>]+
+                                        [^\\'\\\"=<>]+
                                     )
                                 )?
                             )
                         )
                     )*
-                    \s*
+                    \\s*
                 )
-                (?<![\/=\-])
+                (?<![\\/=\\-])
             >
         /x";
 
@@ -135,6 +133,7 @@ class ComponentTagCompiler
 
     /**
      * Set a bound attribute for the current component.
+     * @param mixed $attribute
      */
     protected function setBoundAttribute($attribute): void
     {
@@ -160,47 +159,47 @@ class ComponentTagCompiler
     {
         $pattern = "/
             <
-                \s*
-                x[-\:]([\w\-\:\.]*)
-                \s*
+                \\s*
+                x[-\\:]([\\w\\-\\:\\.]*)
+                \\s*
                 (?<attributes>
                     (?:
-                        \s+
+                        \\s+
                         (?:
                             (?:
-                                @(?:class)(\( (?: (?>[^()]+) | (?-1) )* \))
+                                @(?:class)(\\( (?: (?>[^()]+) | (?-1) )* \\))
                             )
                             |
                             (?:
-                                @(?:style)(\( (?: (?>[^()]+) | (?-1) )* \))
+                                @(?:style)(\\( (?: (?>[^()]+) | (?-1) )* \\))
                             )
                             |
                             (?:
-                                \{\{\s*\\\$attributes(?:[^}]+?)?\s*\}\}
+                                \\{\\{\\s*\\\$attributes(?:[^}]+?)?\\s*\\}\\}
                             )
                             |
                             (?:
-                                (\:\\\$)(\w+)
+                                (\\:\\\$)(\\w+)
                             )
                             |
                             (?:
-                                [\w\-:.@%]+
+                                [\\w\\-:.@%]+
                                 (
                                     =
                                     (?:
                                         \\\"[^\\\"]*\\\"
                                         |
-                                        \'[^\']*\'
+                                        \\'[^\\']*\\'
                                         |
-                                        [^\'\\\"=<>]+
+                                        [^\\'\\\"=<>]+
                                     )
                                 )?
                             )
                         )
                     )*
-                    \s*
+                    \\s*
                 )
-            \/>
+            \\/>
         /x";
 
         return preg_replace_callback($pattern, function (array $matches) {
@@ -208,7 +207,7 @@ class ComponentTagCompiler
 
             $attributes = $this->getAttributesFromAttributeString($matches['attributes']);
 
-            return $this->componentString($matches[1], $attributes)."\n@endComponentClass##END-COMPONENT-CLASS##";
+            return $this->componentString($matches[1], $attributes) . "\n@endComponentClass##END-COMPONENT-CLASS##";
         }, $value);
     }
 
@@ -233,11 +232,11 @@ class ComponentTagCompiler
         if (! class_exists($class)) {
             $view = Str::startsWith($component, 'mail::')
                 ? "\$__env->getContainer()->make(Hypervel\\View\\Factory::class)->make('{$component}')"
-                : "'$class'";
+                : "'{$class}'";
 
             $parameters = [
                 'view' => $view,
-                'data' => '['.$this->attributesToString($data->all(), $escapeBound = false).']',
+                'data' => '[' . $this->attributesToString($data->all(), $escapeBound = false) . ']',
             ];
 
             $class = AnonymousComponent::class;
@@ -245,11 +244,11 @@ class ComponentTagCompiler
             $parameters = $data->all();
         }
 
-        return "##BEGIN-COMPONENT-CLASS##@component('{$class}', '{$component}', [".$this->attributesToString($parameters, $escapeBound = false).'])
+        return "##BEGIN-COMPONENT-CLASS##@component('{$class}', '{$component}', [" . $this->attributesToString($parameters, $escapeBound = false) . '])
 <?php if (isset($attributes) && $attributes instanceof Hypervel\View\ComponentAttributeBag): ?>
-<?php $attributes = $attributes->except(\\'.$class.'::ignoredParameterNames()); ?>
+<?php $attributes = $attributes->except(\\' . $class . '::ignoredParameterNames()); ?>
 <?php endif; ?>
-<?php $component->withAttributes(['.$this->attributesToString($attributes->all(), $escapeAttributes = $class !== DynamicComponent::class).']); ?>';
+<?php $component->withAttributes([' . $this->attributesToString($attributes->all(), $escapeAttributes = $class !== DynamicComponent::class) . ']); ?>';
     }
 
     /**
@@ -283,12 +282,12 @@ class ComponentTagCompiler
             return $class;
         }
 
-        if (class_exists($class = $class.'\\'.Str::afterLast($class, '\\'))) {
+        if (class_exists($class = $class . '\\' . Str::afterLast($class, '\\'))) {
             return $class;
         }
 
-        if (! is_null($guess = $this->guessAnonymousComponentUsingNamespaces($viewFactory, $component)) ||
-            ! is_null($guess = $this->guessAnonymousComponentUsingPaths($viewFactory, $component))) {
+        if (! is_null($guess = $this->guessAnonymousComponentUsingNamespaces($viewFactory, $component))
+            || ! is_null($guess = $this->guessAnonymousComponentUsingPaths($viewFactory, $component))) {
             return $guess;
         }
 
@@ -310,25 +309,24 @@ class ComponentTagCompiler
 
         foreach ($this->blade->getAnonymousComponentPaths() as $path) {
             try {
-                if (str_contains($component, $delimiter) &&
-                    ! str_starts_with($component, $path['prefix'].$delimiter)) {
+                if (str_contains($component, $delimiter)
+                    && ! str_starts_with($component, $path['prefix'] . $delimiter)) {
                     continue;
                 }
 
-                $formattedComponent = str_starts_with($component, $path['prefix'].$delimiter)
+                $formattedComponent = str_starts_with($component, $path['prefix'] . $delimiter)
                         ? Str::after($component, $delimiter)
                         : $component;
 
                 if (! is_null($guess = match (true) {
-                    $viewFactory->exists($guess = $path['prefixHash'].$delimiter.$formattedComponent) => $guess,
-                    $viewFactory->exists($guess = $path['prefixHash'].$delimiter.$formattedComponent.'.index') => $guess,
-                    $viewFactory->exists($guess = $path['prefixHash'].$delimiter.$formattedComponent.'.'.Str::afterLast($formattedComponent, '.')) => $guess,
+                    $viewFactory->exists($guess = $path['prefixHash'] . $delimiter . $formattedComponent) => $guess,
+                    $viewFactory->exists($guess = $path['prefixHash'] . $delimiter . $formattedComponent . '.index') => $guess,
+                    $viewFactory->exists($guess = $path['prefixHash'] . $delimiter . $formattedComponent . '.' . Str::afterLast($formattedComponent, '.')) => $guess,
                     default => null,
                 })) {
                     return $guess;
                 }
             } catch (InvalidArgumentException) {
-                //
             }
         }
 
@@ -342,7 +340,7 @@ class ComponentTagCompiler
     {
         return (new Collection($this->blade->getAnonymousComponentNamespaces()))
             ->filter(function ($directory, $prefix) use ($component) {
-                return Str::startsWith($component, $prefix.'::');
+                return Str::startsWith($component, $prefix . '::');
             })
             ->prepend('components', $component)
             ->reduce(function ($carry, $directory, $prefix) use ($component, $viewFactory) {
@@ -350,19 +348,19 @@ class ComponentTagCompiler
                     return $carry;
                 }
 
-                $componentName = Str::after($component, $prefix.'::');
+                $componentName = Str::after($component, $prefix . '::');
 
                 if ($viewFactory->exists($view = $this->guessViewName($componentName, $directory))) {
                     return $view;
                 }
 
-                if ($viewFactory->exists($view = $this->guessViewName($componentName, $directory).'.index')) {
+                if ($viewFactory->exists($view = $this->guessViewName($componentName, $directory) . '.index')) {
                     return $view;
                 }
 
                 $lastViewSegment = Str::afterLast(Str::afterLast($componentName, '.'), ':');
 
-                if ($viewFactory->exists($view = $this->guessViewName($componentName, $directory).'.'.$lastViewSegment)) {
+                if ($viewFactory->exists($view = $this->guessViewName($componentName, $directory) . '.' . $lastViewSegment)) {
                     return $view;
                 }
             });
@@ -381,7 +379,7 @@ class ComponentTagCompiler
             return null;
         }
 
-        if (class_exists($class = $this->namespaces[$prefix].'\\'.$this->formatClassName($segments[1]))) {
+        if (class_exists($class = $this->namespaces[$prefix] . '\\' . $this->formatClassName($segments[1]))) {
             return $class;
         }
 
@@ -399,7 +397,7 @@ class ComponentTagCompiler
 
         $class = $this->formatClassName($component);
 
-        return $namespace.'View\\Components\\'.$class;
+        return $namespace . 'View\Components\\' . $class;
     }
 
     /**
@@ -426,10 +424,10 @@ class ComponentTagCompiler
         $delimiter = ViewFinderInterface::HINT_PATH_DELIMITER;
 
         if (str_contains($name, $delimiter)) {
-            return Str::replaceFirst($delimiter, $delimiter.$prefix, $name);
+            return Str::replaceFirst($delimiter, $delimiter . $prefix, $name);
         }
 
-        return $prefix.$name;
+        return $prefix . $name;
     }
 
     /**
@@ -460,7 +458,7 @@ class ComponentTagCompiler
      */
     protected function compileClosingTags(string $value): string
     {
-        return preg_replace("/<\/\s*x[-\:][\w\-\:\.]*\s*>/", ' @endComponentClass##END-COMPONENT-CLASS##', $value);
+        return preg_replace('/<\\/\\s*x[-\\:][\\w\\-\\:\\.]*\\s*>/', ' @endComponentClass##END-COMPONENT-CLASS##', $value);
     }
 
     /**
@@ -470,45 +468,45 @@ class ComponentTagCompiler
     {
         $pattern = "/
             <
-                \s*
-                x[\-\:]slot
-                (?:\:(?<inlineName>\w+(?:-\w+)*))?
-                (?:\s+name=(?<name>(\"[^\"]+\"|\\\'[^\\\']+\\\'|[^\s>]+)))?
-                (?:\s+\:name=(?<boundName>(\"[^\"]+\"|\\\'[^\\\']+\\\'|[^\s>]+)))?
+                \\s*
+                x[\\-\\:]slot
+                (?:\\:(?<inlineName>\\w+(?:-\\w+)*))?
+                (?:\\s+name=(?<name>(\"[^\"]+\"|\\\\'[^\\\\']+\\\\'|[^\\s>]+)))?
+                (?:\\s+\\:name=(?<boundName>(\"[^\"]+\"|\\\\'[^\\\\']+\\\\'|[^\\s>]+)))?
                 (?<attributes>
                     (?:
-                        \s+
+                        \\s+
                         (?:
                             (?:
-                                @(?:class)(\( (?: (?>[^()]+) | (?-1) )* \))
+                                @(?:class)(\\( (?: (?>[^()]+) | (?-1) )* \\))
                             )
                             |
                             (?:
-                                @(?:style)(\( (?: (?>[^()]+) | (?-1) )* \))
+                                @(?:style)(\\( (?: (?>[^()]+) | (?-1) )* \\))
                             )
                             |
                             (?:
-                                \{\{\s*\\\$attributes(?:[^}]+?)?\s*\}\}
+                                \\{\\{\\s*\\\$attributes(?:[^}]+?)?\\s*\\}\\}
                             )
                             |
                             (?:
-                                [\w\-:.@]+
+                                [\\w\\-:.@]+
                                 (
                                     =
                                     (?:
                                         \\\"[^\\\"]*\\\"
                                         |
-                                        \'[^\']*\'
+                                        \\'[^\\']*\\'
                                         |
-                                        [^\'\\\"=<>]+
+                                        [^\\'\\\"=<>]+
                                     )
                                 )?
                             )
                         )
                     )*
-                    \s*
+                    \\s*
                 )
-                (?<![\/=\-])
+                (?<![\\/=\\-])
             >
         /x";
 
@@ -531,11 +529,11 @@ class ComponentTagCompiler
             // If an inline name was provided and a name or bound name was *also* provided, we will assume the name should be an attribute...
             if (! empty($matches['inlineName']) && (! empty($matches['name']) || ! empty($matches['boundName']))) {
                 $attributes = ! empty($matches['name'])
-                    ? array_merge($attributes, $this->getAttributesFromAttributeString('name='.$matches['name']))
-                    : array_merge($attributes, $this->getAttributesFromAttributeString(':name='.$matches['boundName']));
+                    ? array_merge($attributes, $this->getAttributesFromAttributeString('name=' . $matches['name']))
+                    : array_merge($attributes, $this->getAttributesFromAttributeString(':name=' . $matches['boundName']));
             }
 
-            return " @slot({$name}, null, [".$this->attributesToString($attributes).']) ';
+            return " @slot({$name}, null, [" . $this->attributesToString($attributes) . ']) ';
         }, $value);
 
         return preg_replace('/<\/\s*x[\-\:]slot[^>]*>/', ' @endslot', $value);
@@ -589,7 +587,7 @@ class ComponentTagCompiler
 
                 $this->setBoundAttribute($attribute);
             } else {
-                $value = "'".$this->compileAttributeEchos($value)."'";
+                $value = "'" . $this->compileAttributeEchos($value) . "'";
             }
 
             if (str_starts_with($attribute, '::')) {
@@ -605,7 +603,7 @@ class ComponentTagCompiler
      */
     protected function parseShortAttributeSyntax(string $value): string
     {
-        $pattern = "/\s\:\\\$(\w+)/x";
+        $pattern = '/\\s\\:\\$(\\w+)/x';
 
         return preg_replace_callback($pattern, function (array $matches) {
             return " :{$matches[1]}=\"\${$matches[1]}\"";
@@ -617,10 +615,10 @@ class ComponentTagCompiler
      */
     protected function parseAttributeBag(string $attributeString): string
     {
-        $pattern = "/
-            (?:^|\s+)                                        # start of the string or whitespace between attributes
-            \{\{\s*(\\\$attributes(?:[^}]+?(?<!\s))?)\s*\}\} # exact match of attributes variable being echoed
-        /x";
+        $pattern = '/
+            (?:^|\\s+)                                        # start of the string or whitespace between attributes
+            \\{\\{\\s*(\\$attributes(?:[^}]+?(?<!\\s))?)\\s*\\}\\} # exact match of attributes variable being echoed
+        /x';
 
         return preg_replace($pattern, ' :attributes="$1"', $attributeString);
     }
@@ -631,15 +629,17 @@ class ComponentTagCompiler
     protected function parseComponentTagClassStatements(string $attributeString): string
     {
         return preg_replace_callback(
-            '/@(class)(\( ( (?>[^()]+) | (?2) )* \))/x', function ($match) {
+            '/@(class)(\( ( (?>[^()]+) | (?2) )* \))/x',
+            function ($match) {
                 if ($match[1] === 'class') {
                     $match[2] = str_replace('"', "'", $match[2]);
 
-                    return ":class=\"\Hypervel\Support\Arr::toCssClasses{$match[2]}\"";
+                    return ":class=\"\\Hypervel\\Support\\Arr::toCssClasses{$match[2]}\"";
                 }
 
                 return $match[0];
-            }, $attributeString
+            },
+            $attributeString
         );
     }
 
@@ -649,15 +649,17 @@ class ComponentTagCompiler
     protected function parseComponentTagStyleStatements(string $attributeString): string
     {
         return preg_replace_callback(
-            '/@(style)(\( ( (?>[^()]+) | (?2) )* \))/x', function ($match) {
+            '/@(style)(\( ( (?>[^()]+) | (?2) )* \))/x',
+            function ($match) {
                 if ($match[1] === 'style') {
                     $match[2] = str_replace('"', "'", $match[2]);
 
-                    return ":style=\"\Hypervel\Support\Arr::toCssStyles{$match[2]}\"";
+                    return ":style=\"\\Hypervel\\Support\\Arr::toCssStyles{$match[2]}\"";
                 }
 
                 return $match[0];
-            }, $attributeString
+            },
+            $attributeString
         );
     }
 
@@ -666,12 +668,12 @@ class ComponentTagCompiler
      */
     protected function parseBindAttributes(string $attributeString): string
     {
-        $pattern = "/
-            (?:^|\s+)     # start of the string or whitespace between attributes
+        $pattern = '/
+            (?:^|\\s+)     # start of the string or whitespace between attributes
             :(?!:)        # attribute needs to start with a single colon
-            ([\w\-:.@]+)  # match the actual attribute name
+            ([\\w\\-:.@]+)  # match the actual attribute name
             =             # only match attributes that have a value
-        /xm";
+        /xm';
 
         return preg_replace($pattern, ' bind:$1=', $attributeString);
     }
@@ -688,9 +690,7 @@ class ComponentTagCompiler
         $value = $this->escapeSingleQuotesOutsideOfPhpBlocks($value);
 
         $value = str_replace('<?php echo ', '\'.', $value);
-        $value = str_replace('; ?>', '.\'', $value);
-
-        return $value;
+        return str_replace('; ?>', '.\'', $value);
     }
 
     /**
@@ -719,7 +719,7 @@ class ComponentTagCompiler
         return (new Collection($attributes))
             ->map(function (string $value, string $attribute) use ($escapeBound, $boundAttributes) {
                 return $escapeBound && isset($boundAttributes[$attribute]) && $value !== 'true' && ! is_numeric($value)
-                            ? "'{$attribute}' => \Hypervel\View\Compilers\BladeCompiler::sanitizeComponentAttribute({$value})"
+                            ? "'{$attribute}' => \\Hypervel\\View\\Compilers\\BladeCompiler::sanitizeComponentAttribute({$value})"
                             : "'{$attribute}' => {$value}";
             })
             ->implode(',');

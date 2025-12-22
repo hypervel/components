@@ -6,8 +6,8 @@ namespace Hypervel\View\Middleware;
 
 use Closure;
 use Hyperf\Contract\SessionInterface;
-use Hypervel\View\Contracts\Factory as ViewFactory;
 use Hypervel\Support\ViewErrorBag;
+use Hypervel\View\Contracts\Factory as ViewFactory;
 
 class ShareErrorsFromSession
 {
@@ -29,7 +29,8 @@ class ShareErrorsFromSession
         // its value with all view instances so the views can easily access errors
         // without having to bind. An empty bag is set when there aren't errors.
         $this->view->share(
-            'errors', $this->session->get('errors') ?: new ViewErrorBag
+            'errors',
+            $this->session->get('errors') ?: new ViewErrorBag()
         );
 
         // Putting the errors in the view for every view allows the developer to just

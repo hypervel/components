@@ -30,7 +30,7 @@ trait CompilesComponents
         $component = trim($component, '\'"');
 
         $hash = static::newComponentHash(
-            $component === AnonymousComponent::class ? $component.':'.trim($alias, '\'"') : $component
+            $component === AnonymousComponent::class ? $component . ':' . trim($alias, '\'"') : $component
         );
 
         if (Str::contains($component, ['::class', '\\'])) {
@@ -62,10 +62,10 @@ trait CompilesComponents
     public static function compileClassComponentOpening(string $component, string $alias, string $data, string $hash): string
     {
         return implode("\n", [
-            '<?php if (isset($component)) { $__componentOriginal'.$hash.' = $component; } ?>',
-            '<?php if (isset($attributes)) { $__attributesOriginal'.$hash.' = $attributes; } ?>',
-            '<?php $component = '.$component.'::resolve('.($data ?: '[]').' + (isset($attributes) && $attributes instanceof Hypervel\View\ComponentAttributeBag ? $attributes->all() : [])); ?>',
-            '<?php $component->withName('.$alias.'); ?>',
+            '<?php if (isset($component)) { $__componentOriginal' . $hash . ' = $component; } ?>',
+            '<?php if (isset($attributes)) { $__attributesOriginal' . $hash . ' = $attributes; } ?>',
+            '<?php $component = ' . $component . '::resolve(' . ($data ?: '[]') . ' + (isset($attributes) && $attributes instanceof Hypervel\View\ComponentAttributeBag ? $attributes->all() : [])); ?>',
+            '<?php $component->withName(' . $alias . '); ?>',
             '<?php if ($component->shouldRender()): ?>',
             '<?php $__env->startComponent($component->resolveView(), $component->data()); ?>',
         ]);
@@ -86,15 +86,15 @@ trait CompilesComponents
     {
         $hash = $this->popComponentHashStack();
 
-        return $this->compileEndComponent()."\n".implode("\n", [
+        return $this->compileEndComponent() . "\n" . implode("\n", [
             '<?php endif; ?>',
-            '<?php if (isset($__attributesOriginal'.$hash.')): ?>',
-            '<?php $attributes = $__attributesOriginal'.$hash.'; ?>',
-            '<?php unset($__attributesOriginal'.$hash.'); ?>',
+            '<?php if (isset($__attributesOriginal' . $hash . ')): ?>',
+            '<?php $attributes = $__attributesOriginal' . $hash . '; ?>',
+            '<?php unset($__attributesOriginal' . $hash . '); ?>',
             '<?php endif; ?>',
-            '<?php if (isset($__componentOriginal'.$hash.')): ?>',
-            '<?php $component = $__componentOriginal'.$hash.'; ?>',
-            '<?php unset($__componentOriginal'.$hash.'); ?>',
+            '<?php if (isset($__componentOriginal' . $hash . ')): ?>',
+            '<?php $component = $__componentOriginal' . $hash . '; ?>',
+            '<?php unset($__componentOriginal' . $hash . '); ?>',
             '<?php endif; ?>',
         ]);
     }
@@ -150,7 +150,7 @@ trait CompilesComponents
         return "<?php \$attributes ??= new \\Hypervel\\View\\ComponentAttributeBag;
 
 \$__newAttributes = [];
-\$__propNames = \Hypervel\View\ComponentAttributeBag::extractPropNames({$expression});
+\$__propNames = \\Hypervel\\View\\ComponentAttributeBag::extractPropNames({$expression});
 
 foreach (\$attributes->all() as \$__key => \$__value) {
     if (in_array(\$__key, \$__propNames)) {
@@ -160,7 +160,7 @@ foreach (\$attributes->all() as \$__key => \$__value) {
     }
 }
 
-\$attributes = new \Hypervel\View\ComponentAttributeBag(\$__newAttributes);
+\$attributes = new \\Hypervel\\View\\ComponentAttributeBag(\$__newAttributes);
 
 unset(\$__propNames);
 unset(\$__newAttributes);
@@ -198,8 +198,8 @@ unset(\$__defined_vars); ?>";
             return $value->escapeWhenCastingToString();
         }
 
-        return is_string($value) ||
-               (is_object($value) && ! $value instanceof Model && ! $value instanceof ComponentAttributeBag && method_exists($value, '__toString'))
+        return is_string($value)
+               || (is_object($value) && ! $value instanceof Model && ! $value instanceof ComponentAttributeBag && method_exists($value, '__toString'))
                         ? e($value)
                         : $value;
     }

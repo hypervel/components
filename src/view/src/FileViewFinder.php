@@ -101,7 +101,7 @@ class FileViewFinder implements ViewFinderInterface
     {
         foreach ((array) $paths as $path) {
             foreach ($this->getPossibleViewFiles($name) as $file) {
-                $viewPath = $path.'/'.$file;
+                $viewPath = $path . '/' . $file;
 
                 if (strlen($viewPath) < (PHP_MAXPATHLEN - 1) && $this->files->exists($viewPath)) {
                     return $viewPath;
@@ -117,7 +117,7 @@ class FileViewFinder implements ViewFinderInterface
      */
     protected function getPossibleViewFiles(string $name): array
     {
-        return array_map(fn ($extension) => str_replace('.', '/', $name).'.'.$extension, $this->extensions);
+        return array_map(fn ($extension) => str_replace('.', '/', $name) . '.' . $extension, $this->extensions);
     }
 
     /**

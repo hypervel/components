@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\View\Concerns;
 
 use Closure;
-use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\Support\Str;
+use Hypervel\View\Contracts\View as ViewContract;
 
 trait ManagesEvents
 {
@@ -60,10 +60,11 @@ trait ManagesEvents
         $view = $this->normalizeName($view);
 
         if ($callback instanceof Closure) {
-            $this->addEventListener($prefix.$view, $callback);
+            $this->addEventListener($prefix . $view, $callback);
 
             return $callback;
-        } elseif (is_string($callback)) {
+        }
+        if (is_string($callback)) {
             return $this->addClassEvent($view, $callback, $prefix);
         }
     }
@@ -73,13 +74,14 @@ trait ManagesEvents
      */
     protected function addClassEvent(string $view, string $class, string $prefix): Closure
     {
-        $name = $prefix.$view;
+        $name = $prefix . $view;
 
         // When registering a class based view "composer", we will simply resolve the
         // classes from the application IoC container then call the compose method
         // on the instance. This allows for convenient, testable view composers.
         $callback = $this->buildClassEventCallback(
-            $class, $prefix
+            $class,
+            $prefix
         );
 
         $this->addEventListener($name, $callback);
@@ -137,7 +139,7 @@ trait ManagesEvents
      */
     public function callComposer(ViewContract $view): void
     {
-        if ($this->events->hasListeners($event = 'composing: '.$view->name())) {
+        if ($this->events->hasListeners($event = 'composing: ' . $view->name())) {
             $this->events->dispatch($event, [$view]);
         }
     }
@@ -147,7 +149,7 @@ trait ManagesEvents
      */
     public function callCreator(ViewContract $view): void
     {
-        if ($this->events->hasListeners($event = 'creating: '.$view->name())) {
+        if ($this->events->hasListeners($event = 'creating: ' . $view->name())) {
             $this->events->dispatch($event, [$view]);
         }
     }

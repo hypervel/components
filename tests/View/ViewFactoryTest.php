@@ -1,13 +1,13 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Tests\View;
 
 use Closure;
 use ErrorException;
 use Hypervel\Container\Contracts\Container;
 use Hypervel\Event\Contracts\Dispatcher as DispatcherContract;
-use Hypervel\View\Contracts\Engine;
-use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
 use Hypervel\Filesystem\Filesystem;
@@ -15,6 +15,8 @@ use Hypervel\Support\HtmlString;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\View\Compilers\CompilerInterface;
+use Hypervel\View\Contracts\Engine;
+use Hypervel\View\Contracts\View as ViewContract;
 use Hypervel\View\Engines\CompilerEngine;
 use Hypervel\View\Engines\EngineResolver;
 use Hypervel\View\Engines\PhpEngine;
@@ -27,6 +29,10 @@ use PHPUnit\Framework\TestCase;
 use ReflectionFunction;
 use stdClass;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class ViewFactoryTest extends TestCase
 {
     use HasMockedApplication;
@@ -121,7 +127,7 @@ class ViewFactoryTest extends TestCase
 
     public function testRenderEachCreatesViewForEachItemInArray()
     {
-        $factory = m::mock(Factory::class.'[make]', $this->getFactoryArgs());
+        $factory = m::mock(Factory::class . '[make]', $this->getFactoryArgs());
         $factory->shouldReceive('make')->once()->with('foo', ['key' => 'bar', 'value' => 'baz'])->andReturn($mockView1 = m::mock(ViewContract::class));
         $factory->shouldReceive('make')->once()->with('foo', ['key' => 'breeze', 'value' => 'boom'])->andReturn($mockView2 = m::mock(ViewContract::class));
         $mockView1->shouldReceive('render')->once()->andReturn('dayle');
@@ -134,7 +140,7 @@ class ViewFactoryTest extends TestCase
 
     public function testEmptyViewsCanBeReturnedFromRenderEach()
     {
-        $factory = m::mock(Factory::class.'[make]', $this->getFactoryArgs());
+        $factory = m::mock(Factory::class . '[make]', $this->getFactoryArgs());
         $factory->shouldReceive('make')->once()->with('foo')->andReturn($mockView = m::mock(ViewContract::class));
         $mockView->shouldReceive('render')->once()->andReturn('empty');
 
@@ -151,7 +157,6 @@ class ViewFactoryTest extends TestCase
         $factory = $this->getFactory();
 
         $resolver = function () {
-            //
         };
 
         $factory->getFinder()->shouldReceive('addExtension')->once()->with('foo');
@@ -629,7 +634,7 @@ class ViewFactoryTest extends TestCase
         $factory = $this->getFactory();
         $placeholder = $factory->getParentPlaceholder('foo');
         $factory->startSection('foo');
-        echo 'hi '.$placeholder;
+        echo 'hi ' . $placeholder;
         $factory->stopSection();
         $factory->startSection('foo');
         echo 'there';
@@ -643,10 +648,10 @@ class ViewFactoryTest extends TestCase
         $factory = $this->getFactory();
         $placeholder = $factory->getParentPlaceholder('foo');
         $factory->startSection('foo');
-        echo 'hello '.$placeholder.' nice to see you '.$placeholder;
+        echo 'hello ' . $placeholder . ' nice to see you ' . $placeholder;
         $factory->stopSection();
         $factory->startSection('foo');
-        echo 'my '.$placeholder;
+        echo 'my ' . $placeholder;
         $factory->stopSection();
         $factory->startSection('foo');
         echo 'friend';
@@ -658,8 +663,8 @@ class ViewFactoryTest extends TestCase
     public function testComponentHandling()
     {
         $factory = $this->getFactory();
-        $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__.'/fixtures/component.php');
-        $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem));
+        $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__ . '/fixtures/component.php');
+        $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem()));
         $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(false);
         $factory->startComponent('component', ['name' => 'Taylor']);
         $factory->slot('title');
@@ -674,8 +679,8 @@ class ViewFactoryTest extends TestCase
     public function testComponentHandlingUsingViewObject()
     {
         $factory = $this->getFactory();
-        $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__.'/fixtures/component.php');
-        $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem));
+        $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__ . '/fixtures/component.php');
+        $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem()));
         $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(false);
         $factory->startComponent($factory->make('component'), ['name' => 'Taylor']);
         $factory->slot('title');
@@ -690,8 +695,8 @@ class ViewFactoryTest extends TestCase
     public function testComponentHandlingUsingClosure()
     {
         $factory = $this->getFactory();
-        $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__.'/fixtures/component.php');
-        $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem));
+        $factory->getFinder()->shouldReceive('find')->andReturn(__DIR__ . '/fixtures/component.php');
+        $factory->getEngineResolver()->shouldReceive('resolve')->andReturn(new PhpEngine(new Filesystem()));
         $factory->getDispatcher()->shouldReceive('hasListeners')->andReturn(false);
         $factory->startComponent(function ($data) use ($factory) {
             $this->assertArrayHasKey('name', $data);
@@ -895,15 +900,15 @@ class ViewFactoryTest extends TestCase
         $this->expectException(ErrorException::class);
         $this->expectExceptionMessage('section exception message');
 
-        $engine = new CompilerEngine(m::mock(CompilerInterface::class), new Filesystem);
+        $engine = new CompilerEngine(m::mock(CompilerInterface::class), new Filesystem());
         $engine->getCompiler()->shouldReceive('getCompiledPath')->andReturnUsing(function ($path) {
             return $path;
         });
         $engine->getCompiler()->shouldReceive('isExpired')->twice()->andReturn(false);
         $factory = $this->getFactory();
         $factory->getEngineResolver()->shouldReceive('resolve')->twice()->andReturn($engine);
-        $factory->getFinder()->shouldReceive('find')->once()->with('layout')->andReturn(__DIR__.'/fixtures/section-exception-layout.php');
-        $factory->getFinder()->shouldReceive('find')->once()->with('view')->andReturn(__DIR__.'/fixtures/section-exception.php');
+        $factory->getFinder()->shouldReceive('find')->once()->with('layout')->andReturn(__DIR__ . '/fixtures/section-exception-layout.php');
+        $factory->getFinder()->shouldReceive('find')->once()->with('view')->andReturn(__DIR__ . '/fixtures/section-exception.php');
         $factory->getDispatcher()->shouldReceive('hasListeners')->times(4); // 2 "creating" + 2 "composing"...
 
         $factory->make('view')->render();
@@ -981,11 +986,10 @@ class ViewFactoryTest extends TestCase
     {
         $factory = $this->getFactory();
 
-        $data = (new class
-        {
+        $data = (new class {
             public function generate()
             {
-                for ($count = 0; $count < 3; $count++) {
+                for ($count = 0; $count < 3; ++$count) {
                     yield ['a', 'b'];
                 }
             }

@@ -1,10 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Tests\View\Blade;
 
 use Hypervel\View\Contracts\ViewCompilationException;
 use PHPUnit\Framework\Attributes\DataProvider;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class BladeForeachStatementsTest extends AbstractBladeTestCase
 {
     public function testForeachStatementsAreCompiled()
@@ -100,7 +106,7 @@ tag info
     {
         $this->expectException(ViewCompilationException::class);
         $this->expectExceptionMessage('Malformed @foreach statement.');
-        $string = "$initialStatement
+        $string = "{$initialStatement}
 test
 @endforeach";
         $this->compiler->compileString($string);

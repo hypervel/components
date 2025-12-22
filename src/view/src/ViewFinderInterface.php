@@ -9,7 +9,7 @@ interface ViewFinderInterface
     /**
      * Hint path delimiter value.
      */
-    const string HINT_PATH_DELIMITER = '::';
+    public const string HINT_PATH_DELIMITER = '::';
 
     /**
      * Get the fully qualified location of the view.

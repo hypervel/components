@@ -13,6 +13,6 @@ trait CompilesStyles
     {
         $expression = is_null($expression) ? '([])' : $expression;
 
-        return "style=\"<?php echo \Hypervel\Support\Arr::toCssStyles{$expression} ?>\"";
+        return "style=\"<?php echo \\Hypervel\\Support\\Arr::toCssStyles{$expression} ?>\"";
     }
 }

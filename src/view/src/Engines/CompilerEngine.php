@@ -30,7 +30,7 @@ class CompilerEngine extends PhpEngine
         protected CompilerInterface $compiler,
         ?Filesystem $files = null
     ) {
-        parent::__construct($files ?: new Filesystem);
+        parent::__construct($files ?: new Filesystem());
     }
 
     /**
@@ -91,11 +91,11 @@ class CompilerEngine extends PhpEngine
      */
     protected function handleViewException(Throwable $e, int $obLevel): void
     {
-        if ($e instanceof HttpException ||
-            $e instanceof HttpResponseException ||
-            $e instanceof MultipleRecordsFoundException ||
-            $e instanceof RecordsNotFoundException ||
-            $e instanceof ModelNotFoundException
+        if ($e instanceof HttpException
+            || $e instanceof HttpResponseException
+            || $e instanceof MultipleRecordsFoundException
+            || $e instanceof RecordsNotFoundException
+            || $e instanceof ModelNotFoundException
         ) {
             parent::handleViewException($e, $obLevel);
         }
@@ -112,7 +112,7 @@ class CompilerEngine extends PhpEngine
     {
         $stack = Context::get(static::COMPILED_PATH_CONTEXT_KEY);
 
-        return $e->getMessage().' (View: '.realpath(last($stack)).')';
+        return $e->getMessage() . ' (View: ' . realpath(last($stack)) . ')';
     }
 
     /**

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\View\Engines;
 
 use Closure;
-use InvalidArgumentException;
 use Hypervel\View\Contracts\Engine;
+use InvalidArgumentException;
 
 class EngineResolver
 {

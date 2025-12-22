@@ -11,7 +11,7 @@ trait CompilesAuthorizations
      */
     protected function compileCan(string $expression): string
     {
-        return "<?php if (app(\Hypervel\\Contracts\\Auth\\Access\\Gate::class)->check{$expression}): ?>";
+        return "<?php if (app(\\Hypervel\\Contracts\\Auth\\Access\\Gate::class)->check{$expression}): ?>";
     }
 
     /**
@@ -19,7 +19,7 @@ trait CompilesAuthorizations
      */
     protected function compileCannot(string $expression): string
     {
-        return "<?php if (app(\Hypervel\\Contracts\\Auth\\Access\\Gate::class)->denies{$expression}): ?>";
+        return "<?php if (app(\\Hypervel\\Contracts\\Auth\\Access\\Gate::class)->denies{$expression}): ?>";
     }
 
     /**
@@ -27,7 +27,7 @@ trait CompilesAuthorizations
      */
     protected function compileCanany(string $expression): string
     {
-        return "<?php if (app(\Hypervel\\Contracts\\Auth\\Access\\Gate::class)->any{$expression}): ?>";
+        return "<?php if (app(\\Hypervel\\Contracts\\Auth\\Access\\Gate::class)->any{$expression}): ?>";
     }
 
     /**
@@ -35,7 +35,7 @@ trait CompilesAuthorizations
      */
     protected function compileElsecan(string $expression): string
     {
-        return "<?php elseif (app(\Hypervel\\Contracts\\Auth\\Access\\Gate::class)->check{$expression}): ?>";
+        return "<?php elseif (app(\\Hypervel\\Contracts\\Auth\\Access\\Gate::class)->check{$expression}): ?>";
     }
 
     /**
@@ -43,7 +43,7 @@ trait CompilesAuthorizations
      */
     protected function compileElsecannot(string $expression): string
     {
-        return "<?php elseif (app(\Hypervel\\Contracts\\Auth\\Access\\Gate::class)->denies{$expression}): ?>";
+        return "<?php elseif (app(\\Hypervel\\Contracts\\Auth\\Access\\Gate::class)->denies{$expression}): ?>";
     }
 
     /**
@@ -51,7 +51,7 @@ trait CompilesAuthorizations
      */
     protected function compileElsecanany(string $expression): string
     {
-        return "<?php elseif (app(\Hypervel\\Contracts\\Auth\\Access\\Gate::class)->any{$expression}): ?>";
+        return "<?php elseif (app(\\Hypervel\\Contracts\\Auth\\Access\\Gate::class)->any{$expression}): ?>";
     }
 
     /**

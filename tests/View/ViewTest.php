@@ -1,19 +1,25 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Tests\View;
 
 use ArrayAccess;
 use BadMethodCallException;
 use Hypervel\Support\Contracts\Arrayable;
 use Hypervel\Support\Contracts\Renderable;
-use Hypervel\View\Contracts\Engine;
 use Hypervel\Support\MessageBag;
 use Hypervel\Support\ViewErrorBag;
+use Hypervel\View\Contracts\Engine;
 use Hypervel\View\Factory;
 use Hypervel\View\View;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class ViewTest extends TestCase
 {
     protected function tearDown(): void
@@ -70,7 +76,6 @@ class ViewTest extends TestCase
         }));
 
         $this->assertSame('contents', $view->render(function () {
-            //
         }));
     }
 
@@ -152,7 +157,7 @@ class ViewTest extends TestCase
 
     public function testViewConstructedWithObjectData()
     {
-        $view = $this->getView(new DataObjectStub);
+        $view = $this->getView(new DataObjectStub());
         $this->assertInstanceOf(ArrayAccess::class, $view);
         $this->assertTrue($view->offsetExists('foo'));
         $this->assertSame('bar', $view->offsetGet('foo'));

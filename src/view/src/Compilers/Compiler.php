@@ -27,7 +27,7 @@ abstract class Compiler
      */
     public function getCompiledPath(string $path): string
     {
-        return $this->cachePath.'/'.hash('xxh128', 'v2'.Str::after($path, $this->basePath)).'.'.$this->compiledExtension;
+        return $this->cachePath . '/' . hash('xxh128', 'v2' . Str::after($path, $this->basePath)) . '.' . $this->compiledExtension;
     }
 
     /**

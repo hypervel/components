@@ -29,7 +29,8 @@ trait ManagesTranslations
     public function renderTranslation(): string
     {
         return $this->container->make('translator')->get(
-            trim(ob_get_clean()), Context::get(static::TRANSLATION_REPLACEMENTS_CONTEXT_KEY, [])
+            trim(ob_get_clean()),
+            Context::get(static::TRANSLATION_REPLACEMENTS_CONTEXT_KEY, [])
         );
     }
 }

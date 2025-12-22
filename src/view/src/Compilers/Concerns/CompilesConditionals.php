@@ -227,9 +227,9 @@ trait CompilesConditionals
      */
     protected function compileOnce(?string $id = null): string
     {
-        $id = $id ? $this->stripParentheses($id) : "'".(string) Str::uuid()."'";
+        $id = $id ? $this->stripParentheses($id) : "'" . (string) Str::uuid() . "'";
 
-        return '<?php if (! $__env->hasRenderedOnce('.$id.')): $__env->markAsRenderedOnce('.$id.'); ?>';
+        return '<?php if (! $__env->hasRenderedOnce(' . $id . ')): $__env->markAsRenderedOnce(' . $id . '); ?>';
     }
 
     /**
@@ -245,7 +245,7 @@ trait CompilesConditionals
      */
     protected function compileBool(string $condition): string
     {
-        return "<?php echo ($condition ? 'true' : 'false'); ?>";
+        return "<?php echo ({$condition} ? 'true' : 'false'); ?>";
     }
 
     /**

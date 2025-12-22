@@ -8,17 +8,26 @@ use Closure;
 use Hypervel\Container\Contracts\Container;
 use Hypervel\Context\Context;
 use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Contracts\Arrayable;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\View\Contracts\Engine;
 use Hypervel\View\Contracts\Factory as FactoryContract;
 use Hypervel\View\Contracts\View as ViewContract;
-use Hypervel\Support\Arr;
-use Hypervel\Support\Traits\Macroable;
 use Hypervel\View\Engines\EngineResolver;
 use InvalidArgumentException;
 
 class Factory implements FactoryContract
 {
+    use Macroable;
+    use Concerns\ManagesComponents;
+    use Concerns\ManagesEvents;
+    use Concerns\ManagesFragments;
+    use Concerns\ManagesLayouts;
+    use Concerns\ManagesLoops;
+    use Concerns\ManagesStacks;
+    use Concerns\ManagesTranslations;
+
     /**
      * The number of active rendering operations.
      */
@@ -28,15 +37,6 @@ class Factory implements FactoryContract
      * The "once" block IDs that have been rendered.
      */
     protected const RENDERED_ONCE_CONTEXT_KEY = 'rendered_once';
-
-    use Macroable,
-        Concerns\ManagesComponents,
-        Concerns\ManagesEvents,
-        Concerns\ManagesFragments,
-        Concerns\ManagesLayouts,
-        Concerns\ManagesLoops,
-        Concerns\ManagesStacks,
-        Concerns\ManagesTranslations;
 
     /**
      * The IoC container instance.
@@ -167,7 +167,8 @@ class Factory implements FactoryContract
         if (count($data) > 0) {
             foreach ($data as $key => $value) {
                 $result .= $this->make(
-                    $view, ['key' => $key, $iterator => $value]
+                    $view,
+                    ['key' => $key, $iterator => $value]
                 )->render();
             }
         }
@@ -250,7 +251,7 @@ class Factory implements FactoryContract
         $extensions = array_keys($this->extensions);
 
         return Arr::first($extensions, function ($value) use ($path) {
-            return str_ends_with($path, '.'.$value);
+            return str_ends_with($path, '.' . $value);
         });
     }
 

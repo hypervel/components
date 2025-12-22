@@ -6,10 +6,10 @@ namespace Hypervel\View\Concerns;
 
 use Closure;
 use Hypervel\Context\Context;
-use Hypervel\Support\Contracts\Htmlable;
-use Hypervel\View\Contracts\View;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\View\ComponentSlot;
+use Hypervel\View\Contracts\View;
 
 trait ManagesComponents
 {
@@ -114,11 +114,11 @@ trait ManagesComponents
 
             if ($view instanceof View) {
                 return $view->with($data)->render();
-            } elseif ($view instanceof Htmlable) {
-                return $view->toHtml();
-            } else {
-                return $this->make($view, $data)->render();
             }
+            if ($view instanceof Htmlable) {
+                return $view->toHtml();
+            }
+            return $this->make($view, $data)->render();
         } finally {
             Context::set(static::CURRENT_COMPONENT_DATA_CONTEXT_KEY, $previousComponentData);
         }
@@ -169,7 +169,7 @@ trait ManagesComponents
 
         $componentData = Context::get(static::COMPONENT_DATA_CONTEXT_KEY, []);
 
-        for ($i = $currentComponent - 1; $i >= 0; $i--) {
+        for ($i = $currentComponent - 1; $i >= 0; --$i) {
             $data = $componentData[$i] ?? [];
 
             if (array_key_exists($key, $data)) {
@@ -194,7 +194,7 @@ trait ManagesComponents
         }
     }
 
-    protected function setSlotData(string $name, null|string|ComponentSlot $content): void
+    protected function setSlotData(string $name, string|ComponentSlot|null $content): void
     {
         $currentComponent = $this->currentComponent();
 
@@ -233,7 +233,8 @@ trait ManagesComponents
         [$currentName, $currentAttributes] = $currentSlot;
 
         $this->setSlotData($currentName, new ComponentSlot(
-            trim(ob_get_clean()), $currentAttributes
+            trim(ob_get_clean()),
+            $currentAttributes
         ));
     }
 

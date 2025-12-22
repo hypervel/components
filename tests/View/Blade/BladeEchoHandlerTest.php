@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Tests\View\Blade;
 
 use Exception;
@@ -10,6 +12,10 @@ use Hypervel\Support\Fluent;
 use Hypervel\Support\Stringable;
 use PHPUnit\Framework\Attributes\DataProvider;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class BladeEchoHandlerTest extends AbstractBladeTestCase
 {
     protected function setUp(): void
@@ -63,13 +69,22 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
             throw new Exception('The fluent object has been successfully handled!');
         });
 
-
         $app = $this->createApplication();
         $app->instance('blade.compiler', $this->compiler);
 
         $exampleObject = new Fluent();
 
         eval((new Stringable($this->compiler->compileString($blade)))->remove(['<?php', '?>']));
+    }
+
+    public static function handlerLogicDataProvider()
+    {
+        return [
+            ['{{$exampleObject}}'],
+            ['{{$exampleObject;}}'],
+            ['{{{$exampleObject;}}}'],
+            ['{!!$exampleObject;!!}'],
+        ];
     }
 
     protected function createApplication()
@@ -81,16 +96,6 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
         ApplicationContext::setContainer($container);
 
         return $container;
-    }
-
-    public static function handlerLogicDataProvider()
-    {
-        return [
-            ['{{$exampleObject}}'],
-            ['{{$exampleObject;}}'],
-            ['{{{$exampleObject;}}}'],
-            ['{!!$exampleObject;!!}'],
-        ];
     }
 
     #[DataProvider('handlerWorksWithIterableDataProvider')]
@@ -115,7 +120,7 @@ class BladeEchoHandlerTest extends AbstractBladeTestCase
             [
                 '{{[1,"two",3]}}',
                 fn (iterable $arr) => implode(', ', $arr),
-                '1, two, 3'
+                '1, two, 3',
             ],
         ];
     }

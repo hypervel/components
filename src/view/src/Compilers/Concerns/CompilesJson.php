@@ -22,6 +22,6 @@ trait CompilesJson
 
         $depth = isset($parts[2]) ? trim($parts[2]) : 512;
 
-        return "<?php echo json_encode($parts[0], $options, $depth) ?>";
+        return "<?php echo json_encode({$parts[0]}, {$options}, {$depth}) ?>";
     }
 }
