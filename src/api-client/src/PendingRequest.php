@@ -9,6 +9,7 @@ use Hypervel\HttpClient\ConnectionException;
 use Hypervel\HttpClient\PendingRequest as ClientPendingRequest;
 use Hypervel\HttpClient\Request;
 use Hypervel\Support\Facades\Http;
+use Hypervel\Support\Pipeline;
 use Hypervel\Support\Traits\Conditionable;
 use InvalidArgumentException;
 use JsonSerializable;
@@ -34,24 +35,30 @@ class PendingRequest
     protected array $guzzleOptions = [];
 
     /**
-     * @var array<RequestMiddleware|string>
+     * @var array<callable|object|string>
      */
     protected array $requestMiddleware = [];
 
     /**
-     * @var array<ResponseMiddleware|string>
+     * @var array<callable|object|string>
      */
     protected array $responseMiddleware = [];
 
     protected ?ClientPendingRequest $request = null;
 
+    protected Pipeline $pipeline;
+
+    protected static $cachedMiddleware = [];
+
     public function __construct(
         protected ApiClient $client,
+        ?Pipeline $pipeline = null,
     ) {
         $this->resource = $this->client->getResource();
         $this->enableMiddleware = $this->client->getEnableMiddleware();
         $this->requestMiddleware = $this->client->getRequestMiddleware();
         $this->responseMiddleware = $this->client->getResponseMiddleware();
+        $this->pipeline = $pipeline ?? Pipeline::make();
     }
 
     /**
@@ -237,6 +244,14 @@ class PendingRequest
     }
 
     /**
+     * Flush the cached middleware instances.
+     */
+    public function flushCache(): void
+    {
+        static::$cachedMiddleware = [];
+    }
+
+    /**
      * Provide a dynamic method to pass calls to the pending request.
      */
     public function __call(string $method, array $parameters): static
@@ -255,17 +270,43 @@ class PendingRequest
         $request = null;
         $response = $this->getClient()
             ->beforeSending(function (Request $httpRequest) use (&$request) {
-                $request = $httpRequest;
+                $request = new ApiRequest($httpRequest->toPsrRequest());
+                if ($this->enableMiddleware) {
+                    $request = $this->handleMiddlewareRequest($request);
+                }
+                return $request->toPsrRequest();
             })->{$method}(...$arguments);
 
         if ($response instanceof PromiseInterface) {
             throw new InvalidArgumentException('Api client does not support async requests');
         }
 
+        $response = new ApiResponse($response->toPsrResponse());
+
+        if ($this->enableMiddleware) {
+            $response = $this->handleMiddlewareResponse($response);
+        }
+
         return $this->resource::make($response, $request);
     }
 
-    protected function createMiddleware(array $middlewareClasses, array $options): array
+    protected function handleMiddlewareRequest(ApiRequest $request): ApiRequest
+    {
+        return $this->pipeline
+            ->send($request->withContext('options', $this->middlewareOptions))
+            ->through($this->createMiddleware($this->requestMiddleware))
+            ->thenReturn();
+    }
+
+    protected function handleMiddlewareResponse(ApiResponse $response): ApiResponse
+    {
+        return $this->pipeline
+            ->send($response)
+            ->through($this->createMiddleware($this->responseMiddleware))
+            ->thenReturn();
+    }
+
+    protected function createMiddleware(array $middlewareClasses): array
     {
         $middleware = [];
         foreach ($middlewareClasses as $value) {
@@ -274,8 +315,11 @@ class PendingRequest
                     sprintf('Middleware class `%s` does not exist', $value)
                 );
             }
-
-            $middleware[] = new $value($this->client->getConfig(), $options);
+            if ($cache = static::$cachedMiddleware[$value] ?? null) {
+                $middleware[] = $cache;
+                continue;
+            }
+            $middleware[] = static::$cachedMiddleware[$value] = new $value($this->client->getConfig());
         }
 
         return $middleware;
@@ -291,18 +335,6 @@ class PendingRequest
 
         if ($this->guzzleOptions) {
             $request->withOptions($this->guzzleOptions);
-        }
-
-        if (! $this->enableMiddleware) {
-            return $request;
-        }
-
-        foreach ($this->createMiddleware($this->requestMiddleware, $this->middlewareOptions) as $middleware) {
-            $request->withRequestMiddleware($middleware);
-        }
-
-        foreach ($this->createMiddleware($this->responseMiddleware, $this->middlewareOptions) as $middleware) {
-            $request->withResponseMiddleware($middleware);
         }
 
         return $this->request = $request;

@@ -11,6 +11,8 @@ use Psr\Http\Message\RequestInterface;
 
 class ApiRequest extends HttpClientRequest
 {
+    use HasContext;
+
     /**
      * Determine if the request data has changed.
      */

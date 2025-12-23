@@ -26,12 +26,12 @@ class ApiClient
     protected bool $enableMiddleware = true;
 
     /**
-     * @var array<RequestMiddleware|string>
+     * @var array<callable|object|string>
      */
     protected array $requestMiddleware = [];
 
     /**
-     * @var array<ResponseMiddleware|string>
+     * @var array<callable|object|string>
      */
     protected array $responseMiddleware = [];
 
