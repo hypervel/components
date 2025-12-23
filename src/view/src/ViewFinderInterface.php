@@ -45,4 +45,9 @@ interface ViewFinderInterface
      * Flush the cache of located views.
      */
     public function flush(): void;
+
+    /**
+     * Prepend a location to the finder.
+     */
+    public function prependLocation(string $location): void;
 }

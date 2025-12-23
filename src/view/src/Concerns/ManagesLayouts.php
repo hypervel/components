@@ -38,7 +38,7 @@ trait ManagesLayouts
                 Context::set(static::SECTION_STACK_CONTEXT_KEY, $sectionStack);
             }
         } else {
-            $this->extendSection($section, $content instanceof View ? (string) $content : e($content));
+            $this->extendSection($section, $content instanceof View ? $content->render() : e($content));
         }
     }
 
@@ -138,7 +138,7 @@ trait ManagesLayouts
      */
     public function yieldContent(string $section, string|View $default = ''): string
     {
-        $sectionContent = $default instanceof View ? (string) $default : e($default);
+        $sectionContent = $default instanceof View ? $default->render() : e($default);
 
         $sections = Context::get(static::SECTIONS_CONTEXT_KEY, []);
         if (isset($sections[$section])) {

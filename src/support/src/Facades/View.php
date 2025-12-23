@@ -92,6 +92,6 @@ class View extends Facade
 {
     protected static function getFacadeAccessor()
     {
-        return FactoryContract::class;
+        return 'view';
     }
 }

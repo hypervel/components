@@ -6,10 +6,11 @@ namespace Hypervel\View;
 
 use ArrayAccess;
 use BadMethodCallException;
-use Hyperf\Contract\MessageProvider;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Contracts\Arrayable;
 use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Support\Contracts\MessageBag as MessageBagContract;
+use Hypervel\Support\Contracts\MessageProvider;
 use Hypervel\Support\Contracts\Renderable;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\MessageBag;
@@ -70,7 +71,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
     /**
      * Get the evaluated contents of a given fragment if the given condition is true.
      */
-    public function fragmentIf(bool $boolean, string $fragment): string
+    public function fragmentIf(bool $boolean, string $fragment): string|Htmlable
     {
         if (value($boolean)) {
             return $this->fragment($fragment);
@@ -234,7 +235,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
     /**
      * Parse the given errors into an appropriate value.
      */
-    protected function formatErrors(MessageProvider|array|string $provider): MessageBag
+    protected function formatErrors(MessageProvider|array|string $provider): MessageBagContract
     {
         return $provider instanceof MessageProvider
                         ? $provider->getMessageBag()

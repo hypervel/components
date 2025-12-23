@@ -445,7 +445,7 @@ class ComponentTagCompiler
         $constructor = (new ReflectionClass($class))->getConstructor();
 
         $parameterNames = $constructor
-                    ? (new Collection($constructor->getParameters()))->map->getName()->all()
+                    ? (new Collection($constructor->getParameters()))->map(fn ($p) => $p->getName())->all()
                     : [];
 
         return (new Collection($attributes))
@@ -458,7 +458,7 @@ class ComponentTagCompiler
      */
     protected function compileClosingTags(string $value): string
     {
-        return preg_replace('/<\\/\\s*x[-\\:][\\w\\-\\:\\.]*\\s*>/', ' @endComponentClass##END-COMPONENT-CLASS##', $value);
+        return preg_replace('/<\/\s*x[-\:][\w\-\:\.]*\s*>/', ' @endComponentClass##END-COMPONENT-CLASS##', $value);
     }
 
     /**
@@ -603,7 +603,7 @@ class ComponentTagCompiler
      */
     protected function parseShortAttributeSyntax(string $value): string
     {
-        $pattern = '/\\s\\:\\$(\\w+)/x';
+        $pattern = '/\s\:\$(\w+)/x';
 
         return preg_replace_callback($pattern, function (array $matches) {
             return " :{$matches[1]}=\"\${$matches[1]}\"";
@@ -616,8 +616,8 @@ class ComponentTagCompiler
     protected function parseAttributeBag(string $attributeString): string
     {
         $pattern = '/
-            (?:^|\\s+)                                        # start of the string or whitespace between attributes
-            \\{\\{\\s*(\\$attributes(?:[^}]+?(?<!\\s))?)\\s*\\}\\} # exact match of attributes variable being echoed
+            (?:^|\s+)                                        # start of the string or whitespace between attributes
+            \{\{\s*(\$attributes(?:[^}]+?(?<!\s))?)\s*\}\} # exact match of attributes variable being echoed
         /x';
 
         return preg_replace($pattern, ' :attributes="$1"', $attributeString);
@@ -669,9 +669,9 @@ class ComponentTagCompiler
     protected function parseBindAttributes(string $attributeString): string
     {
         $pattern = '/
-            (?:^|\\s+)     # start of the string or whitespace between attributes
+            (?:^|\s+)     # start of the string or whitespace between attributes
             :(?!:)        # attribute needs to start with a single colon
-            ([\\w\\-:.@]+)  # match the actual attribute name
+            ([\w\-:.@]+)  # match the actual attribute name
             =             # only match attributes that have a value
         /xm';
 

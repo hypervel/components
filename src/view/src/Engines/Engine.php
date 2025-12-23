@@ -9,7 +9,7 @@ abstract class Engine
     /**
      * The view that was last to be rendered.
      */
-    protected string $lastRendered = null;
+    protected ?string $lastRendered = null;
 
     /**
      * Get the last view that was rendered.

@@ -582,7 +582,7 @@ class ViewFactoryTest extends TestCase
     {
         $factory = $this->getFactory();
         $view = m::mock(View::class);
-        $view->shouldReceive('__toString')->once()->andReturn('<p>hi</p>&lt;p&gt;already escaped&lt;/p&gt;');
+        $view->shouldReceive('render')->once()->andReturn('<p>hi</p>&lt;p&gt;already escaped&lt;/p&gt;');
         $this->assertSame('<p>hi</p>&lt;p&gt;already escaped&lt;/p&gt;', $factory->yieldContent('foo', $view));
     }
 
@@ -623,7 +623,7 @@ class ViewFactoryTest extends TestCase
     {
         $factory = $this->getFactory();
         $view = m::mock(View::class);
-        $view->shouldReceive('__toString')->once()->andReturn('<p>hi</p>&lt;p&gt;already escaped&lt;/p&gt;');
+        $view->shouldReceive('render')->once()->andReturn('<p>hi</p>&lt;p&gt;already escaped&lt;/p&gt;');
         $factory->startSection('foo', $view);
         $this->assertSame('<p>hi</p>&lt;p&gt;already escaped&lt;/p&gt;', $factory->yieldContent('foo'));
         $factory->flushSections();

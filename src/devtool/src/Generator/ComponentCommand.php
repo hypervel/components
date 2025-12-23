@@ -38,7 +38,7 @@ class ComponentCommand extends GeneratorCommand
 
     protected function replaceView(string $stub, string $name): string
     {
-        $view = str_replace($this->getDefaultNamespace($name) . '\\', '', $name);
+        $view = str_replace($this->getDefaultNamespace() . '\\', '', $name);
         $view = array_map(
             fn ($part) => Str::snake($part),
             explode('\\', $view)

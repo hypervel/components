@@ -86,9 +86,8 @@ class Factory implements FactoryContract
 
     /**
      * Get the evaluated view contents for the given view.
-     * @return \Hypervel\Contracts\View\View
      */
-    public function file(string $path, Arrayable|array $data = [], array $mergeData = []): View
+    public function file(string $path, Arrayable|array $data = [], array $mergeData = []): ViewContract
     {
         $data = array_merge($mergeData, $this->parseData($data));
 

@@ -40,7 +40,7 @@ abstract class Component
     /**
      * The component resolver callback.
      *
-     * @var null|(Closure(string, array): Component)
+     * @var null|(Closure(string, array): static)
      */
     protected static ?Closure $componentsResolver = null;
 
@@ -109,7 +109,7 @@ abstract class Component
             $constructor = $class->getConstructor();
 
             static::$constructorParametersCache[static::class] = $constructor
-                ? (new Collection($constructor->getParameters()))->map->getName()->all()
+                ? (new Collection($constructor->getParameters()))->map(fn ($p) => $p->getName())->all()
                 : [];
         }
 
@@ -367,8 +367,7 @@ abstract class Component
             }
 
             static::$ignoredParameterNames[static::class] = (new Collection($constructor->getParameters()))
-                ->map
-                ->getName()
+                ->map(fn ($p) => $p->getName())
                 ->all();
         }
 
@@ -407,7 +406,7 @@ abstract class Component
     /**
      * Set the callback that should be used to resolve components within views.
      *
-     * @param Closure(string $component, array $data): Component $resolver
+     * @param Closure(string $component, array $data): static $resolver
      *
      * @internal
      */

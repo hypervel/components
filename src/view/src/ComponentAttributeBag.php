@@ -16,7 +16,6 @@ use Hypervel\Support\Traits\Macroable;
 use IteratorAggregate;
 use JsonSerializable;
 use Stringable;
-use Traversable;
 
 class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSerializable, Htmlable, Stringable
 {
@@ -391,7 +390,7 @@ class ComponentAttributeBag implements ArrayAccess, IteratorAggregate, JsonSeria
     /**
      * Get an iterator for the items.
      */
-    public function getIterator(): Traversable
+    public function getIterator(): ArrayIterator
     {
         return new ArrayIterator($this->attributes);
     }

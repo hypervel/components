@@ -388,7 +388,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 
         $result = $this->compiler()->guessClassName('alert');
 
-        $this->assertSame('App\\View\\Components\\Alert', trim($result));
+        $this->assertSame('App\View\Components\Alert', trim($result));
     }
 
     public function testClassNamesCanBeGuessedWithNamespaces()
@@ -397,7 +397,7 @@ class BladeComponentTagCompilerTest extends AbstractBladeTestCase
 
         $result = $this->compiler()->guessClassName('base.alert');
 
-        $this->assertSame('App\\View\\Components\\Base\\Alert', trim($result));
+        $this->assertSame('App\View\Components\Base\Alert', trim($result));
     }
 
     public function testComponentsCanBeCompiledWithHyphenAttributes()

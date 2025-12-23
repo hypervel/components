@@ -22,4 +22,9 @@ interface View extends Renderable
      * Get the array of view data.
      */
     public function getData(): array;
+
+    /**
+     * Get the path to the view file.
+     */
+    public function getPath(): string;
 }

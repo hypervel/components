@@ -791,7 +791,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
      *
      * @throws InvalidArgumentException
      */
-    public function directive(string $name, callable $handler, bool $bind = false): void
+    public function directive(string $name, Closure $handler, bool $bind = false): void
     {
         if (! preg_match('/^\w+(?:::\w+)?$/x', $name)) {
             throw new InvalidArgumentException("The directive name [{$name}] is not valid. Directive names must only contain alphanumeric characters and underscores.");
