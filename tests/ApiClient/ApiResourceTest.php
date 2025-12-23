@@ -18,12 +18,12 @@ use PHPUnit\Framework\TestCase;
 class ApiResourceTest extends TestCase
 {
     /**
-     * @var MockObject&ApiResponse
+     * @var ApiResponse&MockObject
      */
     private $response;
 
     /**
-     * @var MockObject&ApiRequest
+     * @var ApiRequest&MockObject
      */
     private $request;
 
