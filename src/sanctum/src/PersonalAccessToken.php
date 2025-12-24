@@ -14,6 +14,7 @@ use Hypervel\Cache\Contracts\Repository as CacheRepository;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Sanctum\Contracts\HasAbilities;
+use Hypervel\Support\Str;
 
 /**
  * @property int|string $id
@@ -155,7 +156,7 @@ class PersonalAccessToken extends Model implements HasAbilities
      */
     public function can(BackedEnum|string $ability): bool
     {
-        $ability = $ability instanceof BackedEnum ? $ability->value : $ability;
+        $ability = Str::from($ability);
 
         return in_array('*', $this->abilities)
                || array_key_exists($ability, array_flip($this->abilities));
