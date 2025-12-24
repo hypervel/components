@@ -182,6 +182,7 @@ class ApiRequest extends HttpClientRequest
     public function withBody(string $body): static
     {
         $this->request = $this->request->withBody(new Stream($body));
+        $this->dataChanged = false;
 
         return $this;
     }
