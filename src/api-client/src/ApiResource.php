@@ -9,8 +9,6 @@ use BadMethodCallException;
 use Hyperf\Contract\Arrayable;
 use Hyperf\Contract\Jsonable;
 use Hyperf\Support\Traits\ForwardsCalls;
-use Hypervel\HttpClient\Request;
-use Hypervel\HttpClient\Response;
 use JsonSerializable;
 use Stringable;
 
@@ -25,8 +23,8 @@ class ApiResource implements Stringable, ArrayAccess, JsonSerializable, Arrayabl
      * Create a new resource instance.
      */
     public function __construct(
-        protected Response $response,
-        protected Request $request
+        protected ApiResponse $response,
+        protected ApiRequest $request
     ) {
     }
 
@@ -73,12 +71,12 @@ class ApiResource implements Stringable, ArrayAccess, JsonSerializable, Arrayabl
         return $this->forwardCallTo($this->response, $method, $parameters);
     }
 
-    public function getResponse(): Response
+    public function getResponse(): ApiResponse
     {
         return $this->response;
     }
 
-    public function getRequest(): Request
+    public function getRequest(): ApiRequest
     {
         return $this->request;
     }
