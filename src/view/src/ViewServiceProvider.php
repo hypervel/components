@@ -1,0 +1,190 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\View;
+
+use Hyperf\View\Mode;
+use Hyperf\ViewEngine\Contract\FactoryInterface as HyperfFactoryInterface;
+use Hyperf\ViewEngine\HyperfViewEngine;
+use Hypervel\Container\Container;
+use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Foundation\Application;
+use Hypervel\Support\Arr;
+use Hypervel\Support\ServiceProvider;
+use Hypervel\View\Compilers\BladeCompiler;
+use Hypervel\View\Contracts\Factory as FactoryContract;
+use Hypervel\View\Engines\CompilerEngine;
+use Hypervel\View\Engines\EngineResolver;
+use Hypervel\View\Engines\FileEngine;
+use Hypervel\View\Engines\PhpEngine;
+
+class ViewServiceProvider extends ServiceProvider
+{
+    /**
+     * Register the service provider.
+     */
+    public function register(): void
+    {
+        $this->registerFactory();
+        $this->registerViewFinder();
+        $this->registerBladeCompiler();
+        $this->registerEngineResolver();
+        $this->compatibleWithHyperfView();
+    }
+
+    /**
+     * Register the view environment.
+     */
+    protected function registerFactory(): void
+    {
+        $this->app->bind('view', function ($app) {
+            // Next we need to grab the engine resolver instance that will be used by the
+            // environment. The resolver will be used by an environment to get each of
+            // the various engine implementations such as plain PHP or Blade engine.
+            $resolver = $app['view.engine.resolver'];
+
+            $finder = $app['view.finder'];
+
+            $factory = $this->createFactory($resolver, $finder, $app['events']);
+
+            // We will also set the container instance on this view environment since the
+            // view composers may be classes registered in the container, which allows
+            // for great testable, flexible composers for the application developer.
+            $factory->setContainer($app);
+
+            $factory->share('app', $app);
+
+            return $factory;
+        });
+
+        $this->app->bind(FactoryContract::class, function ($app) {
+            return $app['view'];
+        });
+    }
+
+    /**
+     * Create a new Factory Instance.
+     */
+    protected function createFactory(EngineResolver $resolver, ViewFinderInterface $finder, Dispatcher $events): Factory
+    {
+        return new Factory($resolver, $finder, $events);
+    }
+
+    /**
+     * Register the view finder implementation.
+     */
+    protected function registerViewFinder(): void
+    {
+        $this->app->bind('view.finder', function ($app) {
+            return new FileViewFinder($app['files'], $app['config']['view.paths']);
+        });
+    }
+
+    /**
+     * Register the Blade compiler implementation.
+     */
+    protected function registerBladeCompiler(): void
+    {
+        $this->app->bind('blade.compiler', function ($app) {
+            return tap(new BladeCompiler(
+                $app['files'],
+                $app['config']['view.compiled'],
+                $app['config']->get('view.relative_hash', false) ? $app->basePath() : '',
+                $app['config']->get('view.cache', true),
+                $app['config']->get('view.compiled_extension', 'php'),
+            ), function ($blade) {
+                $blade->component('dynamic-component', DynamicComponent::class);
+            });
+        });
+    }
+
+    /**
+     * Register the engine resolver instance.
+     */
+    protected function registerEngineResolver(): void
+    {
+        $this->app->bind('view.engine.resolver', function () {
+            $resolver = new EngineResolver();
+
+            // Next, we will register the various view engines with the resolver so that the
+            // environment will resolve the engines needed for various views based on the
+            // extension of view file. We call a method for each of the view's engines.
+            foreach (['file', 'php', 'blade'] as $engine) {
+                $this->{'register' . ucfirst($engine) . 'Engine'}($resolver);
+            }
+
+            return $resolver;
+        });
+    }
+
+    /**
+     * Register the file engine implementation.
+     */
+    protected function registerFileEngine(EngineResolver $resolver): void
+    {
+        $resolver->register('file', function () {
+            return new FileEngine(Container::getInstance()->get('files'));
+        });
+    }
+
+    /**
+     * Register the PHP engine implementation.
+     */
+    protected function registerPhpEngine(EngineResolver $resolver): void
+    {
+        $resolver->register('php', function () {
+            return new PhpEngine(Container::getInstance()->get('files'));
+        });
+    }
+
+    /**
+     * Register the Blade engine implementation.
+     */
+    protected function registerBladeEngine(EngineResolver $resolver): void
+    {
+        $resolver->register('blade', function () {
+            $app = Container::getInstance();
+
+            return new CompilerEngine(
+                $app->get('blade.compiler'),
+                $app->get('files'),
+            );
+        });
+    }
+
+    /**
+     * Make compatible with Hyperf View component.
+     */
+    protected function compatibleWithHyperfView(): void
+    {
+        if (! class_exists(HyperfFactoryInterface::class)) {
+            return;
+        }
+
+        $this->app->beforeResolving(HyperfFactoryInterface::class, function (string $abstract, array $params, Application $app) {
+            $config = $app->get('config');
+            $viewConfig = $config->get('view', []);
+
+            $customHyperfViewConfig = Arr::only($viewConfig, [
+                'engine',
+                'mode',
+                'config',
+                'event',
+                'components',
+            ]);
+            $hyperfViewConfig = $customHyperfViewConfig + [
+                'engine' => HyperfViewEngine::class,
+                'mode' => Mode::SYNC,
+                'config' => [
+                    'view_path' => base_path('resources/views'),
+                    'cache_path' => storage_path('framework/views'),
+                ],
+                'event' => ['enable' => false],
+                'components' => [],
+            ];
+
+            $config->set('view', array_merge($hyperfViewConfig, $viewConfig));
+        });
+    }
+}

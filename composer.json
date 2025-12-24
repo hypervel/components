@@ -66,7 +66,8 @@
             "Hypervel\\Translation\\": "src/translation/src/",
             "Hypervel\\Validation\\": "src/validation/src/",
             "Hypervel\\Permission\\": "src/permission/src/",
-            "Hypervel\\Sentry\\": "src/sentry/src/"
+            "Hypervel\\Sentry\\": "src/sentry/src/",
+            "Hypervel\\View\\": "src/view/src/"
         },
         "files": [
             "src/auth/src/Functions.php",
@@ -181,7 +182,8 @@
         "hypervel/translation": "self.version",
         "hypervel/validation": "self.version",
         "hypervel/permission": "self.version",
-        "hypervel/sentry": "self.version"
+        "hypervel/sentry": "self.version",
+        "hypervel/view": "self.version"
     },
     "suggest": {
         "hyperf/redis": "Required to use redis driver. (^3.1).",
@@ -203,7 +205,6 @@
         "hyperf/devtool": "~3.1.0",
         "hyperf/redis": "~3.1.0",
         "hyperf/testing": "~3.1.0",
-        "hyperf/view-engine": "~3.1.0",
         "league/flysystem": "^3.0",
         "league/flysystem-aws-s3-v3": "^3.0",
         "league/flysystem-google-cloud-storage": "^3.0",
@@ -259,7 +260,8 @@
             "providers": [
                 "Hypervel\\Notifications\\NotificationServiceProvider",
                 "Hypervel\\Telescope\\TelescopeServiceProvider",
-                "Hypervel\\Sentry\\SentryServiceProvider"
+                "Hypervel\\Sentry\\SentryServiceProvider",
+                "Hypervel\\View\\ViewServiceProvider"
             ]
         },
         "branch-alias": {
