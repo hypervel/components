@@ -301,7 +301,7 @@ class PendingRequest
     protected function handleMiddlewareResponse(ApiResponse $response): ApiResponse
     {
         return $this->pipeline
-            ->send($response)
+            ->send($response->withContext('options', $this->middlewareOptions))
             ->through($this->createMiddleware($this->responseMiddleware))
             ->thenReturn();
     }

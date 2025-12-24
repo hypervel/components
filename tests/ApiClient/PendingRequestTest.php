@@ -171,20 +171,36 @@ class PendingRequestTest extends TestCase
         TestRequestMiddleware::reset();
     }
 
-    public function testWithMiddlewareOptionsPassesOptionsToMiddleware(): void
+    public function testWithMiddlewareOptionsPassesOptionsToRequestMiddleware(): void
     {
         $client = new ApiClient();
         $options = ['key' => 'value', 'timeout' => 30];
 
         $pending = $client
             ->withMiddlewareOptions($options)
-            ->withRequestMiddleware([OptionsCheckingMiddleware::class]);
+            ->withRequestMiddleware([RequestOptionsCheckingMiddleware::class]);
 
         Http::fake(['test' => Http::response('{"success": true}')]);
         $pending->get('test');
 
-        $this->assertEquals($options, OptionsCheckingMiddleware::$receivedOptions);
-        OptionsCheckingMiddleware::reset();
+        $this->assertEquals($options, RequestOptionsCheckingMiddleware::$receivedOptions);
+        RequestOptionsCheckingMiddleware::reset();
+    }
+
+    public function testWithMiddlewareOptionsPassesOptionsToResponseMiddleware(): void
+    {
+        $client = new ApiClient();
+        $options = ['key' => 'value', 'timeout' => 30];
+
+        $pending = $client
+            ->withMiddlewareOptions($options)
+            ->withResponseMiddleware([ResponseOptionsCheckingMiddleware::class]);
+
+        Http::fake(['test' => Http::response('{"success": true}')]);
+        $pending->get('test');
+
+        $this->assertEquals($options, ResponseOptionsCheckingMiddleware::$receivedOptions);
+        ResponseOptionsCheckingMiddleware::reset();
     }
 
     public function testMiddlewareCaching(): void
@@ -462,7 +478,7 @@ class SecondOrderTrackingMiddleware
     }
 }
 
-class OptionsCheckingMiddleware
+class RequestOptionsCheckingMiddleware
 {
     public static ?array $receivedOptions = null;
 
@@ -474,6 +490,26 @@ class OptionsCheckingMiddleware
     {
         self::$receivedOptions = $request->context('options');
         return $next($request);
+    }
+
+    public static function reset(): void
+    {
+        self::$receivedOptions = null;
+    }
+}
+
+class ResponseOptionsCheckingMiddleware
+{
+    public static ?array $receivedOptions = null;
+
+    public function __construct(protected ?array $config = null)
+    {
+    }
+
+    public function handle(ApiResponse $response, callable $next): ApiResponse
+    {
+        self::$receivedOptions = $response->context('options');
+        return $next($response);
     }
 
     public static function reset(): void
