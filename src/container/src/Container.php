@@ -688,7 +688,7 @@ class Container extends HyperfContainer implements ContainerContract, ArrayAcces
             );
         }
 
-        return ApplicationContext::getContainer();
+        return ApplicationContext::getContainer(); // @phpstan-ignore return.type (we just set it with static() above)
     }
 
     /**
@@ -696,8 +696,7 @@ class Container extends HyperfContainer implements ContainerContract, ArrayAcces
      */
     public static function setInstance(ContainerContract $container): ContainerContract
     {
-        /* @phpstan-ignore-next-line */
-        return ApplicationContext::setContainer($container);
+        return ApplicationContext::setContainer($container); // @phpstan-ignore return.type
     }
 
     public function offsetExists(mixed $offset): bool

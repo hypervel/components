@@ -706,7 +706,7 @@ class Event
     {
         $mutexNameResolver = $this->mutexNameResolver;
 
-        if (! is_null($mutexNameResolver) && is_callable($mutexNameResolver)) {
+        if (! is_null($mutexNameResolver)) {
             return $mutexNameResolver($this);
         }
 

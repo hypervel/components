@@ -207,11 +207,7 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     protected function mustBeUniqueAndCannotAcquireLock(UniqueBroadcastEvent $event): bool
     {
-        return ! (new UniqueLock(
-            method_exists($event, 'uniqueVia')
-                ? $event->uniqueVia()
-                : $this->app->get(Cache::class)
-        ))->acquire($event);
+        return ! (new UniqueLock($event->uniqueVia()))->acquire($event);
     }
 
     /**

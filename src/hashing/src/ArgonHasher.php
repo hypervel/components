@@ -53,7 +53,7 @@ class ArgonHasher extends AbstractHasher implements HasherContract
             'threads' => $this->threads($options),
         ]);
 
-        if (! is_string($hash)) {
+        if (! is_string($hash)) { // @phpstan-ignore function.alreadyNarrowedType (password_hash returns false if algorithm unavailable)
             throw new RuntimeException('Argon2 hashing not supported.');
         }
 
