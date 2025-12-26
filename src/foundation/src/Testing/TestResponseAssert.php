@@ -41,7 +41,7 @@ class TestResponseAssert
     {
         try {
             Assert::$name(...$arguments);
-        } catch (ExpectationFailedException $e) {
+        } catch (ExpectationFailedException $e) { // @phpstan-ignore catch.neverThrown (dynamic call)
             throw $this->injectResponseContext($e);
         }
     }

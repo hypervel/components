@@ -88,7 +88,7 @@ class FileStore implements Store, LockProvider
 
         try {
             $file->getExclusiveLock();
-        } catch (LockTimeoutException) {
+        } catch (LockTimeoutException) { // @phpstan-ignore catch.neverThrown (thrown inside closure)
             $file->close();
 
             return false;
