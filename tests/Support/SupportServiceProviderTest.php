@@ -139,6 +139,36 @@ class SupportServiceProviderTest extends TestCase
 
         $this->assertContains('source/tagged/four', ServiceProvider::publishableMigrationPaths());
     }
+
+    public function testAllPathsAreReturnedWhenNoFilterIsSpecified()
+    {
+        $allPaths = ServiceProvider::pathsToPublish();
+
+        // Should contain paths from both providers
+        $this->assertArrayHasKey('source/unmarked/one', $allPaths);
+        $this->assertArrayHasKey('source/tagged/one', $allPaths);
+        $this->assertArrayHasKey('source/unmarked/two/a', $allPaths);
+        $this->assertArrayHasKey('source/tagged/two/a', $allPaths);
+
+        // Should have all 11 paths from both providers
+        $this->assertCount(11, $allPaths);
+    }
+
+    public function testEmptyArrayIsReturnedWhenProviderNotFound()
+    {
+        $paths = ServiceProvider::pathsToPublish('NonExistent\Provider');
+
+        $this->assertIsArray($paths);
+        $this->assertEmpty($paths);
+    }
+
+    public function testEmptyArrayIsReturnedWhenGroupNotFound()
+    {
+        $paths = ServiceProvider::pathsToPublish(null, 'nonexistent_group');
+
+        $this->assertIsArray($paths);
+        $this->assertEmpty($paths);
+    }
 }
 
 class ServiceProviderForTestingOne extends ServiceProvider
