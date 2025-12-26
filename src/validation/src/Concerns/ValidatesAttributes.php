@@ -276,7 +276,7 @@ trait ValidatesAttributes
     protected function getDateTime(DateTimeInterface|string $value): ?DateTime
     {
         try {
-            return @Carbon::parse($value) ?: null;
+            return @Carbon::parse($value);
         } catch (Exception) {
         }
 
