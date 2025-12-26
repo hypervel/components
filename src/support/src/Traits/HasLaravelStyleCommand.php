@@ -6,17 +6,19 @@ namespace Hypervel\Support\Traits;
 
 use Hyperf\Context\ApplicationContext;
 use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
-use Psr\Container\ContainerInterface;
+use Hypervel\Foundation\Contracts\Application;
 
 trait HasLaravelStyleCommand
 {
-    protected ContainerInterface $app;
+    protected Application $app;
 
     public function __construct(?string $name = null)
     {
         parent::__construct($name);
 
-        $this->app = ApplicationContext::getContainer();
+        /** @var Application $app */
+        $app = ApplicationContext::getContainer();
+        $this->app = $app;
     }
 
     /**
