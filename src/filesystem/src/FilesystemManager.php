@@ -213,7 +213,7 @@ class FilesystemManager implements FactoryContract
         /* @phpstan-ignore-next-line */
         $adapter = new FtpAdapter(FtpConnectionOptions::fromArray($config));
 
-        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config);
+        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore-line (FtpAdapter/SftpAdapter implement interface)
     }
 
     /**
@@ -233,7 +233,7 @@ class FilesystemManager implements FactoryContract
         /* @phpstan-ignore-next-line */
         $adapter = new SftpAdapter($provider, $root, $visibility);
 
-        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config);
+        return new FilesystemAdapter($this->createFlysystem($adapter, $config), $adapter, $config); // @phpstan-ignore-line (FtpAdapter/SftpAdapter implement interface)
     }
 
     /**

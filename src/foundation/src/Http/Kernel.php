@@ -71,7 +71,7 @@ class Kernel extends HyperfServer implements MiddlewareContract
             }
 
             $this->dispatchRequestReceivedEvent(
-                $request = $this->coreMiddleware->dispatch($request),
+                $request = $this->coreMiddleware->dispatch($request), // @phpstan-ignore argument.type (dispatch returns Request impl)
                 $response
             );
 
@@ -110,7 +110,7 @@ class Kernel extends HyperfServer implements MiddlewareContract
     protected function convertUploadedFiles(array $files): array
     {
         return array_map(function ($file) {
-            if (is_null($file) || (is_array($file) && empty(array_filter($file)))) {
+            if (is_null($file) || (is_array($file) && empty(array_filter($file)))) { // @phpstan-ignore arrayFilter.same (nested arrays may contain nulls)
                 return $file;
             }
 

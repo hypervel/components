@@ -120,7 +120,7 @@ class VendorPublishCommand extends Command
             ),
             $extra
         );
-        $packages = array_filter($packages, fn ($provider) => count($provider));
+        $packages = array_filter($packages, fn ($provider) => count($provider) > 0);
 
         $publishes = [];
         foreach ($packages as $packageName => $extra) {

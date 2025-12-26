@@ -847,6 +847,8 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
 
     /**
      * Determine if the given exception is an HTTP exception.
+     *
+     * @phpstan-assert-if-true HyperfHttpException $e
      */
     protected function isHttpException(Throwable $e): bool
     {

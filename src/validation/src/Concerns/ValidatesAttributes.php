@@ -822,7 +822,7 @@ trait ValidatesAttributes
         $verifier = $this->getPresenceVerifier($connection);
 
         $extra = $this->getExtraConditions(
-            array_values(array_slice($parameters, 2))
+            array_values(array_slice($parameters, 2)) // @phpstan-ignore arrayValues.list
         );
 
         if ($this->currentRule instanceof Exists) {

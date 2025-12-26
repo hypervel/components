@@ -224,7 +224,7 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
             $rules = ['email'];
         }
 
-        return array_merge(array_filter($rules), $this->customRules);
+        return array_merge(array_filter($rules), $this->customRules); // @phpstan-ignore arrayFilter.same (defensive)
     }
 
     /**
