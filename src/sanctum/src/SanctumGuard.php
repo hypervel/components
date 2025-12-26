@@ -192,10 +192,6 @@ class SanctumGuard implements GuardContract
      */
     protected function hasValidProvider(?Authenticatable $tokenable): bool
     {
-        if (is_null($this->provider)) {
-            return true;
-        }
-
         if (! method_exists($this->provider, 'getModel')) {
             return true;
         }

@@ -103,7 +103,7 @@ class VendorPublishCommand extends Command
                 ->prepend($all = 'All providers')
                 ->all()
         );
-        if ($choice == $all || is_null($choice)) {
+        if ($choice == $all || is_null($choice)) { // @phpstan-ignore function.impossibleType (defensive: choice() could return null on interrupt)
             return null;
         }
 

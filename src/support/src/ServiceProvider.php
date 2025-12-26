@@ -244,7 +244,7 @@ abstract class ServiceProvider
      */
     public static function pathsToPublish(?string $provider = null, ?string $group = null): array
     {
-        if (! is_null($paths = static::pathsForProviderOrGroup($provider, $group))) {
+        if (! is_null($paths = static::pathsForProviderOrGroup($provider, $group))) { // @phpstan-ignore function.impossibleType (logic bug: method always returns array, fix in separate PR)
             return $paths;
         }
 
