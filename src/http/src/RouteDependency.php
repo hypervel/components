@@ -22,6 +22,8 @@ class RouteDependency
 
     /**
      * All of the after resolving callbacks by class type.
+     *
+     * @var array<class-string, list<callable>>
      */
     protected array $afterResolvingCallbacks = [];
 

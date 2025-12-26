@@ -666,7 +666,7 @@ class Mailable implements MailableContract, Renderable
     /**
      * Determine if the given recipient is set on the mailable.
      *
-     * @param 'from'|'to'|'cc'|'bcc'|'replyTo' $property
+     * @param 'bcc'|'cc'|'from'|'replyTo'|'to' $property
      */
     protected function hasRecipient(array|object|string $address, ?string $name = null, string $property = 'to'): bool
     {
@@ -699,7 +699,7 @@ class Mailable implements MailableContract, Renderable
     /**
      * Determine if the mailable "envelope" method defines a recipient.
      *
-     * @param 'from'|'to'|'cc'|'bcc'|'replyTo' $property
+     * @param 'bcc'|'cc'|'from'|'replyTo'|'to' $property
      */
     private function hasEnvelopeRecipient(string $address, ?string $name, string $property): bool
     {

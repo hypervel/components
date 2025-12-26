@@ -582,6 +582,7 @@ class Container extends HyperfContainer implements ContainerContract, ArrayAcces
      *
      * @param string $abstract
      * @param object $object
+     * @param array<class-string, array> $callbacksPerType
      */
     protected function getCallbacksForType($abstract, $object, array $callbacksPerType): array
     {
