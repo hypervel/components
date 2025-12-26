@@ -137,6 +137,7 @@ trait HasPermission
         $allRolesWithPermissions = $manager->getAllRolesWithPermissions();
 
         // Get cached roles (this method should be available if HasRole trait is used)
+        // @phpstan-ignore function.alreadyNarrowedType (trait flexibility: HasRole may not be used)
         if (method_exists($this, 'getCachedRoles')) {
             $ownerRoles = $this->getCachedRoles();
         } else {
@@ -206,6 +207,7 @@ trait HasPermission
         $allRolesWithPermissions = $manager->getAllRolesWithPermissions();
 
         // Get cached roles (this method should be available if HasRole trait is used)
+        // @phpstan-ignore function.alreadyNarrowedType (trait flexibility: HasRole may not be used)
         if (method_exists($this, 'getCachedRoles')) {
             $ownerRoles = $this->getCachedRoles();
         } else {
@@ -469,6 +471,7 @@ trait HasPermission
      */
     public function hasForbiddenPermissionViaRoles(BackedEnum|int|string|UnitEnum $permission): bool
     {
+        // @phpstan-ignore function.alreadyNarrowedType (trait used by both Role and non-Role models)
         if (is_a(static::class, Role::class, true)) {
             return false;
         }
@@ -478,6 +481,7 @@ trait HasPermission
         $allRolesWithPermissions = $manager->getAllRolesWithPermissions();
 
         // Get cached roles (this method should be available if HasRole trait is used)
+        // @phpstan-ignore function.alreadyNarrowedType (trait flexibility: HasRole may not be used)
         if (method_exists($this, 'getCachedRoles')) {
             $ownerRoles = $this->getCachedRoles();
         } else {

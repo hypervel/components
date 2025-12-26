@@ -82,6 +82,7 @@ class RetryCommand extends Command
         $ids = (array) $this->argument('id');
 
         if (count($ids) === 1 && $ids[0] === 'all') {
+            // @phpstan-ignore function.alreadyNarrowedType (@method PHPDoc is optional, not required)
             return method_exists($this->failer, 'ids')
                 ? $this->failer->ids()
                 : Arr::pluck($this->failer->all(), 'id');
@@ -103,6 +104,7 @@ class RetryCommand extends Command
      */
     protected function getJobIdsByQueue(string $queue): array
     {
+        // @phpstan-ignore function.alreadyNarrowedType (@method PHPDoc is optional, not required)
         $ids = method_exists($this->failer, 'ids')
             ? $this->failer->ids($queue)
             : Collection::make($this->failer->all())

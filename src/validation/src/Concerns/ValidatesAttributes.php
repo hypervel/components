@@ -722,6 +722,7 @@ trait ValidatesAttributes
     {
         $attributeName = $this->getPrimaryAttribute($attribute);
 
+        // @phpstan-ignore function.alreadyNarrowedType (trait flexibility: using class may not have distinctValues cache)
         if (! property_exists($this, 'distinctValues')) {
             return $this->extractDistinctValues($attributeName);
         }
@@ -1196,7 +1197,7 @@ trait ValidatesAttributes
     {
         $mimes = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
 
-        if (is_array($parameters) && in_array('allow_svg', $parameters)) {
+        if (in_array('allow_svg', $parameters)) {
             $mimes[] = 'svg';
         }
 

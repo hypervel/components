@@ -156,6 +156,7 @@ class SanctumGuard implements GuardContract
         if (! is_null($token) && str_contains($token, '|')) {
             $model = new (Sanctum::$personalAccessTokenModel);
 
+            // @phpstan-ignore function.alreadyNarrowedType (custom token models may not extend Model)
             if (method_exists($model, 'getKeyType') && $model->getKeyType() === 'int') {
                 [$id, $token] = explode('|', $token, 2);
 
