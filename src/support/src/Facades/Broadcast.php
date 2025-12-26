@@ -7,6 +7,7 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactoryContract;
 
 /**
+ * @method static \Hypervel\Broadcasting\Contracts\Broadcaster channel(\Hypervel\Broadcasting\Contracts\HasBroadcastChannel|string $channel, callable|string $callback, array $options = [])
  * @method static void routes(array $attributes = [])
  * @method static void userRoutes(array|null $attributes = null)
  * @method static void channelRoutes(array|null $attributes = null)
