@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Http;
 
+use Hyperf\HttpMessage\Base\Response;
 use Hypervel\Http\Cors;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;
@@ -246,5 +247,61 @@ class CorsTest extends TestCase
 
         /** @var CorsNormalizedOptions $options */
         return $options;
+    }
+
+    public function testVaryHeaderAddsHeaderWhenNoneExists(): void
+    {
+        $cors = new Cors();
+        $response = new Response();
+
+        $result = $cors->varyHeader($response, 'Origin');
+
+        $this->assertSame(['Origin'], $result->getHeader('Vary'));
+    }
+
+    public function testVaryHeaderAppendsToExistingSingleHeader(): void
+    {
+        $cors = new Cors();
+        $response = (new Response())->withHeader('Vary', 'Accept-Encoding');
+
+        $result = $cors->varyHeader($response, 'Origin');
+
+        $this->assertSame(['Accept-Encoding, Origin'], $result->getHeader('Vary'));
+    }
+
+    public function testVaryHeaderDoesNotDuplicateExistingHeader(): void
+    {
+        $cors = new Cors();
+        $response = (new Response())->withHeader('Vary', 'Origin');
+
+        $result = $cors->varyHeader($response, 'Origin');
+
+        $this->assertSame(['Origin'], $result->getHeader('Vary'));
+    }
+
+    public function testVaryHeaderHandlesMultipleExistingHeaders(): void
+    {
+        $cors = new Cors();
+        // PSR-7 allows multiple header values as array elements
+        $response = (new Response())
+            ->withHeader('Vary', 'Accept-Encoding')
+            ->withAddedHeader('Vary', 'Accept-Language');
+
+        $result = $cors->varyHeader($response, 'Origin');
+
+        $this->assertSame(['Accept-Encoding, Accept-Language, Origin'], $result->getHeader('Vary'));
+    }
+
+    public function testVaryHeaderDoesNotDuplicateWhenInMultipleHeaders(): void
+    {
+        $cors = new Cors();
+        $response = (new Response())
+            ->withHeader('Vary', 'Accept-Encoding')
+            ->withAddedHeader('Vary', 'Origin');
+
+        $result = $cors->varyHeader($response, 'Origin');
+
+        // Should not add Origin again since it's already present
+        $this->assertSame(['Accept-Encoding', 'Origin'], $result->getHeader('Vary'));
     }
 }
