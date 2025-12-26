@@ -78,7 +78,7 @@ class EventFake implements Fake, EventDispatcherInterface
             if ($actualListener === $expectedListener
                 || ($actualListener instanceof Closure
                 && $expectedListener === Closure::class)) {
-                PHPUnit::assertTrue(true);
+                PHPUnit::assertTrue(true); // @phpstan-ignore staticMethod.alreadyNarrowedType (intentional for assertion count)
 
                 return;
             }
