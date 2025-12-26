@@ -177,7 +177,7 @@ class SanctumGuard implements GuardContract
 
         $isValid
             = (! $this->expiration || $accessToken->getAttribute('created_at')->gt(now()->subMinutes($this->expiration)))
-            && (! $accessToken->getAttribute('expires_at') || ! $accessToken->getAttribute('expires_at')?->isPast())
+            && (! $accessToken->getAttribute('expires_at') || ! $accessToken->getAttribute('expires_at')->isPast())
             && $this->hasValidProvider($accessToken->getAttribute('tokenable'));
 
         if (is_callable(Sanctum::$accessTokenAuthenticationCallback)) {
