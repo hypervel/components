@@ -97,6 +97,7 @@ abstract class BaseRelation extends Relation
         $this->query->whereNested(function (Builder $inner) use ($models) {
             // We will use this query in order to apply constraints to the
             // base query builder
+            /** @var QueryBuilder $outer */
             $outer = $this->parent->newQuery()->setQuery($inner);
 
             foreach ($models as $model) {

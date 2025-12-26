@@ -202,6 +202,7 @@ class MailManager implements FactoryContract
                 : '';
         }
 
+        /** @var EsmtpTransport $transport */
         $transport = $factory->create(new Dsn(
             $scheme,
             $config['host'],

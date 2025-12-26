@@ -435,7 +435,7 @@ trait HasPermission
         // Get existing permissions with the same is_forbidden value
         $currentPermissions = $this->permissions
             ->where('pivot.is_forbidden', $isForbidden)
-            ->map(fn (Permission $permission) => $permission->getKey())
+            ->map(fn (Permission $permission) => $permission->getKey()) // @phpstan-ignore argument.type (Permission contract, not Model)
             ->toArray();
 
         // Only attach permissions that don't already exist with the same is_forbidden value
