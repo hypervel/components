@@ -711,7 +711,7 @@ class Event
         }
 
         return 'framework' . DIRECTORY_SEPARATOR . 'schedule-'
-            . sha1($this->expression . $this->command ?? '');
+            . sha1($this->expression . ($this->command ?? ''));
     }
 
     /**

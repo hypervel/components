@@ -115,8 +115,8 @@ class VendorPublishCommand extends Command
         $extra = Composer::getMergedExtra();
         $packages = array_map(
             fn (array $package) => array_merge(
-                Arr::wrap(($package['hyperf'] ?? []) ?? []),
-                Arr::wrap(($package['hypervel'] ?? []) ?? []),
+                Arr::wrap($package['hyperf'] ?? []),
+                Arr::wrap($package['hypervel'] ?? []),
             ),
             $extra
         );

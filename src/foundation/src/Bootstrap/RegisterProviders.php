@@ -23,7 +23,7 @@ class RegisterProviders
 
         if (! in_array('*', $packagesToIgnore)) {
             $providers = array_map(
-                fn (array $package) => Arr::wrap(($package['hypervel']['providers'] ?? []) ?? []),
+                fn (array $package) => Arr::wrap($package['hypervel']['providers'] ?? []),
                 Composer::getMergedExtra()
             );
             $providers = array_filter(
