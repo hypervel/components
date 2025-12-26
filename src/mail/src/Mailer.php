@@ -304,15 +304,11 @@ class Mailer implements MailerContract, MailQueueContract
         // If this view is an array but doesn't contain numeric keys, we will assume
         // the views are being explicitly specified and will extract them via the
         // named keys instead, allowing the developers to use one or the other.
-        if (is_array($view)) {
-            return [
-                $view['html'] ?? null,
-                $view['text'] ?? null,
-                $view['raw'] ?? null,
-            ];
-        }
-
-        throw new InvalidArgumentException('Invalid view.');
+        return [
+            $view['html'] ?? null,
+            $view['text'] ?? null,
+            $view['raw'] ?? null,
+        ];
     }
 
     /**

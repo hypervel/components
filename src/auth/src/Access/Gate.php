@@ -367,13 +367,9 @@ class Gate implements GateContract
             return false;
         }
 
-        if ($method) {
-            $parameters = $method->getParameters();
+        $parameters = $method->getParameters();
 
-            return isset($parameters[0]) && $this->parameterAllowsGuests($parameters[0]);
-        }
-
-        return false;
+        return isset($parameters[0]) && $this->parameterAllowsGuests($parameters[0]);
     }
 
     /**

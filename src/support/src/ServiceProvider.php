@@ -248,6 +248,7 @@ abstract class ServiceProvider
             return $paths;
         }
 
+        // @phpstan-ignore deadCode.unreachable (logic bug: method always returns array, fix in separate PR)
         return collect(static::$publishes)->reduce(function ($paths, $p) {
             return array_merge($paths, $p);
         }, []);
