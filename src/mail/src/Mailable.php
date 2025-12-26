@@ -153,7 +153,7 @@ class Mailable implements MailableContract, Renderable
     /**
      * The callback that should be invoked while building the view data.
      *
-     * @var callable
+     * @var ?callable
      */
     public static $viewDataCallback;
 
