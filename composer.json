@@ -204,6 +204,7 @@
         "hyperf/redis": "~3.1.0",
         "hyperf/testing": "~3.1.0",
         "hyperf/view-engine": "~3.1.0",
+        "hypervel/facade-documenter": "dev-main",
         "league/flysystem": "^3.0",
         "league/flysystem-aws-s3-v3": "^3.0",
         "league/flysystem-google-cloud-storage": "^3.0",
@@ -267,5 +268,10 @@
         }
     },
     "minimum-stability": "dev",
-    "prefer-stable": true
+    "prefer-stable": true,
+    "repositories": [{
+        "name": "facade-documenter",
+        "type": "vcs",
+        "url": "git@github.com:hypervel/facade-documenter.git"
+    }]
 }
