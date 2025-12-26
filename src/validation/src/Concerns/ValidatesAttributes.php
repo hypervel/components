@@ -2166,7 +2166,7 @@ trait ValidatesAttributes
     {
         $version = null;
 
-        if ($parameters !== null && count($parameters) === 1) {
+        if ($parameters !== null && count($parameters) === 1) { // @phpstan-ignore notIdentical.alwaysTrue
             $version = $parameters[0];
 
             if ($version !== 'max') {

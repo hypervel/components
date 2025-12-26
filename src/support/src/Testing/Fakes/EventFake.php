@@ -84,7 +84,7 @@ class EventFake implements Fake, EventDispatcherInterface
             }
         }
 
-        PHPUnit::assertTrue(
+        PHPUnit::assertTrue( // @phpstan-ignore staticMethod.impossibleType (intentional test failure)
             false,
             sprintf(
                 'Event [%s] does not have the [%s] listener attached to it',

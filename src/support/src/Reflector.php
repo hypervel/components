@@ -27,8 +27,7 @@ class Reflector
         }
 
         if ($syntaxOnly
-            && (is_string($var[0]) || is_object($var[0]))
-            && is_string($var[1])) {
+            && (is_string($var[0]) || is_object($var[0]))) {
             return true;
         }
 
