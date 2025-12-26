@@ -104,8 +104,8 @@ class Kernel extends HyperfServer implements MiddlewareContract
     /**
      * Convert the given array of Hyperf UploadedFiles to custom Hypervel UploadedFiles.
      *
-     * @param array<string, HyperfUploadedFile|HyperfUploadedFile[]> $files
-     * @return array<string, UploadedFile|UploadedFile[]>
+     * @param array<string, null|HyperfUploadedFile|HyperfUploadedFile[]> $files
+     * @return array<string, null|UploadedFile|UploadedFile[]>
      */
     protected function convertUploadedFiles(array $files): array
     {

@@ -77,7 +77,7 @@ class TestResponseAssert
      */
     protected function appendExceptionToException(Throwable $exceptionToAppend, ExpectationFailedException $exception): ExpectationFailedException
     {
-        $exceptionMessage = is_string($exceptionToAppend) ? $exceptionToAppend : $exceptionToAppend->getMessage();
+        $exceptionMessage = $exceptionToAppend->getMessage();
 
         $exceptionToAppend = (string) $exceptionToAppend;
 

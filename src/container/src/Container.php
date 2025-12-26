@@ -682,13 +682,12 @@ class Container extends HyperfContainer implements ContainerContract, ArrayAcces
      */
     public static function getInstance(): ContainerContract
     {
-        if (is_null(ApplicationContext::getContainer())) {
+        if (! ApplicationContext::hasContainer()) {
             ApplicationContext::setContainer(
                 new static(new DefinitionSource([]))
             );
         }
 
-        /* @phpstan-ignore-next-line */
         return ApplicationContext::getContainer();
     }
 
