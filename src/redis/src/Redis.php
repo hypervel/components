@@ -28,16 +28,16 @@ class Redis
         $hasContextConnection = Context::has($this->getContextKey());
         $connection = $this->getConnection($hasContextConnection);
 
-        $hasError = false;
         $start = (float) microtime(true);
+        $result = null;
+        $exception = null;
 
         try {
             /** @var RedisConnection $connection */
             $connection = $connection->getConnection();
             $result = $connection->{$name}(...$arguments);
-        } catch (Throwable $exception) {
-            $hasError = true;
-            throw $exception;
+        } catch (Throwable $e) {
+            $exception = $e;
         } finally {
             $time = round((microtime(true) - $start) * 1000, 2);
             $connection->getEventDispatcher()?->dispatch(
@@ -47,31 +47,30 @@ class Redis
                     $time,
                     $connection,
                     $this->poolName,
-                    $result ?? null,
-                    $exception ?? null,
+                    $result,
+                    $exception,
                 )
             );
 
             if ($hasContextConnection) {
-                return $hasError ? null : $result; // @phpstan-ignore-line
-            }
-
-            // Release connection.
-            if ($this->shouldUseSameConnection($name)) {
+                // Connection is already in context, don't release
+            } elseif ($exception === null && $this->shouldUseSameConnection($name)) {
+                // On success with same-connection command: store in context for reuse
                 if ($name === 'select' && $db = $arguments[0]) {
                     $connection->setDatabase((int) $db);
                 }
-                // Should storage the connection to coroutine context, then use defer() to release the connection.
                 Context::set($this->getContextKey(), $connection);
                 defer(function () {
                     $this->releaseContextConnection();
                 });
-
-                return $hasError ? null : $result; // @phpstan-ignore-line
+            } else {
+                // Release the connection
+                $connection->release();
             }
+        }
 
-            // Release the connection after command executed.
-            $connection->release();
+        if ($exception !== null) {
+            throw $exception;
         }
 
         return $result;
