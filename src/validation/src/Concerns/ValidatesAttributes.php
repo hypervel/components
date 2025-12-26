@@ -405,7 +405,7 @@ trait ValidatesAttributes
     /**
      * Validate that an attribute has a matching confirmation.
      *
-     * @param array{0: string} $parameters
+     * @param array{0?: string} $parameters
      */
     public function validateConfirmed(string $attribute, mixed $value, mixed $parameters): bool
     {
