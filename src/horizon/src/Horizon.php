@@ -77,7 +77,7 @@ class Horizon
     {
         if (! is_null($config = config("database.redis.clusters.{$connection}.0"))) {
             config(["database.redis.{$connection}" => $config]);
-        } elseif (is_null($config) && is_null($config = config("database.redis.{$connection}"))) {
+        } elseif (is_null($config = config("database.redis.{$connection}"))) {
             throw new Exception("Redis connection [{$connection}] has not been configured.");
         }
 

@@ -397,7 +397,7 @@ class Sleep
     public static function assertInsomniac(): void
     {
         if (static::$sequence === []) {
-            PHPUnit::assertTrue(true);
+            PHPUnit::assertTrue(true); // @phpstan-ignore staticMethod.alreadyNarrowedType (intentional for assertion count)
         }
 
         foreach (static::$sequence as $duration) {

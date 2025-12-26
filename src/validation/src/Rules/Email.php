@@ -71,7 +71,7 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
             return static::default();
         }
 
-        if (! is_callable($callback) && ! $callback instanceof static) {
+        if (! is_callable($callback) && ! $callback instanceof static) { // @phpstan-ignore instanceof.alwaysTrue, booleanAnd.alwaysFalse (callable values like closures are not instances)
             throw new InvalidArgumentException('The given callback should be callable or an instance of ' . static::class);
         }
 
@@ -224,7 +224,7 @@ class Email implements Rule, DataAwareRule, ValidatorAwareRule
             $rules = ['email'];
         }
 
-        return array_merge(array_filter($rules), $this->customRules);
+        return array_merge(array_filter($rules), $this->customRules); // @phpstan-ignore arrayFilter.same (defensive)
     }
 
     /**

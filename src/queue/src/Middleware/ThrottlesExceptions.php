@@ -28,14 +28,14 @@ class ThrottlesExceptions
     /**
      * The callback that determines if the exception should be reported.
      *
-     * @var callable
+     * @var ?callable
      */
     protected $reportCallback;
 
     /**
      * The callback that determines if rate limiting should apply.
      *
-     * @var callable
+     * @var ?callable
      */
     protected $whenCallback;
 

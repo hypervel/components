@@ -276,7 +276,7 @@ trait ValidatesAttributes
     protected function getDateTime(DateTimeInterface|string $value): ?DateTime
     {
         try {
-            return @Carbon::parse($value) ?: null;
+            return @Carbon::parse($value);
         } catch (Exception) {
         }
 
@@ -405,7 +405,7 @@ trait ValidatesAttributes
     /**
      * Validate that an attribute has a matching confirmation.
      *
-     * @param array{0: string} $parameters
+     * @param array{0?: string} $parameters
      */
     public function validateConfirmed(string $attribute, mixed $value, mixed $parameters): bool
     {
@@ -722,6 +722,7 @@ trait ValidatesAttributes
     {
         $attributeName = $this->getPrimaryAttribute($attribute);
 
+        // @phpstan-ignore function.alreadyNarrowedType (trait flexibility: using class may not have distinctValues cache)
         if (! property_exists($this, 'distinctValues')) {
             return $this->extractDistinctValues($attributeName);
         }
@@ -821,7 +822,7 @@ trait ValidatesAttributes
         $verifier = $this->getPresenceVerifier($connection);
 
         $extra = $this->getExtraConditions(
-            array_values(array_slice($parameters, 2))
+            array_values(array_slice($parameters, 2)) // @phpstan-ignore arrayValues.list
         );
 
         if ($this->currentRule instanceof Exists) {
@@ -1196,7 +1197,7 @@ trait ValidatesAttributes
     {
         $mimes = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
 
-        if (is_array($parameters) && in_array('allow_svg', $parameters)) {
+        if (in_array('allow_svg', $parameters)) {
             $mimes[] = 'svg';
         }
 
@@ -2166,7 +2167,7 @@ trait ValidatesAttributes
     {
         $version = null;
 
-        if ($parameters !== null && count($parameters) === 1) {
+        if ($parameters !== null && count($parameters) === 1) { // @phpstan-ignore notIdentical.alwaysTrue
             $version = $parameters[0];
 
             if ($version !== 'max') {
@@ -2198,7 +2199,7 @@ trait ValidatesAttributes
             return $value->getSize() / 1024;
         }
 
-        return mb_strlen((string) $value ?? '');
+        return mb_strlen((string) $value);
     }
 
     /**

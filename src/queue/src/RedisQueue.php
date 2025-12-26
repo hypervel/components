@@ -236,10 +236,7 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
     protected function migrate(string $queue): void
     {
         $this->migrateExpiredJobs($queue . ':delayed', $queue);
-
-        if (! is_null($this->retryAfter)) {
-            $this->migrateExpiredJobs($queue . ':reserved', $queue);
-        }
+        $this->migrateExpiredJobs($queue . ':reserved', $queue);
     }
 
     /**

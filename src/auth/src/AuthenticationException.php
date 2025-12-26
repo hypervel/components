@@ -22,7 +22,7 @@ class AuthenticationException extends Exception
     /**
      * The callback that should be used to generate the authentication redirect path.
      *
-     * @var callable
+     * @var null|callable
      */
     protected static $redirectToCallback;
 

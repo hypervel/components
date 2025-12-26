@@ -73,9 +73,9 @@ class ScheduleListCommand extends Command
             return $this->listEvent($event, $terminalWidth, $expressionSpacing, $repeatExpressionSpacing, $timezone);
         });
 
-        $this->line(
-            $events->flatten()->filter()->prepend('')->push('')->toArray()
-        );
+        foreach ($events->flatten()->filter()->prepend('')->push('')->toArray() as $line) {
+            $this->line($line);
+        }
     }
 
     /**

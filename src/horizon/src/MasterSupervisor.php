@@ -158,7 +158,7 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
         // Here we will wait until all of the child supervisors finish terminating and
         // then exit the process. We will keep track of a timeout value so that the
         // process does not get stuck in an infinite loop here waiting for these.
-        while (count($this->supervisors->filter->isRunning())) {
+        while (count($this->supervisors->filter->isRunning())) { // @phpstan-ignore argument.type (higher-order proxy)
             if (CarbonImmutable::now()->subSeconds($longest)
                 ->gte($startedTerminating)) {
                 break;

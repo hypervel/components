@@ -222,7 +222,7 @@ class Kernel implements KernelContract
             return;
         }
 
-        $this->getArtisan()->add($command);
+        $this->getArtisan()->add($command); // @phpstan-ignore argument.type (interface narrower than parent)
     }
 
     /**

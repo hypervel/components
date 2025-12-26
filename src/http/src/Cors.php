@@ -293,7 +293,7 @@ class Cors
                 if (count($varyHeaders) === 1) {
                     $response = $response->withHeader('Vary', ((string) $varyHeaders[0]) . ', ' . $header);
                 } else {
-                    $response->withHeader($header, false);
+                    $response->withHeader($header, false); // @phpstan-ignore argument.type (bug: wrong args, result unused - fix in separate PR)
                 }
             }
         }

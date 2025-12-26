@@ -61,7 +61,7 @@ class Listener
     {
         $process = $this->makeProcess($connection, $queue, $options);
 
-        while (true) {
+        while (true) { // @phpstan-ignore while.alwaysTrue (intentional infinite loop)
             $this->runProcess($process, $options->memory);
 
             if ($options->rest) {

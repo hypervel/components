@@ -64,7 +64,7 @@ class RetryFailedJob
         $pushedAt = $payload['pushedAt'] ?? microtime(true);
 
         return $retryUntil
-                        ? CarbonImmutable::now()->addSeconds(ceil($retryUntil - $pushedAt))->getTimestamp()
+                        ? CarbonImmutable::now()->addSeconds((int) ceil($retryUntil - $pushedAt))->getTimestamp()
                         : null;
     }
 }

@@ -73,7 +73,7 @@ abstract class Broadcaster implements BroadcasterContract
     {
         if ($channel instanceof HasBroadcastChannel) {
             $channel = $channel->broadcastChannelRoute();
-        } elseif (is_string($channel) && class_exists($channel) && is_a($channel, HasBroadcastChannel::class, true)) {
+        } elseif (class_exists($channel) && is_a($channel, HasBroadcastChannel::class, true)) {
             $channel = (new $channel())->broadcastChannelRoute();
         }
 
@@ -134,11 +134,11 @@ abstract class Broadcaster implements BroadcasterContract
      */
     protected function extractParameters(callable|string $callback): array
     {
-        return match (true) {
-            is_callable($callback) => (new ReflectionFunction($callback))->getParameters(),
-            is_string($callback) => $this->extractParametersFromClass($callback),
-            default => [],
-        };
+        if (is_callable($callback)) {
+            return (new ReflectionFunction($callback))->getParameters();
+        }
+
+        return $this->extractParametersFromClass($callback);
     }
 
     /**

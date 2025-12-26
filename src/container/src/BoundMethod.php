@@ -40,8 +40,8 @@ class BoundMethod
         }
 
         // object method call
-        if (is_object($callback) && method_exists($callback, $defaultMethod ?: '__invoke')) {
-            $callback = [$callback, $defaultMethod ?: '__invoke'];
+        if (is_object($callback) && method_exists($callback, '__invoke')) {
+            $callback = [$callback, '__invoke'];
         }
 
         // static method call

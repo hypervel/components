@@ -150,7 +150,7 @@ class RedisQueue extends BaseQueue
      */
     protected function event(string $queue, mixed $event): void
     {
-        if ($this->container && $this->container->has(Dispatcher::class)) {
+        if ($this->container->has(Dispatcher::class)) {
             $queue = Str::replaceFirst('queues:', '', $queue);
 
             $this->container->get(Dispatcher::class)->dispatch(
