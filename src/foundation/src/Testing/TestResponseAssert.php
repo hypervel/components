@@ -61,7 +61,7 @@ class TestResponseAssert
      */
     protected function injectResponseContext(ExpectationFailedException $exception): ExpectationFailedException
     {
-        if ($this->response->getHeader('Content-Type') === 'application/json') {
+        if (str_contains($this->response->getHeader('Content-Type')[0] ?? '', 'application/json')) {
             $testJson = new AssertableJsonString($this->response->getContent());
 
             if (isset($testJson['errors'])) {

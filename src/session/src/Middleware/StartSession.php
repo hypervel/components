@@ -158,7 +158,7 @@ class StartSession implements MiddlewareInterface
     protected function storeCurrentUrl(Session $session): void
     {
         if ($this->request->isMethod('GET')
-            && ! $this->request->header('X-Requested-With') === 'XMLHttpRequest' // is not ajax
+            && $this->request->header('X-Requested-With') !== 'XMLHttpRequest' // is not ajax
             && ! $this->isPrefetch()
         ) {
             $session->setPreviousUrl($this->request->fullUrl());
