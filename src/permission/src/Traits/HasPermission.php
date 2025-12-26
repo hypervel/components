@@ -393,7 +393,7 @@ trait HasPermission
         return match (true) {
             is_int($permission) => true,
             $permission instanceof BackedEnum => is_int($permission->value),
-            is_string($permission), $permission instanceof UnitEnum => false,
+            is_string($permission), $permission instanceof UnitEnum => false, // @phpstan-ignore instanceof.alwaysTrue
             default => throw new InvalidArgumentException('Invalid permission type')
         };
     }
