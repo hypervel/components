@@ -269,10 +269,5 @@
         }
     },
     "minimum-stability": "dev",
-    "prefer-stable": true,
-    "repositories": [{
-        "name": "facade-documenter",
-        "type": "vcs",
-        "url": "git@github.com:hypervel/facade-documenter.git"
-    }]
+    "prefer-stable": true
 }
