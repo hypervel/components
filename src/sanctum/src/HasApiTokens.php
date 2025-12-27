@@ -55,10 +55,7 @@ trait HasApiTokens
      */
     public function createToken(string $name, array $abilities = ['*'], ?DateTimeInterface $expiresAt = null): NewAccessToken
     {
-        $abilities = array_map(
-            fn ($ability) => $ability instanceof BackedEnum ? $ability->value : $ability,
-            $abilities
-        );
+        $abilities = Str::fromAll($abilities);
 
         $plainTextToken = $this->generateTokenString();
 

@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\ApiClient;
 
 use BadMethodCallException;
+use Hypervel\ApiClient\ApiRequest;
 use Hypervel\ApiClient\ApiResource;
-use Hypervel\HttpClient\Request;
-use Hypervel\HttpClient\Response;
+use Hypervel\ApiClient\ApiResponse;
 use PHPUnit\Framework\MockObject\MockObject;
 use PHPUnit\Framework\TestCase;
 
@@ -18,12 +18,12 @@ use PHPUnit\Framework\TestCase;
 class ApiResourceTest extends TestCase
 {
     /**
-     * @var MockObject&Response
+     * @var ApiResponse&MockObject
      */
     private $response;
 
     /**
-     * @var MockObject&Request
+     * @var ApiRequest&MockObject
      */
     private $request;
 
@@ -34,8 +34,8 @@ class ApiResourceTest extends TestCase
         parent::setUp();
 
         // Create mock objects for the Response and Request
-        $this->response = $this->createMock(Response::class);
-        $this->request = $this->createMock(Request::class);
+        $this->response = $this->createMock(ApiResponse::class);
+        $this->request = $this->createMock(ApiRequest::class);
 
         // Create the resource with our mocks
         $this->resource = new ApiResource($this->response, $this->request);
