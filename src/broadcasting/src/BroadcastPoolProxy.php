@@ -6,10 +6,21 @@ namespace Hypervel\Broadcasting;
 
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Broadcasting\Contracts\Broadcaster;
+use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
 use Hypervel\ObjectPool\PoolProxy;
 
 class BroadcastPoolProxy extends PoolProxy implements Broadcaster
 {
+    /**
+     * Register a channel authenticator.
+     */
+    public function channel(HasBroadcastChannel|string $channel, callable|string $callback, array $options = []): static
+    {
+        $this->__call(__FUNCTION__, func_get_args());
+
+        return $this;
+    }
+
     public function auth(RequestInterface $request): mixed
     {
         return $this->__call(__FUNCTION__, func_get_args());

@@ -33,6 +33,7 @@ use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactoryContract;
  * @method static \Hypervel\Broadcasting\BroadcastManager removePoolable(string $driver)
  * @method static array getPoolables()
  * @method static \Hypervel\Broadcasting\BroadcastManager setPoolables(array $poolables)
+ * @method static \Hypervel\Broadcasting\Contracts\Broadcaster channel(\Hypervel\Broadcasting\Contracts\HasBroadcastChannel|string $channel, callable|string $callback, array $options = [])
  * @method static mixed auth(\Hyperf\HttpServer\Contract\RequestInterface $request)
  * @method static mixed validAuthenticationResponse(\Hyperf\HttpServer\Contract\RequestInterface $request, mixed $result)
  * @method static void broadcast(array $channels, string $event, array $payload = [])
