@@ -24,7 +24,7 @@ use ReflectionClass;
  * @internal
  * @coversNothing
  */
-class DatabaseEloquentFactoryTest extends TestCase
+class FactoryTest extends TestCase
 {
     use RefreshDatabase;
 
