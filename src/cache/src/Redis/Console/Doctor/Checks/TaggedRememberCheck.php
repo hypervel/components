@@ -37,13 +37,13 @@ final class TaggedRememberCheck implements CheckInterface
         if ($ctx->isAnyMode()) {
             // Any mode: direct get works
             $result->assert(
-                $value === 'remembered-value' && $ctx->cache->get($rememberKey) === 'remembered-value',
+                $value === 'remembered-value' && $ctx->cache->get($rememberKey) === 'remembered-value', // @phpstan-ignore identical.alwaysTrue (diagnostic assertion)
                 'remember() with tags stores and returns value'
             );
         } else {
             // All mode: must use tagged get
             $result->assert(
-                $value === 'remembered-value' && $ctx->cache->tags([$tag])->get($rememberKey) === 'remembered-value',
+                $value === 'remembered-value' && $ctx->cache->tags([$tag])->get($rememberKey) === 'remembered-value', // @phpstan-ignore identical.alwaysTrue (diagnostic assertion)
                 'remember() with tags stores and returns value'
             );
         }
@@ -57,13 +57,13 @@ final class TaggedRememberCheck implements CheckInterface
         if ($ctx->isAnyMode()) {
             // Any mode: direct get works
             $result->assert(
-                $value === 'forever-value' && $ctx->cache->get($foreverKey) === 'forever-value',
+                $value === 'forever-value' && $ctx->cache->get($foreverKey) === 'forever-value', // @phpstan-ignore identical.alwaysTrue (diagnostic assertion)
                 'rememberForever() with tags stores and returns value'
             );
         } else {
             // All mode: must use tagged get
             $result->assert(
-                $value === 'forever-value' && $ctx->cache->tags([$tag])->get($foreverKey) === 'forever-value',
+                $value === 'forever-value' && $ctx->cache->tags([$tag])->get($foreverKey) === 'forever-value', // @phpstan-ignore identical.alwaysTrue (diagnostic assertion)
                 'rememberForever() with tags stores and returns value'
             );
         }

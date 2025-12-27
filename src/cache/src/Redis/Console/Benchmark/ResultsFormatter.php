@@ -21,7 +21,7 @@ class ResultsFormatter
      * Metric display configuration grouped by category.
      * Order here determines display order.
      *
-     * @var array<string, array<string, array{label: string, unit: string, format: string, better: string, scenario: string}>>
+     * @var array<string, array<string, array{label: string, unit: string, format: string, better: string, scenario: string, key?: string}>>
      */
     private array $metricGroups = [
         'Non-Tagged Operations' => [

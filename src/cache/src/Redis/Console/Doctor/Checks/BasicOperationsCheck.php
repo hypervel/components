@@ -60,14 +60,14 @@ final class BasicOperationsCheck implements CheckInterface
         // Remember
         $value = $ctx->cache->remember($ctx->prefixed('basic:remember'), 60, fn (): string => 'remembered');
         $result->assert(
-            $value === 'remembered' && $ctx->cache->get($ctx->prefixed('basic:remember')) === 'remembered',
+            $value === 'remembered' && $ctx->cache->get($ctx->prefixed('basic:remember')) === 'remembered', // @phpstan-ignore identical.alwaysTrue (diagnostic assertion)
             'remember() stores and returns closure result'
         );
 
         // RememberForever
         $value = $ctx->cache->rememberForever($ctx->prefixed('basic:forever'), fn (): string => 'permanent');
         $result->assert(
-            $value === 'permanent',
+            $value === 'permanent', // @phpstan-ignore identical.alwaysTrue (diagnostic assertion)
             'rememberForever() stores without expiration'
         );
 

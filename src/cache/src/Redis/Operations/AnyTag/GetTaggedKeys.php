@@ -88,7 +88,7 @@ class GetTaggedKeys
      */
     private function hscanGenerator(string $tagKey, int $count): Generator
     {
-        $iterator = null;
+        $iterator = 0;
 
         do {
             // Acquire connection just for this HSCAN batch
@@ -104,6 +104,6 @@ class GetTaggedKeys
                     yield $key;
                 }
             }
-        } while ($iterator > 0);
+        } while ($iterator > 0); // @phpstan-ignore greater.alwaysFalse (phpredis updates $iterator by reference inside closure)
     }
 }

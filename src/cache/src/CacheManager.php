@@ -327,7 +327,7 @@ class CacheManager implements FactoryContract
      */
     protected function getConfig(string $name): ?array
     {
-        if (! is_null($name) && $name !== 'null') {
+        if ($name !== 'null') {
             return $this->app->get(ConfigInterface::class)->get("cache.stores.{$name}");
         }
 
