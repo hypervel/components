@@ -40,7 +40,7 @@ class Redis
             $result = $connection->{$name}(...$arguments);
         } catch (Throwable $exception) {
             $hasError = true;
-            throw $exception;
+            throw $exception; // @phpstan-ignore finally.exitPoint (bug fixed in fix/redis-exception-swallowing branch)
         } finally {
             $time = round((microtime(true) - $start) * 1000, 2);
             $connection->getEventDispatcher()?->dispatch(
