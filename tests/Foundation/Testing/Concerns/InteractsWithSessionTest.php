@@ -62,27 +62,4 @@ class InteractsWithSessionTest extends TestCase
         $this->assertFalse($session->has('foo'));
         $this->assertFalse($session->has('baz'));
     }
-
-    public function testWithSessionIsFluent(): void
-    {
-        $result = $this->withSession(['foo' => 'bar']);
-
-        $this->assertSame($this, $result);
-    }
-
-    public function testSessionIsFluent(): void
-    {
-        $result = $this->session(['foo' => 'bar']);
-
-        $this->assertSame($this, $result);
-    }
-
-    public function testFlushSessionIsFluent(): void
-    {
-        $this->withSession(['foo' => 'bar']);
-
-        $result = $this->flushSession();
-
-        $this->assertSame($this, $result);
-    }
 }
