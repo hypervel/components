@@ -14,7 +14,7 @@ trait HasUuids
     public function creating(): void
     {
         foreach ($this->uniqueIds() as $column) {
-            if (empty($model->{$column})) {
+            if (empty($this->{$column})) {
                 $this->{$column} = $this->newUniqueId();
             }
         }
