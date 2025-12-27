@@ -138,6 +138,7 @@
         "symfony/error-handler": "^6.3",
         "symfony/mailer": "^6.2",
         "symfony/process": "^6.2",
+        "symfony/uid": "^7.4",
         "tijsverkoyen/css-to-inline-styles": "^2.2.5"
     },
     "replace": {
@@ -217,7 +218,6 @@
         "phpunit/phpunit": "10.5.45",
         "pusher/pusher-php-server": "^7.2",
         "swoole/ide-helper": "~5.1.0",
-        "symfony/uid": "^7.4",
         "symfony/yaml": "^7.3"
     },
     "config": {
