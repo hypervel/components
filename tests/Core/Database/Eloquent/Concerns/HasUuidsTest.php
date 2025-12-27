@@ -18,9 +18,12 @@ class HasUuidsTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected bool $migrateRefresh = true;
+
     protected function migrateFreshUsing(): array
     {
         return [
+            '--database' => $this->getRefreshConnection(),
             '--realpath' => true,
             '--path' => __DIR__ . '/migrations',
         ];
