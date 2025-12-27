@@ -19,8 +19,8 @@ class NotSoftDeletedInDatabase extends Constraint
      */
     public function __construct(
         protected Connection $database,
-        array $data,
-        string $deletedAtColumn
+        protected array $data,
+        protected string $deletedAtColumn
     ) {
     }
 
