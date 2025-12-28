@@ -205,6 +205,7 @@
         "hyperf/redis": "~3.1.0",
         "hyperf/testing": "~3.1.0",
         "hyperf/view-engine": "~3.1.0",
+        "hypervel/facade-documenter": "dev-main",
         "league/flysystem": "^3.0",
         "league/flysystem-aws-s3-v3": "^3.0",
         "league/flysystem-google-cloud-storage": "^3.0",
