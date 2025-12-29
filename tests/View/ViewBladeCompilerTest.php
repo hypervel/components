@@ -149,15 +149,6 @@ class ViewBladeCompilerTest extends TestCase
         ];
     }
 
-    public function testDontIncludeEmptyPath()
-    {
-        $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
-        $files->shouldReceive('get')->once()->with('')->andReturn('Hello World');
-        $files->shouldReceive('exists')->once()->with(__DIR__)->andReturn(true);
-        $files->shouldReceive('put')->once()->with(__DIR__ . '/' . hash('xxh128', 'v2') . '.php', 'Hello World');
-        $compiler->compile('');
-    }
-
     public function testShouldStartFromStrictTypesDeclaration()
     {
         $compiler = new BladeCompiler($files = $this->getFiles(), __DIR__);
