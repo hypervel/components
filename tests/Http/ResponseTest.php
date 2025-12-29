@@ -21,6 +21,7 @@ use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
+use Stringable;
 use Swow\Psr7\Message\ResponsePlusInterface;
 use Swow\Psr7\Message\ServerRequestPlusInterface;
 
@@ -74,7 +75,7 @@ class ResponseTest extends TestCase
         $this->assertEquals('application/json', $result->getHeaderLine('content-type'));
 
         // Test with Jsonable content
-        $jsonable = new class implements Jsonable {
+        $jsonable = new class implements Stringable, Jsonable {
             public function __toString(): string
             {
                 return '{"baz":"qux"}';

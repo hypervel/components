@@ -6,13 +6,14 @@ namespace Hypervel\Mail\Transport;
 
 use Aws\Exception\AwsException;
 use Aws\Ses\SesClient;
+use Stringable;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Component\Mailer\Header\MetadataHeader;
 use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\AbstractTransport;
 use Symfony\Component\Mime\Message;
 
-class SesTransport extends AbstractTransport
+class SesTransport extends AbstractTransport implements Stringable
 {
     /**
      * Create a new SES transport instance.

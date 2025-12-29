@@ -31,7 +31,7 @@ class Application extends Container implements ApplicationContract
      *
      * @var string
      */
-    public const VERSION = '0.3.8';
+    public const VERSION = '0.3.16';
 
     /**
      * The base path for the Hypervel installation.
@@ -628,7 +628,10 @@ class Application extends Container implements ApplicationContract
             ],
             \Hyperf\ViewEngine\Contract\FactoryInterface::class => ['view'],
             \Hyperf\ViewEngine\Compiler\CompilerInterface::class => ['blade.compiler'],
-            \Hypervel\Session\Contracts\Factory::class => ['session'],
+            \Hypervel\Session\Contracts\Factory::class => [
+                'session',
+                \Hypervel\Session\SessionManager::class,
+            ],
             \Hypervel\Session\Contracts\Session::class => ['session.store'],
             \Hypervel\Mail\Contracts\Factory::class => [
                 'mail.manager',

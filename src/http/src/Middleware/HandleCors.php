@@ -26,9 +26,7 @@ class HandleCors implements MiddlewareInterface
         protected RequestContract $request,
         protected Cors $cors,
     ) {
-        $this->cors->setOptions(
-            $this->config = $container->get(ConfigInterface::class)->get('cors', [])
-        );
+        $this->config = $container->get(ConfigInterface::class)->get('cors', []);
     }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
@@ -37,9 +35,11 @@ class HandleCors implements MiddlewareInterface
             return $handler->handle($request);
         }
 
-        if ($this->cors->isPreflightRequest($this->request)) {
-            $response = $this->cors->handlePreflightRequest($this->request);
-            return $this->cors->varyHeader($response, 'Access-Control-Request-Method');
+        $cors = $this->getCors();
+
+        if ($cors->isPreflightRequest($this->request)) {
+            $response = $cors->handlePreflightRequest($this->request);
+            return $cors->varyHeader($response, 'Access-Control-Request-Method');
         }
 
         try {
@@ -60,11 +60,13 @@ class HandleCors implements MiddlewareInterface
      */
     protected function addRequestHeaders(ResponseInterface $response): ResponseInterface
     {
+        $cors = $this->getCors();
+
         if ($this->request->getMethod() === 'OPTIONS') {
-            $response = $this->cors->varyHeader($response, 'Access-Control-Request-Method');
+            $response = $cors->varyHeader($response, 'Access-Control-Request-Method');
         }
 
-        return $this->cors->addActualRequestHeaders($response, $this->request);
+        return $cors->addActualRequestHeaders($response, $this->request);
     }
 
     /**
@@ -100,5 +102,21 @@ class HandleCors implements MiddlewareInterface
         return array_filter($paths, function ($path) {
             return is_string($path);
         });
+    }
+
+    /**
+     * Get the Cors service instance.
+     */
+    protected function getCors(): Cors
+    {
+        return new Cors($this->getCorsConfig());
+    }
+
+    /**
+     * Get the CORS configuration.
+     */
+    protected function getCorsConfig(): array
+    {
+        return $this->config;
     }
 }

@@ -138,6 +138,12 @@ if (! function_exists('database_path')) {
      */
     function database_path(string $path = ''): string
     {
+        if (! ApplicationContext::hasContainer()) {
+            return defined('BASE_PATH')
+                ? join_paths(BASE_PATH, 'database', $path)
+                : throw new RuntimeException('BASE_PATH constant is not defined.');
+        }
+
         return app()->databasePath($path);
     }
 }
@@ -148,6 +154,12 @@ if (! function_exists('storage_path')) {
      */
     function storage_path(string $path = ''): string
     {
+        if (! ApplicationContext::hasContainer()) {
+            return defined('BASE_PATH')
+                ? join_paths(BASE_PATH, 'storage', $path)
+                : throw new RuntimeException('BASE_PATH constant is not defined.');
+        }
+
         return app()->storagePath($path);
     }
 }
@@ -158,6 +170,12 @@ if (! function_exists('config_path')) {
      */
     function config_path(string $path = ''): string
     {
+        if (! ApplicationContext::hasContainer()) {
+            return defined('BASE_PATH')
+                ? join_paths(BASE_PATH, 'config', $path)
+                : throw new RuntimeException('BASE_PATH constant is not defined.');
+        }
+
         return app()->configPath($path);
     }
 }
@@ -168,6 +186,12 @@ if (! function_exists('resource_path')) {
      */
     function resource_path(string $path = ''): string
     {
+        if (! ApplicationContext::hasContainer()) {
+            return defined('BASE_PATH')
+                ? join_paths(BASE_PATH, 'resources', $path)
+                : throw new RuntimeException('BASE_PATH constant is not defined.');
+        }
+
         return app()->resourcePath($path);
     }
 }
@@ -178,6 +202,12 @@ if (! function_exists('lang_path')) {
      */
     function lang_path(string $path = ''): string
     {
+        if (! ApplicationContext::hasContainer()) {
+            return defined('BASE_PATH')
+                ? join_paths(BASE_PATH, 'lang', $path)
+                : throw new RuntimeException('BASE_PATH constant is not defined.');
+        }
+
         return app()->langPath($path);
     }
 }
@@ -188,6 +218,12 @@ if (! function_exists('public_path')) {
      */
     function public_path(string $path = ''): string
     {
+        if (! ApplicationContext::hasContainer()) {
+            return defined('BASE_PATH')
+                ? join_paths(BASE_PATH, 'public', $path)
+                : throw new RuntimeException('BASE_PATH constant is not defined.');
+        }
+
         return app()->publicPath($path);
     }
 }

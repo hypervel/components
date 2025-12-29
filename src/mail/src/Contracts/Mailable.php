@@ -49,5 +49,5 @@ interface Mailable
     /**
      * Set the name of the mailer that should be used to send the message.
      */
-    public function mailer(string $mailer): static;
+    public function mailer(?string $mailer): static;
 }
