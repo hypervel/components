@@ -214,6 +214,17 @@ class Request implements ArrayAccess
         return $this;
     }
 
+    public function withoutQuery(array $keys = []): Request
+    {
+        $query = $this->query();
+        foreach ($keys as $key) {
+            unset($query[$key]);
+        }
+        $this->request = $this->request->withUri($this->request->getUri()->withQuery(http_build_query($query)));
+
+        return $this;
+    }
+
     /**
      * Get the underlying PSR compliant request instance.
      */
