@@ -186,7 +186,6 @@ class ApiRequestTest extends TestCase
 
     public function testWithoutQuery(): void
     {
-
         $request = $this->request->withQuery(['param1' => 'value1', 'param2' => 'value2']);
         $request->withoutQuery(['param1']);
 
