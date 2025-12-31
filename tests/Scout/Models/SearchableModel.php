@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Scout\Models;
 
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Searchable;
 
 /**
  * Test model for Scout tests.
  */
-class SearchableModel extends Model
+class SearchableModel extends Model implements SearchableInterface
 {
     use Searchable;
 

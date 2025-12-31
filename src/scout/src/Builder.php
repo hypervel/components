@@ -5,12 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Scout;
 
 use Closure;
+use Hyperf\Database\Connection;
 use Hyperf\Paginator\LengthAwarePaginator;
 use Hyperf\Paginator\Paginator;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Contracts\Arrayable;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
@@ -21,7 +22,7 @@ use function Hyperf\Tappable\tap;
 /**
  * Fluent search query builder for searchable models.
  *
- * @template TModel of Model
+ * @template TModel of Model&SearchableInterface
  */
 class Builder
 {
@@ -148,15 +149,11 @@ class Builder
     /**
      * Add a "where in" constraint to the search query.
      *
-     * @param Arrayable<array-key, mixed>|array<mixed> $values
+     * @param array<mixed> $values
      * @return $this
      */
-    public function whereIn(string $field, Arrayable|array $values): static
+    public function whereIn(string $field, array $values): static
     {
-        if ($values instanceof Arrayable) {
-            $values = $values->toArray();
-        }
-
         $this->whereIns[$field] = $values;
 
         return $this;
@@ -165,15 +162,11 @@ class Builder
     /**
      * Add a "where not in" constraint to the search query.
      *
-     * @param Arrayable<array-key, mixed>|array<mixed> $values
+     * @param array<mixed> $values
      * @return $this
      */
-    public function whereNotIn(string $field, Arrayable|array $values): static
+    public function whereNotIn(string $field, array $values): static
     {
-        if ($values instanceof Arrayable) {
-            $values = $values->toArray();
-        }
-
         $this->whereNotIns[$field] = $values;
 
         return $this;
@@ -321,7 +314,7 @@ class Builder
     /**
      * Get the first result from the search.
      *
-     * @return TModel|null
+     * @return null|TModel
      */
     public function first(): ?Model
     {
@@ -362,13 +355,13 @@ class Builder
         $perPage = $perPage ?? $this->model->getPerPage();
 
         $rawResults = $engine->paginate($this, $perPage, $page);
-        $results = $this->model->newCollection(
-            $engine->map(
-                $this,
-                $this->applyAfterRawSearchCallback($rawResults),
-                $this->model
-            )->all()
-        );
+        /** @var array<TModel> $mappedModels */
+        $mappedModels = $engine->map(
+            $this,
+            $this->applyAfterRawSearchCallback($rawResults),
+            $this->model
+        )->all();
+        $results = $this->model->newCollection($mappedModels);
 
         return (new Paginator($results, $perPage, $page, [
             'path' => Paginator::resolveCurrentPath(),
@@ -392,13 +385,13 @@ class Builder
         $perPage = $perPage ?? $this->model->getPerPage();
 
         $rawResults = $engine->paginate($this, $perPage, $page);
-        $results = $this->model->newCollection(
-            $engine->map(
-                $this,
-                $this->applyAfterRawSearchCallback($rawResults),
-                $this->model
-            )->all()
-        );
+        /** @var array<TModel> $mappedModels */
+        $mappedModels = $engine->map(
+            $this,
+            $this->applyAfterRawSearchCallback($rawResults),
+            $this->model
+        )->all();
+        $results = $this->model->newCollection($mappedModels);
 
         return (new LengthAwarePaginator(
             $results,
@@ -496,6 +489,9 @@ class Builder
      */
     public function modelConnectionType(): string
     {
-        return $this->model->getConnection()->getDriverName();
+        /** @var Connection $connection */
+        $connection = $this->model->getConnection();
+
+        return $connection->getDriverName();
     }
 }

@@ -11,12 +11,12 @@ use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Builder;
+use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Engine;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Str;
-
 
 /**
  * In-memory search engine using database queries and Collection filtering.
@@ -105,13 +105,14 @@ class CollectionEngine extends Engine
                 foreach ($builder->orders as $order) {
                     $query->orderBy($order['column'], $order['direction']);
                 }
-            }, function ($query) use ($builder) {
+            }, function (EloquentBuilder $query) use ($builder) {
                 $query->orderBy(
                     $builder->model->qualifyColumn($builder->model->getScoutKeyName()),
                     'desc'
                 );
             });
 
+        /** @var EloquentCollection<int, Model&SearchableInterface> $models */
         $models = $this->ensureSoftDeletesAreHandled($builder, $query)
             ->get()
             ->values();
@@ -120,8 +121,15 @@ class CollectionEngine extends Engine
             return $models;
         }
 
-        return $models->first()->makeSearchableUsing($models)
+        /** @var Model&SearchableInterface $firstModel */
+        $firstModel = $models->first();
+
+        /** @var EloquentCollection<int, Model&SearchableInterface> $searchableModels */
+        $searchableModels = $firstModel->makeSearchableUsing($models);
+
+        return $searchableModels
             ->filter(function ($model) use ($builder) {
+                /** @var Model&SearchableInterface $model */
                 if (! $model->shouldBeSearchable()) {
                     return false;
                 }
@@ -149,20 +157,27 @@ class CollectionEngine extends Engine
 
     /**
      * Ensure that soft delete handling is properly applied to the query.
+     *
+     * The withTrashed/onlyTrashed/withoutTrashed methods are added dynamically
+     * by SoftDeletingScope. We guard these calls with runtime checks for SoftDeletes
+     * usage, making them safe but not statically analyzable.
      */
     protected function ensureSoftDeletesAreHandled(Builder $builder, EloquentBuilder $query): EloquentBuilder
     {
         if (Arr::get($builder->wheres, '__soft_deleted') === 0) {
+            /* @phpstan-ignore method.notFound (SoftDeletingScope adds this method) */
             return $query->withoutTrashed();
         }
 
         if (Arr::get($builder->wheres, '__soft_deleted') === 1) {
+            /* @phpstan-ignore method.notFound (SoftDeletingScope adds this method) */
             return $query->onlyTrashed();
         }
 
         if (in_array(SoftDeletes::class, class_uses_recursive(get_class($builder->model)))
             && $this->getScoutConfig('soft_delete', false)
         ) {
+            /* @phpstan-ignore method.notFound (SoftDeletingScope adds this method) */
             return $query->withTrashed();
         }
 
@@ -174,15 +189,20 @@ class CollectionEngine extends Engine
      */
     public function mapIds(mixed $results): Collection
     {
-        $results = array_values($results['results']);
+        /** @var array<int, Model&SearchableInterface> $resultModels */
+        $resultModels = array_values($results['results']);
 
-        return count($results) > 0
-            ? collect($results)->pluck($results[0]->getScoutKeyName())
-            : collect();
+        if (count($resultModels) === 0) {
+            return collect();
+        }
+
+        return collect($resultModels)->pluck($resultModels[0]->getScoutKeyName());
     }
 
     /**
      * Map the given results to instances of the given model.
+     *
+     * @param Model&SearchableInterface $model
      */
     public function map(Builder $builder, mixed $results, Model $model): EloquentCollection
     {
@@ -199,14 +219,19 @@ class CollectionEngine extends Engine
 
         $objectIdPositions = array_flip($objectIds);
 
-        return $model->getScoutModelsByIds($builder, $objectIds)
-            ->filter(fn ($model) => in_array($model->getScoutKey(), $objectIds))
-            ->sortBy(fn ($model) => $objectIdPositions[$model->getScoutKey()])
+        /** @var EloquentCollection<int, Model&SearchableInterface> $scoutModels */
+        $scoutModels = $model->getScoutModelsByIds($builder, $objectIds);
+
+        return $scoutModels
+            ->filter(fn ($m) => in_array($m->getScoutKey(), $objectIds))
+            ->sortBy(fn ($m) => $objectIdPositions[$m->getScoutKey()])
             ->values();
     }
 
     /**
      * Map the given results to instances of the given model via a lazy collection.
+     *
+     * @param Model&SearchableInterface $model
      */
     public function lazyMap(Builder $builder, mixed $results, Model $model): LazyCollection
     {
@@ -223,10 +248,12 @@ class CollectionEngine extends Engine
 
         $objectIdPositions = array_flip($objectIds);
 
-        return $model->queryScoutModelsByIds($builder, $objectIds)
-            ->cursor()
-            ->filter(fn ($model) => in_array($model->getScoutKey(), $objectIds))
-            ->sortBy(fn ($model) => $objectIdPositions[$model->getScoutKey()])
+        /** @var LazyCollection<int, Model&SearchableInterface> $cursor */
+        $cursor = $model->queryScoutModelsByIds($builder, $objectIds)->cursor();
+
+        return $cursor
+            ->filter(fn ($m) => in_array($m->getScoutKey(), $objectIds))
+            ->sortBy(fn ($m) => $objectIdPositions[$m->getScoutKey()])
             ->values();
     }
 

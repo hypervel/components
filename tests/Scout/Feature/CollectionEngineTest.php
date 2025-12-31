@@ -76,7 +76,7 @@ class CollectionEngineTest extends ScoutTestCase
 
     public function testSearchWithPagination()
     {
-        for ($i = 1; $i <= 10; $i++) {
+        for ($i = 1; $i <= 10; ++$i) {
             SearchableModel::create(['title' => "Item {$i}", 'body' => 'Body']);
         }
 

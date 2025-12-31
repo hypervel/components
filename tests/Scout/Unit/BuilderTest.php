@@ -341,7 +341,7 @@ class BuilderTest extends TestCase
 
         // Create collection manually instead of using times()
         $items = [];
-        for ($i = 0; $i < 15; $i++) {
+        for ($i = 0; $i < 15; ++$i) {
             $items[] = m::mock(Model::class);
         }
         $results = new EloquentCollection($items);
@@ -378,7 +378,7 @@ class BuilderTest extends TestCase
 
         // Create collection manually instead of using times()
         $items = [];
-        for ($i = 0; $i < 15; $i++) {
+        for ($i = 0; $i < 15; ++$i) {
             $items[] = m::mock(Model::class);
         }
         $results = new EloquentCollection($items);

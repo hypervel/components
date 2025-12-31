@@ -6,6 +6,7 @@ namespace Hypervel\Scout;
 
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 
@@ -19,11 +20,15 @@ abstract class Engine
 {
     /**
      * Update the given models in the search index.
+     *
+     * @param EloquentCollection<int, Model&SearchableInterface> $models
      */
     abstract public function update(EloquentCollection $models): void;
 
     /**
      * Remove the given models from the search index.
+     *
+     * @param EloquentCollection<int, Model&SearchableInterface> $models
      */
     abstract public function delete(EloquentCollection $models): void;
 
@@ -44,11 +49,15 @@ abstract class Engine
 
     /**
      * Map the given results to instances of the given model.
+     *
+     * @param Model&SearchableInterface $model
      */
     abstract public function map(Builder $builder, mixed $results, Model $model): EloquentCollection;
 
     /**
      * Map the given results to instances of the given model via a lazy collection.
+     *
+     * @param Model&SearchableInterface $model
      */
     abstract public function lazyMap(Builder $builder, mixed $results, Model $model): LazyCollection;
 
@@ -59,6 +68,8 @@ abstract class Engine
 
     /**
      * Flush all of the model's records from the engine.
+     *
+     * @param Model&SearchableInterface $model
      */
     abstract public function flush(Model $model): void;
 

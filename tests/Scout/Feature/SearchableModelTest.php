@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Scout\Feature;
 use Hypervel\Tests\Scout\Models\SearchableModel;
 use Hypervel\Tests\Scout\Models\SoftDeletableSearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
+use RuntimeException;
 
 /**
  * @internal
@@ -116,9 +117,9 @@ class SearchableModelTest extends ScoutTestCase
 
         try {
             SearchableModel::withoutSyncingToSearch(function () {
-                throw new \RuntimeException('Test exception');
+                throw new RuntimeException('Test exception');
             });
-        } catch (\RuntimeException) {
+        } catch (RuntimeException) {
             // Expected
         }
 

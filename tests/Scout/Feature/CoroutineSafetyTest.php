@@ -102,7 +102,7 @@ class CoroutineSafetyTest extends ScoutTestCase
         $waiter = new WaitGroup();
 
         // Create multiple coroutines that each toggle syncing
-        for ($i = 0; $i < 5; $i++) {
+        for ($i = 0; $i < 5; ++$i) {
             $waiter->add(1);
             $coroutineId = $i;
 
@@ -125,7 +125,7 @@ class CoroutineSafetyTest extends ScoutTestCase
         $waiter->wait();
 
         // All coroutines should start with syncing enabled (fresh context)
-        for ($i = 0; $i < 5; $i++) {
+        for ($i = 0; $i < 5; ++$i) {
             $this->assertTrue(
                 $results["before_{$i}"],
                 "Coroutine {$i} should start with syncing enabled"
@@ -133,7 +133,7 @@ class CoroutineSafetyTest extends ScoutTestCase
         }
 
         // Even coroutines should have syncing disabled, odd should have enabled
-        for ($i = 0; $i < 5; $i++) {
+        for ($i = 0; $i < 5; ++$i) {
             if ($i % 2 === 0) {
                 $this->assertFalse(
                     $results["after_{$i}"],

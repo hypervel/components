@@ -8,6 +8,7 @@ use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Builder;
+use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Engines\MeilisearchEngine;
 use Hypervel\Scout\Searchable;
 use Hypervel\Support\LazyCollection;
@@ -144,7 +145,7 @@ class MeilisearchEngineTest extends TestCase
 
         $engine = new MeilisearchEngine($client);
 
-        $model = m::mock(Model::class);
+        $model = m::mock(MeilisearchTestSearchableModel::class);
         $model->shouldReceive('searchableAs')->andReturn('test_index');
         $model->shouldReceive('getScoutKeyName')->andReturn('id');
 
@@ -174,7 +175,7 @@ class MeilisearchEngineTest extends TestCase
 
         $engine = new MeilisearchEngine($client);
 
-        $model = m::mock(Model::class);
+        $model = m::mock(MeilisearchTestSearchableModel::class);
         $model->shouldReceive('searchableAs')->andReturn('test_index');
         $model->shouldReceive('getScoutKeyName')->andReturn('id');
 
@@ -203,7 +204,7 @@ class MeilisearchEngineTest extends TestCase
 
         $engine = new MeilisearchEngine($client);
 
-        $model = m::mock(Model::class);
+        $model = m::mock(MeilisearchTestSearchableModel::class);
         $model->shouldReceive('searchableAs')->andReturn('test_index');
         $model->shouldReceive('getScoutKeyName')->andReturn('id');
 
@@ -249,14 +250,14 @@ class MeilisearchEngineTest extends TestCase
         $engine = new MeilisearchEngine($client);
 
         // Create a mock searchable model that tracks scout metadata
-        $searchableModel = m::mock(Model::class);
+        $searchableModel = m::mock(Model::class . ', ' . SearchableInterface::class);
         $searchableModel->shouldReceive('getScoutKey')->andReturn(1);
         $searchableModel->shouldReceive('withScoutMetadata')
             ->with('_rankingScore', 0.86)
             ->once()
             ->andReturnSelf();
 
-        $model = m::mock(Model::class);
+        $model = m::mock(Model::class . ', ' . SearchableInterface::class);
         $model->shouldReceive('getScoutKeyName')->andReturn('id');
         $model->shouldReceive('getScoutModelsByIds')->andReturn(new EloquentCollection([$searchableModel]));
 
@@ -277,7 +278,7 @@ class MeilisearchEngineTest extends TestCase
         $client = m::mock(Client::class);
         $engine = new MeilisearchEngine($client);
 
-        $model = m::mock(Model::class);
+        $model = m::mock(MeilisearchTestSearchableModel::class);
         $model->shouldReceive('newCollection')->andReturn(new EloquentCollection());
 
         $builder = m::mock(Builder::class);
@@ -295,14 +296,14 @@ class MeilisearchEngineTest extends TestCase
         // Create mock models
         $mockModels = [];
         foreach ([1, 2, 3, 4] as $id) {
-            $mock = m::mock(Model::class)->makePartial();
+            $mock = m::mock(Model::class . ', ' . SearchableInterface::class);
             $mock->shouldReceive('getScoutKey')->andReturn($id);
             $mockModels[] = $mock;
         }
 
         $models = new EloquentCollection($mockModels);
 
-        $model = m::mock(Model::class);
+        $model = m::mock(Model::class . ', ' . SearchableInterface::class);
         $model->shouldReceive('getScoutKeyName')->andReturn('id');
         $model->shouldReceive('getScoutModelsByIds')->andReturn($models);
 
@@ -329,7 +330,7 @@ class MeilisearchEngineTest extends TestCase
         $client = m::mock(Client::class);
         $engine = new MeilisearchEngine($client);
 
-        $model = m::mock(Model::class);
+        $model = m::mock(MeilisearchTestSearchableModel::class);
         $model->shouldReceive('newCollection')->andReturn(new EloquentCollection());
 
         $builder = m::mock(Builder::class);
@@ -378,7 +379,7 @@ class MeilisearchEngineTest extends TestCase
 
         $engine = new MeilisearchEngine($client);
 
-        $model = m::mock(Model::class);
+        $model = m::mock(MeilisearchTestSearchableModel::class);
         $model->shouldReceive('indexableAs')->andReturn('test_index');
 
         $engine->flush($model);
@@ -534,22 +535,32 @@ class MeilisearchEngineTest extends TestCase
 
     protected function createSearchableModelMock(): m\MockInterface
     {
-        $mock = m::mock(Model::class);
-
-        return $mock;
+        return m::mock(Model::class . ', ' . SearchableInterface::class);
     }
 
     protected function createSoftDeleteSearchableModelMock(): m\MockInterface
     {
         // Must mock a class that uses SoftDeletes for usesSoftDelete() to return true
-        return m::mock(MeilisearchTestSoftDeleteModel::class);
+        return m::mock(MeilisearchTestSoftDeleteModel::class . ', ' . SearchableInterface::class);
     }
+}
+
+/**
+ * Test model for MeilisearchEngine tests.
+ */
+class MeilisearchTestSearchableModel extends Model implements SearchableInterface
+{
+    use Searchable;
+
+    protected array $guarded = [];
+
+    public bool $timestamps = false;
 }
 
 /**
  * Test model with soft deletes for MeilisearchEngine tests.
  */
-class MeilisearchTestSoftDeleteModel extends Model
+class MeilisearchTestSoftDeleteModel extends Model implements SearchableInterface
 {
     use Searchable;
     use SoftDeletes;

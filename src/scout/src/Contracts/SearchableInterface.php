@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Contracts;
 
+use Closure;
+use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Scout\Builder;
 use Hypervel\Scout\Engine;
@@ -13,20 +15,37 @@ use Hypervel\Scout\Engine;
  *
  * This interface defines the public API that searchable models must implement.
  * The Searchable trait provides a default implementation of these methods.
+ *
+ * @phpstan-require-extends \Hypervel\Database\Eloquent\Model
  */
 interface SearchableInterface
 {
     /**
      * Perform a search against the model's indexed data.
-     *
-     * @return Builder<static>
      */
-    public static function search(string $query = '', ?callable $callback = null): Builder;
+    public static function search(string $query = '', ?Closure $callback = null): Builder;
 
     /**
      * Get the requested models from an array of object IDs.
      */
     public function getScoutModelsByIds(Builder $builder, array $ids): Collection;
+
+    /**
+     * Get a query builder for retrieving the requested models from an array of object IDs.
+     */
+    public function queryScoutModelsByIds(Builder $builder, array $ids): EloquentBuilder;
+
+    /**
+     * Modify the collection of models being made searchable.
+     */
+    public function makeSearchableUsing(Collection $models): Collection;
+
+    /**
+     * Sync the soft deleted status for this model into the metadata.
+     *
+     * @return $this
+     */
+    public function pushSoftDeleteMetadata(): static;
 
     /**
      * Get the Scout engine for the model.

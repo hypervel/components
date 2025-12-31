@@ -13,7 +13,6 @@ use Hypervel\Scout\Engine;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Support\Str;
 
-
 /**
  * Create a search index.
  */

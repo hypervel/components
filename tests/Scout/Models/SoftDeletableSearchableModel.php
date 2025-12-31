@@ -6,12 +6,13 @@ namespace Hypervel\Tests\Scout\Models;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Searchable;
 
 /**
  * Test model with soft deletes for Scout tests.
  */
-class SoftDeletableSearchableModel extends Model
+class SoftDeletableSearchableModel extends Model implements SearchableInterface
 {
     use Searchable;
     use SoftDeletes;

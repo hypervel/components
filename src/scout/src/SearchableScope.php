@@ -10,7 +10,9 @@ use Hyperf\Database\Model\Model as HyperfModel;
 use Hyperf\Database\Model\Scope;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Events\ModelsFlushed;
 use Hypervel\Scout\Events\ModelsImported;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -34,23 +36,31 @@ class SearchableScope implements Scope
     public function extend(EloquentBuilder $builder): void
     {
         $builder->macro('searchable', function (EloquentBuilder $builder, ?int $chunk = null) {
-            $scoutKeyName = $builder->getModel()->getScoutKeyName();
+            /** @var Model&SearchableInterface $model */
+            $model = $builder->getModel();
+            $scoutKeyName = $model->getScoutKeyName();
             $chunkSize = $chunk ?? static::getScoutConfig('chunk.searchable', 500);
 
-            $builder->chunkById($chunkSize, function ($models) {
-                $models->filter->shouldBeSearchable()->searchable();
+            $builder->chunkById($chunkSize, function (EloquentCollection $models) {
+                /* @phpstan-ignore-next-line method.notFound, argument.type */
+                $models->filter(fn ($m) => $m->shouldBeSearchable())->searchable();
 
+                /* @phpstan-ignore-next-line argument.type */
                 static::dispatchEvent(new ModelsImported($models));
             }, $builder->qualifyColumn($scoutKeyName), $scoutKeyName);
         });
 
         $builder->macro('unsearchable', function (EloquentBuilder $builder, ?int $chunk = null) {
-            $scoutKeyName = $builder->getModel()->getScoutKeyName();
+            /** @var Model&SearchableInterface $model */
+            $model = $builder->getModel();
+            $scoutKeyName = $model->getScoutKeyName();
             $chunkSize = $chunk ?? static::getScoutConfig('chunk.unsearchable', 500);
 
-            $builder->chunkById($chunkSize, function ($models) {
+            $builder->chunkById($chunkSize, function (EloquentCollection $models) {
+                /* @phpstan-ignore-next-line method.notFound */
                 $models->unsearchable();
 
+                /* @phpstan-ignore-next-line argument.type */
                 static::dispatchEvent(new ModelsFlushed($models));
             }, $builder->qualifyColumn($scoutKeyName), $scoutKeyName);
         });

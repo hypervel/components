@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Engines;
 
+use DateTimeImmutable;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Builder;
+use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Contracts\UpdatesIndexSettings;
 use Hypervel\Scout\Engine;
 use Hypervel\Support\Arr;
@@ -17,7 +19,7 @@ use Meilisearch\Client as MeilisearchClient;
 use Meilisearch\Contracts\IndexesQuery;
 use Meilisearch\Exceptions\ApiException;
 use Meilisearch\Search\SearchResult;
-
+use RuntimeException;
 
 /**
  * Meilisearch search engine implementation.
@@ -38,6 +40,7 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
     /**
      * Update the given models in the search index.
      *
+     * @param EloquentCollection<int, Model&SearchableInterface> $models
      * @throws ApiException
      */
     public function update(EloquentCollection $models): void
@@ -46,13 +49,16 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
             return;
         }
 
-        $index = $this->meilisearch->index($models->first()->indexableAs());
+        /** @var Model&SearchableInterface $firstModel */
+        $firstModel = $models->first();
+        $index = $this->meilisearch->index($firstModel->indexableAs());
 
-        if ($this->usesSoftDelete($models->first()) && $this->softDelete) {
+        if ($this->usesSoftDelete($firstModel) && $this->softDelete) {
             $models->each->pushSoftDeleteMetadata();
         }
 
-        $objects = $models->map(function ($model) {
+        $objects = $models->map(function (Model $model) {
+            /** @var Model&SearchableInterface $model */
             $searchableData = $model->toSearchableArray();
 
             if (empty($searchableData)) {
@@ -70,12 +76,14 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
             ->all();
 
         if (! empty($objects)) {
-            $index->addDocuments($objects, $models->first()->getScoutKeyName());
+            $index->addDocuments($objects, $firstModel->getScoutKeyName());
         }
     }
 
     /**
      * Remove the given models from the search index.
+     *
+     * @param EloquentCollection<int, Model&SearchableInterface> $models
      */
     public function delete(EloquentCollection $models): void
     {
@@ -83,9 +91,11 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
             return;
         }
 
-        $index = $this->meilisearch->index($models->first()->indexableAs());
+        /** @var Model&SearchableInterface $firstModel */
+        $firstModel = $models->first();
+        $index = $this->meilisearch->index($firstModel->indexableAs());
 
-        $keys = $models->map->getScoutKey()->values()->all();
+        $keys = $models->map(fn (SearchableInterface $model) => $model->getScoutKey())->values()->all();
 
         $index->deleteDocuments($keys);
     }
@@ -241,6 +251,8 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
 
     /**
      * Map the given results to instances of the given model.
+     *
+     * @param Model&SearchableInterface $model
      */
     public function map(Builder $builder, mixed $results, Model $model): EloquentCollection
     {
@@ -255,30 +267,36 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
 
         $objectIdPositions = array_flip($objectIds);
 
-        return $model->getScoutModelsByIds($builder, $objectIds)
-            ->filter(fn ($model) => in_array($model->getScoutKey(), $objectIds))
-            ->map(function ($model) use ($results, $objectIdPositions) {
-                $result = $results['hits'][$objectIdPositions[$model->getScoutKey()]] ?? [];
+        /** @var EloquentCollection<int, Model&SearchableInterface> $scoutModels */
+        $scoutModels = $model->getScoutModelsByIds($builder, $objectIds);
+
+        return $scoutModels
+            ->filter(fn ($m) => in_array($m->getScoutKey(), $objectIds))
+            ->map(function ($m) use ($results, $objectIdPositions) {
+                /** @var Model&SearchableInterface $m */
+                $result = $results['hits'][$objectIdPositions[$m->getScoutKey()]] ?? [];
 
                 foreach ($result as $key => $value) {
                     if (str_starts_with($key, '_')) {
-                        $model->withScoutMetadata($key, $value);
+                        $m->withScoutMetadata($key, $value);
                     }
                 }
 
-                return $model;
+                return $m;
             })
-            ->sortBy(fn ($model) => $objectIdPositions[$model->getScoutKey()])
+            ->sortBy(fn ($m) => $objectIdPositions[$m->getScoutKey()])
             ->values();
     }
 
     /**
      * Map the given results to instances of the given model via a lazy collection.
+     *
+     * @param Model&SearchableInterface $model
      */
     public function lazyMap(Builder $builder, mixed $results, Model $model): LazyCollection
     {
         if (count($results['hits']) === 0) {
-            return LazyCollection::make($model->newCollection());
+            return LazyCollection::empty();
         }
 
         $objectIds = collect($results['hits'])
@@ -288,21 +306,24 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
 
         $objectIdPositions = array_flip($objectIds);
 
-        return $model->queryScoutModelsByIds($builder, $objectIds)
-            ->cursor()
-            ->filter(fn ($model) => in_array($model->getScoutKey(), $objectIds))
-            ->map(function ($model) use ($results, $objectIdPositions) {
-                $result = $results['hits'][$objectIdPositions[$model->getScoutKey()]] ?? [];
+        /** @var LazyCollection<int, Model&SearchableInterface> $cursor */
+        $cursor = $model->queryScoutModelsByIds($builder, $objectIds)->cursor();
+
+        return $cursor
+            ->filter(fn ($m) => in_array($m->getScoutKey(), $objectIds))
+            ->map(function ($m) use ($results, $objectIdPositions) {
+                /** @var Model&SearchableInterface $m */
+                $result = $results['hits'][$objectIdPositions[$m->getScoutKey()]] ?? [];
 
                 foreach ($result as $key => $value) {
                     if (str_starts_with($key, '_')) {
-                        $model->withScoutMetadata($key, $value);
+                        $m->withScoutMetadata($key, $value);
                     }
                 }
 
-                return $model;
+                return $m;
             })
-            ->sortBy(fn ($model) => $objectIdPositions[$model->getScoutKey()])
+            ->sortBy(fn ($m) => $objectIdPositions[$m->getScoutKey()])
             ->values();
     }
 
@@ -316,6 +337,8 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
 
     /**
      * Flush all of the model's records from the engine.
+     *
+     * @param Model&SearchableInterface $model
      */
     public function flush(Model $model): void
     {
@@ -409,12 +432,11 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
      * without exposing the admin API key.
      *
      * @param array<string, array{filter?: string}> $searchRules Rules per index
-     * @param DateTimeImmutable|null $expiresAt Token expiration
      */
     public function generateTenantToken(
         array $searchRules,
         ?string $apiKeyUid = null,
-        ?\DateTimeImmutable $expiresAt = null
+        ?DateTimeImmutable $expiresAt = null
     ): string {
         return $this->meilisearch->generateTenantToken(
             $apiKeyUid ?? $this->getDefaultApiKeyUid(),
@@ -434,13 +456,17 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
         // This should be configured or retrieved from Meilisearch
         $keys = $this->meilisearch->getKeys();
 
-        foreach ($keys->getResults() as $key) {
-            if (in_array('search', $key->getActions()) || in_array('*', $key->getActions())) {
-                return $key->getUid();
+        /** @var array<int, array{uid?: string, actions?: array<string>}> $results */
+        $results = $keys->getResults();
+
+        foreach ($results as $key) {
+            $actions = $key['actions'] ?? [];
+            if (in_array('search', $actions) || in_array('*', $actions)) {
+                return $key['uid'] ?? '';
             }
         }
 
-        throw new \RuntimeException('No valid API key found for tenant token generation.');
+        throw new RuntimeException('No valid API key found for tenant token generation.');
     }
 
     /**
@@ -464,6 +490,6 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
      */
     public function __call(string $method, array $parameters): mixed
     {
-        return $this->meilisearch->$method(...$parameters);
+        return $this->meilisearch->{$method}(...$parameters);
     }
 }

@@ -103,7 +103,7 @@ class EngineManager
      */
     protected function ensureMeilisearchClientIsInstalled(): void
     {
-        if (class_exists(Meilisearch::class) && version_compare(Meilisearch::VERSION, '1.0.0') >= 0) {
+        if (class_exists(Meilisearch::class) && version_compare(Meilisearch::VERSION, '1.0.0', '>=')) {
             return;
         }
 

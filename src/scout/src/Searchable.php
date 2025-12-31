@@ -13,9 +13,7 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\SoftDeletes;
-use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Support\Collection as BaseCollection;
-
 
 /**
  * Provides full-text search capabilities to Eloquent models.
