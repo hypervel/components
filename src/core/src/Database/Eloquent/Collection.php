@@ -7,6 +7,7 @@ namespace Hypervel\Database\Eloquent;
 use Hyperf\Collection\Enumerable;
 use Hyperf\Database\Model\Collection as BaseCollection;
 use Hypervel\Support\Collection as SupportCollection;
+use Hypervel\Support\Traits\TransformsToResourceCollection;
 
 /**
  * @template TKey of array-key
@@ -39,6 +40,8 @@ use Hypervel\Support\Collection as SupportCollection;
  */
 class Collection extends BaseCollection
 {
+    use TransformsToResourceCollection;
+
     /**
      * @template TFindDefault
      *
