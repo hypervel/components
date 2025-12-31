@@ -8,6 +8,7 @@ use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Builder;
+use Hypervel\Scout\Contracts\UpdatesIndexSettings;
 use Hypervel\Scout\Engine;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -25,7 +26,7 @@ use function Hypervel\Support\collect;
  *
  * Provides full-text search using Meilisearch as the backend.
  */
-class MeilisearchEngine extends Engine
+class MeilisearchEngine extends Engine implements UpdatesIndexSettings
 {
     /**
      * Create a new MeilisearchEngine instance.
