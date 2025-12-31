@@ -1,0 +1,55 @@
+{
+    "name": "hypervel/scout",
+    "type": "library",
+    "description": "Full-text search for Eloquent models using Meilisearch.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "hypervel",
+        "scout",
+        "search",
+        "meilisearch",
+        "full-text-search"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Scout\\": "src/"
+        }
+    },
+    "require": {
+        "php": "^8.2",
+        "hypervel/console": "^0.3",
+        "hypervel/context": "^0.3",
+        "hypervel/core": "^0.3",
+        "hypervel/database": "^0.3",
+        "hypervel/queue": "^0.3",
+        "hypervel/support": "^0.3",
+        "meilisearch/meilisearch-php": "^1.0"
+    },
+    "suggest": {
+        "guzzlehttp/guzzle": "Required for Meilisearch HTTP client (^7.0)"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.3-dev"
+        },
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Scout\\ScoutServiceProvider"
+            ]
+        }
+    }
+}
