@@ -34,7 +34,7 @@ class ImportCommand extends Command
      */
     public function handle(Dispatcher $events): void
     {
-        define('SCOUT_COMMAND', true);
+        defined('SCOUT_COMMAND') || define('SCOUT_COMMAND', true);
 
         $class = $this->resolveModelClass((string) $this->argument('model'));
 
