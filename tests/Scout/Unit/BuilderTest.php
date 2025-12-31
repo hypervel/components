@@ -437,4 +437,59 @@ class BuilderTest extends TestCase
 
         $this->assertSame($original, $result);
     }
+
+    public function testSimplePaginateRawCorrectlyHandlesPaginatedResults()
+    {
+        Paginator::currentPageResolver(function () {
+            return 1;
+        });
+        Paginator::currentPathResolver(function () {
+            return 'http://localhost/foo';
+        });
+
+        $model = m::mock(Model::class);
+        $model->shouldReceive('getPerPage')->andReturn(15);
+        $model->shouldReceive('searchableUsing')->andReturn($engine = m::mock(Engine::class));
+
+        $rawResults = ['hits' => [], 'estimatedTotalHits' => 16];
+
+        $engine->shouldReceive('paginate')->once()->andReturn($rawResults);
+        $engine->shouldReceive('getTotalCount')->andReturn(16);
+
+        $builder = new Builder($model, 'zonda');
+        $paginated = $builder->simplePaginateRaw();
+
+        $this->assertSame($rawResults, $paginated->items());
+        $this->assertTrue($paginated->hasMorePages());
+        $this->assertSame(15, $paginated->perPage());
+        $this->assertSame(1, $paginated->currentPage());
+    }
+
+    public function testWhereInAcceptsArrayableInterface()
+    {
+        $model = m::mock(Model::class);
+        $builder = new Builder($model, 'query');
+
+        // Create a Collection (which implements Arrayable)
+        $collection = new Collection([1, 2, 3]);
+
+        $result = $builder->whereIn('id', $collection);
+
+        $this->assertSame($builder, $result);
+        $this->assertSame(['id' => [1, 2, 3]], $builder->whereIns);
+    }
+
+    public function testWhereNotInAcceptsArrayableInterface()
+    {
+        $model = m::mock(Model::class);
+        $builder = new Builder($model, 'query');
+
+        // Create a Collection (which implements Arrayable)
+        $collection = new Collection([4, 5, 6]);
+
+        $result = $builder->whereNotIn('id', $collection);
+
+        $this->assertSame($builder, $result);
+        $this->assertSame(['id' => [4, 5, 6]], $builder->whereNotIns);
+    }
 }

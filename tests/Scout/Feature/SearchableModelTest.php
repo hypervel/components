@@ -202,4 +202,49 @@ class SearchableModelTest extends ScoutTestCase
         // Should find the model (note: CollectionEngine may not fully support this)
         $this->assertCount(1, $results);
     }
+
+    public function testSearchIndexShouldBeUpdatedReturnsTrueByDefault()
+    {
+        $model = new SearchableModel();
+
+        $this->assertTrue($model->searchIndexShouldBeUpdated());
+    }
+
+    public function testWasSearchableBeforeUpdateReturnsTrueByDefault()
+    {
+        $model = new SearchableModel();
+
+        $this->assertTrue($model->wasSearchableBeforeUpdate());
+    }
+
+    public function testWasSearchableBeforeDeleteReturnsTrueByDefault()
+    {
+        $model = new SearchableModel();
+
+        $this->assertTrue($model->wasSearchableBeforeDelete());
+    }
+
+    public function testIndexableAsReturnsSearchableAsByDefault()
+    {
+        $model = new SearchableModel();
+
+        $this->assertSame($model->searchableAs(), $model->indexableAs());
+    }
+
+    public function testGetScoutKeyTypeReturnsModelKeyType()
+    {
+        $model = new SearchableModel();
+
+        $this->assertSame('int', $model->getScoutKeyType());
+    }
+
+    public function testMakeSearchableUsingReturnsModelsUnchangedByDefault()
+    {
+        $model = new SearchableModel();
+        $collection = $model->newCollection([new SearchableModel(), new SearchableModel()]);
+
+        $result = $model->makeSearchableUsing($collection);
+
+        $this->assertSame($collection, $result);
+    }
 }

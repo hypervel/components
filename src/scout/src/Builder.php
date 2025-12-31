@@ -11,6 +11,7 @@ use Hyperf\Paginator\Paginator;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Contracts\SearchableInterface;
+use Hyperf\Contract\Arrayable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Traits\Conditionable;
@@ -149,11 +150,15 @@ class Builder
     /**
      * Add a "where in" constraint to the search query.
      *
-     * @param array<mixed> $values
+     * @param array<mixed>|Arrayable $values
      * @return $this
      */
-    public function whereIn(string $field, array $values): static
+    public function whereIn(string $field, array|Arrayable $values): static
     {
+        if ($values instanceof Arrayable) {
+            $values = $values->toArray();
+        }
+
         $this->whereIns[$field] = $values;
 
         return $this;
@@ -162,11 +167,15 @@ class Builder
     /**
      * Add a "where not in" constraint to the search query.
      *
-     * @param array<mixed> $values
+     * @param array<mixed>|Arrayable $values
      * @return $this
      */
-    public function whereNotIn(string $field, array $values): static
+    public function whereNotIn(string $field, array|Arrayable $values): static
     {
+        if ($values instanceof Arrayable) {
+            $values = $values->toArray();
+        }
+
         $this->whereNotIns[$field] = $values;
 
         return $this;
@@ -432,6 +441,31 @@ class Builder
                 'pageName' => $pageName,
             ]
         ))->appends('query', $this->query);
+    }
+
+    /**
+     * Paginate the given query into a simple paginator with raw data.
+     */
+    public function simplePaginateRaw(
+        ?int $perPage = null,
+        string $pageName = 'page',
+        ?int $page = null
+    ): Paginator {
+        $engine = $this->engine();
+
+        $page = $page ?? Paginator::resolveCurrentPage($pageName);
+        $perPage = $perPage ?? $this->model->getPerPage();
+
+        $results = $this->applyAfterRawSearchCallback(
+            $engine->paginate($this, $perPage, $page)
+        );
+
+        return (new Paginator($results, $perPage, $page, [
+            'path' => Paginator::resolveCurrentPath(),
+            'pageName' => $pageName,
+        ]))->hasMorePagesWhen(
+            ($perPage * $page) < $engine->getTotalCount($results)
+        )->appends('query', $this->query);
     }
 
     /**

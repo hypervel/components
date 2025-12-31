@@ -13,6 +13,8 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Scout\Jobs\MakeSearchable;
+use Hypervel\Scout\Jobs\RemoveFromSearch;
 use Hypervel\Support\Collection as BaseCollection;
 
 /**
@@ -48,8 +50,14 @@ trait Searchable
                 return;
             }
 
+            if (! $model->searchIndexShouldBeUpdated()) {
+                return;
+            }
+
             if (! $model->shouldBeSearchable()) {
-                $model->unsearchable();
+                if ($model->wasSearchableBeforeUpdate()) {
+                    $model->unsearchable();
+                }
                 return;
             }
 
@@ -61,11 +69,41 @@ trait Searchable
                 return;
             }
 
+            if (! $model->wasSearchableBeforeDelete()) {
+                return;
+            }
+
             if (static::usesSoftDelete() && static::getScoutConfig('soft_delete', false)) {
                 $model->searchable();
             } else {
                 $model->unsearchable();
             }
+        });
+
+        static::registerCallback('forceDeleted', function ($model): void {
+            if (! static::isSearchSyncingEnabled()) {
+                return;
+            }
+
+            $model->unsearchable();
+        });
+
+        static::registerCallback('restored', function ($model): void {
+            if (! static::isSearchSyncingEnabled()) {
+                return;
+            }
+
+            // Note: restored is a "forced update" - we don't check searchIndexShouldBeUpdated()
+            // because restored models should always be re-indexed
+
+            if (! $model->shouldBeSearchable()) {
+                if ($model->wasSearchableBeforeUpdate()) {
+                    $model->unsearchable();
+                }
+                return;
+            }
+
+            $model->searchable();
         });
     }
 
@@ -74,22 +112,32 @@ trait Searchable
      */
     public function registerSearchableMacros(): void
     {
-        $self = $this;
-
-        BaseCollection::macro('searchable', function (?int $chunk = null) use ($self) {
-            $self->queueMakeSearchable($this);
+        BaseCollection::macro('searchable', function () {
+            if ($this->isEmpty()) {
+                return;
+            }
+            $this->first()->queueMakeSearchable($this);
         });
 
-        BaseCollection::macro('unsearchable', function () use ($self) {
-            $self->queueRemoveFromSearch($this);
+        BaseCollection::macro('unsearchable', function () {
+            if ($this->isEmpty()) {
+                return;
+            }
+            $this->first()->queueRemoveFromSearch($this);
         });
 
-        BaseCollection::macro('searchableSync', function () use ($self) {
-            $self->syncMakeSearchable($this);
+        BaseCollection::macro('searchableSync', function () {
+            if ($this->isEmpty()) {
+                return;
+            }
+            $this->first()->syncMakeSearchable($this);
         });
 
-        BaseCollection::macro('unsearchableSync', function () use ($self) {
-            $self->syncRemoveFromSearch($this);
+        BaseCollection::macro('unsearchableSync', function () {
+            if ($this->isEmpty()) {
+                return;
+            }
+            $this->first()->syncRemoveFromSearch($this);
         });
     }
 
@@ -103,7 +151,9 @@ trait Searchable
         }
 
         if (static::getScoutConfig('queue.enabled', false)) {
-            // Queue-based indexing will be implemented with Jobs
+            MakeSearchable::dispatch($models)
+                ->onConnection($models->first()->syncWithSearchUsing())
+                ->onQueue($models->first()->syncWithSearchUsingQueue());
             return;
         }
 
@@ -134,7 +184,9 @@ trait Searchable
         }
 
         if (static::getScoutConfig('queue.enabled', false)) {
-            // Queue-based removal will be implemented with Jobs
+            RemoveFromSearch::dispatch($models)
+                ->onConnection($models->first()->syncWithSearchUsing())
+                ->onQueue($models->first()->syncWithSearchUsingQueue());
             return;
         }
 
