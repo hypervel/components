@@ -13,7 +13,6 @@ use Hypervel\Scout\Engine;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Support\Str;
 
-use function Hypervel\Support\class_uses_recursive;
 
 /**
  * Create a search index.

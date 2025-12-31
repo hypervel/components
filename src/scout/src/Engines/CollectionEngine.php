@@ -17,8 +17,6 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Str;
 
-use function Hypervel\Support\class_uses_recursive;
-use function Hypervel\Support\collect;
 
 /**
  * In-memory search engine using database queries and Collection filtering.

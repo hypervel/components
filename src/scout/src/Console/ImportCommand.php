@@ -67,8 +67,8 @@ class ImportCommand extends Command
             return $class;
         }
 
-        $appNamespace = $this->laravel->getNamespace();
-        $namespacedClass = $appNamespace . "Models\\{$class}";
+        // Try the conventional App\Models namespace
+        $namespacedClass = "App\\Models\\{$class}";
 
         if (class_exists($namespacedClass)) {
             return $namespacedClass;

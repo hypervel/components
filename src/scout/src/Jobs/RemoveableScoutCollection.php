@@ -7,7 +7,6 @@ namespace Hypervel\Scout\Jobs;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Scout\Searchable;
 
-use function Hypervel\Support\class_uses_recursive;
 
 /**
  * Collection wrapper that uses Scout keys for queue serialization.

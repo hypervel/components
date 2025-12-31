@@ -16,7 +16,6 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Support\Collection as BaseCollection;
 
-use function Hypervel\Support\class_uses_recursive;
 
 /**
  * Provides full-text search capabilities to Eloquent models.

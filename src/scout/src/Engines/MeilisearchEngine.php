@@ -18,8 +18,6 @@ use Meilisearch\Contracts\IndexesQuery;
 use Meilisearch\Exceptions\ApiException;
 use Meilisearch\Search\SearchResult;
 
-use function Hypervel\Support\class_uses_recursive;
-use function Hypervel\Support\collect;
 
 /**
  * Meilisearch search engine implementation.

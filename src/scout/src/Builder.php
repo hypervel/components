@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Scout;
 
 use Closure;
+use Hyperf\Paginator\LengthAwarePaginator;
+use Hyperf\Paginator\Paginator;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Pagination\LengthAwarePaginator;
-use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Contracts\Arrayable;
 use Hypervel\Support\LazyCollection;
@@ -16,7 +16,7 @@ use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\Tappable;
 
-use function Hypervel\Tappable\tap;
+use function Hyperf\Tappable\tap;
 
 /**
  * Fluent search query builder for searchable models.

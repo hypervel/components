@@ -12,7 +12,6 @@ use Hypervel\Scout\Contracts\UpdatesIndexSettings;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Support\Str;
 
-use function Hypervel\Support\class_uses_recursive;
 
 /**
  * Sync configured index settings with the search engine.
