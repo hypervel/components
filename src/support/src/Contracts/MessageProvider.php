@@ -8,4 +8,8 @@ use Hyperf\Contract\MessageProvider as HyperfMessageProvider;
 
 interface MessageProvider extends HyperfMessageProvider
 {
+    /**
+     * Get the messages for the instance.
+     */
+    public function getMessageBag(): MessageBag;
 }

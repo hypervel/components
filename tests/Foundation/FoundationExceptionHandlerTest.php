@@ -35,6 +35,7 @@ use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
 use Hypervel\Validation\ValidationException;
 use Hypervel\Validation\Validator;
+use Hypervel\View\Contracts\Factory as FactoryContract;
 use InvalidArgumentException;
 use Mockery as m;
 use OutOfRangeException;
@@ -385,10 +386,10 @@ class FoundationExceptionHandlerTest extends TestCase
 
     public function testItReturnsSpecificErrorViewIfExists()
     {
-        $viewFactory = m::mock(FactoryInterface::class);
+        $viewFactory = m::mock(FactoryContract::class);
         $viewFactory->shouldReceive('exists')->with('errors::502')->andReturn(true);
 
-        $this->container->instance(FactoryInterface::class, $viewFactory);
+        $this->container->instance(FactoryContract::class, $viewFactory);
 
         $handler = new class($this->container) extends Handler {
             public function getErrorView($e)
@@ -402,11 +403,11 @@ class FoundationExceptionHandlerTest extends TestCase
 
     public function testItReturnsFallbackErrorViewIfExists()
     {
-        $viewFactory = m::mock(FactoryInterface::class);
+        $viewFactory = m::mock(FactoryContract::class);
         $viewFactory->shouldReceive('exists')->once()->with('errors::502')->andReturn(false);
         $viewFactory->shouldReceive('exists')->once()->with('errors::5xx')->andReturn(true);
 
-        $this->container->instance(FactoryInterface::class, $viewFactory);
+        $this->container->instance(FactoryContract::class, $viewFactory);
 
         $handler = new class($this->container) extends Handler {
             public function getErrorView($e)
@@ -420,11 +421,11 @@ class FoundationExceptionHandlerTest extends TestCase
 
     public function testItReturnsNullIfNoErrorViewExists()
     {
-        $viewFactory = m::mock(FactoryInterface::class);
+        $viewFactory = m::mock(FactoryContract::class);
         $viewFactory->shouldReceive('exists')->once()->with('errors::404')->andReturn(false);
         $viewFactory->shouldReceive('exists')->once()->with('errors::4xx')->andReturn(false);
 
-        $this->container->instance(FactoryInterface::class, $viewFactory);
+        $this->container->instance(FactoryContract::class, $viewFactory);
 
         $handler = new class($this->container) extends Handler {
             public function getErrorView($e)
@@ -441,10 +442,10 @@ class FoundationExceptionHandlerTest extends TestCase
         // When debug is true, it is OK to bubble the exception thrown while rendering
         // the error view as the debug handler should handle this gracefully.
 
-        $viewFactory = m::mock(FactoryInterface::class);
+        $viewFactory = m::mock(FactoryContract::class);
         $viewFactory->shouldReceive('exists')->once()->with('errors::404')->andReturn(true);
 
-        $this->container->instance(FactoryInterface::class, $viewFactory);
+        $this->container->instance(FactoryContract::class, $viewFactory);
 
         $renderer = m::mock(RenderInterface::class);
         $renderer->shouldReceive('render')->once()->withAnyArgs()->andThrow(new Exception('Rendering this view throws an exception'));
