@@ -43,7 +43,7 @@ return [
 
 ### Queueing & Transaction Safety
 
-By default, Scout uses `Coroutine::defer()` to index models after the response is sent. This is fast and works well for most use cases.
+By default, Scout uses `Coroutine::defer()` to index models at coroutine exit (in HTTP requests, typically after the response is emitted). This is fast and works well for most use cases.
 
 For production environments with high reliability requirements, enable queue-based indexing:
 
@@ -58,7 +58,7 @@ For production environments with high reliability requirements, enable queue-bas
 
 | Mode | When indexing runs | Transaction-aware |
 |------|-------------------|-------------------|
-| Defer (default) | After response sent | No (timing-based) |
+| Defer (default) | At coroutine exit (typically after response) | No (timing-based) |
 | Queue | Via queue worker | No |
 | Queue + after_commit | Via queue worker, after commit | Yes |
 

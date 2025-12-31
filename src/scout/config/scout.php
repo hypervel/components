@@ -43,7 +43,8 @@ return [
     | syncing will get queued for better performance.
     |
     | By default, Hypervel Scout uses Coroutine::defer() which executes
-    | indexing after the response is sent. Set 'enabled' to true to use
+    | indexing at coroutine exit (in HTTP requests, typically after the
+    | response is emitted). Set 'enabled' to true to use
     | the queue system instead for durability and retries.
     |
     | The 'after_commit' option ensures that queued indexing jobs are only
