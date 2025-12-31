@@ -39,9 +39,15 @@ class MakeSearchable implements ShouldQueue
         /** @var Model&SearchableInterface $firstModel */
         $firstModel = $this->models->first();
 
-        /** @var Model&SearchableInterface $searchableModel */
-        $searchableModel = $firstModel->makeSearchableUsing($this->models)->first();
+        $models = $firstModel->makeSearchableUsing($this->models);
 
-        $searchableModel->searchableUsing()->update($this->models);
+        if ($models->isEmpty()) {
+            return;
+        }
+
+        /** @var Model&SearchableInterface $searchableModel */
+        $searchableModel = $models->first();
+
+        $searchableModel->searchableUsing()->update($models);
     }
 }

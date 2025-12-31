@@ -30,6 +30,8 @@ class FlushCommand extends Command
      */
     public function handle(): void
     {
+        define('SCOUT_COMMAND', true);
+
         $class = $this->resolveModelClass((string) $this->argument('model'));
 
         $class::removeAllFromSearch();

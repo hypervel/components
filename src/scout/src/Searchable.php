@@ -176,7 +176,13 @@ trait Searchable
             return;
         }
 
-        $models->first()->makeSearchableUsing($models)->first()->searchableUsing()->update($models);
+        $models = $models->first()->makeSearchableUsing($models);
+
+        if ($models->isEmpty()) {
+            return;
+        }
+
+        $models->first()->searchableUsing()->update($models);
     }
 
     /**
