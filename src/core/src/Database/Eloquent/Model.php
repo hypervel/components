@@ -10,6 +10,7 @@ use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
 use Hypervel\Context\Context;
 use Hypervel\Database\Eloquent\Concerns\HasAttributes;
 use Hypervel\Database\Eloquent\Concerns\HasCallbacks;
+use Hypervel\Database\Eloquent\Concerns\HasCollection;
 use Hypervel\Database\Eloquent\Concerns\HasObservers;
 use Hypervel\Database\Eloquent\Concerns\HasRelations;
 use Hypervel\Database\Eloquent\Concerns\HasRelationships;
@@ -68,9 +69,10 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
 {
     use HasAttributes;
     use HasCallbacks;
+    use HasCollection;
+    use HasObservers;
     use HasRelations;
     use HasRelationships;
-    use HasObservers;
 
     protected ?string $connection = null;
 
@@ -87,15 +89,6 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
     {
         // @phpstan-ignore-next-line
         return new Builder($query);
-    }
-
-    /**
-     * @param array<array-key, static> $models
-     * @return \Hypervel\Database\Eloquent\Collection<array-key, static>
-     */
-    public function newCollection(array $models = [])
-    {
-        return new Collection($models);
     }
 
     public function broadcastChannelRoute(): string
