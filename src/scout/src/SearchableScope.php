@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Scout;
 
 use Hyperf\Contract\ConfigInterface;
+use Hyperf\Database\Model\Builder as HyperfBuilder;
+use Hyperf\Database\Model\Model as HyperfModel;
+use Hyperf\Database\Model\Scope;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Database\Eloquent\Scope;
 use Hypervel\Scout\Events\ModelsFlushed;
 use Hypervel\Scout\Events\ModelsImported;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -21,7 +23,7 @@ class SearchableScope implements Scope
     /**
      * Apply the scope to a given Eloquent query builder.
      */
-    public function apply(EloquentBuilder $builder, Model $model): void
+    public function apply(HyperfBuilder $builder, HyperfModel $model): void
     {
         // This scope doesn't modify queries, only extends the builder
     }

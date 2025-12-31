@@ -213,9 +213,10 @@ trait Searchable
     /**
      * Modify the collection of models being made searchable.
      *
-     * @return BaseCollection<int, static>
+     * @param Collection<int, static> $models
+     * @return Collection<int, static>
      */
-    public function makeSearchableUsing(BaseCollection $models): BaseCollection
+    public function makeSearchableUsing(Collection $models): Collection
     {
         return $models;
     }
