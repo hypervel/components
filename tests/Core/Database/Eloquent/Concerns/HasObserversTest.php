@@ -141,6 +141,54 @@ class HasObserversTest extends TestCase
 
         $this->assertSame([MorphPivotObserver::class], $result);
     }
+
+    public function testResolveObserveAttributesCollectsFromTrait(): void
+    {
+        $result = ModelUsingTraitWithObserver::resolveObserveAttributes();
+
+        $this->assertSame([TraitObserver::class], $result);
+    }
+
+    public function testResolveObserveAttributesCollectsMultipleObserversFromTrait(): void
+    {
+        $result = ModelUsingTraitWithMultipleObservers::resolveObserveAttributes();
+
+        $this->assertSame([TraitFirstObserver::class, TraitSecondObserver::class], $result);
+    }
+
+    public function testResolveObserveAttributesCollectsFromMultipleTraits(): void
+    {
+        $result = ModelUsingMultipleTraitsWithObservers::resolveObserveAttributes();
+
+        // Both traits' observers should be collected
+        $this->assertSame([TraitObserver::class, AnotherTraitObserver::class], $result);
+    }
+
+    public function testResolveObserveAttributesMergesTraitAndClassObservers(): void
+    {
+        $result = ModelWithTraitAndOwnObserver::resolveObserveAttributes();
+
+        // Trait observers come first, then class observers
+        $this->assertSame([TraitObserver::class, SingleObserver::class], $result);
+    }
+
+    public function testResolveObserveAttributesMergesParentTraitAndChildObservers(): void
+    {
+        $result = ChildModelWithTraitParent::resolveObserveAttributes();
+
+        // Parent's trait observer -> child's class observer
+        $this->assertSame([TraitObserver::class, ChildObserver::class], $result);
+    }
+
+    public function testResolveObserveAttributesCorrectOrderWithParentTraitsAndChild(): void
+    {
+        $result = ChildModelWithAllSources::resolveObserveAttributes();
+
+        // Order: parent class -> parent trait -> child trait -> child class
+        // ParentModelWithObserver has ParentObserver
+        // ChildModelWithAllSources uses TraitWithObserver (TraitObserver) and has ChildObserver
+        $this->assertSame([ParentObserver::class, TraitObserver::class, ChildObserver::class], $result);
+    }
 }
 
 // Test observer classes
@@ -282,4 +330,100 @@ class ChildPivotWithObserver extends PivotWithObserver
 class MorphPivotWithObserver extends MorphPivot
 {
     protected ?string $table = 'test_morph_pivots';
+}
+
+// Trait test observers
+class TraitObserver
+{
+    public function created(Model $model): void
+    {
+    }
+}
+
+class TraitFirstObserver
+{
+    public function created(Model $model): void
+    {
+    }
+}
+
+class TraitSecondObserver
+{
+    public function created(Model $model): void
+    {
+    }
+}
+
+class AnotherTraitObserver
+{
+    public function created(Model $model): void
+    {
+    }
+}
+
+// Traits with ObservedBy attributes
+#[ObservedBy(TraitObserver::class)]
+trait TraitWithObserver
+{
+}
+
+#[ObservedBy([TraitFirstObserver::class, TraitSecondObserver::class])]
+trait TraitWithMultipleObservers
+{
+}
+
+#[ObservedBy(AnotherTraitObserver::class)]
+trait AnotherTraitWithObserver
+{
+}
+
+// Models using traits with observers
+class ModelUsingTraitWithObserver extends Model
+{
+    use TraitWithObserver;
+
+    protected ?string $table = 'test_models';
+}
+
+class ModelUsingTraitWithMultipleObservers extends Model
+{
+    use TraitWithMultipleObservers;
+
+    protected ?string $table = 'test_models';
+}
+
+class ModelUsingMultipleTraitsWithObservers extends Model
+{
+    use TraitWithObserver;
+    use AnotherTraitWithObserver;
+
+    protected ?string $table = 'test_models';
+}
+
+#[ObservedBy(SingleObserver::class)]
+class ModelWithTraitAndOwnObserver extends Model
+{
+    use TraitWithObserver;
+
+    protected ?string $table = 'test_models';
+}
+
+// Parent model that uses a trait with observer
+class ParentModelUsingTrait extends Model
+{
+    use TraitWithObserver;
+
+    protected ?string $table = 'test_models';
+}
+
+#[ObservedBy(ChildObserver::class)]
+class ChildModelWithTraitParent extends ParentModelUsingTrait
+{
+}
+
+// Child model with parent class observer, own trait, and own observer
+#[ObservedBy(ChildObserver::class)]
+class ChildModelWithAllSources extends ParentModelWithObserver
+{
+    use TraitWithObserver;
 }

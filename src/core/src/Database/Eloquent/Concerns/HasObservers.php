@@ -10,6 +10,7 @@ use Hyperf\Database\Model\Model as HyperfModel;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Database\Eloquent\Attributes\ObservedBy;
 use Hypervel\Database\Eloquent\ObserverManager;
+use ReflectionAttribute;
 use ReflectionClass;
 use RuntimeException;
 
@@ -32,9 +33,9 @@ trait HasObservers
     /**
      * Resolve the observer class names from the ObservedBy attributes.
      *
-     * Collects ObservedBy attributes from the current class and all parent
-     * classes (excluding the base Model class), merging them together so
-     * that observers declared on parent classes are inherited by children.
+     * Collects ObservedBy attributes from parent classes, traits, and the
+     * current class itself, merging them together. The order is:
+     * parent class observers -> trait observers -> class observers.
      *
      * @return array<int, class-string>
      */
@@ -47,13 +48,30 @@ trait HasObservers
             && $parentClass !== HyperfModel::class
             && method_exists($parentClass, 'resolveObserveAttributes');
 
-        return (new Collection($reflectionClass->getAttributes(ObservedBy::class)))
-            ->map(fn ($attribute) => $attribute->getArguments())
-            ->flatten()
-            ->when($hasParentWithTrait, function (Collection $attributes) use ($parentClass) {
+        // Collect attributes from traits, then from the class itself
+        $attributes = new Collection();
+
+        foreach ($reflectionClass->getTraits() as $trait) {
+            foreach ($trait->getAttributes(ObservedBy::class, ReflectionAttribute::IS_INSTANCEOF) as $attribute) {
+                $attributes->push($attribute);
+            }
+        }
+
+        foreach ($reflectionClass->getAttributes(ObservedBy::class, ReflectionAttribute::IS_INSTANCEOF) as $attribute) {
+            $attributes->push($attribute);
+        }
+
+        // Process all collected attributes
+        $observers = $attributes
+            ->map(fn (ReflectionAttribute $attribute) => $attribute->getArguments())
+            ->flatten();
+
+        // Prepend parent's observers if applicable
+        return $observers
+            ->when($hasParentWithTrait, function (Collection $attrs) use ($parentClass) {
                 /** @var class-string $parentClass */
                 return (new Collection($parentClass::resolveObserveAttributes()))
-                    ->merge($attributes);
+                    ->merge($attrs);
             })
             ->all();
     }
