@@ -46,12 +46,17 @@ return [
     | indexing after the response is sent. Set 'enabled' to true to use
     | the queue system instead for durability and retries.
     |
+    | The 'after_commit' option ensures that queued indexing jobs are only
+    | dispatched after all database transactions have committed, preventing
+    | indexing of data that might be rolled back.
+    |
     */
 
     'queue' => [
         'enabled' => env('SCOUT_QUEUE', false),
         'connection' => env('SCOUT_QUEUE_CONNECTION'),
         'queue' => env('SCOUT_QUEUE_NAME'),
+        'after_commit' => env('SCOUT_AFTER_COMMIT', false),
     ],
 
     /*

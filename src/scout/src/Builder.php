@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Scout;
 
 use Closure;
+use Hyperf\Contract\Arrayable;
 use Hyperf\Database\Connection;
 use Hyperf\Paginator\LengthAwarePaginator;
 use Hyperf\Paginator\Paginator;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Contracts\SearchableInterface;
-use Hyperf\Contract\Arrayable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Traits\Conditionable;

@@ -28,8 +28,10 @@ return [
     'driver' => env('SCOUT_DRIVER', 'meilisearch'),
     'prefix' => env('SCOUT_PREFIX', ''),
     'queue' => [
+        'enabled' => env('SCOUT_QUEUE', false),
         'connection' => env('SCOUT_QUEUE_CONNECTION'),
-        'queue' => env('SCOUT_QUEUE'),
+        'queue' => env('SCOUT_QUEUE_NAME'),
+        'after_commit' => env('SCOUT_AFTER_COMMIT', false),
     ],
     'soft_delete' => false,
     'meilisearch' => [
@@ -38,6 +40,29 @@ return [
     ],
 ];
 ```
+
+### Queueing & Transaction Safety
+
+By default, Scout uses `Coroutine::defer()` to index models after the response is sent. This is fast and works well for most use cases.
+
+For production environments with high reliability requirements, enable queue-based indexing:
+
+```php
+'queue' => [
+    'enabled' => true,
+    'after_commit' => true,  // Recommended when using transactions
+],
+```
+
+**`after_commit` option:** When enabled, queued indexing jobs are dispatched only after database transactions commit. This prevents indexing data that might be rolled back.
+
+| Mode | When indexing runs | Transaction-aware |
+|------|-------------------|-------------------|
+| Defer (default) | After response sent | No (timing-based) |
+| Queue | Via queue worker | No |
+| Queue + after_commit | Via queue worker, after commit | Yes |
+
+Use `after_commit` when your application uses database transactions and you need to ensure search results never contain rolled-back data.
 
 ## Basic Usage
 

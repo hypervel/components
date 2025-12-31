@@ -151,9 +151,14 @@ trait Searchable
         }
 
         if (static::getScoutConfig('queue.enabled', false)) {
-            MakeSearchable::dispatch($models)
+            $pendingDispatch = MakeSearchable::dispatch($models)
                 ->onConnection($models->first()->syncWithSearchUsing())
                 ->onQueue($models->first()->syncWithSearchUsingQueue());
+
+            if (static::getScoutConfig('queue.after_commit', false)) {
+                $pendingDispatch->afterCommit();
+            }
+
             return;
         }
 
@@ -184,9 +189,14 @@ trait Searchable
         }
 
         if (static::getScoutConfig('queue.enabled', false)) {
-            RemoveFromSearch::dispatch($models)
+            $pendingDispatch = RemoveFromSearch::dispatch($models)
                 ->onConnection($models->first()->syncWithSearchUsing())
                 ->onQueue($models->first()->syncWithSearchUsingQueue());
+
+            if (static::getScoutConfig('queue.after_commit', false)) {
+                $pendingDispatch->afterCommit();
+            }
+
             return;
         }
 
