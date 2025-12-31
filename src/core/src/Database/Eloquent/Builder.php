@@ -54,6 +54,78 @@ class Builder extends BaseBuilder
     use QueriesRelationships;
 
     /**
+     * Dynamically handle calls into the query instance.
+     *
+     * Extends parent to support methods marked with #[Scope] attribute
+     * in addition to the traditional 'scope' prefix convention.
+     *
+     * @param string $method
+     * @param array<int, mixed> $parameters
+     * @return mixed
+     */
+    public function __call($method, $parameters)
+    {
+        if ($method === 'macro') {
+            $this->localMacros[$parameters[0]] = $parameters[1];
+
+            return;
+        }
+
+        if ($method === 'mixin') {
+            return static::registerMixin($parameters[0], $parameters[1] ?? true);
+        }
+
+        if ($this->hasMacro($method)) {
+            array_unshift($parameters, $this);
+
+            return $this->localMacros[$method](...$parameters);
+        }
+
+        if (static::hasGlobalMacro($method)) {
+            $macro = static::$macros[$method];
+
+            if ($macro instanceof Closure) {
+                return call_user_func_array($macro->bindTo($this, static::class), $parameters);
+            }
+
+            return call_user_func_array($macro, $parameters);
+        }
+
+        // Check for named scopes (both 'scope' prefix and #[Scope] attribute)
+        if ($this->hasNamedScope($method)) {
+            return $this->callNamedScope($method, $parameters);
+        }
+
+        if (in_array($method, $this->passthru)) {
+            return $this->toBase()->{$method}(...$parameters);
+        }
+
+        $this->query->{$method}(...$parameters);
+
+        return $this;
+    }
+
+    /**
+     * Determine if the given model has a named scope.
+     */
+    public function hasNamedScope(string $scope): bool
+    {
+        return $this->model && $this->model->hasNamedScope($scope);
+    }
+
+    /**
+     * Call the given named scope on the model.
+     *
+     * @param array<int, mixed> $parameters
+     */
+    protected function callNamedScope(string $scope, array $parameters = []): mixed
+    {
+        return $this->callScope(function (...$params) use ($scope) {
+            return $this->model->callNamedScope($scope, $params);
+        }, $parameters);
+    }
+
+    /**
      * @return \Hypervel\Support\LazyCollection<int, TModel>
      */
     public function cursor()
