@@ -11,7 +11,7 @@ class SearchableTestModel extends Model
 {
     use Searchable;
 
-    protected $table = 'searchable_test_models';
+    protected ?string $table = 'searchable_test_models';
 
     protected array $fillable = ['id', 'name', 'title', 'body'];
 
