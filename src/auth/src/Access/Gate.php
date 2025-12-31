@@ -13,6 +13,7 @@ use Hyperf\Stringable\Str;
 use Hypervel\Auth\Access\Events\GateEvaluated;
 use Hypervel\Auth\Contracts\Authenticatable;
 use Hypervel\Auth\Contracts\Gate as GateContract;
+use Hypervel\Database\Eloquent\Attributes\UsePolicy;
 use InvalidArgumentException;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use ReflectionClass;
@@ -504,11 +505,36 @@ class Gate implements GateContract
             return $this->resolvePolicy($this->policies[$class]);
         }
 
+        $policy = $this->getPolicyFromAttribute($class);
+
+        if (! is_null($policy)) {
+            return $this->resolvePolicy($policy);
+        }
+
         foreach ($this->policies as $expected => $policy) {
             if (is_subclass_of($class, $expected)) {
                 return $this->resolvePolicy($policy);
             }
         }
+    }
+
+    /**
+     * Get the policy class from the UsePolicy attribute.
+     *
+     * @param class-string $class
+     * @return null|class-string
+     */
+    protected function getPolicyFromAttribute(string $class): ?string
+    {
+        if (! class_exists($class)) {
+            return null;
+        }
+
+        $attributes = (new ReflectionClass($class))->getAttributes(UsePolicy::class);
+
+        return $attributes !== []
+            ? $attributes[0]->newInstance()->class
+            : null;
     }
 
     /**

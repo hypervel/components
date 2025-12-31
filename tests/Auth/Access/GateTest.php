@@ -33,6 +33,10 @@ use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyWithNoPermissions;
 use Hypervel\Tests\Auth\Stub\AccessGateTestResource;
 use Hypervel\Tests\Auth\Stub\AccessGateTestStaticClass;
 use Hypervel\Tests\Auth\Stub\AccessGateTestSubDummy;
+use Hypervel\Tests\Auth\Stub\DummyWithoutUsePolicy;
+use Hypervel\Tests\Auth\Stub\DummyWithUsePolicy;
+use Hypervel\Tests\Auth\Stub\DummyWithUsePolicyPolicy;
+use Hypervel\Tests\Auth\Stub\SubDummyWithUsePolicy;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -1009,6 +1013,61 @@ class GateTest extends TestCase
         $this->assertSame('Nullable __invoke was called', AccessGateTestGuestNullableInvokable::$calledMethod);
 
         $this->assertFalse($gate->check('absent_invokable'));
+    }
+
+    public function testPolicyCanBeResolvedFromUsePolicyAttribute(): void
+    {
+        $gate = $this->getBasicGate();
+
+        $this->assertInstanceOf(
+            DummyWithUsePolicyPolicy::class,
+            $gate->getPolicyFor(DummyWithUsePolicy::class)
+        );
+    }
+
+    public function testPolicyFromUsePolicyAttributeWorksWithObjectInstance(): void
+    {
+        $gate = $this->getBasicGate();
+
+        $this->assertInstanceOf(
+            DummyWithUsePolicyPolicy::class,
+            $gate->getPolicyFor(new DummyWithUsePolicy())
+        );
+    }
+
+    public function testExplicitPolicyTakesPrecedenceOverUsePolicyAttribute(): void
+    {
+        $gate = $this->getBasicGate();
+
+        // Register an explicit policy that should take precedence
+        $gate->policy(DummyWithUsePolicy::class, AccessGateTestPolicy::class);
+
+        $this->assertInstanceOf(
+            AccessGateTestPolicy::class,
+            $gate->getPolicyFor(DummyWithUsePolicy::class)
+        );
+    }
+
+    public function testUsePolicyAttributeTakesPrecedenceOverSubclassFallback(): void
+    {
+        $gate = $this->getBasicGate();
+
+        // Register a policy for the parent class
+        $gate->policy(DummyWithUsePolicy::class, AccessGateTestPolicy::class);
+
+        // SubDummyWithUsePolicy extends DummyWithUsePolicy but has its own #[UsePolicy] attribute
+        // The attribute should take precedence over the subclass fallback
+        $this->assertInstanceOf(
+            DummyWithUsePolicyPolicy::class,
+            $gate->getPolicyFor(SubDummyWithUsePolicy::class)
+        );
+    }
+
+    public function testGetPolicyForReturnsNullForClassWithoutUsePolicyAttribute(): void
+    {
+        $gate = $this->getBasicGate();
+
+        $this->assertNull($gate->getPolicyFor(DummyWithoutUsePolicy::class));
     }
 
     public function testCanSetDenialResponseInConstructor()
