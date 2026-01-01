@@ -1,15 +1,17 @@
 {
     "name": "hypervel/scout",
     "type": "library",
-    "description": "Full-text search for Eloquent models using Meilisearch.",
+    "description": "Full-text search for Eloquent models.",
     "license": "MIT",
     "keywords": [
         "php",
         "hypervel",
         "scout",
         "search",
+        "full-text-search",
         "meilisearch",
-        "full-text-search"
+        "typesense",
+        "database"
     ],
     "authors": [
         {
@@ -33,11 +35,11 @@
         "hypervel/core": "^0.3",
         "hypervel/database": "^0.3",
         "hypervel/queue": "^0.3",
-        "hypervel/support": "^0.3",
-        "meilisearch/meilisearch-php": "^1.0"
+        "hypervel/support": "^0.3"
     },
     "suggest": {
-        "guzzlehttp/guzzle": "Required for Meilisearch HTTP client (^7.0)"
+        "meilisearch/meilisearch-php": "Required for Meilisearch driver (^1.0)",
+        "typesense/typesense-php": "Required for Typesense driver (^5.2)"
     },
     "config": {
         "sort-packages": true

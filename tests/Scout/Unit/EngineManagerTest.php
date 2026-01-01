@@ -8,8 +8,10 @@ use Hyperf\Contract\ConfigInterface;
 use Hypervel\Scout\Engine;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Scout\Engines\CollectionEngine;
+use Hypervel\Scout\Engines\DatabaseEngine;
 use Hypervel\Scout\Engines\MeilisearchEngine;
 use Hypervel\Scout\Engines\NullEngine;
+use Hypervel\Scout\Engines\TypesenseEngine;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Meilisearch\Client as MeilisearchClient;
@@ -84,6 +86,38 @@ class EngineManagerTest extends TestCase
         $engine = $manager->engine('meilisearch');
 
         $this->assertInstanceOf(MeilisearchEngine::class, $engine);
+    }
+
+    public function testResolveDatabaseEngine()
+    {
+        $container = $this->createMockContainer(['driver' => 'database']);
+
+        $manager = new EngineManager($container);
+        $engine = $manager->engine('database');
+
+        $this->assertInstanceOf(DatabaseEngine::class, $engine);
+    }
+
+    public function testResolveTypesenseEngine()
+    {
+        $container = $this->createMockContainerWithTypesense([
+            'driver' => 'typesense',
+            'soft_delete' => false,
+            'typesense' => [
+                'client-settings' => [
+                    'api_key' => 'test-key',
+                    'nodes' => [
+                        ['host' => 'localhost', 'port' => 8108, 'protocol' => 'http'],
+                    ],
+                ],
+                'max_total_results' => 500,
+            ],
+        ]);
+
+        $manager = new EngineManager($container);
+        $engine = $manager->engine('typesense');
+
+        $this->assertInstanceOf(TypesenseEngine::class, $engine);
     }
 
     public function testEngineUsesDefaultDriver()
@@ -254,6 +288,28 @@ class EngineManagerTest extends TestCase
         $configService->shouldReceive('get')
             ->with('scout.soft_delete', m::any())
             ->andReturn($config['soft_delete'] ?? false);
+
+        $container->shouldReceive('get')
+            ->with(ConfigInterface::class)
+            ->andReturn($configService);
+
+        return $container;
+    }
+
+    protected function createMockContainerWithTypesense(array $config): m\MockInterface&ContainerInterface
+    {
+        $container = m::mock(ContainerInterface::class);
+
+        $configService = m::mock(ConfigInterface::class);
+        $configService->shouldReceive('get')
+            ->with('scout.driver', m::any())
+            ->andReturn($config['driver'] ?? null);
+        $configService->shouldReceive('get')
+            ->with('scout.soft_delete', m::any())
+            ->andReturn($config['soft_delete'] ?? false);
+        $configService->shouldReceive('get')
+            ->with('scout.typesense', m::any())
+            ->andReturn($config['typesense'] ?? []);
 
         $container->shouldReceive('get')
             ->with(ConfigInterface::class)

@@ -326,4 +326,190 @@ class TypesenseEngineTest extends TestCase
 
         $this->assertInstanceOf(\Hypervel\Support\LazyCollection::class, $lazyMapped);
     }
+
+    public function testBuildSearchParametersIncludesBasicParameters(): void
+    {
+        $engine = $this->createPartialEngineWithConfig();
+
+        $model = $this->createSearchableModelMock();
+
+        $builder = Mockery::mock(Builder::class);
+        $builder->model = $model;
+        $builder->query = 'search term';
+        $builder->wheres = [];
+        $builder->whereIns = [];
+        $builder->whereNotIns = [];
+        $builder->orders = [];
+        $builder->options = [];
+
+        $params = $engine->buildSearchParameters($builder, 1, 25);
+
+        $this->assertSame('search term', $params['q']);
+        $this->assertSame(1, $params['page']);
+        $this->assertSame(25, $params['per_page']);
+        $this->assertArrayHasKey('query_by', $params);
+        $this->assertArrayHasKey('filter_by', $params);
+        $this->assertArrayHasKey('highlight_start_tag', $params);
+        $this->assertArrayHasKey('highlight_end_tag', $params);
+    }
+
+    public function testBuildSearchParametersIncludesFilters(): void
+    {
+        $engine = $this->createPartialEngineWithConfig();
+
+        $model = $this->createSearchableModelMock();
+
+        $builder = Mockery::mock(Builder::class);
+        $builder->model = $model;
+        $builder->query = 'test';
+        $builder->wheres = ['status' => 'active'];
+        $builder->whereIns = ['category' => ['a', 'b']];
+        $builder->whereNotIns = ['brand' => ['x']];
+        $builder->orders = [];
+        $builder->options = [];
+
+        $params = $engine->buildSearchParameters($builder, 1, 10);
+
+        $this->assertStringContainsString('status:=active', $params['filter_by']);
+        $this->assertStringContainsString('category:=[a, b]', $params['filter_by']);
+        $this->assertStringContainsString('brand:!=[x]', $params['filter_by']);
+    }
+
+    public function testBuildSearchParametersMergesBuilderOptions(): void
+    {
+        $engine = $this->createPartialEngineWithConfig();
+
+        $model = $this->createSearchableModelMock();
+
+        $builder = Mockery::mock(Builder::class);
+        $builder->model = $model;
+        $builder->query = 'test';
+        $builder->wheres = [];
+        $builder->whereIns = [];
+        $builder->whereNotIns = [];
+        $builder->orders = [];
+        $builder->options = [
+            'exhaustive_search' => true,
+            'custom_param' => 'value',
+        ];
+
+        $params = $engine->buildSearchParameters($builder, 1, 10);
+
+        $this->assertTrue($params['exhaustive_search']);
+        $this->assertSame('value', $params['custom_param']);
+    }
+
+    public function testBuildSearchParametersIncludesSortBy(): void
+    {
+        $engine = $this->createPartialEngineWithConfig();
+
+        $model = $this->createSearchableModelMock();
+
+        $builder = Mockery::mock(Builder::class);
+        $builder->model = $model;
+        $builder->query = 'test';
+        $builder->wheres = [];
+        $builder->whereIns = [];
+        $builder->whereNotIns = [];
+        $builder->orders = [
+            ['column' => 'name', 'direction' => 'asc'],
+            ['column' => 'created_at', 'direction' => 'desc'],
+        ];
+        $builder->options = [];
+
+        $params = $engine->buildSearchParameters($builder, 1, 10);
+
+        $this->assertSame('name:asc,created_at:desc', $params['sort_by']);
+    }
+
+    public function testBuildSearchParametersAppendsToExistingSortBy(): void
+    {
+        $engine = $this->createPartialEngineWithConfig();
+
+        $model = $this->createSearchableModelMock();
+
+        $builder = Mockery::mock(Builder::class);
+        $builder->model = $model;
+        $builder->query = 'test';
+        $builder->wheres = [];
+        $builder->whereIns = [];
+        $builder->whereNotIns = [];
+        $builder->orders = [
+            ['column' => 'name', 'direction' => 'asc'],
+        ];
+        $builder->options = [
+            'sort_by' => '_text_match:desc',
+        ];
+
+        $params = $engine->buildSearchParameters($builder, 1, 10);
+
+        $this->assertSame('_text_match:desc,name:asc', $params['sort_by']);
+    }
+
+    public function testBuildSearchParametersWithDifferentPageAndPerPage(): void
+    {
+        $engine = $this->createPartialEngineWithConfig();
+
+        $model = $this->createSearchableModelMock();
+
+        $builder = Mockery::mock(Builder::class);
+        $builder->model = $model;
+        $builder->query = 'query';
+        $builder->wheres = [];
+        $builder->whereIns = [];
+        $builder->whereNotIns = [];
+        $builder->orders = [];
+        $builder->options = [];
+
+        $params = $engine->buildSearchParameters($builder, 5, 50);
+
+        $this->assertSame(5, $params['page']);
+        $this->assertSame(50, $params['per_page']);
+    }
+
+    public function testBuildSearchParametersWithEmptyQuery(): void
+    {
+        $engine = $this->createPartialEngineWithConfig();
+
+        $model = $this->createSearchableModelMock();
+
+        $builder = Mockery::mock(Builder::class);
+        $builder->model = $model;
+        $builder->query = '';
+        $builder->wheres = [];
+        $builder->whereIns = [];
+        $builder->whereNotIns = [];
+        $builder->orders = [];
+        $builder->options = [];
+
+        $params = $engine->buildSearchParameters($builder, 1, 10);
+
+        $this->assertSame('', $params['q']);
+        $this->assertSame('', $params['filter_by']);
+    }
+
+    /**
+     * Create a partial engine mock that stubs getConfig to avoid ApplicationContext dependency.
+     */
+    protected function createPartialEngineWithConfig(?MockInterface $client = null): MockInterface&TypesenseEngine
+    {
+        $client = $client ?? Mockery::mock(TypesenseClient::class);
+
+        /** @var MockInterface&TypesenseEngine */
+        $engine = Mockery::mock(TypesenseEngine::class, [$client, 1000])
+            ->shouldAllowMockingProtectedMethods()
+            ->makePartial();
+
+        $engine->shouldReceive('getConfig')
+            ->andReturnUsing(function (string $key, mixed $default = null) {
+                // Return empty array for model-settings (no custom search params)
+                if (str_starts_with($key, 'typesense.model-settings.')) {
+                    return $default;
+                }
+
+                return $default;
+            });
+
+        return $engine;
+    }
 }
