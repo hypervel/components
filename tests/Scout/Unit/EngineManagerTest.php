@@ -17,6 +17,7 @@ use InvalidArgumentException;
 use Meilisearch\Client as MeilisearchClient;
 use Mockery as m;
 use Psr\Container\ContainerInterface;
+use Typesense\Client as TypesenseClient;
 
 /**
  * @internal
@@ -103,16 +104,12 @@ class EngineManagerTest extends TestCase
         $container = $this->createMockContainerWithTypesense([
             'driver' => 'typesense',
             'soft_delete' => false,
-            'typesense' => [
-                'client-settings' => [
-                    'api_key' => 'test-key',
-                    'nodes' => [
-                        ['host' => 'localhost', 'port' => 8108, 'protocol' => 'http'],
-                    ],
-                ],
-                'max_total_results' => 500,
-            ],
         ]);
+
+        $typesenseClient = m::mock(TypesenseClient::class);
+        $container->shouldReceive('get')
+            ->with(TypesenseClient::class)
+            ->andReturn($typesenseClient);
 
         $manager = new EngineManager($container);
         $engine = $manager->engine('typesense');
@@ -308,8 +305,8 @@ class EngineManagerTest extends TestCase
             ->with('scout.soft_delete', m::any())
             ->andReturn($config['soft_delete'] ?? false);
         $configService->shouldReceive('get')
-            ->with('scout.typesense', m::any())
-            ->andReturn($config['typesense'] ?? []);
+            ->with('scout.typesense.max_total_results', m::any())
+            ->andReturn($config['max_total_results'] ?? 1000);
 
         $container->shouldReceive('get')
             ->with(ConfigInterface::class)

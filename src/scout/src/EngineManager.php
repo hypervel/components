@@ -124,12 +124,9 @@ class EngineManager
     {
         $this->ensureTypesenseClientIsInstalled();
 
-        /** @var array<string, mixed> $config */
-        $config = $this->getConfig('typesense', []);
-
         return new TypesenseEngine(
-            new TypesenseClient($config['client-settings'] ?? []),
-            (int) ($config['max_total_results'] ?? 1000)
+            $this->container->get(TypesenseClient::class),
+            (int) $this->getConfig('typesense.max_total_results', 1000)
         );
     }
 

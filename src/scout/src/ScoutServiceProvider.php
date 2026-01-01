@@ -12,6 +12,7 @@ use Hypervel\Scout\Console\IndexCommand;
 use Hypervel\Scout\Console\SyncIndexSettingsCommand;
 use Hypervel\Support\ServiceProvider;
 use Meilisearch\Client as MeilisearchClient;
+use Typesense\Client as TypesenseClient;
 
 class ScoutServiceProvider extends ServiceProvider
 {
@@ -33,6 +34,14 @@ class ScoutServiceProvider extends ServiceProvider
             return new MeilisearchClient(
                 $config->get('scout.meilisearch.host', 'http://localhost:7700'),
                 $config->get('scout.meilisearch.key')
+            );
+        });
+
+        $this->app->bind(TypesenseClient::class, function () {
+            $config = $this->app->get(ConfigInterface::class);
+
+            return new TypesenseClient(
+                $config->get('scout.typesense.client-settings', [])
             );
         });
     }
