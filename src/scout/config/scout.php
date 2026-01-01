@@ -78,16 +78,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Concurrency
+    | Command Concurrency
     |--------------------------------------------------------------------------
     |
-    | This option controls the number of concurrent coroutines used when
-    | running batch import operations. Higher values may speed up imports
-    | but consume more resources.
+    | This option controls the maximum number of concurrent coroutines used
+    | when running bulk import/flush operations via Scout commands. Higher
+    | values speed up imports but consume more resources. This only affects
+    | console commands, not HTTP request indexing.
     |
     */
 
-    'concurrency' => env('SCOUT_CONCURRENCY', 100),
+    'concurrency' => env('SCOUT_CONCURRENCY', 50),
 
     /*
     |--------------------------------------------------------------------------

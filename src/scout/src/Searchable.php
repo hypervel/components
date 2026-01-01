@@ -8,14 +8,15 @@ use Closure;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
-use Hypervel\Coroutine\Concurrent;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
 use Hypervel\Support\Collection as BaseCollection;
+use RuntimeException;
 
 /**
  * Provides full-text search capabilities to Eloquent models.
@@ -32,9 +33,9 @@ trait Searchable
     protected array $scoutMetadata = [];
 
     /**
-     * Concurrent runner for batch operations.
+     * Concurrent runner for command batch operations.
      */
-    protected static ?Concurrent $scoutRunner = null;
+    protected static ?WaitConcurrent $scoutRunner = null;
 
     /**
      * Boot the searchable trait.
@@ -470,14 +471,6 @@ trait Searchable
     }
 
     /**
-     * Get the concurrency that should be used when syncing.
-     */
-    public function syncWithSearchUsingConcurrency(): int
-    {
-        return (int) static::getScoutConfig('concurrency', 100);
-    }
-
-    /**
      * Sync the soft deleted status for this model into the metadata.
      *
      * @return $this
@@ -536,18 +529,46 @@ trait Searchable
      */
     protected static function dispatchSearchableJob(callable $job): void
     {
-        if (! Coroutine::inCoroutine()) {
-            $job();
+        // Command path: use WaitConcurrent for parallel execution
+        if (defined('SCOUT_COMMAND')) {
+            if (! Coroutine::inCoroutine()) {
+                throw new RuntimeException(
+                    'Scout command must run within Hypervel\Coroutine\run(). '
+                    . 'Wrap your command logic in run(function () { ... }).'
+                );
+            }
+
+            if (! static::$scoutRunner instanceof WaitConcurrent) {
+                static::$scoutRunner = new WaitConcurrent(
+                    (int) static::getScoutConfig('concurrency', 50)
+                );
+            }
+            static::$scoutRunner->create($job);
             return;
         }
 
-        if (defined('SCOUT_COMMAND')) {
-            if (! static::$scoutRunner instanceof Concurrent) {
-                static::$scoutRunner = new Concurrent((new static())->syncWithSearchUsingConcurrency());
-            }
-            static::$scoutRunner->create($job);
-        } else {
-            Coroutine::defer($job);
+        // HTTP/queue path: must be in coroutine
+        if (! Coroutine::inCoroutine()) {
+            throw new RuntimeException(
+                'Scout searchable job must run in a coroutine context (HTTP request or queue job) '
+                . 'or within a Scout command.'
+            );
+        }
+
+        Coroutine::defer($job);
+    }
+
+    /**
+     * Wait for all pending searchable jobs to complete.
+     *
+     * Should be called at the end of Scout commands to ensure all
+     * concurrent indexing operations have finished.
+     */
+    public static function waitForSearchableJobs(): void
+    {
+        if (static::$scoutRunner instanceof WaitConcurrent) {
+            static::$scoutRunner->wait();
+            static::$scoutRunner = null;
         }
     }
 

@@ -7,9 +7,15 @@ namespace Hypervel\Tests\Scout\Integration\Typesense;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Scout\Console\DeleteIndexCommand;
+use Hypervel\Scout\Console\FlushCommand;
+use Hypervel\Scout\Console\ImportCommand;
+use Hypervel\Scout\Console\IndexCommand;
+use Hypervel\Scout\Console\SyncIndexSettingsCommand;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Scout\Engines\TypesenseEngine;
 use Hypervel\Scout\ScoutServiceProvider;
+use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
 use Throwable;
 use Typesense\Client as TypesenseClient;
@@ -55,6 +61,27 @@ abstract class TypesenseScoutIntegrationTestCase extends TestCase
 
         $this->app->register(ScoutServiceProvider::class);
         $this->configureTypesense();
+        $this->registerScoutCommands();
+
+        // Clear cached engines so they're recreated with our test config
+        $this->app->get(EngineManager::class)->forgetEngines();
+    }
+
+    /**
+     * Register Scout commands with the Artisan application.
+     *
+     * Commands registered via ServiceProvider::commands() after the app is
+     * bootstrapped won't be available unless we manually resolve them.
+     */
+    protected function registerScoutCommands(): void
+    {
+        Artisan::getArtisan()->resolveCommands([
+            DeleteIndexCommand::class,
+            FlushCommand::class,
+            ImportCommand::class,
+            IndexCommand::class,
+            SyncIndexSettingsCommand::class,
+        ]);
     }
 
     protected function setUpInCoroutine(): void

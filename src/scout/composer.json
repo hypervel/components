@@ -30,10 +30,11 @@
     },
     "require": {
         "php": "^8.2",
+        "hypervel/config": "^0.3",
         "hypervel/console": "^0.3",
-        "hypervel/context": "^0.3",
         "hypervel/core": "^0.3",
-        "hypervel/database": "^0.3",
+        "hypervel/coroutine": "^0.3",
+        "hypervel/event": "^0.3",
         "hypervel/queue": "^0.3",
         "hypervel/support": "^0.3"
     },

@@ -5,9 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Scout\Console;
 
 use Hypervel\Console\Command;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Event\Contracts\Dispatcher;
 use Hypervel\Scout\Events\ModelsImported;
 use Hypervel\Scout\Exceptions\ScoutException;
+
+use function Hypervel\Coroutine\run;
 
 /**
  * Import model records into the search index.
@@ -37,24 +40,37 @@ class ImportCommand extends Command
         defined('SCOUT_COMMAND') || define('SCOUT_COMMAND', true);
 
         $class = $this->resolveModelClass((string) $this->argument('model'));
-
-        $events->listen(ModelsImported::class, function (ModelsImported $event) use ($class): void {
-            $lastModel = $event->models->last();
-            $key = $lastModel?->getScoutKey();
-
-            if ($key !== null) {
-                $this->line("<comment>Imported [{$class}] models up to ID:</comment> {$key}");
-            }
-        });
-
-        if ($this->option('fresh')) {
-            $class::removeAllFromSearch();
-        }
-
         $chunk = $this->option('chunk');
-        $class::makeAllSearchable($chunk !== null ? (int) $chunk : null);
+        $fresh = $this->option('fresh');
 
-        $events->forget(ModelsImported::class);
+        $import = function () use ($events, $class, $chunk, $fresh): void {
+            try {
+                $events->listen(ModelsImported::class, function (ModelsImported $event) use ($class): void {
+                    $lastModel = $event->models->last();
+                    $key = $lastModel?->getScoutKey();
+
+                    if ($key !== null) {
+                        $this->line("<comment>Imported [{$class}] models up to ID:</comment> {$key}");
+                    }
+                });
+
+                if ($fresh) {
+                    $class::removeAllFromSearch();
+                }
+
+                $class::makeAllSearchable($chunk !== null ? (int) $chunk : null);
+            } finally {
+                $class::waitForSearchableJobs();
+                $events->forget(ModelsImported::class);
+            }
+        };
+
+        // If already in a coroutine (e.g. tests), run directly; otherwise wrap in run()
+        if (Coroutine::inCoroutine()) {
+            $import();
+        } else {
+            run($import);
+        }
 
         $this->info("All [{$class}] records have been imported.");
     }
