@@ -16,6 +16,7 @@ use Hypervel\Support\Facades\Cache;
  * - Prune preserves valid entries
  * - Prune deletes empty tag structures
  *
+ * @group integration
  * @group redis-integration
  *
  * @internal

@@ -18,6 +18,7 @@ use RuntimeException;
  * - Exception propagation
  * - Edge case return values (null, false, empty string, zero)
  *
+ * @group integration
  * @group redis-integration
  *
  * @internal

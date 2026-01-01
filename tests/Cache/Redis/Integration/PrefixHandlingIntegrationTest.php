@@ -16,6 +16,7 @@ use Hypervel\Cache\RedisStore;
  * Tests that cache operations work correctly with various cache prefixes
  * and that different prefixes provide proper isolation.
  *
+ * @group integration
  * @group redis-integration
  *
  * @internal

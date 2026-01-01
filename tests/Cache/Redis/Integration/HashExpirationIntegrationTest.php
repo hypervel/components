@@ -19,6 +19,7 @@ use Hypervel\Support\Facades\Cache;
  *
  * NOTE: These tests require Redis 8.0+ with HSETEX/HTTL support.
  *
+ * @group integration
  * @group redis-integration
  *
  * @internal

@@ -18,6 +18,7 @@ use Redis;
  *
  * Also verifies collision prevention when tags have special names.
  *
+ * @group integration
  * @group redis-integration
  *
  * @internal

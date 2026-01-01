@@ -19,6 +19,7 @@ use Hypervel\Support\Facades\Cache;
  * - Chunking for large datasets
  * - Handling of expired/missing keys
  *
+ * @group integration
  * @group redis-integration
  *
  * @internal

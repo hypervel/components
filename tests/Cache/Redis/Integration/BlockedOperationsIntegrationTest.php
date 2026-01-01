@@ -22,6 +22,7 @@ use Hypervel\Support\Facades\Cache;
  * - pull() via tags
  * - forget() via tags
  *
+ * @group integration
  * @group redis-integration
  *
  * @internal

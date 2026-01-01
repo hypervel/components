@@ -25,8 +25,8 @@ use Redis as PhpRedis;
  * - Computing tag hash keys for each mode
  * - Common assertions for tag structures
  *
- * NOTE: Concrete test classes extending this MUST add @group redis-integration
- * for proper test filtering in CI.
+ * NOTE: Concrete test classes extending this MUST add @group integration
+ * and @group redis-integration for proper test filtering in CI.
  *
  * @internal
  * @coversNothing

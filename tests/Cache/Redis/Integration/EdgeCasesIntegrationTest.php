@@ -20,6 +20,7 @@ use Hypervel\Support\Facades\Cache;
  * - Binary data
  * - Empty arrays
  *
+ * @group integration
  * @group redis-integration
  *
  * @internal

@@ -15,6 +15,7 @@ use Redis;
  * - All mode: ZSET with timestamp scores
  * - Any mode: HASH with field expiration, reverse index SET, registry ZSET
  *
+ * @group integration
  * @group redis-integration
  *
  * @internal

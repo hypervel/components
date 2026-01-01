@@ -20,6 +20,7 @@ use Hypervel\Support\Facades\Cache;
  * - Large TTL (1 year)
  * - Forever (no expiration)
  *
+ * @group integration
  * @group redis-integration
  *
  * @internal

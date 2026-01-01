@@ -15,6 +15,7 @@ use Throwable;
  * - All mode: Items must be accessed with same tags they were stored with
  * - Any mode: Union flush - flushing ANY matching tag removes the item
  *
+ * @group integration
  * @group redis-integration
  *
  * @internal

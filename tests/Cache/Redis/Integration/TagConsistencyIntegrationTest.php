@@ -20,6 +20,7 @@ use Hypervel\Support\Facades\Redis;
  * NOTE: Hypervel uses LAZY cleanup mode only. Orphaned entries are left
  * behind after flush and cleaned up by the prune command.
  *
+ * @group integration
  * @group redis-integration
  *
  * @internal

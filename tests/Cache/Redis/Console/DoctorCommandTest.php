@@ -23,6 +23,7 @@ use Symfony\Component\Console\Output\NullOutput;
 /**
  * Tests for the cache:redis-doctor command.
  *
+ * @group integration
  * @group redis-integration
  *
  * @internal

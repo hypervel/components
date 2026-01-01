@@ -14,6 +14,7 @@ use stdClass;
  * Tests core cache functionality (put, get, forget, has, add, increment, decrement, forever)
  * for both tag modes to verify they work correctly against real Redis.
  *
+ * @group integration
  * @group redis-integration
  *
  * @internal

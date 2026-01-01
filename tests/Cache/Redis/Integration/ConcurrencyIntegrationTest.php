@@ -14,6 +14,7 @@ use Hypervel\Support\Facades\Cache;
  * Tests verify that rapid sequential operations behave correctly,
  * simulating concurrent access patterns.
  *
+ * @group integration
  * @group redis-integration
  *
  * @internal

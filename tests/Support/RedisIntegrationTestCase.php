@@ -22,7 +22,7 @@ use Throwable;
  * configuration (e.g., setting cache.default, queue.default, etc.).
  *
  * NOTE: Concrete test classes extending this (or its subclasses) MUST add
- * @group redis-integration for proper test filtering in CI.
+ * @group integration and @group redis-integration for proper test filtering in CI.
  *
  * @internal
  * @coversNothing

@@ -59,6 +59,7 @@ class ClusterModeRedisStore extends RedisStore
  *
  * We test against real single-instance Redis with isCluster() mocked to true.
  *
+ * @group integration
  * @group redis-integration
  *
  * @internal
