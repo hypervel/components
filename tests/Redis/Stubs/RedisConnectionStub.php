@@ -25,6 +25,10 @@ class RedisConnectionStub extends RedisConnection
 
     public function getActiveConnection(): Redis
     {
+        if ($this->connection !== null) {
+            return $this->connection;
+        }
+
         $connection = $this->redisConnection
             ?? Mockery::mock(Redis::class);
 
