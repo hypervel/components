@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Console;
 
-use Exception;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Console\Command;
 use Hypervel\Database\Eloquent\SoftDeletes;
@@ -26,12 +25,12 @@ class SyncIndexSettingsCommand extends Command
     /**
      * The console command description.
      */
-    protected string $description = 'Sync your configured index settings with your search engine (Meilisearch)';
+    protected string $description = 'Sync your configured index settings with your search engine';
 
     /**
      * Execute the console command.
      */
-    public function handle(EngineManager $manager, ConfigInterface $config): void
+    public function handle(EngineManager $manager, ConfigInterface $config): int
     {
         $driver = $this->option('driver') ?: $config->get('scout.driver');
 
@@ -39,41 +38,42 @@ class SyncIndexSettingsCommand extends Command
 
         if (! $engine instanceof UpdatesIndexSettings) {
             $this->error("The \"{$driver}\" engine does not support updating index settings.");
-            return;
+
+            return self::FAILURE;
         }
 
-        try {
-            $indexes = (array) $config->get("scout.{$driver}.index-settings", []);
+        $indexes = (array) $config->get("scout.{$driver}.index-settings", []);
 
-            if (count($indexes) > 0) {
-                foreach ($indexes as $name => $settings) {
-                    if (! is_array($settings)) {
-                        $name = $settings;
-                        $settings = [];
-                    }
+        if (count($indexes) === 0) {
+            $this->info("No index settings found for the \"{$driver}\" engine.");
 
-                    $model = null;
-                    if (class_exists($name)) {
-                        $model = new $name();
-                    }
+            return self::SUCCESS;
+        }
 
-                    if ($model !== null
-                        && $config->get('scout.soft_delete', false)
-                        && in_array(SoftDeletes::class, class_uses_recursive($model))) {
-                        $settings = $engine->configureSoftDeleteFilter($settings);
-                    }
-
-                    $indexName = $this->indexName($name, $config);
-                    $engine->updateIndexSettings($indexName, $settings);
-
-                    $this->info("Settings for the [{$indexName}] index synced successfully.");
-                }
-            } else {
-                $this->info("No index settings found for the \"{$driver}\" engine.");
+        foreach ($indexes as $name => $settings) {
+            if (! is_array($settings)) {
+                $name = $settings;
+                $settings = [];
             }
-        } catch (Exception $exception) {
-            $this->error($exception->getMessage());
+
+            $model = null;
+            if (class_exists($name)) {
+                $model = new $name();
+            }
+
+            if ($model !== null
+                && $config->get('scout.soft_delete', false)
+                && in_array(SoftDeletes::class, class_uses_recursive($model))) {
+                $settings = $engine->configureSoftDeleteFilter($settings);
+            }
+
+            $indexName = $this->indexName($name, $config);
+            $engine->updateIndexSettings($indexName, $settings);
+
+            $this->info("Settings for the [{$indexName}] index synced successfully.");
         }
+
+        return self::SUCCESS;
     }
 
     /**

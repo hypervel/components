@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Engines;
 
-use Exception;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
@@ -145,13 +144,14 @@ class TypesenseEngine extends Engine
      * Remove the given models from the search index.
      *
      * @param EloquentCollection<int, Model&SearchableInterface> $models
+     * @throws TypesenseClientError
      */
     public function delete(EloquentCollection $models): void
     {
         $models->each(function (Model $model): void {
             /** @var Model&SearchableInterface $model */
             $this->deleteDocument(
-                $this->getOrCreateCollectionFromModel($model),
+                $this->getOrCreateCollectionFromModel($model, null, false),
                 $model->getScoutKey()
             );
         });
@@ -160,7 +160,11 @@ class TypesenseEngine extends Engine
     /**
      * Delete a document from the index.
      *
+     * Returns an empty array if the document doesn't exist (idempotent delete).
+     * Other errors (network, auth, etc.) are allowed to bubble up.
+     *
      * @return array<string, mixed>
+     * @throws TypesenseClientError
      */
     protected function deleteDocument(TypesenseCollection $collectionIndex, mixed $modelId): array
     {
@@ -170,7 +174,8 @@ class TypesenseEngine extends Engine
             $document->retrieve();
 
             return $document->delete();
-        } catch (Exception) {
+        } catch (ObjectNotFound) {
+            // Document already gone, nothing to delete
             return [];
         }
     }

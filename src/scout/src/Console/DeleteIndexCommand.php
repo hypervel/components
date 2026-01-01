@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Console;
 
-use Exception;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Console\Command;
 use Hypervel\Scout\EngineManager;
@@ -29,17 +28,15 @@ class DeleteIndexCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(EngineManager $manager, ConfigInterface $config): void
+    public function handle(EngineManager $manager, ConfigInterface $config): int
     {
-        try {
-            $name = $this->indexName((string) $this->argument('name'), $config);
+        $name = $this->indexName((string) $this->argument('name'), $config);
 
-            $manager->engine()->deleteIndex($name);
+        $manager->engine()->deleteIndex($name);
 
-            $this->info("Index \"{$name}\" deleted.");
-        } catch (Exception $exception) {
-            $this->error($exception->getMessage());
-        }
+        $this->info("Index \"{$name}\" deleted.");
+
+        return self::SUCCESS;
     }
 
     /**

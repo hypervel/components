@@ -18,6 +18,8 @@ use Typesense\Client as TypesenseClient;
 use Typesense\Collection as TypesenseCollection;
 use Typesense\Document;
 use Typesense\Documents;
+use Typesense\Exceptions\ObjectNotFound;
+use Typesense\Exceptions\TypesenseClientError;
 
 /**
  * @internal
@@ -223,6 +225,7 @@ class TypesenseEngineTest extends TestCase
         $engine = $this->createPartialEngine();
         $engine->shouldReceive('getOrCreateCollectionFromModel')
             ->once()
+            ->with($model, null, false) // Verify indexOperation=false to prevent collection creation
             ->andReturn($collection);
 
         $engine->delete(new EloquentCollection([$model]));
@@ -238,6 +241,65 @@ class TypesenseEngineTest extends TestCase
         $engine->delete(new EloquentCollection([]));
 
         $this->assertTrue(true);
+    }
+
+    public function testDeleteDocumentReturnsEmptyArrayWhenDocumentNotFound(): void
+    {
+        $model = $this->createSearchableModelMock();
+        $model->shouldReceive('getScoutKey')->andReturn(123);
+
+        // Mock the Document object to throw ObjectNotFound on retrieve
+        $document = Mockery::mock(Document::class);
+        $document->shouldReceive('retrieve')->once()->andThrow(new ObjectNotFound('Document not found'));
+        $document->shouldNotReceive('delete');
+
+        $documents = Mockery::mock(Documents::class);
+        $documents->shouldReceive('offsetGet')
+            ->with('123')
+            ->andReturn($document);
+
+        $collection = Mockery::mock(TypesenseCollection::class);
+        $collection->shouldReceive('getDocuments')->andReturn($documents);
+
+        $engine = $this->createPartialEngine();
+        $engine->shouldReceive('getOrCreateCollectionFromModel')
+            ->once()
+            ->with($model, null, false)
+            ->andReturn($collection);
+
+        // Should not throw - idempotent delete
+        $engine->delete(new EloquentCollection([$model]));
+
+        $this->assertTrue(true);
+    }
+
+    public function testDeleteDocumentThrowsOnNonNotFoundErrors(): void
+    {
+        $model = $this->createSearchableModelMock();
+        $model->shouldReceive('getScoutKey')->andReturn(123);
+
+        // Mock the Document object to throw TypesenseClientError (network/auth error)
+        $document = Mockery::mock(Document::class);
+        $document->shouldReceive('retrieve')->once()->andThrow(new TypesenseClientError('Connection failed'));
+
+        $documents = Mockery::mock(Documents::class);
+        $documents->shouldReceive('offsetGet')
+            ->with('123')
+            ->andReturn($document);
+
+        $collection = Mockery::mock(TypesenseCollection::class);
+        $collection->shouldReceive('getDocuments')->andReturn($documents);
+
+        $engine = $this->createPartialEngine();
+        $engine->shouldReceive('getOrCreateCollectionFromModel')
+            ->once()
+            ->with($model, null, false)
+            ->andReturn($collection);
+
+        $this->expectException(TypesenseClientError::class);
+        $this->expectExceptionMessage('Connection failed');
+
+        $engine->delete(new EloquentCollection([$model]));
     }
 
     public function testFlushDeletesCollection(): void
