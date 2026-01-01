@@ -65,17 +65,26 @@ abstract class MeilisearchIntegrationTestCase extends TestCase
 
         $this->app->register(ScoutServiceProvider::class);
         $this->configureMeilisearch();
+    }
+
+    /**
+     * Set up inside coroutine context.
+     *
+     * Creates the Meilisearch client here so curl handles are initialized
+     * within the coroutine context (required for Swoole's curl hooks).
+     */
+    protected function setUpInCoroutine(): void
+    {
         $this->meilisearch = $this->app->get(MeilisearchClient::class);
         $this->cleanupTestIndexes();
     }
 
-    protected function tearDown(): void
+    /**
+     * Tear down inside coroutine context.
+     */
+    protected function tearDownInCoroutine(): void
     {
-        if (env('RUN_MEILISEARCH_INTEGRATION_TESTS', false)) {
-            $this->cleanupTestIndexes();
-        }
-
-        parent::tearDown();
+        $this->cleanupTestIndexes();
     }
 
     /**

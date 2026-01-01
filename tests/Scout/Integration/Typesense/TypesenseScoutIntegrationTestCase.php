@@ -2,54 +2,44 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Support;
+namespace Hypervel\Tests\Scout\Integration\Typesense;
 
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Scout\EngineManager;
+use Hypervel\Scout\Engines\TypesenseEngine;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Testbench\TestCase;
 use Throwable;
 use Typesense\Client as TypesenseClient;
 
 /**
- * Base test case for Typesense integration tests.
+ * Base test case for Typesense Scout integration tests.
  *
- * Provides parallel-safe Typesense testing infrastructure:
- * - Uses TEST_TOKEN env var (from paratest) to create unique collection prefixes
- * - Configures Typesense client from environment variables
- * - Cleans up test collections in setUp/tearDown
+ * Combines database support with Typesense connectivity for testing
+ * the full Scout workflow with real Typesense instance.
  *
- * NOTE: Concrete test classes extending this MUST add @group integration
- * and @group typesense-integration for proper test filtering in CI.
+ * @group integration
+ * @group typesense-integration
  *
  * @internal
  * @coversNothing
  */
-abstract class TypesenseIntegrationTestCase extends TestCase
+abstract class TypesenseScoutIntegrationTestCase extends TestCase
 {
+    use RefreshDatabase;
     use RunTestsInCoroutine;
 
-    /**
-     * Base collection prefix for integration tests.
-     */
-    protected string $basePrefix = 'int_test';
+    protected bool $migrateRefresh = true;
 
-    /**
-     * Computed prefix (includes TEST_TOKEN if running in parallel).
-     */
+    protected string $basePrefix = 'scout_int_';
+
     protected string $testPrefix;
 
-    /**
-     * The Typesense client instance.
-     */
     protected TypesenseClient $typesense;
 
-    /**
-     * Track collections created during tests for cleanup.
-     *
-     * @var array<string>
-     */
-    protected array $createdCollections = [];
+    protected TypesenseEngine $engine;
 
     protected function setUp(): void
     {
@@ -67,43 +57,26 @@ abstract class TypesenseIntegrationTestCase extends TestCase
         $this->configureTypesense();
     }
 
-    /**
-     * Set up inside coroutine context.
-     *
-     * Creates the Typesense client here so curl handles are initialized
-     * within the coroutine context (required for Swoole's curl hooks).
-     */
     protected function setUpInCoroutine(): void
     {
         $this->typesense = $this->app->get(TypesenseClient::class);
+        $this->engine = $this->app->get(EngineManager::class)->engine('typesense');
         $this->cleanupTestCollections();
     }
 
-    /**
-     * Tear down inside coroutine context.
-     */
     protected function tearDownInCoroutine(): void
     {
         $this->cleanupTestCollections();
     }
 
-    /**
-     * Compute parallel-safe prefix based on TEST_TOKEN from paratest.
-     */
     protected function computeTestPrefix(): void
     {
         $testToken = env('TEST_TOKEN', '');
-
-        if ($testToken !== '') {
-            $this->testPrefix = "{$this->basePrefix}_{$testToken}_";
-        } else {
-            $this->testPrefix = "{$this->basePrefix}_";
-        }
+        $this->testPrefix = $testToken !== ''
+            ? "{$this->basePrefix}{$testToken}_"
+            : "{$this->basePrefix}";
     }
 
-    /**
-     * Configure Typesense from environment variables.
-     */
     protected function configureTypesense(): void
     {
         $config = $this->app->get(ConfigInterface::class);
@@ -115,6 +88,8 @@ abstract class TypesenseIntegrationTestCase extends TestCase
 
         $config->set('scout.driver', 'typesense');
         $config->set('scout.prefix', $this->testPrefix);
+        $config->set('scout.soft_delete', false);
+        $config->set('scout.queue.enabled', false);
         $config->set('scout.typesense.client-settings', [
             'api_key' => $apiKey,
             'nodes' => [
@@ -126,33 +101,26 @@ abstract class TypesenseIntegrationTestCase extends TestCase
             ],
             'connection_timeout_seconds' => 2,
         ]);
+        $config->set('scout.typesense.max_total_results', 1000);
     }
 
-    /**
-     * Get a prefixed collection name.
-     */
+    protected function migrateFreshUsing(): array
+    {
+        return [
+            '--seed' => $this->shouldSeed(),
+            '--database' => $this->getRefreshConnection(),
+            '--realpath' => true,
+            '--path' => [
+                dirname(__DIR__, 2) . '/migrations',
+            ],
+        ];
+    }
+
     protected function prefixedCollectionName(string $name): string
     {
         return $this->testPrefix . $name;
     }
 
-    /**
-     * Create a test collection and track it for cleanup.
-     *
-     * @param array<string, mixed> $schema
-     */
-    protected function createTestCollection(string $name, array $schema): void
-    {
-        $collectionName = $this->prefixedCollectionName($name);
-        $schema['name'] = $collectionName;
-
-        $this->typesense->collections->create($schema);
-        $this->createdCollections[] = $collectionName;
-    }
-
-    /**
-     * Clean up all test collections matching the test prefix.
-     */
     protected function cleanupTestCollections(): void
     {
         try {
@@ -166,7 +134,5 @@ abstract class TypesenseIntegrationTestCase extends TestCase
         } catch (Throwable) {
             // Ignore errors during cleanup
         }
-
-        $this->createdCollections = [];
     }
 }
