@@ -64,16 +64,15 @@ class SearchableScopeTest extends ScoutTestCase
         ConditionalSearchableModel::create(['title' => 'hidden Item', 'body' => 'Body']);
         ConditionalSearchableModel::create(['title' => 'Another Visible', 'body' => 'Body']);
 
-        Event::fake([ModelsImported::class]);
-
         ConditionalSearchableModel::query()->searchable();
 
-        // Event should be dispatched with all 3 models (the filtering happens inside the macro)
-        // but only 2 models should have been made searchable
-        Event::assertDispatched(ModelsImported::class, function (ModelsImported $event) {
-            // The event receives all models in the chunk, not just the searchable ones
-            return $event->models->count() === 3;
-        });
+        // Search should only find the 2 visible models (the hidden one was filtered out)
+        $searchResults = ConditionalSearchableModel::search('')->get();
+
+        $this->assertCount(2, $searchResults);
+        $this->assertTrue($searchResults->contains('title', 'Visible Item'));
+        $this->assertTrue($searchResults->contains('title', 'Another Visible'));
+        $this->assertFalse($searchResults->contains('title', 'hidden Item'));
     }
 
     public function testSearchableMacroRespectsCustomChunkSize(): void
