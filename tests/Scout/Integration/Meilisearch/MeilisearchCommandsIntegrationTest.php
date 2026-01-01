@@ -19,10 +19,12 @@ class MeilisearchCommandsIntegrationTest extends MeilisearchScoutIntegrationTest
 {
     public function testImportCommandIndexesModels(): void
     {
-        // Create models in the database
-        SearchableModel::create(['title' => 'First Document', 'body' => 'Content']);
-        SearchableModel::create(['title' => 'Second Document', 'body' => 'Content']);
-        SearchableModel::create(['title' => 'Third Document', 'body' => 'Content']);
+        // Create models without triggering Scout indexing
+        SearchableModel::withoutSyncingToSearch(function (): void {
+            SearchableModel::create(['title' => 'First Document', 'body' => 'Content']);
+            SearchableModel::create(['title' => 'Second Document', 'body' => 'Content']);
+            SearchableModel::create(['title' => 'Third Document', 'body' => 'Content']);
+        });
 
         // Verify models exist in DB
         $this->assertCount(3, SearchableModel::all());
@@ -42,9 +44,11 @@ class MeilisearchCommandsIntegrationTest extends MeilisearchScoutIntegrationTest
 
     public function testFlushCommandRemovesModels(): void
     {
-        // Create and index models
-        SearchableModel::create(['title' => 'First', 'body' => 'Content']);
-        SearchableModel::create(['title' => 'Second', 'body' => 'Content']);
+        // Create models without triggering Scout indexing
+        SearchableModel::withoutSyncingToSearch(function (): void {
+            SearchableModel::create(['title' => 'First', 'body' => 'Content']);
+            SearchableModel::create(['title' => 'Second', 'body' => 'Content']);
+        });
 
         $this->artisan('scout:import', ['model' => SearchableModel::class])
             ->assertOk();

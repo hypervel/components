@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Integration\Typesense;
 
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\Support\TypesenseIntegrationTestCase;
 
 /**
@@ -17,6 +18,13 @@ use Hypervel\Tests\Support\TypesenseIntegrationTestCase;
  */
 class TypesenseConnectionTest extends TypesenseIntegrationTestCase
 {
+    use RunTestsInCoroutine;
+
+    protected function setUpInCoroutine(): void
+    {
+        $this->initializeTypesense();
+    }
+
     public function testCanConnectToTypesense(): void
     {
         $health = $this->typesense->health->retrieve();

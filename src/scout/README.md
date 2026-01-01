@@ -1,3 +1,8 @@
+Scout for Hypervel
+===
+
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/hypervel/scout)
+
 # Hypervel Scout
 
 Full-text search for Eloquent models with support for Meilisearch, Typesense, and database engines.

@@ -5,12 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Scout\Console;
 
 use Hypervel\Console\Command;
-use Hypervel\Coroutine\Coroutine;
 use Hypervel\Event\Contracts\Dispatcher;
 use Hypervel\Scout\Events\ModelsImported;
 use Hypervel\Scout\Exceptions\ScoutException;
-
-use function Hypervel\Coroutine\run;
 
 /**
  * Import model records into the search index.
@@ -43,33 +40,24 @@ class ImportCommand extends Command
         $chunk = $this->option('chunk');
         $fresh = $this->option('fresh');
 
-        $import = function () use ($events, $class, $chunk, $fresh): void {
-            try {
-                $events->listen(ModelsImported::class, function (ModelsImported $event) use ($class): void {
-                    $lastModel = $event->models->last();
-                    $key = $lastModel?->getScoutKey();
+        try {
+            $events->listen(ModelsImported::class, function (ModelsImported $event) use ($class): void {
+                $lastModel = $event->models->last();
+                $key = $lastModel?->getScoutKey();
 
-                    if ($key !== null) {
-                        $this->line("<comment>Imported [{$class}] models up to ID:</comment> {$key}");
-                    }
-                });
-
-                if ($fresh) {
-                    $class::removeAllFromSearch();
+                if ($key !== null) {
+                    $this->line("<comment>Imported [{$class}] models up to ID:</comment> {$key}");
                 }
+            });
 
-                $class::makeAllSearchable($chunk !== null ? (int) $chunk : null);
-            } finally {
-                $class::waitForSearchableJobs();
-                $events->forget(ModelsImported::class);
+            if ($fresh) {
+                $class::removeAllFromSearch();
             }
-        };
 
-        // If already in a coroutine (e.g. tests), run directly; otherwise wrap in run()
-        if (Coroutine::inCoroutine()) {
-            $import();
-        } else {
-            run($import);
+            $class::makeAllSearchable($chunk !== null ? (int) $chunk : null);
+        } finally {
+            $class::waitForSearchableJobs();
+            $events->forget(ModelsImported::class);
         }
 
         $this->info("All [{$class}] records have been imported.");

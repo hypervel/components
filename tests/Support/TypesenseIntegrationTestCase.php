@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Testbench\TestCase;
 use Throwable;
@@ -19,6 +18,9 @@ use Typesense\Client as TypesenseClient;
  * - Configures Typesense client from environment variables
  * - Cleans up test collections in setUp/tearDown
  *
+ * NOTE: This base class does NOT include RunTestsInCoroutine. Subclasses
+ * should add the trait if they need coroutine context for their tests.
+ *
  * NOTE: Concrete test classes extending this MUST add @group integration
  * and @group typesense-integration for proper test filtering in CI.
  *
@@ -27,8 +29,6 @@ use Typesense\Client as TypesenseClient;
  */
 abstract class TypesenseIntegrationTestCase extends TestCase
 {
-    use RunTestsInCoroutine;
-
     /**
      * Base collection prefix for integration tests.
      */
@@ -68,23 +68,24 @@ abstract class TypesenseIntegrationTestCase extends TestCase
     }
 
     /**
-     * Set up inside coroutine context.
+     * Initialize the Typesense client and clean up collections.
      *
-     * Creates the Typesense client here so curl handles are initialized
-     * within the coroutine context (required for Swoole's curl hooks).
+     * Subclasses using RunTestsInCoroutine should call this in setUpInCoroutine().
+     * Subclasses NOT using the trait should call this at the end of setUp().
      */
-    protected function setUpInCoroutine(): void
+    protected function initializeTypesense(): void
     {
         $this->typesense = $this->app->get(TypesenseClient::class);
         $this->cleanupTestCollections();
     }
 
-    /**
-     * Tear down inside coroutine context.
-     */
-    protected function tearDownInCoroutine(): void
+    protected function tearDown(): void
     {
-        $this->cleanupTestCollections();
+        if (isset($this->typesense)) {
+            $this->cleanupTestCollections();
+        }
+
+        parent::tearDown();
     }
 
     /**

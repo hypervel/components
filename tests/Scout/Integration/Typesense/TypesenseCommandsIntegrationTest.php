@@ -19,10 +19,12 @@ class TypesenseCommandsIntegrationTest extends TypesenseScoutIntegrationTestCase
 {
     public function testImportCommandIndexesModels(): void
     {
-        // Create models in the database
-        TypesenseSearchableModel::create(['title' => 'First Document', 'body' => 'Content']);
-        TypesenseSearchableModel::create(['title' => 'Second Document', 'body' => 'Content']);
-        TypesenseSearchableModel::create(['title' => 'Third Document', 'body' => 'Content']);
+        // Create models without triggering Scout indexing
+        TypesenseSearchableModel::withoutSyncingToSearch(function (): void {
+            TypesenseSearchableModel::create(['title' => 'First Document', 'body' => 'Content']);
+            TypesenseSearchableModel::create(['title' => 'Second Document', 'body' => 'Content']);
+            TypesenseSearchableModel::create(['title' => 'Third Document', 'body' => 'Content']);
+        });
 
         // Run the import command
         $this->artisan('scout:import', ['model' => TypesenseSearchableModel::class])
@@ -36,9 +38,11 @@ class TypesenseCommandsIntegrationTest extends TypesenseScoutIntegrationTestCase
 
     public function testFlushCommandRemovesModels(): void
     {
-        // Create and index models
-        TypesenseSearchableModel::create(['title' => 'First', 'body' => 'Content']);
-        TypesenseSearchableModel::create(['title' => 'Second', 'body' => 'Content']);
+        // Create models without triggering Scout indexing
+        TypesenseSearchableModel::withoutSyncingToSearch(function (): void {
+            TypesenseSearchableModel::create(['title' => 'First', 'body' => 'Content']);
+            TypesenseSearchableModel::create(['title' => 'Second', 'body' => 'Content']);
+        });
 
         $this->artisan('scout:import', ['model' => TypesenseSearchableModel::class])
             ->assertOk();

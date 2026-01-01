@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Testbench\TestCase;
 use Meilisearch\Client as MeilisearchClient;
@@ -19,6 +18,9 @@ use Throwable;
  * - Configures Meilisearch client from environment variables
  * - Cleans up test indexes in setUp/tearDown
  *
+ * NOTE: This base class does NOT include RunTestsInCoroutine. Subclasses
+ * should add the trait if they need coroutine context for their tests.
+ *
  * NOTE: Concrete test classes extending this MUST add @group integration
  * and @group meilisearch-integration for proper test filtering in CI.
  *
@@ -27,8 +29,6 @@ use Throwable;
  */
 abstract class MeilisearchIntegrationTestCase extends TestCase
 {
-    use RunTestsInCoroutine;
-
     /**
      * Base index prefix for integration tests.
      */
@@ -68,23 +68,24 @@ abstract class MeilisearchIntegrationTestCase extends TestCase
     }
 
     /**
-     * Set up inside coroutine context.
+     * Initialize the Meilisearch client and clean up indexes.
      *
-     * Creates the Meilisearch client here so curl handles are initialized
-     * within the coroutine context (required for Swoole's curl hooks).
+     * Subclasses using RunTestsInCoroutine should call this in setUpInCoroutine().
+     * Subclasses NOT using the trait should call this at the end of setUp().
      */
-    protected function setUpInCoroutine(): void
+    protected function initializeMeilisearch(): void
     {
         $this->meilisearch = $this->app->get(MeilisearchClient::class);
         $this->cleanupTestIndexes();
     }
 
-    /**
-     * Tear down inside coroutine context.
-     */
-    protected function tearDownInCoroutine(): void
+    protected function tearDown(): void
     {
-        $this->cleanupTestIndexes();
+        if (isset($this->meilisearch)) {
+            $this->cleanupTestIndexes();
+        }
+
+        parent::tearDown();
     }
 
     /**
