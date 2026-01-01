@@ -14,7 +14,7 @@ return [
     | using Scout. This connection is used when syncing all models to the
     | search service. You should adjust this based on your needs.
     |
-    | Supported: "meilisearch", "collection", "null"
+    | Supported: "meilisearch", "typesense", "database", "collection", "null"
     |
     */
 
@@ -123,6 +123,50 @@ return [
             // 'users' => [
             //     'filterableAttributes' => ['id', 'name', 'email'],
             //     'sortableAttributes' => ['created_at'],
+            // ],
+        ],
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Typesense Configuration
+    |--------------------------------------------------------------------------
+    |
+    | Here you may configure your Typesense settings. Typesense is a fast,
+    | typo-tolerant search engine optimized for instant search experiences.
+    |
+    | See: https://typesense.org/docs/
+    |
+    */
+
+    'typesense' => [
+        'client-settings' => [
+            'api_key' => env('TYPESENSE_API_KEY', ''),
+            'nodes' => [
+                [
+                    'host' => env('TYPESENSE_HOST', 'localhost'),
+                    'port' => env('TYPESENSE_PORT', '8108'),
+                    'protocol' => env('TYPESENSE_PROTOCOL', 'http'),
+                ],
+            ],
+            'connection_timeout_seconds' => 2,
+        ],
+        'max_total_results' => env('TYPESENSE_MAX_TOTAL_RESULTS', 1000),
+        'import_action' => 'upsert',
+        'model-settings' => [
+            // Per-model settings can be defined here:
+            // App\Models\User::class => [
+            //     'collection-schema' => [
+            //         'fields' => [
+            //             ['name' => 'id', 'type' => 'string'],
+            //             ['name' => 'name', 'type' => 'string'],
+            //             ['name' => 'created_at', 'type' => 'int64'],
+            //         ],
+            //         'default_sorting_field' => 'created_at',
+            //     ],
+            //     'search-parameters' => [
+            //         'query_by' => 'name',
+            //     ],
             // ],
         ],
     ],

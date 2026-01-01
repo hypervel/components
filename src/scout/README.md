@@ -1,6 +1,6 @@
 # Hypervel Scout
 
-Full-text search for Eloquent models using Meilisearch.
+Full-text search for Eloquent models with support for Meilisearch, Typesense, and database engines.
 
 ## Installation
 
@@ -156,9 +156,9 @@ php artisan scout:sync-index-settings
 
 ## Engines
 
-### Meilisearch (default)
+### Meilisearch
 
-Production-ready full-text search engine.
+Production-ready full-text search engine with typo-tolerance and instant search.
 
 ```env
 SCOUT_DRIVER=meilisearch
@@ -166,9 +166,108 @@ MEILISEARCH_HOST=http://127.0.0.1:7700
 MEILISEARCH_KEY=your-api-key
 ```
 
+### Typesense
+
+Fast, typo-tolerant search engine. Install the client:
+
+```bash
+composer require typesense/typesense-php
+```
+
+```env
+SCOUT_DRIVER=typesense
+TYPESENSE_API_KEY=your-api-key
+TYPESENSE_HOST=localhost
+TYPESENSE_PORT=8108
+```
+
+Configure collection schema per model:
+
+```php
+// config/scout.php
+'typesense' => [
+    'model-settings' => [
+        App\Models\Post::class => [
+            'collection-schema' => [
+                'fields' => [
+                    ['name' => 'id', 'type' => 'string'],
+                    ['name' => 'title', 'type' => 'string'],
+                    ['name' => 'body', 'type' => 'string'],
+                    ['name' => 'created_at', 'type' => 'int64'],
+                ],
+                'default_sorting_field' => 'created_at',
+            ],
+            'search-parameters' => [
+                'query_by' => 'title,body',
+            ],
+        ],
+    ],
+],
+```
+
+Or define schema in your model:
+
+```php
+public function typesenseCollectionSchema(): array
+{
+    return [
+        'fields' => [
+            ['name' => 'id', 'type' => 'string'],
+            ['name' => 'title', 'type' => 'string'],
+        ],
+    ];
+}
+
+public function typesenseSearchParameters(): array
+{
+    return ['query_by' => 'title'];
+}
+```
+
+### Database
+
+Searches directly in the database using LIKE queries and optional full-text search. No external service required.
+
+```env
+SCOUT_DRIVER=database
+```
+
+Use PHP attributes to enable full-text search on specific columns:
+
+```php
+use Hypervel\Scout\Attributes\SearchUsingFullText;
+use Hypervel\Scout\Attributes\SearchUsingPrefix;
+
+class Post extends Model implements SearchableInterface
+{
+    use Searchable;
+
+    #[SearchUsingFullText(['title', 'body'])]
+    #[SearchUsingPrefix(['email'])]
+    public function toSearchableArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'title' => $this->title,
+            'body' => $this->body,
+            'email' => $this->author_email,
+        ];
+    }
+}
+```
+
+- `SearchUsingFullText`: Uses database full-text search (MySQL FULLTEXT, PostgreSQL tsvector)
+- `SearchUsingPrefix`: Uses `column LIKE 'query%'` for efficient prefix matching
+
+For PostgreSQL, you can specify options:
+
+```php
+#[SearchUsingFullText(['title', 'body'], ['mode' => 'websearch', 'language' => 'english'])]
+```
+
 ### Collection
 
-In-memory search using database queries. Useful for testing.
+In-memory search using Eloquent collection filtering. Useful for testing.
 
 ```env
 SCOUT_DRIVER=collection
