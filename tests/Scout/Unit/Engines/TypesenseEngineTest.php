@@ -10,7 +10,6 @@ use Hypervel\Scout\Builder;
 use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Engines\TypesenseEngine;
 use Hypervel\Scout\Exceptions\NotSupportedException;
-use Hypervel\Scout\Searchable;
 use Hypervel\Tests\TestCase;
 use Mockery;
 use Mockery\MockInterface;
