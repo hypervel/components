@@ -88,7 +88,7 @@ return [
     |
     */
 
-    'concurrency' => env('SCOUT_CONCURRENCY', 50),
+    'command_concurrency' => env('SCOUT_COMMAND_CONCURRENCY', 50),
 
     /*
     |--------------------------------------------------------------------------

@@ -540,7 +540,7 @@ trait Searchable
 
             if (! static::$scoutRunner instanceof WaitConcurrent) {
                 static::$scoutRunner = new WaitConcurrent(
-                    (int) static::getScoutConfig('concurrency', 50)
+                    (int) static::getScoutConfig('command_concurrency', 50)
                 );
             }
             static::$scoutRunner->create($job);

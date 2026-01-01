@@ -192,9 +192,12 @@ class TypesenseEngine extends Engine
             return $this->performPaginatedSearch($builder);
         }
 
+        // Cap per_page by both maxPerPage (Typesense limit) and maxTotalResults (config limit)
+        $perPage = min($builder->limit ?? $this->maxPerPage, $this->maxPerPage, $this->maxTotalResults);
+
         return $this->performSearch(
             $builder,
-            $this->buildSearchParameters($builder, 1, $builder->limit ?? $this->maxPerPage)
+            $this->buildSearchParameters($builder, 1, $perPage)
         );
     }
 
@@ -208,7 +211,7 @@ class TypesenseEngine extends Engine
         $maxInt = 4294967295;
 
         $page = max(1, $page);
-        $perPage = max(1, $perPage);
+        $perPage = max(1, min($perPage, $this->maxPerPage, $this->maxTotalResults));
 
         if ($page * $perPage > $maxInt) {
             $page = (int) floor($maxInt / $perPage);

@@ -47,7 +47,7 @@ class ScoutTestCase extends TestCase
                     'searchable' => 500,
                     'unsearchable' => 500,
                 ],
-                'concurrency' => 100,
+                'command_concurrency' => 100,
             ]);
     }
 
