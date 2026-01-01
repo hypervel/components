@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Scout\Feature;
 
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Scout\Engines\DatabaseEngine;
+use Hypervel\Tests\Scout\Models\PrefixSearchableModel;
 use Hypervel\Tests\Scout\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
 
@@ -264,5 +265,59 @@ class DatabaseEngineTest extends ScoutTestCase
 
         $this->assertCount(3, $page->items());
         $this->assertTrue($page->hasMorePages());
+    }
+
+    public function testSearchUsingPrefixMatchesStartOfColumn(): void
+    {
+        // PrefixSearchableModel has #[SearchUsingPrefix(['title'])]
+        // This means title searches use 'query%' pattern instead of '%query%'
+        PrefixSearchableModel::create(['title' => 'Testing Prefix', 'body' => 'Body content']);
+        PrefixSearchableModel::create(['title' => 'Another Testing', 'body' => 'Body content']);
+        PrefixSearchableModel::create(['title' => 'Prefix Start', 'body' => 'Body content']);
+
+        // "Test" should match "Testing Prefix" (starts with Test)
+        // but NOT "Another Testing" (Testing is in the middle)
+        $results = PrefixSearchableModel::search('Test')->get();
+
+        $this->assertCount(1, $results);
+        $this->assertEquals('Testing Prefix', $results->first()->title);
+    }
+
+    public function testSearchUsingPrefixDoesNotMatchMiddleOfColumn(): void
+    {
+        PrefixSearchableModel::create(['title' => 'Hello World', 'body' => 'Body']);
+        PrefixSearchableModel::create(['title' => 'World Hello', 'body' => 'Body']);
+
+        // "World" should only match "World Hello" (starts with World)
+        // NOT "Hello World" (World is in the middle)
+        $results = PrefixSearchableModel::search('World')->get();
+
+        $this->assertCount(1, $results);
+        $this->assertEquals('World Hello', $results->first()->title);
+    }
+
+    public function testSearchUsingPrefixStillMatchesBodyWithFullWildcard(): void
+    {
+        // Body column is NOT in SearchUsingPrefix, so it uses %query%
+        PrefixSearchableModel::create(['title' => 'No Match', 'body' => 'Contains keyword here']);
+        PrefixSearchableModel::create(['title' => 'Also No Match', 'body' => 'keyword at start']);
+
+        // "keyword" should match both because body uses full wildcard
+        $results = PrefixSearchableModel::search('keyword')->get();
+
+        $this->assertCount(2, $results);
+    }
+
+    public function testRegularModelUsesFullWildcardOnTitle(): void
+    {
+        // SearchableModel does NOT have SearchUsingPrefix
+        // So title should use %query% pattern
+        SearchableModel::create(['title' => 'Testing Prefix', 'body' => 'Body']);
+        SearchableModel::create(['title' => 'Another Testing', 'body' => 'Body']);
+
+        // "Test" should match both because regular model uses %query%
+        $results = SearchableModel::search('Test')->get();
+
+        $this->assertCount(2, $results);
     }
 }
