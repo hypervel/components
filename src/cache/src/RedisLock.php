@@ -6,6 +6,7 @@ namespace Hypervel\Cache;
 
 use Hyperf\Redis\Redis;
 use Hypervel\Cache\Contracts\RefreshableLock;
+use InvalidArgumentException;
 
 class RedisLock extends Lock implements RefreshableLock
 {
@@ -73,15 +74,26 @@ LUA;
     /**
      * Refresh the lock's TTL if still owned by this process.
      *
-     * When seconds is zero or negative, the lock becomes permanent (no expiry).
      * Uses a Lua script to atomically check ownership before modifying TTL.
+     *
+     * @throws InvalidArgumentException If an explicit non-positive TTL is provided
      */
     public function refresh(?int $seconds = null): bool
     {
+        // Permanent lock with no explicit TTL requested - nothing to refresh
+        if ($seconds === null && $this->seconds <= 0) {
+            return true;
+        }
+
         $seconds ??= $this->seconds;
 
-        if ($seconds > 0) {
-            $script = <<<'LUA'
+        if ($seconds <= 0) {
+            throw new InvalidArgumentException(
+                'Refresh requires a positive TTL. For a permanent lock, acquire it with seconds=0.'
+            );
+        }
+
+        $script = <<<'LUA'
 if redis.call("get",KEYS[1]) == ARGV[1] then
     return redis.call("expire",KEYS[1],ARGV[2])
 else
@@ -89,19 +101,7 @@ else
 end
 LUA;
 
-            return (bool) $this->redis->eval($script, [$this->name, $this->owner, $seconds], 1);
-        }
-
-        // For seconds <= 0, remove expiry (make permanent) if we own the lock
-        $script = <<<'LUA'
-if redis.call("get",KEYS[1]) == ARGV[1] then
-    return redis.call("persist",KEYS[1])
-else
-    return 0
-end
-LUA;
-
-        return (bool) $this->redis->eval($script, [$this->name, $this->owner], 1);
+        return (bool) $this->redis->eval($script, [$this->name, $this->owner, $seconds], 1);
     }
 
     /**

@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Contracts\RefreshableLock;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use stdClass;
 
 /**
@@ -358,19 +359,38 @@ class CacheArrayStoreTest extends TestCase
         $this->assertFalse($wannabeOwner->refresh());
     }
 
-    public function testRefreshWithZeroSecondsSetsNoExpiration()
+    public function testRefreshOnPermanentLockReturnsTrue()
     {
-        Carbon::setTestNow(Carbon::now());
+        $store = new ArrayStore();
+        $lock = $store->lock('foo', 0);
+        $lock->acquire();
 
+        // No-op for permanent locks
+        $this->assertTrue($lock->refresh());
+    }
+
+    public function testRefreshWithExplicitZeroThrowsException()
+    {
         $store = new ArrayStore();
         $lock = $store->lock('foo', 10);
         $lock->acquire();
 
-        $this->assertTrue($lock->refresh(0));
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Refresh requires a positive TTL');
 
-        // Lock should never expire now
-        Carbon::setTestNow(Carbon::now()->addYears(100));
-        $this->assertFalse($store->lock('foo', 10)->acquire());
+        $lock->refresh(0);
+    }
+
+    public function testRefreshWithNegativeSecondsThrowsException()
+    {
+        $store = new ArrayStore();
+        $lock = $store->lock('foo', 10);
+        $lock->acquire();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Refresh requires a positive TTL');
+
+        $lock->refresh(-5);
     }
 
     public function testGetRemainingLifetimeReturnsSeconds()

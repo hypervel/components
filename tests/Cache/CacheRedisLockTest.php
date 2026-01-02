@@ -8,6 +8,7 @@ use Hyperf\Redis\Redis;
 use Hypervel\Cache\Contracts\RefreshableLock;
 use Hypervel\Cache\RedisLock;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 
 /**
@@ -107,42 +108,32 @@ class CacheRedisLockTest extends TestCase
         $this->assertFalse($lock->refresh());
     }
 
-    public function testRefreshWithZeroSecondsMakesLockPermanent()
+    public function testRefreshOnPermanentLockReturnsTrue()
     {
-        [$lock, $redis] = $this->getLock(seconds: 0);
+        [$lock] = $this->getLock(seconds: 0);
 
-        // Should call PERSIST to remove expiry (make permanent)
-        $redis->shouldReceive('eval')
-            ->once()
-            ->with(m::type('string'), ['foo', $lock->owner()], 1)
-            ->andReturn(1);
-
+        // No Redis call should be made - it's a no-op for permanent locks
         $this->assertTrue($lock->refresh());
     }
 
-    public function testRefreshWithZeroSecondsReturnsFalseWhenNotOwned()
+    public function testRefreshWithExplicitZeroThrowsException()
     {
-        [$lock, $redis] = $this->getLock(seconds: 0);
+        [$lock] = $this->getLock(seconds: 10);
 
-        $redis->shouldReceive('eval')
-            ->once()
-            ->with(m::type('string'), ['foo', $lock->owner()], 1)
-            ->andReturn(0);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Refresh requires a positive TTL');
 
-        $this->assertFalse($lock->refresh());
+        $lock->refresh(0);
     }
 
-    public function testRefreshWithExplicitZeroMakesLockPermanent()
+    public function testRefreshWithNegativeSecondsThrowsException()
     {
-        [$lock, $redis] = $this->getLock(seconds: 10);
+        [$lock] = $this->getLock(seconds: 10);
 
-        // Calling refresh(0) should use PERSIST even if lock was created with TTL
-        $redis->shouldReceive('eval')
-            ->once()
-            ->with(m::type('string'), ['foo', $lock->owner()], 1)
-            ->andReturn(1);
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Refresh requires a positive TTL');
 
-        $this->assertTrue($lock->refresh(0));
+        $lock->refresh(-5);
     }
 
     public function testGetRemainingLifetimeReturnsSeconds()

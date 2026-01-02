@@ -13,6 +13,7 @@ use Hyperf\Database\Query\Builder;
 use Hypervel\Cache\Contracts\RefreshableLock;
 use Hypervel\Cache\DatabaseLock;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 
 /**
@@ -218,21 +219,32 @@ class CacheDatabaseLockTest extends TestCase
         $this->assertFalse($lock->refresh());
     }
 
-    public function testRefreshWithZeroSecondsUsesDefaultTimeout()
+    public function testRefreshOnPermanentLockReturnsTrue()
     {
-        Carbon::setTestNow($now = Carbon::now());
+        [$lock] = $this->getLock(seconds: 0);
 
-        [$lock, $table] = $this->getLock(seconds: 0);
-        $owner = $lock->owner();
-
-        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
-        $table->shouldReceive('where')->once()->with('owner', $owner)->andReturn($table);
-        $table->shouldReceive('update')->once()->with(m::on(function ($arg) use ($now) {
-            return is_array($arg)
-                && $arg['expiration'] === $now->getTimestamp() + 86400; // Default timeout
-        }))->andReturn(1);
-
+        // No database call should be made - it's a no-op for permanent locks
         $this->assertTrue($lock->refresh());
+    }
+
+    public function testRefreshWithExplicitZeroThrowsException()
+    {
+        [$lock] = $this->getLock(seconds: 10);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Refresh requires a positive TTL');
+
+        $lock->refresh(0);
+    }
+
+    public function testRefreshWithNegativeSecondsThrowsException()
+    {
+        [$lock] = $this->getLock(seconds: 10);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Refresh requires a positive TTL');
+
+        $lock->refresh(-5);
     }
 
     public function testGetRemainingLifetimeReturnsSeconds()

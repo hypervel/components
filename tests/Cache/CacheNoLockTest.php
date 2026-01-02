@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Cache;
 use Hypervel\Cache\Contracts\RefreshableLock;
 use Hypervel\Cache\NoLock;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 
 /**
  * @internal
@@ -36,12 +37,39 @@ class CacheNoLockTest extends TestCase
         $this->assertTrue($lock->release());
     }
 
-    public function testRefreshAlwaysReturnsTrue()
+    public function testRefreshReturnsTrue()
     {
         $lock = new NoLock('foo', 10);
 
         $this->assertTrue($lock->refresh());
         $this->assertTrue($lock->refresh(30));
+    }
+
+    public function testRefreshOnPermanentLockReturnsTrue()
+    {
+        $lock = new NoLock('foo', 0);
+
+        $this->assertTrue($lock->refresh());
+    }
+
+    public function testRefreshWithExplicitZeroThrowsException()
+    {
+        $lock = new NoLock('foo', 10);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Refresh requires a positive TTL');
+
+        $lock->refresh(0);
+    }
+
+    public function testRefreshWithNegativeSecondsThrowsException()
+    {
+        $lock = new NoLock('foo', 10);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Refresh requires a positive TTL');
+
+        $lock->refresh(-5);
     }
 
     public function testGetRemainingLifetimeAlwaysReturnsNull()

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Contracts;
 
+use InvalidArgumentException;
+
 /**
  * A lock that supports refreshing its TTL and inspecting remaining lifetime.
  *
@@ -19,8 +21,14 @@ interface RefreshableLock extends Lock
      * This operation is atomic - if the lock has been released or acquired
      * by another process, this will return false without modifying anything.
      *
+     * When called without arguments on a permanent lock (one acquired with
+     * a TTL of 0), this is a no-op that returns true since there's no TTL
+     * to refresh.
+     *
      * @param null|int $seconds Seconds to set the TTL to (null = use original TTL from construction)
-     * @return bool True if the lock was refreshed, false if not owned or expired
+     * @return bool True if the lock was refreshed (or is permanent), false if not owned or expired
+     *
+     * @throws InvalidArgumentException If $seconds is explicitly provided and is not positive
      */
     public function refresh(?int $seconds = null): bool;
 
