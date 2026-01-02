@@ -9,11 +9,6 @@ use Hyperf\HttpServer\Contract\RequestInterface;
 interface Broadcaster
 {
     /**
-     * Register a channel authenticator.
-     */
-    public function channel(HasBroadcastChannel|string $channel, callable|string $callback, array $options = []): static;
-
-    /**
      * Authenticate the incoming request for a given channel.
      */
     public function auth(RequestInterface $request): mixed;

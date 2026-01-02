@@ -34,7 +34,7 @@ use Psr\Log\LoggerInterface;
 use Pusher\Pusher;
 
 /**
- * @mixin \Hypervel\Broadcasting\Contracts\Broadcaster
+ * @mixin \Hypervel\Broadcasting\Broadcasters\Broadcaster
  */
 class BroadcastManager implements BroadcastingFactoryContract
 {
