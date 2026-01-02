@@ -60,7 +60,7 @@ class ListenCommand extends Command
             $connection = $this->input->getArgument('connection')
         );
 
-        $this->info(sprintf('Processing jobs from the [%s] %s.', $queue, Str::of('queue')->plural(explode(',', $queue))));
+        $this->info(sprintf('Processing jobs from the [%s] %s.', $queue, Str::of('queue')->plural(count(explode(',', $queue)))));
 
         $this->listener->listen(
             $connection,

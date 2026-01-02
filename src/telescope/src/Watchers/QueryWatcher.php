@@ -112,7 +112,7 @@ class QueryWatcher extends Watcher
         try {
             $pdo = $event->connection->getPdo();
 
-            if ($pdo instanceof PDO) {
+            if ($pdo instanceof PDO) { // @phpstan-ignore instanceof.alwaysTrue (fallback exists for edge cases)
                 return $pdo->quote($binding);
             }
         } catch (PDOException $e) {

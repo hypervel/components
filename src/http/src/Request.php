@@ -456,7 +456,7 @@ class Request extends HyperfRequest implements RequestContract
     {
         $acceptable = explode(',', $this->header('Accept') ?? '');
 
-        return Str::contains(strtolower($acceptable[0]) ?? '', ['/json', '+json']);
+        return Str::contains(strtolower($acceptable[0]), ['/json', '+json']);
     }
 
     /**

@@ -248,8 +248,8 @@ class RedisStore extends TaggableStore implements LockProvider
      */
     protected function serialize(mixed $value): mixed
     {
-        // is_nan() doesn't work in strict mode
-        return is_numeric($value) && ! in_array($value, [INF, -INF]) && ($value === $value) ? $value : serialize($value);
+        // is_nan() doesn't work in strict mode; NaN is the only value where $v !== $v
+        return is_numeric($value) && ! in_array($value, [INF, -INF]) && ($value === $value) ? $value : serialize($value); // @phpstan-ignore identical.alwaysTrue
     }
 
     /**

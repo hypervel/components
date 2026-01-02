@@ -125,8 +125,6 @@ class HttpClientWatcher extends Watcher
                 $stream->rewind();
             }
         }
-
-        return 'Unknown';
     }
 
     protected function getResponse(ResponseInterface $response): array

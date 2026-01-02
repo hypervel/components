@@ -41,7 +41,7 @@ class TestResponseAssert
     {
         try {
             Assert::$name(...$arguments);
-        } catch (ExpectationFailedException $e) {
+        } catch (ExpectationFailedException $e) { // @phpstan-ignore catch.neverThrown (dynamic call)
             throw $this->injectResponseContext($e);
         }
     }
@@ -61,7 +61,7 @@ class TestResponseAssert
      */
     protected function injectResponseContext(ExpectationFailedException $exception): ExpectationFailedException
     {
-        if ($this->response->getHeader('Content-Type') === 'application/json') {
+        if ($this->response->getHeader('Content-Type') === 'application/json') { // @phpstan-ignore identical.alwaysFalse (getHeader returns array, fix in separate PR)
             $testJson = new AssertableJsonString($this->response->getContent());
 
             if (isset($testJson['errors'])) {
@@ -77,7 +77,7 @@ class TestResponseAssert
      */
     protected function appendExceptionToException(Throwable $exceptionToAppend, ExpectationFailedException $exception): ExpectationFailedException
     {
-        $exceptionMessage = is_string($exceptionToAppend) ? $exceptionToAppend : $exceptionToAppend->getMessage();
+        $exceptionMessage = $exceptionToAppend->getMessage();
 
         $exceptionToAppend = (string) $exceptionToAppend;
 

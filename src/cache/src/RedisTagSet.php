@@ -25,7 +25,7 @@ class RedisTagSet extends TagSet
 
         foreach ($this->tagIds() as $tagKey) {
             if ($updateWhen) {
-                $this->store->connection()->zadd($this->store->getPrefix() . $tagKey, $updateWhen, $ttl, $key);
+                $this->store->connection()->zadd($this->store->getPrefix() . $tagKey, $updateWhen, $ttl, $key); // @phpstan-ignore argument.type
             } else {
                 $this->store->connection()->zadd($this->store->getPrefix() . $tagKey, $ttl, $key);
             }

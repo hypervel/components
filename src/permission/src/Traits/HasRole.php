@@ -142,7 +142,7 @@ trait HasRole
         return match (true) {
             is_int($role) => true,
             $role instanceof BackedEnum => is_int($role->value),
-            is_string($role), $role instanceof UnitEnum => false,
+            is_string($role), $role instanceof UnitEnum => false, // @phpstan-ignore instanceof.alwaysTrue
             default => throw new InvalidArgumentException('Invalid role type')
         };
     }

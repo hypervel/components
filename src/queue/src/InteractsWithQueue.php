@@ -10,7 +10,6 @@ use Hyperf\Support\Traits\InteractsWithTime;
 use Hypervel\Queue\Contracts\Job as JobContract;
 use Hypervel\Queue\Exceptions\ManuallyFailedException;
 use Hypervel\Queue\Jobs\FakeJob;
-use InvalidArgumentException;
 use PHPUnit\Framework\Assert as PHPUnit;
 use RuntimeException;
 use Throwable;
@@ -52,13 +51,8 @@ trait InteractsWithQueue
             $exception = new ManuallyFailedException($exception);
         }
 
-        if ($exception instanceof Throwable || is_null($exception)) {
-            if ($this->job) {
-                $this->job->fail($exception);
-                return;
-            }
-        } else {
-            throw new InvalidArgumentException('The fail method requires a string or an instance of Throwable.');
+        if ($this->job) {
+            $this->job->fail($exception);
         }
     }
 

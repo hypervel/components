@@ -258,7 +258,7 @@ class HeaderUtils
             return $q;
         }
 
-        parse_str(implode('&', $q), $q);
+        parse_str(implode('&', $q), $q); // @phpstan-ignore argument.type ($q is list<string> here, early return handles other case)
 
         $query = [];
 

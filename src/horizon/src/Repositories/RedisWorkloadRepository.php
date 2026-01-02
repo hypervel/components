@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Repositories;
 
-use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\Contracts\WorkloadRepository;
 use Hypervel\Horizon\WaitTimeCalculator;
@@ -18,13 +17,11 @@ class RedisWorkloadRepository implements WorkloadRepository
      *
      * @param QueueFactory $queue the queue factory implementation
      * @param WaitTimeCalculator $waitTime the wait time calculator instance
-     * @param MasterSupervisorRepository $masters the master supervisor repository implementation
      * @param SupervisorRepository $supervisors the supervisor repository implementation
      */
     public function __construct(
         public QueueFactory $queue,
         public WaitTimeCalculator $waitTime,
-        private MasterSupervisorRepository $masters,
         private SupervisorRepository $supervisors
     ) {
     }

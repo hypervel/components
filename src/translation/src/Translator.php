@@ -39,7 +39,7 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
     /**
      * The callable that should be invoked to determine applicable locales.
      *
-     * @var callable
+     * @var ?callable
      */
     protected $determineLocalesUsing;
 

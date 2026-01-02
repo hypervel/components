@@ -57,7 +57,7 @@ class AutoScaler
     protected function timeToClearPerQueue(Supervisor $supervisor, Collection $pools): Collection
     {
         return $pools->mapWithKeys(function ($pool, $queue) use ($supervisor) {
-            $queues = collect(explode(',', $queue))->map(function ($_queue) use ($supervisor) {
+            $queues = collect(explode(',', $queue))->map(function ($_queue) use ($supervisor) { // @phpstan-ignore argument.unresolvableType
                 // @phpstan-ignore-next-line RedisQueue has readyNow method
                 $size = $this->queue->connection($supervisor->options->connection)->readyNow($_queue);
 
@@ -68,8 +68,8 @@ class AutoScaler
             });
 
             return [$queue => [
-                'size' => $queues->sum('size'),
-                'time' => $queues->sum('time'),
+                'size' => $queues->sum('size'), // @phpstan-ignore argument.unresolvableType
+                'time' => $queues->sum('time'), // @phpstan-ignore argument.unresolvableType
             ]];
         });
     }

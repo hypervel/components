@@ -33,14 +33,14 @@ class UrlGenerator implements UrlGeneratorContract
     /**
      * The callback to use to format hosts.
      *
-     * @var Closure
+     * @var ?Closure
      */
     protected $formatHostUsing;
 
     /**
      * The callback to use to format paths.
      *
-     * @var Closure
+     * @var ?Closure
      */
     protected $formatPathUsing;
 

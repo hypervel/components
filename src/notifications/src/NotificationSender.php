@@ -119,7 +119,7 @@ class NotificationSender
         }
 
         return tap(new NotificationSending($notifiable, $notification, $channel), function ($event) {
-            $this->events?->dispatch($event);
+            $this->events->dispatch($event);
         })->shouldSend();
     }
 

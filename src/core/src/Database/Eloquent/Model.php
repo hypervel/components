@@ -127,7 +127,7 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
     {
         [$one, $two, $three, $caller] = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 4);
 
-        return $caller['function'] ?? $three['function'];
+        return $caller['function'] ?? $three['function']; // @phpstan-ignore nullCoalesce.offset (defensive backtrace handling)
     }
 
     /**

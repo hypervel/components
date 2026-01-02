@@ -67,7 +67,7 @@ class Worker
     /**
      * The callback used to monitor timeout jobs.
      *
-     * @var callable
+     * @var null|callable
      */
     protected $monitorTimeoutJobs;
 

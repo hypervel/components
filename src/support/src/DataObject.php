@@ -335,7 +335,7 @@ abstract class DataObject implements ArrayAccess, JsonSerializable
                 continue;
             }
 
-            if ($children && ! is_null($matched)) {
+            if ($children) {
                 $data[$key] = static::replaceDependenciesData($children, $matched);
             }
 

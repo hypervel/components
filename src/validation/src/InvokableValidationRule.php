@@ -84,7 +84,7 @@ class InvokableValidationRule implements Rule, ValidatorAwareRule
             return $this->pendingPotentiallyTranslatedString($attribute, $message);
         });
 
-        return ! $this->failed;
+        return ! $this->failed; // @phpstan-ignore booleanNot.alwaysTrue (callback sets $this->failed)
     }
 
     /**

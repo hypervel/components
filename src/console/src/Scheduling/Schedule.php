@@ -380,7 +380,7 @@ class Schedule
             } catch (BindingResolutionException $e) {
                 throw new RuntimeException(
                     'Unable to resolve the dispatcher from the service container. Please bind it or install the hypervel/bus package.',
-                    is_int($e->getCode()) ? $e->getCode() : 0,
+                    $e->getCode(),
                     $e
                 );
             }

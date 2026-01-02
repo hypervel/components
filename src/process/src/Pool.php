@@ -55,7 +55,7 @@ class Pool
         return new InvokedProcessPool(
             (new Collection($this->pendingProcesses))
                 ->each(function ($pendingProcess) {
-                    if (! $pendingProcess instanceof PendingProcess) {
+                    if (! $pendingProcess instanceof PendingProcess) { // @phpstan-ignore instanceof.alwaysTrue (defensive validation)
                         throw new InvalidArgumentException('Process pool must only contain pending processes.');
                     }
                 })->mapWithKeys(function ($pendingProcess, $key) use ($output) {

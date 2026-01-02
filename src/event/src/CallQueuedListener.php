@@ -114,7 +114,7 @@ class CallQueuedListener implements ShouldQueue
      */
     protected function prepareData(): void
     {
-        if (is_string($this->data)) {
+        if (is_string($this->data)) { // @phpstan-ignore function.impossibleType (defensive: deserialization can bypass type checks)
             $this->data = unserialize($this->data);
         }
     }

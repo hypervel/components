@@ -367,13 +367,9 @@ class Gate implements GateContract
             return false;
         }
 
-        if ($method) {
-            $parameters = $method->getParameters();
+        $parameters = $method->getParameters();
 
-            return isset($parameters[0]) && $this->parameterAllowsGuests($parameters[0]);
-        }
-
-        return false;
+        return isset($parameters[0]) && $this->parameterAllowsGuests($parameters[0]);
     }
 
     /**
@@ -494,10 +490,6 @@ class Gate implements GateContract
     {
         if (is_object($class)) {
             $class = get_class($class);
-        }
-
-        if (! is_string($class)) {
-            return;
         }
 
         if (isset($this->policies[$class])) {

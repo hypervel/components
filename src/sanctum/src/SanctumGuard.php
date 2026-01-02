@@ -156,6 +156,7 @@ class SanctumGuard implements GuardContract
         if (! is_null($token) && str_contains($token, '|')) {
             $model = new (Sanctum::$personalAccessTokenModel);
 
+            // @phpstan-ignore function.alreadyNarrowedType (custom token models may not extend Model)
             if (method_exists($model, 'getKeyType') && $model->getKeyType() === 'int') {
                 [$id, $token] = explode('|', $token, 2);
 
@@ -177,7 +178,7 @@ class SanctumGuard implements GuardContract
 
         $isValid
             = (! $this->expiration || $accessToken->getAttribute('created_at')->gt(now()->subMinutes($this->expiration)))
-            && (! $accessToken->getAttribute('expires_at') || ! $accessToken->getAttribute('expires_at')?->isPast())
+            && (! $accessToken->getAttribute('expires_at') || ! $accessToken->getAttribute('expires_at')->isPast())
             && $this->hasValidProvider($accessToken->getAttribute('tokenable'));
 
         if (is_callable(Sanctum::$accessTokenAuthenticationCallback)) {
@@ -192,10 +193,6 @@ class SanctumGuard implements GuardContract
      */
     protected function hasValidProvider(?Authenticatable $tokenable): bool
     {
-        if (is_null($this->provider)) {
-            return true;
-        }
-
         if (! method_exists($this->provider, 'getModel')) {
             return true;
         }

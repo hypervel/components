@@ -137,10 +137,9 @@ class CacheWatcher extends Watcher
         );
     }
 
-    protected function formatExpiration(KeyWritten $event): mixed
+    protected function formatExpiration(KeyWritten $event): ?int
     {
-        return property_exists($event, 'seconds')
-            ? $event->seconds : $event->minutes * 60; /* @phpstan-ignore-line */
+        return $event->seconds;
     }
 
     /**

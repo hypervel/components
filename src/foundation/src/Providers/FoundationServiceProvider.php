@@ -90,7 +90,7 @@ class FoundationServiceProvider extends ServiceProvider
     {
         foreach ($exception->getTrace() as $trace) {
             if (($trace['class'] ?? null) === ConsoleKernel::class
-                && ($trace['function'] ?? null) === 'call') {
+                && ($trace['function'] ?? null) === 'call') { // @phpstan-ignore nullCoalesce.offset (defensive backtrace handling)
                 return true;
             }
         }

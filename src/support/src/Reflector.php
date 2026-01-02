@@ -22,13 +22,12 @@ class Reflector
         }
 
         if ((! isset($var[0]) || ! isset($var[1]))
-            || ! is_string($var[1] ?? null)) {
+            || ! is_string($var[1])) {
             return false;
         }
 
         if ($syntaxOnly
-            && (is_string($var[0]) || is_object($var[0]))
-            && is_string($var[1])) {
+            && (is_string($var[0]) || is_object($var[0]))) {
             return true;
         }
 

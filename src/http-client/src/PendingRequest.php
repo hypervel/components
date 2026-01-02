@@ -989,9 +989,7 @@ class PendingRequest
         }
 
         if (is_string($data)) {
-            parse_str($data, $parsedData);
-
-            $data = is_array($parsedData) ? $parsedData : [];
+            parse_str($data, $data);
         }
 
         if ($data instanceof JsonSerializable) {
