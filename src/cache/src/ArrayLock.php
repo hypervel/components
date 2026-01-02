@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Carbon\Carbon;
+use Hypervel\Cache\Contracts\RefreshableLock;
 
-class ArrayLock extends Lock
+class ArrayLock extends Lock implements RefreshableLock
 {
     /**
      * The parent array cache store.
@@ -82,5 +83,49 @@ class ArrayLock extends Lock
     protected function getCurrentOwner(): string
     {
         return $this->store->locks[$this->name]['owner'];
+    }
+
+    /**
+     * Refresh the lock's TTL if still owned by this process.
+     */
+    public function refresh(?int $seconds = null): bool
+    {
+        if (! $this->exists()) {
+            return false;
+        }
+
+        if (! $this->isOwnedByCurrentProcess()) {
+            return false;
+        }
+
+        $seconds ??= $this->seconds;
+
+        $this->store->locks[$this->name]['expiresAt'] = $seconds === 0
+            ? null
+            : Carbon::now()->addSeconds($seconds);
+
+        return true;
+    }
+
+    /**
+     * Get the number of seconds until the lock expires.
+     */
+    public function getRemainingLifetime(): ?float
+    {
+        if (! $this->exists()) {
+            return null;
+        }
+
+        $expiresAt = $this->store->locks[$this->name]['expiresAt'];
+
+        if ($expiresAt === null) {
+            return null;
+        }
+
+        if ($expiresAt->isPast()) {
+            return null;
+        }
+
+        return (float) Carbon::now()->diffInSeconds($expiresAt);
     }
 }

@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Hyperf\Redis\Redis;
+use Hypervel\Cache\Contracts\RefreshableLock;
 
-class RedisLock extends Lock
+class RedisLock extends Lock implements RefreshableLock
 {
     /**
      * The Redis factory implementation.
@@ -56,5 +57,42 @@ class RedisLock extends Lock
     protected function getCurrentOwner(): string
     {
         return $this->redis->get($this->name);
+    }
+
+    /**
+     * Refresh the lock's TTL if still owned by this process.
+     */
+    public function refresh(?int $seconds = null): bool
+    {
+        $seconds ??= $this->seconds;
+
+        if ($seconds <= 0) {
+            return true;
+        }
+
+        $script = <<<'LUA'
+if redis.call("get",KEYS[1]) == ARGV[1] then
+    return redis.call("expire",KEYS[1],ARGV[2])
+else
+    return 0
+end
+LUA;
+
+        return (bool) $this->redis->eval($script, [$this->name, $this->owner, $seconds], 1);
+    }
+
+    /**
+     * Get the number of seconds until the lock expires.
+     */
+    public function getRemainingLifetime(): ?float
+    {
+        $ttl = $this->redis->ttl($this->name);
+
+        // -2 = key doesn't exist, -1 = key has no expiry
+        if ($ttl < 0) {
+            return null;
+        }
+
+        return (float) $ttl;
     }
 }

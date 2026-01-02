@@ -10,6 +10,7 @@ use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\Database\Exception\QueryException;
 use Hyperf\Database\Query\Builder;
+use Hypervel\Cache\Contracts\RefreshableLock;
 use Hypervel\Cache\DatabaseLock;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
@@ -162,6 +163,114 @@ class CacheDatabaseLockTest extends TestCase
         }))->andReturn(true);
 
         $this->assertTrue($lock->acquire());
+    }
+
+    public function testLockImplementsRefreshableLock()
+    {
+        [$lock] = $this->getLock();
+
+        $this->assertInstanceOf(RefreshableLock::class, $lock);
+    }
+
+    public function testRefreshExtendsLockExpiration()
+    {
+        Carbon::setTestNow($now = Carbon::now());
+
+        [$lock, $table] = $this->getLock();
+        $owner = $lock->owner();
+
+        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
+        $table->shouldReceive('where')->once()->with('owner', $owner)->andReturn($table);
+        $table->shouldReceive('update')->once()->with(m::on(function ($arg) use ($now) {
+            return is_array($arg)
+                && $arg['expiration'] === $now->getTimestamp() + 10;
+        }))->andReturn(1);
+
+        $this->assertTrue($lock->refresh());
+    }
+
+    public function testRefreshWithCustomTtl()
+    {
+        Carbon::setTestNow($now = Carbon::now());
+
+        [$lock, $table] = $this->getLock();
+        $owner = $lock->owner();
+
+        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
+        $table->shouldReceive('where')->once()->with('owner', $owner)->andReturn($table);
+        $table->shouldReceive('update')->once()->with(m::on(function ($arg) use ($now) {
+            return is_array($arg)
+                && $arg['expiration'] === $now->getTimestamp() + 30;
+        }))->andReturn(1);
+
+        $this->assertTrue($lock->refresh(30));
+    }
+
+    public function testRefreshReturnsFalseWhenNotOwned()
+    {
+        [$lock, $table] = $this->getLock();
+        $owner = $lock->owner();
+
+        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
+        $table->shouldReceive('where')->once()->with('owner', $owner)->andReturn($table);
+        $table->shouldReceive('update')->once()->andReturn(0);
+
+        $this->assertFalse($lock->refresh());
+    }
+
+    public function testRefreshWithZeroSecondsUsesDefaultTimeout()
+    {
+        Carbon::setTestNow($now = Carbon::now());
+
+        [$lock, $table] = $this->getLock(seconds: 0);
+        $owner = $lock->owner();
+
+        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
+        $table->shouldReceive('where')->once()->with('owner', $owner)->andReturn($table);
+        $table->shouldReceive('update')->once()->with(m::on(function ($arg) use ($now) {
+            return is_array($arg)
+                && $arg['expiration'] === $now->getTimestamp() + 86400; // Default timeout
+        }))->andReturn(1);
+
+        $this->assertTrue($lock->refresh());
+    }
+
+    public function testGetRemainingLifetimeReturnsSeconds()
+    {
+        Carbon::setTestNow($now = Carbon::now());
+
+        [$lock, $table] = $this->getLock();
+
+        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
+        $table->shouldReceive('first')->once()->andReturn((object) [
+            'expiration' => $now->getTimestamp() + 5,
+        ]);
+
+        $this->assertSame(5.0, $lock->getRemainingLifetime());
+    }
+
+    public function testGetRemainingLifetimeReturnsNullWhenLockDoesNotExist()
+    {
+        [$lock, $table] = $this->getLock();
+
+        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
+        $table->shouldReceive('first')->once()->andReturn(null);
+
+        $this->assertNull($lock->getRemainingLifetime());
+    }
+
+    public function testGetRemainingLifetimeReturnsNullWhenExpired()
+    {
+        Carbon::setTestNow($now = Carbon::now());
+
+        [$lock, $table] = $this->getLock();
+
+        $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
+        $table->shouldReceive('first')->once()->andReturn((object) [
+            'expiration' => $now->getTimestamp() - 1, // Already expired
+        ]);
+
+        $this->assertNull($lock->getRemainingLifetime());
     }
 
     /**
