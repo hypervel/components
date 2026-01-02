@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Hyperf\Redis\Redis;
+use Hypervel\Cache\Contracts\RefreshableLock;
+use InvalidArgumentException;
 
-class RedisLock extends Lock
+class RedisLock extends Lock implements RefreshableLock
 {
     /**
      * The Redis factory implementation.
@@ -31,15 +33,26 @@ class RedisLock extends Lock
         if ($this->seconds > 0) {
             return $this->redis->set($this->name, $this->owner, ['EX' => $this->seconds, 'NX']) == true;
         }
+
         return $this->redis->setnx($this->name, $this->owner) == true;
     }
 
     /**
      * Release the lock.
+     *
+     * Uses a Lua script to atomically check ownership before deleting.
      */
     public function release(): bool
     {
-        return (bool) $this->redis->eval(LuaScripts::releaseLock(), [$this->name, $this->owner], 1);
+        $script = <<<'LUA'
+if redis.call("get",KEYS[1]) == ARGV[1] then
+    return redis.call("del",KEYS[1])
+else
+    return 0
+end
+LUA;
+
+        return (bool) $this->redis->eval($script, [$this->name, $this->owner], 1);
     }
 
     /**
@@ -56,5 +69,53 @@ class RedisLock extends Lock
     protected function getCurrentOwner(): string
     {
         return $this->redis->get($this->name);
+    }
+
+    /**
+     * Refresh the lock's TTL if still owned by this process.
+     *
+     * Uses a Lua script to atomically check ownership before modifying TTL.
+     *
+     * @throws InvalidArgumentException If an explicit non-positive TTL is provided
+     */
+    public function refresh(?int $seconds = null): bool
+    {
+        // Permanent lock with no explicit TTL requested - nothing to refresh
+        if ($seconds === null && $this->seconds <= 0) {
+            return true;
+        }
+
+        $seconds ??= $this->seconds;
+
+        if ($seconds <= 0) {
+            throw new InvalidArgumentException(
+                'Refresh requires a positive TTL. For a permanent lock, acquire it with seconds=0.'
+            );
+        }
+
+        $script = <<<'LUA'
+if redis.call("get",KEYS[1]) == ARGV[1] then
+    return redis.call("expire",KEYS[1],ARGV[2])
+else
+    return 0
+end
+LUA;
+
+        return (bool) $this->redis->eval($script, [$this->name, $this->owner, $seconds], 1);
+    }
+
+    /**
+     * Get the number of seconds until the lock expires.
+     */
+    public function getRemainingLifetime(): ?float
+    {
+        $ttl = $this->redis->ttl($this->name);
+
+        // -2 = key doesn't exist, -1 = key has no expiry
+        if ($ttl < 0) {
+            return null;
+        }
+
+        return (float) $ttl;
     }
 }

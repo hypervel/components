@@ -7,10 +7,12 @@ namespace Hypervel\Cache;
 use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\ConnectionResolverInterface;
 use Hyperf\Database\Exception\QueryException;
+use Hypervel\Cache\Contracts\RefreshableLock;
+use InvalidArgumentException;
 
 use function Hyperf\Support\optional;
 
-class DatabaseLock extends Lock
+class DatabaseLock extends Lock implements RefreshableLock
 {
     /**
      * The database connection resolver.
@@ -145,5 +147,57 @@ class DatabaseLock extends Lock
         $lockTimeout = $this->seconds > 0 ? $this->seconds : $this->defaultTimeoutInSeconds;
 
         return $this->currentTime() + $lockTimeout;
+    }
+
+    /**
+     * Refresh the lock's TTL if still owned by this process.
+     *
+     * @throws InvalidArgumentException If an explicit non-positive TTL is provided
+     */
+    public function refresh(?int $seconds = null): bool
+    {
+        // Permanent lock with no explicit TTL requested - nothing to refresh
+        if ($seconds === null && $this->seconds <= 0) {
+            return true;
+        }
+
+        $seconds ??= $this->seconds;
+
+        if ($seconds <= 0) {
+            throw new InvalidArgumentException(
+                'Refresh requires a positive TTL. For a permanent lock, acquire it with seconds=0.'
+            );
+        }
+
+        $updated = $this->connection()->table($this->table)
+            ->where('key', $this->name)
+            ->where('owner', $this->owner)
+            ->update([
+                'expiration' => $this->currentTime() + $seconds,
+            ]);
+
+        return $updated >= 1;
+    }
+
+    /**
+     * Get the number of seconds until the lock expires.
+     */
+    public function getRemainingLifetime(): ?float
+    {
+        $lock = $this->connection()->table($this->table)
+            ->where('key', $this->name)
+            ->first();
+
+        if ($lock === null) {
+            return null;
+        }
+
+        $remaining = $lock->expiration - $this->currentTime();
+
+        if ($remaining <= 0) {
+            return null;
+        }
+
+        return (float) $remaining;
     }
 }
