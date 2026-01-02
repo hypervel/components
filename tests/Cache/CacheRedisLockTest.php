@@ -107,12 +107,42 @@ class CacheRedisLockTest extends TestCase
         $this->assertFalse($lock->refresh());
     }
 
-    public function testRefreshWithZeroSecondsReturnsTrue()
+    public function testRefreshWithZeroSecondsMakesLockPermanent()
     {
         [$lock, $redis] = $this->getLock(seconds: 0);
 
-        // No Redis calls should be made for a lock with no expiry
+        // Should call PERSIST to remove expiry (make permanent)
+        $redis->shouldReceive('eval')
+            ->once()
+            ->with(m::type('string'), ['foo', $lock->owner()], 1)
+            ->andReturn(1);
+
         $this->assertTrue($lock->refresh());
+    }
+
+    public function testRefreshWithZeroSecondsReturnsFalseWhenNotOwned()
+    {
+        [$lock, $redis] = $this->getLock(seconds: 0);
+
+        $redis->shouldReceive('eval')
+            ->once()
+            ->with(m::type('string'), ['foo', $lock->owner()], 1)
+            ->andReturn(0);
+
+        $this->assertFalse($lock->refresh());
+    }
+
+    public function testRefreshWithExplicitZeroMakesLockPermanent()
+    {
+        [$lock, $redis] = $this->getLock(seconds: 10);
+
+        // Calling refresh(0) should use PERSIST even if lock was created with TTL
+        $redis->shouldReceive('eval')
+            ->once()
+            ->with(m::type('string'), ['foo', $lock->owner()], 1)
+            ->andReturn(1);
+
+        $this->assertTrue($lock->refresh(0));
     }
 
     public function testGetRemainingLifetimeReturnsSeconds()

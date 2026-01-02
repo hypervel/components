@@ -32,15 +32,26 @@ class RedisLock extends Lock implements RefreshableLock
         if ($this->seconds > 0) {
             return $this->redis->set($this->name, $this->owner, ['EX' => $this->seconds, 'NX']) == true;
         }
+
         return $this->redis->setnx($this->name, $this->owner) == true;
     }
 
     /**
      * Release the lock.
+     *
+     * Uses a Lua script to atomically check ownership before deleting.
      */
     public function release(): bool
     {
-        return (bool) $this->redis->eval(LuaScripts::releaseLock(), [$this->name, $this->owner], 1);
+        $script = <<<'LUA'
+if redis.call("get",KEYS[1]) == ARGV[1] then
+    return redis.call("del",KEYS[1])
+else
+    return 0
+end
+LUA;
+
+        return (bool) $this->redis->eval($script, [$this->name, $this->owner], 1);
     }
 
     /**
@@ -61,16 +72,16 @@ class RedisLock extends Lock implements RefreshableLock
 
     /**
      * Refresh the lock's TTL if still owned by this process.
+     *
+     * When seconds is zero or negative, the lock becomes permanent (no expiry).
+     * Uses a Lua script to atomically check ownership before modifying TTL.
      */
     public function refresh(?int $seconds = null): bool
     {
         $seconds ??= $this->seconds;
 
-        if ($seconds <= 0) {
-            return true;
-        }
-
-        $script = <<<'LUA'
+        if ($seconds > 0) {
+            $script = <<<'LUA'
 if redis.call("get",KEYS[1]) == ARGV[1] then
     return redis.call("expire",KEYS[1],ARGV[2])
 else
@@ -78,7 +89,19 @@ else
 end
 LUA;
 
-        return (bool) $this->redis->eval($script, [$this->name, $this->owner, $seconds], 1);
+            return (bool) $this->redis->eval($script, [$this->name, $this->owner, $seconds], 1);
+        }
+
+        // For seconds <= 0, remove expiry (make permanent) if we own the lock
+        $script = <<<'LUA'
+if redis.call("get",KEYS[1]) == ARGV[1] then
+    return redis.call("persist",KEYS[1])
+else
+    return 0
+end
+LUA;
+
+        return (bool) $this->redis->eval($script, [$this->name, $this->owner], 1);
     }
 
     /**
