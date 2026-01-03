@@ -16,7 +16,6 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
 use Hypervel\Support\Collection as BaseCollection;
-use RuntimeException;
 
 /**
  * Provides full-text search capabilities to Eloquent models.
@@ -543,7 +542,7 @@ trait Searchable
 
         // HTTP/queue path: schedule work at end of coroutine
         Coroutine::defer($job);
-    }    
+    }
 
     /**
      * Wait for all pending searchable jobs to complete.
