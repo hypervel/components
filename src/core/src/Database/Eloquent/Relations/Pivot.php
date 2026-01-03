@@ -4,22 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Relations;
 
-use Hyperf\Database\Model\Relations\Pivot as BasePivot;
-use Hyperf\DbConnection\Traits\HasContainer;
+use Hyperf\DbConnection\Model\Relations\Pivot as BasePivot;
 use Hypervel\Database\Eloquent\Concerns\HasCallbacks;
 use Hypervel\Database\Eloquent\Concerns\HasObservers;
 
-/**
- * Base Pivot class with event dispatcher support.
- *
- * Uses HasContainer to get the event dispatcher from the container,
- * enabling model events (creating, created, deleting, deleted, etc.) to fire.
- */
 class Pivot extends BasePivot
 {
     use HasCallbacks;
     use HasObservers;
-    use HasContainer;
 
     /**
      * Delete the pivot model record from the database.
