@@ -7,6 +7,7 @@ namespace Hypervel\Database\Eloquent\Relations;
 use Hyperf\Database\Model\Relations\MorphPivot as BaseMorphPivot;
 use Hyperf\DbConnection\Traits\HasContainer;
 use Hypervel\Database\Eloquent\Concerns\HasCallbacks;
+use Hypervel\Database\Eloquent\Concerns\HasObservers;
 
 /**
  * MorphPivot class with event dispatcher support.
@@ -17,6 +18,7 @@ use Hypervel\Database\Eloquent\Concerns\HasCallbacks;
 class MorphPivot extends BaseMorphPivot
 {
     use HasCallbacks;
+    use HasObservers;
     use HasContainer;
 
     /**
