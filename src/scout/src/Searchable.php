@@ -531,32 +531,19 @@ trait Searchable
     {
         // Command path: use WaitConcurrent for parallel execution
         if (defined('SCOUT_COMMAND')) {
-            if (! Coroutine::inCoroutine()) {
-                throw new RuntimeException(
-                    'Scout command must run within Hypervel\Coroutine\run(). '
-                    . 'Wrap your command logic in run(function () { ... }).'
-                );
-            }
-
             if (! static::$scoutRunner instanceof WaitConcurrent) {
                 static::$scoutRunner = new WaitConcurrent(
                     (int) static::getScoutConfig('command_concurrency', 50)
                 );
             }
+
             static::$scoutRunner->create($job);
             return;
         }
 
-        // HTTP/queue path: must be in coroutine
-        if (! Coroutine::inCoroutine()) {
-            throw new RuntimeException(
-                'Scout searchable job must run in a coroutine context (HTTP request or queue job) '
-                . 'or within a Scout command.'
-            );
-        }
-
+        // HTTP/queue path: schedule work at end of coroutine
         Coroutine::defer($job);
-    }
+    }    
 
     /**
      * Wait for all pending searchable jobs to complete.
