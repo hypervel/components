@@ -64,7 +64,7 @@ trait HasAttributes
             return static::$castsCache[static::class] = array_merge([$this->getKeyName() => $this->getKeyType()], $this->casts, $this->casts());
         }
 
-        return static::$castsCache[static::class] = array_merge($this->casts, $this->casts());
+        return static::$castsCache[static::class] = $this->casts;
     }
 
     /**
