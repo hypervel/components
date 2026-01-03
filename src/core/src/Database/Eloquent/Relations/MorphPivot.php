@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Relations;
 
 use Hyperf\DbConnection\Model\Relations\MorphPivot as BaseMorphPivot;
+use Hypervel\Database\Eloquent\Concerns\HasAttributes;
 use Hypervel\Database\Eloquent\Concerns\HasCallbacks;
 use Hypervel\Database\Eloquent\Concerns\HasObservers;
 
 class MorphPivot extends BaseMorphPivot
 {
+    use HasAttributes;
     use HasCallbacks;
     use HasObservers;
 
