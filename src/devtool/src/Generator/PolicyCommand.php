@@ -34,7 +34,7 @@ class PolicyCommand extends GeneratorCommand
         if (! $model = trim($this->input->getOption('model') ?? '')) {
             $modelParts = explode('\\', $name);
             $model = end($modelParts);
-            $model = Str::ucfirst(Str::before($model, 'Policy')) ?? 'Dummy';
+            $model = Str::ucfirst(Str::before($model, 'Policy'));
         }
 
         $modelNamespace = $this->getConfig()['model_namespace'] ?? 'App\Models';

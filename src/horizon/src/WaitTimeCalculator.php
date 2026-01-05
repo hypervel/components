@@ -60,7 +60,7 @@ class WaitTimeCalculator
             return array_keys($supervisor->processes);
         })->collapse()->unique()->values();
 
-        return $queue ? $queues->intersect([$queue]) : $queues;
+        return $queue ? $queues->intersect([$queue]) : $queues; // @phpstan-ignore argument.type
     }
 
     /**

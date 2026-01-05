@@ -4,19 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum\Console\Commands;
 
-use Hyperf\Command\Command;
+use Hypervel\Console\Command;
 use Hypervel\Sanctum\Sanctum;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
-use Symfony\Component\Console\Input\InputOption;
 
 class PruneExpired extends Command
 {
-    use HasLaravelStyleCommand;
-
     /**
      * The console command name.
      */
-    protected ?string $name = 'sanctum:prune-expired';
+    protected ?string $name = 'sanctum:prune-expired {--hours=24 : The number of hours to retain expired Sanctum tokens}';
 
     /**
      * The console command description.
@@ -50,15 +46,5 @@ class PruneExpired extends Command
         $this->info("Tokens expired for more than [{$hours} hours] pruned successfully.");
 
         return 0;
-    }
-
-    /**
-     * Get the console command options.
-     */
-    protected function getOptions(): array
-    {
-        return [
-            ['hours', null, InputOption::VALUE_OPTIONAL, 'The number of hours to retain expired Sanctum tokens', '24'],
-        ];
     }
 }

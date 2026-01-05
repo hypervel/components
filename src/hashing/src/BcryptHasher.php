@@ -39,7 +39,7 @@ class BcryptHasher extends AbstractHasher implements HasherContract
             'cost' => $this->cost($options),
         ]);
 
-        if ($hash === false) {
+        if ($hash === false) { // @phpstan-ignore identical.alwaysFalse (PHP 8 throws instead, kept for safety)
             throw new RuntimeException('Bcrypt hashing not supported.');
         }
 

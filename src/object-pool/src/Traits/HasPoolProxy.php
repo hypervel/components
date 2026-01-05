@@ -21,6 +21,7 @@ trait HasPoolProxy
     protected function createPoolProxy(string $driver, Closure $resolver, array $config = [], ?string $proxyClass = null): mixed
     {
         if (! $proxyClass) {
+            // @phpstan-ignore function.alreadyNarrowedType (trait flexibility: using class may not define poolProxyClass)
             $proxyClass = property_exists($this, 'poolProxyClass')
                 ? $this->poolProxyClass
                 : PoolProxy::class;

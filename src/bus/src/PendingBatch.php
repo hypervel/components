@@ -275,9 +275,7 @@ class PendingBatch
 
         $batch = $this->store($repository);
 
-        if ($batch) {
-            Coroutine::defer(fn () => $this->dispatchExistingBatch($batch));
-        }
+        Coroutine::defer(fn () => $this->dispatchExistingBatch($batch));
 
         return $batch;
     }

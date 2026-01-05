@@ -48,9 +48,9 @@ class ProcessInspector
         return collect(app(SupervisorRepository::class)->all())
             ->pluck('pid')
             ->pipe(function (Collection $processes) {
-                $processes->each(function (string $process) use (&$processes) {
-                    $processes = $processes->merge($this->exec->run('pgrep -P ' . $process));
-                });
+                foreach ($processes as $process) {
+                    $processes = $processes->merge($this->exec->run('pgrep -P ' . (string) $process));
+                }
 
                 return $processes;
             })

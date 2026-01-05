@@ -165,7 +165,7 @@ trait ResolvesDumpSource
 
         return str_replace(
             ['{file}', '{line}'],
-            [$file, is_null($line) ? 1 : $line],
+            [$file, (string) ($line ?? 1)],
             $href,
         );
     }
