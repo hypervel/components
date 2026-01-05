@@ -9,9 +9,9 @@ use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rules\ExcludeIf;
 use Hypervel\Validation\Validator;
-use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 use stdClass;
+use TypeError;
 
 /**
  * @internal
@@ -52,8 +52,8 @@ class ValidationExcludeIfTest extends TestCase
             try {
                 new ExcludeIf($condition);
                 $this->fail('The ExcludeIf constructor must not accept ' . gettype($condition));
-            } catch (InvalidArgumentException $exception) {
-                $this->assertEquals('The provided condition must be a callable or boolean.', $exception->getMessage());
+            } catch (TypeError) {
+                $this->assertTrue(true); // Invalid types correctly rejected by PHP type system
             }
         }
     }

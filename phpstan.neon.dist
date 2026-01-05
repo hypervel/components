@@ -3,7 +3,7 @@
 #
 
 parameters:
-  level: 3
+  level: 5
   parallel:
     jobSize: 20
     maximumNumberOfProcesses: 32
@@ -26,6 +26,8 @@ parameters:
     - %currentWorkingDirectory%/src/support/src/Js.php
     - %currentWorkingDirectory%/src/notifications/src/DatabaseNotification.php
   ignoreErrors:
+    # Framework traits provided for userland - not used internally but intentionally available
+    - '#Trait Hypervel\\[A-Za-z\\\\]+ is used zero times and is not analysed\.#'
     - '#Result of method .* \(void\) is used\.#'
     - '#Unsafe usage of new static#'
     - '#Class [a-zA-Z0-9\\\\_]+ not found.#'

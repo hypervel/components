@@ -22,7 +22,7 @@ class RegisterFacades
 
         $composerAliases = [];
         try {
-            $composerAliases = Arr::wrap(Composer::getJsonContent()['extra']['hypervel']['aliases']) ?? [];
+            $composerAliases = Arr::wrap(Composer::getJsonContent()['extra']['hypervel']['aliases'] ?? []);
         } catch (Throwable $e) {
             // do nothing
         }
