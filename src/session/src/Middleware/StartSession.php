@@ -157,7 +157,6 @@ class StartSession implements MiddlewareInterface
      */
     protected function storeCurrentUrl(Session $session): void
     {
-        // @phpstan-ignore-next-line booleanAnd.alwaysFalse (operator precedence bug, fix in separate PR)
         if ($this->request->isMethod('GET')
             && $this->request->header('X-Requested-With') !== 'XMLHttpRequest' // is not ajax
             && ! $this->isPrefetch()
