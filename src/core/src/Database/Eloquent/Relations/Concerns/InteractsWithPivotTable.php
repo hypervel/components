@@ -42,12 +42,12 @@ trait InteractsWithPivotTable
     /**
      * Attach a model to the parent using a custom class.
      *
-     * @param mixed $id
+     * @param mixed $ids
      */
-    protected function attachUsingCustomClass($id, array $attributes)
+    protected function attachUsingCustomClass($ids, array $attributes)
     {
         $records = $this->formatAttachRecords(
-            $this->parseIds($id),
+            $this->parseIds($ids),
             $attributes
         );
 
