@@ -49,7 +49,7 @@ class ProcessInspector
             ->pluck('pid')
             ->pipe(function (Collection $processes) {
                 foreach ($processes as $process) {
-                    $processes = $processes->merge($this->exec->run('pgrep -P ' . $process));
+                    $processes = $processes->merge($this->exec->run('pgrep -P ' . (string) $process));
                 }
 
                 return $processes;

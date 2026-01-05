@@ -10,7 +10,6 @@ use Hyperf\Collection\Arr;
 use Hyperf\Collection\Collection;
 use Hyperf\Command\Command;
 use Hypervel\Encryption\Contracts\Encrypter;
-use Hypervel\Foundation\Contracts\Application;
 use Hypervel\Queue\Contracts\Factory as QueueFactory;
 use Hypervel\Queue\Events\JobRetryRequested;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
@@ -40,7 +39,6 @@ class RetryCommand extends Command
      * Create a new queue restart command.
      */
     public function __construct(
-        protected Application $app,
         protected FailedJobProviderInterface $failer
     ) {
         parent::__construct();
