@@ -123,7 +123,7 @@ trait HasGlobalScopes
         }
 
         // Support class-string for Scope classes (Laravel compatibility)
-        if (is_string($scope) && class_exists($scope) && is_subclass_of($scope, Scope::class)) {
+        if (class_exists($scope) && is_subclass_of($scope, Scope::class)) {
             return GlobalScope::$container[static::class][$scope] = new $scope();
         }
 

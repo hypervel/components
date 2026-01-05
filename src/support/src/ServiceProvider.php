@@ -244,10 +244,11 @@ abstract class ServiceProvider
      */
     public static function pathsToPublish(?string $provider = null, ?string $group = null): array
     {
-        if (! is_null($paths = static::pathsForProviderOrGroup($provider, $group))) {
+        if (! is_null($paths = static::pathsForProviderOrGroup($provider, $group))) { // @phpstan-ignore function.impossibleType (logic bug: method always returns array, fix in separate PR)
             return $paths;
         }
 
+        // @phpstan-ignore deadCode.unreachable (logic bug: method always returns array, fix in separate PR)
         return collect(static::$publishes)->reduce(function ($paths, $p) {
             return array_merge($paths, $p);
         }, []);
@@ -255,8 +256,11 @@ abstract class ServiceProvider
 
     /**
      * Get the paths for the provider or group (or both).
+     *
+     * Returns null when no filter is specified, allowing caller to fall back to all paths.
+     * Returns empty array when a filter is specified but not found.
      */
-    protected static function pathsForProviderOrGroup(?string $provider, ?string $group): array
+    protected static function pathsForProviderOrGroup(?string $provider, ?string $group): ?array
     {
         if ($provider && $group) {
             return static::pathsForProviderAndGroup($provider, $group);
@@ -268,7 +272,9 @@ abstract class ServiceProvider
             return static::$publishes[$provider];
         }
 
-        return [];
+        // Return [] if a filter was specified but not found
+        // Return null if no filter was specified (allows fallback to all paths)
+        return ($provider || $group) ? [] : null;
     }
 
     /**

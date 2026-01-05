@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Contracts;
 
-use Exception;
 use Hypervel\Horizon\JobPayload;
 use Hypervel\Support\Collection;
 use stdClass;
+use Throwable;
 
 interface JobRepository
 {
@@ -144,7 +144,7 @@ interface JobRepository
     /**
      * Mark the job as failed.
      */
-    public function failed(Exception $exception, string $connection, string $queue, JobPayload $payload): void;
+    public function failed(Throwable $exception, string $connection, string $queue, JobPayload $payload): void;
 
     /**
      * Store the retry job ID on the original job record.

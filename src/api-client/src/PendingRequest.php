@@ -155,7 +155,7 @@ class PendingRequest
             );
         }
 
-        if (! is_subclass_of($resource, ApiResource::class)) {
+        if (! is_subclass_of($resource, ApiResource::class)) { // @phpstan-ignore function.alreadyNarrowedType (validates PHPDoc contract at runtime)
             throw new InvalidArgumentException(
                 sprintf('Resource class `%s` must be a subclass of `%s`', $resource, ApiResource::class)
             );

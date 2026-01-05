@@ -167,7 +167,7 @@ abstract class Prompt
      */
     public function runLoop(callable $callable): mixed
     {
-        while (($key = static::terminal()->read()) !== null) {
+        while (($key = static::terminal()->read()) !== null) { // @phpstan-ignore notIdentical.alwaysTrue
             /**
              * If $key is an empty string, Terminal::read
              * has failed. We can continue to the next

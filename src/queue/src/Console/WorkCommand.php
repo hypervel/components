@@ -102,7 +102,7 @@ class WorkCommand extends Command
 
         if (! $this->outputUsingJson() && Terminal::hasSttyAvailable()) {
             $this->info(
-                sprintf('Processing jobs from the [%s] %s.', $queue, Str::of('queue')->plural(explode(',', $queue)))
+                sprintf('Processing jobs from the [%s] %s.', $queue, Str::of('queue')->plural(count(explode(',', $queue))))
             );
         }
 

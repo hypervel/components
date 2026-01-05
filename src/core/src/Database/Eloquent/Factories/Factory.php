@@ -96,14 +96,14 @@ abstract class Factory
     /**
      * The default model name resolver.
      *
-     * @var callable(self): class-string<TModel>
+     * @var null|(callable(self): class-string<TModel>)
      */
     protected static $modelNameResolver;
 
     /**
      * The factory name resolver.
      *
-     * @var callable(class-string<Model>): class-string<Factory>
+     * @var null|(callable(class-string<Model>): class-string<Factory>)
      */
     protected static $factoryNameResolver;
 
