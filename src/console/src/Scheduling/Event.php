@@ -14,13 +14,13 @@ use GuzzleHttp\ClientInterface;
 use GuzzleHttp\ClientInterface as HttpClientInterface;
 use GuzzleHttp\Exception\TransferException;
 use Hyperf\Collection\Arr;
-use Hyperf\Context\Context;
 use Hyperf\Macroable\Macroable;
 use Hyperf\Stringable\Stringable;
 use Hyperf\Support\Filesystem\Filesystem;
 use Hyperf\Tappable\Tappable;
 use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Container\Contracts\Container;
+use Hypervel\Context\Context;
 use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
 use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
@@ -706,12 +706,12 @@ class Event
     {
         $mutexNameResolver = $this->mutexNameResolver;
 
-        if (! is_null($mutexNameResolver) && is_callable($mutexNameResolver)) {
+        if (! is_null($mutexNameResolver)) {
             return $mutexNameResolver($this);
         }
 
         return 'framework' . DIRECTORY_SEPARATOR . 'schedule-'
-            . sha1($this->expression . $this->command ?? '');
+            . sha1($this->expression . ($this->command ?? ''));
     }
 
     /**

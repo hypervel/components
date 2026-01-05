@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Repositories;
 
 use Carbon\CarbonImmutable;
-use Exception;
 use Hyperf\Redis\RedisFactory;
 use Hyperf\Redis\RedisProxy;
 use Hypervel\Horizon\Contracts\JobRepository;
@@ -14,6 +13,7 @@ use Hypervel\Horizon\LuaScripts;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use stdClass;
+use Throwable;
 
 class RedisJobRepository implements JobRepository
 {
@@ -521,7 +521,7 @@ class RedisJobRepository implements JobRepository
     /**
      * Mark the job as failed.
      */
-    public function failed(Exception $exception, string $connection, string $queue, JobPayload $payload): void
+    public function failed(Throwable $exception, string $connection, string $queue, JobPayload $payload): void
     {
         $this->connection()->pipeline(function ($pipe) use ($exception, $connection, $queue, $payload) {
             $this->storeJobReference($pipe, 'failed_jobs', $payload);

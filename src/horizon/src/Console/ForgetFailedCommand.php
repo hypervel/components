@@ -31,7 +31,7 @@ class ForgetFailedCommand extends Command
             do {
                 $failedJobs = collect($repository->getFailed());
 
-                $failedJobs->pluck('id')->each(function (string $failedId) use ($repository): void {
+                $failedJobs->pluck('id')->each(function (string $failedId) use ($repository): void { // @phpstan-ignore argument.type
                     $repository->deleteFailed($failedId);
 
                     if ($this->app->get(FailedJobProviderInterface::class)->forget($failedId)) {

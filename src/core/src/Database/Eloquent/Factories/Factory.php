@@ -98,7 +98,7 @@ abstract class Factory
      *
      * @deprecated use $modelNameResolvers instead
      *
-     * @var null|callable(self): class-string<TModel>
+     * @var null|(callable(self): class-string<TModel>)
      */
     protected static $modelNameResolver;
 
@@ -112,7 +112,7 @@ abstract class Factory
     /**
      * The factory name resolver.
      *
-     * @var null|callable(class-string<Model>): class-string<Factory>
+     * @var null|(callable(class-string<Model>): class-string<Factory>)
      */
     protected static $factoryNameResolver;
 
