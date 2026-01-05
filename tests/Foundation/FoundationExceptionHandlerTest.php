@@ -345,6 +345,7 @@ class FoundationExceptionHandlerTest extends TestCase
         $session->shouldReceive('get')->with('errors', m::type(ViewErrorBag::class))->andReturn(new MessageBag(['error' => 'My custom validation exception']));
         $session->shouldReceive('flash')->with('errors', m::type(ViewErrorBag::class))->once();
         $session->shouldReceive('flashInput')->with(['foo' => 'bar'])->once();
+        $session->shouldReceive('save')->once();
         Context::set(SessionInterface::class, $session);
         $this->container->instance(SessionContract::class, $session);
 
