@@ -174,7 +174,7 @@ class HasObserversTest extends TestCase
 
     public function testResolveObserveAttributesMergesParentTraitAndChildObservers(): void
     {
-        $result = ChildModelWithTraitParent::resolveObserveAttributes();
+        $result = ChildModelWithObserverTraitParent::resolveObserveAttributes();
 
         // Parent's trait observer -> child's class observer
         $this->assertSame([TraitObserver::class, ChildObserver::class], $result);
@@ -409,7 +409,7 @@ class ModelWithTraitAndOwnObserver extends Model
 }
 
 // Parent model that uses a trait with observer
-class ParentModelUsingTrait extends Model
+class ParentModelUsingObserverTrait extends Model
 {
     use TraitWithObserver;
 
@@ -417,7 +417,7 @@ class ParentModelUsingTrait extends Model
 }
 
 #[ObservedBy(ChildObserver::class)]
-class ChildModelWithTraitParent extends ParentModelUsingTrait
+class ChildModelWithObserverTraitParent extends ParentModelUsingObserverTrait
 {
 }
 
