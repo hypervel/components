@@ -6,18 +6,23 @@ namespace Hypervel\Database\Eloquent\Concerns;
 
 use Hyperf\Stringable\Str;
 
+/**
+ * Provides UUID primary key support for Eloquent models.
+ */
 trait HasUuids
 {
     /**
-     * Add a unique identifier to the model before it is created.
+     * Boot the trait.
      */
-    public function creating(): void
+    public static function bootHasUuids(): void
     {
-        foreach ($this->uniqueIds() as $column) {
-            if (empty($model->{$column})) {
-                $this->{$column} = $this->newUniqueId();
+        static::registerCallback('creating', function (self $model): void {
+            foreach ($model->uniqueIds() as $column) {
+                if (empty($model->{$column})) {
+                    $model->{$column} = $model->newUniqueId();
+                }
             }
-        }
+        });
     }
 
     /**

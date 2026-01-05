@@ -159,7 +159,7 @@ class StartSession implements MiddlewareInterface
     {
         // @phpstan-ignore-next-line booleanAnd.alwaysFalse (operator precedence bug, fix in separate PR)
         if ($this->request->isMethod('GET')
-            && ! $this->request->header('X-Requested-With') === 'XMLHttpRequest' // @phpstan-ignore identical.alwaysFalse
+            && $this->request->header('X-Requested-With') !== 'XMLHttpRequest' // is not ajax
             && ! $this->isPrefetch()
         ) {
             $session->setPreviousUrl($this->request->fullUrl());
