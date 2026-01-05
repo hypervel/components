@@ -41,7 +41,7 @@ trait TransformsToResource
         }
 
         foreach (static::guessResourceName() as $resourceClass) {
-            /** @phpstan-ignore-next-line function.alreadyNarrowedType */
+            /* @phpstan-ignore-next-line function.alreadyNarrowedType */
             if (is_string($resourceClass) && class_exists($resourceClass)) {
                 return $resourceClass::make($this);
             }
