@@ -29,7 +29,7 @@ class Collection extends BaseCollection
             }
 
             $children = $groupedNodes->get($node->getKey(), []);
-            foreach ($children as $child) {
+            foreach ($children as $child) { // @phpstan-ignore foreach.emptyArray
                 $child->setRelation('parent', $node);
             }
 
@@ -113,7 +113,7 @@ class Collection extends BaseCollection
      */
     protected function flattenTree(Collection $groupedNodes, mixed $parentId): static
     {
-        foreach ($groupedNodes->get($parentId, []) as $node) {
+        foreach ($groupedNodes->get($parentId, []) as $node) { // @phpstan-ignore foreach.emptyArray
             $this->push($node);
 
             $this->flattenTree($groupedNodes, $node->getKey());

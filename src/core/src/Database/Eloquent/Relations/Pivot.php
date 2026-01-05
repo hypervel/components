@@ -7,12 +7,15 @@ namespace Hypervel\Database\Eloquent\Relations;
 use Hyperf\DbConnection\Model\Relations\Pivot as BasePivot;
 use Hypervel\Database\Eloquent\Concerns\HasAttributes;
 use Hypervel\Database\Eloquent\Concerns\HasCallbacks;
+use Hypervel\Database\Eloquent\Concerns\HasGlobalScopes;
 use Hypervel\Database\Eloquent\Concerns\HasObservers;
+use Psr\EventDispatcher\StoppableEventInterface;
 
 class Pivot extends BasePivot
 {
     use HasAttributes;
     use HasCallbacks;
+    use HasGlobalScopes;
     use HasObservers;
 
     /**
@@ -28,8 +31,10 @@ class Pivot extends BasePivot
         }
 
         // For composite key pivots, manually fire events around the raw delete
-        if ($this->fireModelEvent('deleting') === false) {
-            return 0;
+        if ($event = $this->fireModelEvent('deleting')) {
+            if ($event instanceof StoppableEventInterface && $event->isPropagationStopped()) {
+                return 0;
+            }
         }
 
         $result = $this->getDeleteQuery()->delete();

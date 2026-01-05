@@ -80,7 +80,7 @@ class MailMessage extends SimpleMessage implements Renderable
     /**
      * Priority level of the message.
      */
-    public int $priority;
+    public ?int $priority = null;
 
     /**
      * The callbacks for the message.

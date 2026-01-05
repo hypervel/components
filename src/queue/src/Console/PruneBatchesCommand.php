@@ -38,7 +38,7 @@ class PruneBatchesCommand extends Command
         $count = 0;
 
         if ($repository instanceof PrunableBatchRepository) {
-            $count = $repository->prune(Carbon::now()->subHours($this->option('hours')));
+            $count = $repository->prune(Carbon::now()->subHours((int) $this->option('hours')));
         }
 
         $this->info("{$count} entries deleted.");
@@ -47,7 +47,7 @@ class PruneBatchesCommand extends Command
             $count = 0;
 
             if ($repository instanceof DatabaseBatchRepository) {
-                $count = $repository->pruneUnfinished(Carbon::now()->subHours($this->option('unfinished')));
+                $count = $repository->pruneUnfinished(Carbon::now()->subHours((int) $this->option('unfinished')));
             }
 
             $this->info("{$count} unfinished entries deleted.");
@@ -57,7 +57,7 @@ class PruneBatchesCommand extends Command
             $count = 0;
 
             if ($repository instanceof DatabaseBatchRepository) {
-                $count = $repository->pruneCancelled(Carbon::now()->subHours($this->option('cancelled')));
+                $count = $repository->pruneCancelled(Carbon::now()->subHours((int) $this->option('cancelled')));
             }
 
             $this->info("{$count} cancelled entries deleted.");
