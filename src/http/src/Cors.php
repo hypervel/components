@@ -290,11 +290,7 @@ class Cors
         } else {
             $varyHeaders = $response->getHeader('Vary');
             if (! in_array($header, $varyHeaders, true)) {
-                if (count($varyHeaders) === 1) {
-                    $response = $response->withHeader('Vary', ((string) $varyHeaders[0]) . ', ' . $header);
-                } else {
-                    $response->withHeader($header, false);
-                }
+                $response = $response->withHeader('Vary', implode(', ', $varyHeaders) . ', ' . $header);
             }
         }
 
