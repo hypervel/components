@@ -8,6 +8,7 @@ use Hyperf\DbConnection\Model\Relations\MorphPivot as BaseMorphPivot;
 use Hypervel\Database\Eloquent\Concerns\HasAttributes;
 use Hypervel\Database\Eloquent\Concerns\HasCallbacks;
 use Hypervel\Database\Eloquent\Concerns\HasObservers;
+use Psr\EventDispatcher\StoppableEventInterface;
 
 class MorphPivot extends BaseMorphPivot
 {
@@ -29,8 +30,10 @@ class MorphPivot extends BaseMorphPivot
         }
 
         // For composite key pivots, manually fire events around the raw delete
-        if ($this->fireModelEvent('deleting') === false) {
-            return 0;
+        if ($event = $this->fireModelEvent('deleting')) {
+            if ($event instanceof StoppableEventInterface && $event->isPropagationStopped()) {
+                return 0;
+            }
         }
 
         $query = $this->getDeleteQuery();
