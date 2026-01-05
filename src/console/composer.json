@@ -5,7 +5,6 @@
     "license": "MIT",
     "keywords": [
         "php",
-        "hyperf",
         "console",
         "swoole",
         "hypervel"
@@ -27,9 +26,13 @@
     },
     "require": {
         "php": "^8.2",
+        "guzzlehttp/guzzle": "^7.8.2",
         "hyperf/command": "~3.1.0",
-        "hyperf/context": "~3.1.0",
+        "hypervel/cache": "^0.3",
+        "hypervel/context": "^0.3",
+        "hypervel/coroutine": "^0.3",
         "hypervel/foundation": "^0.3",
+        "hypervel/queue": "^0.3",
         "dragonmantank/cron-expression": "^3.3.2",
         "symfony/console": "^5.4|^6.4|^7.0",
         "friendsofhyperf/command-signals": "~3.1.0"
