@@ -15,6 +15,7 @@ use Hypervel\Database\Eloquent\Concerns\HasLocalScopes;
 use Hypervel\Database\Eloquent\Concerns\HasObservers;
 use Hypervel\Database\Eloquent\Concerns\HasRelations;
 use Hypervel\Database\Eloquent\Concerns\HasRelationships;
+use Hypervel\Database\Eloquent\Concerns\TransformsToResource;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Router\Contracts\UrlRoutable;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -75,6 +76,7 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
     use HasObservers;
     use HasRelations;
     use HasRelationships;
+    use TransformsToResource;
 
     protected ?string $connection = null;
 
