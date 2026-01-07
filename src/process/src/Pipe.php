@@ -52,7 +52,7 @@ class Pipe
 
         return (new Collection($this->pendingProcesses))
             ->reduce(function ($previousProcessResult, $pendingProcess, $key) use ($output) {
-                if (! $pendingProcess instanceof PendingProcess) {
+                if (! $pendingProcess instanceof PendingProcess) { // @phpstan-ignore instanceof.alwaysTrue (defensive validation)
                     throw new InvalidArgumentException('Process pipe must only contain pending processes.');
                 }
 

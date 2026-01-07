@@ -6,6 +6,7 @@ namespace Hypervel\Database\Eloquent\Relations;
 
 use Closure;
 use Hyperf\Database\Model\Relations\BelongsToMany as BaseBelongsToMany;
+use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithPivotTable;
 use Hypervel\Database\Eloquent\Relations\Concerns\WithoutAddConstraints;
 use Hypervel\Database\Eloquent\Relations\Contracts\Relation as RelationContract;
 
@@ -44,6 +45,7 @@ use Hypervel\Database\Eloquent\Relations\Contracts\Relation as RelationContract;
  */
 class BelongsToMany extends BaseBelongsToMany implements RelationContract
 {
+    use InteractsWithPivotTable;
     use WithoutAddConstraints;
 
     /**

@@ -9,10 +9,14 @@ use Hyperf\Stringable\Str;
 use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
 use Hypervel\Context\Context;
 use Hypervel\Database\Eloquent\Concerns\HasAttributes;
+use Hypervel\Database\Eloquent\Concerns\HasBootableTraits;
 use Hypervel\Database\Eloquent\Concerns\HasCallbacks;
+use Hypervel\Database\Eloquent\Concerns\HasGlobalScopes;
+use Hypervel\Database\Eloquent\Concerns\HasLocalScopes;
 use Hypervel\Database\Eloquent\Concerns\HasObservers;
 use Hypervel\Database\Eloquent\Concerns\HasRelations;
 use Hypervel\Database\Eloquent\Concerns\HasRelationships;
+use Hypervel\Database\Eloquent\Concerns\TransformsToResource;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Router\Contracts\UrlRoutable;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -67,10 +71,14 @@ use Psr\EventDispatcher\EventDispatcherInterface;
 abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChannel
 {
     use HasAttributes;
+    use HasBootableTraits;
     use HasCallbacks;
+    use HasGlobalScopes;
+    use HasLocalScopes;
+    use HasObservers;
     use HasRelations;
     use HasRelationships;
-    use HasObservers;
+    use TransformsToResource;
 
     protected ?string $connection = null;
 
@@ -127,7 +135,7 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
     {
         [$one, $two, $three, $caller] = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS, 4);
 
-        return $caller['function'] ?? $three['function'];
+        return $caller['function'] ?? $three['function']; // @phpstan-ignore nullCoalesce.offset (defensive backtrace handling)
     }
 
     /**
@@ -229,6 +237,25 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
     public function replicateQuietly(?array $except = null): static
     {
         return static::withoutEvents(fn () => $this->replicate($except));
+    }
+
+    /**
+     * Handle dynamic static method calls into the model.
+     *
+     * Checks for methods marked with the #[Scope] attribute before
+     * falling back to the default behavior.
+     *
+     * @param string $method
+     * @param array<int, mixed> $parameters
+     * @return mixed
+     */
+    public static function __callStatic($method, $parameters)
+    {
+        if (static::isScopeMethodWithAttribute($method)) {
+            return static::query()->{$method}(...$parameters);
+        }
+
+        return (new static())->{$method}(...$parameters);
     }
 
     protected static function getWithoutEventContextKey(): string

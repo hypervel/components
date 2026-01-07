@@ -131,7 +131,7 @@ trait HasCasts
             case 'double':
                 return $this->fromFloat($value);
             case 'decimal':
-                return $this->asDecimal($value, explode(':', $this->getCasts()[$key], 2)[1]);
+                return $this->asDecimal($value, (int) explode(':', $this->getCasts()[$key], 2)[1]);
             case 'string':
                 return (string) $value;
             case 'bool':

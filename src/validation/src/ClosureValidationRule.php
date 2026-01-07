@@ -52,7 +52,7 @@ class ClosureValidationRule implements RuleContract, ValidatorAwareRule
             return $this->pendingPotentiallyTranslatedString($attribute, $message);
         }, $this->validator);
 
-        return ! $this->failed;
+        return ! $this->failed; // @phpstan-ignore booleanNot.alwaysTrue (callback sets $this->failed)
     }
 
     /**
