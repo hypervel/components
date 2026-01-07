@@ -392,7 +392,7 @@ class ComponentTagCompiler
     public function guessClassName(string $component): string
     {
         $namespace = Container::getInstance()
-            ->make(Application::class)
+            ->get(Application::class)
             ->getNamespace();
 
         $class = $this->formatClassName($component);

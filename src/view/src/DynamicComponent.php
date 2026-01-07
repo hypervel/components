@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Container\Container;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use Hypervel\View\Compilers\CompilerInterface;
 use Hypervel\View\Compilers\ComponentTagCompiler;
 
 class DynamicComponent extends Component
@@ -133,10 +134,12 @@ EOF;
     protected function compiler(): ComponentTagCompiler
     {
         if (! static::$compiler) {
+            $bladeCompiler = Container::getInstance()->get(CompilerInterface::class);
+
             static::$compiler = new ComponentTagCompiler(
-                Container::getInstance()->make('blade.compiler')->getClassComponentAliases(),
-                Container::getInstance()->make('blade.compiler')->getClassComponentNamespaces(),
-                Container::getInstance()->make('blade.compiler')
+                $bladeCompiler->getClassComponentAliases(),
+                $bladeCompiler->getClassComponentNamespaces(),
+                $bladeCompiler
             );
         }
 
