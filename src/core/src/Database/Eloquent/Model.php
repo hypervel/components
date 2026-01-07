@@ -104,11 +104,10 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
      */
     public function newModelBuilder($query)
     {
-        static::$resolvedBuilderClasses[static::class] ??= $this->resolveCustomBuilderClass();
+        $builderClass = static::$resolvedBuilderClasses[static::class]
+            ??= $this->resolveCustomBuilderClass();
 
-        $builderClass = static::$resolvedBuilderClasses[static::class];
-
-        if ($builderClass !== false && is_subclass_of($builderClass, Builder::class)) {
+        if ($builderClass !== false && is_subclass_of($builderClass, Builder::class)) { // @phpstan-ignore function.alreadyNarrowedType (validates attribute returns valid Builder subclass)
             // @phpstan-ignore new.static
             return new $builderClass($query);
         }
