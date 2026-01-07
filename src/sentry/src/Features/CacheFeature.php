@@ -264,6 +264,7 @@ class CacheFeature extends Feature
         $sessionKey = $this->getSessionKey();
 
         return array_map(static function ($value) use ($sessionKey) {
+            // @phpstan-ignore function.alreadyNarrowedType (defensive: event data may contain non-strings)
             return is_string($value) && $value === $sessionKey ? '{sessionKey}' : $value;
         }, $values);
     }

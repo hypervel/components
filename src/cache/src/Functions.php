@@ -30,7 +30,7 @@ function cache($key = null, $default = null)
         return $manager->get($key, $default);
     }
 
-    if (! is_array($key)) {
+    if (! is_array($key)) { // @phpstan-ignore function.alreadyNarrowedType (validates PHPDoc contract at runtime)
         throw new InvalidArgumentException(
             'When setting a value in the cache, you must pass an array of key / value pairs.'
         );

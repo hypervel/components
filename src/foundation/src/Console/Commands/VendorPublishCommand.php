@@ -103,7 +103,7 @@ class VendorPublishCommand extends Command
                 ->prepend($all = 'All providers')
                 ->all()
         );
-        if ($choice == $all || is_null($choice)) {
+        if ($choice == $all || is_null($choice)) { // @phpstan-ignore function.impossibleType (defensive: choice() could return null on interrupt)
             return null;
         }
 
@@ -115,12 +115,12 @@ class VendorPublishCommand extends Command
         $extra = Composer::getMergedExtra();
         $packages = array_map(
             fn (array $package) => array_merge(
-                Arr::wrap(($package['hyperf'] ?? []) ?? []),
-                Arr::wrap(($package['hypervel'] ?? []) ?? []),
+                Arr::wrap($package['hyperf'] ?? []),
+                Arr::wrap($package['hypervel'] ?? []),
             ),
             $extra
         );
-        $packages = array_filter($packages, fn ($provider) => count($provider));
+        $packages = array_filter($packages, fn ($provider) => count($provider) > 0);
 
         $publishes = [];
         foreach ($packages as $packageName => $extra) {
