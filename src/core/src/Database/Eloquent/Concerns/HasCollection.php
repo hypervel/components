@@ -9,10 +9,13 @@ use Hypervel\Database\Eloquent\Collection;
 use ReflectionClass;
 
 /**
- * Provides support for the CollectedBy attribute on models.
+ * Provides support for custom collection classes on models.
  *
- * This trait allows models to declare their collection class using the
- * #[CollectedBy] attribute instead of overriding the newCollection method.
+ * Models can specify their collection class in two ways:
+ * 1. Using the #[CollectedBy] attribute (takes precedence)
+ * 2. Overriding the static $collectionClass property
+ *
+ * The fallback chain is: #[CollectedBy] attribute → $collectionClass property.
  */
 trait HasCollection
 {
@@ -31,7 +34,7 @@ trait HasCollection
      */
     public function newCollection(array $models = []): Collection
     {
-        static::$resolvedCollectionClasses[static::class] ??= ($this->resolveCollectionFromAttribute() ?? Collection::class);
+        static::$resolvedCollectionClasses[static::class] ??= ($this->resolveCollectionFromAttribute() ?? static::$collectionClass);
 
         return new static::$resolvedCollectionClasses[static::class]($models);
     }

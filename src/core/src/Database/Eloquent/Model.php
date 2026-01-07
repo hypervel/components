@@ -82,6 +82,16 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
     use HasRelationships;
     use TransformsToResource;
 
+    /**
+     * The default collection class for this model.
+     *
+     * Override this property to use a custom collection class. Alternatively,
+     * use the #[CollectedBy] attribute for a more declarative approach.
+     *
+     * @var class-string<Collection<array-key, static>>
+     */
+    protected static string $collectionClass = Collection::class;
+
     protected ?string $connection = null;
 
     public function resolveRouteBinding($value)

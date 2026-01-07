@@ -22,6 +22,8 @@ class HasCollectionTest extends TestCase
         HasCollectionTestModelWithAttribute::clearResolvedCollectionClasses();
         HasCollectionTestChildModel::clearResolvedCollectionClasses();
         HasCollectionTestChildModelWithOwnAttribute::clearResolvedCollectionClasses();
+        HasCollectionTestModelWithProperty::clearResolvedCollectionClasses();
+        HasCollectionTestModelWithAttributeAndProperty::clearResolvedCollectionClasses();
 
         parent::tearDown();
     }
@@ -123,6 +125,26 @@ class HasCollectionTest extends TestCase
 
         $this->assertInstanceOf(AnotherCustomTestCollection::class, $collection);
     }
+
+    public function testNewCollectionUsesCollectionClassPropertyWhenNoAttribute(): void
+    {
+        $model = new HasCollectionTestModelWithProperty();
+
+        $collection = $model->newCollection([]);
+
+        $this->assertInstanceOf(PropertyTestCollection::class, $collection);
+    }
+
+    public function testAttributeTakesPrecedenceOverCollectionClassProperty(): void
+    {
+        $model = new HasCollectionTestModelWithAttributeAndProperty();
+
+        $collection = $model->newCollection([]);
+
+        // Attribute should win over property
+        $this->assertInstanceOf(CustomTestCollection::class, $collection);
+        $this->assertNotInstanceOf(PropertyTestCollection::class, $collection);
+    }
 }
 
 // Test fixtures
@@ -208,5 +230,46 @@ class CustomTestCollection extends Collection
  * @extends Collection<TKey, TModel>
  */
 class AnotherCustomTestCollection extends Collection
+{
+}
+
+class HasCollectionTestModelWithProperty extends Model
+{
+    protected ?string $table = 'test_models';
+
+    protected static string $collectionClass = PropertyTestCollection::class;
+
+    /**
+     * Clear the static cache for testing.
+     */
+    public static function clearResolvedCollectionClasses(): void
+    {
+        static::$resolvedCollectionClasses = [];
+    }
+}
+
+#[CollectedBy(CustomTestCollection::class)]
+class HasCollectionTestModelWithAttributeAndProperty extends Model
+{
+    protected ?string $table = 'test_models';
+
+    // Property should be ignored when attribute is present
+    protected static string $collectionClass = PropertyTestCollection::class;
+
+    /**
+     * Clear the static cache for testing.
+     */
+    public static function clearResolvedCollectionClasses(): void
+    {
+        static::$resolvedCollectionClasses = [];
+    }
+}
+
+/**
+ * @template TKey of array-key
+ * @template TModel of Model
+ * @extends Collection<TKey, TModel>
+ */
+class PropertyTestCollection extends Collection
 {
 }
