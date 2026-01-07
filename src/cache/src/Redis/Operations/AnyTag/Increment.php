@@ -125,69 +125,6 @@ class Increment
             $client = $conn->client();
             $prefix = $this->context->prefix();
 
-            $script = <<<'LUA'
-                local key = KEYS[1]
-                local tagsKey = KEYS[2]
-                local val = tonumber(ARGV[1])
-                local tagPrefix = ARGV[2]
-                local registryKey = ARGV[3]
-                local now = ARGV[4]
-                local rawKey = ARGV[5]
-                local tagHashSuffix = ARGV[6]
-
-                -- 1. Increment
-                local newValue = redis.call('INCRBY', key, val)
-
-                -- 2. Get TTL
-                local ttl = redis.call('TTL', key)
-                local expiry = 253402300799 -- Default forever
-                if ttl > 0 then
-                    expiry = now + ttl
-                end
-
-                -- 3. Get Old Tags
-                local oldTags = redis.call('SMEMBERS', tagsKey)
-                local newTagsMap = {}
-                local newTagsList = {}
-
-                for i = 7, #ARGV do
-                    local tag = ARGV[i]
-                    newTagsMap[tag] = true
-                    table.insert(newTagsList, tag)
-                end
-
-                -- 4. Remove from Old Tags
-                for _, tag in ipairs(oldTags) do
-                    if not newTagsMap[tag] then
-                        local tagHash = tagPrefix .. tag .. tagHashSuffix
-                        redis.call('HDEL', tagHash, rawKey)
-                    end
-                end
-
-                -- 5. Update Reverse Index
-                redis.call('DEL', tagsKey)
-                if #newTagsList > 0 then
-                    redis.call('SADD', tagsKey, unpack(newTagsList))
-                    if ttl > 0 then
-                        redis.call('EXPIRE', tagsKey, ttl)
-                    end
-                end
-
-                -- 6. Add to New Tags
-                for _, tag in ipairs(newTagsList) do
-                    local tagHash = tagPrefix .. tag .. tagHashSuffix
-                    if ttl > 0 then
-                        -- Use HSETEX for atomic field creation and expiration
-                        redis.call('HSETEX', tagHash, 'EX', ttl, 'FIELDS', 1, rawKey, '1')
-                    else
-                        redis.call('HSET', tagHash, rawKey, '1')
-                    end
-                    redis.call('ZADD', registryKey, 'GT', expiry, tag)
-                end
-
-                return newValue
-LUA;
-
             $args = [
                 $prefix . $key,                        // KEYS[1]
                 $this->context->reverseIndexKey($key), // KEYS[2]
@@ -197,9 +134,10 @@ LUA;
                 time(),                                // ARGV[4]
                 $key,                                  // ARGV[5]
                 $this->context->tagHashSuffix(),       // ARGV[6]
-                ...$tags,                               // ARGV[7...]
+                ...$tags,                              // ARGV[7...]
             ];
 
+            $script = $this->incrementWithTagsScript();
             $scriptHash = sha1($script);
             $result = $client->evalSha($scriptHash, $args, 2);
 
@@ -210,5 +148,84 @@ LUA;
 
             return $result;
         });
+    }
+
+    /**
+     * Get the Lua script for incrementing a value with tag tracking.
+     *
+     * KEYS[1] - The cache key (prefixed)
+     * KEYS[2] - The reverse index key (tracks which tags this key belongs to)
+     * ARGV[1] - Increment amount
+     * ARGV[2] - Tag prefix for building tag hash keys
+     * ARGV[3] - Tag registry key
+     * ARGV[4] - Current timestamp
+     * ARGV[5] - Raw key (without prefix, for hash field name)
+     * ARGV[6] - Tag hash suffix (":entries")
+     * ARGV[7...] - Tag names
+     */
+    protected function incrementWithTagsScript(): string
+    {
+        return <<<'LUA'
+            local key = KEYS[1]
+            local tagsKey = KEYS[2]
+            local val = tonumber(ARGV[1])
+            local tagPrefix = ARGV[2]
+            local registryKey = ARGV[3]
+            local now = ARGV[4]
+            local rawKey = ARGV[5]
+            local tagHashSuffix = ARGV[6]
+
+            -- 1. Increment
+            local newValue = redis.call('INCRBY', key, val)
+
+            -- 2. Get TTL
+            local ttl = redis.call('TTL', key)
+            local expiry = 253402300799 -- Default forever
+            if ttl > 0 then
+                expiry = now + ttl
+            end
+
+            -- 3. Get Old Tags
+            local oldTags = redis.call('SMEMBERS', tagsKey)
+            local newTagsMap = {}
+            local newTagsList = {}
+
+            for i = 7, #ARGV do
+                local tag = ARGV[i]
+                newTagsMap[tag] = true
+                table.insert(newTagsList, tag)
+            end
+
+            -- 4. Remove from Old Tags
+            for _, tag in ipairs(oldTags) do
+                if not newTagsMap[tag] then
+                    local tagHash = tagPrefix .. tag .. tagHashSuffix
+                    redis.call('HDEL', tagHash, rawKey)
+                end
+            end
+
+            -- 5. Update Reverse Index
+            redis.call('DEL', tagsKey)
+            if #newTagsList > 0 then
+                redis.call('SADD', tagsKey, unpack(newTagsList))
+                if ttl > 0 then
+                    redis.call('EXPIRE', tagsKey, ttl)
+                end
+            end
+
+            -- 6. Add to New Tags
+            for _, tag in ipairs(newTagsList) do
+                local tagHash = tagPrefix .. tag .. tagHashSuffix
+                if ttl > 0 then
+                    -- Use HSETEX for atomic field creation and expiration
+                    redis.call('HSETEX', tagHash, 'EX', ttl, 'FIELDS', 1, rawKey, '1')
+                else
+                    redis.call('HSET', tagHash, rawKey, '1')
+                end
+                redis.call('ZADD', registryKey, 'GT', expiry, tag)
+            end
+
+            return newValue
+            LUA;
     }
 }

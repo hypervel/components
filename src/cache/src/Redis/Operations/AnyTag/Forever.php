@@ -122,54 +122,6 @@ class Forever
             $client = $conn->client();
             $prefix = $this->context->prefix();
 
-            $script = <<<'LUA'
-                local key = KEYS[1]
-                local tagsKey = KEYS[2]
-                local val = ARGV[1]
-                local tagPrefix = ARGV[2]
-                local registryKey = ARGV[3]
-                local rawKey = ARGV[4]
-                local tagHashSuffix = ARGV[5]
-
-                -- 1. Set Value
-                redis.call('SET', key, val)
-
-                -- 2. Get Old Tags
-                local oldTags = redis.call('SMEMBERS', tagsKey)
-                local newTagsMap = {}
-                local newTagsList = {}
-
-                for i = 6, #ARGV do
-                    local tag = ARGV[i]
-                    newTagsMap[tag] = true
-                    table.insert(newTagsList, tag)
-                end
-
-                -- 3. Remove from Old Tags
-                for _, tag in ipairs(oldTags) do
-                    if not newTagsMap[tag] then
-                        local tagHash = tagPrefix .. tag .. tagHashSuffix
-                        redis.call('HDEL', tagHash, rawKey)
-                    end
-                end
-
-                -- 4. Update Reverse Index
-                redis.call('DEL', tagsKey)
-                if #newTagsList > 0 then
-                    redis.call('SADD', tagsKey, unpack(newTagsList))
-                end
-
-                -- 5. Add to New Tags
-                local expiry = 253402300799
-                for _, tag in ipairs(newTagsList) do
-                    local tagHash = tagPrefix .. tag .. tagHashSuffix
-                    redis.call('HSET', tagHash, rawKey, '1')
-                    redis.call('ZADD', registryKey, 'GT', expiry, tag)
-                end
-
-                return true
-LUA;
-
             $args = [
                 $prefix . $key,                              // KEYS[1]
                 $this->context->reverseIndexKey($key),       // KEYS[2]
@@ -178,9 +130,10 @@ LUA;
                 $this->context->fullRegistryKey(),           // ARGV[3]
                 $key,                                        // ARGV[4]
                 $this->context->tagHashSuffix(),             // ARGV[5]
-                ...$tags,                                     // ARGV[6...]
+                ...$tags,                                    // ARGV[6...]
             ];
 
+            $script = $this->storeForeverWithTagsScript();
             $scriptHash = sha1($script);
             $result = $client->evalSha($scriptHash, $args, 2);
 
@@ -191,5 +144,68 @@ LUA;
 
             return true;
         });
+    }
+
+    /**
+     * Get the Lua script for storing a value forever with tag tracking.
+     *
+     * KEYS[1] - The cache key (prefixed)
+     * KEYS[2] - The reverse index key (tracks which tags this key belongs to)
+     * ARGV[1] - Serialized value
+     * ARGV[2] - Tag prefix for building tag hash keys
+     * ARGV[3] - Tag registry key
+     * ARGV[4] - Raw key (without prefix, for hash field name)
+     * ARGV[5] - Tag hash suffix (":entries")
+     * ARGV[6...] - Tag names
+     */
+    protected function storeForeverWithTagsScript(): string
+    {
+        return <<<'LUA'
+            local key = KEYS[1]
+            local tagsKey = KEYS[2]
+            local val = ARGV[1]
+            local tagPrefix = ARGV[2]
+            local registryKey = ARGV[3]
+            local rawKey = ARGV[4]
+            local tagHashSuffix = ARGV[5]
+
+            -- 1. Set Value
+            redis.call('SET', key, val)
+
+            -- 2. Get Old Tags
+            local oldTags = redis.call('SMEMBERS', tagsKey)
+            local newTagsMap = {}
+            local newTagsList = {}
+
+            for i = 6, #ARGV do
+                local tag = ARGV[i]
+                newTagsMap[tag] = true
+                table.insert(newTagsList, tag)
+            end
+
+            -- 3. Remove from Old Tags
+            for _, tag in ipairs(oldTags) do
+                if not newTagsMap[tag] then
+                    local tagHash = tagPrefix .. tag .. tagHashSuffix
+                    redis.call('HDEL', tagHash, rawKey)
+                end
+            end
+
+            -- 4. Update Reverse Index
+            redis.call('DEL', tagsKey)
+            if #newTagsList > 0 then
+                redis.call('SADD', tagsKey, unpack(newTagsList))
+            end
+
+            -- 5. Add to New Tags
+            local expiry = 253402300799
+            for _, tag in ipairs(newTagsList) do
+                local tagHash = tagPrefix .. tag .. tagHashSuffix
+                redis.call('HSET', tagHash, rawKey, '1')
+                redis.call('ZADD', registryKey, 'GT', expiry, tag)
+            end
+
+            return true
+            LUA;
     }
 }

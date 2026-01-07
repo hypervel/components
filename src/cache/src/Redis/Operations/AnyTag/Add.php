@@ -119,49 +119,6 @@ class Add
             $client = $conn->client();
             $prefix = $this->context->prefix();
 
-            $script = <<<'LUA'
-                local key = KEYS[1]
-                local tagsKey = KEYS[2]
-                local val = ARGV[1]
-                local ttl = ARGV[2]
-                local tagPrefix = ARGV[3]
-                local registryKey = ARGV[4]
-                local now = ARGV[5]
-                local rawKey = ARGV[6]
-                local tagHashSuffix = ARGV[7]
-                local expiry = now + ttl
-
-                -- 1. Try to add key (SET NX)
-                -- redis.call returns a table/object for OK, or false/nil
-                local added = redis.call('SET', key, val, 'EX', ttl, 'NX')
-
-                if not added then
-                    return false
-                end
-
-                -- 2. Add to Tags Reverse Index
-                local newTagsList = {}
-                for i = 8, #ARGV do
-                    table.insert(newTagsList, ARGV[i])
-                end
-
-                if #newTagsList > 0 then
-                    redis.call('SADD', tagsKey, unpack(newTagsList))
-                    redis.call('EXPIRE', tagsKey, ttl)
-                end
-
-                -- 3. Add to Tag Hashes & Registry
-                for _, tag in ipairs(newTagsList) do
-                    local tagHash = tagPrefix .. tag .. tagHashSuffix
-                    -- Use HSET + HEXPIRE instead of HSETEX to avoid potential Lua argument issues
-                    redis.call('HSET', tagHash, rawKey, '1')
-                    redis.call('HEXPIRE', tagHash, ttl, 'FIELDS', 1, rawKey)
-                    redis.call('ZADD', registryKey, 'GT', expiry, tag)
-                end
-
-                return true
-LUA;
-
             $args = [
                 $prefix . $key,                              // KEYS[1]
                 $this->context->reverseIndexKey($key),       // KEYS[2]
@@ -170,11 +127,12 @@ LUA;
                 $this->context->fullTagPrefix(),             // ARGV[3]
                 $this->context->fullRegistryKey(),           // ARGV[4]
                 time(),                                      // ARGV[5]
-                $key,                                        // ARGV[6] (Raw key for hash field)
+                $key,                                        // ARGV[6]
                 $this->context->tagHashSuffix(),             // ARGV[7]
-                ...$tags,                                     // ARGV[8...]
+                ...$tags,                                    // ARGV[8...]
             ];
 
+            $script = $this->addWithTagsScript();
             $scriptHash = sha1($script);
             $result = $client->evalSha($scriptHash, $args, 2);
 
@@ -185,5 +143,65 @@ LUA;
 
             return (bool) $result;
         });
+    }
+
+    /**
+     * Get the Lua script for adding a value if it doesn't exist, with tag tracking.
+     *
+     * KEYS[1] - The cache key (prefixed)
+     * KEYS[2] - The reverse index key (tracks which tags this key belongs to)
+     * ARGV[1] - Serialized value
+     * ARGV[2] - TTL in seconds
+     * ARGV[3] - Tag prefix for building tag hash keys
+     * ARGV[4] - Tag registry key
+     * ARGV[5] - Current timestamp
+     * ARGV[6] - Raw key (without prefix, for hash field name)
+     * ARGV[7] - Tag hash suffix (":entries")
+     * ARGV[8...] - Tag names
+     */
+    protected function addWithTagsScript(): string
+    {
+        return <<<'LUA'
+            local key = KEYS[1]
+            local tagsKey = KEYS[2]
+            local val = ARGV[1]
+            local ttl = ARGV[2]
+            local tagPrefix = ARGV[3]
+            local registryKey = ARGV[4]
+            local now = ARGV[5]
+            local rawKey = ARGV[6]
+            local tagHashSuffix = ARGV[7]
+            local expiry = now + ttl
+
+            -- 1. Try to add key (SET NX)
+            -- redis.call returns a table/object for OK, or false/nil
+            local added = redis.call('SET', key, val, 'EX', ttl, 'NX')
+
+            if not added then
+                return false
+            end
+
+            -- 2. Add to Tags Reverse Index
+            local newTagsList = {}
+            for i = 8, #ARGV do
+                table.insert(newTagsList, ARGV[i])
+            end
+
+            if #newTagsList > 0 then
+                redis.call('SADD', tagsKey, unpack(newTagsList))
+                redis.call('EXPIRE', tagsKey, ttl)
+            end
+
+            -- 3. Add to Tag Hashes & Registry
+            for _, tag in ipairs(newTagsList) do
+                local tagHash = tagPrefix .. tag .. tagHashSuffix
+                -- Use HSET + HEXPIRE instead of HSETEX to avoid potential Lua argument issues
+                redis.call('HSET', tagHash, rawKey, '1')
+                redis.call('HEXPIRE', tagHash, ttl, 'FIELDS', 1, rawKey)
+                redis.call('ZADD', registryKey, 'GT', expiry, tag)
+            end
+
+            return true
+            LUA;
     }
 }

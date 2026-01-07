@@ -22,11 +22,6 @@ use Hypervel\Redis\RedisConnection;
 class PutMany
 {
     /**
-     * The Lua script for setting multiple keys with the same TTL.
-     */
-    private const LUA_SCRIPT = "local ttl = ARGV[1] local numKeys = #KEYS for i = 1, numKeys do redis.call('SETEX', KEYS[i], ttl, ARGV[i + 1]) end return true";
-
-    /**
      * Create a new put many operation instance.
      */
     public function __construct(
@@ -145,15 +140,35 @@ class PutMany
             $evalArgs = array_merge($keys, $args);
             $numKeys = count($keys);
 
-            $scriptHash = sha1(self::LUA_SCRIPT);
+            $script = $this->setMultipleKeysScript();
+            $scriptHash = sha1($script);
             $result = $client->evalSha($scriptHash, $evalArgs, $numKeys);
 
             // evalSha returns false if script not loaded (NOSCRIPT), fall back to eval
             if ($result === false) {
-                $result = $client->eval(self::LUA_SCRIPT, $evalArgs, $numKeys);
+                $result = $client->eval($script, $evalArgs, $numKeys);
             }
 
             return (bool) $result;
         });
+    }
+
+    /**
+     * Get the Lua script for setting multiple keys with the same TTL.
+     *
+     * KEYS[1..N] - The cache keys to set
+     * ARGV[1] - TTL in seconds
+     * ARGV[2..N+1] - Serialized values (matching order of KEYS)
+     */
+    protected function setMultipleKeysScript(): string
+    {
+        return <<<'LUA'
+            local ttl = ARGV[1]
+            local numKeys = #KEYS
+            for i = 1, numKeys do
+                redis.call('SETEX', KEYS[i], ttl, ARGV[i + 1])
+            end
+            return true
+            LUA;
     }
 }

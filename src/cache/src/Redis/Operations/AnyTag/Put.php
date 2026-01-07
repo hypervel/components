@@ -139,59 +139,6 @@ class Put
             $client = $conn->client();
             $prefix = $this->context->prefix();
 
-            $script = <<<'LUA'
-                local key = KEYS[1]
-                local tagsKey = KEYS[2]
-                local val = ARGV[1]
-                local ttl = ARGV[2]
-                local tagPrefix = ARGV[3]
-                local registryKey = ARGV[4]
-                local now = ARGV[5]
-                local rawKey = ARGV[6]
-                local tagHashSuffix = ARGV[7]
-                local expiry = now + ttl
-
-                -- 1. Set Cache
-                redis.call('SETEX', key, ttl, val)
-
-                -- 2. Get Old Tags
-                local oldTags = redis.call('SMEMBERS', tagsKey)
-                local newTagsMap = {}
-                local newTagsList = {}
-
-                -- Parse new tags
-                for i = 8, #ARGV do
-                    local tag = ARGV[i]
-                    newTagsMap[tag] = true
-                    table.insert(newTagsList, tag)
-                end
-
-                -- 3. Remove from Old Tags
-                for _, tag in ipairs(oldTags) do
-                    if not newTagsMap[tag] then
-                        local tagHash = tagPrefix .. tag .. tagHashSuffix
-                        redis.call('HDEL', tagHash, rawKey)
-                    end
-                end
-
-                -- 4. Update Tags Key
-                redis.call('DEL', tagsKey)
-                if #newTagsList > 0 then
-                    redis.call('SADD', tagsKey, unpack(newTagsList))
-                    redis.call('EXPIRE', tagsKey, ttl)
-                end
-
-                -- 5. Add to New Tags & Registry
-                for _, tag in ipairs(newTagsList) do
-                    local tagHash = tagPrefix .. tag .. tagHashSuffix
-                    -- Use HSETEX for atomic field creation and expiration (Redis 8.0+)
-                    redis.call('HSETEX', tagHash, 'EX', ttl, 'FIELDS', 1, rawKey, '1')
-                    redis.call('ZADD', registryKey, 'GT', expiry, tag)
-                end
-
-                return true
-LUA;
-
             $args = [
                 $prefix . $key,                              // KEYS[1]
                 $this->context->reverseIndexKey($key),       // KEYS[2]
@@ -200,11 +147,12 @@ LUA;
                 $this->context->fullTagPrefix(),             // ARGV[3]
                 $this->context->fullRegistryKey(),           // ARGV[4]
                 time(),                                      // ARGV[5]
-                $key,                                        // ARGV[6] (Raw key for hash field)
+                $key,                                        // ARGV[6]
                 $this->context->tagHashSuffix(),             // ARGV[7]
-                ...$tags,                                     // ARGV[8...]
+                ...$tags,                                    // ARGV[8...]
             ];
 
+            $script = $this->storeWithTagsScript();
             $scriptHash = sha1($script);
             $result = $client->evalSha($scriptHash, $args, 2);
 
@@ -215,5 +163,75 @@ LUA;
 
             return true;
         });
+    }
+
+    /**
+     * Get the Lua script for storing a value with tag tracking.
+     *
+     * KEYS[1] - The cache key (prefixed)
+     * KEYS[2] - The reverse index key (tracks which tags this key belongs to)
+     * ARGV[1] - Serialized value
+     * ARGV[2] - TTL in seconds
+     * ARGV[3] - Tag prefix for building tag hash keys
+     * ARGV[4] - Tag registry key
+     * ARGV[5] - Current timestamp
+     * ARGV[6] - Raw key (without prefix, for hash field name)
+     * ARGV[7] - Tag hash suffix (":entries")
+     * ARGV[8...] - Tag names
+     */
+    protected function storeWithTagsScript(): string
+    {
+        return <<<'LUA'
+            local key = KEYS[1]
+            local tagsKey = KEYS[2]
+            local val = ARGV[1]
+            local ttl = ARGV[2]
+            local tagPrefix = ARGV[3]
+            local registryKey = ARGV[4]
+            local now = ARGV[5]
+            local rawKey = ARGV[6]
+            local tagHashSuffix = ARGV[7]
+            local expiry = now + ttl
+
+            -- 1. Set Cache
+            redis.call('SETEX', key, ttl, val)
+
+            -- 2. Get Old Tags
+            local oldTags = redis.call('SMEMBERS', tagsKey)
+            local newTagsMap = {}
+            local newTagsList = {}
+
+            -- Parse new tags
+            for i = 8, #ARGV do
+                local tag = ARGV[i]
+                newTagsMap[tag] = true
+                table.insert(newTagsList, tag)
+            end
+
+            -- 3. Remove from Old Tags
+            for _, tag in ipairs(oldTags) do
+                if not newTagsMap[tag] then
+                    local tagHash = tagPrefix .. tag .. tagHashSuffix
+                    redis.call('HDEL', tagHash, rawKey)
+                end
+            end
+
+            -- 4. Update Tags Key
+            redis.call('DEL', tagsKey)
+            if #newTagsList > 0 then
+                redis.call('SADD', tagsKey, unpack(newTagsList))
+                redis.call('EXPIRE', tagsKey, ttl)
+            end
+
+            -- 5. Add to New Tags & Registry
+            for _, tag in ipairs(newTagsList) do
+                local tagHash = tagPrefix .. tag .. tagHashSuffix
+                -- Use HSETEX for atomic field creation and expiration (Redis 8.0+)
+                redis.call('HSETEX', tagHash, 'EX', ttl, 'FIELDS', 1, rawKey, '1')
+                redis.call('ZADD', registryKey, 'GT', expiry, tag)
+            end
+
+            return true
+            LUA;
     }
 }
