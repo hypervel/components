@@ -7,9 +7,7 @@ namespace Hypervel\Support\Facades;
 use Hypervel\View\Compilers\CompilerInterface;
 
 /**
- * @method static void compile(string|null $path = null)
- * @method static string getPath()
- * @method static void setPath(string $path)
+ * @method static void compile(string $path)
  * @method static string compileString(string $value)
  * @method static string render(string $string, array $data = [], bool $deleteCachedView = false)
  * @method static string renderComponent(\Hypervel\View\Component $component)
@@ -31,7 +29,7 @@ use Hypervel\View\Compilers\CompilerInterface;
  * @method static void include(string $path, string|null $alias = null)
  * @method static void aliasInclude(string $path, string|null $alias = null)
  * @method static void bindDirective(string $name, callable $handler)
- * @method static void directive(string $name, callable $handler, bool $bind = false)
+ * @method static void directive(string $name, \Closure $handler, bool $bind = false)
  * @method static array getCustomDirectives()
  * @method static \Hypervel\View\Compilers\BladeCompiler prepareStringsForCompilationUsing(callable $callback)
  * @method static void precompiler(callable $precompiler)
@@ -47,9 +45,9 @@ use Hypervel\View\Compilers\CompilerInterface;
  * @method static string compileEndComponentClass()
  * @method static mixed sanitizeComponentAttribute(mixed $value)
  * @method static string compileEndOnce()
- * @method static void stringable(string|callable $class, callable|null $handler = null)
+ * @method static void stringable(callable|string $class, callable|null $handler = null)
  * @method static string compileEchos(string $value)
- * @method static string applyEchoHandler(string $value)
+ * @method static mixed applyEchoHandler(mixed $value)
  *
  * @see \Hypervel\View\Compilers\BladeCompiler
  */
