@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Core\Database\Eloquent\Factories;
 use BadMethodCallException;
 use Carbon\Carbon;
 use Hyperf\Database\Model\SoftDeletes;
+use Hypervel\Database\Eloquent\Attributes\UseFactory;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Factories\CrossJoinSequence;
 use Hypervel\Database\Eloquent\Factories\Factory;
@@ -46,6 +47,7 @@ class FactoryTest extends TestCase
     protected function tearDown(): void
     {
         m::close();
+        Factory::flushState();
 
         parent::tearDown();
     }
@@ -761,6 +763,91 @@ class FactoryTest extends TestCase
 
         $this->assertNull($post->user_id);
     }
+
+    public function testUseFactoryAttributeResolvesFactory()
+    {
+        $factory = FactoryTestModelWithUseFactory::factory();
+
+        $this->assertInstanceOf(FactoryTestModelWithUseFactoryFactory::class, $factory);
+    }
+
+    public function testUseFactoryAttributeResolvesCorrectModelName()
+    {
+        $factory = FactoryTestModelWithUseFactory::factory();
+
+        $this->assertSame(FactoryTestModelWithUseFactory::class, $factory->modelName());
+    }
+
+    public function testUseFactoryAttributeWorksWithCount()
+    {
+        $models = FactoryTestModelWithUseFactory::factory(3)->make();
+
+        $this->assertCount(3, $models);
+        $this->assertInstanceOf(FactoryTestModelWithUseFactory::class, $models->first());
+    }
+
+    public function testStaticFactoryPropertyTakesPrecedenceOverUseFactoryAttribute()
+    {
+        $factory = FactoryTestModelWithStaticFactoryAndAttribute::factory();
+
+        // Should use the static $factory property, not the attribute
+        $this->assertInstanceOf(FactoryTestModelWithStaticFactory::class, $factory);
+    }
+
+    public function testModelWithoutUseFactoryFallsBackToConvention()
+    {
+        Factory::guessFactoryNamesUsing(fn ($model) => $model . 'Factory');
+
+        $factory = FactoryTestUser::factory();
+
+        $this->assertInstanceOf(FactoryTestUserFactory::class, $factory);
+    }
+
+    public function testPerClassModelNameResolverIsolation()
+    {
+        // Set up per-class resolvers for different factories
+        FactoryTestUserFactory::guessModelNamesUsing(fn () => 'ResolvedUserModel');
+        FactoryTestPostFactory::guessModelNamesUsing(fn () => 'ResolvedPostModel');
+
+        // Create factories without explicit $model property
+        $factoryWithoutModel = new FactoryTestFactoryWithoutModel();
+
+        // The factory-specific resolver should be isolated
+        // FactoryTestFactoryWithoutModel has no resolver set, so it should use default convention
+        // We need to set a resolver for it specifically
+        FactoryTestFactoryWithoutModel::guessModelNamesUsing(fn () => 'ResolvedFactoryWithoutModel');
+
+        $this->assertSame('ResolvedFactoryWithoutModel', $factoryWithoutModel->modelName());
+    }
+
+    public function testPerClassResolversDoNotInterfere()
+    {
+        // Each factory class maintains its own resolver
+        FactoryTestUserFactory::guessModelNamesUsing(fn () => 'UserModelResolved');
+
+        // Create a user factory instance
+        $userFactory = FactoryTestUserFactory::new();
+
+        // The user factory should use its specific resolver
+        $this->assertSame(FactoryTestUser::class, $userFactory->modelName());
+
+        // But if we set a resolver for a factory without a $model property...
+        FactoryTestFactoryWithoutModel::guessModelNamesUsing(fn () => 'FactoryWithoutModelResolved');
+
+        $factoryWithoutModel = new FactoryTestFactoryWithoutModel();
+        $this->assertSame('FactoryWithoutModelResolved', $factoryWithoutModel->modelName());
+    }
+
+    public function testFlushStateResetsAllResolvers()
+    {
+        FactoryTestUserFactory::guessModelNamesUsing(fn () => 'CustomModel');
+        Factory::useNamespace('Custom\Namespace\\');
+
+        Factory::flushState();
+
+        // After flush, namespace should be reset
+        $this->assertSame('Database\Factories\\', Factory::$namespace);
+    }
 }
 
 class FactoryTestUserFactory extends Factory
@@ -897,5 +984,72 @@ class FactoryTestRole extends Model
     public function users()
     {
         return $this->belongsToMany(FactoryTestUser::class, 'role_user', 'role_id', 'user_id')->withPivot('admin');
+    }
+}
+
+// UseFactory attribute test fixtures
+
+class FactoryTestModelWithUseFactoryFactory extends Factory
+{
+    public function definition()
+    {
+        return [
+            'name' => $this->faker->name(),
+        ];
+    }
+}
+
+#[UseFactory(FactoryTestModelWithUseFactoryFactory::class)]
+class FactoryTestModelWithUseFactory extends Model
+{
+    use HasFactory;
+
+    protected ?string $table = 'users';
+
+    protected array $fillable = ['name'];
+}
+
+// Factory for testing static $factory property precedence
+class FactoryTestModelWithStaticFactory extends Factory
+{
+    protected $model = FactoryTestModelWithStaticFactoryAndAttribute::class;
+
+    public function definition()
+    {
+        return [
+            'name' => $this->faker->name(),
+        ];
+    }
+}
+
+// Alternative factory for the attribute (should NOT be used)
+class FactoryTestAlternativeFactory extends Factory
+{
+    public function definition()
+    {
+        return [
+            'name' => 'alternative',
+        ];
+    }
+}
+
+#[UseFactory(FactoryTestAlternativeFactory::class)]
+class FactoryTestModelWithStaticFactoryAndAttribute extends Model
+{
+    use HasFactory;
+
+    protected static string $factory = FactoryTestModelWithStaticFactory::class;
+
+    protected ?string $table = 'users';
+
+    protected array $fillable = ['name'];
+}
+
+// Factory without explicit $model property for testing resolver isolation
+class FactoryTestFactoryWithoutModel extends Factory
+{
+    public function definition()
+    {
+        return [];
     }
 }

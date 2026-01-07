@@ -31,7 +31,7 @@ class RedisMasterSupervisorRepository implements MasterSupervisorRepository
         return $this->connection()->zRevRangeByScore(
             'masters',
             '+inf',
-            CarbonImmutable::now()->subSeconds(14)->getTimestamp()
+            (string) CarbonImmutable::now()->subSeconds(14)->getTimestamp()
         );
     }
 

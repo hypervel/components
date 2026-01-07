@@ -11,20 +11,32 @@ use Hyperf\Command\Event\AfterExecute;
 use Hyperf\Command\Event\AfterHandle;
 use Hyperf\Command\Event\BeforeHandle;
 use Hyperf\Command\Event\FailToHandle;
-use Hyperf\Coroutine\Coroutine;
-use Hypervel\Support\Traits\HasLaravelStyleCommand;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Swoole\ExitException;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
-use function Hyperf\Coroutine\run;
+use function Hypervel\Coroutine\run;
 
 abstract class Command extends HyperfCommand
 {
-    use HasLaravelStyleCommand;
     use InteractsWithSignals;
     use Prettyable;
+
+    protected ApplicationContract $app;
+
+    public function __construct(?string $name = null)
+    {
+        parent::__construct($name);
+
+        /** @var ApplicationContract $app */
+        $app = ApplicationContext::getContainer();
+        $this->app = $app;
+    }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
@@ -100,5 +112,15 @@ abstract class Command extends HyperfCommand
         }
 
         throw $exception;
+    }
+
+    /**
+     * Call another console command without output.
+     */
+    public function callSilent(string $command, array $arguments = []): int
+    {
+        return $this->app
+            ->get(KernelContract::class)
+            ->call($command, $arguments);
     }
 }

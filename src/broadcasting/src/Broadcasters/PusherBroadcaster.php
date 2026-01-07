@@ -38,7 +38,7 @@ class PusherBroadcaster extends Broadcaster
             return null;
         }
 
-        if (method_exists($this->pusher, 'authenticateUser')) {
+        if (method_exists($this->pusher, 'authenticateUser')) { // @phpstan-ignore function.alreadyNarrowedType (Pusher 6.x compatibility)
             return json_decode(
                 $this->pusher->authenticateUser($request->input('socket_id'), $user),
                 true,

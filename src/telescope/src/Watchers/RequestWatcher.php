@@ -229,18 +229,16 @@ class RequestWatcher extends Watcher
             return 'Purged By Telescope: ' . $e->getMessage();
         }
 
-        if (is_string($content)) {
-            if (! $this->contentWithinLimits($content)) {
-                return 'Purged By Telescope';
-            }
-            if (is_array(json_decode($content, true))
-                && json_last_error() === JSON_ERROR_NONE
-            ) {
-                return $this->hideParameters(json_decode($content, true), Telescope::$hiddenResponseParameters);
-            }
-            if (Str::startsWith(strtolower($response->getHeaderLine('Content-Type') ?: ''), 'text/plain')) {
-                return $content;
-            }
+        if (! $this->contentWithinLimits($content)) {
+            return 'Purged By Telescope';
+        }
+        if (is_array(json_decode($content, true))
+            && json_last_error() === JSON_ERROR_NONE
+        ) {
+            return $this->hideParameters(json_decode($content, true), Telescope::$hiddenResponseParameters);
+        }
+        if (Str::startsWith(strtolower($response->getHeaderLine('Content-Type') ?: ''), 'text/plain')) {
+            return $content;
         }
 
         $statusCode = $response->getStatusCode();

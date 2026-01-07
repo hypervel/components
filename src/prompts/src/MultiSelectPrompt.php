@@ -129,7 +129,7 @@ class MultiSelectPrompt extends Prompt
             $this->values = [];
         } else {
             $this->values = array_is_list($this->options)
-                ? array_values($this->options)
+                ? array_values($this->options) // @phpstan-ignore arrayValues.list (intentional copy)
                 : array_keys($this->options);
         }
     }

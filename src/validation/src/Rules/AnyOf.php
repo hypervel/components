@@ -9,7 +9,6 @@ use Hypervel\Support\Facades\Validator;
 use Hypervel\Validation\Contracts\Rule;
 use Hypervel\Validation\Contracts\Validator as ValidatorContract;
 use Hypervel\Validation\Contracts\ValidatorAwareRule;
-use InvalidArgumentException;
 
 class AnyOf implements Rule, ValidatorAwareRule
 {
@@ -25,15 +24,9 @@ class AnyOf implements Rule, ValidatorAwareRule
 
     /**
      * Sets the validation rules to match against.
-     *
-     * @throws InvalidArgumentException
      */
     public function __construct(array $rules)
     {
-        if (! is_array($rules)) {
-            throw new InvalidArgumentException('The provided value must be an array of validation rules.');
-        }
-
         $this->rules = $rules;
     }
 
