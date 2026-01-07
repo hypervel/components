@@ -39,20 +39,10 @@ class RedisLock extends Lock implements RefreshableLock
 
     /**
      * Release the lock.
-     *
-     * Uses a Lua script to atomically check ownership before deleting.
      */
     public function release(): bool
     {
-        $script = <<<'LUA'
-if redis.call("get",KEYS[1]) == ARGV[1] then
-    return redis.call("del",KEYS[1])
-else
-    return 0
-end
-LUA;
-
-        return (bool) $this->redis->eval($script, [$this->name, $this->owner], 1);
+        return (bool) $this->redis->eval(LuaScripts::releaseLock(), [$this->name, $this->owner], 1);
     }
 
     /**
@@ -74,8 +64,6 @@ LUA;
     /**
      * Refresh the lock's TTL if still owned by this process.
      *
-     * Uses a Lua script to atomically check ownership before modifying TTL.
-     *
      * @throws InvalidArgumentException If an explicit non-positive TTL is provided
      */
     public function refresh(?int $seconds = null): bool
@@ -93,15 +81,7 @@ LUA;
             );
         }
 
-        $script = <<<'LUA'
-if redis.call("get",KEYS[1]) == ARGV[1] then
-    return redis.call("expire",KEYS[1],ARGV[2])
-else
-    return 0
-end
-LUA;
-
-        return (bool) $this->redis->eval($script, [$this->name, $this->owner, $seconds], 1);
+        return (bool) $this->redis->eval(LuaScripts::refreshLock(), [$this->name, $this->owner, $seconds], 1);
     }
 
     /**
