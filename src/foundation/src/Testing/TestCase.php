@@ -133,7 +133,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         }
 
         if (class_exists('Mockery')) {
-            if ($container = Mockery::getContainer()) {
+            if ($container = Mockery::getContainer()) { // @phpstan-ignore if.alwaysTrue (defensive check)
                 $this->addToAssertionCount($container->mockery_getExpectationCount());
             }
 

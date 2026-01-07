@@ -36,9 +36,9 @@ class ProviderConfig extends HyperfProviderConfig
 
         $providers = array_map(
             fn (array $package) => array_merge(
-                Arr::wrap(($package['hyperf']['config'] ?? []) ?? []),
-                Arr::wrap(($package['hypervel']['config'] ?? []) ?? []),
-                Arr::wrap(($package['hypervel']['providers'] ?? []) ?? []),
+                Arr::wrap($package['hyperf']['config'] ?? []),
+                Arr::wrap($package['hypervel']['config'] ?? []),
+                Arr::wrap($package['hypervel']['providers'] ?? []),
             ),
             Composer::getMergedExtra()
         );

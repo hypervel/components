@@ -39,7 +39,7 @@ class Progress extends Prompt
         $this->total = match (true) { // @phpstan-ignore assign.propertyType
             is_int($this->steps) => $this->steps,
             is_countable($this->steps) => count($this->steps),
-            is_iterable($this->steps) => iterator_count($this->steps),
+            is_iterable($this->steps) => iterator_count($this->steps), // @phpstan-ignore match.alwaysTrue
             default => throw new InvalidArgumentException('Unable to count steps.'),
         };
 

@@ -50,12 +50,8 @@ class Authorize implements MiddlewareInterface
     /**
      * Get the arguments parameter for the gate.
      */
-    protected function getGateArguments(ServerRequestInterface $request, array $models): array|Model|string
+    protected function getGateArguments(ServerRequestInterface $request, array $models): array
     {
-        if (is_null($models)) {
-            return [];
-        }
-
         return Collection::make($models)->map(function ($model) use ($request) {
             return $model instanceof Model ? $model : $this->getModel($request, $model);
         })->all();
