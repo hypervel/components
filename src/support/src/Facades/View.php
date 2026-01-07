@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
+use Hypervel\View\Contracts\Factory as FactoryContract;
+
 /**
  * @method static \Hypervel\View\Contracts\View file(string $path, \Hypervel\Support\Contracts\Arrayable|array $data = [], array $mergeData = [])
  * @method static \Hypervel\View\Contracts\View make(string $view, \Hypervel\Support\Contracts\Arrayable|array $data = [], array $mergeData = [])
@@ -90,6 +92,6 @@ class View extends Facade
 {
     protected static function getFacadeAccessor()
     {
-        return 'view';
+        return FactoryContract::class;
     }
 }
