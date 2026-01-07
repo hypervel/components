@@ -600,10 +600,6 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
         if ($flashInputs) {
             $session->flashInput($flashInputs);
         }
-
-        // Because an exception is thrown and the reset logic of `StartSession` middleware is not executed,
-        // We need to save the session here manually.
-        $session->save();
     }
 
     /**
