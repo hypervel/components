@@ -393,6 +393,20 @@ class CacheArrayStoreTest extends TestCase
         $lock->refresh(-5);
     }
 
+    public function testRefreshWithInvalidTtlThrowsEvenWhenNotOwned()
+    {
+        $store = new ArrayStore();
+        $owner = $store->lock('foo', 10);
+        $wannabeOwner = $store->lock('foo', 10);
+        $owner->acquire();
+
+        // Invalid parameters should throw regardless of ownership
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Refresh requires a positive TTL');
+
+        $wannabeOwner->refresh(0);
+    }
+
     public function testGetRemainingLifetimeReturnsSeconds()
     {
         Carbon::setTestNow(Carbon::now());

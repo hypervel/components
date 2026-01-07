@@ -98,20 +98,20 @@ class ArrayLock extends Lock implements RefreshableLock
             return true;
         }
 
-        if (! $this->exists()) {
-            return false;
-        }
-
-        if (! $this->isOwnedByCurrentProcess()) {
-            return false;
-        }
-
         $seconds ??= $this->seconds;
 
         if ($seconds <= 0) {
             throw new InvalidArgumentException(
                 'Refresh requires a positive TTL. For a permanent lock, acquire it with seconds=0.'
             );
+        }
+
+        if (! $this->exists()) {
+            return false;
+        }
+
+        if (! $this->isOwnedByCurrentProcess()) {
+            return false;
         }
 
         $this->store->locks[$this->name]['expiresAt'] = Carbon::now()->addSeconds($seconds);
