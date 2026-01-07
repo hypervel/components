@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Validation\Rules;
 
 use Closure;
-use InvalidArgumentException;
 use Stringable;
 
 class ExcludeIf implements Stringable
@@ -17,18 +16,10 @@ class ExcludeIf implements Stringable
 
     /**
      * Create a new exclude validation rule based on a condition.
-     *
-     * @param bool|Closure $condition
-     *
-     * @throws InvalidArgumentException
      */
-    public function __construct(mixed $condition)
+    public function __construct(bool|Closure $condition)
     {
-        if ($condition instanceof Closure || is_bool($condition)) {
-            $this->condition = $condition;
-        } else {
-            throw new InvalidArgumentException('The provided condition must be a callable or boolean.');
-        }
+        $this->condition = $condition;
     }
 
     /**

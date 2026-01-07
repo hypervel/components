@@ -7,7 +7,6 @@ namespace Hypervel\Horizon\Console;
 use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Horizon\Contracts\JobRepository;
-use Hypervel\Horizon\RedisQueue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Support\Arr;
 
@@ -34,12 +33,6 @@ class ClearCommand extends Command
     public function handle(JobRepository $jobRepository, QueueManager $manager): ?int
     {
         if (! $this->confirmToProceed()) {
-            return 1;
-        }
-
-        if (! method_exists(RedisQueue::class, 'clear')) {
-            $this->components->error('Clearing queues is not supported on this version of Laravel.');
-
             return 1;
         }
 
