@@ -91,7 +91,7 @@ class Str extends BaseStr
      * Determine if a given value is a valid UUID.
      *
      * @param mixed $value
-     * @param null|'max'|int<0, 8> $version
+     * @param null|'max'|'nil'|int<0, 8> $version
      */
     public static function isUuid($value, $version = null): bool
     {

@@ -166,7 +166,6 @@ class CoreMiddleware implements CoreMiddlewareInterface
     {
         $request = RequestContext::set($request);
 
-        /** @var DispatchedRoute $dispatched */
         $dispatched = $request->getAttribute(Dispatched::class);
 
         if (! $dispatched instanceof DispatchedRoute) {

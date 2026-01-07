@@ -774,7 +774,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
             $e instanceof ModelNotFoundException => new NotFoundHttpException($e->getMessage(), 0, $e),
             $e instanceof AuthorizationException && $e->hasStatus() => new HttpException(
                 $e->status(),
-                $e->response()?->message() ?: (BaseResponse::getReasonPhraseByCode($e->status()) ?? 'Whoops, looks like something went wrong.'),
+                $e->response()?->message() ?: (BaseResponse::getReasonPhraseByCode($e->status()) ?? 'Whoops, looks like something went wrong.'), // @phpstan-ignore nullCoalesce.expr (defensive fallback)
                 $e->getCode(),
                 $e
             ),
@@ -851,6 +851,8 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
 
     /**
      * Determine if the given exception is an HTTP exception.
+     *
+     * @phpstan-assert-if-true HyperfHttpException $e
      */
     protected function isHttpException(Throwable $e): bool
     {
