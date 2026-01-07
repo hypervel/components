@@ -9,6 +9,7 @@ use Hyperf\Stringable\Str;
 use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
 use Hypervel\Context\Context;
 use Hypervel\Database\Eloquent\Concerns\HasAttributes;
+use Hypervel\Database\Eloquent\Concerns\HasBootableTraits;
 use Hypervel\Database\Eloquent\Concerns\HasCallbacks;
 use Hypervel\Database\Eloquent\Concerns\HasGlobalScopes;
 use Hypervel\Database\Eloquent\Concerns\HasLocalScopes;
@@ -70,6 +71,7 @@ use Psr\EventDispatcher\EventDispatcherInterface;
 abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChannel
 {
     use HasAttributes;
+    use HasBootableTraits;
     use HasCallbacks;
     use HasGlobalScopes;
     use HasLocalScopes;
