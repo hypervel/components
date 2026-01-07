@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Relations;
 
 use Hyperf\DbConnection\Model\Relations\MorphPivot as BaseMorphPivot;
+use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Concerns\HasAttributes;
 use Hypervel\Database\Eloquent\Concerns\HasCallbacks;
+use Hypervel\Database\Eloquent\Concerns\HasCollection;
 use Hypervel\Database\Eloquent\Concerns\HasGlobalScopes;
 use Hypervel\Database\Eloquent\Concerns\HasObservers;
 use Psr\EventDispatcher\StoppableEventInterface;
@@ -15,8 +17,19 @@ class MorphPivot extends BaseMorphPivot
 {
     use HasAttributes;
     use HasCallbacks;
+    use HasCollection;
     use HasGlobalScopes;
     use HasObservers;
+
+    /**
+     * The default collection class for this model.
+     *
+     * Override this property to use a custom collection class. Alternatively,
+     * use the #[CollectedBy] attribute for a more declarative approach.
+     *
+     * @var class-string<Collection>
+     */
+    protected static string $collectionClass = Collection::class;
 
     /**
      * Delete the pivot model record from the database.

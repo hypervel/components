@@ -22,7 +22,7 @@ trait HasCollection
     /**
      * The resolved collection class names by model.
      *
-     * @var array<class-string<static>, class-string<Collection<array-key, static>>>
+     * @var array<class-string, class-string<Collection>>
      */
     protected static array $resolvedCollectionClasses = [];
 
@@ -30,7 +30,7 @@ trait HasCollection
      * Create a new Eloquent Collection instance.
      *
      * @param array<array-key, static> $models
-     * @return Collection<array-key, static>
+     * @return \Hypervel\Database\Eloquent\Collection<array-key, static>
      */
     public function newCollection(array $models = []): Collection
     {
@@ -42,7 +42,7 @@ trait HasCollection
     /**
      * Resolve the collection class name from the CollectedBy attribute.
      *
-     * @return null|class-string<Collection<array-key, static>>
+     * @return null|class-string<Collection>
      */
     protected function resolveCollectionFromAttribute(): ?string
     {
