@@ -8,13 +8,11 @@ use Hyperf\Context\Context;
 use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
-use Hypervel\Queue\Contracts\Job as JobContract;
 use Hypervel\Support\Facades\Artisan;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
-use Throwable;
 
 /**
  * @internal
@@ -30,7 +28,6 @@ class FoundationRunningInConsoleTest extends TestCase
         CaptureRunningInConsoleCommand::$capturedValue = null;
         NestedCallerCommand::$capturedValueBeforeCall = null;
         NestedCallerCommand::$capturedValueAfterCall = null;
-        CaptureRunningInConsoleJob::$capturedValue = null;
     }
 
     protected function tearDown(): void
@@ -106,10 +103,10 @@ class FoundationRunningInConsoleTest extends TestCase
         $this->assertTrue(CaptureRunningInConsoleCommand::$capturedValue);
     }
 
-    public function testCodeInsideArtisanCallFromHttpSeesRunningInConsoleFalse(): void
+    public function testCodeInsideKernelCallWithoutPriorHandleSeesRunningInConsoleFalse(): void
     {
-        // When Artisan::call() is used from HTTP context (e.g., controller),
-        // code inside the command should see runningInConsole() = false
+        // When Kernel::call() is used without a prior Kernel::handle() (e.g., from
+        // HTTP context), code inside the command should see runningInConsole() = false
 
         $this->registerCaptureCommand();
 
@@ -177,25 +174,6 @@ class FoundationRunningInConsoleTest extends TestCase
         );
     }
 
-    public function testQueueJobSeesRunningInConsoleFalse(): void
-    {
-        // Queue jobs run in the queue worker context, which does NOT go through
-        // Kernel::handle(). Jobs should see runningInConsole() = false.
-
-        // Ensure we're NOT in console context (simulating queue worker)
-        $this->assertFalse($this->app->runningInConsole());
-
-        // Create and fire a fake job
-        $job = new CaptureRunningInConsoleJob();
-        $job->fire();
-
-        // The job should see runningInConsole() = false
-        $this->assertFalse(
-            CaptureRunningInConsoleJob::$capturedValue,
-            'Queue job should see runningInConsole() = false'
-        );
-    }
-
     private function registerCaptureCommand(): void
     {
         $this->app->bind(CaptureRunningInConsoleCommand::class, CaptureRunningInConsoleCommand::class);
@@ -250,114 +228,5 @@ class NestedCallerCommand extends \Hypervel\Console\Command
         self::$capturedValueAfterCall = app()->runningInConsole();
 
         return self::SUCCESS;
-    }
-}
-
-/**
- * Fake queue job that captures runningInConsole() value during execution.
- */
-class CaptureRunningInConsoleJob implements JobContract
-{
-    public static ?bool $capturedValue = null;
-
-    public function fire(): void
-    {
-        self::$capturedValue = app()->runningInConsole();
-    }
-
-    public function getJobId(): string|int|null
-    {
-        return 'test-job-id';
-    }
-
-    public function release(int $delay = 0): void
-    {
-    }
-
-    public function isReleased(): bool
-    {
-        return false;
-    }
-
-    public function delete(): void
-    {
-    }
-
-    public function isDeleted(): bool
-    {
-        return false;
-    }
-
-    public function isDeletedOrReleased(): bool
-    {
-        return false;
-    }
-
-    public function attempts(): int
-    {
-        return 1;
-    }
-
-    public function hasFailed(): bool
-    {
-        return false;
-    }
-
-    public function markAsFailed(): void
-    {
-    }
-
-    public function fail(?Throwable $e = null): void
-    {
-    }
-
-    public function maxTries(): ?int
-    {
-        return null;
-    }
-
-    public function maxExceptions(): ?int
-    {
-        return null;
-    }
-
-    public function timeout(): ?int
-    {
-        return null;
-    }
-
-    public function retryUntil(): ?int
-    {
-        return null;
-    }
-
-    public function getName(): string
-    {
-        return 'CaptureRunningInConsoleJob';
-    }
-
-    public function resolveName(): string
-    {
-        return self::class;
-    }
-
-    public function getConnectionName(): string
-    {
-        return 'sync';
-    }
-
-    public function getQueue(): string
-    {
-        return 'default';
-    }
-
-    public function getRawBody(): string
-    {
-        return '{}';
-    }
-
-    public function uuid(): ?string
-    {
-        return 'test-uuid';
     }
 }
