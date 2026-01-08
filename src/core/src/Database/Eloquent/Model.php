@@ -8,6 +8,7 @@ use Hyperf\DbConnection\Model\Model as BaseModel;
 use Hyperf\Stringable\Str;
 use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
 use Hypervel\Context\Context;
+use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Hypervel\Database\Eloquent\Concerns\HasAttributes;
 use Hypervel\Database\Eloquent\Concerns\HasBootableTraits;
 use Hypervel\Database\Eloquent\Concerns\HasCallbacks;
@@ -20,6 +21,7 @@ use Hypervel\Database\Eloquent\Concerns\TransformsToResource;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Router\Contracts\UrlRoutable;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use ReflectionClass;
 
 /**
  * @method static \Hypervel\Database\Eloquent\Collection<int, static> all(array|string $columns = ['*'])
@@ -80,6 +82,13 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
     use HasRelationships;
     use TransformsToResource;
 
+    /**
+     * The resolved builder class names by model.
+     *
+     * @var array<class-string<static>, class-string<Builder<static>>|false>
+     */
+    protected static array $resolvedBuilderClasses = [];
+
     protected ?string $connection = null;
 
     public function resolveRouteBinding($value)
@@ -88,13 +97,41 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
     }
 
     /**
+     * Create a new Eloquent query builder for the model.
+     *
      * @param \Hypervel\Database\Query\Builder $query
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
     public function newModelBuilder($query)
     {
-        // @phpstan-ignore-next-line
+        $builderClass = static::$resolvedBuilderClasses[static::class]
+            ??= $this->resolveCustomBuilderClass();
+
+        if ($builderClass !== false && is_subclass_of($builderClass, Builder::class)) { // @phpstan-ignore function.alreadyNarrowedType (validates attribute returns valid Builder subclass)
+            // @phpstan-ignore new.static
+            return new $builderClass($query);
+        }
+
+        // @phpstan-ignore return.type
         return new Builder($query);
+    }
+
+    /**
+     * Resolve the custom Eloquent builder class from the model attributes.
+     *
+     * @return class-string<\Hypervel\Database\Eloquent\Builder<static>>|false
+     */
+    protected function resolveCustomBuilderClass(): string|false
+    {
+        $attributes = (new ReflectionClass(static::class))
+            ->getAttributes(UseEloquentBuilder::class);
+
+        if ($attributes === []) {
+            return false;
+        }
+
+        // @phpstan-ignore return.type (attribute stores generic Model type, but we know it's compatible with static)
+        return $attributes[0]->newInstance()->builderClass;
     }
 
     /**
