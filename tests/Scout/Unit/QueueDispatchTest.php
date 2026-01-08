@@ -8,6 +8,7 @@ use Hyperf\Contract\ConfigInterface;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
+use Hypervel\Scout\Scout;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Tests\Scout\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
@@ -20,6 +21,12 @@ use Hypervel\Tests\Scout\ScoutTestCase;
  */
 class QueueDispatchTest extends ScoutTestCase
 {
+    protected function tearDown(): void
+    {
+        Scout::resetJobClasses();
+        parent::tearDown();
+    }
+
     public function testQueueMakeSearchableDispatchesJobWhenQueueEnabled(): void
     {
         $this->app->get(ConfigInterface::class)->set('scout.queue.enabled', true);
@@ -144,4 +151,50 @@ class QueueDispatchTest extends ScoutTestCase
 
         Bus::assertNotDispatched(RemoveFromSearch::class);
     }
+
+    public function testQueueMakeSearchableDispatchesCustomJobClass(): void
+    {
+        $this->app->get(ConfigInterface::class)->set('scout.queue.enabled', true);
+
+        Scout::makeSearchableUsing(TestCustomMakeSearchable::class);
+
+        Bus::fake([TestCustomMakeSearchable::class]);
+
+        $model = new SearchableModel(['title' => 'Test', 'body' => 'Content']);
+        $model->id = 1;
+
+        $model->queueMakeSearchable(new Collection([$model]));
+
+        Bus::assertDispatched(TestCustomMakeSearchable::class);
+    }
+
+    public function testQueueRemoveFromSearchDispatchesCustomJobClass(): void
+    {
+        $this->app->get(ConfigInterface::class)->set('scout.queue.enabled', true);
+
+        Scout::removeFromSearchUsing(TestCustomRemoveFromSearch::class);
+
+        Bus::fake([TestCustomRemoveFromSearch::class]);
+
+        $model = new SearchableModel(['title' => 'Test', 'body' => 'Content']);
+        $model->id = 1;
+
+        $model->queueRemoveFromSearch(new Collection([$model]));
+
+        Bus::assertDispatched(TestCustomRemoveFromSearch::class);
+    }
+}
+
+/**
+ * Custom job class for testing custom MakeSearchable dispatch.
+ */
+class TestCustomMakeSearchable extends MakeSearchable
+{
+}
+
+/**
+ * Custom job class for testing custom RemoveFromSearch dispatch.
+ */
+class TestCustomRemoveFromSearch extends RemoveFromSearch
+{
 }

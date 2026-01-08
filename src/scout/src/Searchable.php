@@ -13,8 +13,6 @@ use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\SoftDeletes;
-use Hypervel\Scout\Jobs\MakeSearchable;
-use Hypervel\Scout\Jobs\RemoveFromSearch;
 use Hypervel\Support\Collection as BaseCollection;
 
 /**
@@ -151,7 +149,8 @@ trait Searchable
         }
 
         if (static::getScoutConfig('queue.enabled', false)) {
-            $pendingDispatch = MakeSearchable::dispatch($models)
+            $jobClass = Scout::$makeSearchableJob;
+            $pendingDispatch = $jobClass::dispatch($models)
                 ->onConnection($models->first()->syncWithSearchUsing())
                 ->onQueue($models->first()->syncWithSearchUsingQueue());
 
@@ -195,7 +194,8 @@ trait Searchable
         }
 
         if (static::getScoutConfig('queue.enabled', false)) {
-            $pendingDispatch = RemoveFromSearch::dispatch($models)
+            $jobClass = Scout::$removeFromSearchJob;
+            $pendingDispatch = $jobClass::dispatch($models)
                 ->onConnection($models->first()->syncWithSearchUsing())
                 ->onQueue($models->first()->syncWithSearchUsingQueue());
 
