@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit;
 
+use Hyperf\Paginator\LengthAwarePaginator;
 use Hyperf\Paginator\Paginator;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Builder;
+use Hypervel\Scout\Contracts\PaginatesEloquentModels;
+use Hypervel\Scout\Contracts\PaginatesEloquentModelsUsingDatabase;
 use Hypervel\Scout\Engine;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\TestCase;
@@ -398,6 +401,110 @@ class BuilderTest extends TestCase
         $this->assertTrue($paginated->hasMorePages());
         $this->assertSame(15, $paginated->perPage());
         $this->assertSame(1, $paginated->currentPage());
+    }
+
+    public function testPaginateDelegatesToEngineWhenImplementsPaginatesEloquentModels()
+    {
+        Paginator::currentPageResolver(fn () => 1);
+        Paginator::currentPathResolver(fn () => 'http://localhost/foo');
+
+        $model = m::mock(Model::class);
+        $model->shouldReceive('getPerPage')->andReturn(15);
+
+        // Create a mock engine that implements PaginatesEloquentModels
+        $engine = m::mock(Engine::class . ', ' . PaginatesEloquentModels::class);
+        $model->shouldReceive('searchableUsing')->andReturn($engine);
+
+        $expectedPaginator = new LengthAwarePaginator([], 0, 15, 1);
+
+        // The engine's paginate method should be called directly
+        $engine->shouldReceive('paginate')
+            ->once()
+            ->with(m::type(Builder::class), 15, 1)
+            ->andReturn($expectedPaginator);
+
+        $builder = new Builder($model, 'test query');
+        $result = $builder->paginate();
+
+        $this->assertInstanceOf(LengthAwarePaginator::class, $result);
+    }
+
+    public function testSimplePaginateDelegatesToEngineWhenImplementsPaginatesEloquentModels()
+    {
+        Paginator::currentPageResolver(fn () => 1);
+        Paginator::currentPathResolver(fn () => 'http://localhost/foo');
+
+        $model = m::mock(Model::class);
+        $model->shouldReceive('getPerPage')->andReturn(15);
+
+        // Create a mock engine that implements PaginatesEloquentModels
+        $engine = m::mock(Engine::class . ', ' . PaginatesEloquentModels::class);
+        $model->shouldReceive('searchableUsing')->andReturn($engine);
+
+        $expectedPaginator = new Paginator([], 15, 1);
+
+        // The engine's simplePaginate method should be called directly
+        $engine->shouldReceive('simplePaginate')
+            ->once()
+            ->with(m::type(Builder::class), 15, 1)
+            ->andReturn($expectedPaginator);
+
+        $builder = new Builder($model, 'test query');
+        $result = $builder->simplePaginate();
+
+        $this->assertInstanceOf(Paginator::class, $result);
+    }
+
+    public function testPaginateDelegatesToEngineWhenImplementsPaginatesEloquentModelsUsingDatabase()
+    {
+        Paginator::currentPageResolver(fn () => 1);
+        Paginator::currentPathResolver(fn () => 'http://localhost/foo');
+
+        $model = m::mock(Model::class);
+        $model->shouldReceive('getPerPage')->andReturn(15);
+
+        // Create a mock engine that implements PaginatesEloquentModelsUsingDatabase
+        $engine = m::mock(Engine::class . ', ' . PaginatesEloquentModelsUsingDatabase::class);
+        $model->shouldReceive('searchableUsing')->andReturn($engine);
+
+        $expectedPaginator = new LengthAwarePaginator([], 0, 15, 1);
+
+        // The engine's paginateUsingDatabase method should be called
+        $engine->shouldReceive('paginateUsingDatabase')
+            ->once()
+            ->with(m::type(Builder::class), 15, 'page', 1)
+            ->andReturn($expectedPaginator);
+
+        $builder = new Builder($model, 'test query');
+        $result = $builder->paginate();
+
+        $this->assertInstanceOf(LengthAwarePaginator::class, $result);
+    }
+
+    public function testSimplePaginateDelegatesToEngineWhenImplementsPaginatesEloquentModelsUsingDatabase()
+    {
+        Paginator::currentPageResolver(fn () => 1);
+        Paginator::currentPathResolver(fn () => 'http://localhost/foo');
+
+        $model = m::mock(Model::class);
+        $model->shouldReceive('getPerPage')->andReturn(15);
+
+        // Create a mock engine that implements PaginatesEloquentModelsUsingDatabase
+        $engine = m::mock(Engine::class . ', ' . PaginatesEloquentModelsUsingDatabase::class);
+        $model->shouldReceive('searchableUsing')->andReturn($engine);
+
+        $expectedPaginator = new Paginator([], 15, 1);
+
+        // The engine's simplePaginateUsingDatabase method should be called
+        $engine->shouldReceive('simplePaginateUsingDatabase')
+            ->once()
+            ->with(m::type(Builder::class), 15, 'page', 1)
+            ->andReturn($expectedPaginator);
+
+        $builder = new Builder($model, 'test query');
+        $result = $builder->simplePaginate();
+
+        $this->assertInstanceOf(Paginator::class, $result);
     }
 
     public function testMacroable()

@@ -6,9 +6,9 @@ namespace Hypervel\Scout;
 
 use Closure;
 use Hyperf\Contract\Arrayable;
-use Hyperf\Database\Connection;
 use Hyperf\Contract\LengthAwarePaginatorInterface;
 use Hyperf\Contract\PaginatorInterface;
+use Hyperf\Database\Connection;
 use Hyperf\Paginator\LengthAwarePaginator;
 use Hyperf\Paginator\Paginator;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
