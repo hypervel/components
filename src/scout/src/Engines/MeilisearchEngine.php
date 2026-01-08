@@ -429,9 +429,12 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
      * Generate a tenant token for frontend direct search.
      *
      * Tenant tokens allow secure, scoped searches directly from the frontend
-     * without exposing the admin API key.
+     * without exposing the admin API key. All tenants share a single index,
+     * with data isolation enforced at query time via embedded filters.
      *
      * @param array<string, array{filter?: string}> $searchRules Rules per index
+     *
+     * @see https://www.meilisearch.com/blog/multi-tenancy-guide
      */
     public function generateTenantToken(
         array $searchRules,
