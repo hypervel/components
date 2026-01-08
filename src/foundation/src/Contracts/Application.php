@@ -204,4 +204,21 @@ interface Application extends Container
      * @throws RuntimeException
      */
     public function getNamespace(): string;
+
+    /**
+     * Determine if the application is running in the console.
+     *
+     * In Swoole's architecture, both HTTP servers and console commands run via CLI,
+     * so PHP_SAPI detection doesn't work. This method checks a coroutine-local
+     * Context flag that is set when console commands are executed.
+     */
+    public function runningInConsole(): bool;
+
+    /**
+     * Mark the application as running in the console.
+     *
+     * This sets a coroutine-local Context flag. Called by the Console Kernel
+     * before executing commands.
+     */
+    public function markAsRunningInConsole(): void;
 }

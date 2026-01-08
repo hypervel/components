@@ -6,6 +6,7 @@ namespace Hypervel\Foundation;
 
 use Closure;
 use Hyperf\Collection\Arr;
+use Hyperf\Context\Context;
 use Hyperf\Di\Definition\DefinitionSourceInterface;
 use Hyperf\Macroable\Macroable;
 use Hypervel\Container\Container;
@@ -684,5 +685,28 @@ class Application extends Container implements ApplicationContract
         }
 
         throw new RuntimeException('Unable to detect application namespace.');
+    }
+
+    /**
+     * Determine if the application is running in the console.
+     *
+     * In Swoole's architecture, both HTTP servers and console commands run via CLI,
+     * so PHP_SAPI detection doesn't work. This method checks a coroutine-local
+     * Context flag that is set when console commands are executed.
+     */
+    public function runningInConsole(): bool
+    {
+        return Context::get('__foundation.running_in_console', false) === true;
+    }
+
+    /**
+     * Mark the application as running in the console.
+     *
+     * This sets a coroutine-local Context flag. Called by the Console Kernel
+     * before executing commands.
+     */
+    public function markAsRunningInConsole(): void
+    {
+        Context::set('__foundation.running_in_console', true);
     }
 }
