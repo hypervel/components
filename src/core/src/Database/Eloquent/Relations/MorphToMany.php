@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Relations;
 
+use Hyperf\Collection\Collection;
 use Hyperf\Database\Model\Relations\MorphToMany as BaseMorphToMany;
+use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithPivotTable;
 use Hypervel\Database\Eloquent\Relations\Concerns\WithoutAddConstraints;
 use Hypervel\Database\Eloquent\Relations\Contracts\Relation as RelationContract;
 
@@ -42,14 +44,55 @@ use Hypervel\Database\Eloquent\Relations\Contracts\Relation as RelationContract;
  */
 class MorphToMany extends BaseMorphToMany implements RelationContract
 {
+    use InteractsWithPivotTable;
     use WithoutAddConstraints;
 
     /**
+     * Get the pivot models that are currently attached.
+     *
+     * Overrides trait to use MorphPivot and set morph type/class on the pivot models.
+     *
+     * @param mixed $ids
+     */
+    protected function getCurrentlyAttachedPivots($ids = null): Collection
+    {
+        $query = $this->newPivotQuery();
+
+        if ($ids !== null) {
+            $query->whereIn($this->relatedPivotKey, $this->parseIds($ids));
+        }
+
+        return $query->get()->map(function ($record) {
+            /** @var class-string<MorphPivot> $class */
+            $class = $this->using ?: MorphPivot::class;
+
+            $pivot = $class::fromRawAttributes($this->parent, (array) $record, $this->getTable(), true)
+                ->setPivotKeys($this->foreignPivotKey, $this->relatedPivotKey);
+
+            if ($pivot instanceof MorphPivot) {
+                $pivot->setMorphType($this->morphType)
+                    ->setMorphClass($this->morphClass);
+            }
+
+            return $pivot;
+        });
+    }
+
+    /**
+     * Create a new pivot model instance.
+     *
+     * Overrides parent to include pivotValues and set morph type/class.
+     *
      * @param bool $exists
      * @return TPivotModel
      */
     public function newPivot(array $attributes = [], $exists = false)
     {
+        $attributes = array_merge(
+            array_column($this->pivotValues, 'value', 'column'),
+            $attributes
+        );
+
         $using = $this->using;
 
         $pivot = $using ? $using::fromRawAttributes($this->parent, $attributes, $this->table, $exists)

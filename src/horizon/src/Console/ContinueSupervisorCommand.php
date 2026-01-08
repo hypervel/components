@@ -32,7 +32,7 @@ class ContinueSupervisorCommand extends Command
                     && Str::endsWith($supervisor->name, $this->argument('name'));
         }))->pid;
 
-        if (is_null($processId)) {
+        if ($processId === 0) {
             $this->components->error('Failed to find a supervisor with this name');
 
             return 1;

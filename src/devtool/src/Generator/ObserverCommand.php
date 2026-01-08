@@ -31,7 +31,7 @@ class ObserverCommand extends GeneratorCommand
         if (! $model = trim($this->input->getOption('model') ?? '')) {
             $modelParts = explode('\\', $name);
             $model = end($modelParts);
-            $model = Str::ucfirst(Str::before($model, 'Observer')) ?? 'Dummy';
+            $model = Str::ucfirst(Str::before($model, 'Observer'));
         }
 
         $modelNamespace = $this->getConfig()['model_namespace'] ?? 'App\Models';

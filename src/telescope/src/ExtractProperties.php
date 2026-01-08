@@ -21,7 +21,7 @@ class ExtractProperties
             ->mapWithKeys(function ($property) use ($target) {
                 $property->setAccessible(true);
 
-                if (PHP_VERSION_ID >= 70400 && ! $property->isInitialized($target)) {
+                if (PHP_VERSION_ID >= 70400 && ! $property->isInitialized($target)) { // @phpstan-ignore greaterOrEqual.alwaysTrue
                     return [];
                 }
 
