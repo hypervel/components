@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Scout\Integration\Meilisearch;
 
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Scout\Console\DeleteAllIndexesCommand;
 use Hypervel\Scout\Console\DeleteIndexCommand;
 use Hypervel\Scout\Console\FlushCommand;
 use Hypervel\Scout\Console\ImportCommand;
@@ -66,6 +67,7 @@ abstract class MeilisearchScoutIntegrationTestCase extends MeilisearchIntegratio
     protected function registerScoutCommands(): void
     {
         Artisan::getArtisan()->resolveCommands([
+            DeleteAllIndexesCommand::class,
             DeleteIndexCommand::class,
             FlushCommand::class,
             ImportCommand::class,

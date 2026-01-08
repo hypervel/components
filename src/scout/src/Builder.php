@@ -7,10 +7,14 @@ namespace Hypervel\Scout;
 use Closure;
 use Hyperf\Contract\Arrayable;
 use Hyperf\Database\Connection;
+use Hyperf\Contract\LengthAwarePaginatorInterface;
+use Hyperf\Contract\PaginatorInterface;
 use Hyperf\Paginator\LengthAwarePaginator;
 use Hyperf\Paginator\Paginator;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Scout\Contracts\PaginatesEloquentModels;
+use Hypervel\Scout\Contracts\PaginatesEloquentModelsUsingDatabase;
 use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
@@ -357,11 +361,19 @@ class Builder
         ?int $perPage = null,
         string $pageName = 'page',
         ?int $page = null
-    ): Paginator {
+    ): PaginatorInterface {
         $engine = $this->engine();
 
         $page = $page ?? Paginator::resolveCurrentPage($pageName);
         $perPage = $perPage ?? $this->model->getPerPage();
+
+        if ($engine instanceof PaginatesEloquentModels) {
+            return $engine->simplePaginate($this, $perPage, $page)->appends('query', $this->query);
+        }
+
+        if ($engine instanceof PaginatesEloquentModelsUsingDatabase) {
+            return $engine->simplePaginateUsingDatabase($this, $perPage, $pageName, $page)->appends('query', $this->query);
+        }
 
         $rawResults = $engine->paginate($this, $perPage, $page);
         /** @var array<TModel> $mappedModels */
@@ -387,11 +399,19 @@ class Builder
         ?int $perPage = null,
         string $pageName = 'page',
         ?int $page = null
-    ): LengthAwarePaginator {
+    ): LengthAwarePaginatorInterface {
         $engine = $this->engine();
 
         $page = $page ?? Paginator::resolveCurrentPage($pageName);
         $perPage = $perPage ?? $this->model->getPerPage();
+
+        if ($engine instanceof PaginatesEloquentModels) {
+            return $engine->paginate($this, $perPage, $page)->appends('query', $this->query);
+        }
+
+        if ($engine instanceof PaginatesEloquentModelsUsingDatabase) {
+            return $engine->paginateUsingDatabase($this, $perPage, $pageName, $page)->appends('query', $this->query);
+        }
 
         $rawResults = $engine->paginate($this, $perPage, $page);
         /** @var array<TModel> $mappedModels */

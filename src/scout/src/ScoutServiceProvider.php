@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Scout;
 
 use Hyperf\Contract\ConfigInterface;
+use Hypervel\Scout\Console\DeleteAllIndexesCommand;
 use Hypervel\Scout\Console\DeleteIndexCommand;
 use Hypervel\Scout\Console\FlushCommand;
 use Hypervel\Scout\Console\ImportCommand;
@@ -71,6 +72,7 @@ class ScoutServiceProvider extends ServiceProvider
     protected function registerCommands(): void
     {
         $this->commands([
+            DeleteAllIndexesCommand::class,
             DeleteIndexCommand::class,
             FlushCommand::class,
             ImportCommand::class,
