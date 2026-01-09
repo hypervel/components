@@ -127,6 +127,108 @@ class HasherTest extends TestCase
         $this->assertFalse($this->hashManager->isHashed('foo'));
     }
 
+    public function testBcryptVerifyConfigurationWithValidHash()
+    {
+        $hasher = new BcryptHasher(['rounds' => 10]);
+        $hash = $hasher->make('password');
+
+        $this->assertTrue($hasher->verifyConfiguration($hash));
+    }
+
+    public function testBcryptVerifyConfigurationWithLowerCost()
+    {
+        // Hash created with cost 4
+        $lowCostHasher = new BcryptHasher(['rounds' => 4]);
+        $hash = $lowCostHasher->make('password');
+
+        // Verify with hasher configured for cost 10 - should pass (lower is ok)
+        $higherCostHasher = new BcryptHasher(['rounds' => 10]);
+        $this->assertTrue($higherCostHasher->verifyConfiguration($hash));
+    }
+
+    public function testBcryptVerifyConfigurationWithHigherCost()
+    {
+        // Hash created with cost 12
+        $highCostHasher = new BcryptHasher(['rounds' => 12]);
+        $hash = $highCostHasher->make('password');
+
+        // Verify with hasher configured for cost 10 - should fail (higher than configured)
+        $lowerCostHasher = new BcryptHasher(['rounds' => 10]);
+        $this->assertFalse($lowerCostHasher->verifyConfiguration($hash));
+    }
+
+    public function testBcryptVerifyConfigurationWithWrongAlgorithm()
+    {
+        $argonHasher = new ArgonHasher();
+        $argonHash = $argonHasher->make('password');
+
+        $bcryptHasher = new BcryptHasher();
+        $this->assertFalse($bcryptHasher->verifyConfiguration($argonHash));
+    }
+
+    public function testArgonVerifyConfigurationWithValidHash()
+    {
+        $hasher = new ArgonHasher(['memory' => 1024, 'time' => 2, 'threads' => 2]);
+        $hash = $hasher->make('password');
+
+        $this->assertTrue($hasher->verifyConfiguration($hash));
+    }
+
+    public function testArgonVerifyConfigurationWithLowerOptions()
+    {
+        // Hash created with lower options
+        $lowOptionsHasher = new ArgonHasher(['memory' => 512, 'time' => 1, 'threads' => 1]);
+        $hash = $lowOptionsHasher->make('password');
+
+        // Verify with hasher configured for higher options - should pass
+        $higherOptionsHasher = new ArgonHasher(['memory' => 1024, 'time' => 2, 'threads' => 2]);
+        $this->assertTrue($higherOptionsHasher->verifyConfiguration($hash));
+    }
+
+    public function testArgonVerifyConfigurationWithHigherMemory()
+    {
+        // Hash created with higher memory
+        $highMemoryHasher = new ArgonHasher(['memory' => 2048, 'time' => 2, 'threads' => 2]);
+        $hash = $highMemoryHasher->make('password');
+
+        // Verify with hasher configured for lower memory - should fail
+        $lowerMemoryHasher = new ArgonHasher(['memory' => 1024, 'time' => 2, 'threads' => 2]);
+        $this->assertFalse($lowerMemoryHasher->verifyConfiguration($hash));
+    }
+
+    public function testArgonVerifyConfigurationWithWrongAlgorithm()
+    {
+        $bcryptHasher = new BcryptHasher();
+        $bcryptHash = $bcryptHasher->make('password');
+
+        $argonHasher = new ArgonHasher();
+        $this->assertFalse($argonHasher->verifyConfiguration($bcryptHash));
+    }
+
+    public function testArgon2idVerifyConfigurationWithValidHash()
+    {
+        $hasher = new Argon2IdHasher(['memory' => 1024, 'time' => 2, 'threads' => 2]);
+        $hash = $hasher->make('password');
+
+        $this->assertTrue($hasher->verifyConfiguration($hash));
+    }
+
+    public function testArgon2idVerifyConfigurationWithWrongAlgorithm()
+    {
+        // Use Argon2i hash with Argon2id hasher
+        $argonHasher = new ArgonHasher();
+        $argonHash = $argonHasher->make('password');
+
+        $argon2idHasher = new Argon2IdHasher();
+        $this->assertFalse($argon2idHasher->verifyConfiguration($argonHash));
+    }
+
+    public function testHashManagerVerifyConfigurationDelegatesToDriver()
+    {
+        $hash = $this->hashManager->make('password');
+        $this->assertTrue($this->hashManager->verifyConfiguration($hash));
+    }
+
     protected function getContainer()
     {
         $container = Mockery::mock(ContainerInterface::class);
