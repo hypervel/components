@@ -15,6 +15,7 @@ use Hypervel\Hashing\Contracts\Hasher;
  * @method static bool check(string $value, string|null $hashedValue, array $options = [])
  * @method static bool needsRehash(string $hashedValue, array $options = [])
  * @method static bool isHashed(string $value)
+ * @method static bool verifyConfiguration(string $hashedValue)
  * @method static string getDefaultDriver()
  * @method static mixed driver(string|null $driver = null)
  * @method static \Hypervel\Hashing\HashManager extend(string $driver, \Closure $callback)
