@@ -9,10 +9,9 @@ use Hypervel\Database\Eloquent\Concerns\HasUuids;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Encryption\Encrypter;
 use Hypervel\Hashing\BcryptHasher;
-use Hypervel\Hashing\HashManager;
 use Hypervel\Support\Facades\Hash;
 use Hypervel\Testbench\TestCase;
-use RuntimeException;
+use stdClass;
 
 /**
  * @internal
@@ -171,7 +170,7 @@ class HasAttributesCastsTest extends TestCase
 
         // Verify it decrypts to stdClass
         $object = $model->secret_object;
-        $this->assertInstanceOf(\stdClass::class, $object);
+        $this->assertInstanceOf(stdClass::class, $object);
         $this->assertSame('value', $object->key);
     }
 

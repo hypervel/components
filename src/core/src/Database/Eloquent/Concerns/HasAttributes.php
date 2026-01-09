@@ -7,6 +7,7 @@ namespace Hypervel\Database\Eloquent\Concerns;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use DateTimeInterface;
+use Hyperf\Collection\Collection as BaseCollection;
 use Hyperf\Contract\Castable;
 use Hyperf\Contract\CastsAttributes;
 use Hyperf\Contract\CastsInboundAttributes;
@@ -14,7 +15,6 @@ use Hypervel\Encryption\Contracts\Encrypter;
 use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\Hash;
-use Hyperf\Collection\Collection as BaseCollection;
 use Hypervel\Support\Str;
 use RuntimeException;
 
