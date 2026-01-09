@@ -21,6 +21,41 @@ class MorphPivot extends BaseMorphPivot
     use HasTimestamps;
 
     /**
+     * The built-in, primitive cast types supported by Eloquent.
+     *
+     * @var string[]
+     */
+    protected static array $primitiveCastTypes = [
+        'array',
+        'bool',
+        'boolean',
+        'collection',
+        'custom_datetime',
+        'date',
+        'datetime',
+        'decimal',
+        'double',
+        'encrypted',
+        'encrypted:array',
+        'encrypted:collection',
+        'encrypted:json',
+        'encrypted:object',
+        'float',
+        'hashed',
+        'immutable_date',
+        'immutable_datetime',
+        'immutable_custom_datetime',
+        'int',
+        'integer',
+        'json',
+        'json:unicode',
+        'object',
+        'real',
+        'string',
+        'timestamp',
+    ];
+
+    /**
      * Delete the pivot model record from the database.
      *
      * Overrides parent to fire deleting/deleted events even for composite key pivots,

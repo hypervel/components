@@ -151,7 +151,7 @@ trait HasAttributes
         return match ($castType) {
             'int', 'integer' => (int) $value,
             'real', 'float', 'double' => $this->fromFloat($value),
-            'decimal' => $this->asDecimal($value, explode(':', $this->getCasts()[$key], 2)[1]),
+            'decimal' => $this->asDecimal($value, (int) explode(':', $this->getCasts()[$key], 2)[1]),
             'string' => (string) $value,
             'bool', 'boolean' => (bool) $value,
             'object' => $this->fromJson($value, true),
@@ -242,7 +242,7 @@ trait HasAttributes
     /**
      * Set a given attribute on the model.
      *
-     * @return $this
+     * @return static
      */
     public function setAttribute(string $key, mixed $value)
     {
