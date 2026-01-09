@@ -14,6 +14,8 @@ use Hypervel\Encryption\Contracts\Encrypter;
 use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\Hash;
+use Hyperf\Collection\Collection as BaseCollection;
+use Hypervel\Support\Str;
 use RuntimeException;
 
 trait HasAttributes
@@ -125,6 +127,105 @@ trait HasAttributes
 
         if (! Hash::verifyConfiguration($value)) {
             throw new RuntimeException("Could not verify the hashed value's configuration.");
+        }
+
+        return $value;
+    }
+
+    /**
+     * Get the type of cast for a model attribute.
+     */
+    protected function getCastType(string $key): string
+    {
+        $castType = $this->getCasts()[$key];
+
+        if ($this->isCustomDateTimeCast($castType)) {
+            return 'custom_datetime';
+        }
+
+        if ($this->isImmutableCustomDateTimeCast($castType)) {
+            return 'immutable_custom_datetime';
+        }
+
+        if ($this->isDecimalCast($castType)) {
+            return 'decimal';
+        }
+
+        return trim(strtolower($castType));
+    }
+
+    /**
+     * Determine if the cast type is an immutable custom date time cast.
+     */
+    protected function isImmutableCustomDateTimeCast(string $cast): bool
+    {
+        return str_starts_with($cast, 'immutable_date:')
+            || str_starts_with($cast, 'immutable_datetime:');
+    }
+
+    /**
+     * Cast an attribute to a native PHP type.
+     */
+    protected function castAttribute(string $key, mixed $value): mixed
+    {
+        $castType = $this->getCastType($key);
+
+        if (is_null($value) && in_array($castType, static::$primitiveCastTypes)) {
+            return null;
+        }
+
+        // If the key is one of the encrypted castable types, we'll first decrypt
+        // the value and update the cast type so we may leverage the following
+        // logic for casting this value to any additionally specified types.
+        if ($this->isEncryptedCastable($key)) {
+            $value = $this->fromEncryptedString($value);
+
+            $castType = Str::after($castType, 'encrypted:');
+        }
+
+        switch ($castType) {
+            case 'int':
+            case 'integer':
+                return (int) $value;
+            case 'real':
+            case 'float':
+            case 'double':
+                return $this->fromFloat($value);
+            case 'decimal':
+                return $this->asDecimal($value, explode(':', $this->getCasts()[$key], 2)[1]);
+            case 'string':
+                return (string) $value;
+            case 'bool':
+            case 'boolean':
+                return (bool) $value;
+            case 'object':
+                return $this->fromJson($value, true);
+            case 'array':
+            case 'json':
+            case 'json:unicode':
+                return $this->fromJson($value);
+            case 'collection':
+                return new BaseCollection($this->fromJson($value));
+            case 'date':
+                return $this->asDate($value);
+            case 'datetime':
+            case 'custom_datetime':
+                return $this->asDateTime($value);
+            case 'immutable_date':
+                return $this->asDate($value)->toImmutable();
+            case 'immutable_custom_datetime':
+            case 'immutable_datetime':
+                return $this->asDateTime($value)->toImmutable();
+            case 'timestamp':
+                return $this->asTimestamp($value);
+        }
+
+        if ($this->isEnumCastable($key)) {
+            return $this->getEnumCastableAttributeValue($key, $value);
+        }
+
+        if ($this->isClassCastable($key)) {
+            return $this->getClassCastableAttributeValue($key, $value);
         }
 
         return $value;
