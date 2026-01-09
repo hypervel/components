@@ -370,6 +370,24 @@ trait HasAttributes
     }
 
     /**
+     * Determine whether a value is JSON castable for inbound manipulation.
+     */
+    protected function isJsonCastable(string $key): bool
+    {
+        return $this->hasCast($key, [
+            'array',
+            'json',
+            'json:unicode',
+            'object',
+            'collection',
+            'encrypted:array',
+            'encrypted:collection',
+            'encrypted:json',
+            'encrypted:object',
+        ]);
+    }
+
+    /**
      * Return a timestamp as DateTime object with time set to 00:00:00.
      *
      * Uses the Date facade to respect any custom date class configured
