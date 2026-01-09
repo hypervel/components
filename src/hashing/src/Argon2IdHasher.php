@@ -27,6 +27,14 @@ class Argon2IdHasher extends ArgonHasher
     }
 
     /**
+     * Verify the hashed value's algorithm.
+     */
+    protected function isUsingCorrectAlgorithm(string $hashedValue): bool
+    {
+        return $this->info($hashedValue)['algoName'] === 'argon2id';
+    }
+
+    /**
      * Get the algorithm that should be used for hashing.
      */
     protected function algorithm(): int|string
