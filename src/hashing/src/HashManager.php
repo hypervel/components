@@ -77,6 +77,23 @@ class HashManager extends Manager implements Hasher
     }
 
     /**
+     * Verify that the configuration of the given hash is less than or equal
+     * to the current hasher configuration.
+     *
+     * @internal
+     */
+    public function verifyConfiguration(string $hashedValue): bool
+    {
+        $driver = $this->driver();
+
+        if (method_exists($driver, 'verifyConfiguration')) {
+            return $driver->verifyConfiguration($hashedValue);
+        }
+
+        return true;
+    }
+
+    /**
      * Get the default driver name.
      */
     public function getDefaultDriver(): string
