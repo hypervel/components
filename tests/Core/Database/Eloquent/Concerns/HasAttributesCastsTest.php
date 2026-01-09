@@ -220,6 +220,89 @@ class HasAttributesCastsTest extends TestCase
         // Should keep the existing hash unchanged (since it's already hashed with valid config)
         $this->assertSame($existingHash, $rawAttributes['password']);
     }
+
+    public function testEncryptedCastHandlesNullOnSet(): void
+    {
+        $model = new EncryptedModel();
+        $model->secret = null;
+
+        $rawAttributes = $model->getAttributes();
+
+        // Null should remain null, not be encrypted
+        $this->assertNull($rawAttributes['secret']);
+    }
+
+    public function testEncryptedCastHandlesNullOnGet(): void
+    {
+        $model = new EncryptedModel();
+        $model->setRawAttributes([
+            'secret' => null,
+        ]);
+
+        // Null should remain null, not throw decryption error
+        $this->assertNull($model->secret);
+    }
+
+    public function testHashedCastHandlesNullOnSet(): void
+    {
+        $model = new HashedModel();
+        $model->password = null;
+
+        $rawAttributes = $model->getAttributes();
+
+        // Null should remain null, not be hashed
+        $this->assertNull($rawAttributes['password']);
+    }
+
+    public function testEncryptUsingAllowsCustomEncrypter(): void
+    {
+        // Create a different encrypter with a different key
+        $customKey = str_repeat('b', 16);
+        $customEncrypter = new Encrypter($customKey);
+
+        // Set it on the model class
+        EncryptedModel::encryptUsing($customEncrypter);
+
+        $model = new EncryptedModel();
+        $model->secret = 'custom-encrypted-value';
+
+        // Verify the value was encrypted
+        $rawAttributes = $model->getAttributes();
+        $this->assertNotSame('custom-encrypted-value', $rawAttributes['secret']);
+
+        // Verify it can be decrypted with the custom encrypter
+        $decrypted = $customEncrypter->decrypt($rawAttributes['secret'], false);
+        $this->assertSame('custom-encrypted-value', $decrypted);
+
+        // Verify the model getter also decrypts correctly
+        $this->assertSame('custom-encrypted-value', $model->secret);
+    }
+
+    public function testCurrentEncrypterReturnsCustomEncrypterWhenSet(): void
+    {
+        $customEncrypter = new Encrypter(str_repeat('c', 16));
+        EncryptedModel::encryptUsing($customEncrypter);
+
+        $this->assertSame($customEncrypter, EncryptedModel::currentEncrypter());
+    }
+
+    public function testEncryptUsingCanBeResetAndNewEncrypterSet(): void
+    {
+        $firstEncrypter = new Encrypter(str_repeat('d', 16));
+        $secondEncrypter = new Encrypter(str_repeat('e', 16));
+
+        // Set first encrypter
+        EncryptedModel::encryptUsing($firstEncrypter);
+        $this->assertSame($firstEncrypter, EncryptedModel::currentEncrypter());
+
+        // Reset and set second encrypter
+        EncryptedModel::encryptUsing(null);
+        EncryptedModel::encryptUsing($secondEncrypter);
+
+        // Should now use second encrypter
+        $this->assertSame($secondEncrypter, EncryptedModel::currentEncrypter());
+        $this->assertNotSame($firstEncrypter, EncryptedModel::currentEncrypter());
+    }
 }
 
 class ImmutableDateModel extends Model
