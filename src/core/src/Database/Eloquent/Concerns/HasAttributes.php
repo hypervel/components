@@ -21,41 +21,6 @@ use RuntimeException;
 trait HasAttributes
 {
     /**
-     * The built-in, primitive cast types supported by Eloquent.
-     *
-     * @var string[]
-     */
-    protected static array $primitiveCastTypes = [
-        'array',
-        'bool',
-        'boolean',
-        'collection',
-        'custom_datetime',
-        'date',
-        'datetime',
-        'decimal',
-        'double',
-        'encrypted',
-        'encrypted:array',
-        'encrypted:collection',
-        'encrypted:json',
-        'encrypted:object',
-        'float',
-        'hashed',
-        'immutable_date',
-        'immutable_datetime',
-        'immutable_custom_datetime',
-        'int',
-        'integer',
-        'json',
-        'json:unicode',
-        'object',
-        'real',
-        'string',
-        'timestamp',
-    ];
-
-    /**
      * The cache of the casters.
      */
     protected static array $casterCache = [];
