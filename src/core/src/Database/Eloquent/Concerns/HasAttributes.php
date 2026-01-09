@@ -13,6 +13,8 @@ use Hyperf\Contract\CastsInboundAttributes;
 use Hypervel\Encryption\Contracts\Encrypter;
 use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Facades\Hash;
+use RuntimeException;
 
 trait HasAttributes
 {
@@ -104,6 +106,28 @@ trait HasAttributes
     protected function castAttributeAsEncryptedString(string $key, mixed $value): string
     {
         return static::currentEncrypter()->encrypt($value, false);
+    }
+
+    /**
+     * Cast the given attribute to a hashed string.
+     *
+     * @throws RuntimeException
+     */
+    protected function castAttributeAsHashedString(string $key, mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if (! Hash::isHashed($value)) {
+            return Hash::make($value);
+        }
+
+        if (! Hash::verifyConfiguration($value)) {
+            throw new RuntimeException("Could not verify the hashed value's configuration.");
+        }
+
+        return $value;
     }
 
     /**
