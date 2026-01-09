@@ -95,6 +95,51 @@ class ArgonHasher extends AbstractHasher implements HasherContract
     }
 
     /**
+     * Verify that the configuration of the given hash is less than or equal
+     * to the current hasher configuration.
+     *
+     * @internal
+     */
+    public function verifyConfiguration(string $hashedValue): bool
+    {
+        return $this->isUsingCorrectAlgorithm($hashedValue) && $this->isUsingValidOptions($hashedValue);
+    }
+
+    /**
+     * Verify the hashed value's algorithm.
+     */
+    protected function isUsingCorrectAlgorithm(string $hashedValue): bool
+    {
+        return $this->info($hashedValue)['algoName'] === 'argon2i';
+    }
+
+    /**
+     * Verify the hashed value's options are valid (memory, time, threads are not greater than configured).
+     */
+    protected function isUsingValidOptions(string $hashedValue): bool
+    {
+        ['options' => $options] = $this->info($hashedValue);
+
+        if (
+            ! is_int($options['memory_cost'] ?? null)
+            || ! is_int($options['time_cost'] ?? null)
+            || ! is_int($options['threads'] ?? null)
+        ) {
+            return false;
+        }
+
+        if (
+            $options['memory_cost'] > $this->memory
+            || $options['time_cost'] > $this->time
+            || $options['threads'] > $this->threads
+        ) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Set the default password memory factor.
      *
      * @return $this
