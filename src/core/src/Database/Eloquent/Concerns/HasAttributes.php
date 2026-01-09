@@ -10,6 +10,8 @@ use DateTimeInterface;
 use Hyperf\Contract\Castable;
 use Hyperf\Contract\CastsAttributes;
 use Hyperf\Contract\CastsInboundAttributes;
+use Hypervel\Encryption\Contracts\Encrypter;
+use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Facades\Date;
 
 trait HasAttributes
@@ -58,6 +60,51 @@ trait HasAttributes
      * The cache of the casts.
      */
     protected static array $castsCache = [];
+
+    /**
+     * The encrypter instance that is used to encrypt attributes.
+     */
+    protected static ?Encrypter $encrypter = null;
+
+    /**
+     * Set the encrypter instance that will be used to encrypt attributes.
+     */
+    public static function encryptUsing(?Encrypter $encrypter): void
+    {
+        static::$encrypter = $encrypter;
+    }
+
+    /**
+     * Get the current encrypter being used by the model.
+     */
+    public static function currentEncrypter(): Encrypter
+    {
+        return static::$encrypter ?? Crypt::getFacadeRoot();
+    }
+
+    /**
+     * Determine whether a value is an encrypted castable for inbound manipulation.
+     */
+    protected function isEncryptedCastable(string $key): bool
+    {
+        return $this->hasCast($key, ['encrypted', 'encrypted:array', 'encrypted:collection', 'encrypted:json', 'encrypted:object']);
+    }
+
+    /**
+     * Decrypt the given encrypted string.
+     */
+    public function fromEncryptedString(string $value): mixed
+    {
+        return static::currentEncrypter()->decrypt($value, false);
+    }
+
+    /**
+     * Cast the given attribute to an encrypted string.
+     */
+    protected function castAttributeAsEncryptedString(string $key, mixed $value): string
+    {
+        return static::currentEncrypter()->encrypt($value, false);
+    }
 
     /**
      * Resolve the custom caster class for a given key.
