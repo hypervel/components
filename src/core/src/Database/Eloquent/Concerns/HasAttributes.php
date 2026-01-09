@@ -275,6 +275,101 @@ trait HasAttributes
     }
 
     /**
+     * Set a given attribute on the model.
+     *
+     * @return $this
+     */
+    public function setAttribute(string $key, mixed $value)
+    {
+        // First we will check for the presence of a mutator for the set operation
+        // which simply lets the developers tweak the attribute as it is set on
+        // the model, such as "json_encoding" an listing of data for storage.
+        if ($this->hasSetMutator($key)) {
+            return $this->setMutatedAttributeValue($key, $value);
+        }
+
+        // If an attribute is listed as a "date", we'll convert it from a DateTime
+        // instance into a form proper for storage on the database tables using
+        // the connection grammar's date format. We will auto set the values.
+        if ($value && $this->isDateAttribute($key)) {
+            $value = $this->fromDateTime($value);
+        }
+
+        if ($this->isEnumCastable($key)) {
+            $this->setEnumCastableAttribute($key, $value);
+
+            return $this;
+        }
+
+        if ($this->isClassCastable($key)) {
+            $this->setClassCastableAttribute($key, $value);
+
+            return $this;
+        }
+
+        if ($this->isJsonCastable($key) && ! is_null($value)) {
+            $value = $this->castAttributeAsJson($key, $value);
+        }
+
+        // If this attribute contains a JSON ->, we'll set the proper value in the
+        // attribute's underlying array. This takes care of properly nesting an
+        // attribute in the array's value in the case of deeply nested items.
+        if (str_contains($key, '->')) {
+            return $this->fillJsonAttribute($key, $value);
+        }
+
+        if (! is_null($value) && $this->isEncryptedCastable($key)) {
+            $value = $this->castAttributeAsEncryptedString($key, $value);
+        }
+
+        if (! is_null($value) && $this->hasCast($key, 'hashed')) {
+            $value = $this->castAttributeAsHashedString($key, $value);
+        }
+
+        $this->attributes[$key] = $value;
+
+        return $this;
+    }
+
+    /**
+     * Cast the given attribute to JSON.
+     */
+    protected function castAttributeAsJson(string $key, mixed $value): string
+    {
+        $value = $this->asJson($value, $this->getJsonCastFlags($key));
+
+        if ($value === false) {
+            throw new \Hyperf\Database\Model\JsonEncodingException(
+                "Unable to encode attribute [{$key}] for model [" . static::class . '] to JSON: ' . json_last_error_msg()
+            );
+        }
+
+        return $value;
+    }
+
+    /**
+     * Get the JSON casting flags for the given attribute.
+     */
+    protected function getJsonCastFlags(string $key): int
+    {
+        $flags = 0;
+
+        if ($this->hasCast($key, ['json:unicode'])) {
+            $flags |= JSON_UNESCAPED_UNICODE;
+        }
+
+        return $flags;
+    }
+
+    /**
+     * Encode the given value as JSON.
+     */
+    protected function asJson(mixed $value, int $flags = 0): string|false
+    {
+        return json_encode($value, $flags);
+    }
+
+    /**
      * Return a timestamp as DateTime object with time set to 00:00:00.
      *
      * Uses the Date facade to respect any custom date class configured
