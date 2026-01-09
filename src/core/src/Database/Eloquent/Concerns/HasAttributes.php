@@ -183,43 +183,29 @@ trait HasAttributes
             $castType = Str::after($castType, 'encrypted:');
         }
 
-        switch ($castType) {
-            case 'int':
-            case 'integer':
-                return (int) $value;
-            case 'real':
-            case 'float':
-            case 'double':
-                return $this->fromFloat($value);
-            case 'decimal':
-                return $this->asDecimal($value, explode(':', $this->getCasts()[$key], 2)[1]);
-            case 'string':
-                return (string) $value;
-            case 'bool':
-            case 'boolean':
-                return (bool) $value;
-            case 'object':
-                return $this->fromJson($value, true);
-            case 'array':
-            case 'json':
-            case 'json:unicode':
-                return $this->fromJson($value);
-            case 'collection':
-                return new BaseCollection($this->fromJson($value));
-            case 'date':
-                return $this->asDate($value);
-            case 'datetime':
-            case 'custom_datetime':
-                return $this->asDateTime($value);
-            case 'immutable_date':
-                return $this->asDate($value)->toImmutable();
-            case 'immutable_custom_datetime':
-            case 'immutable_datetime':
-                return $this->asDateTime($value)->toImmutable();
-            case 'timestamp':
-                return $this->asTimestamp($value);
-        }
+        return match ($castType) {
+            'int', 'integer' => (int) $value,
+            'real', 'float', 'double' => $this->fromFloat($value),
+            'decimal' => $this->asDecimal($value, explode(':', $this->getCasts()[$key], 2)[1]),
+            'string' => (string) $value,
+            'bool', 'boolean' => (bool) $value,
+            'object' => $this->fromJson($value, true),
+            'array', 'json', 'json:unicode' => $this->fromJson($value),
+            'collection' => new BaseCollection($this->fromJson($value)),
+            'date' => $this->asDate($value),
+            'datetime', 'custom_datetime' => $this->asDateTime($value),
+            'immutable_date' => $this->asDate($value)->toImmutable(),
+            'immutable_custom_datetime', 'immutable_datetime' => $this->asDateTime($value)->toImmutable(),
+            'timestamp' => $this->asTimestamp($value),
+            default => $this->castAttributeDefault($key, $value),
+        };
+    }
 
+    /**
+     * Handle default cast attribute types (enum and class casts).
+     */
+    protected function castAttributeDefault(string $key, mixed $value): mixed
+    {
         if ($this->isEnumCastable($key)) {
             return $this->getEnumCastableAttributeValue($key, $value);
         }
