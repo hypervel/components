@@ -5,18 +5,22 @@ declare(strict_types=1);
 namespace Hypervel\Context;
 
 use Hyperf\Context\ApplicationContext as HyperfApplicationContext;
-use Psr\Container\ContainerInterface;
+use Hypervel\Container\Contracts\Container as ContainerContract;
 use TypeError;
 
 class ApplicationContext extends HyperfApplicationContext
 {
     /**
-     * @return \Psr\Container\ContainerInterface
      * @throws TypeError
      */
-    public static function getContainer(): ContainerInterface
+    public static function getContainer(): ContainerContract
     {
-        /* @phpstan-ignore-next-line */
-        return self::$container;
+        $container = parent::getContainer();
+
+        if (! $container instanceof ContainerContract) {
+            throw new TypeError('The application container must implement ' . ContainerContract::class . '.');
+        }
+
+        return $container;
     }
 }

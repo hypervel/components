@@ -170,7 +170,7 @@ class Schedule
             $job = is_string($job) ? ApplicationContext::getContainer()->get($job) : $job;
 
             if ($job instanceof ShouldQueue) {
-                $this->dispatchToQueue($job, $queue ?? $job->queue, $connection ?? $job->connection); /* @phpstan-ignore-line */
+                $this->dispatchToQueue($job, $queue, $connection);
             } else {
                 $this->dispatchNow($job);
             }
@@ -199,9 +199,15 @@ class Schedule
             return;
         }
 
-        $this->getDispatcher()->dispatch(
-            $job->onConnection($connection)->onQueue($queue)
-        );
+        if ($connection !== null) {
+            $job->onConnection($connection);
+        }
+
+        if ($queue !== null) {
+            $job->onQueue($queue);
+        }
+
+        $this->getDispatcher()->dispatch($job);
     }
 
     /**
@@ -220,9 +226,15 @@ class Schedule
             return;
         }
 
-        $this->getDispatcher()->dispatch(
-            $job->onConnection($connection)->onQueue($queue)
-        );
+        if ($connection !== null) {
+            $job->onConnection($connection);
+        }
+
+        if ($queue !== null) {
+            $job->onQueue($queue);
+        }
+
+        $this->getDispatcher()->dispatch($job);
     }
 
     /**

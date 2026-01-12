@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation;
 
+use Exception;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\Support\HtmlString;
@@ -346,7 +347,7 @@ class Vite implements Htmlable
      *
      * @param string|string[] $entrypoints
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public function __invoke(string|array $entrypoints, ?string $buildDirectory = null): HtmlString
     {
@@ -438,7 +439,7 @@ class Vite implements Htmlable
 
         $base = $preloads->join('') . $stylesheets->join('') . $scripts->join('');
 
-        if ($this->prefetchStrategy === null || $this->isRunningHot()) {
+        if ($this->prefetchStrategy === null) {
             return new HtmlString($base);
         }
 
@@ -447,7 +448,11 @@ class Vite implements Htmlable
         return (new Collection($entrypoints))
             ->flatMap(fn ($entrypoint) => (new Collection($manifest[$entrypoint]['dynamicImports'] ?? []))
                 ->map(fn ($import) => $manifest[$import])
-                ->filter(fn ($chunk) => str_ends_with($chunk['file'], '.js') || str_ends_with($chunk['file'], '.css'))
+                ->filter(function ($chunk) {
+                    $file = (string) ($chunk['file'] ?? '');
+
+                    return str_ends_with($file, '.js');
+                })
                 ->flatMap($f = function ($chunk) use (&$f, $manifest, &$discoveredImports) {
                     return (new Collection([...$chunk['imports'] ?? [], ...$chunk['dynamicImports'] ?? []]))
                         ->reject(function ($import) use (&$discoveredImports) {
@@ -461,12 +466,22 @@ class Vite implements Htmlable
                                 return true;
                             }
 
-                            return ! $discoveredImports[$import] = true;
+                            $discoveredImports[$import] = true;
+
+                            return false;
                         })
                         ->reduce(
-                            fn ($chunks, $import) => $chunks->merge(
-                                $f($manifest[$import])
-                            ),
+                            function ($chunks, $import) use ($f, $manifest) {
+                                if (! is_int($import) && ! is_string($import)) {
+                                    return $chunks;
+                                }
+
+                                if (! isset($manifest[$import])) {
+                                    return $chunks;
+                                }
+
+                                return $chunks->merge($f($manifest[$import]));
+                            },
                             new Collection([$chunk])
                         )
                         ->merge((new Collection($chunk['css'] ?? []))->map(
