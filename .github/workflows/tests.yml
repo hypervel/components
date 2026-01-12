@@ -32,8 +32,14 @@ jobs:
       - name: Install dependencies
         run: |
             COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
+            composer config repositories.facade-documenter vcs git@github.com:hypervel/facade-documenter.git
+            composer require --dev hypervel/facade-documenter:dev-main
+
+      - name: Lint facades documents
+        run: find src/support/src/Facades -type f -name '*.php' -printf '%f\n' | sort | grep -v Facade | sed -E 's/(.+)\.php/Hypervel\\\\Support\\\\Facades\\\\\1/' | xargs php -f vendor/bin/facade.php -- --lint
+
+      - name: Lint coding style
+        run: PHP_CS_FIXER_IGNORE_ENV=1 vendor/bin/php-cs-fixer fix --dry-run --diff
 
       - name: Execute tests
-        run: |
-            PHP_CS_FIXER_IGNORE_ENV=1 vendor/bin/php-cs-fixer fix --dry-run --diff
-            vendor/bin/phpunit -c phpunit.xml.dist
+        run: vendor/bin/phpunit -c phpunit.xml.dist
