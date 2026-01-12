@@ -24,6 +24,7 @@ use Hypervel\Bus\Contracts\Dispatcher;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Cache\Contracts\Factory as Cache;
 use Hypervel\Foundation\Http\Kernel;
+use Hypervel\Foundation\Http\Middleware\VerifyCsrfToken;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Queue\Contracts\Factory as Queue;
 use InvalidArgumentException;
@@ -33,7 +34,7 @@ use Psr\Log\LoggerInterface;
 use Pusher\Pusher;
 
 /**
- * @mixin \Hypervel\Broadcasting\Contracts\Broadcaster
+ * @mixin \Hypervel\Broadcasting\Broadcasters\Broadcaster
  */
 class BroadcastManager implements BroadcastingFactoryContract
 {
@@ -73,7 +74,10 @@ class BroadcastManager implements BroadcastingFactoryContract
     public function routes(array $attributes = []): void
     {
         if ($this->app->has(Kernel::class)) {
-            $attributes = $attributes ?: ['middleware' => ['web']];
+            $attributes = $attributes ?: [
+                'middleware' => ['web'],
+                'without_middleware' => [VerifyCsrfToken::class],
+            ];
         }
 
         $kernels = $this->app->get(ConfigInterface::class)
@@ -95,7 +99,10 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function userRoutes(?array $attributes = null): void
     {
-        $attributes = $attributes ?: ['middleware' => ['web']];
+        $attributes = $attributes ?: [
+            'middleware' => ['web'],
+            'without_middleware' => [VerifyCsrfToken::class],
+        ];
 
         $this->app->get(RouterDispatcherFactory::class)->getRouter()
             ->addRoute(
@@ -200,11 +207,7 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     protected function mustBeUniqueAndCannotAcquireLock(UniqueBroadcastEvent $event): bool
     {
-        return ! (new UniqueLock(
-            method_exists($event, 'uniqueVia')
-                ? $event->uniqueVia()
-                : $this->app->get(Cache::class)
-        ))->acquire($event);
+        return ! (new UniqueLock($event->uniqueVia()))->acquire($event);
     }
 
     /**
@@ -380,7 +383,7 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     protected function getConfig(string $name): ?array
     {
-        if (! is_null($name) && $name !== 'null') {
+        if ($name !== 'null') {
             return $this->app->get(ConfigInterface::class)->get("broadcasting.connections.{$name}");
         }
 

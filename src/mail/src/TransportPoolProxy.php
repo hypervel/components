@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Mail;
 
 use Hypervel\ObjectPool\PoolProxy;
+use Stringable;
 use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\Exception\TransportExceptionInterface;
 use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 use Symfony\Component\Mime\RawMessage;
 
-class TransportPoolProxy extends PoolProxy implements TransportInterface
+class TransportPoolProxy extends PoolProxy implements Stringable, TransportInterface
 {
     /**
      * @throws TransportExceptionInterface

@@ -4497,7 +4497,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, [
-            'x' => new class {
+            'x' => new class implements \Stringable {
                 public function __toString()
                 {
                     return 'aslsdlks';
@@ -4507,7 +4507,7 @@ class ValidationValidatorTest extends TestCase
         $this->assertFalse($v->passes());
 
         $v = new Validator($trans, [
-            'x' => new class {
+            'x' => new class implements \Stringable {
                 public function __toString()
                 {
                     return 'foo@gmail.com';
@@ -5949,7 +5949,7 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['foo' => 'Europe/Kyiv'], ['foo' => 'Timezone:All_with_BC']);
         $this->assertTrue($v->passes());
 
-        $v = new Validator($trans, ['foo' => 'Europe/Kiev'], ['foo' => 'Timezone:All_with_BC']);
+        $v = new Validator($trans, ['foo' => 'America/Montreal'], ['foo' => 'Timezone:All_with_BC']);
         $this->assertTrue($v->passes());
 
         $v = new Validator($trans, ['foo' => 'indian/christmas'], ['foo' => 'Timezone:All_with_BC']);
@@ -5958,7 +5958,7 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, ['foo' => 'GMT'], ['foo' => 'Timezone:All_with_BC']);
         $this->assertTrue($v->passes());
 
-        $v = new Validator($trans, ['foo' => 'GB'], ['foo' => 'Timezone:All_with_BC']);
+        $v = new Validator($trans, ['foo' => 'Africa/Timbuktu'], ['foo' => 'Timezone:All_with_BC']);
         $this->assertTrue($v->passes());
 
         $v = new Validator($trans, ['foo' => ['this_is_not_a_timezone']], ['foo' => 'Timezone:All_with_BC']);

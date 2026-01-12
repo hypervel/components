@@ -6,6 +6,7 @@ namespace Hypervel\Config;
 
 use Hyperf\Collection\Arr;
 use Hyperf\Config\ProviderConfig as HyperfProviderConfig;
+use Hyperf\Di\Definition\PriorityDefinition;
 use Hyperf\Support\Composer;
 use Hypervel\Support\ServiceProvider;
 use Throwable;
@@ -35,9 +36,9 @@ class ProviderConfig extends HyperfProviderConfig
 
         $providers = array_map(
             fn (array $package) => array_merge(
-                Arr::wrap(($package['hyperf']['config'] ?? []) ?? []),
-                Arr::wrap(($package['hypervel']['config'] ?? []) ?? []),
-                Arr::wrap(($package['hypervel']['providers'] ?? []) ?? []),
+                Arr::wrap($package['hyperf']['config'] ?? []),
+                Arr::wrap($package['hypervel']['config'] ?? []),
+                Arr::wrap($package['hypervel']['providers'] ?? []),
             ),
             Composer::getMergedExtra()
         );
@@ -84,5 +85,85 @@ class ProviderConfig extends HyperfProviderConfig
         }
 
         return array_merge($packages, $project);
+    }
+
+    /**
+     * Merge provider config arrays.
+     *
+     * Correctly handles:
+     * - Pure lists (numeric keys): appends values with deduplication
+     * - Associative arrays (string keys): recursively merges, later wins for scalars
+     * - Mixed arrays (e.g. listeners with priorities): appends numeric, merges string keys
+     *
+     * @return array<string, mixed>
+     */
+    protected static function merge(...$arrays): array
+    {
+        if (empty($arrays)) {
+            return [];
+        }
+
+        $result = array_reduce(
+            array_slice($arrays, 1),
+            [static::class, 'mergeTwo'],
+            $arrays[0]
+        );
+
+        // Special handling for dependencies with PriorityDefinition
+        if (isset($result['dependencies'])) {
+            $result['dependencies'] = [];
+            foreach ($arrays as $item) {
+                foreach ($item['dependencies'] ?? [] as $key => $value) {
+                    $depend = $result['dependencies'][$key] ?? null;
+                    if (! $depend instanceof PriorityDefinition) {
+                        $result['dependencies'][$key] = $value;
+                        continue;
+                    }
+
+                    if ($value instanceof PriorityDefinition) {
+                        $depend->merge($value);
+                    }
+                }
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * Merge two config arrays.
+     *
+     * Correctly handles:
+     * - Pure lists (numeric keys): appends values with deduplication
+     * - Associative arrays (string keys): recursively merges, later wins for scalars
+     * - Mixed arrays (e.g. listeners with priorities): appends numeric, merges string keys
+     *
+     * This method is public so ConfigFactory can use the same merge semantics.
+     *
+     * @return array<string, mixed>
+     */
+    public static function mergeTwo(array $base, array $override): array
+    {
+        $result = $base;
+
+        foreach ($override as $key => $value) {
+            if (is_int($key)) {
+                // Numeric key - append if not already present (deduplicate)
+                if (! in_array($value, $result, true)) {
+                    $result[] = $value;
+                }
+            } elseif (! array_key_exists($key, $result)) {
+                // New string key - just add it
+                $result[$key] = $value;
+            } elseif (is_array($value) && is_array($result[$key])) {
+                // Both are arrays - recursively merge
+                $result[$key] = self::mergeTwo($result[$key], $value);
+            } else {
+                // Scalar or mixed types - override wins
+                $result[$key] = $value;
+            }
+        }
+
+        return $result;
     }
 }

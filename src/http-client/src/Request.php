@@ -198,6 +198,33 @@ class Request implements ArrayAccess
         return $this;
     }
 
+    public function query(): array
+    {
+        parse_str($this->request->getUri()->getQuery(), $query);
+
+        return $query;
+    }
+
+    public function withQuery(array $query = []): Request
+    {
+        $this->request = $this->request->withUri(
+            $this->request->getUri()->withQuery(http_build_query(array_merge($this->query(), $query)))
+        );
+
+        return $this;
+    }
+
+    public function withoutQuery(array $keys = []): Request
+    {
+        $query = $this->query();
+        foreach ($keys as $key) {
+            unset($query[$key]);
+        }
+        $this->request = $this->request->withUri($this->request->getUri()->withQuery(http_build_query($query)));
+
+        return $this;
+    }
+
     /**
      * Get the underlying PSR compliant request instance.
      */

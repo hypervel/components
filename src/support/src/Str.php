@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
+use BackedEnum;
 use Hyperf\Stringable\Str as BaseStr;
 use Ramsey\Uuid\Exception\InvalidUuidStringException;
 use Ramsey\Uuid\Rfc4122\FieldsInterface;
 use Ramsey\Uuid\UuidFactory;
+use Stringable;
 
 class Str extends BaseStr
 {
@@ -17,6 +19,36 @@ class Str extends BaseStr
      * @var null|(callable(int): string)
      */
     protected static $randomStringFactory;
+
+    /**
+     * Get a string from a BackedEnum, Stringable, or scalar value.
+     *
+     * Useful for APIs that accept mixed identifier types, such as
+     * cache tags, session keys, or Sanctum token abilities.
+     */
+    public static function from(string|int|BackedEnum|Stringable $value): string
+    {
+        if ($value instanceof BackedEnum) {
+            return (string) $value->value;
+        }
+
+        if ($value instanceof Stringable) {
+            return (string) $value;
+        }
+
+        return (string) $value;
+    }
+
+    /**
+     * Get strings from an array of BackedEnums, Stringable objects, or scalar values.
+     *
+     * @param array<BackedEnum|int|string|Stringable> $values
+     * @return array<string>
+     */
+    public static function fromAll(array $values): array
+    {
+        return array_map(self::from(...), $values);
+    }
 
     /**
      * Determine if a given string matches a given pattern.
@@ -66,7 +98,7 @@ class Str extends BaseStr
      * Determine if a given value is a valid UUID.
      *
      * @param mixed $value
-     * @param null|'max'|int<0, 8> $version
+     * @param null|'max'|'nil'|int<0, 8> $version
      */
     public static function isUuid($value, $version = null): bool
     {

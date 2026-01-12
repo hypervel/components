@@ -143,7 +143,7 @@ class Mailable implements MailableContract, Renderable
     /**
      * The name of the mailer that should send the message.
      */
-    public string $mailer = '';
+    public ?string $mailer = null;
 
     /**
      * The rendered mailable views for testing / assertions.
@@ -153,7 +153,7 @@ class Mailable implements MailableContract, Renderable
     /**
      * The callback that should be invoked while building the view data.
      *
-     * @var callable
+     * @var ?callable
      */
     public static $viewDataCallback;
 
@@ -665,6 +665,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Determine if the given recipient is set on the mailable.
+     *
+     * @param 'bcc'|'cc'|'from'|'replyTo'|'to' $property
      */
     protected function hasRecipient(array|object|string $address, ?string $name = null, string $property = 'to'): bool
     {
@@ -696,6 +698,8 @@ class Mailable implements MailableContract, Renderable
 
     /**
      * Determine if the mailable "envelope" method defines a recipient.
+     *
+     * @param 'bcc'|'cc'|'from'|'replyTo'|'to' $property
      */
     private function hasEnvelopeRecipient(string $address, ?string $name, string $property): bool
     {
@@ -1470,7 +1474,7 @@ class Mailable implements MailableContract, Renderable
     /**
      * Set the name of the mailer that should send the message.
      */
-    public function mailer(string $mailer): static
+    public function mailer(?string $mailer): static
     {
         $this->mailer = $mailer;
 

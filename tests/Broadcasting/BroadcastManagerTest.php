@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Broadcasting;
 
 use Hyperf\Contract\ConfigInterface;
+use Hyperf\HttpServer\Router\DispatcherFactory as RouterDispatcherFactory;
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\BroadcastManager;
 use Hypervel\Broadcasting\Channel;
@@ -19,6 +20,8 @@ use Hypervel\Cache\Contracts\Factory as Cache;
 use Hypervel\Container\DefinitionSource;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Foundation\Application;
+use Hypervel\Foundation\Http\Kernel;
+use Hypervel\Foundation\Http\Middleware\VerifyCsrfToken;
 use Hypervel\Queue\Contracts\Factory as QueueFactoryContract;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Bus;
@@ -116,6 +119,66 @@ class BroadcastManagerTest extends TestCase
         $broadcastManager = new BroadcastManager($app);
 
         $broadcastManager->connection('alien_connection');
+    }
+
+    public function testRoutesExcludesCsrfMiddleware(): void
+    {
+        $capturedAttributes = null;
+
+        $router = m::mock('router');
+        $router->shouldReceive('addRoute')
+            ->once()
+            ->withArgs(function ($methods, $path, $handler, $attributes) use (&$capturedAttributes) {
+                $capturedAttributes = $attributes;
+                return true;
+            });
+
+        $routerFactory = m::mock('routerFactory');
+        $routerFactory->shouldReceive('getRouter')
+            ->with('http')
+            ->andReturn($router);
+
+        $config = m::mock(ConfigInterface::class);
+        $config->shouldReceive('get')
+            ->with('server.kernels', [])
+            ->andReturn(['http' => []]);
+
+        $app = m::mock(ContainerInterface::class);
+        $app->shouldReceive('has')->with(Kernel::class)->andReturn(true);
+        $app->shouldReceive('get')->with(ConfigInterface::class)->andReturn($config);
+        $app->shouldReceive('get')->with(RouterDispatcherFactory::class)->andReturn($routerFactory);
+
+        $broadcastManager = new BroadcastManager($app);
+        $broadcastManager->routes();
+
+        $this->assertSame(['web'], $capturedAttributes['middleware']);
+        $this->assertSame([VerifyCsrfToken::class], $capturedAttributes['without_middleware']);
+    }
+
+    public function testUserRoutesExcludesCsrfMiddleware(): void
+    {
+        $capturedAttributes = null;
+
+        $router = m::mock('router');
+        $router->shouldReceive('addRoute')
+            ->once()
+            ->withArgs(function ($methods, $path, $handler, $attributes) use (&$capturedAttributes) {
+                $capturedAttributes = $attributes;
+                return true;
+            });
+
+        $routerFactory = m::mock('routerFactory');
+        $routerFactory->shouldReceive('getRouter')
+            ->andReturn($router);
+
+        $app = m::mock(ContainerInterface::class);
+        $app->shouldReceive('get')->with(RouterDispatcherFactory::class)->andReturn($routerFactory);
+
+        $broadcastManager = new BroadcastManager($app);
+        $broadcastManager->userRoutes();
+
+        $this->assertSame(['web'], $capturedAttributes['middleware']);
+        $this->assertSame([VerifyCsrfToken::class], $capturedAttributes['without_middleware']);
     }
 }
 

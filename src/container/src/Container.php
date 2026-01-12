@@ -106,7 +106,7 @@ class Container extends HyperfContainer implements ContainerContract, ArrayAcces
      * @throws \Hyperf\Di\Exception\NotFoundException no entry found for the given name
      * @throws InvalidArgumentException the name parameter must be of type string
      */
-    public function make(string $name, array $parameters = [])
+    public function make(string $name, array $parameters = []): mixed
     {
         if ($this->isAlias($name)) {
             $name = $this->getAlias($name);
@@ -136,7 +136,7 @@ class Container extends HyperfContainer implements ContainerContract, ArrayAcces
      *
      * @param string $id identifier of the entry to look for
      */
-    public function get($id)
+    public function get($id): mixed
     {
         if ($this->isAlias($id)) {
             $id = $this->getAlias($id);
@@ -582,6 +582,7 @@ class Container extends HyperfContainer implements ContainerContract, ArrayAcces
      *
      * @param string $abstract
      * @param object $object
+     * @param array<class-string, array> $callbacksPerType
      */
     protected function getCallbacksForType($abstract, $object, array $callbacksPerType): array
     {
@@ -681,14 +682,13 @@ class Container extends HyperfContainer implements ContainerContract, ArrayAcces
      */
     public static function getInstance(): ContainerContract
     {
-        if (is_null(ApplicationContext::getContainer())) {
+        if (! ApplicationContext::hasContainer()) {
             ApplicationContext::setContainer(
                 new static(new DefinitionSource([]))
             );
         }
 
-        /* @phpstan-ignore-next-line */
-        return ApplicationContext::getContainer();
+        return ApplicationContext::getContainer(); // @phpstan-ignore return.type (we just set it with static() above)
     }
 
     /**
@@ -696,8 +696,7 @@ class Container extends HyperfContainer implements ContainerContract, ArrayAcces
      */
     public static function setInstance(ContainerContract $container): ContainerContract
     {
-        /* @phpstan-ignore-next-line */
-        return ApplicationContext::setContainer($container);
+        return ApplicationContext::setContainer($container); // @phpstan-ignore return.type
     }
 
     public function offsetExists(mixed $offset): bool

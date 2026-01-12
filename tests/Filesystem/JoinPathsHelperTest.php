@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Filesystem;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\TestCase;
+use Stringable;
 
 use function Hypervel\Filesystem\join_paths;
 
@@ -32,13 +33,13 @@ class JoinPathsHelperTest extends TestCase
         yield ['Empty/0/1/Segments/00/Get_removed.php', join_paths('Empty', '', '0', null, 0, false, [], '1', 'Segments', '00', 'Get_removed.php')];
         yield ['', join_paths(null, null, '')];
         yield ['1/2/3', join_paths(1, 0, 2, 3)];
-        yield ['app/objecty', join_paths('app', new class {
+        yield ['app/objecty', join_paths('app', new class implements Stringable {
             public function __toString()
             {
                 return 'objecty';
             }
         })];
-        yield ['app/0', join_paths('app', new class {
+        yield ['app/0', join_paths('app', new class implements Stringable {
             public function __toString()
             {
                 return '0';
@@ -62,13 +63,13 @@ class JoinPathsHelperTest extends TestCase
         yield ['Empty\0\1\Segments\00\Get_removed.php', join_paths('Empty', '', '0', null, 0, false, [], '1', 'Segments', '00', 'Get_removed.php')];
         yield ['', join_paths(null, null, '')];
         yield ['1\2\3', join_paths(1, 2, 3)];
-        yield ['app\objecty', join_paths('app', new class {
+        yield ['app\objecty', join_paths('app', new class implements Stringable {
             public function __toString()
             {
                 return 'objecty';
             }
         })];
-        yield ['app\0', join_paths('app', new class {
+        yield ['app\0', join_paths('app', new class implements Stringable {
             public function __toString()
             {
                 return '0';
