@@ -346,7 +346,7 @@ abstract class Component
     protected function factory(): Factory
     {
         if (is_null(static::$factory)) {
-            static::$factory = Container::getInstance()->make('view');
+            static::$factory = Container::getInstance()->make(Factory::class);
         }
 
         return static::$factory;

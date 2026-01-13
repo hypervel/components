@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Mail;
 
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\ViewEngine\Contract\FactoryInterface;
+use Hypervel\View\Contracts\Factory as FactoryContract;
 
 class MarkdownFactory
 {
     public function __construct(
-        protected FactoryInterface $factory,
+        protected FactoryContract $factory,
         protected ConfigInterface $config,
     ) {
     }

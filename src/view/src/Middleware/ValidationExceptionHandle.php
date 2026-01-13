@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\View\Middleware;
 
-use Hyperf\Contract\MessageBag as MessageBagContract;
-use Hyperf\Contract\MessageProvider;
-use Hyperf\Support\MessageBag;
-use Hyperf\ViewEngine\Contract\FactoryInterface;
-use Hyperf\ViewEngine\ViewErrorBag;
 use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Support\Contracts\MessageBag as MessageBagContract;
+use Hypervel\Support\Contracts\MessageProvider;
+use Hypervel\Support\MessageBag;
+use Hypervel\Support\ViewErrorBag;
 use Hypervel\Validation\ValidationException;
+use Hypervel\View\Contracts\Factory as FactoryContract;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -23,7 +23,7 @@ class ValidationExceptionHandle implements MiddlewareInterface
     public function __construct(
         protected ContainerInterface $container,
         protected SessionContract $session,
-        protected FactoryInterface $view,
+        protected FactoryContract $view,
         protected ResponseInterface $response
     ) {
     }

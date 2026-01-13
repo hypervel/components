@@ -9,12 +9,12 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
-use Hyperf\ViewEngine\Contract\FactoryInterface as ViewInterface;
 use Hypervel\Mail\Attachment;
 use Hypervel\Mail\Contracts\Factory as FactoryContract;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Message;
 use Hypervel\Mail\Transport\LogTransport;
+use Hypervel\View\Contracts\Factory as ViewFactory;
 use Mockery;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -149,7 +149,7 @@ class MailLogTransportTest extends TestCase
             new DefinitionSource([
                 ConfigInterface::class => fn () => new Config($config),
                 FactoryContract::class => MailManager::class,
-                ViewInterface::class => fn () => Mockery::mock(ViewInterface::class),
+                ViewFactory::class => fn () => Mockery::mock(ViewFactory::class),
                 EventDispatcherInterface::class => fn () => Mockery::mock(EventDispatcherInterface::class),
                 LoggerInterface::class => fn () => Mockery::mock(LoggerInterface::class),
             ])

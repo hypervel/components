@@ -7,8 +7,6 @@ namespace Hypervel\Tests\Mail;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
-use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
-use Hyperf\ViewEngine\Contract\ViewInterface;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Mail\Events\MessageSending;
 use Hypervel\Mail\Events\MessageSent;
@@ -17,6 +15,8 @@ use Hypervel\Mail\Mailer;
 use Hypervel\Mail\Message;
 use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Support\HtmlString;
+use Hypervel\View\Contracts\Factory as ViewFactory;
+use Hypervel\View\Contracts\View as ViewContract;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -142,7 +142,7 @@ class MailMailerTest extends TestCase
 
     public function testMailerSendSendsMessageWithProperPlainViewContent()
     {
-        $viewInterface = m::mock(ViewInterface::class);
+        $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')
             ->once()
             ->andReturn('rendered.view');
@@ -180,7 +180,7 @@ class MailMailerTest extends TestCase
 
     public function testMailerSendSendsMessageWithProperPlainViewContentWhenExplicit()
     {
-        $viewInterface = m::mock(ViewInterface::class);
+        $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')
             ->once()
             ->andReturn('rendered.view');
@@ -345,7 +345,7 @@ class MailMailerTest extends TestCase
 
     protected function mockView()
     {
-        $viewInterface = m::mock(ViewInterface::class);
+        $viewInterface = m::mock(ViewContract::class);
         $viewInterface->shouldReceive('render')
             ->andReturn('rendered.view');
 

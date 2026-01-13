@@ -8,7 +8,6 @@ use FastRoute\Dispatcher;
 use Hyperf\Codec\Json;
 use Hyperf\Context\RequestContext;
 use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\Jsonable;
 use Hyperf\HttpMessage\Server\ResponsePlusProxy;
 use Hyperf\HttpMessage\Stream\SwooleStream;
@@ -16,17 +15,14 @@ use Hyperf\HttpServer\Contract\CoreMiddlewareInterface;
 use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\HttpServer\Router\DispatcherFactory;
 use Hyperf\Server\Exception\ServerException;
-use Hyperf\View\RenderInterface;
-use Hyperf\ViewEngine\Contract\Htmlable;
-use Hyperf\ViewEngine\Contract\Renderable;
-use Hyperf\ViewEngine\Contract\ViewInterface;
 use Hypervel\Context\ResponseContext;
 use Hypervel\HttpMessage\Exceptions\MethodNotAllowedHttpException;
 use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
 use Hypervel\HttpMessage\Exceptions\ServerErrorHttpException;
-use Hypervel\View\Events\ViewRendered;
+use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Support\Contracts\Renderable;
+use Hypervel\View\Contracts\View as ViewContract;
 use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -49,20 +45,13 @@ class CoreMiddleware implements CoreMiddlewareInterface
     /**
      * Transfer the non-standard response content to a standard response object.
      *
-     * @param null|array|Arrayable|Jsonable|Renderable|ResponseInterface|string|ViewInterface $response
+     * @param null|array|Arrayable|Jsonable|Renderable|ResponseInterface|string|ViewContract $response
      */
     protected function transferToResponse($response, ServerRequestInterface $request): ResponsePlusInterface
     {
         if ($response instanceof Renderable) {
-            if ($response instanceof ViewInterface) {
-                if ($this->container->get(ConfigInterface::class)->get('view.event.enable', false)) {
-                    $this->container->get(EventDispatcherInterface::class)
-                        ->dispatch(new ViewRendered($response));
-                }
-            }
-
             return $this->response()
-                ->setHeader('Content-Type', $this->container->get(RenderInterface::class)->getContentType())
+                ->addHeader('content-type', 'text/html')
                 ->setBody(new SwooleStream($response->render()));
         }
 

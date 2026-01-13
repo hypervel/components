@@ -8,11 +8,11 @@ use Closure;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\TranslatorLoaderInterface;
 use Hyperf\Database\Migrations\Migrator;
-use Hyperf\ViewEngine\Compiler\BladeCompiler;
-use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactoryContract;
 use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Router\RouteFileCollector;
 use Hypervel\Support\Facades\Artisan;
+use Hypervel\View\Compilers\CompilerInterface;
+use Hypervel\View\Contracts\Factory as ViewFactoryContract;
 
 abstract class ServiceProvider
 {
@@ -118,13 +118,6 @@ abstract class ServiceProvider
     protected function loadViewsFrom(array|string $path, string $namespace): void
     {
         $this->callAfterResolving(ViewFactoryContract::class, function ($view) use ($path, $namespace) {
-            $viewPath = $this->app->get(ConfigInterface::class)
-                ->get('view.config.view_path', null);
-
-            if (is_dir($appPath = $viewPath . '/vendor/' . $namespace)) {
-                $view->addNamespace($namespace, $appPath);
-            }
-
             $view->addNamespace($namespace, $path);
         });
     }
@@ -134,7 +127,7 @@ abstract class ServiceProvider
      */
     protected function loadViewComponentsAs(string $prefix, array $components): void
     {
-        $this->callAfterResolving(BladeCompiler::class, function ($blade) use ($prefix, $components) {
+        $this->callAfterResolving(CompilerInterface::class, function ($blade) use ($prefix, $components) {
             foreach ($components as $alias => $component) {
                 $blade->component($component, is_string($alias) ? $alias : null, $prefix);
             }

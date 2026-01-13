@@ -4,13 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\View;
 
-use Hyperf\View\Mode;
-use Hyperf\ViewEngine\Contract\FactoryInterface as HyperfFactoryInterface;
-use Hyperf\ViewEngine\HyperfViewEngine;
 use Hypervel\Container\Container;
 use Hypervel\Event\Contracts\Dispatcher;
-use Hypervel\Foundation\Application;
-use Hypervel\Support\Arr;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\View\Compilers\BladeCompiler;
 use Hypervel\View\Compilers\CompilerInterface;
@@ -31,7 +26,6 @@ class ViewServiceProvider extends ServiceProvider
         $this->registerViewFinder();
         $this->registerBladeCompiler();
         $this->registerEngineResolver();
-        $this->compatibleWithHyperfView();
     }
 
     /**
@@ -147,41 +141,6 @@ class ViewServiceProvider extends ServiceProvider
                 $app->get(CompilerInterface::class),
                 $app->get('files'),
             );
-        });
-    }
-
-    /**
-     * Make compatible with Hyperf View component.
-     */
-    protected function compatibleWithHyperfView(): void
-    {
-        if (! class_exists(HyperfFactoryInterface::class)) {
-            return;
-        }
-
-        $this->app->beforeResolving(HyperfFactoryInterface::class, function (string $abstract, array $params, Application $app) {
-            $config = $app->get('config');
-            $viewConfig = $config->get('view', []);
-
-            $customHyperfViewConfig = Arr::only($viewConfig, [
-                'engine',
-                'mode',
-                'config',
-                'event',
-                'components',
-            ]);
-            $hyperfViewConfig = $customHyperfViewConfig + [
-                'engine' => HyperfViewEngine::class,
-                'mode' => Mode::SYNC,
-                'config' => [
-                    'view_path' => base_path('resources/views'),
-                    'cache_path' => storage_path('framework/views'),
-                ],
-                'event' => ['enable' => false],
-                'components' => [],
-            ];
-
-            $config->set('view', array_merge($hyperfViewConfig, $viewConfig));
         });
     }
 }

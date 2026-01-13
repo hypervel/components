@@ -15,11 +15,11 @@ use Hyperf\HttpMessage\Server\Chunk\Chunkable;
 use Hyperf\HttpMessage\Stream\SwooleStream;
 use Hyperf\HttpServer\Response as HyperfResponse;
 use Hyperf\Support\Filesystem\Filesystem;
-use Hyperf\View\RenderInterface;
 use Hypervel\Http\Contracts\ResponseContract;
 use Hypervel\Http\Exceptions\FileNotFoundException;
 use Hypervel\Support\Collection;
 use Hypervel\Support\MimeTypeExtensionGuesser;
+use Hypervel\View\Contracts\Factory as FactoryContract;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
 
@@ -201,15 +201,14 @@ class Response extends HyperfResponse implements ResponseContract
      */
     public function view(string $view, array $data = [], int $status = 200, array $headers = []): ResponseInterface
     {
-        $response = ApplicationContext::getContainer()
-            ->get(RenderInterface::class)
-            ->render($view, $data);
+        $content = ApplicationContext::getContainer()
+            ->get(FactoryContract::class)
+            ->make($view, $data)
+            ->render();
 
-        foreach ($headers as $name => $value) {
-            $response = $response->withAddedHeader($name, $value);
-        }
+        $headers['Content-Type'] = 'text/html';
 
-        return $response->withStatus($status);
+        return $this->make($content, $status, $headers);
     }
 
     /**

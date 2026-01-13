@@ -10,10 +10,10 @@ use Hyperf\Collection\Arr;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\MessageBag;
 use Hyperf\Testing\Http\TestResponse as HyperfTestResponse;
-use Hyperf\ViewEngine\ViewErrorBag;
 use Hypervel\Cookie\Cookie;
 use Hypervel\Foundation\Testing\TestResponseAssert as PHPUnit;
 use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Support\ViewErrorBag;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
 

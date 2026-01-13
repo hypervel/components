@@ -9,7 +9,6 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
-use Hyperf\ViewEngine\Factory;
 use Hypervel\Bus\Queueable;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\FilesystemManager;
@@ -19,6 +18,7 @@ use Hypervel\Mail\Mailer;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Queue\Contracts\ShouldQueue;
 use Hypervel\Support\Testing\Fakes\QueueFake;
+use Hypervel\View\Contracts\Factory as ViewFactory;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Mailer\Transport\TransportInterface;
@@ -98,7 +98,7 @@ class MailableQueuedTest extends TestCase
 
     protected function getMocks()
     {
-        return ['smtp', m::mock(Factory::class), m::mock(TransportInterface::class)];
+        return ['smtp', m::mock(ViewFactory::class), m::mock(TransportInterface::class)];
     }
 
     protected function getContainer(array $config = []): Container

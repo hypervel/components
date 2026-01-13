@@ -9,12 +9,12 @@ use Hyperf\Context\Context;
 use Hyperf\Contract\Arrayable;
 use Hyperf\Contract\Jsonable;
 use Hyperf\HttpMessage\Stream\SwooleStream;
-use Hyperf\HttpServer\Response as HyperfResponse;
 use Hyperf\Support\Filesystem\Filesystem;
-use Hyperf\View\RenderInterface;
 use Hypervel\Http\Exceptions\FileNotFoundException;
 use Hypervel\Http\Response;
 use Hypervel\HttpMessage\Exceptions\RangeNotSatisfiableHttpException;
+use Hypervel\View\Contracts\Factory as FactoryContract;
+use Hypervel\View\Contracts\View as ViewContract;
 use Mockery;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -111,12 +111,12 @@ class ResponseTest extends TestCase
         $container = Mockery::mock(ContainerInterface::class);
         ApplicationContext::setContainer($container);
 
-        $renderer = Mockery::mock(RenderInterface::class);
-        $renderer->shouldReceive('render')->with('test-view', ['data' => 'value'])->andReturn(
-            (new HyperfResponse())->withAddedHeader('content-type', 'text/html')->withBody(new SwooleStream('<h1>Test</h1>'))
-        );
+        $view = Mockery::mock(ViewContract::class);
+        $view->shouldReceive('render')->once()->andReturn('<h1>Test</h1>');
+        $viewFactory = Mockery::mock(FactoryContract::class);
+        $viewFactory->shouldReceive('make')->once()->with('test-view', ['data' => 'value'])->andReturn($view);
 
-        $container->shouldReceive('get')->with(RenderInterface::class)->andReturn($renderer);
+        $container->shouldReceive('get')->with(FactoryContract::class)->andReturn($viewFactory);
 
         $response = new Response();
         $result = $response->view('test-view', ['data' => 'value'], 200, ['X-View' => 'Rendered']);

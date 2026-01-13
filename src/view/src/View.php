@@ -97,6 +97,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      */
     protected function allFragments(): string
     {
+        /** @phpstan-ignore-next-line */
         return (new Collection($this->render(fn () => $this->factory->getFragments())))->implode('');
     }
 

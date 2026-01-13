@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\View\Concerns;
 
 use Closure;
+use Hyperf\Contract\ConfigInterface;
 use Hypervel\Support\Str;
 use Hypervel\View\Contracts\View as ViewContract;
 
@@ -64,9 +65,8 @@ trait ManagesEvents
 
             return $callback;
         }
-        if (is_string($callback)) {
-            return $this->addClassEvent($view, $callback, $prefix);
-        }
+
+        return $this->addClassEvent($view, $callback, $prefix);
     }
 
     /**
@@ -139,7 +139,9 @@ trait ManagesEvents
      */
     public function callComposer(ViewContract $view): void
     {
-        if ($this->events->hasListeners($event = 'composing: ' . $view->name())) {
+        if ($this->getContainer()->get(ConfigInterface::class)->get('view.event.enable', false)
+            && $this->events->hasListeners($event = 'composing: ' . $view->name())
+        ) {
             $this->events->dispatch($event, [$view]);
         }
     }
@@ -149,7 +151,9 @@ trait ManagesEvents
      */
     public function callCreator(ViewContract $view): void
     {
-        if ($this->events->hasListeners($event = 'creating: ' . $view->name())) {
+        if ($this->getContainer()->get(ConfigInterface::class)->get('view.event.enable', false)
+            && $this->events->hasListeners($event = 'creating: ' . $view->name())
+        ) {
             $this->events->dispatch($event, [$view]);
         }
     }

@@ -53,6 +53,8 @@ abstract class Compiler
         try {
             return $this->files->lastModified($path) >= $this->files->lastModified($compiled);
         } catch (ErrorException $exception) {
+            // The compiled file might have been deleted between the initial check and lastModified() call
+            // @phpstan-ignore booleanNot.alwaysFalse
             if (! $this->files->exists($compiled)) {
                 return true;
             }
