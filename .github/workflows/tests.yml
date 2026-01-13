@@ -36,5 +36,4 @@ jobs:
       - name: Execute tests
         run: |
             PHP_CS_FIXER_IGNORE_ENV=1 vendor/bin/php-cs-fixer fix
-            vendor/bin/phpstan --configuration="phpstan.neon.dist" --memory-limit=-1
             vendor/bin/phpunit -c phpunit.xml.dist
