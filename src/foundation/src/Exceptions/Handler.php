@@ -461,7 +461,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
 
         if ($callbacks = $this->afterResponseCallbacks()) {
             foreach ($callbacks as $callback) {
-                $response = $callback($response, $e, $request);
+                $response = $callback($response, $e, $request) ?: $response;
             }
         }
 
