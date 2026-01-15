@@ -51,7 +51,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      */
     public function fragment(string $fragment): HtmlString
     {
-        $content = $this->render(function () use ($fragment) {
+        $content = $this->doRender(function () use ($fragment) {
             return $this->factory->getFragment($fragment);
         });
 
@@ -97,8 +97,7 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      */
     protected function allFragments(): string
     {
-        /** @phpstan-ignore-next-line */
-        return (new Collection($this->render(fn () => $this->factory->getFragments())))->implode('');
+        return (new Collection($this->doRender(fn () => $this->factory->getFragments())))->implode('');
     }
 
     /**
@@ -106,7 +105,19 @@ class View implements ArrayAccess, Htmlable, Stringable, ViewContract
      *
      * @throws Throwable
      */
-    public function render(?callable $callback = null): string
+    public function render(): string
+    {
+        return $this->doRender();
+    }
+
+    /**
+     * @template TValue
+     *
+     * @param null|callable(View, string): TValue $callback
+     * @return string|TValue
+     * @throws Throwable
+     */
+    protected function doRender(?callable $callback = null): mixed
     {
         try {
             $contents = $this->renderContents();

@@ -39,46 +39,6 @@ class ViewTest extends TestCase
         $this->assertEquals(['foo' => 'bar', 'baz' => 'boom'], $view->getData());
     }
 
-    public function testRenderProperlyRendersView()
-    {
-        $view = $this->getView(['foo' => 'bar']);
-        $view->getFactory()->shouldReceive('incrementRender')->once()->ordered();
-        $view->getFactory()->shouldReceive('callComposer')->once()->ordered()->with($view);
-        $view->getFactory()->shouldReceive('getShared')->once()->andReturn(['shared' => 'foo']);
-        $view->getEngine()->shouldReceive('get')->once()->with('path', ['foo' => 'bar', 'shared' => 'foo'])->andReturn('contents');
-        $view->getFactory()->shouldReceive('decrementRender')->once()->ordered();
-        $view->getFactory()->shouldReceive('flushStateIfDoneRendering')->once();
-
-        $callback = function (View $rendered, $contents) use ($view) {
-            $this->assertEquals($view, $rendered);
-            $this->assertSame('contents', $contents);
-        };
-
-        $this->assertSame('contents', $view->render($callback));
-    }
-
-    public function testRenderHandlingCallbackReturnValues()
-    {
-        $view = $this->getView();
-        $view->getFactory()->shouldReceive('incrementRender');
-        $view->getFactory()->shouldReceive('callComposer');
-        $view->getFactory()->shouldReceive('getShared')->andReturn(['shared' => 'foo']);
-        $view->getEngine()->shouldReceive('get')->andReturn('contents');
-        $view->getFactory()->shouldReceive('decrementRender');
-        $view->getFactory()->shouldReceive('flushStateIfDoneRendering');
-
-        $this->assertSame('new contents', $view->render(function () {
-            return 'new contents';
-        }));
-
-        $this->assertEmpty($view->render(function () {
-            return '';
-        }));
-
-        $this->assertSame('contents', $view->render(function () {
-        }));
-    }
-
     public function testRenderSectionsReturnsEnvironmentSections()
     {
         $view = $this->getMockBuilder(View::class)
