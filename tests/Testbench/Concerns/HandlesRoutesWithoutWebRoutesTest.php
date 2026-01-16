@@ -26,5 +26,4 @@ class HandlesRoutesWithoutWebRoutesTest extends TestCase
     {
         $this->get('/only-api')->assertSuccessful()->assertContent('only_api_response');
     }
-
 }

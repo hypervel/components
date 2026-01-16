@@ -79,5 +79,4 @@ class HandlesRoutesTest extends TestCase
         $response->assertSuccessful();
         $response->assertContent('api_response');
     }
-
 }
