@@ -34,13 +34,13 @@ final class TestingFeature
 
         // Inline memoization - replaces Orchestra's once() helper
         $defaultHasRun = false;
-        $defaultResolver = static function () use ($default, &$defaultHasRun) {
+        $defaultResolver = static function () use ($default, &$defaultHasRun): void {
             if ($defaultHasRun || $default === null) {
                 return;
             }
             $defaultHasRun = true;
 
-            return $default();
+            $default();
         };
 
         if ($testCase instanceof PHPUnitTestCase) {

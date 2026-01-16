@@ -25,10 +25,12 @@ final class DefineRoute implements Actionable
      * @param \Hypervel\Foundation\Contracts\Application $app
      * @param \Closure(string, array<int, mixed>):void $action
      */
-    public function handle($app, Closure $action): void
+    public function handle($app, Closure $action): mixed
     {
         $router = $app->get(Router::class);
 
         \call_user_func($action, $this->method, [$router]);
+
+        return null;
     }
 }

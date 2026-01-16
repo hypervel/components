@@ -23,8 +23,10 @@ final class WithConfig implements Invokable
      *
      * @param \Hypervel\Foundation\Contracts\Application $app
      */
-    public function __invoke($app): void
+    public function __invoke($app): mixed
     {
         $app->get('config')->set($this->key, $this->value);
+
+        return null;
     }
 }

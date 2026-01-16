@@ -6,10 +6,12 @@ namespace Hypervel\Foundation\Testing\Concerns;
 
 use Attribute;
 use Hypervel\Foundation\Testing\AttributeParser;
+use Hypervel\Foundation\Testing\Contracts\Attributes\Actionable;
 use Hypervel\Foundation\Testing\Contracts\Attributes\AfterAll;
 use Hypervel\Foundation\Testing\Contracts\Attributes\AfterEach;
 use Hypervel\Foundation\Testing\Contracts\Attributes\BeforeAll;
 use Hypervel\Foundation\Testing\Contracts\Attributes\BeforeEach;
+use Hypervel\Foundation\Testing\Contracts\Attributes\Invokable;
 use Hypervel\Foundation\Testing\Contracts\Attributes\Resolvable;
 use Hypervel\Support\Collection;
 
@@ -169,12 +171,27 @@ trait InteractsWithTestCase
     }
 
     /**
-     * Execute BeforeEach lifecycle attributes.
+     * Execute setup lifecycle attributes (Invokable, Actionable, BeforeEach).
      */
     protected function setUpTheTestEnvironmentUsingTestCase(): void
     {
-        $this->resolvePhpUnitAttributes()
-            ->flatten()
+        $attributes = $this->resolvePhpUnitAttributes()->flatten();
+
+        // Execute Invokable attributes (like WithConfig)
+        $attributes
+            ->filter(static fn ($instance) => $instance instanceof Invokable)
+            ->each(fn ($instance) => $instance($this->app));
+
+        // Execute Actionable attributes (like DefineEnvironment, DefineRoute)
+        $attributes
+            ->filter(static fn ($instance) => $instance instanceof Actionable)
+            ->each(fn ($instance) => $instance->handle(
+                $this->app,
+                fn ($method, $parameters) => $this->{$method}(...$parameters)
+            ));
+
+        // Execute BeforeEach attributes
+        $attributes
             ->filter(static fn ($instance) => $instance instanceof BeforeEach)
             ->each(fn ($instance) => $instance->beforeEach($this->app));
     }

@@ -24,8 +24,10 @@ final class DefineEnvironment implements Actionable
      * @param \Hypervel\Foundation\Contracts\Application $app
      * @param \Closure(string, array<int, mixed>):void $action
      */
-    public function handle($app, Closure $action): void
+    public function handle($app, Closure $action): mixed
     {
         \call_user_func($action, $this->method, [$app]);
+
+        return null;
     }
 }

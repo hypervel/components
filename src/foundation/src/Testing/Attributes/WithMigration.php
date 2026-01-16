@@ -32,12 +32,14 @@ final class WithMigration implements Invokable
      *
      * @param \Hypervel\Foundation\Contracts\Application $app
      */
-    public function __invoke($app): void
+    public function __invoke($app): mixed
     {
         $app->afterResolving(Migrator::class, function (Migrator $migrator) {
             foreach ($this->paths as $path) {
                 $migrator->path($path);
             }
         });
+
+        return null;
     }
 }
