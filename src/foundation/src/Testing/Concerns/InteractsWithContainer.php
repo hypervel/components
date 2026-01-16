@@ -90,7 +90,20 @@ trait InteractsWithContainer
         /* @phpstan-ignore-next-line */
         $this->app->bind(HttpDispatcher::class, TestingHttpDispatcher::class);
         $this->app->bind(ConnectionResolverInterface::class, DatabaseConnectionResolver::class);
+
+        $this->defineEnvironment($this->app);
+
         $this->app->get(ApplicationInterface::class);
+    }
+
+    /**
+     * Define environment setup.
+     *
+     * @param \Hypervel\Foundation\Contracts\Application $app
+     */
+    protected function defineEnvironment($app): void
+    {
+        // Override in subclass.
     }
 
     protected function createApplication(): ApplicationContract
