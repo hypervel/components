@@ -15,7 +15,12 @@ use Hypervel\Support\Collection;
 trait HandlesAttributes
 {
     /**
-     * Parse test method attributes.
+     * Parse and execute test method attributes of a specific type.
+     *
+     * Note: Attributes are already executed automatically via setUpTheTestEnvironmentUsingTestCase().
+     * This method is for internal use by the testing infrastructure.
+     *
+     * @internal
      *
      * @param \Hypervel\Foundation\Contracts\Application $app
      * @param class-string $attribute

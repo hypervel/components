@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
+use Hypervel\Foundation\Testing\AttributeParser;
+use Hypervel\Foundation\Testing\Attributes\Define;
+use Hypervel\Foundation\Testing\Attributes\DefineEnvironment;
 use Hypervel\Foundation\Testing\Attributes\WithConfig;
 use Hypervel\Foundation\Testing\Concerns\HandlesAttributes;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithTestCase;
@@ -71,5 +74,56 @@ class InteractsWithTestCaseTest extends TestCase
         $attributes = $this->resolvePhpUnitAttributes();
 
         $this->assertTrue($attributes->has(WithConfig::class));
+    }
+
+    public function testDefineMetaAttributeIsResolvedByAttributeParser(): void
+    {
+        // Test that AttributeParser resolves #[Define('env', 'method')] to DefineEnvironment
+        $attributes = AttributeParser::forMethod(
+            DefineMetaAttributeTestCase::class,
+            'testWithDefineAttribute'
+        );
+
+        // Should have one attribute, resolved from Define to DefineEnvironment
+        $this->assertCount(1, $attributes);
+        $this->assertSame(DefineEnvironment::class, $attributes[0]['key']);
+        $this->assertInstanceOf(DefineEnvironment::class, $attributes[0]['instance']);
+        $this->assertSame('setupDefineEnv', $attributes[0]['instance']->method);
+    }
+
+    #[Define('env', 'setupDefineEnvForExecution')]
+    public function testDefineMetaAttributeIsExecutedThroughLifecycle(): void
+    {
+        // The #[Define('env', 'setupDefineEnvForExecution')] attribute should have been
+        // resolved to DefineEnvironment and executed during setUp, calling our method
+        $this->assertSame(
+            'define_env_executed',
+            $this->app->get('config')->get('testing.define_meta_attribute')
+        );
+    }
+
+    protected function setupDefineEnvForExecution($app): void
+    {
+        $app->get('config')->set('testing.define_meta_attribute', 'define_env_executed');
+    }
+}
+
+/**
+ * Test fixture for Define meta-attribute parsing.
+ *
+ * @internal
+ * @coversNothing
+ */
+class DefineMetaAttributeTestCase extends TestCase
+{
+    #[Define('env', 'setupDefineEnv')]
+    public function testWithDefineAttribute(): void
+    {
+        // This method exists just to have the attribute parsed
+    }
+
+    protected function setupDefineEnv($app): void
+    {
+        // Method that would be called
     }
 }
