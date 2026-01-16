@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Contracts\Attributes;
 
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+
 /**
  * Interface for attributes that run after each test.
  */
@@ -11,8 +13,6 @@ interface AfterEach extends TestingFeature
 {
     /**
      * Handle the attribute.
-     *
-     * @param \Hypervel\Foundation\Contracts\Application $app
      */
-    public function afterEach($app): void;
+    public function afterEach(ApplicationContract $app): void;
 }

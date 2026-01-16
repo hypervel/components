@@ -98,10 +98,8 @@ trait InteractsWithContainer
 
     /**
      * Define environment setup.
-     *
-     * @param \Hypervel\Foundation\Contracts\Application $app
      */
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         // Override in subclass.
     }

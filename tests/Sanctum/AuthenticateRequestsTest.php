@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Context\Context;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Router\Router;
 use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
@@ -31,14 +33,14 @@ class AuthenticateRequestsTest extends TestCase
         $this->createUsersTable();
     }
 
-    protected function getPackageProviders($app): array
+    protected function getPackageProviders(ApplicationContract $app): array
     {
         return [
             SanctumServiceProvider::class,
         ];
     }
 
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
 
@@ -59,7 +61,7 @@ class AuthenticateRequestsTest extends TestCase
         ]);
     }
 
-    protected function defineRoutes($router): void
+    protected function defineRoutes(Router $router): void
     {
         $router->get('/sanctum/api/user', function () {
             $user = auth('sanctum')->user();

@@ -59,10 +59,8 @@ class TestCase extends BaseTestCase
 
     /**
      * Define environment setup.
-     *
-     * @param \Hypervel\Foundation\Contracts\Application $app
      */
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         $this->registerPackageProviders($app);
         $this->registerPackageAliases($app);

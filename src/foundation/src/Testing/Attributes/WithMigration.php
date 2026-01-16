@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Testing\Attributes;
 
 use Attribute;
 use Hyperf\Database\Migrations\Migrator;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Contracts\Attributes\Invokable;
 
 /**
@@ -29,10 +30,8 @@ final class WithMigration implements Invokable
 
     /**
      * Handle the attribute.
-     *
-     * @param \Hypervel\Foundation\Contracts\Application $app
      */
-    public function __invoke($app): mixed
+    public function __invoke(ApplicationContract $app): mixed
     {
         $app->afterResolving(Migrator::class, function (Migrator $migrator) {
             foreach ($this->paths as $path) {

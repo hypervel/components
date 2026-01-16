@@ -20,14 +20,14 @@ class HandlesRoutesTest extends TestCase
 
     protected bool $defineWebRoutesCalled = false;
 
-    protected function defineRoutes($router): void
+    protected function defineRoutes(Router $router): void
     {
         $this->defineRoutesCalled = true;
 
         $router->get('/api/test', fn () => 'api_response');
     }
 
-    protected function defineWebRoutes($router): void
+    protected function defineWebRoutes(Router $router): void
     {
         $this->defineWebRoutesCalled = true;
 

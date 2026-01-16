@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Concerns;
 
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+
 /**
  * Provides hooks for registering package service providers and aliases.
  */
@@ -12,10 +14,9 @@ trait CreatesApplication
     /**
      * Get package providers.
      *
-     * @param \Hypervel\Foundation\Contracts\Application $app
      * @return array<int, class-string>
      */
-    protected function getPackageProviders($app): array
+    protected function getPackageProviders(ApplicationContract $app): array
     {
         return [];
     }
@@ -23,20 +24,17 @@ trait CreatesApplication
     /**
      * Get package aliases.
      *
-     * @param \Hypervel\Foundation\Contracts\Application $app
      * @return array<string, class-string>
      */
-    protected function getPackageAliases($app): array
+    protected function getPackageAliases(ApplicationContract $app): array
     {
         return [];
     }
 
     /**
      * Register package providers.
-     *
-     * @param \Hypervel\Foundation\Contracts\Application $app
      */
-    protected function registerPackageProviders($app): void
+    protected function registerPackageProviders(ApplicationContract $app): void
     {
         foreach ($this->getPackageProviders($app) as $provider) {
             $app->register($provider);
@@ -45,10 +43,8 @@ trait CreatesApplication
 
     /**
      * Register package aliases.
-     *
-     * @param \Hypervel\Foundation\Contracts\Application $app
      */
-    protected function registerPackageAliases($app): void
+    protected function registerPackageAliases(ApplicationContract $app): void
     {
         $aliases = $this->getPackageAliases($app);
 

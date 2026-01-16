@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Testing\Attributes;
 
 use Attribute;
 use Closure;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Contracts\Attributes\Actionable;
 use Hypervel\Foundation\Testing\Contracts\Attributes\AfterEach;
 use Hypervel\Foundation\Testing\Contracts\Attributes\BeforeEach;
@@ -26,20 +27,16 @@ final class DefineDatabase implements Actionable, AfterEach, BeforeEach
 
     /**
      * Handle the attribute before each test.
-     *
-     * @param \Hypervel\Foundation\Contracts\Application $app
      */
-    public function beforeEach($app): void
+    public function beforeEach(ApplicationContract $app): void
     {
         ResetRefreshDatabaseState::run();
     }
 
     /**
      * Handle the attribute after each test.
-     *
-     * @param \Hypervel\Foundation\Contracts\Application $app
      */
-    public function afterEach($app): void
+    public function afterEach(ApplicationContract $app): void
     {
         ResetRefreshDatabaseState::run();
     }
@@ -47,10 +44,9 @@ final class DefineDatabase implements Actionable, AfterEach, BeforeEach
     /**
      * Handle the attribute.
      *
-     * @param \Hypervel\Foundation\Contracts\Application $app
      * @param Closure(string, array<int, mixed>):void $action
      */
-    public function handle($app, Closure $action): ?Closure
+    public function handle(ApplicationContract $app, Closure $action): ?Closure
     {
         $resolver = function () use ($app, $action) {
             \call_user_func($action, $this->method, [$app]);

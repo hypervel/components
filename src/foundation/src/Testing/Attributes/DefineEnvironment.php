@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Testing\Attributes;
 
 use Attribute;
 use Closure;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Contracts\Attributes\Actionable;
 
 /**
@@ -22,10 +23,9 @@ final class DefineEnvironment implements Actionable
     /**
      * Handle the attribute.
      *
-     * @param \Hypervel\Foundation\Contracts\Application $app
      * @param Closure(string, array<int, mixed>):void $action
      */
-    public function handle($app, Closure $action): mixed
+    public function handle(ApplicationContract $app, Closure $action): mixed
     {
         \call_user_func($action, $this->method, [$app]);
 

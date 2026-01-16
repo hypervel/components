@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Attributes;
 
 use Attribute;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Contracts\Attributes\Invokable;
 
 /**
@@ -21,10 +22,8 @@ final class WithConfig implements Invokable
 
     /**
      * Handle the attribute.
-     *
-     * @param \Hypervel\Foundation\Contracts\Application $app
      */
-    public function __invoke($app): mixed
+    public function __invoke(ApplicationContract $app): mixed
     {
         $app->get('config')->set($this->key, $this->value);
 

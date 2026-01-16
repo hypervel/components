@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Concerns;
 
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Router\Router;
 use ReflectionMethod;
 
@@ -14,30 +15,24 @@ trait HandlesRoutes
 {
     /**
      * Define routes setup.
-     *
-     * @param \Hypervel\Router\Router $router
      */
-    protected function defineRoutes($router): void
+    protected function defineRoutes(Router $router): void
     {
         // Define routes.
     }
 
     /**
      * Define web routes setup.
-     *
-     * @param \Hypervel\Router\Router $router
      */
-    protected function defineWebRoutes($router): void
+    protected function defineWebRoutes(Router $router): void
     {
         // Define web routes.
     }
 
     /**
      * Setup application routes.
-     *
-     * @param \Hypervel\Foundation\Contracts\Application $app
      */
-    protected function setUpApplicationRoutes($app): void
+    protected function setUpApplicationRoutes(ApplicationContract $app): void
     {
         $router = $app->get(Router::class);
 

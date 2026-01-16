@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
-use Hypervel\Foundation\Contracts\Application;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Testbench\TestCase;
 
 /**
@@ -15,9 +15,9 @@ class DefineEnvironmentTest extends TestCase
 {
     protected bool $defineEnvironmentCalled = false;
 
-    protected ?Application $passedApp = null;
+    protected ?ApplicationContract $passedApp = null;
 
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         $this->defineEnvironmentCalled = true;
         $this->passedApp = $app;
@@ -34,7 +34,7 @@ class DefineEnvironmentTest extends TestCase
     public function testAppInstanceIsPassed(): void
     {
         $this->assertNotNull($this->passedApp);
-        $this->assertInstanceOf(Application::class, $this->passedApp);
+        $this->assertInstanceOf(ApplicationContract::class, $this->passedApp);
         $this->assertSame($this->app, $this->passedApp);
     }
 

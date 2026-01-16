@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench\Concerns;
 
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Testbench\TestCase;
 
 /**
@@ -14,14 +15,14 @@ class CreatesApplicationTest extends TestCase
 {
     protected array $registeredProviders = [];
 
-    protected function getPackageProviders($app): array
+    protected function getPackageProviders(ApplicationContract $app): array
     {
         return [
             TestServiceProvider::class,
         ];
     }
 
-    protected function getPackageAliases($app): array
+    protected function getPackageAliases(ApplicationContract $app): array
     {
         return [
             'TestAlias' => TestFacade::class,

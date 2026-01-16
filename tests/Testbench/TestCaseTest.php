@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Testbench;
 
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Attributes\WithConfig;
 use Hypervel\Foundation\Testing\Concerns\HandlesAttributes;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithTestCase;
@@ -21,7 +22,7 @@ class TestCaseTest extends TestCase
 {
     protected bool $defineEnvironmentCalled = false;
 
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
 

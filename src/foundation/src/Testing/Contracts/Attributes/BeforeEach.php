@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Contracts\Attributes;
 
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+
 /**
  * Interface for attributes that run before each test.
  */
@@ -11,8 +13,6 @@ interface BeforeEach extends TestingFeature
 {
     /**
      * Handle the attribute.
-     *
-     * @param \Hypervel\Foundation\Contracts\Application $app
      */
-    public function beforeEach($app): void;
+    public function beforeEach(ApplicationContract $app): void;
 }
