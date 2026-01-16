@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Attributes;
 
+use Attribute;
+use Closure;
 use Hypervel\Foundation\Testing\Attributes\Define;
 use Hypervel\Foundation\Testing\Attributes\DefineDatabase;
 use Hypervel\Foundation\Testing\Attributes\DefineEnvironment;
@@ -102,7 +104,7 @@ class AttributesTest extends TestCase
         $result = $attribute->handle($this->app, $action);
 
         $this->assertFalse($called);
-        $this->assertInstanceOf(\Closure::class, $result);
+        $this->assertInstanceOf(Closure::class, $result);
 
         // Execute the deferred callback
         $result();
@@ -237,7 +239,7 @@ class AttributesTest extends TestCase
     private function assertAttributeHasTargets(string $class, array $expectedTargets): void
     {
         $reflection = new ReflectionClass($class);
-        $attributes = $reflection->getAttributes(\Attribute::class);
+        $attributes = $reflection->getAttributes(Attribute::class);
 
         $this->assertNotEmpty($attributes, "Class {$class} should have #[Attribute]");
 

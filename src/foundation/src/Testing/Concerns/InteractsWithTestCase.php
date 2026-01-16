@@ -18,7 +18,7 @@ use Hypervel\Support\Collection;
 /**
  * Provides test case lifecycle and attribute caching functionality.
  *
- * @property \Hypervel\Foundation\Contracts\Application|null $app
+ * @property null|\Hypervel\Foundation\Contracts\Application $app
  */
 trait InteractsWithTestCase
 {
@@ -53,7 +53,7 @@ trait InteractsWithTestCase
     /**
      * Cached traits used by test case.
      *
-     * @var array<class-string, class-string>|null
+     * @var null|array<class-string, class-string>
      */
     protected static ?array $cachedTestCaseUses = null;
 
@@ -85,8 +85,6 @@ trait InteractsWithTestCase
 
     /**
      * Programmatically add a testing feature attribute.
-     *
-     * @param object $attribute
      */
     public static function usesTestingFeature(object $attribute, int $flag = Attribute::TARGET_CLASS): void
     {

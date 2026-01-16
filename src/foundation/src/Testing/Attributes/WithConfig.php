@@ -16,7 +16,8 @@ final class WithConfig implements Invokable
     public function __construct(
         public readonly string $key,
         public readonly mixed $value
-    ) {}
+    ) {
+    }
 
     /**
      * Handle the attribute.

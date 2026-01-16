@@ -15,7 +15,7 @@ interface Actionable extends TestingFeature
      * Handle the attribute.
      *
      * @param \Hypervel\Foundation\Contracts\Application $app
-     * @param \Closure(string, array<int, mixed>):void $action
+     * @param Closure(string, array<int, mixed>):void $action
      */
     public function handle($app, Closure $action): mixed;
 }

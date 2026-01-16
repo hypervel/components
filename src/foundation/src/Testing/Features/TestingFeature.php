@@ -19,9 +19,8 @@ final class TestingFeature
     /**
      * Resolve available testing features for Testbench.
      *
-     * @param object $testCase
-     * @param (\Closure():void)|null $default
-     * @param (\Closure(\Closure):mixed)|null $attribute
+     * @param null|(Closure():void) $default
+     * @param null|(Closure(Closure):mixed) $attribute
      * @return \Hypervel\Support\Fluent<string, FeaturesCollection>
      */
     public static function run(
@@ -44,7 +43,7 @@ final class TestingFeature
         };
 
         if ($testCase instanceof PHPUnitTestCase) {
-            /** @phpstan-ignore-next-line */
+            /* @phpstan-ignore-next-line */
             if ($testCase::usesTestingConcern(HandlesAttributes::class)) {
                 $result['attribute'] = value($attribute, $defaultResolver);
             }

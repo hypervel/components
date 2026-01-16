@@ -21,7 +21,8 @@ final class DefineDatabase implements Actionable, AfterEach, BeforeEach
     public function __construct(
         public readonly string $method,
         public readonly bool $defer = true
-    ) {}
+    ) {
+    }
 
     /**
      * Handle the attribute before each test.
@@ -47,8 +48,7 @@ final class DefineDatabase implements Actionable, AfterEach, BeforeEach
      * Handle the attribute.
      *
      * @param \Hypervel\Foundation\Contracts\Application $app
-     * @param \Closure(string, array<int, mixed>):void $action
-     * @return \Closure|null
+     * @param Closure(string, array<int, mixed>):void $action
      */
     public function handle($app, Closure $action): ?Closure
     {
