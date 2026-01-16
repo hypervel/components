@@ -42,7 +42,11 @@ trait HandlesRoutes
 
         $this->defineRoutes($router);
 
-        // Wrap web routes in 'web' middleware group using Hypervel's Router API
-        $router->group('/', fn () => $this->defineWebRoutes($router), ['middleware' => ['web']]);
+        // Only set up web routes group if the method is overridden
+        // This prevents empty group registration from interfering with other routes
+        $refMethod = new \ReflectionMethod($this, 'defineWebRoutes');
+        if ($refMethod->getDeclaringClass()->getName() !== self::class) {
+            $router->group('/', fn () => $this->defineWebRoutes($router), ['middleware' => ['web']]);
+        }
     }
 }

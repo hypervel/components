@@ -4,14 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Context\Context;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\PersonalAccessToken;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
-use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Sanctum\Stub\TestUser;
 
@@ -30,29 +28,58 @@ class AuthenticateRequestsTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->register(SanctumServiceProvider::class);
-
-        // Configure test environment
-        $this->app->get(ConfigInterface::class)
-            ->set([
-                'app.key' => 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF',
-                'auth.guards.sanctum' => [
-                    'driver' => 'sanctum',
-                    'provider' => 'users',
-                ],
-                'auth.guards.web' => [
-                    'driver' => 'session',
-                    'provider' => 'users',
-                ],
-                'auth.providers.users.model' => TestUser::class,
-                'auth.providers.users.driver' => 'eloquent',
-                'database.default' => 'testing',
-                'sanctum.stateful' => ['localhost', '127.0.0.1'],
-                'sanctum.guard' => ['web'],
-            ]);
-
-        $this->defineRoutes();
         $this->createUsersTable();
+    }
+
+    protected function getPackageProviders($app): array
+    {
+        return [
+            SanctumServiceProvider::class,
+        ];
+    }
+
+    protected function defineEnvironment($app): void
+    {
+        parent::defineEnvironment($app);
+
+        $app->get('config')->set([
+            'app.key' => 'AckfSECXIvnK5r28GVIWUAxmbBSjTsmF',
+            'auth.guards.sanctum' => [
+                'driver' => 'sanctum',
+                'provider' => 'users',
+            ],
+            'auth.guards.web' => [
+                'driver' => 'session',
+                'provider' => 'users',
+            ],
+            'auth.providers.users.model' => TestUser::class,
+            'auth.providers.users.driver' => 'eloquent',
+            'sanctum.stateful' => ['localhost', '127.0.0.1'],
+            'sanctum.guard' => ['web'],
+        ]);
+    }
+
+    protected function defineRoutes($router): void
+    {
+        $router->get('/sanctum/api/user', function () {
+            $user = auth('sanctum')->user();
+
+            if (! $user) {
+                abort(401);
+            }
+
+            return response()->json(['email' => $user->email]);
+        });
+
+        $router->get('/sanctum/web/user', function () {
+            $user = auth('sanctum')->user();
+
+            if (! $user) {
+                abort(401);
+            }
+
+            return response()->json(['email' => $user->email]);
+        });
     }
 
     protected function tearDown(): void
@@ -86,29 +113,6 @@ class AuthenticateRequestsTest extends TestCase
             $table->string('email')->unique();
             $table->string('password');
             $table->timestamps();
-        });
-    }
-
-    protected function defineRoutes(): void
-    {
-        Route::get('/sanctum/api/user', function () {
-            $user = auth('sanctum')->user();
-
-            if (! $user) {
-                abort(401);
-            }
-
-            return response()->json(['email' => $user->email]);
-        });
-
-        Route::get('/sanctum/web/user', function () {
-            $user = auth('sanctum')->user();
-
-            if (! $user) {
-                abort(401);
-            }
-
-            return response()->json(['email' => $user->email]);
         });
     }
 
