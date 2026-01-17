@@ -190,15 +190,8 @@ class Redis
      */
     public function flushByPattern(string $pattern): int
     {
-        $pool = $this->factory->getPool($this->poolName);
-
-        /** @var RedisConnection $connection */
-        $connection = $pool->get();
-
-        try {
-            return $connection->flushByPattern($pattern);
-        } finally {
-            $connection->release();
-        }
+        return $this->withConnection(
+            fn (RedisConnection $connection) => $connection->flushByPattern($pattern)
+        );
     }
 }
