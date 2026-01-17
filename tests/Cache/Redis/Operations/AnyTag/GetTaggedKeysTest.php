@@ -4,15 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AnyTag;
 
-use Hyperf\Redis\Pool\PoolFactory;
-use Hyperf\Redis\Pool\RedisPool;
-use Hyperf\Redis\RedisFactory;
-use Hypervel\Cache\RedisStore;
-use Hypervel\Redis\RedisConnection;
+use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
 use Hypervel\Tests\Redis\Stub\FakeRedisClient;
-use Hypervel\Tests\TestCase;
-use Mockery as m;
 
 /**
  * Tests for the GetTaggedKeys operation (union tags).
@@ -131,25 +125,7 @@ class GetTaggedKeysTest extends TestCase
             ],
         );
 
-        // Create a mock connection that returns the fake client
-        $connection = m::mock(RedisConnection::class);
-        $connection->shouldReceive('release')->zeroOrMoreTimes();
-        $connection->shouldReceive('serialized')->andReturn(false)->byDefault();
-        $connection->shouldReceive('client')->andReturn($fakeClient)->byDefault();
-
-        // Create pool factory that returns our connection
-        $poolFactory = m::mock(PoolFactory::class);
-        $pool = m::mock(RedisPool::class);
-        $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
-        $pool->shouldReceive('get')->andReturn($connection);
-
-        $store = new RedisStore(
-            m::mock(RedisFactory::class),
-            'prefix:',
-            'default',
-            $poolFactory
-        );
-        $store->setTagMode('any');
+        $store = $this->createStoreWithFakeClient($fakeClient, tagMode: 'any');
 
         $keys = iterator_to_array($store->anyTagOps()->getTaggedKeys()->execute('users'));
 

@@ -6,9 +6,12 @@ namespace Hypervel\Tests\Cache\Redis\Concerns;
 
 use Hyperf\Redis\Pool\PoolFactory;
 use Hyperf\Redis\Pool\RedisPool;
-use Hyperf\Redis\RedisFactory;
+use Hyperf\Redis\RedisFactory as HyperfRedisFactory;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\RedisFactory as HypervelRedisFactory;
+use Hypervel\Redis\RedisProxy;
+use Hypervel\Tests\Redis\Stub\FakeRedisClient;
 use Mockery as m;
 use Redis;
 use RedisCluster;
@@ -16,8 +19,9 @@ use RedisCluster;
 /**
  * Shared test infrastructure for Redis cache operation tests.
  *
- * Provides helper methods for mocking Redis connections, pool factories,
- * and creating RedisStore instances for testing.
+ * Provides helper methods for mocking Redis connections and creating
+ * RedisStore instances for testing. Requires tests to extend
+ * `Hypervel\Testbench\TestCase` for proper container setup.
  *
  * ## Usage Examples
  *
@@ -135,6 +139,28 @@ trait MocksRedisConnections
     }
 
     /**
+     * Register a RedisFactory mock in the container.
+     *
+     * This sets up the mock that StoreContext::withConnection() uses to get
+     * connections via ApplicationContext::getContainer().
+     */
+    protected function registerRedisFactoryMock(
+        m\MockInterface|RedisConnection $connection,
+        string $connectionName = 'default'
+    ): void {
+        $redisProxy = m::mock(RedisProxy::class);
+        $redisProxy->shouldReceive('withConnection')
+            ->andReturnUsing(fn (callable $callback) => $callback($connection));
+
+        $redisFactory = m::mock(HypervelRedisFactory::class);
+        $redisFactory->shouldReceive('get')
+            ->with($connectionName)
+            ->andReturn($redisProxy);
+
+        $this->instance(HypervelRedisFactory::class, $redisFactory);
+    }
+
+    /**
      * Create a RedisStore with a mocked connection.
      *
      * @param m\MockInterface|RedisConnection $connection The mocked connection (from mockConnection())
@@ -148,8 +174,11 @@ trait MocksRedisConnections
         string $connectionName = 'default',
         ?string $tagMode = null,
     ): RedisStore {
+        // Register RedisFactory mock for StoreContext::withConnection()
+        $this->registerRedisFactoryMock($connection, $connectionName);
+
         $store = new RedisStore(
-            m::mock(RedisFactory::class),
+            m::mock(HyperfRedisFactory::class),
             $prefix,
             $connectionName,
             $this->createPoolFactory($connection, $connectionName)
@@ -189,8 +218,11 @@ trait MocksRedisConnections
         $connection = $this->mockClusterConnection();
         $clusterClient = $connection->_mockClient;
 
+        // Register RedisFactory mock for StoreContext::withConnection()
+        $this->registerRedisFactoryMock($connection, $connectionName);
+
         $store = new RedisStore(
-            m::mock(RedisFactory::class),
+            m::mock(HyperfRedisFactory::class),
             $prefix,
             $connectionName,
             $this->createPoolFactory($connection, $connectionName)
@@ -201,5 +233,44 @@ trait MocksRedisConnections
         }
 
         return [$store, $clusterClient, $connection];
+    }
+
+    /**
+     * Create a RedisStore with a FakeRedisClient.
+     *
+     * Use this for tests that need proper reference parameter handling (e.g., &$iterator
+     * in SCAN/HSCAN/ZSCAN operations) which Mockery cannot properly propagate.
+     *
+     * @param FakeRedisClient $fakeClient Pre-configured fake client with expected responses
+     * @param string $prefix Cache key prefix
+     * @param string $connectionName Redis connection name
+     * @param null|string $tagMode Optional tag mode ('any' or 'all')
+     */
+    protected function createStoreWithFakeClient(
+        FakeRedisClient $fakeClient,
+        string $prefix = 'prefix:',
+        string $connectionName = 'default',
+        ?string $tagMode = null,
+    ): RedisStore {
+        $connection = m::mock(RedisConnection::class);
+        $connection->shouldReceive('release')->zeroOrMoreTimes();
+        $connection->shouldReceive('serialized')->andReturn(false)->byDefault();
+        $connection->shouldReceive('client')->andReturn($fakeClient)->byDefault();
+
+        // Register RedisFactory mock for StoreContext::withConnection()
+        $this->registerRedisFactoryMock($connection, $connectionName);
+
+        $store = new RedisStore(
+            m::mock(HyperfRedisFactory::class),
+            $prefix,
+            $connectionName,
+            $this->createPoolFactory($connection, $connectionName)
+        );
+
+        if ($tagMode !== null) {
+            $store->setTagMode($tagMode);
+        }
+
+        return $store;
     }
 }

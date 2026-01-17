@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis;
 
 use Hypervel\Cache\Redis\AllTagSet;
+use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
-use Hypervel\Tests\TestCase;
 
 /**
  * Tests for AllTagSet class.

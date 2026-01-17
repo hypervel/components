@@ -108,8 +108,11 @@ class Redis
 
     /**
      * Get a connection from coroutine context, or from redis connection pool.
+     *
+     * @param bool $hasContextConnection Whether a connection exists in coroutine context
+     * @param bool $transform Whether to enable Laravel-style result transformation
      */
-    protected function getConnection(bool $hasContextConnection): RedisConnection
+    protected function getConnection(bool $hasContextConnection, bool $transform = true): RedisConnection
     {
         $connection = $hasContextConnection
             ? Context::get($this->getContextKey())
@@ -122,7 +125,7 @@ class Redis
             throw new InvalidRedisConnectionException('The connection is not a valid RedisConnection.');
         }
 
-        return $connection->shouldTransform(true);
+        return $connection->shouldTransform($transform);
     }
 
     /**
@@ -145,12 +148,13 @@ class Redis
      *
      * @template T
      * @param callable(RedisConnection): T $callback
+     * @param bool $transform Whether to enable Laravel-style result transformation (default: true)
      * @return T
      */
-    public function withConnection(callable $callback): mixed
+    public function withConnection(callable $callback, bool $transform = true): mixed
     {
         $hasContextConnection = Context::has($this->getContextKey());
-        $connection = $this->getConnection($hasContextConnection);
+        $connection = $this->getConnection($hasContextConnection, $transform);
 
         try {
             return $callback($connection);
@@ -191,7 +195,8 @@ class Redis
     public function flushByPattern(string $pattern): int
     {
         return $this->withConnection(
-            fn (RedisConnection $connection) => $connection->flushByPattern($pattern)
+            fn (RedisConnection $connection) => $connection->flushByPattern($pattern),
+            transform: false
         );
     }
 }

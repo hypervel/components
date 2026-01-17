@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Cache\Redis\Support;
 
 use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Redis\RedisConnection;
-use Hypervel\Tests\TestCase;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Redis;
 

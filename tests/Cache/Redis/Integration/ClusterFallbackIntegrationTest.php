@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Integration;
 
-use Hyperf\Redis\Pool\PoolFactory;
 use Hypervel\Cache\Redis\AnyTaggedCache;
 use Hypervel\Cache\Redis\AnyTagSet;
 use Hypervel\Cache\Redis\Support\StoreContext;
@@ -35,16 +34,10 @@ class ClusterModeRedisStore extends RedisStore
     public function getContext(): StoreContext
     {
         return $this->clusterContext ??= new ClusterModeStoreContext(
-            $this->getPoolFactoryInternal(),
             $this->connection,
             $this->getPrefix(),
             $this->getTagMode(),
         );
-    }
-
-    public function getPoolFactoryInternal(): PoolFactory
-    {
-        return parent::getPoolFactory();
     }
 }
 

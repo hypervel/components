@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis;
 
 use Carbon\Carbon;
+use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
-use Hypervel\Tests\TestCase;
 use Redis;
 use RuntimeException;
 

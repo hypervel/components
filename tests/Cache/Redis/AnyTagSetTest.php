@@ -7,8 +7,8 @@ namespace Hypervel\Tests\Cache\Redis;
 use Generator;
 use Hypervel\Cache\Redis\AnyTagSet;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
-use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Redis;
 

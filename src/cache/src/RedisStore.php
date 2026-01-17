@@ -378,7 +378,6 @@ class RedisStore extends TaggableStore implements LockProvider
     public function getContext(): StoreContext
     {
         return $this->context ??= new StoreContext(
-            $this->getPoolFactory(),
             $this->connection,
             $this->prefix,
             $this->tagMode,

@@ -316,18 +316,58 @@ class RedisTest extends TestCase
         $this->assertTrue(Context::has('redis.connection.default'));
     }
 
-    public function testWithConnectionSetsTransformOnConnection(): void
+    public function testWithConnectionDefaultsToTransformTrue(): void
     {
-        $connection = $this->mockConnection();
-        // Verify shouldTransform is called (already set up in mockConnection)
+        $connection = m::mock(RedisConnection::class);
+        $connection->shouldReceive('getConnection')->andReturn($connection);
+        $connection->shouldReceive('getEventDispatcher')->andReturnNull();
+        $connection->shouldReceive('shouldTransform')
+            ->once()
+            ->with(true)
+            ->andReturnSelf();
         $connection->shouldReceive('release')->once();
 
         $redis = $this->createRedis($connection);
 
         $redis->withConnection(function (RedisConnection $conn) {
-            // Connection should have transform set
-            // (verified by mockConnection expectations)
+            return 'result';
         });
+    }
+
+    public function testWithConnectionRespectsTransformFalse(): void
+    {
+        $connection = m::mock(RedisConnection::class);
+        $connection->shouldReceive('getConnection')->andReturn($connection);
+        $connection->shouldReceive('getEventDispatcher')->andReturnNull();
+        $connection->shouldReceive('shouldTransform')
+            ->once()
+            ->with(false)
+            ->andReturnSelf();
+        $connection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($connection);
+
+        $redis->withConnection(function (RedisConnection $conn) {
+            return 'result';
+        }, transform: false);
+    }
+
+    public function testWithConnectionRespectsTransformTrueExplicit(): void
+    {
+        $connection = m::mock(RedisConnection::class);
+        $connection->shouldReceive('getConnection')->andReturn($connection);
+        $connection->shouldReceive('getEventDispatcher')->andReturnNull();
+        $connection->shouldReceive('shouldTransform')
+            ->once()
+            ->with(true)
+            ->andReturnSelf();
+        $connection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($connection);
+
+        $redis->withConnection(function (RedisConnection $conn) {
+            return 'result';
+        }, transform: true);
     }
 
     public function testWithConnectionAllowsMultipleOperationsOnSameConnection(): void

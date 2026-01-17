@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
 use Carbon\Carbon;
 use Hypervel\Cache\Redis\Operations\AllTag\FlushStale;
+use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
-use Hypervel\Tests\TestCase;
 use Mockery as m;
 
 /**

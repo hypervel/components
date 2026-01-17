@@ -9,8 +9,8 @@ use Hyperf\Redis\RedisProxy;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisLock;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
-use Hypervel\Tests\TestCase;
 use Mockery as m;
 
 /**
@@ -52,29 +52,19 @@ class RedisStoreTest extends TestCase
         $connection2 = $this->mockConnection();
         $connection2->shouldReceive('get')->once()->with('prefix:foo')->andReturn(serialize('value2'));
 
+        // Register RedisFactory mocks for both connections
+        $this->registerRedisFactoryMock($connection1, 'conn1');
+
         // Create store with first connection
-        $poolFactory1 = $this->createPoolFactory($connection1, 'conn1');
-        $redis = new RedisStore(
-            m::mock(RedisFactory::class),
-            'prefix:',
-            'conn1',
-            $poolFactory1
-        );
+        $redis = $this->createStore($connection1, connectionName: 'conn1');
 
         $this->assertSame('value1', $redis->get('foo'));
 
-        // Change connection - this should clear cached operation instances
-        $poolFactory2 = $this->createPoolFactory($connection2, 'conn2');
+        // Register second connection mock (replaces the first in container)
+        $this->registerRedisFactoryMock($connection2, 'conn2');
 
-        // We need to inject the new pool factory. Since we can't directly,
-        // we verify that setConnection clears the context by checking
-        // that a new store with different connection gets different values.
-        $redis2 = new RedisStore(
-            m::mock(RedisFactory::class),
-            'prefix:',
-            'conn2',
-            $poolFactory2
-        );
+        // Create second store with different connection
+        $redis2 = $this->createStore($connection2, connectionName: 'conn2');
 
         $this->assertSame('value2', $redis2->get('foo'));
     }

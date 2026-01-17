@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Support;
 
-use Hyperf\Redis\Pool\PoolFactory;
 use Hypervel\Cache\Redis\TagMode;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\RedisFactory;
 use Redis;
 use RedisCluster;
 
@@ -33,7 +34,6 @@ class StoreContext
     public const TAG_FIELD_VALUE = '1';
 
     public function __construct(
-        private readonly PoolFactory $poolFactory,
         private readonly string $connectionName,
         private readonly string $prefix,
         private readonly TagMode $tagMode,
@@ -126,9 +126,9 @@ class StoreContext
     /**
      * Execute callback with a held connection from the pool.
      *
-     * Use this for operations requiring multiple commands on the same
-     * connection (cluster mode, complex transactions). The connection
-     * is automatically returned to the pool after the callback completes.
+     * Delegates to Redis::withConnection() for context awareness (respects
+     * active pipeline/multi connections). Uses transform: false to provide
+     * raw phpredis behavior for cache operations.
      *
      * @template T
      * @param callable(RedisConnection): T $callback
@@ -136,15 +136,10 @@ class StoreContext
      */
     public function withConnection(callable $callback): mixed
     {
-        $pool = $this->poolFactory->getPool($this->connectionName);
-        /** @var RedisConnection $connection */
-        $connection = $pool->get();
-
-        try {
-            return $callback($connection);
-        } finally {
-            $connection->release();
-        }
+        return ApplicationContext::getContainer()
+            ->get(RedisFactory::class)
+            ->get($this->connectionName)
+            ->withConnection($callback, transform: false);
     }
 
     /**

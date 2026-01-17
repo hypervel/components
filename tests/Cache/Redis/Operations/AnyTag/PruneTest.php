@@ -4,15 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AnyTag;
 
-use Hyperf\Redis\Pool\PoolFactory;
-use Hyperf\Redis\Pool\RedisPool;
-use Hyperf\Redis\RedisFactory;
 use Hypervel\Cache\Redis\Operations\AnyTag\Prune;
-use Hypervel\Cache\RedisStore;
-use Hypervel\Redis\RedisConnection;
+use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
 use Hypervel\Tests\Redis\Stub\FakeRedisClient;
-use Hypervel\Tests\TestCase;
 use Mockery as m;
 
 /**
@@ -443,24 +438,7 @@ class PruneTest extends TestCase
             ],
         );
 
-        $connection = m::mock(RedisConnection::class);
-        $connection->shouldReceive('release')->zeroOrMoreTimes();
-        $connection->shouldReceive('serialized')->andReturn(false);
-        $connection->shouldReceive('client')->andReturn($fakeClient);
-
-        $pool = m::mock(RedisPool::class);
-        $pool->shouldReceive('get')->andReturn($connection);
-
-        $poolFactory = m::mock(PoolFactory::class);
-        $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
-
-        $store = new RedisStore(
-            m::mock(RedisFactory::class),
-            'prefix:',
-            'default',
-            $poolFactory
-        );
-        $store->setTagMode('any');
+        $store = $this->createStoreWithFakeClient($fakeClient, tagMode: 'any');
 
         $operation = new Prune($store->getContext());
         $result = $operation->execute();
