@@ -56,7 +56,6 @@ class PutMany
     private function executeCluster(array $values, int $seconds, array $tags): bool
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($values, $seconds, $tags) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
             $registryKey = $this->context->registryKey();
             $expiry = time() + $seconds;
@@ -67,7 +66,7 @@ class PutMany
                 $oldTagsResults = [];
 
                 foreach ($chunk as $key => $value) {
-                    $oldTagsResults[] = $client->smembers($this->context->reverseIndexKey($key));
+                    $oldTagsResults[] = $conn->smembers($this->context->reverseIndexKey($key));
                 }
 
                 // Step 2: Prepare updates
@@ -88,7 +87,7 @@ class PutMany
                     }
 
                     // 1. Store the actual cache value
-                    $client->setex(
+                    $conn->setex(
                         $prefix . $key,
                         $ttl,
                         $this->serialization->serialize($conn, $value)
@@ -98,7 +97,7 @@ class PutMany
                     $tagsKey = $this->context->reverseIndexKey($key);
 
                     // Use multi() for reverse index updates (same slot)
-                    $multi = $client->multi();
+                    $multi = $conn->multi();
                     $multi->del($tagsKey); // Clear old tags
 
                     if (! empty($tags)) {
@@ -117,7 +116,7 @@ class PutMany
                 // 3. Batch remove from old tags
                 foreach ($keysToRemoveByTag as $tag => $keys) {
                     $tag = (string) $tag;
-                    $client->hdel($this->context->tagHashKey($tag), ...$keys);
+                    $conn->hdel($this->context->tagHashKey($tag), ...$keys);
                 }
 
                 // 4. Batch update new tag hashes
@@ -129,9 +128,9 @@ class PutMany
                     $hsetArgs = array_fill_keys($keys, StoreContext::TAG_FIELD_VALUE);
 
                     // Use multi() for tag hash updates (same slot)
-                    $multi = $client->multi();
-                    $multi->hSet($tagHashKey, $hsetArgs);
-                    $multi->hexpire($tagHashKey, $ttl, $keys);
+                    $multi = $conn->multi();
+                    $multi->hSet($tagHashKey, $hsetArgs); // @phpstan-ignore arguments.count, argument.type (phpredis supports array syntax)
+                    $multi->hexpire($tagHashKey, $ttl, $keys); // @phpstan-ignore method.nonObject (phpredis multi() returns Redis)
                     $multi->exec();
                 }
 
@@ -144,7 +143,7 @@ class PutMany
                         $zaddArgs[] = (string) $tag;
                     }
 
-                    $client->zadd($registryKey, ['GT'], ...$zaddArgs);
+                    $conn->zadd($registryKey, ['GT'], ...$zaddArgs);
                 }
             }
 
@@ -158,7 +157,6 @@ class PutMany
     private function executeUsingPipeline(array $values, int $seconds, array $tags): bool
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($values, $seconds, $tags) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
             $registryKey = $this->context->registryKey();
             $expiry = time() + $seconds;
@@ -166,7 +164,7 @@ class PutMany
 
             foreach (array_chunk($values, self::CHUNK_SIZE, true) as $chunk) {
                 // Step 1: Retrieve old tags for all keys in the chunk
-                $pipeline = $client->pipeline();
+                $pipeline = $conn->pipeline();
 
                 foreach ($chunk as $key => $value) {
                     $pipeline->smembers($this->context->reverseIndexKey($key));
@@ -178,7 +176,7 @@ class PutMany
                 $keysByNewTag = [];
                 $keysToRemoveByTag = [];
 
-                $pipeline = $client->pipeline();
+                $pipeline = $conn->pipeline();
                 $i = 0;
 
                 foreach ($chunk as $key => $value) {
@@ -228,8 +226,8 @@ class PutMany
                     // Prepare HSET arguments: [key1 => 1, key2 => 1, ...]
                     $hsetArgs = array_fill_keys($keys, StoreContext::TAG_FIELD_VALUE);
 
-                    $pipeline->hSet($tagHashKey, $hsetArgs);
-                    $pipeline->hexpire($tagHashKey, $ttl, $keys);
+                    $pipeline->hSet($tagHashKey, $hsetArgs); // @phpstan-ignore arguments.count, argument.type (phpredis supports array syntax)
+                    $pipeline->hexpire($tagHashKey, $ttl, $keys); // @phpstan-ignore method.nonObject (phpredis pipeline() returns Redis)
                 }
 
                 // Update Registry in batch

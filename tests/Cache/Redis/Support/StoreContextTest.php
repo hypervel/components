@@ -12,7 +12,6 @@ use Hypervel\Redis\RedisProxy;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Redis;
-use RedisCluster;
 use RuntimeException;
 
 /**
@@ -105,8 +104,7 @@ class StoreContextTest extends TestCase
     public function testIsClusterReturnsTrueForRedisCluster(): void
     {
         $connection = m::mock(RedisConnection::class);
-        $client = m::mock(RedisCluster::class);
-        $connection->shouldReceive('client')->andReturn($client);
+        $connection->shouldReceive('isCluster')->andReturn(true);
 
         $context = $this->createContextWithRedisFactory('default', function ($callback) use ($connection) {
             return $callback($connection);
@@ -118,8 +116,7 @@ class StoreContextTest extends TestCase
     public function testIsClusterReturnsFalseForRegularRedis(): void
     {
         $connection = m::mock(RedisConnection::class);
-        $client = m::mock(Redis::class);
-        $connection->shouldReceive('client')->andReturn($client);
+        $connection->shouldReceive('isCluster')->andReturn(false);
 
         $context = $this->createContextWithRedisFactory('default', function ($callback) use ($connection) {
             return $callback($connection);
@@ -131,9 +128,7 @@ class StoreContextTest extends TestCase
     public function testOptPrefixReturnsRedisOptionPrefix(): void
     {
         $connection = m::mock(RedisConnection::class);
-        $client = m::mock(Redis::class);
-        $connection->shouldReceive('client')->andReturn($client);
-        $client->shouldReceive('getOption')
+        $connection->shouldReceive('getOption')
             ->with(Redis::OPT_PREFIX)
             ->andReturn('redis_prefix:');
 
@@ -147,9 +142,7 @@ class StoreContextTest extends TestCase
     public function testOptPrefixReturnsEmptyStringWhenNotSet(): void
     {
         $connection = m::mock(RedisConnection::class);
-        $client = m::mock(Redis::class);
-        $connection->shouldReceive('client')->andReturn($client);
-        $client->shouldReceive('getOption')
+        $connection->shouldReceive('getOption')
             ->with(Redis::OPT_PREFIX)
             ->andReturn(null);
 
@@ -163,9 +156,7 @@ class StoreContextTest extends TestCase
     public function testFullTagPrefixIncludesOptPrefix(): void
     {
         $connection = m::mock(RedisConnection::class);
-        $client = m::mock(Redis::class);
-        $connection->shouldReceive('client')->andReturn($client);
-        $client->shouldReceive('getOption')
+        $connection->shouldReceive('getOption')
             ->with(Redis::OPT_PREFIX)
             ->andReturn('redis:');
 
@@ -179,9 +170,7 @@ class StoreContextTest extends TestCase
     public function testFullReverseIndexKeyIncludesOptPrefix(): void
     {
         $connection = m::mock(RedisConnection::class);
-        $client = m::mock(Redis::class);
-        $connection->shouldReceive('client')->andReturn($client);
-        $client->shouldReceive('getOption')
+        $connection->shouldReceive('getOption')
             ->with(Redis::OPT_PREFIX)
             ->andReturn('redis:');
 
@@ -195,9 +184,7 @@ class StoreContextTest extends TestCase
     public function testFullRegistryKeyIncludesOptPrefix(): void
     {
         $connection = m::mock(RedisConnection::class);
-        $client = m::mock(Redis::class);
-        $connection->shouldReceive('client')->andReturn($client);
-        $client->shouldReceive('getOption')
+        $connection->shouldReceive('getOption')
             ->with(Redis::OPT_PREFIX)
             ->andReturn('redis:');
 

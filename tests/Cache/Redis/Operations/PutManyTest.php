@@ -54,13 +54,13 @@ class PutManyTest extends RedisCacheTestCase
      */
     public function testPutManyUsesMultiInClusterMode(): void
     {
-        [$redis, $clusterClient] = $this->createClusterStore();
+        [$redis, , $connection] = $this->createClusterStore();
 
         // RedisCluster::multi() returns $this (fluent interface)
-        $clusterClient->shouldReceive('multi')->once()->andReturn($clusterClient);
-        $clusterClient->shouldReceive('setex')->once()->with('prefix:foo', 60, serialize('bar'))->andReturn($clusterClient);
-        $clusterClient->shouldReceive('setex')->once()->with('prefix:baz', 60, serialize('qux'))->andReturn($clusterClient);
-        $clusterClient->shouldReceive('exec')->once()->andReturn([true, true]);
+        $connection->shouldReceive('multi')->once()->andReturn($connection);
+        $connection->shouldReceive('setex')->once()->with('prefix:foo', 60, serialize('bar'))->andReturn($connection);
+        $connection->shouldReceive('setex')->once()->with('prefix:baz', 60, serialize('qux'))->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([true, true]);
 
         $result = $redis->putMany([
             'foo' => 'bar',
@@ -74,12 +74,12 @@ class PutManyTest extends RedisCacheTestCase
      */
     public function testPutManyClusterModeReturnsFalseOnFailure(): void
     {
-        [$redis, $clusterClient] = $this->createClusterStore();
+        [$redis, , $connection] = $this->createClusterStore();
 
         // RedisCluster::multi() returns $this (fluent interface)
-        $clusterClient->shouldReceive('multi')->once()->andReturn($clusterClient);
-        $clusterClient->shouldReceive('setex')->twice()->andReturn($clusterClient);
-        $clusterClient->shouldReceive('exec')->once()->andReturn([true, false]); // One failed
+        $connection->shouldReceive('multi')->once()->andReturn($connection);
+        $connection->shouldReceive('setex')->twice()->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([true, false]); // One failed
 
         $result = $redis->putMany([
             'foo' => 'bar',

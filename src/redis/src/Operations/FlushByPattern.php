@@ -74,10 +74,9 @@ final class FlushByPattern
      */
     public function execute(string $pattern): int
     {
-        $client = $this->connection->client();
-        $optPrefix = (string) $client->getOption(Redis::OPT_PREFIX);
+        $optPrefix = (string) $this->connection->getOption(Redis::OPT_PREFIX);
 
-        $safeScan = new SafeScan($client, $optPrefix);
+        $safeScan = new SafeScan($this->connection, $optPrefix);
 
         $deletedCount = 0;
         $buffer = [];

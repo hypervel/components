@@ -56,11 +56,10 @@ class FlushStale
     private function executePipeline(array $tagIds): void
     {
         $this->context->withConnection(function (RedisConnection $conn) use ($tagIds) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
             $timestamp = (string) now()->getTimestamp();
 
-            $pipeline = $client->pipeline();
+            $pipeline = $conn->pipeline();
 
             foreach ($tagIds as $tagId) {
                 $pipeline->zRemRangeByScore(
@@ -86,11 +85,10 @@ class FlushStale
     private function executeCluster(array $tagIds): void
     {
         $this->context->withConnection(function (RedisConnection $conn) use ($tagIds) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
             $timestamp = (string) now()->getTimestamp();
 
-            $multi = $client->multi();
+            $multi = $conn->multi();
 
             foreach ($tagIds as $tagId) {
                 $multi->zRemRangeByScore(

@@ -24,7 +24,6 @@ class FlushTest extends RedisCacheTestCase
     public function testFlushDeletesCacheEntriesAndTagSets(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // Mock GetEntries to return cache keys
         $getEntries = m::mock(GetEntries::class);
@@ -34,7 +33,7 @@ class FlushTest extends RedisCacheTestCase
             ->andReturn(new LazyCollection(['key1', 'key2']));
 
         // Should delete the cache entries (with prefix) via pipeline
-        $client->shouldReceive('del')
+        $connection->shouldReceive('del')
             ->once()
             ->with('prefix:key1', 'prefix:key2')
             ->andReturn(2);
@@ -57,7 +56,6 @@ class FlushTest extends RedisCacheTestCase
     public function testFlushWithMultipleTagsDeletesAllEntriesAndTagSets(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // Mock GetEntries to return cache keys from multiple tags
         $getEntries = m::mock(GetEntries::class);
@@ -67,7 +65,7 @@ class FlushTest extends RedisCacheTestCase
             ->andReturn(new LazyCollection(['user_key1', 'user_key2', 'post_key1']));
 
         // Should delete all cache entries (with prefix) via pipeline
-        $client->shouldReceive('del')
+        $connection->shouldReceive('del')
             ->once()
             ->with('prefix:user_key1', 'prefix:user_key2', 'prefix:post_key1')
             ->andReturn(3);
@@ -119,7 +117,6 @@ class FlushTest extends RedisCacheTestCase
     public function testFlushChunksLargeEntrySets(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // Create more than CHUNK_SIZE (1000) entries
         $entries = [];
@@ -134,22 +131,22 @@ class FlushTest extends RedisCacheTestCase
             ->with(['_all:tag:users:entries'])
             ->andReturn(new LazyCollection($entries));
 
-        // First chunk: 1000 entries (via pipeline on client)
+        // First chunk: 1000 entries (via pipeline on connection)
         $firstChunkArgs = [];
         for ($i = 1; $i <= 1000; ++$i) {
             $firstChunkArgs[] = "prefix:key{$i}";
         }
-        $client->shouldReceive('del')
+        $connection->shouldReceive('del')
             ->once()
             ->with(...$firstChunkArgs)
             ->andReturn(1000);
 
-        // Second chunk: 500 entries (via pipeline on client)
+        // Second chunk: 500 entries (via pipeline on connection)
         $secondChunkArgs = [];
         for ($i = 1001; $i <= 1500; ++$i) {
             $secondChunkArgs[] = "prefix:key{$i}";
         }
-        $client->shouldReceive('del')
+        $connection->shouldReceive('del')
             ->once()
             ->with(...$secondChunkArgs)
             ->andReturn(500);
@@ -172,7 +169,6 @@ class FlushTest extends RedisCacheTestCase
     public function testFlushUsesCorrectPrefix(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // Mock GetEntries to return cache keys
         $getEntries = m::mock(GetEntries::class);
@@ -181,8 +177,8 @@ class FlushTest extends RedisCacheTestCase
             ->with(['_all:tag:users:entries'])
             ->andReturn(new LazyCollection(['mykey']));
 
-        // Should use custom prefix for cache entries (via pipeline on client)
-        $client->shouldReceive('del')
+        // Should use custom prefix for cache entries (via pipeline on connection)
+        $connection->shouldReceive('del')
             ->once()
             ->with('custom_prefix:mykey')
             ->andReturn(1);
@@ -252,7 +248,7 @@ class FlushTest extends RedisCacheTestCase
      */
     public function testFlushInClusterModeUsesSequentialDel(): void
     {
-        [$store, $clusterClient, $clusterConnection] = $this->createClusterStore();
+        [$store, , $connection] = $this->createClusterStore();
 
         // Mock GetEntries to return cache keys
         $getEntries = m::mock(GetEntries::class);
@@ -262,16 +258,16 @@ class FlushTest extends RedisCacheTestCase
             ->andReturn(new LazyCollection(['key1', 'key2']));
 
         // Cluster mode should NOT use pipeline
-        $clusterClient->shouldNotReceive('pipeline');
+        $connection->shouldNotReceive('pipeline');
 
         // Should delete cache entries directly (sequential DEL)
-        $clusterClient->shouldReceive('del')
+        $connection->shouldReceive('del')
             ->once()
             ->with('prefix:key1', 'prefix:key2')
             ->andReturn(2);
 
         // Should delete the tag sorted set
-        $clusterConnection->shouldReceive('del')
+        $connection->shouldReceive('del')
             ->once()
             ->with('prefix:_all:tag:users:entries')
             ->andReturn(1);
@@ -285,7 +281,7 @@ class FlushTest extends RedisCacheTestCase
      */
     public function testFlushInClusterModeChunksLargeSets(): void
     {
-        [$store, $clusterClient, $clusterConnection] = $this->createClusterStore();
+        [$store, , $connection] = $this->createClusterStore();
 
         // Create more than CHUNK_SIZE (1000) entries
         $entries = [];
@@ -301,14 +297,14 @@ class FlushTest extends RedisCacheTestCase
             ->andReturn(new LazyCollection($entries));
 
         // Cluster mode should NOT use pipeline
-        $clusterClient->shouldNotReceive('pipeline');
+        $connection->shouldNotReceive('pipeline');
 
         // First chunk: 1000 entries (sequential DEL)
         $firstChunkArgs = [];
         for ($i = 1; $i <= 1000; ++$i) {
             $firstChunkArgs[] = "prefix:key{$i}";
         }
-        $clusterClient->shouldReceive('del')
+        $connection->shouldReceive('del')
             ->once()
             ->with(...$firstChunkArgs)
             ->andReturn(1000);
@@ -318,13 +314,13 @@ class FlushTest extends RedisCacheTestCase
         for ($i = 1001; $i <= 1500; ++$i) {
             $secondChunkArgs[] = "prefix:key{$i}";
         }
-        $clusterClient->shouldReceive('del')
+        $connection->shouldReceive('del')
             ->once()
             ->with(...$secondChunkArgs)
             ->andReturn(500);
 
         // Should delete the tag sorted set
-        $clusterConnection->shouldReceive('del')
+        $connection->shouldReceive('del')
             ->once()
             ->with('prefix:_all:tag:users:entries')
             ->andReturn(1);
@@ -338,7 +334,7 @@ class FlushTest extends RedisCacheTestCase
      */
     public function testFlushInClusterModeWithMultipleTags(): void
     {
-        [$store, $clusterClient, $clusterConnection] = $this->createClusterStore();
+        [$store, , $connection] = $this->createClusterStore();
 
         // Mock GetEntries to return cache keys from multiple tags
         $getEntries = m::mock(GetEntries::class);
@@ -348,16 +344,16 @@ class FlushTest extends RedisCacheTestCase
             ->andReturn(new LazyCollection(['user_key1', 'user_key2', 'post_key1']));
 
         // Cluster mode should NOT use pipeline
-        $clusterClient->shouldNotReceive('pipeline');
+        $connection->shouldNotReceive('pipeline');
 
         // Should delete all cache entries (sequential DEL)
-        $clusterClient->shouldReceive('del')
+        $connection->shouldReceive('del')
             ->once()
             ->with('prefix:user_key1', 'prefix:user_key2', 'prefix:post_key1')
             ->andReturn(3);
 
         // Should delete both tag sorted sets
-        $clusterConnection->shouldReceive('del')
+        $connection->shouldReceive('del')
             ->once()
             ->with('prefix:_all:tag:users:entries', 'prefix:_all:tag:posts:entries')
             ->andReturn(2);
@@ -371,7 +367,7 @@ class FlushTest extends RedisCacheTestCase
      */
     public function testFlushInClusterModeWithNoEntries(): void
     {
-        [$store, $clusterClient, $clusterConnection] = $this->createClusterStore();
+        [$store, , $connection] = $this->createClusterStore();
 
         // Mock GetEntries to return empty collection
         $getEntries = m::mock(GetEntries::class);
@@ -381,13 +377,10 @@ class FlushTest extends RedisCacheTestCase
             ->andReturn(new LazyCollection([]));
 
         // Cluster mode should NOT use pipeline
-        $clusterClient->shouldNotReceive('pipeline');
+        $connection->shouldNotReceive('pipeline');
 
-        // No cache entries to delete - del should NOT be called on cluster client
-        $clusterClient->shouldNotReceive('del');
-
-        // Should still delete the tag sorted set
-        $clusterConnection->shouldReceive('del')
+        // Should still delete the tag sorted set (only call to del)
+        $connection->shouldReceive('del')
             ->once()
             ->with('prefix:_all:tag:users:entries')
             ->andReturn(1);

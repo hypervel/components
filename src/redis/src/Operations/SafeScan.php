@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Redis\Operations;
 
 use Generator;
+use Hypervel\Redis\RedisConnection;
 use Redis;
-use RedisCluster;
 
 /**
  * Safely scan the Redis keyspace for keys matching a pattern.
@@ -57,7 +57,8 @@ use RedisCluster;
  *
  * ```php
  * $context->withConnection(function (RedisConnection $conn) {
- *     $safeScan = new SafeScan($conn->client(), $optPrefix);
+ *     $optPrefix = (string) $conn->getOption(Redis::OPT_PREFIX);
+ *     $safeScan = new SafeScan($conn, $optPrefix);
  *     foreach ($safeScan->execute('cache:users:*') as $key) {
  *         // $key is stripped of OPT_PREFIX, safe to use with del(), get(), etc.
  *     }
@@ -69,11 +70,11 @@ final class SafeScan
     /**
      * Create a new safe scan instance.
      *
-     * @param Redis|RedisCluster $client The raw Redis client (from $connection->client())
-     * @param string $optPrefix The OPT_PREFIX value (from $client->getOption(Redis::OPT_PREFIX))
+     * @param RedisConnection $conn The Redis connection (with transform: false for raw phpredis semantics)
+     * @param string $optPrefix The OPT_PREFIX value (from $conn->getOption(Redis::OPT_PREFIX))
      */
     public function __construct(
-        private readonly Redis|RedisCluster $client,
+        private readonly RedisConnection $conn,
         private readonly string $optPrefix,
     ) {
     }
@@ -99,7 +100,7 @@ final class SafeScan
         }
 
         // Route to cluster or standard implementation
-        if ($this->client instanceof RedisCluster) {
+        if ($this->conn->isCluster()) {
             yield from $this->scanCluster($scanPattern, $count, $prefixLen);
         } else {
             yield from $this->scanStandard($scanPattern, $count, $prefixLen);
@@ -116,7 +117,7 @@ final class SafeScan
 
         do {
             // SCAN returns keys as they exist in Redis (with full prefix)
-            $keys = $this->client->scan($iterator, $scanPattern, $count);
+            $keys = $this->conn->scan($iterator, $scanPattern, $count);
 
             // Normalize result (phpredis returns false on failure/empty)
             if ($keys === false || ! is_array($keys)) {
@@ -146,11 +147,9 @@ final class SafeScan
      */
     private function scanCluster(string $scanPattern, int $count, int $prefixLen): Generator
     {
-        /** @var RedisCluster $client */
-        $client = $this->client;
-
         // Get all master nodes in the cluster
-        $masters = $client->_masters();
+        // @phpstan-ignore method.notFound (RedisCluster-specific method, available when isCluster() is true)
+        $masters = $this->conn->_masters();
 
         foreach ($masters as $master) {
             // Each master node needs its own cursor
@@ -158,7 +157,7 @@ final class SafeScan
 
             do {
                 // RedisCluster::scan() signature: scan(&$iter, $node, $pattern, $count)
-                $keys = $client->scan($iterator, $master, $scanPattern, $count);
+                $keys = $this->conn->scan($iterator, $master, $scanPattern, $count);
 
                 // Normalize result (phpredis returns false on failure/empty)
                 if ($keys === false || ! is_array($keys)) {

@@ -22,7 +22,7 @@ class AnyTagSetTest extends RedisCacheTestCase
 {
     private RedisStore $store;
 
-    private m\MockInterface $client;
+    private m\MockInterface $connection;
 
     private m\MockInterface $pipeline;
 
@@ -98,12 +98,12 @@ class AnyTagSetTest extends RedisCacheTestCase
         $tagSet = new AnyTagSet($this->store, ['users']);
 
         // GetTaggedKeys checks HLEN then uses HKEYS for small hashes
-        $this->client->shouldReceive('hlen')
+        $this->connection->shouldReceive('hlen')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(3);
 
-        $this->client->shouldReceive('hkeys')
+        $this->connection->shouldReceive('hkeys')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(['key1', 'key2', 'key3']);
@@ -122,21 +122,21 @@ class AnyTagSetTest extends RedisCacheTestCase
         $tagSet = new AnyTagSet($this->store, ['users', 'posts']);
 
         // First tag 'users' has keys key1, key2
-        $this->client->shouldReceive('hlen')
+        $this->connection->shouldReceive('hlen')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(2);
-        $this->client->shouldReceive('hkeys')
+        $this->connection->shouldReceive('hkeys')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(['key1', 'key2']);
 
         // Second tag 'posts' has keys key2, key3 (key2 is duplicate)
-        $this->client->shouldReceive('hlen')
+        $this->connection->shouldReceive('hlen')
             ->once()
             ->with('prefix:_any:tag:posts:entries')
             ->andReturn(2);
-        $this->client->shouldReceive('hkeys')
+        $this->connection->shouldReceive('hkeys')
             ->once()
             ->with('prefix:_any:tag:posts:entries')
             ->andReturn(['key2', 'key3']);
@@ -156,11 +156,11 @@ class AnyTagSetTest extends RedisCacheTestCase
     {
         $tagSet = new AnyTagSet($this->store, ['users']);
 
-        $this->client->shouldReceive('hlen')
+        $this->connection->shouldReceive('hlen')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(0);
-        $this->client->shouldReceive('hkeys')
+        $this->connection->shouldReceive('hkeys')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn([]);
@@ -190,17 +190,17 @@ class AnyTagSetTest extends RedisCacheTestCase
         $tagSet = new AnyTagSet($this->store, ['users']);
 
         // GetTaggedKeys for the flush operation
-        $this->client->shouldReceive('hlen')
+        $this->connection->shouldReceive('hlen')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(2);
-        $this->client->shouldReceive('hkeys')
+        $this->connection->shouldReceive('hkeys')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(['key1', 'key2']);
 
         // Pipeline for deleting cache keys, reverse indexes, tag hashes, registry entries
-        $this->client->shouldReceive('pipeline')->andReturn($this->pipeline);
+        $this->connection->shouldReceive('pipeline')->andReturn($this->pipeline);
         $this->pipeline->shouldReceive('del')->andReturnSelf();
         $this->pipeline->shouldReceive('unlink')->andReturnSelf();
         $this->pipeline->shouldReceive('zrem')->andReturnSelf();
@@ -220,17 +220,17 @@ class AnyTagSetTest extends RedisCacheTestCase
         $tagSet = new AnyTagSet($this->store, ['users', 'posts']);
 
         // GetTaggedKeys for the flush operation (only 'users' tag)
-        $this->client->shouldReceive('hlen')
+        $this->connection->shouldReceive('hlen')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(1);
-        $this->client->shouldReceive('hkeys')
+        $this->connection->shouldReceive('hkeys')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(['key1']);
 
         // Pipeline for flush operations
-        $this->client->shouldReceive('pipeline')->andReturn($this->pipeline);
+        $this->connection->shouldReceive('pipeline')->andReturn($this->pipeline);
         $this->pipeline->shouldReceive('del')->andReturnSelf();
         $this->pipeline->shouldReceive('unlink')->andReturnSelf();
         $this->pipeline->shouldReceive('zrem')->andReturnSelf();
@@ -260,17 +260,17 @@ class AnyTagSetTest extends RedisCacheTestCase
         $tagSet = new AnyTagSet($this->store, ['users']);
 
         // GetTaggedKeys for the flush operation
-        $this->client->shouldReceive('hlen')
+        $this->connection->shouldReceive('hlen')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(1);
-        $this->client->shouldReceive('hkeys')
+        $this->connection->shouldReceive('hkeys')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(['key1']);
 
         // Pipeline for flush operations
-        $this->client->shouldReceive('pipeline')->andReturn($this->pipeline);
+        $this->connection->shouldReceive('pipeline')->andReturn($this->pipeline);
         $this->pipeline->shouldReceive('del')->andReturnSelf();
         $this->pipeline->shouldReceive('unlink')->andReturnSelf();
         $this->pipeline->shouldReceive('zrem')->andReturnSelf();
@@ -302,26 +302,26 @@ class AnyTagSetTest extends RedisCacheTestCase
         $tagSet = new AnyTagSet($this->store, ['users', 'posts']);
 
         // GetTaggedKeys for both tags
-        $this->client->shouldReceive('hlen')
+        $this->connection->shouldReceive('hlen')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(1);
-        $this->client->shouldReceive('hkeys')
+        $this->connection->shouldReceive('hkeys')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(['key1']);
 
-        $this->client->shouldReceive('hlen')
+        $this->connection->shouldReceive('hlen')
             ->once()
             ->with('prefix:_any:tag:posts:entries')
             ->andReturn(1);
-        $this->client->shouldReceive('hkeys')
+        $this->connection->shouldReceive('hkeys')
             ->once()
             ->with('prefix:_any:tag:posts:entries')
             ->andReturn(['key2']);
 
         // Pipeline for flush operations
-        $this->client->shouldReceive('pipeline')->andReturn($this->pipeline);
+        $this->connection->shouldReceive('pipeline')->andReturn($this->pipeline);
         $this->pipeline->shouldReceive('del')->andReturnSelf();
         $this->pipeline->shouldReceive('unlink')->andReturnSelf();
         $this->pipeline->shouldReceive('zrem')->andReturnSelf();
@@ -338,16 +338,15 @@ class AnyTagSetTest extends RedisCacheTestCase
      */
     private function setupStore(): void
     {
-        $connection = $this->mockConnection();
-        $this->client = $connection->_mockClient;
+        $this->connection = $this->mockConnection();
 
         // Mock pipeline
         $this->pipeline = m::mock();
 
-        // Add pipeline support to client
-        $this->client->shouldReceive('pipeline')->andReturn($this->pipeline)->byDefault();
+        // Add pipeline support to connection
+        $this->connection->shouldReceive('pipeline')->andReturn($this->pipeline)->byDefault();
 
-        $this->store = $this->createStore($connection);
+        $this->store = $this->createStore($this->connection);
         $this->store->setTagMode('any');
     }
 }

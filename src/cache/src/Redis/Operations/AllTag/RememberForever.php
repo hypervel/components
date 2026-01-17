@@ -60,12 +60,11 @@ class RememberForever
     private function executePipeline(string $key, Closure $callback, array $tagIds): array
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($key, $callback, $tagIds) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
             $prefixedKey = $prefix . $key;
 
             // Try to get the cached value
-            $value = $client->get($prefixedKey);
+            $value = $conn->get($prefixedKey);
 
             if ($value !== false && $value !== null) {
                 return [$this->serialization->unserialize($conn, $value), true];
@@ -77,7 +76,7 @@ class RememberForever
             // Now store with tag tracking using pipeline
             $serialized = $this->serialization->serialize($conn, $value);
 
-            $pipeline = $client->pipeline();
+            $pipeline = $conn->pipeline();
 
             // ZADD to each tag's sorted set with score -1 (forever)
             foreach ($tagIds as $tagId) {
@@ -104,12 +103,11 @@ class RememberForever
     private function executeCluster(string $key, Closure $callback, array $tagIds): array
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($key, $callback, $tagIds) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
             $prefixedKey = $prefix . $key;
 
             // Try to get the cached value
-            $value = $client->get($prefixedKey);
+            $value = $conn->get($prefixedKey);
 
             if ($value !== false && $value !== null) {
                 return [$this->serialization->unserialize($conn, $value), true];
@@ -123,11 +121,11 @@ class RememberForever
 
             // ZADD to each tag's sorted set (sequential - cross-slot)
             foreach ($tagIds as $tagId) {
-                $client->zadd($prefix . $tagId, self::FOREVER_SCORE, $key);
+                $conn->zadd($prefix . $tagId, self::FOREVER_SCORE, $key);
             }
 
             // SET for the cache value (no expiration)
-            $client->set($prefixedKey, $serialized);
+            $conn->set($prefixedKey, $serialized);
 
             return [$value, false];
         });

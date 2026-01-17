@@ -150,8 +150,8 @@ class ExceptionPropagationTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        // Flush calls hlen on the raw client to check hash size
-        $connection->_mockClient->shouldReceive('hlen')
+        // Flush calls hlen to check hash size
+        $connection->shouldReceive('hlen')
             ->andThrow(new RedisException('ERR unknown command'));
 
         $store = $this->createStore($connection, tagMode: 'any');

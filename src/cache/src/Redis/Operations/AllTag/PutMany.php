@@ -53,7 +53,6 @@ class PutMany
     private function executePipeline(array $values, int $seconds, array $tagIds, string $namespace): bool
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($values, $seconds, $tagIds, $namespace) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
             $score = now()->addSeconds($seconds)->getTimestamp();
             $ttl = max(1, $seconds);
@@ -67,7 +66,7 @@ class PutMany
 
             $namespacedKeys = array_keys($preparedEntries);
 
-            $pipeline = $client->pipeline();
+            $pipeline = $conn->pipeline();
 
             // Batch ZADD: one command per tag with all cache keys as members
             // ZADD format: key, score1, member1, score2, member2, ...
@@ -101,7 +100,6 @@ class PutMany
     private function executeCluster(array $values, int $seconds, array $tagIds, string $namespace): bool
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($values, $seconds, $tagIds, $namespace) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
             $score = now()->addSeconds($seconds)->getTimestamp();
             $ttl = max(1, $seconds);
@@ -123,13 +121,14 @@ class PutMany
                     $zaddArgs[] = $score;
                     $zaddArgs[] = $key;
                 }
-                $client->zadd($prefix . $tagId, ...$zaddArgs);
+                $conn->zadd($prefix . $tagId, ...$zaddArgs);
             }
 
             // Then all SETEXs
             $allSucceeded = true;
             foreach ($preparedEntries as $namespacedKey => $serialized) {
-                if (! $client->setex($prefix . $namespacedKey, $ttl, $serialized)) {
+                // @phpstan-ignore booleanNot.alwaysTrue (setex can fail in edge cases)
+                if (! $conn->setex($prefix . $namespacedKey, $ttl, $serialized)) {
                     $allSucceeded = false;
                 }
             }

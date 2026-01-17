@@ -30,9 +30,8 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverReturnsExistingValueOnCacheHit(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:ns:foo')
             ->andReturn(serialize('cached_value'));
@@ -50,16 +49,15 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverCallsCallbackOnCacheMissUsingPipeline(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:ns:foo')
             ->andReturnNull();
 
         // Pipeline mode for non-cluster
         $pipeline = m::mock();
-        $client->shouldReceive('pipeline')
+        $connection->shouldReceive('pipeline')
             ->once()
             ->andReturn($pipeline);
 
@@ -107,9 +105,8 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverDoesNotCallCallbackOnCacheHit(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:ns:foo')
             ->andReturn(serialize('existing_value'));
@@ -133,14 +130,13 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverWithMultipleTags(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
         $pipeline = m::mock();
-        $client->shouldReceive('pipeline')
+        $connection->shouldReceive('pipeline')
             ->once()
             ->andReturn($pipeline);
 
@@ -179,9 +175,8 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverPropagatesExceptionFromCallback(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
@@ -200,15 +195,14 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverUsesSequentialCommandsInClusterMode(): void
     {
         $connection = $this->mockClusterConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:ns:foo')
             ->andReturnNull();
 
         // In cluster mode, should use sequential zadd calls (not pipeline)
-        $client->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->twice()
             ->withArgs(function ($key, $score, $member) {
                 // Score may be float or int depending on implementation
@@ -219,7 +213,7 @@ class RememberForeverTest extends RedisCacheTestCase
             ->andReturn(1);
 
         // SET without TTL
-        $client->shouldReceive('set')
+        $connection->shouldReceive('set')
             ->once()
             ->with('prefix:ns:foo', serialize('value'))
             ->andReturn(true);
@@ -241,14 +235,13 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverWithNumericValue(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
         $pipeline = m::mock();
-        $client->shouldReceive('pipeline')
+        $connection->shouldReceive('pipeline')
             ->once()
             ->andReturn($pipeline);
 
@@ -283,14 +276,13 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverWithEmptyTags(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
         $pipeline = m::mock();
-        $client->shouldReceive('pipeline')
+        $connection->shouldReceive('pipeline')
             ->once()
             ->andReturn($pipeline);
 
@@ -318,14 +310,13 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverUsesNegativeOneScoreForForeverMarker(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
         $pipeline = m::mock();
-        $client->shouldReceive('pipeline')
+        $connection->shouldReceive('pipeline')
             ->once()
             ->andReturn($pipeline);
 

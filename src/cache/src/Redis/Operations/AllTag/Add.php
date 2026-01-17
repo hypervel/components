@@ -54,13 +54,12 @@ class Add
     private function executePipeline(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $seconds, $tagIds) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
             $score = now()->addSeconds($seconds)->getTimestamp();
 
             // Pipeline the ZADD operations for tag tracking
             if (! empty($tagIds)) {
-                $pipeline = $client->pipeline();
+                $pipeline = $conn->pipeline();
 
                 foreach ($tagIds as $tagId) {
                     $pipeline->zadd($prefix . $tagId, $score, $key);
@@ -70,7 +69,7 @@ class Add
             }
 
             // SET key value EX seconds NX - atomic "add if not exists"
-            $result = $client->set(
+            $result = $conn->set(
                 $prefix . $key,
                 $this->serialization->serialize($conn, $value),
                 ['EX' => max(1, $seconds), 'NX']
@@ -89,17 +88,16 @@ class Add
     private function executeCluster(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $seconds, $tagIds) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
             $score = now()->addSeconds($seconds)->getTimestamp();
 
             // ZADD to each tag's sorted set (sequential - cross-slot)
             foreach ($tagIds as $tagId) {
-                $client->zadd($prefix . $tagId, $score, $key);
+                $conn->zadd($prefix . $tagId, $score, $key);
             }
 
             // SET key value EX seconds NX - atomic "add if not exists"
-            $result = $client->set(
+            $result = $conn->set(
                 $prefix . $key,
                 $this->serialization->serialize($conn, $value),
                 ['EX' => max(1, $seconds), 'NX']

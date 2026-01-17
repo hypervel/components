@@ -8,7 +8,6 @@ use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\Operations\SafeScan;
 use Hypervel\Redis\RedisConnection;
 use Redis;
-use RedisCluster;
 
 /**
  * Prune stale and orphaned entries from all tag sorted sets.
@@ -48,10 +47,7 @@ class Prune
      */
     public function execute(int $scanCount = self::DEFAULT_SCAN_COUNT): array
     {
-        $isCluster = $this->context->isCluster();
-
-        return $this->context->withConnection(function (RedisConnection $conn) use ($scanCount, $isCluster) {
-            $client = $conn->client();
+        return $this->context->withConnection(function (RedisConnection $conn) use ($scanCount) {
             $pattern = $this->context->tagScanPattern();
             $optPrefix = $this->context->optPrefix();
             $prefix = $this->context->prefix();
@@ -66,23 +62,23 @@ class Prune
             ];
 
             // Use SafeScan to handle OPT_PREFIX correctly
-            $safeScan = new SafeScan($client, $optPrefix);
+            $safeScan = new SafeScan($conn, $optPrefix);
 
             foreach ($safeScan->execute($pattern, $scanCount) as $tagKey) {
                 ++$stats['tags_scanned'];
 
                 // Step 1: Remove TTL-expired entries (stale by time)
-                $staleRemoved = $client->zRemRangeByScore($tagKey, '0', (string) $now);
+                $staleRemoved = $conn->zRemRangeByScore($tagKey, '0', (string) $now);
                 $stats['stale_entries_removed'] += is_int($staleRemoved) ? $staleRemoved : 0;
 
                 // Step 2: Remove orphaned entries (cache key doesn't exist)
-                $orphanResult = $this->removeOrphanedEntries($client, $tagKey, $prefix, $scanCount, $isCluster);
+                $orphanResult = $this->removeOrphanedEntries($conn, $tagKey, $prefix, $scanCount);
                 $stats['entries_checked'] += $orphanResult['checked'];
                 $stats['orphans_removed'] += $orphanResult['removed'];
 
                 // Step 3: Delete if empty
-                if ($client->zCard($tagKey) === 0) {
-                    $client->del($tagKey);
+                if ($conn->zCard($tagKey) === 0) {
+                    $conn->del($tagKey);
                     ++$stats['empty_sets_deleted'];
                 }
 
@@ -100,18 +96,17 @@ class Prune
      * @param string $tagKey The tag sorted set key (without OPT_PREFIX, phpredis auto-adds it)
      * @param string $prefix The cache prefix (e.g., "cache:")
      * @param int $scanCount Number of members per ZSCAN iteration
-     * @param bool $isCluster Whether we're connected to a Redis Cluster
      * @return array{checked: int, removed: int}
      */
     private function removeOrphanedEntries(
-        Redis|RedisCluster $client,
+        RedisConnection $conn,
         string $tagKey,
         string $prefix,
         int $scanCount,
-        bool $isCluster,
     ): array {
         $checked = 0;
         $removed = 0;
+        $isCluster = $conn->isCluster();
 
         // phpredis 6.1.0+ uses null as initial cursor, older versions use 0
         $iterator = match (true) {
@@ -121,7 +116,7 @@ class Prune
 
         do {
             // ZSCAN returns [member => score, ...] array
-            $members = $client->zScan($tagKey, $iterator, '*', $scanCount);
+            $members = $conn->zScan($tagKey, $iterator, '*', $scanCount);
 
             if ($members === false || ! is_array($members) || empty($members)) {
                 break;
@@ -133,7 +128,7 @@ class Prune
             // Check which keys exist:
             // - Standard Redis: pipeline() batches commands with less overhead
             // - Cluster: multi() handles cross-slot commands (pipeline not supported)
-            $batch = $isCluster ? $client->multi() : $client->pipeline();
+            $batch = $isCluster ? $conn->multi() : $conn->pipeline();
 
             foreach ($memberKeys as $key) {
                 $batch->exists($prefix . $key);
@@ -153,7 +148,7 @@ class Prune
 
             // Remove orphaned members from the sorted set
             if (! empty($orphanedMembers)) {
-                $client->zRem($tagKey, ...$orphanedMembers);
+                $conn->zRem($tagKey, ...$orphanedMembers);
                 $removed += count($orphanedMembers);
             }
         } while ($iterator > 0);

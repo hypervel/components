@@ -21,16 +21,15 @@ class AddEntryTest extends RedisCacheTestCase
     public function testAddEntryWithTtl(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $client->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', now()->timestamp + 300, 'mykey')
-            ->andReturn($client);
+            ->andReturn($connection);
 
-        $client->shouldReceive('exec')
+        $connection->shouldReceive('exec')
             ->once()
             ->andReturn([1]);
 
@@ -46,16 +45,15 @@ class AddEntryTest extends RedisCacheTestCase
     public function testAddEntryWithZeroTtlStoresNegativeOne(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $client->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', -1, 'mykey')
-            ->andReturn($client);
+            ->andReturn($connection);
 
-        $client->shouldReceive('exec')
+        $connection->shouldReceive('exec')
             ->once()
             ->andReturn([1]);
 
@@ -71,16 +69,15 @@ class AddEntryTest extends RedisCacheTestCase
     public function testAddEntryWithNegativeTtlStoresNegativeOne(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $client->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', -1, 'mykey')
-            ->andReturn($client);
+            ->andReturn($connection);
 
-        $client->shouldReceive('exec')
+        $connection->shouldReceive('exec')
             ->once()
             ->andReturn([1]);
 
@@ -96,16 +93,15 @@ class AddEntryTest extends RedisCacheTestCase
     public function testAddEntryWithUpdateWhenNxCondition(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $client->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'mykey')
-            ->andReturn($client);
+            ->andReturn($connection);
 
-        $client->shouldReceive('exec')
+        $connection->shouldReceive('exec')
             ->once()
             ->andReturn([1]);
 
@@ -121,16 +117,15 @@ class AddEntryTest extends RedisCacheTestCase
     public function testAddEntryWithUpdateWhenXxCondition(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $client->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', ['XX'], -1, 'mykey')
-            ->andReturn($client);
+            ->andReturn($connection);
 
-        $client->shouldReceive('exec')
+        $connection->shouldReceive('exec')
             ->once()
             ->andReturn([1]);
 
@@ -146,16 +141,15 @@ class AddEntryTest extends RedisCacheTestCase
     public function testAddEntryWithUpdateWhenGtCondition(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $client->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', ['GT'], now()->timestamp + 60, 'mykey')
-            ->andReturn($client);
+            ->andReturn($connection);
 
-        $client->shouldReceive('exec')
+        $connection->shouldReceive('exec')
             ->once()
             ->andReturn([1]);
 
@@ -171,20 +165,19 @@ class AddEntryTest extends RedisCacheTestCase
     public function testAddEntryWithMultipleTags(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $client->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', now()->timestamp + 60, 'mykey')
-            ->andReturn($client);
-        $client->shouldReceive('zadd')
+            ->andReturn($connection);
+        $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:posts:entries', now()->timestamp + 60, 'mykey')
-            ->andReturn($client);
+            ->andReturn($connection);
 
-        $client->shouldReceive('exec')
+        $connection->shouldReceive('exec')
             ->once()
             ->andReturn([1, 1]);
 
@@ -200,11 +193,10 @@ class AddEntryTest extends RedisCacheTestCase
     public function testAddEntryWithEmptyTagsArrayDoesNothing(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // No pipeline or zadd calls should be made
-        $client->shouldNotReceive('pipeline');
-        $client->shouldNotReceive('zadd');
+        $connection->shouldNotReceive('pipeline');
+        $connection->shouldNotReceive('zadd');
 
         $store = $this->createStore($connection);
         $operation = new AddEntry($store->getContext());
@@ -218,16 +210,15 @@ class AddEntryTest extends RedisCacheTestCase
     public function testAddEntryUsesCorrectPrefix(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $client->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->with('custom_prefix:_all:tag:users:entries', -1, 'mykey')
-            ->andReturn($client);
+            ->andReturn($connection);
 
-        $client->shouldReceive('exec')
+        $connection->shouldReceive('exec')
             ->once()
             ->andReturn([1]);
 
@@ -242,13 +233,13 @@ class AddEntryTest extends RedisCacheTestCase
      */
     public function testAddEntryClusterModeUsesSequentialCommands(): void
     {
-        [$store, $clusterClient] = $this->createClusterStore();
+        [$store, , $connection] = $this->createClusterStore();
 
         // Should NOT use pipeline in cluster mode
-        $clusterClient->shouldNotReceive('pipeline');
+        $connection->shouldNotReceive('pipeline');
 
-        // Should use sequential zadd calls directly on client
-        $clusterClient->shouldReceive('zadd')
+        // Should use sequential zadd calls directly on connection
+        $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', now()->timestamp + 300, 'mykey')
             ->andReturn(1);
@@ -262,22 +253,22 @@ class AddEntryTest extends RedisCacheTestCase
      */
     public function testAddEntryClusterModeWithMultipleTags(): void
     {
-        [$store, $clusterClient] = $this->createClusterStore();
+        [$store, , $connection] = $this->createClusterStore();
 
         // Should NOT use pipeline in cluster mode
-        $clusterClient->shouldNotReceive('pipeline');
+        $connection->shouldNotReceive('pipeline');
 
         // Should use sequential zadd calls for each tag
         $expectedScore = now()->timestamp + 60;
-        $clusterClient->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', $expectedScore, 'mykey')
             ->andReturn(1);
-        $clusterClient->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:posts:entries', $expectedScore, 'mykey')
             ->andReturn(1);
-        $clusterClient->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:comments:entries', $expectedScore, 'mykey')
             ->andReturn(1);
@@ -291,10 +282,10 @@ class AddEntryTest extends RedisCacheTestCase
      */
     public function testAddEntryClusterModeWithUpdateWhenFlag(): void
     {
-        [$store, $clusterClient] = $this->createClusterStore();
+        [$store, , $connection] = $this->createClusterStore();
 
         // Should use zadd with NX flag as array (phpredis requires array for options)
-        $clusterClient->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'mykey')
             ->andReturn(1);
@@ -308,10 +299,10 @@ class AddEntryTest extends RedisCacheTestCase
      */
     public function testAddEntryClusterModeWithZeroTtlStoresNegativeOne(): void
     {
-        [$store, $clusterClient] = $this->createClusterStore();
+        [$store, , $connection] = $this->createClusterStore();
 
         // Score should be -1 for forever items (TTL = 0)
-        $clusterClient->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', -1, 'mykey')
             ->andReturn(1);

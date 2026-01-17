@@ -62,15 +62,14 @@ class Put
     private function executeCluster(string $key, mixed $value, int $seconds, array $tags): bool
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $seconds, $tags) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
 
             // Get old tags to handle replacement correctly (remove from old, add to new)
             $tagsKey = $this->context->reverseIndexKey($key);
-            $oldTags = $client->smembers($tagsKey);
+            $oldTags = $conn->smembers($tagsKey);
 
             // Store the actual cache value
-            $client->setex(
+            $conn->setex(
                 $prefix . $key,
                 max(1, $seconds),
                 $this->serialization->serialize($conn, $value)
@@ -78,7 +77,7 @@ class Put
 
             // Store reverse index of tags for this key
             // Use multi() as these keys are in the same slot
-            $multi = $client->multi();
+            $multi = $conn->multi();
             $multi->del($tagsKey); // Clear old tags
 
             if (! empty($tags)) {
@@ -93,7 +92,7 @@ class Put
 
             foreach ($tagsToRemove as $tag) {
                 $tag = (string) $tag;
-                $client->hdel($this->context->tagHashKey($tag), $key);
+                $conn->hdel($this->context->tagHashKey($tag), $key);
             }
 
             // Add to each tag's hash with expiration (using HSETEX for atomic operation)
@@ -106,7 +105,7 @@ class Put
                 $tag = (string) $tag;
 
                 // Use HSETEX to set field and expiration atomically in one command
-                $client->hsetex(
+                $conn->hsetex(
                     $this->context->tagHashKey($tag),
                     [$key => StoreContext::TAG_FIELD_VALUE],
                     ['EX' => $seconds]
@@ -123,7 +122,7 @@ class Put
                 }
 
                 // Update Registry: ZADD with GT (Greater Than) to only extend expiry
-                $client->zadd($registryKey, ['GT'], ...$zaddArgs);
+                $conn->zadd($registryKey, ['GT'], ...$zaddArgs);
             }
 
             return true;

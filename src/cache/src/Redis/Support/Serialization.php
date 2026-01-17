@@ -69,12 +69,10 @@ class Serialization
         $serialized = $this->phpSerialize($value);
 
         // Case 2: Check if compression is enabled (even without serializer)
-        $client = $conn->client();
-
-        if ($client->getOption(Redis::OPT_COMPRESSION) !== Redis::COMPRESSION_NONE) {
+        if ($conn->getOption(Redis::OPT_COMPRESSION) !== Redis::COMPRESSION_NONE) {
             // _serialize() applies compression even with SERIALIZER_NONE
             // Cast to string in case serialize() returned a numeric value
-            return $client->_serialize(is_numeric($serialized) ? (string) $serialized : $serialized);
+            return $conn->_serialize(is_numeric($serialized) ? (string) $serialized : $serialized);
         }
 
         // Case 3: No serializer, no compression

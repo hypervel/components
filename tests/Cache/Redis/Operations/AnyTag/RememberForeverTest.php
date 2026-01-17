@@ -33,9 +33,8 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverReturnsExistingValueOnCacheHit(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:foo')
             ->andReturn(serialize('cached_value'));
@@ -54,9 +53,8 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverCallsCallbackOnCacheMissUsingLua(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:foo')
             ->andReturnNull();
@@ -101,9 +99,8 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverUsesEvalWithShaCacheOnMiss(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
@@ -126,9 +123,8 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverDoesNotCallCallbackOnCacheHit(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:foo')
             ->andReturn(serialize('existing_value'));
@@ -153,9 +149,8 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverWithMultipleTags(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
@@ -190,9 +185,8 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverPropagatesExceptionFromCallback(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
@@ -212,9 +206,8 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverUsesSequentialCommandsInClusterMode(): void
     {
         $connection = $this->mockClusterConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:foo')
             ->andReturnNull();
@@ -222,29 +215,29 @@ class RememberForeverTest extends RedisCacheTestCase
         // In cluster mode, uses sequential commands instead of Lua
 
         // Get old tags from reverse index
-        $client->shouldReceive('smembers')
+        $connection->shouldReceive('smembers')
             ->once()
             ->andReturn([]);
 
         // SET without TTL (not SETEX)
-        $client->shouldReceive('set')
+        $connection->shouldReceive('set')
             ->once()
             ->andReturn(true);
 
-        // Multi for reverse index update (no expire call for forever) - return same client for chaining
-        $client->shouldReceive('multi')->andReturn($client);
-        $client->shouldReceive('del')->andReturn($client);
-        $client->shouldReceive('sadd')->andReturn($client);
+        // Multi for reverse index update (no expire call for forever) - return same connection for chaining
+        $connection->shouldReceive('multi')->andReturn($connection);
+        $connection->shouldReceive('del')->andReturn($connection);
+        $connection->shouldReceive('sadd')->andReturn($connection);
         // No expire() call for forever items
-        $client->shouldReceive('exec')->andReturn([1, 1]);
+        $connection->shouldReceive('exec')->andReturn([1, 1]);
 
         // HSET for each tag (not HSETEX, no HEXPIRE)
-        $client->shouldReceive('hset')
+        $connection->shouldReceive('hset')
             ->twice()
             ->andReturn(true);
 
         // ZADD for registry with MAX_EXPIRY
-        $client->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->withArgs(function ($key, $options, ...$rest) {
                 $this->assertSame(['GT'], $options);
@@ -273,9 +266,8 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverWithNumericValue(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
@@ -297,10 +289,9 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverHandlesFalseReturnFromGet(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // Redis returns false for non-existent keys
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:foo')
             ->andReturn(false);
@@ -323,9 +314,8 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverWithEmptyTags(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
@@ -348,35 +338,34 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverDoesNotSetExpirationOnReverseIndex(): void
     {
         $connection = $this->mockClusterConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
-        $client->shouldReceive('smembers')
+        $connection->shouldReceive('smembers')
             ->once()
             ->andReturn([]);
 
-        $client->shouldReceive('set')
+        $connection->shouldReceive('set')
             ->once()
             ->andReturn(true);
 
         // Multi for reverse index - should NOT have expire call
-        // Return same client for chaining (required for RedisCluster type constraints)
-        $client->shouldReceive('multi')->andReturn($client);
-        $client->shouldReceive('del')->andReturn($client);
-        $client->shouldReceive('sadd')->andReturn($client);
+        // Return same connection for chaining (required for RedisCluster type constraints)
+        $connection->shouldReceive('multi')->andReturn($connection);
+        $connection->shouldReceive('del')->andReturn($connection);
+        $connection->shouldReceive('sadd')->andReturn($connection);
         // Note: We can't easily test that expire is never called with this pattern
-        // because the client mock is reused. The absence of expire in the code is
+        // because the connection mock is reused. The absence of expire in the code is
         // verified by reading the implementation.
-        $client->shouldReceive('exec')->andReturn([1, 1]);
+        $connection->shouldReceive('exec')->andReturn([1, 1]);
 
-        $client->shouldReceive('hset')
+        $connection->shouldReceive('hset')
             ->once()
             ->andReturn(true);
 
-        $client->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->andReturn(1);
 
@@ -391,9 +380,8 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverUsesMaxExpiryForRegistry(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
@@ -419,29 +407,28 @@ class RememberForeverTest extends RedisCacheTestCase
     public function testRememberForeverRemovesItemFromOldTagsInClusterMode(): void
     {
         $connection = $this->mockClusterConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
         // Return old tags that should be cleaned up
-        $client->shouldReceive('smembers')
+        $connection->shouldReceive('smembers')
             ->once()
             ->andReturn(['old_tag', 'users']);
 
-        $client->shouldReceive('set')
+        $connection->shouldReceive('set')
             ->once()
             ->andReturn(true);
 
-        // Multi for reverse index - return same client for chaining
-        $client->shouldReceive('multi')->andReturn($client);
-        $client->shouldReceive('del')->andReturn($client);
-        $client->shouldReceive('sadd')->andReturn($client);
-        $client->shouldReceive('exec')->andReturn([1, 1]);
+        // Multi for reverse index - return same connection for chaining
+        $connection->shouldReceive('multi')->andReturn($connection);
+        $connection->shouldReceive('del')->andReturn($connection);
+        $connection->shouldReceive('sadd')->andReturn($connection);
+        $connection->shouldReceive('exec')->andReturn([1, 1]);
 
         // Should HDEL from old_tag since it's not in new tags
-        $client->shouldReceive('hdel')
+        $connection->shouldReceive('hdel')
             ->once()
             ->withArgs(function ($hashKey, $key) {
                 $this->assertStringContainsString('old_tag', $hashKey);
@@ -452,11 +439,11 @@ class RememberForeverTest extends RedisCacheTestCase
             ->andReturn(1);
 
         // HSET only for new tag 'users'
-        $client->shouldReceive('hset')
+        $connection->shouldReceive('hset')
             ->once()
             ->andReturn(true);
 
-        $client->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->andReturn(1);
 

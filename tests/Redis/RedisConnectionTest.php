@@ -15,6 +15,7 @@ use Hypervel\Tests\TestCase;
 use Mockery;
 use Psr\Container\ContainerInterface;
 use Redis;
+use RedisCluster;
 
 /**
  * @internal
@@ -681,6 +682,25 @@ class RedisConnectionTest extends TestCase
             ->andReturn(Redis::COMPRESSION_NONE);
 
         $this->assertFalse($connection->compressed());
+    }
+
+    public function testIsClusterReturnsFalseForStandardRedis(): void
+    {
+        $connection = $this->mockRedisConnection();
+
+        // Default stub uses a Redis mock, so isCluster() should return false
+        $this->assertFalse($connection->isCluster());
+    }
+
+    public function testIsClusterReturnsTrueForRedisCluster(): void
+    {
+        $connection = $this->mockRedisConnection();
+
+        // Set a RedisCluster mock as the active connection
+        $clusterMock = Mockery::mock(RedisCluster::class)->shouldIgnoreMissing();
+        $connection->setActiveConnection($clusterMock);
+
+        $this->assertTrue($connection->isCluster());
     }
 
     public function testPackReturnsEmptyArrayForEmptyInput(): void

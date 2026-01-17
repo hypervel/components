@@ -6,8 +6,6 @@ namespace Hypervel\Cache\Redis\Operations\AnyTag;
 
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
-use Redis;
-use RedisCluster;
 
 /**
  * Flush tags using lazy cleanup mode (fast).
@@ -59,8 +57,6 @@ class Flush
     private function executeCluster(array $tags): bool
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($tags) {
-            $client = $conn->client();
-
             // Collect all keys from all tags
             $keyGenerator = function () use ($tags) {
                 foreach ($tags as $tag) {
@@ -80,14 +76,14 @@ class Flush
                 ++$bufferSize;
 
                 if ($bufferSize >= self::CHUNK_SIZE) {
-                    $this->processChunkCluster($client, array_keys($buffer));
+                    $this->processChunkCluster($conn, array_keys($buffer));
                     $buffer = [];
                     $bufferSize = 0;
                 }
             }
 
             if ($bufferSize > 0) {
-                $this->processChunkCluster($client, array_keys($buffer));
+                $this->processChunkCluster($conn, array_keys($buffer));
             }
 
             // Delete the tag hashes themselves and remove from registry
@@ -95,8 +91,8 @@ class Flush
 
             foreach ($tags as $tag) {
                 $tag = (string) $tag;
-                $client->del($this->context->tagHashKey($tag));
-                $client->zrem($registryKey, $tag);
+                $conn->del($this->context->tagHashKey($tag));
+                $conn->zrem($registryKey, $tag);
             }
 
             return true;
@@ -109,8 +105,6 @@ class Flush
     private function executeUsingPipeline(array $tags): bool
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($tags) {
-            $client = $conn->client();
-
             // Collect all keys from all tags
             $keyGenerator = function () use ($tags) {
                 foreach ($tags as $tag) {
@@ -130,19 +124,19 @@ class Flush
                 ++$bufferSize;
 
                 if ($bufferSize >= self::CHUNK_SIZE) {
-                    $this->processChunkPipeline($client, array_keys($buffer));
+                    $this->processChunkPipeline($conn, array_keys($buffer));
                     $buffer = [];
                     $bufferSize = 0;
                 }
             }
 
             if ($bufferSize > 0) {
-                $this->processChunkPipeline($client, array_keys($buffer));
+                $this->processChunkPipeline($conn, array_keys($buffer));
             }
 
             // Delete the tag hashes themselves and remove from registry
             $registryKey = $this->context->registryKey();
-            $pipeline = $client->pipeline();
+            $pipeline = $conn->pipeline();
 
             foreach ($tags as $tag) {
                 $tag = (string) $tag;
@@ -159,10 +153,9 @@ class Flush
     /**
      * Process a chunk of keys for lazy flush (Cluster Mode).
      *
-     * @param Redis|RedisCluster $client
      * @param array<int, string> $keys Array of cache keys (without prefix)
      */
-    private function processChunkCluster(mixed $client, array $keys): void
+    private function processChunkCluster(RedisConnection $conn, array $keys): void
     {
         $prefix = $this->context->prefix();
 
@@ -179,21 +172,20 @@ class Flush
         );
 
         if (! empty($reverseIndexKeys)) {
-            $client->del(...$reverseIndexKeys);
+            $conn->del(...$reverseIndexKeys);
         }
 
         if (! empty($prefixedChunk)) {
-            $client->unlink(...$prefixedChunk);
+            $conn->unlink(...$prefixedChunk);
         }
     }
 
     /**
      * Process a chunk of keys for lazy flush (Pipeline Mode).
      *
-     * @param Redis|RedisCluster $client
      * @param array<int, string> $keys Array of cache keys (without prefix)
      */
-    private function processChunkPipeline(mixed $client, array $keys): void
+    private function processChunkPipeline(RedisConnection $conn, array $keys): void
     {
         $prefix = $this->context->prefix();
 
@@ -209,7 +201,7 @@ class Flush
             $keys
         );
 
-        $pipeline = $client->pipeline();
+        $pipeline = $conn->pipeline();
 
         if (! empty($reverseIndexKeys)) {
             $pipeline->del(...$reverseIndexKeys);

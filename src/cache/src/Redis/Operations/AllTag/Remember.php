@@ -59,12 +59,11 @@ class Remember
     private function executePipeline(string $key, int $seconds, Closure $callback, array $tagIds): array
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($key, $seconds, $callback, $tagIds) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
             $prefixedKey = $prefix . $key;
 
             // Try to get the cached value
-            $value = $client->get($prefixedKey);
+            $value = $conn->get($prefixedKey);
 
             if ($value !== false && $value !== null) {
                 return [$this->serialization->unserialize($conn, $value), true];
@@ -77,7 +76,7 @@ class Remember
             $score = now()->addSeconds($seconds)->getTimestamp();
             $serialized = $this->serialization->serialize($conn, $value);
 
-            $pipeline = $client->pipeline();
+            $pipeline = $conn->pipeline();
 
             // ZADD to each tag's sorted set
             foreach ($tagIds as $tagId) {
@@ -104,12 +103,11 @@ class Remember
     private function executeCluster(string $key, int $seconds, Closure $callback, array $tagIds): array
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($key, $seconds, $callback, $tagIds) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
             $prefixedKey = $prefix . $key;
 
             // Try to get the cached value
-            $value = $client->get($prefixedKey);
+            $value = $conn->get($prefixedKey);
 
             if ($value !== false && $value !== null) {
                 return [$this->serialization->unserialize($conn, $value), true];
@@ -124,11 +122,11 @@ class Remember
 
             // ZADD to each tag's sorted set (sequential - cross-slot)
             foreach ($tagIds as $tagId) {
-                $client->zadd($prefix . $tagId, $score, $key);
+                $conn->zadd($prefix . $tagId, $score, $key);
             }
 
             // SETEX for the cache value
-            $client->setex($prefixedKey, max(1, $seconds), $serialized);
+            $conn->setex($prefixedKey, max(1, $seconds), $serialized);
 
             return [$value, false];
         });

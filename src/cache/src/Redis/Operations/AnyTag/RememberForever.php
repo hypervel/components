@@ -57,12 +57,11 @@ class RememberForever
     private function executeCluster(string $key, Closure $callback, array $tags): array
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($key, $callback, $tags) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
             $prefixedKey = $prefix . $key;
 
             // Try to get the cached value
-            $value = $client->get($prefixedKey);
+            $value = $conn->get($prefixedKey);
 
             if ($value !== false && $value !== null) {
                 return [$this->serialization->unserialize($conn, $value), true];
@@ -73,17 +72,17 @@ class RememberForever
 
             // Get old tags to handle replacement correctly (remove from old, add to new)
             $tagsKey = $this->context->reverseIndexKey($key);
-            $oldTags = $client->smembers($tagsKey);
+            $oldTags = $conn->smembers($tagsKey);
 
             // Store the actual cache value without expiration
-            $client->set(
+            $conn->set(
                 $prefixedKey,
                 $this->serialization->serialize($conn, $value)
             );
 
             // Store reverse index of tags for this key (no expiration for forever)
             // Use multi() as these keys are in the same slot
-            $multi = $client->multi();
+            $multi = $conn->multi();
             $multi->del($tagsKey);
 
             if (! empty($tags)) {
@@ -97,7 +96,7 @@ class RememberForever
 
             foreach ($tagsToRemove as $tag) {
                 $tag = (string) $tag;
-                $client->hdel($this->context->tagHashKey($tag), $key);
+                $conn->hdel($this->context->tagHashKey($tag), $key);
             }
 
             // Calculate expiry for Registry (Year 9999)
@@ -107,7 +106,7 @@ class RememberForever
             // 1. Add to each tag's hash without expiration (Cross-slot, sequential)
             foreach ($tags as $tag) {
                 $tag = (string) $tag;
-                $client->hSet($this->context->tagHashKey($tag), $key, StoreContext::TAG_FIELD_VALUE);
+                $conn->hSet($this->context->tagHashKey($tag), $key, StoreContext::TAG_FIELD_VALUE);
                 // No HEXPIRE for forever items
             }
 
@@ -121,7 +120,7 @@ class RememberForever
                 }
 
                 // Update Registry: ZADD with GT (Greater Than) to only extend expiry
-                $client->zadd($registryKey, ['GT'], ...$zaddArgs);
+                $conn->zadd($registryKey, ['GT'], ...$zaddArgs);
             }
 
             return [$value, false];
@@ -140,7 +139,7 @@ class RememberForever
             $prefixedKey = $prefix . $key;
 
             // Try to get the cached value first
-            $value = $conn->client()->get($prefixedKey);
+            $value = $conn->get($prefixedKey);
 
             if ($value !== false && $value !== null) {
                 return [$this->serialization->unserialize($conn, $value), true];

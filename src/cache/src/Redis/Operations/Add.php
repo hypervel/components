@@ -40,7 +40,7 @@ class Add
             // - EX: Set expiration in seconds
             // - NX: Only set if key does Not eXist
             // Returns OK if set, null/false if key already exists
-            $result = $conn->client()->set(
+            $result = $conn->set(
                 $this->context->prefix() . $key,
                 $this->serialization->serialize($conn, $value),
                 ['EX' => max(1, $seconds), 'NX']

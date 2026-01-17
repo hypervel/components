@@ -14,6 +14,7 @@ use Hypervel\Redis\RedisFactory as HypervelRedisFactory;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Redis\Stub\FakeRedisClient;
+use Hypervel\Tests\Redis\Stubs\RedisConnectionStub;
 use Mockery as m;
 use Redis;
 use RedisCluster;
@@ -94,8 +95,21 @@ abstract class RedisCacheTestCase extends TestCase
         $connection->shouldReceive('release')->zeroOrMoreTimes();
         $connection->shouldReceive('serialized')->andReturn(false)->byDefault();
         $connection->shouldReceive('client')->andReturn($client)->byDefault();
+        $connection->shouldReceive('isCluster')->andReturn(false)->byDefault();
+        $connection->shouldReceive('getOption')
+            ->with(Redis::OPT_COMPRESSION)
+            ->andReturn(Redis::COMPRESSION_NONE)
+            ->byDefault();
+        $connection->shouldReceive('getOption')
+            ->with(Redis::OPT_PREFIX)
+            ->andReturn('')
+            ->byDefault();
 
-        // Store client reference for tests that need to set expectations on it
+        // Default pipeline() returns self for chaining (can be overridden in tests)
+        $connection->shouldReceive('pipeline')->andReturn($connection)->byDefault();
+        $connection->shouldReceive('exec')->andReturn([])->byDefault();
+
+        // Store client reference for backward compatibility during migration
         $connection->_mockClient = $client;
 
         return $connection;
@@ -126,8 +140,17 @@ abstract class RedisCacheTestCase extends TestCase
         $connection->shouldReceive('release')->zeroOrMoreTimes();
         $connection->shouldReceive('serialized')->andReturn(false)->byDefault();
         $connection->shouldReceive('client')->andReturn($client)->byDefault();
+        $connection->shouldReceive('isCluster')->andReturn(true)->byDefault();
+        $connection->shouldReceive('getOption')
+            ->with(Redis::OPT_COMPRESSION)
+            ->andReturn(Redis::COMPRESSION_NONE)
+            ->byDefault();
+        $connection->shouldReceive('getOption')
+            ->with(Redis::OPT_PREFIX)
+            ->andReturn('')
+            ->byDefault();
 
-        // Store client reference for tests that need to set expectations on it
+        // Store client reference for backward compatibility during migration
         $connection->_mockClient = $client;
 
         return $connection;
@@ -137,7 +160,7 @@ abstract class RedisCacheTestCase extends TestCase
      * Create a PoolFactory mock that returns the given connection.
      */
     protected function createPoolFactory(
-        m\MockInterface|RedisConnection $connection,
+        RedisConnection $connection,
         string $connectionName = 'default'
     ): m\MockInterface|PoolFactory {
         $poolFactory = m::mock(PoolFactory::class);
@@ -159,7 +182,7 @@ abstract class RedisCacheTestCase extends TestCase
      * connections via ApplicationContext::getContainer().
      */
     protected function registerRedisFactoryMock(
-        m\MockInterface|RedisConnection $connection,
+        RedisConnection $connection,
         string $connectionName = 'default'
     ): void {
         $redisProxy = m::mock(RedisProxy::class);
@@ -252,8 +275,12 @@ abstract class RedisCacheTestCase extends TestCase
     /**
      * Create a RedisStore with a FakeRedisClient.
      *
-     * Use this for tests that need proper reference parameter handling (e.g., &$iterator
-     * in SCAN/HSCAN/ZSCAN operations) which Mockery cannot properly propagate.
+     * Uses RedisConnectionStub (which extends the real RedisConnection) with FakeRedisClient
+     * injected as the underlying client. This allows proper reference parameter handling
+     * (e.g., &$iterator in SCAN/HSCAN/ZSCAN operations) which Mockery cannot propagate.
+     *
+     * FakeRedisClient extends Redis, satisfying the Redis|RedisCluster type hint.
+     * RedisConnection methods naturally delegate to the injected FakeRedisClient.
      *
      * @param FakeRedisClient $fakeClient pre-configured fake client with expected responses
      * @param string $prefix cache key prefix
@@ -266,10 +293,8 @@ abstract class RedisCacheTestCase extends TestCase
         string $connectionName = 'default',
         ?string $tagMode = null,
     ): RedisStore {
-        $connection = m::mock(RedisConnection::class);
-        $connection->shouldReceive('release')->zeroOrMoreTimes();
-        $connection->shouldReceive('serialized')->andReturn(false)->byDefault();
-        $connection->shouldReceive('client')->andReturn($fakeClient)->byDefault();
+        $connection = new RedisConnectionStub();
+        $connection->setActiveConnection($fakeClient);
 
         // Register RedisFactory mock for StoreContext::withConnection()
         $this->registerRedisFactoryMock($connection, $connectionName);

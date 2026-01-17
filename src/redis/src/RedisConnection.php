@@ -38,6 +38,14 @@ use Throwable;
  * @method mixed evalsha(string $script, int $numkeys, mixed ...$arguments) Evaluate Lua script by SHA1
  * @method mixed flushdb(mixed ...$arguments) Flush database
  * @method mixed executeRaw(array $parameters) Execute raw Redis command
+ * @method array smembers(string $key) Get all set members
+ * @method false|int hdel(string $key, string ...$fields) Delete hash fields
+ * @method false|int zrem(string $key, string ...$members) Remove sorted set members
+ * @method false|int hlen(string $key) Get number of hash fields
+ * @method array hkeys(string $key) Get all hash field names
+ * @method string _serialize(mixed $value) Serialize a value using configured serializer
+ * @method false|int hSet(string $key, mixed ...$fields_and_vals) Set hash field(s)
+ * @method array|false hexpire(string $key, int $ttl, array $fields, ?string $mode = null) Set TTL on hash fields
  * @method static string _digest(mixed $value)
  * @method static string _pack(mixed $value)
  * @method static mixed _unpack(string $value)
@@ -803,6 +811,14 @@ class RedisConnection extends HyperfRedisConnection
     }
 
     /**
+     * Determine if the connection is to a Redis Cluster.
+     */
+    public function isCluster(): bool
+    {
+        return $this->connection instanceof RedisCluster;
+    }
+
+    /**
      * Execute a Lua script using evalSha with automatic fallback to eval.
      *
      * Redis caches compiled Lua scripts by SHA1 hash. This method tries evalSha
@@ -877,7 +893,7 @@ class RedisConnection extends HyperfRedisConnection
     {
         $optPrefix = (string) $this->connection->getOption(Redis::OPT_PREFIX);
 
-        return (new SafeScan($this->connection, $optPrefix))->execute($pattern, $count);
+        return (new SafeScan($this, $optPrefix))->execute($pattern, $count);
     }
 
     /**

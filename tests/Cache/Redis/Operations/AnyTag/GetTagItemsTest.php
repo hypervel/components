@@ -20,20 +20,19 @@ class GetTagItemsTest extends RedisCacheTestCase
     public function testTagItemsReturnsKeyValuePairs(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // GetTaggedKeys mock
-        $client->shouldReceive('hlen')
+        $connection->shouldReceive('hlen')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(2);
-        $client->shouldReceive('hkeys')
+        $connection->shouldReceive('hkeys')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(['foo', 'bar']);
 
         // MGET to fetch values
-        $client->shouldReceive('mget')
+        $connection->shouldReceive('mget')
             ->once()
             ->with(['prefix:foo', 'prefix:bar'])
             ->andReturn([serialize('value1'), serialize('value2')]);
@@ -51,19 +50,18 @@ class GetTagItemsTest extends RedisCacheTestCase
     public function testTagItemsSkipsNonExistentKeys(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('hlen')
+        $connection->shouldReceive('hlen')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(3);
-        $client->shouldReceive('hkeys')
+        $connection->shouldReceive('hkeys')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(['foo', 'bar', 'baz']);
 
         // bar doesn't exist (returns null)
-        $client->shouldReceive('mget')
+        $connection->shouldReceive('mget')
             ->once()
             ->with(['prefix:foo', 'prefix:bar', 'prefix:baz'])
             ->andReturn([serialize('value1'), null, serialize('value3')]);
@@ -81,34 +79,33 @@ class GetTagItemsTest extends RedisCacheTestCase
     public function testTagItemsDeduplicatesAcrossTags(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // First tag 'users' has keys foo, bar
-        $client->shouldReceive('hlen')
+        $connection->shouldReceive('hlen')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(2);
-        $client->shouldReceive('hkeys')
+        $connection->shouldReceive('hkeys')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(['foo', 'bar']);
 
         // Second tag 'posts' has keys bar, baz (bar is duplicate)
-        $client->shouldReceive('hlen')
+        $connection->shouldReceive('hlen')
             ->once()
             ->with('prefix:_any:tag:posts:entries')
             ->andReturn(2);
-        $client->shouldReceive('hkeys')
+        $connection->shouldReceive('hkeys')
             ->once()
             ->with('prefix:_any:tag:posts:entries')
             ->andReturn(['bar', 'baz']);
 
         // MGET called twice (batches of keys from each tag)
-        $client->shouldReceive('mget')
+        $connection->shouldReceive('mget')
             ->once()
             ->with(['prefix:foo', 'prefix:bar'])
             ->andReturn([serialize('v1'), serialize('v2')]);
-        $client->shouldReceive('mget')
+        $connection->shouldReceive('mget')
             ->once()
             ->with(['prefix:baz']) // bar already seen, only baz
             ->andReturn([serialize('v3')]);

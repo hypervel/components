@@ -26,9 +26,8 @@ class RememberTest extends RedisCacheTestCase
     public function testRememberReturnsExistingValueOnCacheHit(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:ns:foo')
             ->andReturn(serialize('cached_value'));
@@ -46,16 +45,15 @@ class RememberTest extends RedisCacheTestCase
     public function testRememberCallsCallbackOnCacheMissUsingPipeline(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:ns:foo')
             ->andReturnNull();
 
         // Pipeline mode for non-cluster
         $pipeline = m::mock();
-        $client->shouldReceive('pipeline')
+        $connection->shouldReceive('pipeline')
             ->once()
             ->andReturn($pipeline);
 
@@ -104,9 +102,8 @@ class RememberTest extends RedisCacheTestCase
     public function testRememberDoesNotCallCallbackOnCacheHit(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:ns:foo')
             ->andReturn(serialize('existing_value'));
@@ -130,14 +127,13 @@ class RememberTest extends RedisCacheTestCase
     public function testRememberWithMultipleTags(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
         $pipeline = m::mock();
-        $client->shouldReceive('pipeline')
+        $connection->shouldReceive('pipeline')
             ->once()
             ->andReturn($pipeline);
 
@@ -172,9 +168,8 @@ class RememberTest extends RedisCacheTestCase
     public function testRememberPropagatesExceptionFromCallback(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
@@ -193,14 +188,13 @@ class RememberTest extends RedisCacheTestCase
     public function testRememberEnforcesMinimumTtlOfOne(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
         $pipeline = m::mock();
-        $client->shouldReceive('pipeline')
+        $connection->shouldReceive('pipeline')
             ->once()
             ->andReturn($pipeline);
 
@@ -232,19 +226,18 @@ class RememberTest extends RedisCacheTestCase
     public function testRememberUsesSequentialCommandsInClusterMode(): void
     {
         $connection = $this->mockClusterConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:ns:foo')
             ->andReturnNull();
 
         // In cluster mode, should use sequential zadd calls (not pipeline)
-        $client->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->twice()
             ->andReturn(1);
 
-        $client->shouldReceive('setex')
+        $connection->shouldReceive('setex')
             ->once()
             ->with('prefix:ns:foo', 60, serialize('value'))
             ->andReturn(true);
@@ -267,14 +260,13 @@ class RememberTest extends RedisCacheTestCase
     public function testRememberWithNumericValue(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
         $pipeline = m::mock();
-        $client->shouldReceive('pipeline')
+        $connection->shouldReceive('pipeline')
             ->once()
             ->andReturn($pipeline);
 
@@ -309,14 +301,13 @@ class RememberTest extends RedisCacheTestCase
     public function testRememberWithEmptyTags(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
         $pipeline = m::mock();
-        $client->shouldReceive('pipeline')
+        $connection->shouldReceive('pipeline')
             ->once()
             ->andReturn($pipeline);
 

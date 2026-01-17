@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Redis\Operations;
 use Hypervel\Redis\Operations\FlushByPattern;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Tests\Redis\Stub\FakeRedisClient;
+use Hypervel\Tests\Redis\Stubs\RedisConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
@@ -24,6 +25,26 @@ class FlushByPatternTest extends TestCase
         parent::tearDown();
     }
 
+    /**
+     * Create a RedisConnection wrapping a FakeRedisClient for testing.
+     *
+     * Returns both the connection (as a partial mock) and the client so tests
+     * can set up unlink expectations while using FakeRedisClient for scan behavior.
+     *
+     * @return array{m\MockInterface&RedisConnectionStub, FakeRedisClient}
+     */
+    private function createConnectionWithClient(FakeRedisClient $client): array
+    {
+        // Create a real stub, then wrap it in a partial mock to allow shouldReceive
+        $stub = new RedisConnectionStub();
+        $stub->setActiveConnection($client);
+
+        // Create a mock that delegates unknown methods to the stub
+        $connection = m::mock($stub)->makePartial();
+
+        return [$connection, $client];
+    }
+
     public function testFlushDeletesMatchingKeys(): void
     {
         $client = new FakeRedisClient(
@@ -32,8 +53,7 @@ class FlushByPatternTest extends TestCase
             ],
         );
 
-        $connection = m::mock(RedisConnection::class);
-        $connection->shouldReceive('client')->andReturn($client);
+        [$connection] = $this->createConnectionWithClient($client);
         $connection->shouldReceive('unlink')
             ->once()
             ->with('cache:test:key1', 'cache:test:key2', 'cache:test:key3')
@@ -54,8 +74,7 @@ class FlushByPatternTest extends TestCase
             ],
         );
 
-        $connection = m::mock(RedisConnection::class);
-        $connection->shouldReceive('client')->andReturn($client);
+        [$connection] = $this->createConnectionWithClient($client);
         // unlink should NOT be called when no keys found
         $connection->shouldNotReceive('unlink');
 
@@ -77,8 +96,7 @@ class FlushByPatternTest extends TestCase
             optPrefix: 'myapp:',
         );
 
-        $connection = m::mock(RedisConnection::class);
-        $connection->shouldReceive('client')->andReturn($client);
+        [$connection] = $this->createConnectionWithClient($client);
         // Keys passed to unlink should have OPT_PREFIX stripped
         // (phpredis will auto-add it back)
         $connection->shouldReceive('unlink')
@@ -117,8 +135,7 @@ class FlushByPatternTest extends TestCase
             ],
         );
 
-        $connection = m::mock(RedisConnection::class);
-        $connection->shouldReceive('client')->andReturn($client);
+        [$connection] = $this->createConnectionWithClient($client);
 
         // Should be called 3 times (1000 + 1000 + 500)
         $connection->shouldReceive('unlink')
@@ -141,8 +158,7 @@ class FlushByPatternTest extends TestCase
             ],
         );
 
-        $connection = m::mock(RedisConnection::class);
-        $connection->shouldReceive('client')->andReturn($client);
+        [$connection] = $this->createConnectionWithClient($client);
         // All keys should be collected and deleted together (under buffer size)
         $connection->shouldReceive('unlink')
             ->once()
@@ -164,8 +180,7 @@ class FlushByPatternTest extends TestCase
             ],
         );
 
-        $connection = m::mock(RedisConnection::class);
-        $connection->shouldReceive('client')->andReturn($client);
+        [$connection] = $this->createConnectionWithClient($client);
         // unlink might return false on error
         $connection->shouldReceive('unlink')
             ->once()
@@ -186,8 +201,7 @@ class FlushByPatternTest extends TestCase
             ],
         );
 
-        $connection = m::mock(RedisConnection::class);
-        $connection->shouldReceive('client')->andReturn($client);
+        [$connection] = $this->createConnectionWithClient($client);
 
         $flushByPattern = new FlushByPattern($connection);
 

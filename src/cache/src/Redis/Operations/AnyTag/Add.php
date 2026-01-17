@@ -53,11 +53,10 @@ class Add
     private function executeCluster(string $key, mixed $value, int $seconds, array $tags): bool
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $seconds, $tags) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
 
             // First try to add the key with NX flag
-            $added = $client->set(
+            $added = $conn->set(
                 $prefix . $key,
                 $this->serialization->serialize($conn, $value),
                 ['EX' => max(1, $seconds), 'NX']
@@ -76,7 +75,7 @@ class Add
 
             if (! empty($tags)) {
                 // Use multi() for reverse index updates (same slot)
-                $multi = $client->multi();
+                $multi = $conn->multi();
                 $multi->sadd($tagsKey, ...$tags);
                 $multi->expire($tagsKey, max(1, $seconds));
                 $multi->exec();
@@ -90,7 +89,7 @@ class Add
             // 1. Update Tag Hashes (Cross-slot, must be sequential)
             foreach ($tags as $tag) {
                 $tag = (string) $tag;
-                $client->hsetex($this->context->tagHashKey($tag), [$key => StoreContext::TAG_FIELD_VALUE], ['EX' => $seconds]);
+                $conn->hsetex($this->context->tagHashKey($tag), [$key => StoreContext::TAG_FIELD_VALUE], ['EX' => $seconds]);
             }
 
             // 2. Update Registry (Same slot, single command optimization)
@@ -103,7 +102,7 @@ class Add
                 }
 
                 // Update Registry: ZADD with GT (Greater Than) to only extend expiry
-                $client->zadd($registryKey, ['GT'], ...$zaddArgs);
+                $conn->zadd($registryKey, ['GT'], ...$zaddArgs);
             }
 
             return true;

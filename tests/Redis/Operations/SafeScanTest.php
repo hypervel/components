@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Redis\Operations;
 
 use Hypervel\Redis\Operations\SafeScan;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Tests\Redis\Stub\FakeRedisClient;
+use Hypervel\Tests\Redis\Stubs\RedisConnectionStub;
 use Hypervel\Tests\TestCase;
 
 /**
@@ -16,6 +18,17 @@ use Hypervel\Tests\TestCase;
  */
 class SafeScanTest extends TestCase
 {
+    /**
+     * Create a RedisConnection wrapping a FakeRedisClient for testing.
+     */
+    private function createConnection(FakeRedisClient $client): RedisConnection
+    {
+        $connection = new RedisConnectionStub();
+        $connection->setActiveConnection($client);
+
+        return $connection;
+    }
+
     public function testScanReturnsMatchingKeys(): void
     {
         $client = new FakeRedisClient(
@@ -24,7 +37,7 @@ class SafeScanTest extends TestCase
             ],
         );
 
-        $safeScan = new SafeScan($client, '');
+        $safeScan = new SafeScan($this->createConnection($client), '');
         $keys = iterator_to_array($safeScan->execute('cache:users:*'));
 
         $this->assertSame(['cache:users:1', 'cache:users:2'], $keys);
@@ -43,7 +56,7 @@ class SafeScanTest extends TestCase
             optPrefix: 'myapp:',
         );
 
-        $safeScan = new SafeScan($client, 'myapp:');
+        $safeScan = new SafeScan($this->createConnection($client), 'myapp:');
         $keys = iterator_to_array($safeScan->execute('cache:users:*'));
 
         // Returned keys should have prefix stripped
@@ -62,7 +75,7 @@ class SafeScanTest extends TestCase
             optPrefix: 'prefix:',
         );
 
-        $safeScan = new SafeScan($client, 'prefix:');
+        $safeScan = new SafeScan($this->createConnection($client), 'prefix:');
         $keys = iterator_to_array($safeScan->execute('cache:*'));
 
         // Keys should have prefix stripped so they work with other phpredis commands
@@ -77,7 +90,7 @@ class SafeScanTest extends TestCase
             ],
         );
 
-        $safeScan = new SafeScan($client, '');
+        $safeScan = new SafeScan($this->createConnection($client), '');
         $keys = iterator_to_array($safeScan->execute('cache:nonexistent:*'));
 
         $this->assertSame([], $keys);
@@ -90,7 +103,7 @@ class SafeScanTest extends TestCase
             scanResults: [],  // No results configured
         );
 
-        $safeScan = new SafeScan($client, '');
+        $safeScan = new SafeScan($this->createConnection($client), '');
         $keys = iterator_to_array($safeScan->execute('cache:*'));
 
         $this->assertSame([], $keys);
@@ -105,7 +118,7 @@ class SafeScanTest extends TestCase
             ],
         );
 
-        $safeScan = new SafeScan($client, '');
+        $safeScan = new SafeScan($this->createConnection($client), '');
         $keys = iterator_to_array($safeScan->execute('cache:*'));
 
         $this->assertSame(['cache:key1', 'cache:key2', 'cache:key3'], $keys);
@@ -121,7 +134,7 @@ class SafeScanTest extends TestCase
             optPrefix: 'myapp:',
         );
 
-        $safeScan = new SafeScan($client, 'myapp:');
+        $safeScan = new SafeScan($this->createConnection($client), 'myapp:');
 
         // Pattern already has prefix - should NOT add it again
         $keys = iterator_to_array($safeScan->execute('myapp:cache:*'));
@@ -143,7 +156,7 @@ class SafeScanTest extends TestCase
             optPrefix: 'myapp:',
         );
 
-        $safeScan = new SafeScan($client, 'myapp:');
+        $safeScan = new SafeScan($this->createConnection($client), 'myapp:');
         $keys = iterator_to_array($safeScan->execute('cache:*'));
 
         // Key should be returned as-is since it doesn't have the prefix
@@ -158,7 +171,7 @@ class SafeScanTest extends TestCase
             ],
         );
 
-        $safeScan = new SafeScan($client, '');
+        $safeScan = new SafeScan($this->createConnection($client), '');
         $keys = iterator_to_array($safeScan->execute('cache:*', 500));
 
         $this->assertSame(['cache:key1'], $keys);
@@ -174,7 +187,7 @@ class SafeScanTest extends TestCase
             optPrefix: '',  // No prefix configured
         );
 
-        $safeScan = new SafeScan($client, '');
+        $safeScan = new SafeScan($this->createConnection($client), '');
         $keys = iterator_to_array($safeScan->execute('cache:*'));
 
         // No stripping needed when no prefix
@@ -190,7 +203,7 @@ class SafeScanTest extends TestCase
             optPrefix: 'myapp:',
         );
 
-        $safeScan = new SafeScan($client, 'myapp:');
+        $safeScan = new SafeScan($this->createConnection($client), 'myapp:');
         $keys = iterator_to_array($safeScan->execute('cache:*'));
 
         // Prefixed keys stripped, unprefixed returned as-is
@@ -205,7 +218,7 @@ class SafeScanTest extends TestCase
             ],
         );
 
-        $safeScan = new SafeScan($client, '');
+        $safeScan = new SafeScan($this->createConnection($client), '');
         iterator_to_array($safeScan->execute('cache:*'));
 
         $this->assertSame(1000, $client->getScanCalls()[0]['count']);

@@ -80,7 +80,7 @@ class GetTagItems
 
         $results = $this->context->withConnection(
             function (RedisConnection $conn) use ($prefixedKeys, $keys) {
-                $values = $conn->client()->mget($prefixedKeys);
+                $values = $conn->mget($prefixedKeys);
                 $items = [];
 
                 foreach ($values as $index => $value) {

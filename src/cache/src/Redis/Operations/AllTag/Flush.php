@@ -6,8 +6,6 @@ namespace Hypervel\Cache\Redis\Operations\AllTag;
 
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Redis\RedisConnection;
-use Redis;
-use RedisCluster;
 
 /**
  * Flushes all cache entries associated with all tags.
@@ -54,6 +52,7 @@ class Flush
     private function flushValues(array $tagIds): void
     {
         $prefix = $this->context->prefix();
+        $isCluster = $this->context->isCluster();
 
         // Collect all entries and prepare chunks
         // (materialize the LazyCollection to get prefixed keys)
@@ -61,10 +60,7 @@ class Flush
             ->map(fn (string $key) => $prefix . $key);
 
         // Use a single connection for all chunk deletions
-        $this->context->withConnection(function (RedisConnection $conn) use ($entries) {
-            $client = $conn->client();
-            $isCluster = $client instanceof RedisCluster;
-
+        $this->context->withConnection(function (RedisConnection $conn) use ($entries, $isCluster) {
             foreach ($entries->chunk(self::CHUNK_SIZE) as $chunk) {
                 $keys = $chunk->all();
 
@@ -74,10 +70,10 @@ class Flush
 
                 if ($isCluster) {
                     // Cluster mode: sequential DEL (keys may be in different slots)
-                    $client->del(...$keys);
+                    $conn->del(...$keys);
                 } else {
                     // Standard mode: pipeline for batching
-                    $this->deleteChunkPipelined($client, $keys);
+                    $this->deleteChunkPipelined($conn, $keys);
                 }
             }
         });
@@ -86,12 +82,12 @@ class Flush
     /**
      * Delete a chunk of keys using pipeline.
      *
-     * @param object|Redis $client The Redis client (or mock in tests)
+     * @param RedisConnection $conn The Redis connection
      * @param array<string> $keys Keys to delete
      */
-    private function deleteChunkPipelined(mixed $client, array $keys): void
+    private function deleteChunkPipelined(RedisConnection $conn, array $keys): void
     {
-        $pipeline = $client->pipeline();
+        $pipeline = $conn->pipeline();
         $pipeline->del(...$keys);
         $pipeline->exec();
     }

@@ -167,19 +167,18 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testPutWithArrayCallsPutMany(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // PutMany uses pipeline with Lua operations
-        $client->shouldReceive('pipeline')->andReturn($client);
-        $client->shouldReceive('smembers')->andReturn($client);
-        $client->shouldReceive('exec')->andReturn([[], []]);
-        $client->shouldReceive('setex')->andReturn($client);
-        $client->shouldReceive('del')->andReturn($client);
-        $client->shouldReceive('sadd')->andReturn($client);
-        $client->shouldReceive('expire')->andReturn($client);
-        $client->shouldReceive('hSet')->andReturn($client);
-        $client->shouldReceive('hexpire')->andReturn($client);
-        $client->shouldReceive('zadd')->andReturn($client);
+        $connection->shouldReceive('pipeline')->andReturn($connection);
+        $connection->shouldReceive('smembers')->andReturn($connection);
+        $connection->shouldReceive('exec')->andReturn([[], []]);
+        $connection->shouldReceive('setex')->andReturn($connection);
+        $connection->shouldReceive('del')->andReturn($connection);
+        $connection->shouldReceive('sadd')->andReturn($connection);
+        $connection->shouldReceive('expire')->andReturn($connection);
+        $connection->shouldReceive('hSet')->andReturn($connection);
+        $connection->shouldReceive('hexpire')->andReturn($connection);
+        $connection->shouldReceive('zadd')->andReturn($connection);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->put(['key1' => 'value1', 'key2' => 'value2'], 60);
@@ -193,19 +192,18 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testPutManyStoresMultipleValues(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // PutMany uses pipeline
-        $client->shouldReceive('pipeline')->andReturn($client);
-        $client->shouldReceive('smembers')->andReturn($client);
-        $client->shouldReceive('exec')->andReturn([[], []]);
-        $client->shouldReceive('setex')->andReturn($client);
-        $client->shouldReceive('del')->andReturn($client);
-        $client->shouldReceive('sadd')->andReturn($client);
-        $client->shouldReceive('expire')->andReturn($client);
-        $client->shouldReceive('hSet')->andReturn($client);
-        $client->shouldReceive('hexpire')->andReturn($client);
-        $client->shouldReceive('zadd')->andReturn($client);
+        $connection->shouldReceive('pipeline')->andReturn($connection);
+        $connection->shouldReceive('smembers')->andReturn($connection);
+        $connection->shouldReceive('exec')->andReturn([[], []]);
+        $connection->shouldReceive('setex')->andReturn($connection);
+        $connection->shouldReceive('del')->andReturn($connection);
+        $connection->shouldReceive('sadd')->andReturn($connection);
+        $connection->shouldReceive('expire')->andReturn($connection);
+        $connection->shouldReceive('hSet')->andReturn($connection);
+        $connection->shouldReceive('hexpire')->andReturn($connection);
+        $connection->shouldReceive('zadd')->andReturn($connection);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->putMany(['key1' => 'value1', 'key2' => 'value2'], 120);
@@ -395,22 +393,21 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testFlushDeletesAllTaggedItems(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // GetTaggedKeys uses hlen to check size
         // When small (< threshold), it uses hkeys directly instead of scan
-        $client->shouldReceive('hlen')
+        $connection->shouldReceive('hlen')
             ->andReturn(2);
-        $client->shouldReceive('hkeys')
+        $connection->shouldReceive('hkeys')
             ->once()
             ->andReturn(['key1', 'key2']);
 
         // After getting keys, Flush uses pipeline for delete operations
-        $client->shouldReceive('pipeline')->andReturn($client);
-        $client->shouldReceive('del')->andReturn($client);
-        $client->shouldReceive('unlink')->andReturn($client);
-        $client->shouldReceive('zrem')->andReturn($client);
-        $client->shouldReceive('exec')->andReturn([2, 1]);
+        $connection->shouldReceive('pipeline')->andReturn($connection);
+        $connection->shouldReceive('del')->andReturn($connection);
+        $connection->shouldReceive('unlink')->andReturn($connection);
+        $connection->shouldReceive('zrem')->andReturn($connection);
+        $connection->shouldReceive('exec')->andReturn([2, 1]);
 
         $store = $this->createStore($connection);
         $result = $store->setTagMode('any')->tags(['users'])->flush();
@@ -424,10 +421,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testRememberRetrievesExistingValueFromStore(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // The Remember operation calls $client->get() directly
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:mykey')
             ->andReturn(serialize('cached_value'));
@@ -444,10 +440,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testRememberCallsCallbackAndStoresValueWhenMiss(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // Client returns null (miss) - Remember operation uses client->get() directly
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:mykey')
             ->andReturnNull();
@@ -475,10 +470,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testRememberForeverRetrievesExistingValueFromStore(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // RememberForever operation uses $client->get() directly
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:mykey')
             ->andReturn(serialize('cached_value'));
@@ -495,10 +489,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testRememberForeverCallsCallbackAndStoresValueWhenMiss(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // RememberForever operation uses $client->get() directly - returns null (miss)
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:mykey')
             ->andReturnNull();
@@ -532,10 +525,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testItemKeyReturnsKeyUnchanged(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // In any mode, keys are NOT namespaced by tags
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:mykey') // Should NOT have tag namespace prefix
             ->andReturn(serialize('value'));
@@ -584,10 +576,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testRememberPropagatesExceptionFromCallback(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // Client returns null (cache miss) - callback will be executed
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:mykey')
             ->andReturnNull();
@@ -607,10 +598,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testRememberForeverPropagatesExceptionFromCallback(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // Client returns null (cache miss) - callback will be executed
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:mykey')
             ->andReturnNull();
@@ -630,10 +620,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testRememberDoesNotCallCallbackWhenValueExists(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // Client returns existing value (cache hit)
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:mykey')
             ->andReturn(serialize('cached_value'));
@@ -656,19 +645,18 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testItemsReturnsGenerator(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // GetTaggedKeys uses hlen to check size first
-        $client->shouldReceive('hlen')
+        $connection->shouldReceive('hlen')
             ->andReturn(2);
 
         // When small (< threshold), it uses hkeys directly
-        $client->shouldReceive('hkeys')
+        $connection->shouldReceive('hkeys')
             ->once()
             ->andReturn(['key1', 'key2']);
 
         // Get values for found keys (mget receives array)
-        $client->shouldReceive('mget')
+        $connection->shouldReceive('mget')
             ->once()
             ->with(['prefix:key1', 'prefix:key2'])
             ->andReturn([serialize('value1'), serialize('value2')]);

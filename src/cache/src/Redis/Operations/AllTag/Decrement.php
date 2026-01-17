@@ -51,10 +51,9 @@ class Decrement
     private function executePipeline(string $key, int $value, array $tagIds): int|false
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $tagIds) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
 
-            $pipeline = $client->pipeline();
+            $pipeline = $conn->pipeline();
 
             // ZADD NX to each tag's sorted set (only add if not exists)
             foreach ($tagIds as $tagId) {
@@ -81,16 +80,15 @@ class Decrement
     private function executeCluster(string $key, int $value, array $tagIds): int|false
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $tagIds) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
 
             // ZADD NX to each tag's sorted set (sequential - cross-slot)
             foreach ($tagIds as $tagId) {
-                $client->zadd($prefix . $tagId, ['NX'], self::FOREVER_SCORE, $key);
+                $conn->zadd($prefix . $tagId, ['NX'], self::FOREVER_SCORE, $key);
             }
 
             // DECRBY for the value
-            return $client->decrBy($prefix . $key, $value);
+            return $conn->decrBy($prefix . $key, $value);
         });
     }
 }

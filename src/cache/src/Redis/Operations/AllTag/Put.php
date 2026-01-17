@@ -52,12 +52,11 @@ class Put
     private function executePipeline(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $seconds, $tagIds) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
             $score = now()->addSeconds($seconds)->getTimestamp();
             $serialized = $this->serialization->serialize($conn, $value);
 
-            $pipeline = $client->pipeline();
+            $pipeline = $conn->pipeline();
 
             // ZADD to each tag's sorted set
             foreach ($tagIds as $tagId) {
@@ -83,18 +82,17 @@ class Put
     private function executeCluster(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $seconds, $tagIds) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
             $score = now()->addSeconds($seconds)->getTimestamp();
             $serialized = $this->serialization->serialize($conn, $value);
 
             // ZADD to each tag's sorted set (sequential - cross-slot)
             foreach ($tagIds as $tagId) {
-                $client->zadd($prefix . $tagId, $score, $key);
+                $conn->zadd($prefix . $tagId, $score, $key);
             }
 
             // SETEX for the cache value
-            return (bool) $client->setex($prefix . $key, max(1, $seconds), $serialized);
+            return (bool) $conn->setex($prefix . $key, max(1, $seconds), $serialized);
         });
     }
 }

@@ -61,12 +61,11 @@ class Remember
     private function executeCluster(string $key, int $seconds, Closure $callback, array $tags): array
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($key, $seconds, $callback, $tags) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
             $prefixedKey = $prefix . $key;
 
             // Try to get the cached value
-            $value = $client->get($prefixedKey);
+            $value = $conn->get($prefixedKey);
 
             if ($value !== false && $value !== null) {
                 return [$this->serialization->unserialize($conn, $value), true];
@@ -77,10 +76,10 @@ class Remember
 
             // Get old tags to handle replacement correctly (remove from old, add to new)
             $tagsKey = $this->context->reverseIndexKey($key);
-            $oldTags = $client->smembers($tagsKey);
+            $oldTags = $conn->smembers($tagsKey);
 
             // Store the actual cache value
-            $client->setex(
+            $conn->setex(
                 $prefixedKey,
                 max(1, $seconds),
                 $this->serialization->serialize($conn, $value)
@@ -88,7 +87,7 @@ class Remember
 
             // Store reverse index of tags for this key
             // Use multi() as these keys are in the same slot
-            $multi = $client->multi();
+            $multi = $conn->multi();
             $multi->del($tagsKey); // Clear old tags
 
             if (! empty($tags)) {
@@ -103,7 +102,7 @@ class Remember
 
             foreach ($tagsToRemove as $tag) {
                 $tag = (string) $tag;
-                $client->hdel($this->context->tagHashKey($tag), $key);
+                $conn->hdel($this->context->tagHashKey($tag), $key);
             }
 
             // Add to each tag's hash with expiration (using HSETEX for atomic operation)
@@ -116,7 +115,7 @@ class Remember
                 $tag = (string) $tag;
 
                 // Use HSETEX to set field and expiration atomically in one command
-                $client->hsetex(
+                $conn->hsetex(
                     $this->context->tagHashKey($tag),
                     [$key => StoreContext::TAG_FIELD_VALUE],
                     ['EX' => $seconds]
@@ -133,7 +132,7 @@ class Remember
                 }
 
                 // Update Registry: ZADD with GT (Greater Than) to only extend expiry
-                $client->zadd($registryKey, ['GT'], ...$zaddArgs);
+                $conn->zadd($registryKey, ['GT'], ...$zaddArgs);
             }
 
             return [$value, false];
@@ -152,7 +151,7 @@ class Remember
             $prefixedKey = $prefix . $key;
 
             // Try to get the cached value first
-            $value = $conn->client()->get($prefixedKey);
+            $value = $conn->get($prefixedKey);
 
             if ($value !== false && $value !== null) {
                 return [$this->serialization->unserialize($conn, $value), true];

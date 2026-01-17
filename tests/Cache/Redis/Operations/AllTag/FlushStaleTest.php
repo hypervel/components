@@ -23,16 +23,15 @@ class FlushStaleTest extends RedisCacheTestCase
     public function testFlushStaleEntriesRemovesExpiredEntries(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $client->shouldReceive('zRemRangeByScore')
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('prefix:_all:tag:users:entries', '0', (string) now()->getTimestamp())
-            ->andReturn($client);
+            ->andReturn($connection);
 
-        $client->shouldReceive('exec')->once();
+        $connection->shouldReceive('exec')->once();
 
         $store = $this->createStore($connection);
         $operation = new FlushStale($store->getContext());
@@ -46,25 +45,24 @@ class FlushStaleTest extends RedisCacheTestCase
     public function testFlushStaleEntriesWithMultipleTags(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
         // All tags should be processed in a single pipeline
-        $client->shouldReceive('zRemRangeByScore')
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('prefix:_all:tag:users:entries', '0', (string) now()->getTimestamp())
-            ->andReturn($client);
-        $client->shouldReceive('zRemRangeByScore')
+            ->andReturn($connection);
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('prefix:_all:tag:posts:entries', '0', (string) now()->getTimestamp())
-            ->andReturn($client);
-        $client->shouldReceive('zRemRangeByScore')
+            ->andReturn($connection);
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('prefix:_all:tag:comments:entries', '0', (string) now()->getTimestamp())
-            ->andReturn($client);
+            ->andReturn($connection);
 
-        $client->shouldReceive('exec')->once();
+        $connection->shouldReceive('exec')->once();
 
         $store = $this->createStore($connection);
         $operation = new FlushStale($store->getContext());
@@ -78,10 +76,9 @@ class FlushStaleTest extends RedisCacheTestCase
     public function testFlushStaleEntriesWithEmptyTagIdsReturnsEarly(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // Should NOT create pipeline or execute any commands for empty array
-        $client->shouldNotReceive('pipeline');
+        $connection->shouldNotReceive('pipeline');
 
         $store = $this->createStore($connection);
         $operation = new FlushStale($store->getContext());
@@ -95,16 +92,15 @@ class FlushStaleTest extends RedisCacheTestCase
     public function testFlushStaleEntriesUsesCorrectPrefix(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $client->shouldReceive('zRemRangeByScore')
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('custom_prefix:_all:tag:users:entries', '0', (string) now()->getTimestamp())
-            ->andReturn($client);
+            ->andReturn($connection);
 
-        $client->shouldReceive('exec')->once();
+        $connection->shouldReceive('exec')->once();
 
         $store = $this->createStore($connection, 'custom_prefix:');
         $operation = new FlushStale($store->getContext());
@@ -122,18 +118,17 @@ class FlushStaleTest extends RedisCacheTestCase
         $expectedTimestamp = (string) Carbon::now()->getTimestamp();
 
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
         // Lower bound is '0' (to exclude -1 forever items)
         // Upper bound is current timestamp
-        $client->shouldReceive('zRemRangeByScore')
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('prefix:_all:tag:users:entries', '0', $expectedTimestamp)
-            ->andReturn($client);
+            ->andReturn($connection);
 
-        $client->shouldReceive('exec')->once();
+        $connection->shouldReceive('exec')->once();
 
         $store = $this->createStore($connection);
         $operation = new FlushStale($store->getContext());
@@ -149,24 +144,23 @@ class FlushStaleTest extends RedisCacheTestCase
         // This test documents that the score range '0' to timestamp
         // intentionally excludes items with score -1 (forever items)
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
         // The lower bound is '0', not '-inf', so -1 scores are excluded
-        $client->shouldReceive('zRemRangeByScore')
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('prefix:_all:tag:users:entries', '0', m::type('string'))
-            ->andReturnUsing(function ($key, $min, $max) use ($client) {
+            ->andReturnUsing(function ($key, $min, $max) use ($connection) {
                 // Verify lower bound excludes -1 forever items
                 $this->assertSame('0', $min);
                 // Verify upper bound is a valid timestamp
                 $this->assertIsNumeric($max);
 
-                return $client;
+                return $connection;
             });
 
-        $client->shouldReceive('exec')->once();
+        $connection->shouldReceive('exec')->once();
 
         $store = $this->createStore($connection);
         $operation = new FlushStale($store->getContext());
@@ -179,22 +173,22 @@ class FlushStaleTest extends RedisCacheTestCase
      */
     public function testFlushStaleEntriesClusterModeUsesMulti(): void
     {
-        [$store, $clusterClient] = $this->createClusterStore();
+        [$store, , $connection] = $this->createClusterStore();
 
         // Should NOT use pipeline in cluster mode
-        $clusterClient->shouldNotReceive('pipeline');
+        $connection->shouldNotReceive('pipeline');
 
         // Cluster mode uses multi() which handles cross-slot commands
-        $clusterClient->shouldReceive('multi')
+        $connection->shouldReceive('multi')
             ->once()
-            ->andReturn($clusterClient);
+            ->andReturn($connection);
 
-        $clusterClient->shouldReceive('zRemRangeByScore')
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('prefix:_all:tag:users:entries', '0', (string) now()->getTimestamp())
-            ->andReturn($clusterClient);
+            ->andReturn($connection);
 
-        $clusterClient->shouldReceive('exec')
+        $connection->shouldReceive('exec')
             ->once()
             ->andReturn([5]);
 
@@ -207,32 +201,32 @@ class FlushStaleTest extends RedisCacheTestCase
      */
     public function testFlushStaleEntriesClusterModeWithMultipleTags(): void
     {
-        [$store, $clusterClient] = $this->createClusterStore();
+        [$store, , $connection] = $this->createClusterStore();
 
         // Should NOT use pipeline in cluster mode
-        $clusterClient->shouldNotReceive('pipeline');
+        $connection->shouldNotReceive('pipeline');
 
         // Cluster mode uses multi() which handles cross-slot commands
-        $clusterClient->shouldReceive('multi')
+        $connection->shouldReceive('multi')
             ->once()
-            ->andReturn($clusterClient);
+            ->andReturn($connection);
 
         // All tags processed in single multi block
         $timestamp = (string) now()->getTimestamp();
-        $clusterClient->shouldReceive('zRemRangeByScore')
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('prefix:_all:tag:users:entries', '0', $timestamp)
-            ->andReturn($clusterClient);
-        $clusterClient->shouldReceive('zRemRangeByScore')
+            ->andReturn($connection);
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('prefix:_all:tag:posts:entries', '0', $timestamp)
-            ->andReturn($clusterClient);
-        $clusterClient->shouldReceive('zRemRangeByScore')
+            ->andReturn($connection);
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('prefix:_all:tag:comments:entries', '0', $timestamp)
-            ->andReturn($clusterClient);
+            ->andReturn($connection);
 
-        $clusterClient->shouldReceive('exec')
+        $connection->shouldReceive('exec')
             ->once()
             ->andReturn([3, 2, 0]);
 
@@ -245,20 +239,20 @@ class FlushStaleTest extends RedisCacheTestCase
      */
     public function testFlushStaleEntriesClusterModeUsesCorrectPrefix(): void
     {
-        [$store, $clusterClient] = $this->createClusterStore(prefix: 'custom_prefix:');
+        [$store, , $connection] = $this->createClusterStore(prefix: 'custom_prefix:');
 
         // Cluster mode uses multi()
-        $clusterClient->shouldReceive('multi')
+        $connection->shouldReceive('multi')
             ->once()
-            ->andReturn($clusterClient);
+            ->andReturn($connection);
 
         // Should use custom prefix
-        $clusterClient->shouldReceive('zRemRangeByScore')
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('custom_prefix:_all:tag:users:entries', '0', (string) now()->getTimestamp())
-            ->andReturn($clusterClient);
+            ->andReturn($connection);
 
-        $clusterClient->shouldReceive('exec')
+        $connection->shouldReceive('exec')
             ->once()
             ->andReturn([1]);
 

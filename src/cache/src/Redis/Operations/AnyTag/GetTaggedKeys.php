@@ -48,13 +48,13 @@ class GetTaggedKeys
 
         // Check size with a quick connection checkout
         $size = $this->context->withConnection(
-            fn (RedisConnection $conn) => $conn->client()->hlen($tagKey)
+            fn (RedisConnection $conn) => $conn->hlen($tagKey)
         );
 
         if ($size <= $this->scanThreshold) {
             // For small hashes, fetch all at once (safe - data fully fetched before connection release)
             $fields = $this->context->withConnection(
-                fn (RedisConnection $conn) => $conn->client()->hkeys($tagKey)
+                fn (RedisConnection $conn) => $conn->hkeys($tagKey)
             );
 
             return $this->arrayToGenerator($fields ?: []);
@@ -94,7 +94,7 @@ class GetTaggedKeys
             // Acquire connection just for this HSCAN batch
             $fields = $this->context->withConnection(
                 function (RedisConnection $conn) use ($tagKey, &$iterator, $count) {
-                    return $conn->client()->hscan($tagKey, $iterator, null, $count);
+                    return $conn->hscan($tagKey, $iterator, null, $count);
                 }
             );
 

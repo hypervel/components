@@ -23,16 +23,15 @@ class PruneTest extends RedisCacheTestCase
     public function testPruneReturnsEmptyStatsWhenNoActiveTagsInRegistry(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // ZREMRANGEBYSCORE on registry removes expired tags
-        $client->shouldReceive('zRemRangeByScore')
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('prefix:_any:tag:registry', '-inf', m::type('string'))
             ->andReturn(2); // 2 expired tags removed
 
         // ZRANGE returns empty (no active tags)
-        $client->shouldReceive('zRange')
+        $connection->shouldReceive('zRange')
             ->once()
             ->with('prefix:_any:tag:registry', 0, -1)
             ->andReturn([]);
@@ -56,22 +55,21 @@ class PruneTest extends RedisCacheTestCase
     public function testPruneRemovesOrphanedFieldsFromTagHash(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // Step 1: Remove expired tags from registry
-        $client->shouldReceive('zRemRangeByScore')
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('prefix:_any:tag:registry', '-inf', m::type('string'))
             ->andReturn(0);
 
         // Step 2: Get active tags
-        $client->shouldReceive('zRange')
+        $connection->shouldReceive('zRange')
             ->once()
             ->with('prefix:_any:tag:registry', 0, -1)
             ->andReturn(['users']);
 
         // Step 3: HSCAN the tag hash
-        $client->shouldReceive('hScan')
+        $connection->shouldReceive('hScan')
             ->once()
             ->andReturnUsing(function ($tagHash, &$iterator, $match, $count) {
                 $iterator = 0;
@@ -83,22 +81,22 @@ class PruneTest extends RedisCacheTestCase
             });
 
         // Pipeline for EXISTS checks
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
-        $client->shouldReceive('exists')
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('exists')
             ->times(3)
-            ->andReturn($client);
-        $client->shouldReceive('exec')
+            ->andReturn($connection);
+        $connection->shouldReceive('exec')
             ->once()
             ->andReturn([1, 0, 1]); // key2 doesn't exist (orphaned)
 
         // HDEL orphaned key2
-        $client->shouldReceive('hDel')
+        $connection->shouldReceive('hDel')
             ->once()
             ->with('prefix:_any:tag:users:entries', 'key2')
             ->andReturn(1);
 
         // HLEN to check if hash is empty
-        $client->shouldReceive('hLen')
+        $connection->shouldReceive('hLen')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(2);
@@ -122,41 +120,40 @@ class PruneTest extends RedisCacheTestCase
     public function testPruneDeletesEmptyHashAfterRemovingOrphans(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('zRemRangeByScore')
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->andReturn(0);
 
-        $client->shouldReceive('zRange')
+        $connection->shouldReceive('zRange')
             ->once()
             ->andReturn(['users']);
 
-        $client->shouldReceive('hScan')
+        $connection->shouldReceive('hScan')
             ->once()
             ->andReturnUsing(function ($tagHash, &$iterator, $match, $count) {
                 $iterator = 0;
                 return ['key1' => '1'];
             });
 
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
-        $client->shouldReceive('exists')->once()->andReturn($client);
-        $client->shouldReceive('exec')
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('exists')->once()->andReturn($connection);
+        $connection->shouldReceive('exec')
             ->once()
             ->andReturn([0]); // key1 doesn't exist (orphaned)
 
-        $client->shouldReceive('hDel')
+        $connection->shouldReceive('hDel')
             ->once()
             ->with('prefix:_any:tag:users:entries', 'key1')
             ->andReturn(1);
 
         // Hash is now empty
-        $client->shouldReceive('hLen')
+        $connection->shouldReceive('hLen')
             ->once()
             ->andReturn(0);
 
         // Delete empty hash
-        $client->shouldReceive('del')
+        $connection->shouldReceive('del')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(1);
@@ -179,72 +176,71 @@ class PruneTest extends RedisCacheTestCase
     public function testPruneHandlesMultipleTagHashes(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('zRemRangeByScore')
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->andReturn(1); // 1 expired tag removed
 
-        $client->shouldReceive('zRange')
+        $connection->shouldReceive('zRange')
             ->once()
             ->andReturn(['users', 'posts', 'comments']);
 
         // First tag: users - 2 fields, 1 orphan
-        $client->shouldReceive('hScan')
+        $connection->shouldReceive('hScan')
             ->once()
             ->with('prefix:_any:tag:users:entries', m::any(), '*', m::any())
             ->andReturnUsing(function ($tagHash, &$iterator) {
                 $iterator = 0;
                 return ['u1' => '1', 'u2' => '1'];
             });
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
-        $client->shouldReceive('exists')->twice()->andReturn($client);
-        $client->shouldReceive('exec')->once()->andReturn([1, 0]);
-        $client->shouldReceive('hDel')
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('exists')->twice()->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([1, 0]);
+        $connection->shouldReceive('hDel')
             ->once()
             ->with('prefix:_any:tag:users:entries', 'u2')
             ->andReturn(1);
-        $client->shouldReceive('hLen')
+        $connection->shouldReceive('hLen')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(1);
 
         // Second tag: posts - 1 field, 0 orphans
-        $client->shouldReceive('hScan')
+        $connection->shouldReceive('hScan')
             ->once()
             ->with('prefix:_any:tag:posts:entries', m::any(), '*', m::any())
             ->andReturnUsing(function ($tagHash, &$iterator) {
                 $iterator = 0;
                 return ['p1' => '1'];
             });
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
-        $client->shouldReceive('exists')->once()->andReturn($client);
-        $client->shouldReceive('exec')->once()->andReturn([1]);
-        $client->shouldReceive('hLen')
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('exists')->once()->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([1]);
+        $connection->shouldReceive('hLen')
             ->once()
             ->with('prefix:_any:tag:posts:entries')
             ->andReturn(1);
 
         // Third tag: comments - 3 fields, all orphans (hash becomes empty)
-        $client->shouldReceive('hScan')
+        $connection->shouldReceive('hScan')
             ->once()
             ->with('prefix:_any:tag:comments:entries', m::any(), '*', m::any())
             ->andReturnUsing(function ($tagHash, &$iterator) {
                 $iterator = 0;
                 return ['c1' => '1', 'c2' => '1', 'c3' => '1'];
             });
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
-        $client->shouldReceive('exists')->times(3)->andReturn($client);
-        $client->shouldReceive('exec')->once()->andReturn([0, 0, 0]);
-        $client->shouldReceive('hDel')
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('exists')->times(3)->andReturn($connection);
+        $connection->shouldReceive('exec')->once()->andReturn([0, 0, 0]);
+        $connection->shouldReceive('hDel')
             ->once()
             ->with('prefix:_any:tag:comments:entries', 'c1', 'c2', 'c3')
             ->andReturn(3);
-        $client->shouldReceive('hLen')
+        $connection->shouldReceive('hLen')
             ->once()
             ->with('prefix:_any:tag:comments:entries')
             ->andReturn(0);
-        $client->shouldReceive('del')
+        $connection->shouldReceive('del')
             ->once()
             ->with('prefix:_any:tag:comments:entries')
             ->andReturn(1);
@@ -268,20 +264,19 @@ class PruneTest extends RedisCacheTestCase
     public function testPruneUsesCorrectTagHashKeyFormat(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('zRemRangeByScore')
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('custom:_any:tag:registry', '-inf', m::type('string'))
             ->andReturn(0);
 
-        $client->shouldReceive('zRange')
+        $connection->shouldReceive('zRange')
             ->once()
             ->with('custom:_any:tag:registry', 0, -1)
             ->andReturn(['users']);
 
         // Verify correct tag hash key format
-        $client->shouldReceive('hScan')
+        $connection->shouldReceive('hScan')
             ->once()
             ->with('custom:_any:tag:users:entries', m::any(), '*', m::any())
             ->andReturnUsing(function ($tagHash, &$iterator) {
@@ -289,12 +284,12 @@ class PruneTest extends RedisCacheTestCase
                 return [];
             });
 
-        $client->shouldReceive('hLen')
+        $connection->shouldReceive('hLen')
             ->once()
             ->with('custom:_any:tag:users:entries')
             ->andReturn(0);
 
-        $client->shouldReceive('del')
+        $connection->shouldReceive('del')
             ->once()
             ->with('custom:_any:tag:users:entries')
             ->andReturn(1);
@@ -311,20 +306,20 @@ class PruneTest extends RedisCacheTestCase
      */
     public function testPruneClusterModeUsesSequentialExistsChecks(): void
     {
-        [$store, $clusterClient] = $this->createClusterStore(tagMode: 'any');
+        [$store, , $connection] = $this->createClusterStore(tagMode: 'any');
 
         // Should NOT use pipeline in cluster mode
-        $clusterClient->shouldNotReceive('pipeline');
+        $connection->shouldNotReceive('pipeline');
 
-        $clusterClient->shouldReceive('zRemRangeByScore')
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->andReturn(0);
 
-        $clusterClient->shouldReceive('zRange')
+        $connection->shouldReceive('zRange')
             ->once()
             ->andReturn(['users']);
 
-        $clusterClient->shouldReceive('hScan')
+        $connection->shouldReceive('hScan')
             ->once()
             ->andReturnUsing(function ($tagHash, &$iterator) {
                 $iterator = 0;
@@ -332,21 +327,21 @@ class PruneTest extends RedisCacheTestCase
             });
 
         // Sequential EXISTS checks in cluster mode
-        $clusterClient->shouldReceive('exists')
+        $connection->shouldReceive('exists')
             ->once()
             ->with('prefix:key1')
             ->andReturn(1);
-        $clusterClient->shouldReceive('exists')
+        $connection->shouldReceive('exists')
             ->once()
             ->with('prefix:key2')
             ->andReturn(0);
 
-        $clusterClient->shouldReceive('hDel')
+        $connection->shouldReceive('hDel')
             ->once()
             ->with('prefix:_any:tag:users:entries', 'key2')
             ->andReturn(1);
 
-        $clusterClient->shouldReceive('hLen')
+        $connection->shouldReceive('hLen')
             ->once()
             ->andReturn(1);
 
@@ -364,18 +359,17 @@ class PruneTest extends RedisCacheTestCase
     public function testPruneHandlesEmptyHscanResult(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('zRemRangeByScore')
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->andReturn(0);
 
-        $client->shouldReceive('zRange')
+        $connection->shouldReceive('zRange')
             ->once()
             ->andReturn(['users']);
 
         // HSCAN returns empty (no fields in hash)
-        $client->shouldReceive('hScan')
+        $connection->shouldReceive('hScan')
             ->once()
             ->andReturnUsing(function ($tagHash, &$iterator) {
                 $iterator = 0;
@@ -383,11 +377,11 @@ class PruneTest extends RedisCacheTestCase
             });
 
         // Should still check HLEN
-        $client->shouldReceive('hLen')
+        $connection->shouldReceive('hLen')
             ->once()
             ->andReturn(0);
 
-        $client->shouldReceive('del')
+        $connection->shouldReceive('del')
             ->once()
             ->andReturn(1);
 
@@ -455,18 +449,17 @@ class PruneTest extends RedisCacheTestCase
     public function testPruneUsesCustomScanCount(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('zRemRangeByScore')
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->andReturn(0);
 
-        $client->shouldReceive('zRange')
+        $connection->shouldReceive('zRange')
             ->once()
             ->andReturn(['users']);
 
         // HSCAN should use custom count
-        $client->shouldReceive('hScan')
+        $connection->shouldReceive('hScan')
             ->once()
             ->with(m::any(), m::any(), '*', 500)
             ->andReturnUsing(function ($tagHash, &$iterator) {
@@ -474,11 +467,11 @@ class PruneTest extends RedisCacheTestCase
                 return [];
             });
 
-        $client->shouldReceive('hLen')
+        $connection->shouldReceive('hLen')
             ->once()
             ->andReturn(0);
 
-        $client->shouldReceive('del')
+        $connection->shouldReceive('del')
             ->once()
             ->andReturn(1);
 
@@ -495,13 +488,12 @@ class PruneTest extends RedisCacheTestCase
     public function testPruneViaStoreOperationsContainer(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('zRemRangeByScore')
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->andReturn(0);
 
-        $client->shouldReceive('zRange')
+        $connection->shouldReceive('zRange')
             ->once()
             ->andReturn([]);
 
@@ -520,15 +512,14 @@ class PruneTest extends RedisCacheTestCase
     public function testPruneRemovesExpiredTagsFromRegistry(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // 5 expired tags removed
-        $client->shouldReceive('zRemRangeByScore')
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->with('prefix:_any:tag:registry', '-inf', m::type('string'))
             ->andReturn(5);
 
-        $client->shouldReceive('zRange')
+        $connection->shouldReceive('zRange')
             ->once()
             ->andReturn([]);
 
@@ -547,33 +538,32 @@ class PruneTest extends RedisCacheTestCase
     public function testPruneDoesNotRemoveNonOrphanedFields(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('zRemRangeByScore')
+        $connection->shouldReceive('zRemRangeByScore')
             ->once()
             ->andReturn(0);
 
-        $client->shouldReceive('zRange')
+        $connection->shouldReceive('zRange')
             ->once()
             ->andReturn(['users']);
 
-        $client->shouldReceive('hScan')
+        $connection->shouldReceive('hScan')
             ->once()
             ->andReturnUsing(function ($tagHash, &$iterator) {
                 $iterator = 0;
                 return ['key1' => '1', 'key2' => '1', 'key3' => '1'];
             });
 
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
-        $client->shouldReceive('exists')->times(3)->andReturn($client);
-        $client->shouldReceive('exec')
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
+        $connection->shouldReceive('exists')->times(3)->andReturn($connection);
+        $connection->shouldReceive('exec')
             ->once()
             ->andReturn([1, 1, 1]); // All keys exist
 
         // Should NOT call hDel since no orphans
-        $client->shouldNotReceive('hDel');
+        $connection->shouldNotReceive('hDel');
 
-        $client->shouldReceive('hLen')
+        $connection->shouldReceive('hLen')
             ->once()
             ->andReturn(3);
 

@@ -21,14 +21,13 @@ class GetTaggedKeysTest extends RedisCacheTestCase
     public function testGetTaggedKeysUsesHkeysForSmallHashes(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // Small hash (below threshold) uses HKEYS
-        $client->shouldReceive('hlen')
+        $connection->shouldReceive('hlen')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(5);
-        $client->shouldReceive('hkeys')
+        $connection->shouldReceive('hkeys')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(['key1', 'key2', 'key3']);
@@ -46,16 +45,15 @@ class GetTaggedKeysTest extends RedisCacheTestCase
     public function testGetTaggedKeysUsesHscanForLargeHashes(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // Large hash (above threshold of 1000) uses HSCAN
-        $client->shouldReceive('hlen')
+        $connection->shouldReceive('hlen')
             ->once()
             ->with('prefix:_any:tag:users:entries')
             ->andReturn(5000);
 
         // HSCAN returns key-value pairs, iterator updates by reference
-        $client->shouldReceive('hscan')
+        $connection->shouldReceive('hscan')
             ->once()
             ->withArgs(function ($key, &$iterator, $pattern, $count) {
                 $iterator = 0; // Done after first iteration
@@ -76,13 +74,12 @@ class GetTaggedKeysTest extends RedisCacheTestCase
     public function testGetTaggedKeysReturnsEmptyForNonExistentTag(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('hlen')
+        $connection->shouldReceive('hlen')
             ->once()
             ->with('prefix:_any:tag:nonexistent:entries')
             ->andReturn(0);
-        $client->shouldReceive('hkeys')
+        $connection->shouldReceive('hkeys')
             ->once()
             ->with('prefix:_any:tag:nonexistent:entries')
             ->andReturn([]);

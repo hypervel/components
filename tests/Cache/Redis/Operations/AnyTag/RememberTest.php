@@ -30,9 +30,8 @@ class RememberTest extends RedisCacheTestCase
     public function testRememberReturnsExistingValueOnCacheHit(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:foo')
             ->andReturn(serialize('cached_value'));
@@ -51,9 +50,8 @@ class RememberTest extends RedisCacheTestCase
     public function testRememberCallsCallbackOnCacheMissUsingLua(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:foo')
             ->andReturnNull();
@@ -92,9 +90,8 @@ class RememberTest extends RedisCacheTestCase
     public function testRememberUsesEvalWithShaCacheOnMiss(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
@@ -117,9 +114,8 @@ class RememberTest extends RedisCacheTestCase
     public function testRememberDoesNotCallCallbackOnCacheHit(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:foo')
             ->andReturn(serialize('existing_value'));
@@ -144,9 +140,8 @@ class RememberTest extends RedisCacheTestCase
     public function testRememberWithMultipleTags(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
@@ -182,9 +177,8 @@ class RememberTest extends RedisCacheTestCase
     public function testRememberPropagatesExceptionFromCallback(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
@@ -204,9 +198,8 @@ class RememberTest extends RedisCacheTestCase
     public function testRememberUsesSequentialCommandsInClusterMode(): void
     {
         $connection = $this->mockClusterConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:foo')
             ->andReturnNull();
@@ -214,29 +207,29 @@ class RememberTest extends RedisCacheTestCase
         // In cluster mode, uses sequential commands instead of Lua
 
         // Get old tags from reverse index
-        $client->shouldReceive('smembers')
+        $connection->shouldReceive('smembers')
             ->once()
             ->andReturn([]);
 
         // SETEX for the value
-        $client->shouldReceive('setex')
+        $connection->shouldReceive('setex')
             ->once()
             ->andReturn(true);
 
-        // Multi for reverse index update - return same client for chaining
-        $client->shouldReceive('multi')->andReturn($client);
-        $client->shouldReceive('del')->andReturn($client);
-        $client->shouldReceive('sadd')->andReturn($client);
-        $client->shouldReceive('expire')->andReturn($client);
-        $client->shouldReceive('exec')->andReturn([1, 1, 1]);
+        // Multi for reverse index update - return same connection for chaining
+        $connection->shouldReceive('multi')->andReturn($connection);
+        $connection->shouldReceive('del')->andReturn($connection);
+        $connection->shouldReceive('sadd')->andReturn($connection);
+        $connection->shouldReceive('expire')->andReturn($connection);
+        $connection->shouldReceive('exec')->andReturn([1, 1, 1]);
 
         // HSETEX for each tag
-        $client->shouldReceive('hsetex')
+        $connection->shouldReceive('hsetex')
             ->twice()
             ->andReturn(true);
 
         // ZADD for registry
-        $client->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->andReturn(2);
 
@@ -259,9 +252,8 @@ class RememberTest extends RedisCacheTestCase
     public function testRememberWithNumericValue(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 
@@ -283,10 +275,9 @@ class RememberTest extends RedisCacheTestCase
     public function testRememberHandlesFalseReturnFromGet(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // Redis returns false for non-existent keys
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->with('prefix:foo')
             ->andReturn(false);
@@ -309,9 +300,8 @@ class RememberTest extends RedisCacheTestCase
     public function testRememberWithEmptyTags(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('get')
+        $connection->shouldReceive('get')
             ->once()
             ->andReturnNull();
 

@@ -124,14 +124,12 @@ class SerializationTest extends TestCase
         }
 
         $connection = m::mock(RedisConnection::class);
-        $client = m::mock(Redis::class);
 
         $connection->shouldReceive('serialized')->andReturn(false);
-        $connection->shouldReceive('client')->andReturn($client);
-        $client->shouldReceive('getOption')
+        $connection->shouldReceive('getOption')
             ->with(Redis::OPT_COMPRESSION)
             ->andReturn(Redis::COMPRESSION_LZF);
-        $client->shouldReceive('_serialize')
+        $connection->shouldReceive('_serialize')
             ->with(serialize('test-value'))
             ->andReturn('compressed-value');
 
@@ -141,11 +139,9 @@ class SerializationTest extends TestCase
     public function testSerializeForLuaReturnsPhpSerializedWhenNoSerializerOrCompression(): void
     {
         $connection = m::mock(RedisConnection::class);
-        $client = m::mock(Redis::class);
 
         $connection->shouldReceive('serialized')->andReturn(false);
-        $connection->shouldReceive('client')->andReturn($client);
-        $client->shouldReceive('getOption')
+        $connection->shouldReceive('getOption')
             ->with(Redis::OPT_COMPRESSION)
             ->andReturn(Redis::COMPRESSION_NONE);
 
@@ -155,11 +151,9 @@ class SerializationTest extends TestCase
     public function testSerializeForLuaCastsNumericValuesToString(): void
     {
         $connection = m::mock(RedisConnection::class);
-        $client = m::mock(Redis::class);
 
         $connection->shouldReceive('serialized')->andReturn(false);
-        $connection->shouldReceive('client')->andReturn($client);
-        $client->shouldReceive('getOption')
+        $connection->shouldReceive('getOption')
             ->with(Redis::OPT_COMPRESSION)
             ->andReturn(Redis::COMPRESSION_NONE);
 
@@ -175,15 +169,13 @@ class SerializationTest extends TestCase
         }
 
         $connection = m::mock(RedisConnection::class);
-        $client = m::mock(Redis::class);
 
         $connection->shouldReceive('serialized')->andReturn(false);
-        $connection->shouldReceive('client')->andReturn($client);
-        $client->shouldReceive('getOption')
+        $connection->shouldReceive('getOption')
             ->with(Redis::OPT_COMPRESSION)
             ->andReturn(Redis::COMPRESSION_LZF);
         // When compression is enabled, numeric strings get passed through _serialize
-        $client->shouldReceive('_serialize')
+        $connection->shouldReceive('_serialize')
             ->with('123')
             ->andReturn('compressed-123');
 

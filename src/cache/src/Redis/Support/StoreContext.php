@@ -9,7 +9,6 @@ use Hypervel\Context\ApplicationContext;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisFactory;
 use Redis;
-use RedisCluster;
 
 /**
  * Mode-aware context for Redis cache operations.
@@ -148,7 +147,7 @@ class StoreContext
     public function isCluster(): bool
     {
         return $this->withConnection(
-            fn (RedisConnection $conn) => $conn->client() instanceof RedisCluster
+            fn (RedisConnection $conn) => $conn->isCluster()
         );
     }
 
@@ -158,7 +157,7 @@ class StoreContext
     public function optPrefix(): string
     {
         return $this->withConnection(
-            fn (RedisConnection $conn) => (string) $conn->client()->getOption(Redis::OPT_PREFIX)
+            fn (RedisConnection $conn) => (string) $conn->getOption(Redis::OPT_PREFIX)
         );
     }
 

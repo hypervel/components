@@ -20,23 +20,22 @@ class DecrementTest extends RedisCacheTestCase
     public function testDecrementWithTagsInPipelineMode(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
         // ZADD NX for tag with score -1 (only add if not exists)
-        $client->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
-            ->andReturn($client);
+            ->andReturn($connection);
 
         // DECRBY
-        $client->shouldReceive('decrby')
+        $connection->shouldReceive('decrby')
             ->once()
             ->with('prefix:counter', 1)
-            ->andReturn($client);
+            ->andReturn($connection);
 
-        $client->shouldReceive('exec')
+        $connection->shouldReceive('exec')
             ->once()
             ->andReturn([1, 5]);
 
@@ -56,21 +55,20 @@ class DecrementTest extends RedisCacheTestCase
     public function testDecrementWithCustomValue(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $client->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
-            ->andReturn($client);
+            ->andReturn($connection);
 
-        $client->shouldReceive('decrby')
+        $connection->shouldReceive('decrby')
             ->once()
             ->with('prefix:counter', 10)
-            ->andReturn($client);
+            ->andReturn($connection);
 
-        $client->shouldReceive('exec')
+        $connection->shouldReceive('exec')
             ->once()
             ->andReturn([0, -5]);  // 0 means key already existed (NX condition)
 
@@ -90,26 +88,25 @@ class DecrementTest extends RedisCacheTestCase
     public function testDecrementWithMultipleTags(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
         // ZADD NX for each tag
-        $client->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
-            ->andReturn($client);
-        $client->shouldReceive('zadd')
+            ->andReturn($connection);
+        $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:posts:entries', ['NX'], -1, 'counter')
-            ->andReturn($client);
+            ->andReturn($connection);
 
-        $client->shouldReceive('decrby')
+        $connection->shouldReceive('decrby')
             ->once()
             ->with('prefix:counter', 1)
-            ->andReturn($client);
+            ->andReturn($connection);
 
-        $client->shouldReceive('exec')
+        $connection->shouldReceive('exec')
             ->once()
             ->andReturn([1, 1, 9]);
 
@@ -129,17 +126,16 @@ class DecrementTest extends RedisCacheTestCase
     public function testDecrementWithEmptyTags(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
         // No ZADD calls expected
-        $client->shouldReceive('decrby')
+        $connection->shouldReceive('decrby')
             ->once()
             ->with('prefix:counter', 1)
-            ->andReturn($client);
+            ->andReturn($connection);
 
-        $client->shouldReceive('exec')
+        $connection->shouldReceive('exec')
             ->once()
             ->andReturn([-1]);
 
@@ -158,19 +154,19 @@ class DecrementTest extends RedisCacheTestCase
      */
     public function testDecrementInClusterModeUsesSequentialCommands(): void
     {
-        [$store, $clusterClient] = $this->createClusterStore();
+        [$store, , $connection] = $this->createClusterStore();
 
         // Should NOT use pipeline in cluster mode
-        $clusterClient->shouldNotReceive('pipeline');
+        $connection->shouldNotReceive('pipeline');
 
         // Sequential ZADD NX
-        $clusterClient->shouldReceive('zadd')
+        $connection->shouldReceive('zadd')
             ->once()
             ->with('prefix:_all:tag:users:entries', ['NX'], -1, 'counter')
             ->andReturn(1);
 
         // Sequential DECRBY
-        $clusterClient->shouldReceive('decrby')
+        $connection->shouldReceive('decrby')
             ->once()
             ->with('prefix:counter', 1)
             ->andReturn(0);
@@ -190,14 +186,13 @@ class DecrementTest extends RedisCacheTestCase
     public function testDecrementReturnsFalseOnPipelineFailure(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('pipeline')->once()->andReturn($client);
+        $connection->shouldReceive('pipeline')->once()->andReturn($connection);
 
-        $client->shouldReceive('zadd')->andReturn($client);
-        $client->shouldReceive('decrby')->andReturn($client);
+        $connection->shouldReceive('zadd')->andReturn($connection);
+        $connection->shouldReceive('decrby')->andReturn($connection);
 
-        $client->shouldReceive('exec')
+        $connection->shouldReceive('exec')
             ->once()
             ->andReturn(false);
 

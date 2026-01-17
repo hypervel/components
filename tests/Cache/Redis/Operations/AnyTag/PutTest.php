@@ -48,24 +48,24 @@ class PutTest extends RedisCacheTestCase
      */
     public function testPutWithTagsUsesSequentialCommandsInClusterMode(): void
     {
-        [$redis, $clusterClient] = $this->createClusterStore(tagMode: 'any');
+        [$redis, , $connection] = $this->createClusterStore(tagMode: 'any');
 
         // Cluster mode expectations
-        $clusterClient->shouldReceive('smembers')->once()->andReturn([]);
-        $clusterClient->shouldReceive('setex')->once()->with('prefix:foo', 60, serialize('bar'))->andReturn(true);
+        $connection->shouldReceive('smembers')->once()->andReturn([]);
+        $connection->shouldReceive('setex')->once()->with('prefix:foo', 60, serialize('bar'))->andReturn(true);
 
         // Multi for reverse index
-        $clusterClient->shouldReceive('multi')->andReturn($clusterClient);
-        $clusterClient->shouldReceive('del')->andReturn($clusterClient);
-        $clusterClient->shouldReceive('sadd')->andReturn($clusterClient);
-        $clusterClient->shouldReceive('expire')->andReturn($clusterClient);
-        $clusterClient->shouldReceive('exec')->andReturn([true, true, true]);
+        $connection->shouldReceive('multi')->andReturn($connection);
+        $connection->shouldReceive('del')->andReturn($connection);
+        $connection->shouldReceive('sadd')->andReturn($connection);
+        $connection->shouldReceive('expire')->andReturn($connection);
+        $connection->shouldReceive('exec')->andReturn([true, true, true]);
 
         // HSETEX for tag hashes (2 tags) - use withAnyArgs to bypass type checking
-        $clusterClient->shouldReceive('hsetex')->withAnyArgs()->twice()->andReturn(true);
+        $connection->shouldReceive('hsetex')->withAnyArgs()->twice()->andReturn(true);
 
         // ZADD for registry - use withAnyArgs to handle variable args
-        $clusterClient->shouldReceive('zadd')->withAnyArgs()->once()->andReturn(2);
+        $connection->shouldReceive('zadd')->withAnyArgs()->once()->andReturn(2);
 
         $result = $redis->anyTagOps()->put()->execute('foo', 'bar', 60, ['users', 'posts']);
         $this->assertTrue($result);

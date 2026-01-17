@@ -72,13 +72,12 @@ class PutMany
     private function executeCluster(array $values, int $seconds): bool
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($values, $seconds) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
             $seconds = max(1, $seconds);
 
             // MULTI/EXEC groups commands by node but does NOT pipeline them.
             // Commands are sent sequentially; exec() aggregates results from all nodes.
-            $multi = $client->multi();
+            $multi = $conn->multi();
 
             foreach ($values as $key => $value) {
                 // Use serialization helper to respect client configuration

@@ -23,10 +23,9 @@ class AddTest extends RedisCacheTestCase
     public function testAddReturnsTrueWhenKeyDoesNotExist(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // SET returns true/OK when key was set
-        $client->shouldReceive('set')
+        $connection->shouldReceive('set')
             ->once()
             ->with('prefix:foo', serialize('bar'), ['EX' => 60, 'NX'])
             ->andReturn(true);
@@ -42,10 +41,9 @@ class AddTest extends RedisCacheTestCase
     public function testAddReturnsFalseWhenKeyExists(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // SET with NX returns null/false when key already exists
-        $client->shouldReceive('set')
+        $connection->shouldReceive('set')
             ->once()
             ->with('prefix:foo', serialize('bar'), ['EX' => 60, 'NX'])
             ->andReturn(null);
@@ -61,10 +59,9 @@ class AddTest extends RedisCacheTestCase
     public function testAddWithNumericValue(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // Numeric values are NOT serialized (optimization)
-        $client->shouldReceive('set')
+        $connection->shouldReceive('set')
             ->once()
             ->with('prefix:foo', 42, ['EX' => 60, 'NX'])
             ->andReturn(true);
@@ -80,10 +77,9 @@ class AddTest extends RedisCacheTestCase
     public function testAddEnforcesMinimumTtlOfOne(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // TTL should be at least 1
-        $client->shouldReceive('set')
+        $connection->shouldReceive('set')
             ->once()
             ->with('prefix:foo', serialize('bar'), ['EX' => 1, 'NX'])
             ->andReturn(true);
@@ -99,11 +95,10 @@ class AddTest extends RedisCacheTestCase
     public function testAddWithArrayValue(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         $value = ['key' => 'value', 'nested' => ['a', 'b']];
 
-        $client->shouldReceive('set')
+        $connection->shouldReceive('set')
             ->once()
             ->with('prefix:foo', serialize($value), ['EX' => 120, 'NX'])
             ->andReturn(true);
