@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
+use BackedEnum;
 use Closure;
 use Hyperf\Support\Traits\InteractsWithTime;
 use Hypervel\Cache\Contracts\Factory as Cache;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 class RateLimiter
 {
@@ -33,9 +37,9 @@ class RateLimiter
     /**
      * Register a named limiter configuration.
      */
-    public function for(string $name, Closure $callback): static
+    public function for(BackedEnum|UnitEnum|string $name, Closure $callback): static
     {
-        $this->limiters[$name] = $callback;
+        $this->limiters[$this->resolveLimiterName($name)] = $callback;
 
         return $this;
     }
@@ -43,9 +47,17 @@ class RateLimiter
     /**
      * Get the given named rate limiter.
      */
-    public function limiter(string $name): ?Closure
+    public function limiter(BackedEnum|UnitEnum|string $name): ?Closure
     {
-        return $this->limiters[$name] ?? null;
+        return $this->limiters[$this->resolveLimiterName($name)] ?? null;
+    }
+
+    /**
+     * Resolve the rate limiter name.
+     */
+    private function resolveLimiterName(BackedEnum|UnitEnum|string $name): string
+    {
+        return (string) enum_value($name);
     }
 
     /**
