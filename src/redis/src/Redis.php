@@ -134,6 +134,34 @@ class Redis
     }
 
     /**
+     * Execute callback with a pinned connection from the pool.
+     *
+     * Use this for operations requiring multiple commands on the same connection
+     * (e.g., evalSha + getLastError, multi-step Lua operations). The connection
+     * is automatically returned to the pool after the callback completes.
+     *
+     * If a connection is already stored in coroutine context (e.g., from an
+     * active multi/pipeline), that connection is reused and not released.
+     *
+     * @template T
+     * @param callable(RedisConnection): T $callback
+     * @return T
+     */
+    public function withConnection(callable $callback): mixed
+    {
+        $hasContextConnection = Context::has($this->getContextKey());
+        $connection = $this->getConnection($hasContextConnection);
+
+        try {
+            return $callback($connection);
+        } finally {
+            if (! $hasContextConnection) {
+                $connection->release();
+            }
+        }
+    }
+
+    /**
      * Get a Redis connection by name.
      */
     public function connection(string $name = 'default'): RedisProxy

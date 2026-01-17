@@ -239,6 +239,128 @@ class RedisTest extends TestCase
         $this->assertNull(Context::get('redis.connection.default'));
     }
 
+    public function testWithConnectionExecutesCallbackAndReleasesConnection(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($connection);
+
+        $result = $redis->withConnection(function (RedisConnection $conn) use ($connection) {
+            $this->assertSame($connection, $conn);
+
+            return 'callback-result';
+        });
+
+        $this->assertSame('callback-result', $result);
+    }
+
+    public function testWithConnectionReusesExistingContextConnection(): void
+    {
+        $connection = $this->mockConnection();
+        // Should NOT release since connection was already in context
+        $connection->shouldReceive('release')->never();
+
+        // Pre-set connection in context (simulating an active multi/pipeline)
+        Context::set('redis.connection.default', $connection);
+
+        $redis = $this->createRedis($connection);
+
+        $result = $redis->withConnection(function (RedisConnection $conn) use ($connection) {
+            $this->assertSame($connection, $conn);
+
+            return 'reused-connection';
+        });
+
+        $this->assertSame('reused-connection', $result);
+        // Connection should still be in context
+        $this->assertTrue(Context::has('redis.connection.default'));
+    }
+
+    public function testWithConnectionReleasesOnException(): void
+    {
+        $connection = $this->mockConnection();
+        // Should release even on exception
+        $connection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($connection);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Callback failed');
+
+        $redis->withConnection(function (RedisConnection $conn) {
+            throw new RuntimeException('Callback failed');
+        });
+    }
+
+    public function testWithConnectionDoesNotReleaseContextConnectionOnException(): void
+    {
+        $connection = $this->mockConnection();
+        // Should NOT release since connection was in context
+        $connection->shouldReceive('release')->never();
+
+        Context::set('redis.connection.default', $connection);
+
+        $redis = $this->createRedis($connection);
+
+        try {
+            $redis->withConnection(function (RedisConnection $conn) {
+                throw new RuntimeException('Callback failed');
+            });
+            $this->fail('Expected exception was not thrown');
+        } catch (RuntimeException $e) {
+            $this->assertSame('Callback failed', $e->getMessage());
+        }
+
+        // Connection should still be in context
+        $this->assertTrue(Context::has('redis.connection.default'));
+    }
+
+    public function testWithConnectionSetsTransformOnConnection(): void
+    {
+        $connection = $this->mockConnection();
+        // Verify shouldTransform is called (already set up in mockConnection)
+        $connection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($connection);
+
+        $redis->withConnection(function (RedisConnection $conn) {
+            // Connection should have transform set
+            // (verified by mockConnection expectations)
+        });
+    }
+
+    public function testWithConnectionAllowsMultipleOperationsOnSameConnection(): void
+    {
+        $mockPhpRedis = m::mock(PhpRedis::class);
+        $mockPhpRedis->shouldReceive('evalSha')
+            ->once()
+            ->with('sha123', ['key'], 1)
+            ->andReturn(false);
+        $mockPhpRedis->shouldReceive('getLastError')
+            ->once()
+            ->andReturn('NOSCRIPT No matching script');
+
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('client')->andReturn($mockPhpRedis);
+        $connection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($connection);
+
+        $result = $redis->withConnection(function (RedisConnection $conn) {
+            $client = $conn->client();
+            $evalResult = $client->evalSha('sha123', ['key'], 1);
+
+            if ($evalResult === false) {
+                return $client->getLastError();
+            }
+
+            return $evalResult;
+        });
+
+        $this->assertSame('NOSCRIPT No matching script', $result);
+    }
+
     /**
      * Create a mock RedisConnection with standard expectations.
      */

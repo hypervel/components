@@ -8,6 +8,7 @@ use Hypervel\Redis\Redis as RedisClient;
 
 /**
  * @method static \Hypervel\Redis\RedisProxy connection(string $name = 'default')
+ * @method static mixed withConnection(callable $callback)
  * @method static void release()
  * @method static \Hypervel\Redis\RedisConnection shouldTransform(bool $shouldTransform = true)
  * @method static bool getShouldTransform()
