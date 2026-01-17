@@ -832,6 +832,32 @@ class RedisConnectionTest extends TestCase
         $this->assertEquals(['key1', 'key2', 'arg1', 'arg2'], $result);
     }
 
+    public function testEvalWithShaCacheClearsLastErrorBeforeEvalSha(): void
+    {
+        $connection = $this->mockRedisConnection();
+        $script = 'return "ok"';
+        $sha = sha1($script);
+
+        $redisConnection = $connection->getConnection();
+
+        // Verify clearLastError is called before evalSha using ordered expectations
+        $redisConnection->shouldReceive('clearLastError')
+            ->once()
+            ->globally()
+            ->ordered();
+
+        $redisConnection->shouldReceive('evalSha')
+            ->with($sha, [], 0)
+            ->once()
+            ->globally()
+            ->ordered()
+            ->andReturn('ok');
+
+        $result = $connection->evalWithShaCache($script);
+
+        $this->assertEquals('ok', $result);
+    }
+
     protected function mockRedisConnection(?ContainerInterface $container = null, ?PoolInterface $pool = null, array $options = [], bool $transform = false): RedisConnection
     {
         $connection = new RedisConnectionStub(

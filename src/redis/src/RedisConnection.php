@@ -829,6 +829,10 @@ class RedisConnection extends HyperfRedisConnection
         // combined_args = keys first, then other args
         $combinedArgs = [...$keys, ...$args];
 
+        // Clear any stale error from previous commands to ensure getLastError()
+        // reflects this call, not a previous one
+        $this->connection->clearLastError();
+
         // Try evalSha first - uses cached compiled script
         $result = $this->connection->evalSha($sha, $combinedArgs, $numKeys);
 
