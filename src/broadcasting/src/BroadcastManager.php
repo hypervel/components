@@ -34,7 +34,7 @@ use Psr\Log\LoggerInterface;
 use Pusher\Pusher;
 
 /**
- * @mixin \Hypervel\Broadcasting\Contracts\Broadcaster
+ * @mixin \Hypervel\Broadcasting\Broadcasters\Broadcaster
  */
 class BroadcastManager implements BroadcastingFactoryContract
 {
@@ -207,11 +207,7 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     protected function mustBeUniqueAndCannotAcquireLock(UniqueBroadcastEvent $event): bool
     {
-        return ! (new UniqueLock(
-            method_exists($event, 'uniqueVia')
-                ? $event->uniqueVia()
-                : $this->app->get(Cache::class)
-        ))->acquire($event);
+        return ! (new UniqueLock($event->uniqueVia()))->acquire($event);
     }
 
     /**
@@ -387,7 +383,7 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     protected function getConfig(string $name): ?array
     {
-        if (! is_null($name) && $name !== 'null') {
+        if ($name !== 'null') {
             return $this->app->get(ConfigInterface::class)->get("broadcasting.connections.{$name}");
         }
 

@@ -6,7 +6,9 @@ namespace Hypervel\Tests\Cache;
 
 use Carbon\Carbon;
 use Hypervel\Cache\ArrayStore;
+use Hypervel\Cache\Contracts\RefreshableLock;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use stdClass;
 
 /**
@@ -291,5 +293,160 @@ class CacheArrayStoreTest extends TestCase
         $wannabeOwner->forceRelease();
 
         $this->assertFalse($wannabeOwner->release());
+    }
+
+    public function testLockImplementsRefreshableLock()
+    {
+        $store = new ArrayStore();
+        $lock = $store->lock('foo', 10);
+
+        $this->assertInstanceOf(RefreshableLock::class, $lock);
+    }
+
+    public function testRefreshExtendsLockExpiration()
+    {
+        Carbon::setTestNow(Carbon::now());
+
+        $store = new ArrayStore();
+        $lock = $store->lock('foo', 10);
+        $lock->acquire();
+
+        Carbon::setTestNow(Carbon::now()->addSeconds(5));
+
+        $this->assertTrue($lock->refresh());
+
+        // Lock should now expire 10 seconds from now, not 5
+        Carbon::setTestNow(Carbon::now()->addSeconds(9));
+        $this->assertFalse($store->lock('foo', 10)->acquire());
+
+        Carbon::setTestNow(Carbon::now()->addSeconds(2));
+        $this->assertTrue($store->lock('foo', 10)->acquire());
+    }
+
+    public function testRefreshWithCustomTtl()
+    {
+        Carbon::setTestNow(Carbon::now());
+
+        $store = new ArrayStore();
+        $lock = $store->lock('foo', 10);
+        $lock->acquire();
+
+        $this->assertTrue($lock->refresh(30));
+
+        // Lock should now expire 30 seconds from now
+        Carbon::setTestNow(Carbon::now()->addSeconds(29));
+        $this->assertFalse($store->lock('foo', 10)->acquire());
+
+        Carbon::setTestNow(Carbon::now()->addSeconds(2));
+        $this->assertTrue($store->lock('foo', 10)->acquire());
+    }
+
+    public function testRefreshReturnsFalseWhenLockDoesNotExist()
+    {
+        $store = new ArrayStore();
+        $lock = $store->lock('foo', 10);
+
+        $this->assertFalse($lock->refresh());
+    }
+
+    public function testRefreshReturnsFalseWhenNotOwned()
+    {
+        $store = new ArrayStore();
+        $owner = $store->lock('foo', 10);
+        $wannabeOwner = $store->lock('foo', 10);
+        $owner->acquire();
+
+        $this->assertFalse($wannabeOwner->refresh());
+    }
+
+    public function testRefreshOnPermanentLockReturnsTrue()
+    {
+        $store = new ArrayStore();
+        $lock = $store->lock('foo', 0);
+        $lock->acquire();
+
+        // No-op for permanent locks
+        $this->assertTrue($lock->refresh());
+    }
+
+    public function testRefreshWithExplicitZeroThrowsException()
+    {
+        $store = new ArrayStore();
+        $lock = $store->lock('foo', 10);
+        $lock->acquire();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Refresh requires a positive TTL');
+
+        $lock->refresh(0);
+    }
+
+    public function testRefreshWithNegativeSecondsThrowsException()
+    {
+        $store = new ArrayStore();
+        $lock = $store->lock('foo', 10);
+        $lock->acquire();
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Refresh requires a positive TTL');
+
+        $lock->refresh(-5);
+    }
+
+    public function testRefreshWithInvalidTtlThrowsEvenWhenNotOwned()
+    {
+        $store = new ArrayStore();
+        $owner = $store->lock('foo', 10);
+        $wannabeOwner = $store->lock('foo', 10);
+        $owner->acquire();
+
+        // Invalid parameters should throw regardless of ownership
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Refresh requires a positive TTL');
+
+        $wannabeOwner->refresh(0);
+    }
+
+    public function testGetRemainingLifetimeReturnsSeconds()
+    {
+        Carbon::setTestNow(Carbon::now());
+
+        $store = new ArrayStore();
+        $lock = $store->lock('foo', 10);
+        $lock->acquire();
+
+        $this->assertSame(10.0, $lock->getRemainingLifetime());
+
+        Carbon::setTestNow(Carbon::now()->addSeconds(3));
+        $this->assertSame(7.0, $lock->getRemainingLifetime());
+    }
+
+    public function testGetRemainingLifetimeReturnsNullWhenLockDoesNotExist()
+    {
+        $store = new ArrayStore();
+        $lock = $store->lock('foo', 10);
+
+        $this->assertNull($lock->getRemainingLifetime());
+    }
+
+    public function testGetRemainingLifetimeReturnsNullForInfiniteLock()
+    {
+        $store = new ArrayStore();
+        $lock = $store->lock('foo');
+        $lock->acquire();
+
+        $this->assertNull($lock->getRemainingLifetime());
+    }
+
+    public function testGetRemainingLifetimeReturnsNullWhenExpired()
+    {
+        Carbon::setTestNow(Carbon::now());
+
+        $store = new ArrayStore();
+        $lock = $store->lock('foo', 10);
+        $lock->acquire();
+
+        Carbon::setTestNow(Carbon::now()->addSeconds(15));
+        $this->assertNull($lock->getRemainingLifetime());
     }
 }

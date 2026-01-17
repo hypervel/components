@@ -54,7 +54,7 @@ class SwooleTableManager
 
     protected function getConfig(string $name): ?array
     {
-        if (! is_null($name) && $name !== 'null') {
+        if ($name !== 'null') {
             return $this->app->get(ConfigInterface::class)->get("cache.swoole_tables.{$name}");
         }
 

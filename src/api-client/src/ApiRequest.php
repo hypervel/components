@@ -11,6 +11,8 @@ use Psr\Http\Message\RequestInterface;
 
 class ApiRequest extends HttpClientRequest
 {
+    use HasContext;
+
     /**
      * Determine if the request data has changed.
      */
@@ -180,6 +182,7 @@ class ApiRequest extends HttpClientRequest
     public function withBody(string $body): static
     {
         $this->request = $this->request->withBody(new Stream($body));
+        $this->dataChanged = false;
 
         return $this;
     }

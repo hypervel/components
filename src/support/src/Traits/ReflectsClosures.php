@@ -48,6 +48,7 @@ trait ReflectsClosures
     {
         $reflection = new ReflectionFunction($closure);
 
+        /** @var list<array<class-string>> $types */
         $types = Collection::make($reflection->getParameters())->mapWithKeys(function ($parameter) {
             if ($parameter->isVariadic()) {
                 return [$parameter->getName() => null];
@@ -60,11 +61,10 @@ trait ReflectsClosures
             throw new RuntimeException('The given Closure has no parameters.');
         }
 
-        if (isset($types[0]) && empty($types[0])) {
+        if (empty($types[0])) {
             throw new RuntimeException('The first parameter of the given Closure is missing a type hint.');
         }
 
-        /* @phpstan-ignore-next-line */
         return $types[0];
     }
 

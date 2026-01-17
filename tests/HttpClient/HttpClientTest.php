@@ -430,6 +430,29 @@ class HttpClientTest extends TestCase
         $this->assertEquals(new Fluent([]), $response->fluent('missing_key'));
     }
 
+    public function testResponseDecodeUsingWithDifferentFormats()
+    {
+        $this->factory->fake([
+            '*' => 'name:Taylor|framework:Laravel',
+        ]);
+
+        $response = $this->factory->get('http://foo.com/api')->decodeUsing(function ($body) {
+            $parts = explode('|', $body);
+            $result = [];
+
+            foreach ($parts as $part) {
+                [$key, $value] = explode(':', $part);
+                $result[$key] = $value;
+            }
+
+            return $result;
+        });
+
+        $this->assertSame('Taylor', $response->json('name'));
+        $this->assertSame('Laravel', $response->json('framework'));
+        $this->assertIsArray($response->json());
+    }
+
     public function testSendRequestBodyAsJsonByDefault()
     {
         $body = '{"test":"phpunit"}';

@@ -183,4 +183,12 @@ class ApiRequestTest extends TestCase
 
         $this->assertSame('param1=value1&param2=value2', $request->toPsrRequest()->getUri()->getQuery());
     }
+
+    public function testWithoutQuery(): void
+    {
+        $request = $this->request->withQuery(['param1' => 'value1', 'param2' => 'value2']);
+        $request->withoutQuery(['param1']);
+
+        $this->assertSame('param2=value2', $request->toPsrRequest()->getUri()->getQuery());
+    }
 }

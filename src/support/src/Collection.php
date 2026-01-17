@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Hyperf\Collection\Collection as BaseCollection;
+use Hypervel\Support\Traits\TransformsToResourceCollection;
 
 /**
  * @template TKey of array-key
@@ -14,4 +15,5 @@ use Hyperf\Collection\Collection as BaseCollection;
  */
 class Collection extends BaseCollection
 {
+    use TransformsToResourceCollection;
 }
