@@ -4,11 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
+use BackedEnum;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Cache\Contracts\Store;
 use Hypervel\Cache\Events\CacheFlushed;
 use Hypervel\Cache\Events\CacheFlushing;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 class TaggedCache extends Repository
 {
@@ -46,17 +50,17 @@ class TaggedCache extends Repository
     /**
      * Increment the value of an item in the cache.
      */
-    public function increment(string $key, int $value = 1): bool|int
+    public function increment(BackedEnum|UnitEnum|string $key, int $value = 1): bool|int
     {
-        return $this->store->increment($this->itemKey($key), $value);
+        return $this->store->increment($this->itemKey(enum_value($key)), $value);
     }
 
     /**
      * Decrement the value of an item in the cache.
      */
-    public function decrement(string $key, int $value = 1): bool|int
+    public function decrement(BackedEnum|UnitEnum|string $key, int $value = 1): bool|int
     {
-        return $this->store->decrement($this->itemKey($key), $value);
+        return $this->store->decrement($this->itemKey(enum_value($key)), $value);
     }
 
     /**

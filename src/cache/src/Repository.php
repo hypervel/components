@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use ArrayAccess;
+use BackedEnum;
 use BadMethodCallException;
 use Carbon\Carbon;
 use Closure;
@@ -29,6 +30,9 @@ use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @mixin \Hypervel\Cache\Contracts\Store
@@ -92,7 +96,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Determine if an item exists in the cache.
      */
-    public function has(array|string $key): bool
+    public function has(array|BackedEnum|UnitEnum|string $key): bool
     {
         return ! is_null($this->get($key));
     }
@@ -100,7 +104,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Determine if an item doesn't exist in the cache.
      */
-    public function missing(string $key): bool
+    public function missing(BackedEnum|UnitEnum|string $key): bool
     {
         return ! $this->has($key);
     }
@@ -114,11 +118,13 @@ class Repository implements ArrayAccess, CacheContract
      *
      * @return (TCacheValue is null ? mixed : TCacheValue)
      */
-    public function get(array|string $key, mixed $default = null): mixed
+    public function get(array|BackedEnum|UnitEnum|string $key, mixed $default = null): mixed
     {
         if (is_array($key)) {
             return $this->many($key);
         }
+
+        $key = enum_value($key);
 
         $this->event(new RetrievingKey($this->getName(), $key));
 
@@ -177,7 +183,7 @@ class Repository implements ArrayAccess, CacheContract
      *
      * @return (TCacheValue is null ? mixed : TCacheValue)
      */
-    public function pull(string $key, mixed $default = null): mixed
+    public function pull(BackedEnum|UnitEnum|string $key, mixed $default = null): mixed
     {
         return tap($this->get($key, $default), function () use ($key) {
             $this->forget($key);
@@ -187,11 +193,13 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Store an item in the cache.
      */
-    public function put(array|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    public function put(array|BackedEnum|UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         if (is_array($key)) {
             return $this->putMany($key, $value);
         }
+
+        $key = enum_value($key);
 
         if ($ttl === null) {
             return $this->forever($key, $value);
@@ -218,7 +226,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Store an item in the cache.
      */
-    public function set(string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    public function set(BackedEnum|UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         return $this->put($key, $value, $ttl);
     }
@@ -261,8 +269,10 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Store an item in the cache if the key does not exist.
      */
-    public function add(string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    public function add(BackedEnum|UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
+        $key = enum_value($key);
+
         $seconds = null;
 
         if ($ttl !== null) {
@@ -297,24 +307,26 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Increment the value of an item in the cache.
      */
-    public function increment(string $key, int $value = 1): bool|int
+    public function increment(BackedEnum|UnitEnum|string $key, int $value = 1): bool|int
     {
-        return $this->store->increment($key, $value);
+        return $this->store->increment(enum_value($key), $value);
     }
 
     /**
      * Decrement the value of an item in the cache.
      */
-    public function decrement(string $key, int $value = 1): bool|int
+    public function decrement(BackedEnum|UnitEnum|string $key, int $value = 1): bool|int
     {
-        return $this->store->decrement($key, $value);
+        return $this->store->decrement(enum_value($key), $value);
     }
 
     /**
      * Store an item in the cache indefinitely.
      */
-    public function forever(string $key, mixed $value): bool
+    public function forever(BackedEnum|UnitEnum|string $key, mixed $value): bool
     {
+        $key = enum_value($key);
+
         $this->event(new WritingKey($this->getName(), $key, $value));
 
         $result = $this->store->forever($this->itemKey($key), $value);
@@ -337,7 +349,7 @@ class Repository implements ArrayAccess, CacheContract
      *
      * @return TCacheValue
      */
-    public function remember(string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed
+    public function remember(BackedEnum|UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed
     {
         $value = $this->get($key);
 
@@ -362,7 +374,7 @@ class Repository implements ArrayAccess, CacheContract
      *
      * @return TCacheValue
      */
-    public function sear(string $key, Closure $callback): mixed
+    public function sear(BackedEnum|UnitEnum|string $key, Closure $callback): mixed
     {
         return $this->rememberForever($key, $callback);
     }
@@ -376,7 +388,7 @@ class Repository implements ArrayAccess, CacheContract
      *
      * @return TCacheValue
      */
-    public function rememberForever(string $key, Closure $callback): mixed
+    public function rememberForever(BackedEnum|UnitEnum|string $key, Closure $callback): mixed
     {
         $value = $this->get($key);
 
@@ -395,8 +407,10 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Remove an item from the cache.
      */
-    public function forget(string $key): bool
+    public function forget(BackedEnum|UnitEnum|string $key): bool
     {
+        $key = enum_value($key);
+
         $this->event(new ForgettingKey($this->getName(), $key));
 
         return tap($this->store->forget($this->itemKey($key)), function ($result) use ($key) {
@@ -408,7 +422,7 @@ class Repository implements ArrayAccess, CacheContract
         });
     }
 
-    public function delete(string $key): bool
+    public function delete(BackedEnum|UnitEnum|string $key): bool
     {
         return $this->forget($key);
     }
@@ -452,8 +466,11 @@ class Repository implements ArrayAccess, CacheContract
             throw new BadMethodCallException('This cache store does not support tagging.');
         }
 
+        $names = is_array($names) ? $names : func_get_args();
+        $names = array_map(fn ($name) => enum_value($name), $names);
+
         /* @phpstan-ignore-next-line */
-        $cache = $this->store->tags(is_array($names) ? $names : func_get_args());
+        $cache = $this->store->tags($names);
 
         if (! is_null($this->events)) {
             $cache->setEventDispatcher($this->events);
@@ -523,7 +540,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Determine if a cached value exists.
      *
-     * @param string $key
+     * @param BackedEnum|string|UnitEnum $key
      */
     public function offsetExists($key): bool
     {
@@ -533,7 +550,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Retrieve an item from the cache by key.
      *
-     * @param string $key
+     * @param BackedEnum|string|UnitEnum $key
      */
     public function offsetGet($key): mixed
     {
@@ -543,7 +560,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Store an item in the cache for the default time.
      *
-     * @param string $key
+     * @param BackedEnum|string|UnitEnum $key
      * @param mixed $value
      */
     public function offsetSet($key, $value): void
@@ -554,7 +571,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Remove an item from the cache.
      *
-     * @param string $key
+     * @param BackedEnum|string|UnitEnum $key
      */
     public function offsetUnset($key): void
     {
