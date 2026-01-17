@@ -313,9 +313,9 @@ class GateEnumTest extends TestCase
 
     public function testAuthorizeMiddlewareUsingWithBackedEnum(): void
     {
-        $result = Authorize::using(AbilitiesBackedEnum::ViewDashboard, 'App\\Models\\Post');
+        $result = Authorize::using(AbilitiesBackedEnum::ViewDashboard, 'App\Models\Post');
 
-        $this->assertSame(Authorize::class . ':view-dashboard,App\\Models\\Post', $result);
+        $this->assertSame(Authorize::class . ':view-dashboard,App\Models\Post', $result);
     }
 
     public function testAuthorizeMiddlewareUsingWithUnitEnum(): void
