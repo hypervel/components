@@ -25,6 +25,13 @@ enum IntBackedKey: int
     case Second = 2;
 }
 
+enum SessionUnitKey
+{
+    case User;
+    case Token;
+    case Settings;
+}
+
 /**
  * @internal
  * @coversNothing
@@ -587,6 +594,246 @@ class SessionStoreBackedEnumTest extends TestCase
 
         $session->put('2', 'string-value');
         $this->assertSame('string-value', $session->get(IntBackedKey::Second));
+    }
+
+    // =========================================================================
+    // UnitEnum tests - uses enum name as key
+    // =========================================================================
+
+    public function testGetWithUnitEnum(): void
+    {
+        $session = $this->getSession();
+        $session->put('User', 'john');
+
+        $this->assertSame('john', $session->get(SessionUnitKey::User));
+    }
+
+    public function testPutWithUnitEnum(): void
+    {
+        $session = $this->getSession();
+        $session->put(SessionUnitKey::User, 'jane');
+
+        // UnitEnum uses ->name, so key is 'User' not 'user'
+        $this->assertSame('jane', $session->get('User'));
+        $this->assertSame('jane', $session->get(SessionUnitKey::User));
+    }
+
+    public function testExistsWithUnitEnum(): void
+    {
+        $session = $this->getSession();
+        $session->put('User', 'john');
+
+        $this->assertTrue($session->exists(SessionUnitKey::User));
+        $this->assertFalse($session->exists(SessionUnitKey::Token));
+    }
+
+    public function testHasWithUnitEnum(): void
+    {
+        $session = $this->getSession();
+        $session->put(SessionUnitKey::User, 'john');
+        $session->put(SessionUnitKey::Token, null);
+
+        $this->assertTrue($session->has(SessionUnitKey::User));
+        $this->assertFalse($session->has(SessionUnitKey::Token)); // null value
+        $this->assertFalse($session->has(SessionUnitKey::Settings)); // doesn't exist
+    }
+
+    public function testHasAnyWithUnitEnum(): void
+    {
+        $session = $this->getSession();
+        $session->put(SessionUnitKey::User, 'john');
+
+        $this->assertTrue($session->hasAny([SessionUnitKey::User, SessionUnitKey::Token]));
+        $this->assertFalse($session->hasAny([SessionUnitKey::Token, SessionUnitKey::Settings]));
+    }
+
+    public function testPullWithUnitEnum(): void
+    {
+        $session = $this->getSession();
+        $session->put('User', 'john');
+
+        $this->assertSame('john', $session->pull(SessionUnitKey::User));
+        $this->assertFalse($session->has('User'));
+    }
+
+    public function testForgetWithUnitEnum(): void
+    {
+        $session = $this->getSession();
+        $session->put(SessionUnitKey::User, 'john');
+        $session->put(SessionUnitKey::Token, 'abc');
+
+        $session->forget(SessionUnitKey::User);
+
+        $this->assertFalse($session->has('User'));
+        $this->assertTrue($session->has('Token'));
+    }
+
+    public function testForgetWithArrayOfUnitEnums(): void
+    {
+        $session = $this->getSession();
+        $session->put(SessionUnitKey::User, 'john');
+        $session->put(SessionUnitKey::Token, 'abc');
+        $session->put(SessionUnitKey::Settings, ['dark' => true]);
+
+        $session->forget([SessionUnitKey::User, SessionUnitKey::Token]);
+
+        $this->assertFalse($session->has('User'));
+        $this->assertFalse($session->has('Token'));
+        $this->assertTrue($session->has('Settings'));
+    }
+
+    public function testOnlyWithUnitEnums(): void
+    {
+        $session = $this->getSession();
+        $session->put('User', 'john');
+        $session->put('Token', 'abc');
+        $session->put('Settings', ['dark' => true]);
+
+        $result = $session->only([SessionUnitKey::User, SessionUnitKey::Token]);
+
+        $this->assertSame(['User' => 'john', 'Token' => 'abc'], $result);
+    }
+
+    public function testExceptWithUnitEnums(): void
+    {
+        $session = $this->getSession();
+        $session->put('User', 'john');
+        $session->put('Token', 'abc');
+        $session->put('Settings', ['dark' => true]);
+
+        $result = $session->except([SessionUnitKey::User, SessionUnitKey::Token]);
+
+        $this->assertSame(['Settings' => ['dark' => true]], $result);
+    }
+
+    public function testRemoveWithUnitEnum(): void
+    {
+        $session = $this->getSession();
+        $session->put('User', 'john');
+
+        $value = $session->remove(SessionUnitKey::User);
+
+        $this->assertSame('john', $value);
+        $this->assertFalse($session->has('User'));
+    }
+
+    public function testRememberWithUnitEnum(): void
+    {
+        $session = $this->getSession();
+
+        $result = $session->remember(SessionUnitKey::User, fn () => 'computed');
+
+        $this->assertSame('computed', $result);
+        $this->assertSame('computed', $session->get('User'));
+    }
+
+    public function testPushWithUnitEnum(): void
+    {
+        $session = $this->getSession();
+
+        $session->push(SessionUnitKey::User, 'item1');
+        $session->push(SessionUnitKey::User, 'item2');
+
+        $this->assertSame(['item1', 'item2'], $session->get('User'));
+    }
+
+    public function testIncrementWithUnitEnum(): void
+    {
+        $session = $this->getSession();
+
+        $session->increment(SessionUnitKey::User);
+        $this->assertSame(1, $session->get('User'));
+
+        $session->increment(SessionUnitKey::User, 5);
+        $this->assertSame(6, $session->get('User'));
+    }
+
+    public function testDecrementWithUnitEnum(): void
+    {
+        $session = $this->getSession();
+        $session->put('User', 10);
+
+        $session->decrement(SessionUnitKey::User);
+        $this->assertSame(9, $session->get('User'));
+    }
+
+    public function testFlashWithUnitEnum(): void
+    {
+        $session = $this->getSession();
+        $session->getHandler()->shouldReceive('read')->once()->andReturn(serialize([]));
+        $session->start();
+
+        $session->flash(SessionUnitKey::User, 'flash-value');
+
+        $this->assertTrue($session->has('User'));
+        $this->assertSame('flash-value', $session->get('User'));
+
+        // Verify key is stored as string in _flash.new
+        $flashNew = $session->get('_flash.new');
+        $this->assertContains('User', $flashNew);
+    }
+
+    public function testNowWithUnitEnum(): void
+    {
+        $session = $this->getSession();
+        $session->getHandler()->shouldReceive('read')->once()->andReturn(serialize([]));
+        $session->start();
+
+        $session->now(SessionUnitKey::User, 'now-value');
+
+        $this->assertTrue($session->has('User'));
+        $this->assertSame('now-value', $session->get('User'));
+
+        // Verify key is stored as string in _flash.old
+        $flashOld = $session->get('_flash.old');
+        $this->assertContains('User', $flashOld);
+    }
+
+    public function testHasOldInputWithUnitEnum(): void
+    {
+        $session = $this->getSession();
+        $session->put('_old_input', ['User' => 'john', 'email' => 'john@example.com']);
+
+        $this->assertTrue($session->hasOldInput(SessionUnitKey::User));
+        $this->assertFalse($session->hasOldInput(SessionUnitKey::Token));
+    }
+
+    public function testGetOldInputWithUnitEnum(): void
+    {
+        $session = $this->getSession();
+        $session->put('_old_input', ['User' => 'john', 'email' => 'john@example.com']);
+
+        $this->assertSame('john', $session->getOldInput(SessionUnitKey::User));
+        $this->assertNull($session->getOldInput(SessionUnitKey::Token));
+        $this->assertSame('default', $session->getOldInput(SessionUnitKey::Token, 'default'));
+    }
+
+    public function testUnitEnumInteroperability(): void
+    {
+        $session = $this->getSession();
+
+        // Set with UnitEnum, get with string
+        $session->put(SessionUnitKey::User, 'value1');
+        $this->assertSame('value1', $session->get('User'));
+
+        // Set with string, get with UnitEnum
+        $session->put('Token', 'value2');
+        $this->assertSame('value2', $session->get(SessionUnitKey::Token));
+    }
+
+    public function testMixedBackedAndUnitEnums(): void
+    {
+        $session = $this->getSession();
+
+        // BackedEnum uses ->value ('user'), UnitEnum uses ->name ('User')
+        $session->put(SessionKey::User, 'backed-value');
+        $session->put(SessionUnitKey::User, 'unit-value');
+
+        // These are different keys
+        $this->assertSame('backed-value', $session->get('user'));
+        $this->assertSame('unit-value', $session->get('User'));
+        $this->assertSame('backed-value', $session->get(SessionKey::User));
+        $this->assertSame('unit-value', $session->get(SessionUnitKey::User));
     }
 
     // =========================================================================
