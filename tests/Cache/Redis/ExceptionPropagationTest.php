@@ -116,8 +116,8 @@ class ExceptionPropagationTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        // Tagged put uses evalSha for Lua script
-        $connection->_mockClient->shouldReceive('evalSha')
+        // Tagged put uses evalWithShaCache for Lua script
+        $connection->shouldReceive('evalWithShaCache')
             ->andThrow(new RedisException('Connection lost'));
 
         $store = $this->createStore($connection, tagMode: 'any');
@@ -133,8 +133,8 @@ class ExceptionPropagationTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        // Tagged increment uses evalSha for Lua script
-        $connection->_mockClient->shouldReceive('evalSha')
+        // Tagged increment uses evalWithShaCache for Lua script
+        $connection->shouldReceive('evalWithShaCache')
             ->andThrow(new RedisException('Connection reset by peer'));
 
         $store = $this->createStore($connection, tagMode: 'any');
@@ -171,8 +171,8 @@ class ExceptionPropagationTest extends RedisCacheTestCase
     {
         $connection = $this->mockConnection();
 
-        // PutMany uses evalSha for Lua script
-        $connection->_mockClient->shouldReceive('evalSha')
+        // PutMany uses evalWithShaCache for Lua script
+        $connection->shouldReceive('evalWithShaCache')
             ->andThrow(new RedisException('CLUSTERDOWN The cluster is down'));
 
         $store = $this->createStore($connection);

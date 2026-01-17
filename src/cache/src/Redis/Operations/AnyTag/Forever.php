@@ -119,12 +119,14 @@ class Forever
     private function executeUsingLua(string $key, mixed $value, array $tags): bool
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $tags) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
 
+            $keys = [
+                $prefix . $key,                        // KEYS[1]
+                $this->context->reverseIndexKey($key), // KEYS[2]
+            ];
+
             $args = [
-                $prefix . $key,                              // KEYS[1]
-                $this->context->reverseIndexKey($key),       // KEYS[2]
                 $this->serialization->serializeForLua($conn, $value), // ARGV[1]
                 $this->context->fullTagPrefix(),             // ARGV[2]
                 $this->context->fullRegistryKey(),           // ARGV[3]
@@ -133,14 +135,7 @@ class Forever
                 ...$tags,                                    // ARGV[6...]
             ];
 
-            $script = $this->storeForeverWithTagsScript();
-            $scriptHash = sha1($script);
-            $result = $client->evalSha($scriptHash, $args, 2);
-
-            // evalSha returns false if script not loaded (NOSCRIPT), fall back to eval
-            if ($result === false) {
-                $client->eval($script, $args, 2);
-            }
+            $conn->evalWithShaCache($this->storeForeverWithTagsScript(), $keys, $args);
 
             return true;
         });

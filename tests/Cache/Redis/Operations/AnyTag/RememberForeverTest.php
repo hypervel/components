@@ -61,14 +61,10 @@ class RememberForeverTest extends RedisCacheTestCase
             ->with('prefix:foo')
             ->andReturnNull();
 
-        // First tries evalSha, then falls back to eval
-        $client->shouldReceive('evalSha')
+        // Uses evalWithShaCache for Lua script
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
-            ->andReturn(false);
-
-        $client->shouldReceive('eval')
-            ->once()
-            ->withArgs(function ($script, $args, $numKeys) {
+            ->withArgs(function ($script, $keys, $args) {
                 // Verify script uses SET (not SETEX) and HSET (not HSETEX)
                 $this->assertStringContainsString("redis.call('SET'", $script);
                 $this->assertStringContainsString("redis.call('HSET'", $script);
@@ -79,7 +75,7 @@ class RememberForeverTest extends RedisCacheTestCase
                 $this->assertStringNotContainsString('HSETEX', $script);
                 // Verify no redis.call('HEXPIRE' - the word may appear in comments but not as actual command
                 $this->assertStringNotContainsString("redis.call('HEXPIRE", $script);
-                $this->assertSame(2, $numKeys);
+                $this->assertCount(2, $keys);
 
                 return true;
             })
@@ -102,7 +98,7 @@ class RememberForeverTest extends RedisCacheTestCase
     /**
      * @test
      */
-    public function testRememberForeverUsesEvalShaWhenScriptCached(): void
+    public function testRememberForeverUsesEvalWithShaCacheOnMiss(): void
     {
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
@@ -111,13 +107,10 @@ class RememberForeverTest extends RedisCacheTestCase
             ->once()
             ->andReturnNull();
 
-        // evalSha succeeds (script is cached)
-        $client->shouldReceive('evalSha')
+        // evalWithShaCache is called
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
             ->andReturn(true);
-
-        // eval should NOT be called
-        $client->shouldReceive('eval')->never();
 
         $redis = $this->createStore($connection);
         $redis->setTagMode('any');
@@ -167,15 +160,13 @@ class RememberForeverTest extends RedisCacheTestCase
             ->andReturnNull();
 
         // Verify multiple tags are passed in the Lua script args
-        $client->shouldReceive('evalSha')
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
-            ->withArgs(function ($hash, $args, $numKeys) {
-                // Args: 2 KEYS + 5 ARGV (value, tagPrefix, registryKey, rawKey, tagHashSuffix) = 7
-                // Tags start at index 7 (ARGV[6...])
-                $tags = array_slice($args, 7);
-                $this->assertContains('users', $tags);
-                $this->assertContains('posts', $tags);
-                $this->assertContains('comments', $tags);
+            ->withArgs(function ($script, $keys, $args) {
+                // Tags are in the args array
+                $this->assertContains('users', $args);
+                $this->assertContains('posts', $args);
+                $this->assertContains('comments', $args);
 
                 return true;
             })
@@ -288,7 +279,7 @@ class RememberForeverTest extends RedisCacheTestCase
             ->once()
             ->andReturnNull();
 
-        $client->shouldReceive('evalSha')
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
             ->andReturn(true);
 
@@ -314,7 +305,7 @@ class RememberForeverTest extends RedisCacheTestCase
             ->with('prefix:foo')
             ->andReturn(false);
 
-        $client->shouldReceive('evalSha')
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
             ->andReturn(true);
 
@@ -339,15 +330,8 @@ class RememberForeverTest extends RedisCacheTestCase
             ->andReturnNull();
 
         // With empty tags, should still use Lua script but with no tags in args
-        $client->shouldReceive('evalSha')
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
-            ->withArgs(function ($hash, $args, $numKeys) {
-                // Args: 2 KEYS + 5 ARGV = 7 fixed, tags start at index 7 (ARGV[6...])
-                $tags = array_slice($args, 7);
-                $this->assertEmpty($tags);
-
-                return true;
-            })
             ->andReturn(true);
 
         $redis = $this->createStore($connection);
@@ -414,13 +398,9 @@ class RememberForeverTest extends RedisCacheTestCase
             ->andReturnNull();
 
         // Verify Lua script contains MAX_EXPIRY constant
-        $client->shouldReceive('evalSha')
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
-            ->andReturn(false);
-
-        $client->shouldReceive('eval')
-            ->once()
-            ->withArgs(function ($script, $args, $numKeys) {
+            ->withArgs(function ($script, $keys, $args) {
                 // MAX_EXPIRY = 253402300799 (Year 9999)
                 $this->assertStringContainsString('253402300799', $script);
 

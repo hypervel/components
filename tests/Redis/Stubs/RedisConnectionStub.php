@@ -29,8 +29,10 @@ class RedisConnectionStub extends RedisConnection
             return $this->connection;
         }
 
+        // Use shouldIgnoreMissing() to prevent falling through to real Redis
+        // methods when expectations don't match (which causes "Redis server went away")
         $connection = $this->redisConnection
-            ?? Mockery::mock(Redis::class);
+            ?? Mockery::mock(Redis::class)->shouldIgnoreMissing();
 
         return $this->connection = $connection;
     }
@@ -40,6 +42,14 @@ class RedisConnectionStub extends RedisConnection
         $this->redisConnection = $connection;
 
         return $this;
+    }
+
+    /**
+     * Get the underlying Redis connection for test mocking.
+     */
+    public function getConnection(): Redis
+    {
+        return $this->getActiveConnection();
     }
 
     protected function retry($name, $arguments, Throwable $exception)

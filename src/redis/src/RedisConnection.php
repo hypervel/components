@@ -6,6 +6,7 @@ namespace Hypervel\Redis;
 
 use Generator;
 use Hyperf\Redis\RedisConnection as HyperfRedisConnection;
+use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\Operations\FlushByPattern;
 use Hypervel\Redis\Operations\SafeScan;
 use Hypervel\Support\Arr;
@@ -799,6 +800,61 @@ class RedisConnection extends HyperfRedisConnection
     public function client(): mixed
     {
         return $this->connection;
+    }
+
+    /**
+     * Execute a Lua script using evalSha with automatic fallback to eval.
+     *
+     * Redis caches compiled Lua scripts by SHA1 hash. This method tries evalSha
+     * first (uses cached compiled script), and falls back to eval if the script
+     * isn't cached yet (NOSCRIPT error).
+     *
+     * Unlike naive implementations that treat any `false` return as NOSCRIPT,
+     * this method properly distinguishes NOSCRIPT errors from other failures
+     * (syntax errors, OOM, WRONGTYPE, etc.) and throws on non-NOSCRIPT errors.
+     *
+     * @param string $script The Lua script to execute
+     * @param array<string> $keys Redis keys (passed as KEYS[] in Lua)
+     * @param array<mixed> $args Additional arguments (passed as ARGV[] in Lua)
+     * @return mixed The script's return value
+     *
+     * @throws LuaScriptException If script execution fails (non-NOSCRIPT error)
+     */
+    public function evalWithShaCache(string $script, array $keys = [], array $args = []): mixed
+    {
+        $sha = sha1($script);
+        $numKeys = count($keys);
+
+        // phpredis signature: evalSha(sha, combined_args, num_keys)
+        // combined_args = keys first, then other args
+        $combinedArgs = [...$keys, ...$args];
+
+        // Try evalSha first - uses cached compiled script
+        $result = $this->connection->evalSha($sha, $combinedArgs, $numKeys);
+
+        if ($result === false) {
+            $error = $this->connection->getLastError();
+
+            // NOSCRIPT means script not cached yet - fall back to eval
+            if ($error !== null && str_contains($error, 'NOSCRIPT')) {
+                $this->connection->clearLastError();
+                $result = $this->connection->eval($script, $combinedArgs, $numKeys);
+
+                if ($result === false) {
+                    $evalError = $this->connection->getLastError();
+                    if ($evalError !== null) {
+                        throw new LuaScriptException('Lua script execution failed: ' . $evalError);
+                    }
+                    // If no error, script legitimately returned nil (which becomes false)
+                }
+            } elseif ($error !== null) {
+                // Some other error (syntax, OOM, WRONGTYPE, etc.)
+                throw new LuaScriptException('Lua script execution failed: ' . $error);
+            }
+            // If $error is null and $result is false, the script legitimately returned false
+        }
+
+        return $result;
     }
 
     /**

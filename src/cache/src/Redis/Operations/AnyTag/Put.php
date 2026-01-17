@@ -136,12 +136,14 @@ class Put
     private function executeUsingLua(string $key, mixed $value, int $seconds, array $tags): bool
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $seconds, $tags) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
 
+            $keys = [
+                $prefix . $key,                        // KEYS[1]
+                $this->context->reverseIndexKey($key), // KEYS[2]
+            ];
+
             $args = [
-                $prefix . $key,                              // KEYS[1]
-                $this->context->reverseIndexKey($key),       // KEYS[2]
                 $this->serialization->serializeForLua($conn, $value), // ARGV[1]
                 max(1, $seconds),                            // ARGV[2]
                 $this->context->fullTagPrefix(),             // ARGV[3]
@@ -152,14 +154,7 @@ class Put
                 ...$tags,                                    // ARGV[8...]
             ];
 
-            $script = $this->storeWithTagsScript();
-            $scriptHash = sha1($script);
-            $result = $client->evalSha($scriptHash, $args, 2);
-
-            // evalSha returns false if script not loaded (NOSCRIPT), fall back to eval
-            if ($result === false) {
-                $client->eval($script, $args, 2);
-            }
+            $conn->evalWithShaCache($this->storeWithTagsScript(), $keys, $args);
 
             return true;
         });

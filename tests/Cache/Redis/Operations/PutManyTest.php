@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations;
 
+use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
@@ -20,24 +21,20 @@ class PutManyTest extends RedisCacheTestCase
     public function testPutManyUsesLuaScriptInStandardMode(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        // Standard mode (not cluster) uses Lua script with evalSha
-        $client->shouldReceive('evalSha')
+        // Standard mode (not cluster) uses Lua script via evalWithShaCache
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
-            ->andReturn(false); // Script not cached
-        $client->shouldReceive('eval')
-            ->once()
-            ->withArgs(function ($script, $args, $numKeys) {
+            ->withArgs(function ($script, $keys, $args) {
                 // Verify Lua script structure
                 $this->assertStringContainsString('SETEX', $script);
                 // Keys: prefix:foo, prefix:baz, prefix:bar
-                $this->assertSame(3, $numKeys);
-                // Args: [key1, key2, key3, ttl, val1, val2, val3]
-                $this->assertSame('prefix:foo', $args[0]);
-                $this->assertSame('prefix:baz', $args[1]);
-                $this->assertSame('prefix:bar', $args[2]);
-                $this->assertSame(60, $args[3]); // TTL
+                $this->assertCount(3, $keys);
+                $this->assertSame('prefix:foo', $keys[0]);
+                $this->assertSame('prefix:baz', $keys[1]);
+                $this->assertSame('prefix:bar', $keys[2]);
+                // Args: [ttl, val1, val2, val3]
+                $this->assertSame(60, $args[0]); // TTL
 
                 return true;
             })
@@ -107,25 +104,22 @@ class PutManyTest extends RedisCacheTestCase
     /**
      * @test
      */
-    public function testPutManyLuaFailureReturnsFalse(): void
+    public function testPutManyLuaFailureThrowsException(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        // In standard mode (Lua), if both evalSha and eval fail, return false
-        $client->shouldReceive('evalSha')
+        // evalWithShaCache throws LuaScriptException on failure
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
-            ->andReturn(false);
-        $client->shouldReceive('eval')
-            ->once()
-            ->andReturn(false); // Lua script failed
+            ->andThrow(new LuaScriptException('Lua script execution failed'));
+
+        $this->expectException(LuaScriptException::class);
 
         $redis = $this->createStore($connection);
-        $result = $redis->putMany([
+        $redis->putMany([
             'foo' => 'bar',
             'baz' => 'qux',
         ], 60);
-        $this->assertFalse($result);
     }
 
     /**
@@ -134,14 +128,12 @@ class PutManyTest extends RedisCacheTestCase
     public function testPutManyEnforcesMinimumTtlOfOne(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('evalSha')->once()->andReturn(false);
-        $client->shouldReceive('eval')
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
-            ->withArgs(function ($script, $args, $numKeys) {
+            ->withArgs(function ($script, $keys, $args) {
                 // TTL should be 1, not 0
-                $this->assertSame(1, $args[$numKeys]); // TTL is at args[numKeys]
+                $this->assertSame(1, $args[0]); // TTL is first arg
                 return true;
             })
             ->andReturn(true);

@@ -122,31 +122,24 @@ class Decrement
     private function executeUsingLua(string $key, int $value, array $tags): int|bool
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $tags) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
 
-            $args = [
+            $keys = [
                 $prefix . $key,                        // KEYS[1]
                 $this->context->reverseIndexKey($key), // KEYS[2]
-                $value,                                // ARGV[1]
-                $this->context->fullTagPrefix(),       // ARGV[2]
-                $this->context->fullRegistryKey(),     // ARGV[3]
-                time(),                                // ARGV[4]
-                $key,                                  // ARGV[5]
-                $this->context->tagHashSuffix(),       // ARGV[6]
-                ...$tags,                              // ARGV[7...]
             ];
 
-            $script = $this->decrementWithTagsScript();
-            $scriptHash = sha1($script);
-            $result = $client->evalSha($scriptHash, $args, 2);
+            $args = [
+                $value,                            // ARGV[1]
+                $this->context->fullTagPrefix(),   // ARGV[2]
+                $this->context->fullRegistryKey(), // ARGV[3]
+                time(),                            // ARGV[4]
+                $key,                              // ARGV[5]
+                $this->context->tagHashSuffix(),   // ARGV[6]
+                ...$tags,                          // ARGV[7...]
+            ];
 
-            // evalSha returns false if script not loaded (NOSCRIPT), fall back to eval
-            if ($result === false) {
-                return $client->eval($script, $args, 2);
-            }
-
-            return $result;
+            return $conn->evalWithShaCache($this->decrementWithTagsScript(), $keys, $args);
         });
     }
 

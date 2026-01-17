@@ -136,12 +136,11 @@ class RememberForever
     private function executeUsingLua(string $key, Closure $callback, array $tags): array
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($key, $callback, $tags) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
             $prefixedKey = $prefix . $key;
 
             // Try to get the cached value first
-            $value = $client->get($prefixedKey);
+            $value = $conn->client()->get($prefixedKey);
 
             if ($value !== false && $value !== null) {
                 return [$this->serialization->unserialize($conn, $value), true];
@@ -151,9 +150,12 @@ class RememberForever
             $value = $callback();
 
             // Now use Lua script to atomically store with tags (forever semantics)
+            $keys = [
+                $prefixedKey,                          // KEYS[1]
+                $this->context->reverseIndexKey($key), // KEYS[2]
+            ];
+
             $args = [
-                $prefixedKey,                                // KEYS[1]
-                $this->context->reverseIndexKey($key),       // KEYS[2]
                 $this->serialization->serializeForLua($conn, $value), // ARGV[1]
                 $this->context->fullTagPrefix(),             // ARGV[2]
                 $this->context->fullRegistryKey(),           // ARGV[3]
@@ -162,14 +164,7 @@ class RememberForever
                 ...$tags,                                    // ARGV[6...]
             ];
 
-            $script = $this->storeForeverWithTagsScript();
-            $scriptHash = sha1($script);
-            $result = $client->evalSha($scriptHash, $args, 2);
-
-            // evalSha returns false if script not loaded (NOSCRIPT), fall back to eval
-            if ($result === false) {
-                $client->eval($script, $args, 2);
-            }
+            $conn->evalWithShaCache($this->storeForeverWithTagsScript(), $keys, $args);
 
             return [$value, false];
         });

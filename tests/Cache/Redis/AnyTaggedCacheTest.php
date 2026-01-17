@@ -9,6 +9,7 @@ use Generator;
 use Hypervel\Cache\Redis\AnyTaggedCache;
 use Hypervel\Cache\Redis\AnyTagSet;
 use Hypervel\Cache\TaggedCache;
+use Hypervel\Redis\Exceptions\LuaScriptException;
 use RuntimeException;
 
 /**
@@ -116,13 +117,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testPutStoresValueWithTags(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        // Union mode uses Lua script for atomic put with tags
-        $client->shouldReceive('evalSha')
-            ->once()
-            ->andReturn(false);
-        $client->shouldReceive('eval')
+        // Union mode uses Lua script via evalWithShaCache
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
             ->andReturn(true);
 
@@ -138,13 +135,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testPutWithNullTtlCallsForever(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        // Forever operation uses Lua script
-        $client->shouldReceive('evalSha')
-            ->once()
-            ->andReturn(false);
-        $client->shouldReceive('eval')
+        // Forever operation uses Lua script via evalWithShaCache
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
             ->andReturn(true);
 
@@ -226,13 +219,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testPutManyWithNullTtlCallsForeverForEach(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // Forever for each key - called twice for 2 keys
-        $client->shouldReceive('evalSha')
-            ->twice()
-            ->andReturn(false);
-        $client->shouldReceive('eval')
+        $connection->shouldReceive('evalWithShaCache')
             ->twice()
             ->andReturn(true);
 
@@ -262,13 +251,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testAddStoresValueIfNotExists(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        // Add uses Lua script with SET NX
-        $client->shouldReceive('evalSha')
-            ->once()
-            ->andReturn(false);
-        $client->shouldReceive('eval')
+        // Add uses Lua script with SET NX via evalWithShaCache
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
             ->andReturn(true);
 
@@ -284,17 +269,13 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testAddWithNullTtlDefaultsToOneYear(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // Add with null TTL defaults to 1 year (31536000 seconds)
-        $client->shouldReceive('evalSha')
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
-            ->andReturn(false);
-        $client->shouldReceive('eval')
-            ->once()
-            ->withArgs(function ($script, $args, $numKeys) {
-                // Check that TTL argument is ~1 year
-                $this->assertSame(31536000, $args[3]);
+            ->withArgs(function ($script, $keys, $args) {
+                // Check that TTL argument is ~1 year (args[1] is ttl)
+                $this->assertSame(31536000, $args[1]);
 
                 return true;
             })
@@ -326,13 +307,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testForeverStoresValueIndefinitely(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        // Forever uses Lua script without expiration
-        $client->shouldReceive('evalSha')
-            ->once()
-            ->andReturn(false);
-        $client->shouldReceive('eval')
+        // Forever uses Lua script without expiration via evalWithShaCache
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
             ->andReturn(true);
 
@@ -348,10 +325,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testIncrementReturnsNewValue(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        // Increment uses Lua script with INCRBY
-        $client->shouldReceive('evalSha')
+        // Increment uses Lua script with INCRBY via evalWithShaCache
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
             ->andReturn(5);
 
@@ -367,9 +343,8 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testIncrementWithCustomValue(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('evalSha')
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
             ->andReturn(15);
 
@@ -385,10 +360,9 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testDecrementReturnsNewValue(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        // Decrement uses Lua script with DECRBY
-        $client->shouldReceive('evalSha')
+        // Decrement uses Lua script with DECRBY via evalWithShaCache
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
             ->andReturn(3);
 
@@ -404,9 +378,8 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     public function testDecrementWithCustomValue(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('evalSha')
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
             ->andReturn(0);
 
@@ -479,8 +452,8 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
             ->with('prefix:mykey')
             ->andReturnNull();
 
-        // Should store the value with tags via Lua script
-        $client->shouldReceive('evalSha')
+        // Should store the value with tags via evalWithShaCache
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
             ->andReturn(true);
 
@@ -530,8 +503,8 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
             ->with('prefix:mykey')
             ->andReturnNull();
 
-        // Should store the value forever with tags using Lua script
-        $client->shouldReceive('evalSha')
+        // Should store the value forever with tags using evalWithShaCache
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
             ->andReturn(true);
 
@@ -574,43 +547,35 @@ class AnyTaggedCacheTest extends RedisCacheTestCase
     /**
      * @test
      */
-    public function testIncrementReturnsFalseOnFailure(): void
+    public function testIncrementThrowsOnLuaFailure(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('evalSha')
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
-            ->andReturn(false);
-        $client->shouldReceive('eval')
-            ->once()
-            ->andReturn(false);
+            ->andThrow(new LuaScriptException('Lua script execution failed'));
+
+        $this->expectException(LuaScriptException::class);
 
         $store = $this->createStore($connection);
-        $result = $store->setTagMode('any')->tags(['users'])->increment('counter');
-
-        $this->assertFalse($result);
+        $store->setTagMode('any')->tags(['users'])->increment('counter');
     }
 
     /**
      * @test
      */
-    public function testDecrementReturnsFalseOnFailure(): void
+    public function testDecrementThrowsOnLuaFailure(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('evalSha')
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
-            ->andReturn(false);
-        $client->shouldReceive('eval')
-            ->once()
-            ->andReturn(false);
+            ->andThrow(new LuaScriptException('Lua script execution failed'));
+
+        $this->expectException(LuaScriptException::class);
 
         $store = $this->createStore($connection);
-        $result = $store->setTagMode('any')->tags(['users'])->decrement('counter');
-
-        $this->assertFalse($result);
+        $store->setTagMode('any')->tags(['users'])->decrement('counter');
     }
 
     /**

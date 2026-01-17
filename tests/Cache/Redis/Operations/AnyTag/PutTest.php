@@ -20,28 +20,23 @@ class PutTest extends RedisCacheTestCase
     public function testPutWithTagsUsesLuaScriptInStandardMode(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        // Standard mode uses Lua script with evalSha
-        $client->shouldReceive('evalSha')
+        // Standard mode uses Lua script via evalWithShaCache
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
-            ->andReturn(false); // Script not cached
-        $client->shouldReceive('eval')
-            ->once()
-            ->withArgs(function ($script, $args, $numKeys) {
+            ->withArgs(function ($script, $keys, $args) {
                 // Verify Lua script contains expected commands
                 $this->assertStringContainsString('SETEX', $script);
                 $this->assertStringContainsString('HSETEX', $script);
                 $this->assertStringContainsString('ZADD', $script);
                 $this->assertStringContainsString('SMEMBERS', $script);
                 // 2 keys: cache key + reverse index key
-                $this->assertSame(2, $numKeys);
+                $this->assertCount(2, $keys);
 
                 return true;
             })
             ->andReturn(true);
 
-        // Mock smembers for old tags lookup (Lua script uses this internally but we mock the full execution)
         $redis = $this->createStore($connection);
         $redis->setTagMode('any');
         $result = $redis->anyTagOps()->put()->execute('foo', 'bar', 60, ['users', 'posts']);
@@ -82,12 +77,8 @@ class PutTest extends RedisCacheTestCase
     public function testPutWithTagsHandlesEmptyTags(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('evalSha')
-            ->once()
-            ->andReturn(false);
-        $client->shouldReceive('eval')
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
             ->andReturn(true);
 
@@ -103,16 +94,13 @@ class PutTest extends RedisCacheTestCase
     public function testPutWithTagsWithNumericValue(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('evalSha')
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
-            ->andReturn(false);
-        $client->shouldReceive('eval')
-            ->once()
-            ->withArgs(function ($script, $args, $numKeys) {
-                // Numeric values should be passed as strings in ARGV
-                $this->assertIsString($args[2]); // Serialized value position
+            ->withArgs(function ($script, $keys, $args) {
+                // Numeric values should be passed as strings in args
+                // Args array contains: value, ttl, tagPrefix, registryKey, currentTime, rawKey, tagHashSuffix, ...tags
+                $this->assertIsString($args[0]); // Serialized value
                 return true;
             })
             ->andReturn(true);

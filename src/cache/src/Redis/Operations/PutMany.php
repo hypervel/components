@@ -118,7 +118,6 @@ class PutMany
     private function executeUsingLua(array $values, int $seconds): bool
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($values, $seconds) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
             $seconds = max(1, $seconds);
 
@@ -135,19 +134,7 @@ class PutMany
                 $args[] = $this->serialization->serializeForLua($conn, $value);
             }
 
-            // Combine keys and args for eval/evalSha
-            // Format: [key1, key2, ..., ttl, val1, val2, ...]
-            $evalArgs = array_merge($keys, $args);
-            $numKeys = count($keys);
-
-            $script = $this->setMultipleKeysScript();
-            $scriptHash = sha1($script);
-            $result = $client->evalSha($scriptHash, $evalArgs, $numKeys);
-
-            // evalSha returns false if script not loaded (NOSCRIPT), fall back to eval
-            if ($result === false) {
-                $result = $client->eval($script, $evalArgs, $numKeys);
-            }
+            $result = $conn->evalWithShaCache($this->setMultipleKeysScript(), $keys, $args);
 
             return (bool) $result;
         });

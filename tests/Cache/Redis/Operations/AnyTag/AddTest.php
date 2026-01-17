@@ -20,19 +20,15 @@ class AddTest extends RedisCacheTestCase
     public function testAddWithTagsReturnsTrueWhenKeyAdded(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        // evalSha returns false (script not cached), eval returns true (key added)
-        $client->shouldReceive('evalSha')
+        // evalWithShaCache returns true (key added)
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
-            ->andReturn(false);
-        $client->shouldReceive('eval')
-            ->once()
-            ->withArgs(function ($script, $args, $numKeys) {
+            ->withArgs(function ($script, $keys, $args) {
                 $this->assertStringContainsString('SET', $script);
                 $this->assertStringContainsString('NX', $script);
                 $this->assertStringContainsString('HSETEX', $script);
-                $this->assertSame(2, $numKeys);
+                $this->assertCount(2, $keys);
 
                 return true;
             })
@@ -50,15 +46,11 @@ class AddTest extends RedisCacheTestCase
     public function testAddWithTagsReturnsFalseWhenKeyExists(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
         // Lua script returns false when key already exists (SET NX fails)
-        $client->shouldReceive('evalSha')
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
             ->andReturn(false);
-        $client->shouldReceive('eval')
-            ->once()
-            ->andReturn(false); // Key exists
 
         $redis = $this->createStore($connection);
         $redis->setTagMode('any');

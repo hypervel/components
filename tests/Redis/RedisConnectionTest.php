@@ -8,6 +8,7 @@ use Hyperf\Contract\PoolInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\Pool\PoolOption;
+use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Tests\Redis\Stubs\RedisConnectionStub;
 use Hypervel\Tests\TestCase;
@@ -732,6 +733,103 @@ class RedisConnectionTest extends TestCase
             'key1' => 'packed1',
             'key2' => 'packed2',
         ], $result);
+    }
+
+    public function testEvalWithShaCacheSucceedsOnFirstTry(): void
+    {
+        $connection = $this->mockRedisConnection();
+        $script = 'return KEYS[1]';
+        $sha = sha1($script);
+
+        $connection->getConnection()
+            ->shouldReceive('evalSha')
+            ->with($sha, ['mykey', 'arg1', 'arg2'], 1)
+            ->once()
+            ->andReturn('mykey');
+
+        $result = $connection->evalWithShaCache($script, ['mykey'], ['arg1', 'arg2']);
+
+        $this->assertEquals('mykey', $result);
+    }
+
+    public function testEvalWithShaCacheThrowsOnNonNoscriptError(): void
+    {
+        $connection = $this->mockRedisConnection();
+        $script = 'invalid lua syntax';
+        $sha = sha1($script);
+
+        $redisConnection = $connection->getConnection();
+
+        $redisConnection->shouldReceive('evalSha')
+            ->with($sha, ['mykey'], 1)
+            ->once()
+            ->andReturn(false);
+
+        $redisConnection->shouldReceive('getLastError')
+            ->once()
+            ->andReturn('ERR Error compiling script');
+
+        $this->expectException(LuaScriptException::class);
+        $this->expectExceptionMessage('Lua script execution failed: ERR Error compiling script');
+
+        $connection->evalWithShaCache($script, ['mykey']);
+    }
+
+    public function testEvalWithShaCacheReturnsLegitimatelyFalseResult(): void
+    {
+        $connection = $this->mockRedisConnection();
+        $script = 'return false';
+        $sha = sha1($script);
+
+        $redisConnection = $connection->getConnection();
+
+        // Script returns false legitimately (no error)
+        $redisConnection->shouldReceive('evalSha')
+            ->with($sha, [], 0)
+            ->once()
+            ->andReturn(false);
+
+        $redisConnection->shouldReceive('getLastError')
+            ->once()
+            ->andReturn(null); // No error - script legitimately returned false
+
+        $result = $connection->evalWithShaCache($script);
+
+        $this->assertFalse($result);
+    }
+
+    public function testEvalWithShaCacheWorksWithNoKeysOrArgs(): void
+    {
+        $connection = $this->mockRedisConnection();
+        $script = 'return 42';
+        $sha = sha1($script);
+
+        $connection->getConnection()
+            ->shouldReceive('evalSha')
+            ->with($sha, [], 0)
+            ->once()
+            ->andReturn(42);
+
+        $result = $connection->evalWithShaCache($script);
+
+        $this->assertEquals(42, $result);
+    }
+
+    public function testEvalWithShaCacheWorksWithMultipleKeysAndArgs(): void
+    {
+        $connection = $this->mockRedisConnection();
+        $script = 'return {KEYS[1], KEYS[2], ARGV[1], ARGV[2]}';
+        $sha = sha1($script);
+
+        $connection->getConnection()
+            ->shouldReceive('evalSha')
+            ->with($sha, ['key1', 'key2', 'arg1', 'arg2'], 2)
+            ->once()
+            ->andReturn(['key1', 'key2', 'arg1', 'arg2']);
+
+        $result = $connection->evalWithShaCache($script, ['key1', 'key2'], ['arg1', 'arg2']);
+
+        $this->assertEquals(['key1', 'key2', 'arg1', 'arg2'], $result);
     }
 
     protected function mockRedisConnection(?ContainerInterface $container = null, ?PoolInterface $pool = null, array $options = [], bool $transform = false): RedisConnection

@@ -148,12 +148,11 @@ class Remember
     private function executeUsingLua(string $key, int $seconds, Closure $callback, array $tags): array
     {
         return $this->context->withConnection(function (RedisConnection $conn) use ($key, $seconds, $callback, $tags) {
-            $client = $conn->client();
             $prefix = $this->context->prefix();
             $prefixedKey = $prefix . $key;
 
             // Try to get the cached value first
-            $value = $client->get($prefixedKey);
+            $value = $conn->client()->get($prefixedKey);
 
             if ($value !== false && $value !== null) {
                 return [$this->serialization->unserialize($conn, $value), true];
@@ -163,9 +162,12 @@ class Remember
             $value = $callback();
 
             // Now use Lua script to atomically store with tags
+            $keys = [
+                $prefixedKey,                          // KEYS[1]
+                $this->context->reverseIndexKey($key), // KEYS[2]
+            ];
+
             $args = [
-                $prefixedKey,                                // KEYS[1]
-                $this->context->reverseIndexKey($key),       // KEYS[2]
                 $this->serialization->serializeForLua($conn, $value), // ARGV[1]
                 max(1, $seconds),                            // ARGV[2]
                 $this->context->fullTagPrefix(),             // ARGV[3]
@@ -176,14 +178,7 @@ class Remember
                 ...$tags,                                    // ARGV[8...]
             ];
 
-            $script = $this->storeWithTagsScript();
-            $scriptHash = sha1($script);
-            $result = $client->evalSha($scriptHash, $args, 2);
-
-            // evalSha returns false if script not loaded (NOSCRIPT), fall back to eval
-            if ($result === false) {
-                $client->eval($script, $args, 2);
-            }
+            $conn->evalWithShaCache($this->storeWithTagsScript(), $keys, $args);
 
             return [$value, false];
         });

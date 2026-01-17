@@ -20,17 +20,13 @@ class DecrementTest extends RedisCacheTestCase
     public function testDecrementWithTagsReturnsNewValue(): void
     {
         $connection = $this->mockConnection();
-        $client = $connection->_mockClient;
 
-        $client->shouldReceive('evalSha')
+        $connection->shouldReceive('evalWithShaCache')
             ->once()
-            ->andReturn(false);
-        $client->shouldReceive('eval')
-            ->once()
-            ->withArgs(function ($script, $args, $numKeys) {
+            ->withArgs(function ($script, $keys, $args) {
                 $this->assertStringContainsString('DECRBY', $script);
                 $this->assertStringContainsString('TTL', $script);
-                $this->assertSame(2, $numKeys);
+                $this->assertCount(2, $keys);
 
                 return true;
             })
