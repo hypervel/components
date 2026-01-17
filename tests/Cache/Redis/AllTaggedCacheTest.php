@@ -4,10 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis;
 
-use Carbon\Carbon;
-use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
-use Redis;
 use RuntimeException;
 
 /**
@@ -19,10 +15,8 @@ use RuntimeException;
  * @internal
  * @coversNothing
  */
-class AllTaggedCacheTest extends TestCase
+class AllTaggedCacheTest extends RedisCacheTestCase
 {
-    use MocksRedisConnections;
-
     /**
      * @test
      */
@@ -122,8 +116,6 @@ class AllTaggedCacheTest extends TestCase
      */
     public function testStaleEntriesCanBeFlushed(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -145,8 +137,6 @@ class AllTaggedCacheTest extends TestCase
      */
     public function testPut(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -172,8 +162,6 @@ class AllTaggedCacheTest extends TestCase
      */
     public function testPutWithNumericValue(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -199,8 +187,6 @@ class AllTaggedCacheTest extends TestCase
      */
     public function testPutWithArray(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -393,8 +379,6 @@ class AllTaggedCacheTest extends TestCase
      */
     public function testRememberCallsCallbackAndStoresValueOnMiss(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -554,8 +538,6 @@ class AllTaggedCacheTest extends TestCase
      */
     public function testRememberWithMultipleTags(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 

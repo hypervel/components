@@ -31,13 +31,6 @@ use Symfony\Component\Console\Output\NullOutput;
  */
 class DoctorCommandTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-
-        parent::tearDown();
-    }
-
     public function testDoctorFailsForNonRedisStore(): void
     {
         $nonRedisStore = m::mock(Store::class);

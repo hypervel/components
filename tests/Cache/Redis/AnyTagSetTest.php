@@ -7,10 +7,7 @@ namespace Hypervel\Tests\Cache\Redis;
 use Generator;
 use Hypervel\Cache\Redis\AnyTagSet;
 use Hypervel\Cache\RedisStore;
-use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
 use Mockery as m;
-use Redis;
 
 /**
  * Tests for AnyTagSet class.
@@ -21,10 +18,8 @@ use Redis;
  * @internal
  * @coversNothing
  */
-class AnyTagSetTest extends TestCase
+class AnyTagSetTest extends RedisCacheTestCase
 {
-    use MocksRedisConnections;
-
     private RedisStore $store;
 
     private m\MockInterface $client;

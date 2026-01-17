@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
-use Carbon\Carbon;
 use Hypervel\Cache\Redis\Operations\AllTag\AddEntry;
-use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
+use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
  * Tests for the AddEntry operation.
@@ -15,17 +13,13 @@ use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
  * @internal
  * @coversNothing
  */
-class AddEntryTest extends TestCase
+class AddEntryTest extends RedisCacheTestCase
 {
-    use MocksRedisConnections;
-
     /**
      * @test
      */
     public function testAddEntryWithTtl(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -151,8 +145,6 @@ class AddEntryTest extends TestCase
      */
     public function testAddEntryWithUpdateWhenGtCondition(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -178,8 +170,6 @@ class AddEntryTest extends TestCase
      */
     public function testAddEntryWithMultipleTags(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -252,8 +242,6 @@ class AddEntryTest extends TestCase
      */
     public function testAddEntryClusterModeUsesSequentialCommands(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         [$store, $clusterClient] = $this->createClusterStore();
 
         // Should NOT use pipeline in cluster mode
@@ -274,8 +262,6 @@ class AddEntryTest extends TestCase
      */
     public function testAddEntryClusterModeWithMultipleTags(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         [$store, $clusterClient] = $this->createClusterStore();
 
         // Should NOT use pipeline in cluster mode

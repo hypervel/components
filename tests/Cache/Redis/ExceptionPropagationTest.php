@@ -6,9 +6,6 @@ namespace Hypervel\Tests\Cache\Redis;
 
 use Hypervel\Cache\Redis\AnyTaggedCache;
 use Hypervel\Cache\Redis\AnyTagSet;
-use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
-use Mockery as m;
 use RedisException;
 
 /**
@@ -21,16 +18,8 @@ use RedisException;
  * @internal
  * @coversNothing
  */
-class ExceptionPropagationTest extends TestCase
+class ExceptionPropagationTest extends RedisCacheTestCase
 {
-    use MocksRedisConnections;
-
-    protected function tearDown(): void
-    {
-        m::close();
-        parent::tearDown();
-    }
-
     // =========================================================================
     // BASIC STORE OPERATIONS
     // =========================================================================

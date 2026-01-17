@@ -9,8 +9,6 @@ use Hyperf\Redis\RedisProxy;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisLock;
 use Hypervel\Cache\RedisStore;
-use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
 use Mockery as m;
 
 /**
@@ -22,10 +20,8 @@ use Mockery as m;
  * @internal
  * @coversNothing
  */
-class RedisStoreTest extends TestCase
+class RedisStoreTest extends RedisCacheTestCase
 {
-    use MocksRedisConnections;
-
     /**
      * @test
      */

@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
-use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
+use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Mockery as m;
 use RuntimeException;
 
@@ -21,10 +20,8 @@ use RuntimeException;
  * @internal
  * @coversNothing
  */
-class RememberForeverTest extends TestCase
+class RememberForeverTest extends RedisCacheTestCase
 {
-    use MocksRedisConnections;
-
     private const FOREVER_SCORE = -1;
 
     /**

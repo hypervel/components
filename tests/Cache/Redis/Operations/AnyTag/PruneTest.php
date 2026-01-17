@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis\Operations\AnyTag;
 
 use Hypervel\Cache\Redis\Operations\AnyTag\Prune;
-use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
+use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Hypervel\Tests\Redis\Stub\FakeRedisClient;
 use Mockery as m;
 
@@ -16,10 +15,8 @@ use Mockery as m;
  * @internal
  * @coversNothing
  */
-class PruneTest extends TestCase
+class PruneTest extends RedisCacheTestCase
 {
-    use MocksRedisConnections;
-
     /**
      * @test
      */

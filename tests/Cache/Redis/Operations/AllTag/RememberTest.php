@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
-use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
+use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Mockery as m;
 use RuntimeException;
 
@@ -19,10 +18,8 @@ use RuntimeException;
  * @internal
  * @coversNothing
  */
-class RememberTest extends TestCase
+class RememberTest extends RedisCacheTestCase
 {
-    use MocksRedisConnections;
-
     /**
      * @test
      */

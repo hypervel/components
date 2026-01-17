@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AnyTag;
 
-use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
+use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Hypervel\Tests\Redis\Stub\FakeRedisClient;
 
 /**
@@ -14,10 +13,8 @@ use Hypervel\Tests\Redis\Stub\FakeRedisClient;
  * @internal
  * @coversNothing
  */
-class GetTaggedKeysTest extends TestCase
+class GetTaggedKeysTest extends RedisCacheTestCase
 {
-    use MocksRedisConnections;
-
     /**
      * @test
      */

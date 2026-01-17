@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
-use Carbon\Carbon;
-use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
+use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
  * Tests for the Add operation (intersection tags).
@@ -17,17 +15,13 @@ use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
  * @internal
  * @coversNothing
  */
-class AddTest extends TestCase
+class AddTest extends RedisCacheTestCase
 {
-    use MocksRedisConnections;
-
     /**
      * @test
      */
     public function testAddWithTagsReturnsTrueWhenKeyAdded(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -65,8 +59,6 @@ class AddTest extends TestCase
      */
     public function testAddWithTagsReturnsFalseWhenKeyExists(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -97,8 +89,6 @@ class AddTest extends TestCase
      */
     public function testAddWithMultipleTags(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -170,8 +160,6 @@ class AddTest extends TestCase
      */
     public function testAddInClusterModeUsesSequentialCommands(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         [$store, $clusterClient] = $this->createClusterStore();
 
         // Should NOT use pipeline in cluster mode
@@ -204,8 +192,6 @@ class AddTest extends TestCase
      */
     public function testAddInClusterModeReturnsFalseWhenKeyExists(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         [$store, $clusterClient] = $this->createClusterStore();
 
         // Sequential ZADD (still happens even if key exists)
@@ -263,8 +249,6 @@ class AddTest extends TestCase
      */
     public function testAddWithNumericValue(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 

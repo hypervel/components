@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Concerns;
+namespace Hypervel\Tests\Cache\Redis;
 
+use Carbon\Carbon;
 use Hyperf\Redis\Pool\PoolFactory;
 use Hyperf\Redis\Pool\RedisPool;
 use Hyperf\Redis\RedisFactory as HyperfRedisFactory;
@@ -11,17 +12,19 @@ use Hypervel\Cache\RedisStore;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisFactory as HypervelRedisFactory;
 use Hypervel\Redis\RedisProxy;
+use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Redis\Stub\FakeRedisClient;
 use Mockery as m;
 use Redis;
 use RedisCluster;
 
 /**
- * Shared test infrastructure for Redis cache operation tests.
+ * Base test case for Redis cache unit tests.
  *
- * Provides helper methods for mocking Redis connections and creating
- * RedisStore instances for testing. Requires tests to extend
- * `Hypervel\Testbench\TestCase` for proper container setup.
+ * Provides:
+ * - Mock connection helpers for standard and cluster modes
+ * - Fixed test time for ZSET timestamp score calculations
+ * - Automatic Mockery and Carbon cleanup (via Foundation\Testing\TestCase)
  *
  * ## Usage Examples
  *
@@ -42,9 +45,20 @@ use RedisCluster;
  * $clusterClient->shouldNotReceive('pipeline');
  * $clusterClient->shouldReceive('set')->once()->andReturn(true);
  * ```
+ *
+ * @internal
+ * @coversNothing
  */
-trait MocksRedisConnections
+abstract class RedisCacheTestCase extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Fixed time for tag tests - ZSET scores use timestamps
+        Carbon::setTestNow('2000-01-01 00:00:00');
+    }
+
     /**
      * Create a mock RedisConnection with standard expectations.
      *
@@ -56,7 +70,7 @@ trait MocksRedisConnections
      * unexpected fallthrough to real Redis connections when expectations
      * don't match.
      *
-     * @return m\MockInterface|RedisConnection Connection with _mockClient property for setting expectations
+     * @return m\MockInterface|RedisConnection connection with _mockClient property for setting expectations
      */
     protected function mockConnection(): m\MockInterface|RedisConnection
     {
@@ -93,7 +107,7 @@ trait MocksRedisConnections
      * The client mock is configured to pass instanceof RedisCluster checks
      * which triggers cluster mode (sequential commands instead of pipelines).
      *
-     * @return m\MockInterface|RedisConnection Connection with _mockClient property for setting expectations
+     * @return m\MockInterface|RedisConnection connection with _mockClient property for setting expectations
      */
     protected function mockClusterConnection(): m\MockInterface|RedisConnection
     {
@@ -163,10 +177,10 @@ trait MocksRedisConnections
     /**
      * Create a RedisStore with a mocked connection.
      *
-     * @param m\MockInterface|RedisConnection $connection The mocked connection (from mockConnection())
-     * @param string $prefix Cache key prefix
+     * @param m\MockInterface|RedisConnection $connection the mocked connection (from mockConnection())
+     * @param string $prefix cache key prefix
      * @param string $connectionName Redis connection name
-     * @param null|string $tagMode Optional tag mode ('any' or 'all'). If provided, setTagMode() is called.
+     * @param null|string $tagMode optional tag mode ('any' or 'all'). If provided, setTagMode() is called.
      */
     protected function createStore(
         m\MockInterface|RedisConnection $connection,
@@ -205,9 +219,9 @@ trait MocksRedisConnections
      * $connection->shouldReceive('del')->once()->andReturn(1); // connection-level operations
      * ```
      *
-     * @param string $prefix Cache key prefix
+     * @param string $prefix cache key prefix
      * @param string $connectionName Redis connection name
-     * @param null|string $tagMode Optional tag mode ('any' or 'all')
+     * @param null|string $tagMode optional tag mode ('any' or 'all')
      * @return array{0: RedisStore, 1: m\MockInterface, 2: m\MockInterface} [store, clusterClient, connection]
      */
     protected function createClusterStore(
@@ -241,10 +255,10 @@ trait MocksRedisConnections
      * Use this for tests that need proper reference parameter handling (e.g., &$iterator
      * in SCAN/HSCAN/ZSCAN operations) which Mockery cannot properly propagate.
      *
-     * @param FakeRedisClient $fakeClient Pre-configured fake client with expected responses
-     * @param string $prefix Cache key prefix
+     * @param FakeRedisClient $fakeClient pre-configured fake client with expected responses
+     * @param string $prefix cache key prefix
      * @param string $connectionName Redis connection name
-     * @param null|string $tagMode Optional tag mode ('any' or 'all')
+     * @param null|string $tagMode optional tag mode ('any' or 'all')
      */
     protected function createStoreWithFakeClient(
         FakeRedisClient $fakeClient,

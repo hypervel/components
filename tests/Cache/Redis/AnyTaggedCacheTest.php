@@ -9,8 +9,6 @@ use Generator;
 use Hypervel\Cache\Redis\AnyTaggedCache;
 use Hypervel\Cache\Redis\AnyTagSet;
 use Hypervel\Cache\TaggedCache;
-use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
 use RuntimeException;
 
 /**
@@ -22,10 +20,8 @@ use RuntimeException;
  * @internal
  * @coversNothing
  */
-class AnyTaggedCacheTest extends TestCase
+class AnyTaggedCacheTest extends RedisCacheTestCase
 {
-    use MocksRedisConnections;
-
     /**
      * @test
      */

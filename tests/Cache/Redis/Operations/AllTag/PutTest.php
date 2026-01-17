@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
-use Carbon\Carbon;
-use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
+use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
  * Tests for the Put operation (intersection tags).
@@ -14,17 +12,13 @@ use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
  * @internal
  * @coversNothing
  */
-class PutTest extends TestCase
+class PutTest extends RedisCacheTestCase
 {
-    use MocksRedisConnections;
-
     /**
      * @test
      */
     public function testPutStoresValueWithTagsInPipelineMode(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -62,8 +56,6 @@ class PutTest extends TestCase
      */
     public function testPutWithMultipleTags(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -139,8 +131,6 @@ class PutTest extends TestCase
      */
     public function testPutUsesCorrectPrefix(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -205,8 +195,6 @@ class PutTest extends TestCase
      */
     public function testPutInClusterModeUsesSequentialCommands(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         [$store, $clusterClient] = $this->createClusterStore();
 
         // Should NOT use pipeline in cluster mode
@@ -272,8 +260,6 @@ class PutTest extends TestCase
      */
     public function testPutWithNumericValue(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 

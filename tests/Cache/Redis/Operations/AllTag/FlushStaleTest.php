@@ -6,8 +6,7 @@ namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
 use Carbon\Carbon;
 use Hypervel\Cache\Redis\Operations\AllTag\FlushStale;
-use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
+use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Mockery as m;
 
 /**
@@ -16,17 +15,13 @@ use Mockery as m;
  * @internal
  * @coversNothing
  */
-class FlushStaleTest extends TestCase
+class FlushStaleTest extends RedisCacheTestCase
 {
-    use MocksRedisConnections;
-
     /**
      * @test
      */
     public function testFlushStaleEntriesRemovesExpiredEntries(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -50,8 +45,6 @@ class FlushStaleTest extends TestCase
      */
     public function testFlushStaleEntriesWithMultipleTags(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -101,8 +94,6 @@ class FlushStaleTest extends TestCase
      */
     public function testFlushStaleEntriesUsesCorrectPrefix(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -157,8 +148,6 @@ class FlushStaleTest extends TestCase
     {
         // This test documents that the score range '0' to timestamp
         // intentionally excludes items with score -1 (forever items)
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -190,8 +179,6 @@ class FlushStaleTest extends TestCase
      */
     public function testFlushStaleEntriesClusterModeUsesMulti(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         [$store, $clusterClient] = $this->createClusterStore();
 
         // Should NOT use pipeline in cluster mode
@@ -220,8 +207,6 @@ class FlushStaleTest extends TestCase
      */
     public function testFlushStaleEntriesClusterModeWithMultipleTags(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         [$store, $clusterClient] = $this->createClusterStore();
 
         // Should NOT use pipeline in cluster mode
@@ -260,8 +245,6 @@ class FlushStaleTest extends TestCase
      */
     public function testFlushStaleEntriesClusterModeUsesCorrectPrefix(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         [$store, $clusterClient] = $this->createClusterStore(prefix: 'custom_prefix:');
 
         // Cluster mode uses multi()

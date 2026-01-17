@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AnyTag;
 
-use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
+use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
  * Tests for the Decrement operation (union tags).
@@ -13,10 +12,8 @@ use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
  * @internal
  * @coversNothing
  */
-class DecrementTest extends TestCase
+class DecrementTest extends RedisCacheTestCase
 {
-    use MocksRedisConnections;
-
     /**
      * @test
      */

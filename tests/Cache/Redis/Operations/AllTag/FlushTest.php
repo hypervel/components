@@ -7,8 +7,7 @@ namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 use Hyperf\Collection\LazyCollection;
 use Hypervel\Cache\Redis\Operations\AllTag\Flush;
 use Hypervel\Cache\Redis\Operations\AllTag\GetEntries;
-use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
+use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 use Mockery as m;
 
 /**
@@ -17,10 +16,8 @@ use Mockery as m;
  * @internal
  * @coversNothing
  */
-class FlushTest extends TestCase
+class FlushTest extends RedisCacheTestCase
 {
-    use MocksRedisConnections;
-
     /**
      * @test
      */

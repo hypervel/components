@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Operations\AllTag;
 
-use Carbon\Carbon;
-use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
+use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
  * Tests for the PutMany operation (intersection tags).
@@ -14,17 +12,13 @@ use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
  * @internal
  * @coversNothing
  */
-class PutManyTest extends TestCase
+class PutManyTest extends RedisCacheTestCase
 {
-    use MocksRedisConnections;
-
     /**
      * @test
      */
     public function testPutManyWithTagsInPipelineMode(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -71,8 +65,6 @@ class PutManyTest extends TestCase
      */
     public function testPutManyWithMultipleTags(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -169,8 +161,6 @@ class PutManyTest extends TestCase
      */
     public function testPutManyInClusterModeUsesVariadicZadd(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         [$store, $clusterClient] = $this->createClusterStore();
 
         // Should NOT use pipeline in cluster mode
@@ -302,8 +292,6 @@ class PutManyTest extends TestCase
      */
     public function testPutManyWithNumericValues(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -337,8 +325,6 @@ class PutManyTest extends TestCase
      */
     public function testPutManyUsesCorrectPrefix(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -381,8 +367,6 @@ class PutManyTest extends TestCase
      */
     public function testPutManyWithMultipleTagsAndMultipleKeys(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         $connection = $this->mockConnection();
         $client = $connection->_mockClient;
 
@@ -439,8 +423,6 @@ class PutManyTest extends TestCase
      */
     public function testPutManyInClusterModeWithMultipleTags(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         [$store, $clusterClient] = $this->createClusterStore();
 
         $expectedScore = now()->timestamp + 60;
@@ -482,8 +464,6 @@ class PutManyTest extends TestCase
      */
     public function testPutManyInClusterModeWithEmptyTags(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         [$store, $clusterClient] = $this->createClusterStore();
 
         // No ZADD calls for empty tags
@@ -510,8 +490,6 @@ class PutManyTest extends TestCase
      */
     public function testPutManyInClusterModeReturnsFalseOnSetexFailure(): void
     {
-        Carbon::setTestNow('2000-01-01 00:00:00');
-
         [$store, $clusterClient] = $this->createClusterStore();
 
         $expectedScore = now()->timestamp + 60;

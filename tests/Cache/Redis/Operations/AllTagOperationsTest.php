@@ -17,8 +17,7 @@ use Hypervel\Cache\Redis\Operations\AllTag\Put;
 use Hypervel\Cache\Redis\Operations\AllTag\PutMany;
 use Hypervel\Cache\Redis\Operations\AllTag\Remember;
 use Hypervel\Cache\Redis\Operations\AllTag\RememberForever;
-use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
+use Hypervel\Tests\Cache\Redis\RedisCacheTestCase;
 
 /**
  * Tests for the AllTagOperations container class.
@@ -26,10 +25,8 @@ use Hypervel\Tests\Cache\Redis\Concerns\MocksRedisConnections;
  * @internal
  * @coversNothing
  */
-class AllTagOperationsTest extends TestCase
+class AllTagOperationsTest extends RedisCacheTestCase
 {
-    use MocksRedisConnections;
-
     /**
      * @test
      */
