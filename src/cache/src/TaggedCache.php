@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use BackedEnum;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Cache\Contracts\Store;
@@ -50,7 +49,7 @@ class TaggedCache extends Repository
     /**
      * Increment the value of an item in the cache.
      */
-    public function increment(BackedEnum|UnitEnum|string $key, int $value = 1): bool|int
+    public function increment(UnitEnum|string $key, int $value = 1): bool|int
     {
         return $this->store->increment($this->itemKey(enum_value($key)), $value);
     }
@@ -58,7 +57,7 @@ class TaggedCache extends Repository
     /**
      * Decrement the value of an item in the cache.
      */
-    public function decrement(BackedEnum|UnitEnum|string $key, int $value = 1): bool|int
+    public function decrement(UnitEnum|string $key, int $value = 1): bool|int
     {
         return $this->store->decrement($this->itemKey(enum_value($key)), $value);
     }

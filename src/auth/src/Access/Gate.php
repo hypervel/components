@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Access;
 
-use BackedEnum;
 use Closure;
 use Exception;
 use Hyperf\Collection\Arr;
@@ -62,7 +61,7 @@ class Gate implements GateContract
     /**
      * Determine if a given ability has been defined.
      */
-    public function has(array|BackedEnum|UnitEnum|string $ability): bool
+    public function has(array|UnitEnum|string $ability): bool
     {
         $abilities = is_array($ability) ? $ability : func_get_args();
 
@@ -124,7 +123,7 @@ class Gate implements GateContract
      *
      * @throws InvalidArgumentException
      */
-    public function define(BackedEnum|UnitEnum|string $ability, array|callable|string $callback): static
+    public function define(UnitEnum|string $ability, array|callable|string $callback): static
     {
         $ability = enum_value($ability);
 
@@ -233,7 +232,7 @@ class Gate implements GateContract
     /**
      * Determine if the given ability should be granted for the current user.
      */
-    public function allows(BackedEnum|UnitEnum|string $ability, mixed $arguments = []): bool
+    public function allows(UnitEnum|string $ability, mixed $arguments = []): bool
     {
         return $this->check($ability, $arguments);
     }
@@ -241,7 +240,7 @@ class Gate implements GateContract
     /**
      * Determine if the given ability should be denied for the current user.
      */
-    public function denies(BackedEnum|UnitEnum|string $ability, mixed $arguments = []): bool
+    public function denies(UnitEnum|string $ability, mixed $arguments = []): bool
     {
         return ! $this->allows($ability, $arguments);
     }
@@ -249,7 +248,7 @@ class Gate implements GateContract
     /**
      * Determine if all of the given abilities should be granted for the current user.
      */
-    public function check(iterable|BackedEnum|UnitEnum|string $abilities, mixed $arguments = []): bool
+    public function check(iterable|UnitEnum|string $abilities, mixed $arguments = []): bool
     {
         return collect($abilities)->every(
             fn ($ability) => $this->inspect($ability, $arguments)->allowed()
@@ -259,7 +258,7 @@ class Gate implements GateContract
     /**
      * Determine if any one of the given abilities should be granted for the current user.
      */
-    public function any(iterable|BackedEnum|UnitEnum|string $abilities, mixed $arguments = []): bool
+    public function any(iterable|UnitEnum|string $abilities, mixed $arguments = []): bool
     {
         return collect($abilities)->contains(fn ($ability) => $this->check($ability, $arguments));
     }
@@ -267,7 +266,7 @@ class Gate implements GateContract
     /**
      * Determine if all of the given abilities should be denied for the current user.
      */
-    public function none(iterable|BackedEnum|UnitEnum|string $abilities, mixed $arguments = []): bool
+    public function none(iterable|UnitEnum|string $abilities, mixed $arguments = []): bool
     {
         return ! $this->any($abilities, $arguments);
     }
@@ -277,7 +276,7 @@ class Gate implements GateContract
      *
      * @throws AuthorizationException
      */
-    public function authorize(BackedEnum|UnitEnum|string $ability, mixed $arguments = []): Response
+    public function authorize(UnitEnum|string $ability, mixed $arguments = []): Response
     {
         return $this->inspect($ability, $arguments)->authorize();
     }
@@ -285,7 +284,7 @@ class Gate implements GateContract
     /**
      * Inspect the user for the given ability.
      */
-    public function inspect(BackedEnum|UnitEnum|string $ability, mixed $arguments = []): Response
+    public function inspect(UnitEnum|string $ability, mixed $arguments = []): Response
     {
         try {
             $result = $this->raw(enum_value($ability), $arguments);

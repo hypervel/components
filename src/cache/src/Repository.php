@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use ArrayAccess;
-use BackedEnum;
 use BadMethodCallException;
 use Carbon\Carbon;
 use Closure;
@@ -96,7 +95,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Determine if an item exists in the cache.
      */
-    public function has(array|BackedEnum|UnitEnum|string $key): bool
+    public function has(array|UnitEnum|string $key): bool
     {
         return ! is_null($this->get($key));
     }
@@ -104,7 +103,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Determine if an item doesn't exist in the cache.
      */
-    public function missing(BackedEnum|UnitEnum|string $key): bool
+    public function missing(UnitEnum|string $key): bool
     {
         return ! $this->has($key);
     }
@@ -118,7 +117,7 @@ class Repository implements ArrayAccess, CacheContract
      *
      * @return (TCacheValue is null ? mixed : TCacheValue)
      */
-    public function get(array|BackedEnum|UnitEnum|string $key, mixed $default = null): mixed
+    public function get(array|UnitEnum|string $key, mixed $default = null): mixed
     {
         if (is_array($key)) {
             return $this->many($key);
@@ -183,7 +182,7 @@ class Repository implements ArrayAccess, CacheContract
      *
      * @return (TCacheValue is null ? mixed : TCacheValue)
      */
-    public function pull(BackedEnum|UnitEnum|string $key, mixed $default = null): mixed
+    public function pull(UnitEnum|string $key, mixed $default = null): mixed
     {
         return tap($this->get($key, $default), function () use ($key) {
             $this->forget($key);
@@ -193,7 +192,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Store an item in the cache.
      */
-    public function put(array|BackedEnum|UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    public function put(array|UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         if (is_array($key)) {
             return $this->putMany($key, $value);
@@ -226,7 +225,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Store an item in the cache.
      */
-    public function set(BackedEnum|UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    public function set(UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         return $this->put($key, $value, $ttl);
     }
@@ -269,7 +268,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Store an item in the cache if the key does not exist.
      */
-    public function add(BackedEnum|UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    public function add(UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         $key = enum_value($key);
 
@@ -307,7 +306,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Increment the value of an item in the cache.
      */
-    public function increment(BackedEnum|UnitEnum|string $key, int $value = 1): bool|int
+    public function increment(UnitEnum|string $key, int $value = 1): bool|int
     {
         return $this->store->increment(enum_value($key), $value);
     }
@@ -315,7 +314,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Decrement the value of an item in the cache.
      */
-    public function decrement(BackedEnum|UnitEnum|string $key, int $value = 1): bool|int
+    public function decrement(UnitEnum|string $key, int $value = 1): bool|int
     {
         return $this->store->decrement(enum_value($key), $value);
     }
@@ -323,7 +322,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Store an item in the cache indefinitely.
      */
-    public function forever(BackedEnum|UnitEnum|string $key, mixed $value): bool
+    public function forever(UnitEnum|string $key, mixed $value): bool
     {
         $key = enum_value($key);
 
@@ -349,7 +348,7 @@ class Repository implements ArrayAccess, CacheContract
      *
      * @return TCacheValue
      */
-    public function remember(BackedEnum|UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed
+    public function remember(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed
     {
         $value = $this->get($key);
 
@@ -374,7 +373,7 @@ class Repository implements ArrayAccess, CacheContract
      *
      * @return TCacheValue
      */
-    public function sear(BackedEnum|UnitEnum|string $key, Closure $callback): mixed
+    public function sear(UnitEnum|string $key, Closure $callback): mixed
     {
         return $this->rememberForever($key, $callback);
     }
@@ -388,7 +387,7 @@ class Repository implements ArrayAccess, CacheContract
      *
      * @return TCacheValue
      */
-    public function rememberForever(BackedEnum|UnitEnum|string $key, Closure $callback): mixed
+    public function rememberForever(UnitEnum|string $key, Closure $callback): mixed
     {
         $value = $this->get($key);
 
@@ -407,7 +406,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Remove an item from the cache.
      */
-    public function forget(BackedEnum|UnitEnum|string $key): bool
+    public function forget(UnitEnum|string $key): bool
     {
         $key = enum_value($key);
 
@@ -422,7 +421,7 @@ class Repository implements ArrayAccess, CacheContract
         });
     }
 
-    public function delete(BackedEnum|UnitEnum|string $key): bool
+    public function delete(UnitEnum|string $key): bool
     {
         return $this->forget($key);
     }
@@ -540,7 +539,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Determine if a cached value exists.
      *
-     * @param BackedEnum|string|UnitEnum $key
+     * @param UnitEnum|string $key
      */
     public function offsetExists($key): bool
     {
@@ -550,7 +549,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Retrieve an item from the cache by key.
      *
-     * @param BackedEnum|string|UnitEnum $key
+     * @param UnitEnum|string $key
      */
     public function offsetGet($key): mixed
     {
@@ -560,7 +559,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Store an item in the cache for the default time.
      *
-     * @param BackedEnum|string|UnitEnum $key
+     * @param UnitEnum|string $key
      * @param mixed $value
      */
     public function offsetSet($key, $value): void
@@ -571,7 +570,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Remove an item from the cache.
      *
-     * @param BackedEnum|string|UnitEnum $key
+     * @param UnitEnum|string $key
      */
     public function offsetUnset($key): void
     {

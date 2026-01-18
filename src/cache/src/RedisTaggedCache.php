@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use BackedEnum;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Cache\Contracts\Store;
@@ -31,7 +30,7 @@ class RedisTaggedCache extends TaggedCache
     /**
      * Store an item in the cache if the key does not exist.
      */
-    public function add(BackedEnum|UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    public function add(UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         $key = enum_value($key);
 
@@ -46,7 +45,7 @@ class RedisTaggedCache extends TaggedCache
     /**
      * Store an item in the cache.
      */
-    public function put(array|BackedEnum|UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    public function put(array|UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         if (is_array($key)) {
             return $this->putMany($key, $value);
@@ -69,7 +68,7 @@ class RedisTaggedCache extends TaggedCache
     /**
      * Increment the value of an item in the cache.
      */
-    public function increment(BackedEnum|UnitEnum|string $key, int $value = 1): bool|int
+    public function increment(UnitEnum|string $key, int $value = 1): bool|int
     {
         $key = enum_value($key);
 
@@ -81,7 +80,7 @@ class RedisTaggedCache extends TaggedCache
     /**
      * Decrement the value of an item in the cache.
      */
-    public function decrement(BackedEnum|UnitEnum|string $key, int $value = 1): bool|int
+    public function decrement(UnitEnum|string $key, int $value = 1): bool|int
     {
         $key = enum_value($key);
 
@@ -93,7 +92,7 @@ class RedisTaggedCache extends TaggedCache
     /**
      * Store an item in the cache indefinitely.
      */
-    public function forever(BackedEnum|UnitEnum|string $key, mixed $value): bool
+    public function forever(UnitEnum|string $key, mixed $value): bool
     {
         $key = enum_value($key);
 

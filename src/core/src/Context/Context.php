@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Context;
 
-use BackedEnum;
 use Closure;
 use Hyperf\Context\Context as HyperfContext;
 use Hyperf\Engine\Coroutine;
@@ -24,7 +23,7 @@ class Context extends HyperfContext
     /**
      * Set a value in the context.
      */
-    public static function set(BackedEnum|UnitEnum|string $id, mixed $value, ?int $coroutineId = null): mixed
+    public static function set(UnitEnum|string $id, mixed $value, ?int $coroutineId = null): mixed
     {
         return parent::set(enum_value($id), $value, $coroutineId);
     }
@@ -32,7 +31,7 @@ class Context extends HyperfContext
     /**
      * Get a value from the context.
      */
-    public static function get(BackedEnum|UnitEnum|string $id, mixed $default = null, ?int $coroutineId = null): mixed
+    public static function get(UnitEnum|string $id, mixed $default = null, ?int $coroutineId = null): mixed
     {
         return parent::get(enum_value($id), $default, $coroutineId);
     }
@@ -40,7 +39,7 @@ class Context extends HyperfContext
     /**
      * Determine if a value exists in the context.
      */
-    public static function has(BackedEnum|UnitEnum|string $id, ?int $coroutineId = null): bool
+    public static function has(UnitEnum|string $id, ?int $coroutineId = null): bool
     {
         return parent::has(enum_value($id), $coroutineId);
     }
@@ -48,7 +47,7 @@ class Context extends HyperfContext
     /**
      * Remove a value from the context.
      */
-    public static function destroy(BackedEnum|UnitEnum|string $id, ?int $coroutineId = null): void
+    public static function destroy(UnitEnum|string $id, ?int $coroutineId = null): void
     {
         parent::destroy(enum_value($id), $coroutineId);
     }
@@ -56,7 +55,7 @@ class Context extends HyperfContext
     /**
      * Retrieve the value and override it by closure.
      */
-    public static function override(BackedEnum|UnitEnum|string $id, Closure $closure, ?int $coroutineId = null): mixed
+    public static function override(UnitEnum|string $id, Closure $closure, ?int $coroutineId = null): mixed
     {
         return parent::override(enum_value($id), $closure, $coroutineId);
     }
@@ -64,7 +63,7 @@ class Context extends HyperfContext
     /**
      * Retrieve the value and store it if not exists.
      */
-    public static function getOrSet(BackedEnum|UnitEnum|string $id, mixed $value, ?int $coroutineId = null): mixed
+    public static function getOrSet(UnitEnum|string $id, mixed $value, ?int $coroutineId = null): mixed
     {
         return parent::getOrSet(enum_value($id), $value, $coroutineId);
     }

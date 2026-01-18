@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Session;
 
-use BackedEnum;
 use Closure;
 use Hyperf\Collection\Arr;
 use Hyperf\Context\Context;
@@ -220,7 +219,7 @@ class Store implements Session
     /**
      * Checks if a key exists.
      */
-    public function exists(array|BackedEnum|UnitEnum|string $key): bool
+    public function exists(array|UnitEnum|string $key): bool
     {
         $placeholder = new stdClass();
 
@@ -232,7 +231,7 @@ class Store implements Session
     /**
      * Determine if the given key is missing from the session data.
      */
-    public function missing(array|BackedEnum|UnitEnum|string $key): bool
+    public function missing(array|UnitEnum|string $key): bool
     {
         return ! $this->exists($key);
     }
@@ -240,7 +239,7 @@ class Store implements Session
     /**
      * Determine if a key is present and not null.
      */
-    public function has(array|BackedEnum|UnitEnum|string $key): bool
+    public function has(array|UnitEnum|string $key): bool
     {
         return ! collect(is_array($key) ? $key : func_get_args())->contains(function ($key) {
             return is_null($this->get($key));
@@ -250,7 +249,7 @@ class Store implements Session
     /**
      * Determine if any of the given keys are present and not null.
      */
-    public function hasAny(array|BackedEnum|UnitEnum|string $key): bool
+    public function hasAny(array|UnitEnum|string $key): bool
     {
         return collect(is_array($key) ? $key : func_get_args())->filter(function ($key) {
             return ! is_null($this->get($key));
@@ -260,7 +259,7 @@ class Store implements Session
     /**
      * Get an item from the session.
      */
-    public function get(BackedEnum|UnitEnum|string $key, mixed $default = null): mixed
+    public function get(UnitEnum|string $key, mixed $default = null): mixed
     {
         return Arr::get($this->getAttributes(), enum_value($key), $default);
     }
@@ -268,7 +267,7 @@ class Store implements Session
     /**
      * Get the value of a given key and then forget it.
      */
-    public function pull(BackedEnum|UnitEnum|string $key, mixed $default = null): mixed
+    public function pull(UnitEnum|string $key, mixed $default = null): mixed
     {
         $attributes = $this->getAttributes();
         $result = Arr::pull($attributes, enum_value($key), $default);
@@ -281,7 +280,7 @@ class Store implements Session
     /**
      * Determine if the session contains old input.
      */
-    public function hasOldInput(BackedEnum|UnitEnum|string|null $key = null): bool
+    public function hasOldInput(UnitEnum|string|null $key = null): bool
     {
         $old = $this->getOldInput($key);
 
@@ -291,7 +290,7 @@ class Store implements Session
     /**
      * Get the requested item from the flashed input array.
      */
-    public function getOldInput(BackedEnum|UnitEnum|string|null $key = null, mixed $default = null): mixed
+    public function getOldInput(UnitEnum|string|null $key = null, mixed $default = null): mixed
     {
         return Arr::get($this->get('_old_input', []), enum_value($key), $default);
     }
@@ -307,7 +306,7 @@ class Store implements Session
     /**
      * Put a key / value pair or array of key / value pairs in the session.
      */
-    public function put(array|BackedEnum|UnitEnum|string $key, mixed $value = null): void
+    public function put(array|UnitEnum|string $key, mixed $value = null): void
     {
         if (! is_array($key)) {
             $key = [enum_value($key) => $value];
@@ -324,7 +323,7 @@ class Store implements Session
     /**
      * Get an item from the session, or store the default value.
      */
-    public function remember(BackedEnum|UnitEnum|string $key, Closure $callback): mixed
+    public function remember(UnitEnum|string $key, Closure $callback): mixed
     {
         if (! is_null($value = $this->get($key))) {
             return $value;
@@ -338,7 +337,7 @@ class Store implements Session
     /**
      * Push a value onto a session array.
      */
-    public function push(BackedEnum|UnitEnum|string $key, mixed $value): void
+    public function push(UnitEnum|string $key, mixed $value): void
     {
         $array = $this->get($key, []);
 
@@ -350,7 +349,7 @@ class Store implements Session
     /**
      * Increment the value of an item in the session.
      */
-    public function increment(BackedEnum|UnitEnum|string $key, int $amount = 1): mixed
+    public function increment(UnitEnum|string $key, int $amount = 1): mixed
     {
         $this->put($key, $value = $this->get($key, 0) + $amount);
 
@@ -360,7 +359,7 @@ class Store implements Session
     /**
      * Decrement the value of an item in the session.
      */
-    public function decrement(BackedEnum|UnitEnum|string $key, int $amount = 1): int
+    public function decrement(UnitEnum|string $key, int $amount = 1): int
     {
         return $this->increment($key, $amount * -1);
     }
@@ -368,7 +367,7 @@ class Store implements Session
     /**
      * Flash a key / value pair to the session.
      */
-    public function flash(BackedEnum|UnitEnum|string $key, mixed $value = true): void
+    public function flash(UnitEnum|string $key, mixed $value = true): void
     {
         $key = enum_value($key);
 
@@ -382,7 +381,7 @@ class Store implements Session
     /**
      * Flash a key / value pair to the session for immediate use.
      */
-    public function now(BackedEnum|UnitEnum|string $key, mixed $value): void
+    public function now(UnitEnum|string $key, mixed $value): void
     {
         $key = enum_value($key);
 
@@ -442,7 +441,7 @@ class Store implements Session
     /**
      * Remove an item from the session, returning its value.
      */
-    public function remove(BackedEnum|UnitEnum|string $key): mixed
+    public function remove(UnitEnum|string $key): mixed
     {
         $attributes = $this->getAttributes();
         $result = Arr::pull($attributes, enum_value($key));
@@ -455,7 +454,7 @@ class Store implements Session
     /**
      * Remove one or many items from the session.
      */
-    public function forget(array|BackedEnum|UnitEnum|string $keys): void
+    public function forget(array|UnitEnum|string $keys): void
     {
         $attributes = $this->getAttributes();
         Arr::forget($attributes, collect((array) $keys)->map(fn ($key) => enum_value($key))->all());

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Contracts;
 
-use BackedEnum;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\Access\Response;
 use InvalidArgumentException;
@@ -15,12 +14,12 @@ interface Gate
     /**
      * Determine if a given ability has been defined.
      */
-    public function has(array|BackedEnum|UnitEnum|string $ability): bool;
+    public function has(array|UnitEnum|string $ability): bool;
 
     /**
      * Define a new ability.
      */
-    public function define(BackedEnum|UnitEnum|string $ability, callable|string $callback): static;
+    public function define(UnitEnum|string $ability, callable|string $callback): static;
 
     /**
      * Define abilities for a resource.
@@ -45,39 +44,39 @@ interface Gate
     /**
      * Determine if the given ability should be granted for the current user.
      */
-    public function allows(BackedEnum|UnitEnum|string $ability, mixed $arguments = []): bool;
+    public function allows(UnitEnum|string $ability, mixed $arguments = []): bool;
 
     /**
      * Determine if the given ability should be denied for the current user.
      */
-    public function denies(BackedEnum|UnitEnum|string $ability, mixed $arguments = []): bool;
+    public function denies(UnitEnum|string $ability, mixed $arguments = []): bool;
 
     /**
      * Determine if all of the given abilities should be granted for the current user.
      */
-    public function check(iterable|BackedEnum|UnitEnum|string $abilities, mixed $arguments = []): bool;
+    public function check(iterable|UnitEnum|string $abilities, mixed $arguments = []): bool;
 
     /**
      * Determine if any one of the given abilities should be granted for the current user.
      */
-    public function any(iterable|BackedEnum|UnitEnum|string $abilities, mixed $arguments = []): bool;
+    public function any(iterable|UnitEnum|string $abilities, mixed $arguments = []): bool;
 
     /**
      * Determine if all of the given abilities should be denied for the current user.
      */
-    public function none(iterable|BackedEnum|UnitEnum|string $abilities, mixed $arguments = []): bool;
+    public function none(iterable|UnitEnum|string $abilities, mixed $arguments = []): bool;
 
     /**
      * Determine if the given ability should be granted for the current user.
      *
      * @throws AuthorizationException
      */
-    public function authorize(BackedEnum|UnitEnum|string $ability, mixed $arguments = []): Response;
+    public function authorize(UnitEnum|string $ability, mixed $arguments = []): Response;
 
     /**
      * Inspect the user for the given ability.
      */
-    public function inspect(BackedEnum|UnitEnum|string $ability, mixed $arguments = []): Response;
+    public function inspect(UnitEnum|string $ability, mixed $arguments = []): Response;
 
     /**
      * Get the raw result from the authorization callback.

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Middleware;
 
-use BackedEnum;
 use Hyperf\Collection\Collection;
 use Hyperf\Database\Model\Model;
 use Hyperf\HttpServer\Router\Dispatched;
@@ -32,7 +31,7 @@ class Authorize implements MiddlewareInterface
     /**
      * Specify the ability and models for the middleware.
      */
-    public static function using(BackedEnum|UnitEnum|string $ability, string ...$models): string
+    public static function using(UnitEnum|string $ability, string ...$models): string
     {
         return static::class . ':' . implode(',', [enum_value($ability), ...$models]);
     }
