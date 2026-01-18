@@ -49,14 +49,12 @@ class QueuedClosureTest extends TestCase
         $this->assertSame('sync', $closure->connection);
     }
 
-    public function testOnConnectionAcceptsIntBackedEnum(): void
+    public function testOnConnectionWithIntBackedEnumThrowsTypeError(): void
     {
         $closure = new QueuedClosure(fn () => null);
 
+        $this->expectException(\TypeError::class);
         $closure->onConnection(QueuedClosureTestConnectionIntEnum::Connection1);
-
-        // Int value 1 should be cast to string '1'
-        $this->assertSame('1', $closure->connection);
     }
 
     public function testOnConnectionAcceptsNull(): void
@@ -86,14 +84,12 @@ class QueuedClosureTest extends TestCase
         $this->assertSame('database', $closure->queue);
     }
 
-    public function testOnQueueAcceptsIntBackedEnum(): void
+    public function testOnQueueWithIntBackedEnumThrowsTypeError(): void
     {
         $closure = new QueuedClosure(fn () => null);
 
+        $this->expectException(\TypeError::class);
         $closure->onQueue(QueuedClosureTestConnectionIntEnum::Connection2);
-
-        // Int value 2 should be cast to string '2'
-        $this->assertSame('2', $closure->queue);
     }
 
     public function testOnQueueAcceptsNull(): void
@@ -123,14 +119,12 @@ class QueuedClosureTest extends TestCase
         $this->assertSame('sync', $closure->messageGroup);
     }
 
-    public function testOnGroupAcceptsIntBackedEnum(): void
+    public function testOnGroupWithIntBackedEnumThrowsTypeError(): void
     {
         $closure = new QueuedClosure(fn () => null);
 
+        $this->expectException(\TypeError::class);
         $closure->onGroup(QueuedClosureTestConnectionIntEnum::Connection1);
-
-        // Int value 1 should be cast to string '1'
-        $this->assertSame('1', $closure->messageGroup);
     }
 
     public function testOnQueueSetsQueueProperty(): void

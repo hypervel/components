@@ -56,7 +56,7 @@ class RateLimiter
      */
     private function resolveLimiterName(UnitEnum|string $name): string
     {
-        return (string) enum_value($name);
+        return enum_value($name);
     }
 
     /**

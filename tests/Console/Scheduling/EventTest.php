@@ -196,14 +196,13 @@ class EventTest extends TestCase
         $this->assertSame('UTC', $event->timezone);
     }
 
-    public function testTimezoneAcceptsIntBackedEnum(): void
+    public function testTimezoneWithIntBackedEnumThrowsTypeError(): void
     {
         $event = new Event(m::mock(EventMutex::class), 'php -i');
 
+        // Int-backed enum causes TypeError because $timezone property is DateTimeZone|string|null
+        $this->expectException(\TypeError::class);
         $event->timezone(EventTestTimezoneIntEnum::Zone1);
-
-        // Int value 1 should be cast to string '1'
-        $this->assertSame('1', $event->timezone);
     }
 
     public function testTimezoneAcceptsDateTimeZoneObject(): void

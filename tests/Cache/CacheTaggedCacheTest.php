@@ -9,6 +9,24 @@ use DateTime;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Tests\TestCase;
 
+enum TaggedCacheTestKeyStringEnum: string
+{
+    case Counter = 'counter';
+    case Total = 'total';
+}
+
+enum TaggedCacheTestKeyIntEnum: int
+{
+    case Key1 = 1;
+    case Key2 = 2;
+}
+
+enum TaggedCacheTestKeyUnitEnum
+{
+    case hits;
+    case misses;
+}
+
 /**
  * @internal
  * @coversNothing
@@ -201,6 +219,76 @@ class CacheTaggedCacheTest extends TestCase
         $tags = ['bop', 'zap'];
         $store->tags($tags)->forever('foo', 'bar');
         $this->assertSame('bar', $store->tags($tags)->get('foo'));
+    }
+
+    public function testIncrementAcceptsStringBackedEnum(): void
+    {
+        $store = new ArrayStore();
+        $taggableStore = $store->tags('bop');
+
+        $taggableStore->put(TaggedCacheTestKeyStringEnum::Counter, 5, 10);
+
+        $value = $taggableStore->increment(TaggedCacheTestKeyStringEnum::Counter);
+
+        $this->assertSame(6, $value);
+        $this->assertSame(6, $taggableStore->get('counter'));
+    }
+
+    public function testIncrementAcceptsUnitEnum(): void
+    {
+        $store = new ArrayStore();
+        $taggableStore = $store->tags('bop');
+
+        $taggableStore->put('hits', 10, 10);
+
+        $value = $taggableStore->increment(TaggedCacheTestKeyUnitEnum::hits);
+
+        $this->assertSame(11, $value);
+    }
+
+    public function testIncrementWithIntBackedEnumThrowsTypeError(): void
+    {
+        $store = new ArrayStore();
+        $taggableStore = $store->tags('bop');
+
+        // Int-backed enum causes TypeError because itemKey() expects string
+        $this->expectException(\TypeError::class);
+        $taggableStore->increment(TaggedCacheTestKeyIntEnum::Key1);
+    }
+
+    public function testDecrementAcceptsStringBackedEnum(): void
+    {
+        $store = new ArrayStore();
+        $taggableStore = $store->tags('bop');
+
+        $taggableStore->put(TaggedCacheTestKeyStringEnum::Counter, 50, 10);
+
+        $value = $taggableStore->decrement(TaggedCacheTestKeyStringEnum::Counter);
+
+        $this->assertSame(49, $value);
+        $this->assertSame(49, $taggableStore->get('counter'));
+    }
+
+    public function testDecrementAcceptsUnitEnum(): void
+    {
+        $store = new ArrayStore();
+        $taggableStore = $store->tags('bop');
+
+        $taggableStore->put('misses', 20, 10);
+
+        $value = $taggableStore->decrement(TaggedCacheTestKeyUnitEnum::misses);
+
+        $this->assertSame(19, $value);
+    }
+
+    public function testDecrementWithIntBackedEnumThrowsTypeError(): void
+    {
+        $store = new ArrayStore();
+        $taggableStore = $store->tags('bop');
+
+        // Int-backed enum causes TypeError because itemKey() expects string
+        $this->expectException(\TypeError::class);
+        $taggableStore->decrement(TaggedCacheTestKeyIntEnum::Key1);
     }
 
     private function getTestCacheStoreWithTagValues(): ArrayStore

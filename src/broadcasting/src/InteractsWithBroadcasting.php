@@ -21,7 +21,7 @@ trait InteractsWithBroadcasting
      */
     public function broadcastVia(UnitEnum|array|string|null $connection = null): static
     {
-        $connection = is_null($connection) ? null : (string) enum_value($connection);
+        $connection = is_null($connection) ? null : enum_value($connection);
 
         $this->broadcastConnection = is_null($connection)
             ? [null]

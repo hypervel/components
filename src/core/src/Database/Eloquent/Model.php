@@ -110,7 +110,7 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
     {
         $value = enum_value($name);
 
-        $this->connection = is_null($value) ? null : (string) $value;
+        $this->connection = is_null($value) ? null : $value;
 
         return $this;
     }

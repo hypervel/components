@@ -470,7 +470,7 @@ class EventDispatcher implements EventDispatcherContract
             ? (isset($arguments[1]) ? $listener->viaQueue($arguments[1]) : $listener->viaQueue())
             : $listener->queue ?? null;
 
-        $queue = is_null($queue) ? null : (string) enum_value($queue);
+        $queue = is_null($queue) ? null : enum_value($queue);
 
         $delay = method_exists($listener, 'withDelay')
             ? (isset($arguments[1]) ? $listener->withDelay($arguments[1]) : $listener->withDelay())

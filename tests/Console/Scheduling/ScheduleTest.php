@@ -131,11 +131,12 @@ class ScheduleTest extends TestCase
         self::assertSame(JobToTestWithSchedule::class, $scheduledJob->description);
     }
 
-    public function testJobAcceptsIntBackedEnumForQueueAndConnection(): void
+    public function testJobWithIntBackedEnumStoresIntValue(): void
     {
         $schedule = new Schedule();
 
-        // Int-backed enums should be cast to string
+        // Int-backed enum values are stored as-is (no cast to string)
+        // TypeError will occur when the job is dispatched and dispatchToQueue() receives int
         $scheduledJob = $schedule->job(
             JobToTestWithSchedule::class,
             ScheduleTestQueueIntEnum::Priority1,
@@ -160,19 +161,18 @@ class ScheduleTest extends TestCase
         $schedule->useCache(ScheduleTestCacheStoreEnum::Redis);
     }
 
-    public function testUseCacheAcceptsIntBackedEnum(): void
+    public function testUseCacheWithIntBackedEnumThrowsTypeError(): void
     {
         $eventMutex = m::mock(EventMutex::class, CacheAware::class);
-        // Int value 1 should be cast to string '1'
-        $eventMutex->shouldReceive('useStore')->once()->with('1');
-
         $schedulingMutex = m::mock(SchedulingMutex::class, CacheAware::class);
-        $schedulingMutex->shouldReceive('useStore')->once()->with('1');
 
         $this->container->instance(EventMutex::class, $eventMutex);
         $this->container->instance(SchedulingMutex::class, $schedulingMutex);
 
         $schedule = new Schedule();
+
+        // TypeError is thrown when useStore() receives int instead of string
+        $this->expectException(\TypeError::class);
         $schedule->useCache(ScheduleTestCacheStoreIntEnum::Store1);
     }
 }

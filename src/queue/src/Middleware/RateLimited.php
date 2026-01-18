@@ -38,7 +38,7 @@ class RateLimited
         $this->limiter = ApplicationContext::getContainer()
             ->get(RateLimiter::class);
 
-        $this->limiterName = (string) enum_value($limiterName);
+        $this->limiterName = enum_value($limiterName);
     }
 
     /**

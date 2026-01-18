@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Broadcasting;
 
+use Hypervel\Broadcasting\BroadcastEvent;
+use Hypervel\Broadcasting\Channel;
+use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactory;
 use Hypervel\Broadcasting\InteractsWithBroadcasting;
+use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
 enum InteractsWithBroadcastingTestConnectionStringEnum: string
@@ -31,6 +35,12 @@ enum InteractsWithBroadcastingTestConnectionUnitEnum
  */
 class InteractsWithBroadcastingTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        m::close();
+        parent::tearDown();
+    }
+
     public function testBroadcastViaAcceptsStringBackedEnum(): void
     {
         $event = new TestBroadcastingEvent();
@@ -49,14 +59,14 @@ class InteractsWithBroadcastingTest extends TestCase
         $this->assertSame(['redis'], $event->broadcastConnections());
     }
 
-    public function testBroadcastViaAcceptsIntBackedEnum(): void
+    public function testBroadcastViaWithIntBackedEnumStoresIntValue(): void
     {
         $event = new TestBroadcastingEvent();
 
         $event->broadcastVia(InteractsWithBroadcastingTestConnectionIntEnum::Connection1);
 
-        // Int value 1 should be cast to string '1'
-        $this->assertSame(['1'], $event->broadcastConnections());
+        // Int value is stored as-is (no cast to string) - will fail downstream if string expected
+        $this->assertSame([1], $event->broadcastConnections());
     }
 
     public function testBroadcastViaAcceptsNull(): void
@@ -85,9 +95,32 @@ class InteractsWithBroadcastingTest extends TestCase
 
         $this->assertSame($event, $result);
     }
+
+    public function testBroadcastWithIntBackedEnumThrowsTypeErrorAtBroadcastTime(): void
+    {
+        $event = new TestBroadcastableEvent();
+        $event->broadcastVia(InteractsWithBroadcastingTestConnectionIntEnum::Connection1);
+
+        $broadcastEvent = new BroadcastEvent($event);
+        $manager = m::mock(BroadcastingFactory::class);
+
+        // TypeError is thrown when BroadcastManager::connection() receives int instead of ?string
+        $this->expectException(\TypeError::class);
+        $broadcastEvent->handle($manager);
+    }
 }
 
 class TestBroadcastingEvent
 {
     use InteractsWithBroadcasting;
+}
+
+class TestBroadcastableEvent
+{
+    use InteractsWithBroadcasting;
+
+    public function broadcastOn(): Channel
+    {
+        return new Channel('test-channel');
+    }
 }

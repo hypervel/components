@@ -285,16 +285,9 @@ class RedisTest extends TestCase
         $this->assertSame($mockRedisProxy, $result);
     }
 
-    public function testConnectionAcceptsIntBackedEnum(): void
+    public function testConnectionWithIntBackedEnumThrowsTypeError(): void
     {
-        $mockRedisProxy = Mockery::mock(RedisProxy::class);
-
         $mockRedisFactory = Mockery::mock(RedisFactory::class);
-        // Int value 1 should be cast to string '1'
-        $mockRedisFactory->shouldReceive('get')
-            ->with('1')
-            ->once()
-            ->andReturn($mockRedisProxy);
 
         $mockContainer = Mockery::mock(\Hypervel\Container\Contracts\Container::class);
         $mockContainer->shouldReceive('get')
@@ -305,9 +298,9 @@ class RedisTest extends TestCase
 
         $redis = new Redis(Mockery::mock(PoolFactory::class));
 
-        $result = $redis->connection(RedisTestIntBackedConnection::Primary);
-
-        $this->assertSame($mockRedisProxy, $result);
+        // Int-backed enum causes TypeError because RedisFactory::get() expects string
+        $this->expectException(\TypeError::class);
+        $redis->connection(RedisTestIntBackedConnection::Primary);
     }
 
     /**

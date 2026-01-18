@@ -32,7 +32,7 @@ class MorphPivot extends BaseMorphPivot
     {
         $value = enum_value($name);
 
-        $this->connection = is_null($value) ? null : (string) $value;
+        $this->connection = is_null($value) ? null : $value;
 
         return $this;
     }

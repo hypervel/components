@@ -38,10 +38,25 @@ class QueueableTest extends TestCase
         return [
             'uses string' => ['redis', 'redis'],
             'uses string-backed enum' => [ConnectionEnum::SQS, 'sqs'],
-            'uses int-backed enum' => [IntConnectionEnum::Redis, '2'],
             'uses unit enum' => [UnitConnectionEnum::Sync, 'Sync'],
             'uses null' => [null, null],
         ];
+    }
+
+    public function testOnConnectionWithIntBackedEnumThrowsTypeError(): void
+    {
+        $job = new FakeJob();
+
+        $this->expectException(\TypeError::class);
+        $job->onConnection(IntConnectionEnum::Redis);
+    }
+
+    public function testAllOnConnectionWithIntBackedEnumThrowsTypeError(): void
+    {
+        $job = new FakeJob();
+
+        $this->expectException(\TypeError::class);
+        $job->allOnConnection(IntConnectionEnum::Redis);
     }
 
     #[DataProvider('queuesDataProvider')]
@@ -68,10 +83,25 @@ class QueueableTest extends TestCase
         return [
             'uses string' => ['high', 'high'],
             'uses string-backed enum' => [QueueEnum::HIGH, 'high'],
-            'uses int-backed enum' => [IntQueueEnum::High, '2'],
             'uses unit enum' => [UnitQueueEnum::Low, 'Low'],
             'uses null' => [null, null],
         ];
+    }
+
+    public function testOnQueueWithIntBackedEnumThrowsTypeError(): void
+    {
+        $job = new FakeJob();
+
+        $this->expectException(\TypeError::class);
+        $job->onQueue(IntQueueEnum::High);
+    }
+
+    public function testAllOnQueueWithIntBackedEnumThrowsTypeError(): void
+    {
+        $job = new FakeJob();
+
+        $this->expectException(\TypeError::class);
+        $job->allOnQueue(IntQueueEnum::High);
     }
 }
 

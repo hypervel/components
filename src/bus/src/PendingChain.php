@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use BackedEnum;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
+use UnitEnum;
 use Hyperf\Conditionable\Conditionable;
 use Hyperf\Context\ApplicationContext;
 use Hypervel\Bus\Contracts\Dispatcher;
@@ -66,11 +66,9 @@ class PendingChain
     /**
      * Set the desired queue for the job.
      */
-    public function onQueue(BackedEnum|string|null $queue): static
+    public function onQueue(UnitEnum|string|null $queue): static
     {
-        $value = enum_value($queue);
-
-        $this->queue = is_null($value) ? null : (string) $value;
+        $this->queue = enum_value($queue);
 
         return $this;
     }

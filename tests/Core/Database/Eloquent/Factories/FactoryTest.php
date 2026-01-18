@@ -874,11 +874,13 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertSame('testing', $factory->getConnectionName());
     }
 
-    public function testConnectionAcceptsIntBackedEnum()
+    public function testConnectionWithIntBackedEnumThrowsTypeError()
     {
         $factory = FactoryTestUserFactory::new()->connection(FactoryTestIntBackedConnection::Testing);
 
-        $this->assertSame('2', $factory->getConnectionName());
+        // Int-backed enum causes TypeError because getConnectionName() returns ?string
+        $this->expectException(\TypeError::class);
+        $factory->getConnectionName();
     }
 
     public function testConnectionAcceptsUnitEnum()

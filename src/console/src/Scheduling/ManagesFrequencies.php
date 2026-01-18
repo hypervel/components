@@ -531,7 +531,7 @@ trait ManagesFrequencies
     public function timezone(DateTimeZone|UnitEnum|string $timezone): static
     {
         $this->timezone = $timezone instanceof UnitEnum
-            ? (string) enum_value($timezone)
+            ? enum_value($timezone)
             : $timezone;
 
         return $this;

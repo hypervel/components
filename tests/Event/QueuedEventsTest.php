@@ -296,7 +296,7 @@ class QueuedEventsTest extends TestCase
         $d->dispatch('some.event', ['foo', 'bar']);
     }
 
-    public function testQueueAcceptsIntBackedEnumViaProperty(): void
+    public function testQueueWithIntBackedEnumViaPropertyThrowsTypeError(): void
     {
         $this->container
             ->shouldReceive('get')
@@ -308,13 +308,14 @@ class QueuedEventsTest extends TestCase
 
         $queue = m::mock(QueueFactoryContract::class);
         $connection = m::mock(QueueContract::class);
-        // Int value 1 should be cast to string '1'
-        $connection->shouldReceive('pushOn')->with('1', m::type(CallQueuedListener::class))->once();
         $queue->shouldReceive('connection')->with(null)->once()->andReturn($connection);
 
         $d->setQueueResolver(fn () => $queue);
 
         $d->listen('some.event', TestDispatcherIntEnumQueueProperty::class . '@handle');
+
+        // TypeError is thrown when pushOn() receives int instead of ?string
+        $this->expectException(\TypeError::class);
         $d->dispatch('some.event', ['foo', 'bar']);
     }
 

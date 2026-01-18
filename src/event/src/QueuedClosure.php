@@ -55,7 +55,7 @@ class QueuedClosure
      */
     public function onConnection(UnitEnum|string|null $connection): static
     {
-        $this->connection = is_null($connection) ? null : (string) enum_value($connection);
+        $this->connection = is_null($connection) ? null : enum_value($connection);
 
         return $this;
     }
@@ -65,7 +65,7 @@ class QueuedClosure
      */
     public function onQueue(UnitEnum|string|null $queue): static
     {
-        $this->queue = is_null($queue) ? null : (string) enum_value($queue);
+        $this->queue = is_null($queue) ? null : enum_value($queue);
 
         return $this;
     }
@@ -77,7 +77,7 @@ class QueuedClosure
      */
     public function onGroup(UnitEnum|string $group): static
     {
-        $this->messageGroup = (string) enum_value($group);
+        $this->messageGroup = enum_value($group);
 
         return $this;
     }

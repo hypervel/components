@@ -165,8 +165,8 @@ class Schedule
     ): CallbackEvent {
         $jobName = $job;
 
-        $queue = is_null($queue) ? null : (string) enum_value($queue);
-        $connection = is_null($connection) ? null : (string) enum_value($connection);
+        $queue = is_null($queue) ? null : enum_value($queue);
+        $connection = is_null($connection) ? null : enum_value($connection);
 
         if (! is_string($job)) {
             $jobName = method_exists($job, 'displayName')
@@ -369,7 +369,7 @@ class Schedule
             return $this;
         }
 
-        $store = (string) enum_value($store);
+        $store = enum_value($store);
 
         if ($this->eventMutex instanceof CacheAware) {
             $this->eventMutex->useStore($store);

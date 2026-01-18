@@ -39,12 +39,13 @@ class ModelEnumTest extends TestCase
         $this->assertSame('testing', $model->getConnectionName());
     }
 
-    public function testSetConnectionAcceptsIntBackedEnum(): void
+    public function testSetConnectionWithIntBackedEnumThrowsTypeError(): void
     {
         $model = new ModelEnumTestModel();
-        $model->setConnection(ModelTestIntBackedConnection::Testing);
 
-        $this->assertSame('2', $model->getConnectionName());
+        // Int-backed enum causes TypeError because $connection property is ?string
+        $this->expectException(\TypeError::class);
+        $model->setConnection(ModelTestIntBackedConnection::Testing);
     }
 
     public function testSetConnectionAcceptsUnitEnum(): void

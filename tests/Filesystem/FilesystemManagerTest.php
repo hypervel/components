@@ -241,12 +241,11 @@ class FilesystemManagerTest extends TestCase
         $this->assertInstanceOf(Filesystem::class, $disk);
     }
 
-    public function testDiskAcceptsIntBackedEnum(): void
+    public function testDiskWithIntBackedEnumThrowsTypeError(): void
     {
         $container = $this->getContainer([
             'disks' => [
-                // Int value 1 should be cast to string '1'
-                '1' => [
+                'local' => [
                     'driver' => 'local',
                     'root' => __DIR__ . '/tmp',
                 ],
@@ -254,9 +253,9 @@ class FilesystemManagerTest extends TestCase
         ]);
         $filesystem = new FilesystemManager($container);
 
-        $disk = $filesystem->disk(FilesystemTestIntBackedDisk::Local);
-
-        $this->assertInstanceOf(Filesystem::class, $disk);
+        // Int-backed enum causes TypeError because get() expects string
+        $this->expectException(\TypeError::class);
+        $filesystem->disk(FilesystemTestIntBackedDisk::Local);
     }
 
     public function testDriveAcceptsStringBackedEnum(): void

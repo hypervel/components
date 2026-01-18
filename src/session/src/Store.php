@@ -270,7 +270,7 @@ class Store implements Session
     public function pull(UnitEnum|string $key, mixed $default = null): mixed
     {
         $attributes = $this->getAttributes();
-        $result = Arr::pull($attributes, (string) enum_value($key), $default);
+        $result = Arr::pull($attributes, enum_value($key), $default);
 
         $this->setAttributes($attributes);
 
@@ -444,7 +444,7 @@ class Store implements Session
     public function remove(UnitEnum|string $key): mixed
     {
         $attributes = $this->getAttributes();
-        $result = Arr::pull($attributes, (string) enum_value($key));
+        $result = Arr::pull($attributes, enum_value($key));
 
         $this->setAttributes($attributes);
 

@@ -32,7 +32,7 @@ class RedisTaggedCache extends TaggedCache
      */
     public function add(UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
-        $key = (string) enum_value($key);
+        $key = enum_value($key);
 
         $this->tags->addEntry(
             $this->itemKey($key),
@@ -51,7 +51,7 @@ class RedisTaggedCache extends TaggedCache
             return $this->putMany($key, $value);
         }
 
-        $key = (string) enum_value($key);
+        $key = enum_value($key);
 
         if (is_null($ttl)) {
             return $this->forever($key, $value);
@@ -70,7 +70,7 @@ class RedisTaggedCache extends TaggedCache
      */
     public function increment(UnitEnum|string $key, int $value = 1): bool|int
     {
-        $key = (string) enum_value($key);
+        $key = enum_value($key);
 
         $this->tags->addEntry($this->itemKey($key), updateWhen: 'NX');
 
@@ -82,7 +82,7 @@ class RedisTaggedCache extends TaggedCache
      */
     public function decrement(UnitEnum|string $key, int $value = 1): bool|int
     {
-        $key = (string) enum_value($key);
+        $key = enum_value($key);
 
         $this->tags->addEntry($this->itemKey($key), updateWhen: 'NX');
 
@@ -94,7 +94,7 @@ class RedisTaggedCache extends TaggedCache
      */
     public function forever(UnitEnum|string $key, mixed $value): bool
     {
-        $key = (string) enum_value($key);
+        $key = enum_value($key);
 
         $this->tags->addEntry($this->itemKey($key));
 

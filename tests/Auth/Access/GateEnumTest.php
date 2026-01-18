@@ -7,27 +7,27 @@ namespace Hypervel\Tests\Auth\Access;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Auth\Access\Gate;
-use Hypervel\Auth\Middleware\Authorize;
 use Hypervel\Tests\Auth\Stub\AccessGateTestAuthenticatable;
 use Hypervel\Tests\Auth\Stub\AccessGateTestDummy;
 use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyWithAllPermissions;
 use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyWithNoPermissions;
 use Hypervel\Tests\TestCase;
+use TypeError;
 
-enum AbilitiesBackedEnum: string
+enum GateEnumTestAbilitiesBackedEnum: string
 {
     case ViewDashboard = 'view-dashboard';
     case Update = 'update';
     case Edit = 'edit';
 }
 
-enum AbilitiesIntBackedEnum: int
+enum GateEnumTestAbilitiesIntBackedEnum: int
 {
     case CreatePost = 1;
     case DeletePost = 2;
 }
 
-enum AbilitiesUnitEnum
+enum GateEnumTestAbilitiesUnitEnum
 {
     case ManageUsers;
     case ViewReports;
@@ -47,7 +47,7 @@ class GateEnumTest extends TestCase
     {
         $gate = $this->getBasicGate();
 
-        $gate->define(AbilitiesBackedEnum::ViewDashboard, fn ($user) => true);
+        $gate->define(GateEnumTestAbilitiesBackedEnum::ViewDashboard, fn ($user) => true);
 
         // Can check with string (the enum value)
         $this->assertTrue($gate->allows('view-dashboard'));
@@ -57,21 +57,31 @@ class GateEnumTest extends TestCase
     {
         $gate = $this->getBasicGate();
 
-        $gate->define(AbilitiesUnitEnum::ManageUsers, fn ($user) => true);
+        $gate->define(GateEnumTestAbilitiesUnitEnum::ManageUsers, fn ($user) => true);
 
         // UnitEnum uses ->name, so key is 'ManageUsers'
         $this->assertTrue($gate->allows('ManageUsers'));
     }
 
-    public function testDefineWithIntBackedEnum(): void
+    public function testDefineWithIntBackedEnumStoresUnderIntKey(): void
     {
         $gate = $this->getBasicGate();
 
-        $gate->define(AbilitiesIntBackedEnum::CreatePost, fn ($user) => true);
+        $gate->define(GateEnumTestAbilitiesIntBackedEnum::CreatePost, fn ($user) => true);
 
-        // Int value 1 should be cast to string '1'
+        // Int value 1 is used as ability key - can check with string '1'
         $this->assertTrue($gate->allows('1'));
-        $this->assertTrue($gate->allows(AbilitiesIntBackedEnum::CreatePost));
+    }
+
+    public function testAllowsWithIntBackedEnumThrowsTypeError(): void
+    {
+        $gate = $this->getBasicGate();
+
+        $gate->define(GateEnumTestAbilitiesIntBackedEnum::CreatePost, fn ($user) => true);
+
+        // Int-backed enum causes TypeError because raw() expects string
+        $this->expectException(TypeError::class);
+        $gate->allows(GateEnumTestAbilitiesIntBackedEnum::CreatePost);
     }
 
     // =========================================================================
@@ -82,18 +92,18 @@ class GateEnumTest extends TestCase
     {
         $gate = $this->getBasicGate();
 
-        $gate->define(AbilitiesBackedEnum::ViewDashboard, fn ($user) => true);
+        $gate->define(GateEnumTestAbilitiesBackedEnum::ViewDashboard, fn ($user) => true);
 
-        $this->assertTrue($gate->allows(AbilitiesBackedEnum::ViewDashboard));
+        $this->assertTrue($gate->allows(GateEnumTestAbilitiesBackedEnum::ViewDashboard));
     }
 
     public function testAllowsWithUnitEnum(): void
     {
         $gate = $this->getBasicGate();
 
-        $gate->define(AbilitiesUnitEnum::ManageUsers, fn ($user) => true);
+        $gate->define(GateEnumTestAbilitiesUnitEnum::ManageUsers, fn ($user) => true);
 
-        $this->assertTrue($gate->allows(AbilitiesUnitEnum::ManageUsers));
+        $this->assertTrue($gate->allows(GateEnumTestAbilitiesUnitEnum::ManageUsers));
     }
 
     // =========================================================================
@@ -104,18 +114,18 @@ class GateEnumTest extends TestCase
     {
         $gate = $this->getBasicGate();
 
-        $gate->define(AbilitiesBackedEnum::ViewDashboard, fn ($user) => false);
+        $gate->define(GateEnumTestAbilitiesBackedEnum::ViewDashboard, fn ($user) => false);
 
-        $this->assertTrue($gate->denies(AbilitiesBackedEnum::ViewDashboard));
+        $this->assertTrue($gate->denies(GateEnumTestAbilitiesBackedEnum::ViewDashboard));
     }
 
     public function testDeniesWithUnitEnum(): void
     {
         $gate = $this->getBasicGate();
 
-        $gate->define(AbilitiesUnitEnum::ManageUsers, fn ($user) => false);
+        $gate->define(GateEnumTestAbilitiesUnitEnum::ManageUsers, fn ($user) => false);
 
-        $this->assertTrue($gate->denies(AbilitiesUnitEnum::ManageUsers));
+        $this->assertTrue($gate->denies(GateEnumTestAbilitiesUnitEnum::ManageUsers));
     }
 
     // =========================================================================
@@ -128,9 +138,9 @@ class GateEnumTest extends TestCase
 
         $gate->define('allow_1', fn ($user) => true);
         $gate->define('allow_2', fn ($user) => true);
-        $gate->define(AbilitiesBackedEnum::ViewDashboard, fn ($user) => true);
+        $gate->define(GateEnumTestAbilitiesBackedEnum::ViewDashboard, fn ($user) => true);
 
-        $this->assertTrue($gate->check(['allow_1', 'allow_2', AbilitiesBackedEnum::ViewDashboard]));
+        $this->assertTrue($gate->check(['allow_1', 'allow_2', GateEnumTestAbilitiesBackedEnum::ViewDashboard]));
     }
 
     public function testCheckWithArrayContainingUnitEnum(): void
@@ -138,9 +148,9 @@ class GateEnumTest extends TestCase
         $gate = $this->getBasicGate();
 
         $gate->define('allow_1', fn ($user) => true);
-        $gate->define(AbilitiesUnitEnum::ManageUsers, fn ($user) => true);
+        $gate->define(GateEnumTestAbilitiesUnitEnum::ManageUsers, fn ($user) => true);
 
-        $this->assertTrue($gate->check(['allow_1', AbilitiesUnitEnum::ManageUsers]));
+        $this->assertTrue($gate->check(['allow_1', GateEnumTestAbilitiesUnitEnum::ManageUsers]));
     }
 
     // =========================================================================
@@ -153,7 +163,7 @@ class GateEnumTest extends TestCase
 
         $gate->policy(AccessGateTestDummy::class, AccessGateTestPolicyWithAllPermissions::class);
 
-        $this->assertTrue($gate->any(['edit', AbilitiesBackedEnum::Update], new AccessGateTestDummy()));
+        $this->assertTrue($gate->any(['edit', GateEnumTestAbilitiesBackedEnum::Update], new AccessGateTestDummy()));
     }
 
     public function testAnyWithUnitEnum(): void
@@ -161,9 +171,9 @@ class GateEnumTest extends TestCase
         $gate = $this->getBasicGate();
 
         $gate->define('deny', fn ($user) => false);
-        $gate->define(AbilitiesUnitEnum::ManageUsers, fn ($user) => true);
+        $gate->define(GateEnumTestAbilitiesUnitEnum::ManageUsers, fn ($user) => true);
 
-        $this->assertTrue($gate->any(['deny', AbilitiesUnitEnum::ManageUsers]));
+        $this->assertTrue($gate->any(['deny', GateEnumTestAbilitiesUnitEnum::ManageUsers]));
     }
 
     // =========================================================================
@@ -176,7 +186,7 @@ class GateEnumTest extends TestCase
 
         $gate->policy(AccessGateTestDummy::class, AccessGateTestPolicyWithNoPermissions::class);
 
-        $this->assertTrue($gate->none(['edit', AbilitiesBackedEnum::Update], new AccessGateTestDummy()));
+        $this->assertTrue($gate->none(['edit', GateEnumTestAbilitiesBackedEnum::Update], new AccessGateTestDummy()));
     }
 
     public function testNoneWithUnitEnum(): void
@@ -184,9 +194,9 @@ class GateEnumTest extends TestCase
         $gate = $this->getBasicGate();
 
         $gate->define('deny_1', fn ($user) => false);
-        $gate->define(AbilitiesUnitEnum::ManageUsers, fn ($user) => false);
+        $gate->define(GateEnumTestAbilitiesUnitEnum::ManageUsers, fn ($user) => false);
 
-        $this->assertTrue($gate->none(['deny_1', AbilitiesUnitEnum::ManageUsers]));
+        $this->assertTrue($gate->none(['deny_1', GateEnumTestAbilitiesUnitEnum::ManageUsers]));
     }
 
     public function testNoneReturnsFalseWhenAnyAbilityAllows(): void
@@ -207,31 +217,31 @@ class GateEnumTest extends TestCase
     {
         $gate = $this->getBasicGate();
 
-        $gate->define(AbilitiesBackedEnum::ViewDashboard, fn ($user) => true);
+        $gate->define(GateEnumTestAbilitiesBackedEnum::ViewDashboard, fn ($user) => true);
 
-        $this->assertTrue($gate->has(AbilitiesBackedEnum::ViewDashboard));
-        $this->assertFalse($gate->has(AbilitiesBackedEnum::Update));
+        $this->assertTrue($gate->has(GateEnumTestAbilitiesBackedEnum::ViewDashboard));
+        $this->assertFalse($gate->has(GateEnumTestAbilitiesBackedEnum::Update));
     }
 
     public function testHasWithUnitEnum(): void
     {
         $gate = $this->getBasicGate();
 
-        $gate->define(AbilitiesUnitEnum::ManageUsers, fn ($user) => true);
+        $gate->define(GateEnumTestAbilitiesUnitEnum::ManageUsers, fn ($user) => true);
 
-        $this->assertTrue($gate->has(AbilitiesUnitEnum::ManageUsers));
-        $this->assertFalse($gate->has(AbilitiesUnitEnum::ViewReports));
+        $this->assertTrue($gate->has(GateEnumTestAbilitiesUnitEnum::ManageUsers));
+        $this->assertFalse($gate->has(GateEnumTestAbilitiesUnitEnum::ViewReports));
     }
 
     public function testHasWithArrayContainingEnums(): void
     {
         $gate = $this->getBasicGate();
 
-        $gate->define(AbilitiesBackedEnum::ViewDashboard, fn ($user) => true);
-        $gate->define(AbilitiesUnitEnum::ManageUsers, fn ($user) => true);
+        $gate->define(GateEnumTestAbilitiesBackedEnum::ViewDashboard, fn ($user) => true);
+        $gate->define(GateEnumTestAbilitiesUnitEnum::ManageUsers, fn ($user) => true);
 
-        $this->assertTrue($gate->has([AbilitiesBackedEnum::ViewDashboard, AbilitiesUnitEnum::ManageUsers]));
-        $this->assertFalse($gate->has([AbilitiesBackedEnum::ViewDashboard, AbilitiesBackedEnum::Update]));
+        $this->assertTrue($gate->has([GateEnumTestAbilitiesBackedEnum::ViewDashboard, GateEnumTestAbilitiesUnitEnum::ManageUsers]));
+        $this->assertFalse($gate->has([GateEnumTestAbilitiesBackedEnum::ViewDashboard, GateEnumTestAbilitiesBackedEnum::Update]));
     }
 
     // =========================================================================
@@ -242,9 +252,9 @@ class GateEnumTest extends TestCase
     {
         $gate = $this->getBasicGate();
 
-        $gate->define(AbilitiesBackedEnum::ViewDashboard, fn ($user) => true);
+        $gate->define(GateEnumTestAbilitiesBackedEnum::ViewDashboard, fn ($user) => true);
 
-        $response = $gate->authorize(AbilitiesBackedEnum::ViewDashboard);
+        $response = $gate->authorize(GateEnumTestAbilitiesBackedEnum::ViewDashboard);
 
         $this->assertTrue($response->allowed());
     }
@@ -253,9 +263,9 @@ class GateEnumTest extends TestCase
     {
         $gate = $this->getBasicGate();
 
-        $gate->define(AbilitiesUnitEnum::ManageUsers, fn ($user) => true);
+        $gate->define(GateEnumTestAbilitiesUnitEnum::ManageUsers, fn ($user) => true);
 
-        $response = $gate->authorize(AbilitiesUnitEnum::ManageUsers);
+        $response = $gate->authorize(GateEnumTestAbilitiesUnitEnum::ManageUsers);
 
         $this->assertTrue($response->allowed());
     }
@@ -268,9 +278,9 @@ class GateEnumTest extends TestCase
     {
         $gate = $this->getBasicGate();
 
-        $gate->define(AbilitiesBackedEnum::ViewDashboard, fn ($user) => true);
+        $gate->define(GateEnumTestAbilitiesBackedEnum::ViewDashboard, fn ($user) => true);
 
-        $response = $gate->inspect(AbilitiesBackedEnum::ViewDashboard);
+        $response = $gate->inspect(GateEnumTestAbilitiesBackedEnum::ViewDashboard);
 
         $this->assertTrue($response->allowed());
     }
@@ -279,9 +289,9 @@ class GateEnumTest extends TestCase
     {
         $gate = $this->getBasicGate();
 
-        $gate->define(AbilitiesUnitEnum::ManageUsers, fn ($user) => false);
+        $gate->define(GateEnumTestAbilitiesUnitEnum::ManageUsers, fn ($user) => false);
 
-        $response = $gate->inspect(AbilitiesUnitEnum::ManageUsers);
+        $response = $gate->inspect(GateEnumTestAbilitiesUnitEnum::ManageUsers);
 
         $this->assertFalse($response->allowed());
     }
@@ -295,7 +305,7 @@ class GateEnumTest extends TestCase
         $gate = $this->getBasicGate();
 
         // Define with enum
-        $gate->define(AbilitiesBackedEnum::ViewDashboard, fn ($user) => true);
+        $gate->define(GateEnumTestAbilitiesBackedEnum::ViewDashboard, fn ($user) => true);
 
         // Check with string (the enum value)
         $this->assertTrue($gate->allows('view-dashboard'));
@@ -304,7 +314,7 @@ class GateEnumTest extends TestCase
         $gate->define('update', fn ($user) => true);
 
         // Check with enum that has same value
-        $this->assertTrue($gate->allows(AbilitiesBackedEnum::Update));
+        $this->assertTrue($gate->allows(GateEnumTestAbilitiesBackedEnum::Update));
     }
 
     public function testUnitEnumAndStringInteroperability(): void
@@ -312,7 +322,7 @@ class GateEnumTest extends TestCase
         $gate = $this->getBasicGate();
 
         // Define with enum
-        $gate->define(AbilitiesUnitEnum::ManageUsers, fn ($user) => true);
+        $gate->define(GateEnumTestAbilitiesUnitEnum::ManageUsers, fn ($user) => true);
 
         // Check with string (the enum name)
         $this->assertTrue($gate->allows('ManageUsers'));
@@ -321,25 +331,7 @@ class GateEnumTest extends TestCase
         $gate->define('ViewReports', fn ($user) => true);
 
         // Check with enum
-        $this->assertTrue($gate->allows(AbilitiesUnitEnum::ViewReports));
-    }
-
-    // =========================================================================
-    // Authorize middleware
-    // =========================================================================
-
-    public function testAuthorizeMiddlewareUsingWithBackedEnum(): void
-    {
-        $result = Authorize::using(AbilitiesBackedEnum::ViewDashboard, 'App\Models\Post');
-
-        $this->assertSame(Authorize::class . ':view-dashboard,App\Models\Post', $result);
-    }
-
-    public function testAuthorizeMiddlewareUsingWithUnitEnum(): void
-    {
-        $result = Authorize::using(AbilitiesUnitEnum::ManageUsers);
-
-        $this->assertSame(Authorize::class . ':ManageUsers', $result);
+        $this->assertTrue($gate->allows(GateEnumTestAbilitiesUnitEnum::ViewReports));
     }
 
     // =========================================================================

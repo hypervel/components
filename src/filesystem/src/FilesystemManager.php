@@ -84,7 +84,7 @@ class FilesystemManager implements FactoryContract
      */
     public function disk(UnitEnum|string|null $name = null): FileSystem
     {
-        $name = (string) enum_value($name) ?: $this->getDefaultDriver();
+        $name = enum_value($name) ?: $this->getDefaultDriver();
 
         return $this->disks[$name] = $this->get($name);
     }

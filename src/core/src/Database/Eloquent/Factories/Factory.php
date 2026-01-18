@@ -669,7 +669,7 @@ abstract class Factory
     {
         $value = enum_value($this->connection);
 
-        return is_null($value) ? null : (string) $value;
+        return is_null($value) ? null : $value;
     }
 
     /**

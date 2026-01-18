@@ -71,7 +71,7 @@ trait Queueable
     {
         $value = enum_value($connection);
 
-        $this->connection = is_null($value) ? null : (string) $value;
+        $this->connection = is_null($value) ? null : $value;
 
         return $this;
     }
@@ -83,7 +83,7 @@ trait Queueable
     {
         $value = enum_value($queue);
 
-        $this->queue = is_null($value) ? null : (string) $value;
+        $this->queue = is_null($value) ? null : $value;
 
         return $this;
     }
@@ -95,7 +95,7 @@ trait Queueable
     {
         $value = enum_value($connection);
 
-        $resolvedConnection = is_null($value) ? null : (string) $value;
+        $resolvedConnection = is_null($value) ? null : $value;
 
         $this->chainConnection = $resolvedConnection;
         $this->connection = $resolvedConnection;
@@ -110,7 +110,7 @@ trait Queueable
     {
         $value = enum_value($queue);
 
-        $resolvedQueue = is_null($value) ? null : (string) $value;
+        $resolvedQueue = is_null($value) ? null : $value;
 
         $this->chainQueue = $resolvedQueue;
         $this->queue = $resolvedQueue;

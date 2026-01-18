@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use BackedEnum;
 use Closure;
 use Hyperf\Collection\Arr;
+use UnitEnum;
 use Hyperf\Collection\Collection;
 use Hyperf\Conditionable\Conditionable;
 use Hyperf\Coroutine\Coroutine;
@@ -212,11 +212,9 @@ class PendingBatch
     /**
      * Specify the queue that the batched jobs should run on.
      */
-    public function onQueue(BackedEnum|string|null $queue): static
+    public function onQueue(UnitEnum|string|null $queue): static
     {
-        $value = enum_value($queue);
-
-        $this->options['queue'] = is_null($value) ? null : (string) $value;
+        $this->options['queue'] = enum_value($queue);
 
         return $this;
     }

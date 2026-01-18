@@ -17,6 +17,12 @@ enum BackedEnumNamedRateLimiter: string
     case Web = 'web';
 }
 
+enum IntBackedEnumNamedRateLimiter: int
+{
+    case First = 1;
+    case Second = 2;
+}
+
 enum UnitEnumNamedRateLimiter
 {
     case ThirdParty;
@@ -134,5 +140,14 @@ class RateLimiterEnumTest extends TestCase
         $this->assertSame('web-limit', $rateLimiter->limiter(BackedEnumNamedRateLimiter::Web)());
         $this->assertSame('third-party-limit', $rateLimiter->limiter(UnitEnumNamedRateLimiter::ThirdParty)());
         $this->assertSame('custom-limit', $rateLimiter->limiter('custom')());
+    }
+
+    public function testForWithIntBackedEnumThrowsTypeError(): void
+    {
+        $rateLimiter = new RateLimiter(m::mock(Cache::class));
+
+        // Int-backed enum causes TypeError because resolveLimiterName() returns string
+        $this->expectException(\TypeError::class);
+        $rateLimiter->for(IntBackedEnumNamedRateLimiter::First, fn () => 'limit');
     }
 }

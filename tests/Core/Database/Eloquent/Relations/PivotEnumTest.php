@@ -39,12 +39,13 @@ class PivotEnumTest extends TestCase
         $this->assertSame('testing', $pivot->getConnectionName());
     }
 
-    public function testSetConnectionAcceptsIntBackedEnum(): void
+    public function testSetConnectionWithIntBackedEnumThrowsTypeError(): void
     {
         $pivot = new Pivot();
-        $pivot->setConnection(PivotTestIntBackedConnection::Testing);
 
-        $this->assertSame('2', $pivot->getConnectionName());
+        // Int-backed enum causes TypeError because $connection property is ?string
+        $this->expectException(\TypeError::class);
+        $pivot->setConnection(PivotTestIntBackedConnection::Testing);
     }
 
     public function testSetConnectionAcceptsUnitEnum(): void
