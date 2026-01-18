@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use BackedEnum;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
@@ -14,6 +13,7 @@ use Hypervel\Queue\CallQueuedClosure;
 use PHPUnit\Framework\Assert as PHPUnit;
 use RuntimeException;
 use Throwable;
+use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
@@ -67,9 +67,11 @@ trait Queueable
     /**
      * Set the desired connection for the job.
      */
-    public function onConnection(BackedEnum|string|null $connection): static
+    public function onConnection(UnitEnum|string|null $connection): static
     {
-        $this->connection = enum_value($connection);
+        $value = enum_value($connection);
+
+        $this->connection = is_null($value) ? null : (string) $value;
 
         return $this;
     }
@@ -77,9 +79,11 @@ trait Queueable
     /**
      * Set the desired queue for the job.
      */
-    public function onQueue(BackedEnum|string|null $queue): static
+    public function onQueue(UnitEnum|string|null $queue): static
     {
-        $this->queue = enum_value($queue);
+        $value = enum_value($queue);
+
+        $this->queue = is_null($value) ? null : (string) $value;
 
         return $this;
     }
@@ -87,9 +91,11 @@ trait Queueable
     /**
      * Set the desired connection for the chain.
      */
-    public function allOnConnection(BackedEnum|string|null $connection): static
+    public function allOnConnection(UnitEnum|string|null $connection): static
     {
-        $resolvedConnection = enum_value($connection);
+        $value = enum_value($connection);
+
+        $resolvedConnection = is_null($value) ? null : (string) $value;
 
         $this->chainConnection = $resolvedConnection;
         $this->connection = $resolvedConnection;
@@ -100,9 +106,11 @@ trait Queueable
     /**
      * Set the desired queue for the chain.
      */
-    public function allOnQueue(BackedEnum|string|null $queue): static
+    public function allOnQueue(UnitEnum|string|null $queue): static
     {
-        $resolvedQueue = enum_value($queue);
+        $value = enum_value($queue);
+
+        $resolvedQueue = is_null($value) ? null : (string) $value;
 
         $this->chainQueue = $resolvedQueue;
         $this->queue = $resolvedQueue;

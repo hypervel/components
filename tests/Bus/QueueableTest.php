@@ -37,8 +37,9 @@ class QueueableTest extends TestCase
     {
         return [
             'uses string' => ['redis', 'redis'],
-            'uses BackedEnum #1' => [ConnectionEnum::SQS, 'sqs'],
-            'uses BackedEnum #2' => [ConnectionEnum::REDIS, 'redis'],
+            'uses string-backed enum' => [ConnectionEnum::SQS, 'sqs'],
+            'uses int-backed enum' => [IntConnectionEnum::Redis, '2'],
+            'uses unit enum' => [UnitConnectionEnum::Sync, 'Sync'],
             'uses null' => [null, null],
         ];
     }
@@ -66,8 +67,9 @@ class QueueableTest extends TestCase
     {
         return [
             'uses string' => ['high', 'high'],
-            'uses BackedEnum #1' => [QueueEnum::DEFAULT, 'default'],
-            'uses BackedEnum #2' => [QueueEnum::HIGH, 'high'],
+            'uses string-backed enum' => [QueueEnum::HIGH, 'high'],
+            'uses int-backed enum' => [IntQueueEnum::High, '2'],
+            'uses unit enum' => [UnitQueueEnum::Low, 'Low'],
             'uses null' => [null, null],
         ];
     }
@@ -84,8 +86,32 @@ enum ConnectionEnum: string
     case REDIS = 'redis';
 }
 
+enum IntConnectionEnum: int
+{
+    case Sqs = 1;
+    case Redis = 2;
+}
+
+enum UnitConnectionEnum
+{
+    case Sync;
+    case Database;
+}
+
 enum QueueEnum: string
 {
     case HIGH = 'high';
     case DEFAULT = 'default';
+}
+
+enum IntQueueEnum: int
+{
+    case Default = 1;
+    case High = 2;
+}
+
+enum UnitQueueEnum
+{
+    case Default;
+    case Low;
 }

@@ -31,6 +31,9 @@ use League\Flysystem\ReadOnly\ReadOnlyFilesystemAdapter;
 use League\Flysystem\UnixVisibility\PortableVisibilityConverter;
 use League\Flysystem\Visibility;
 use Psr\Container\ContainerInterface;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @mixin \Hypervel\Filesystem\Filesystem
@@ -71,7 +74,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Get a filesystem instance.
      */
-    public function drive(?string $name = null): Filesystem
+    public function drive(UnitEnum|string|null $name = null): Filesystem
     {
         return $this->disk($name);
     }
@@ -79,9 +82,9 @@ class FilesystemManager implements FactoryContract
     /**
      * Get a filesystem instance.
      */
-    public function disk(?string $name = null): FileSystem
+    public function disk(UnitEnum|string|null $name = null): FileSystem
     {
-        $name = $name ?: $this->getDefaultDriver();
+        $name = enum_value($name) ?: $this->getDefaultDriver();
 
         return $this->disks[$name] = $this->get($name);
     }

@@ -19,6 +19,21 @@ use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\TestCase;
 
+enum FilesystemTestStringBackedDisk: string
+{
+    case Local = 'local';
+}
+
+enum FilesystemTestIntBackedDisk: int
+{
+    case Local = 1;
+}
+
+enum FilesystemTestUnitDisk
+{
+    case local;
+}
+
 /**
  * @internal
  * @coversNothing
@@ -190,6 +205,57 @@ class FilesystemManagerTest extends TestCase
         ApplicationContext::setContainer($container);
 
         $this->assertInstanceOf(FilesystemPoolProxy::class, $filesystem->disk('local'));
+    }
+
+    public function testDiskAcceptsStringBackedEnum(): void
+    {
+        $container = $this->getContainer([
+            'disks' => [
+                'local' => [
+                    'driver' => 'local',
+                    'root' => __DIR__ . '/tmp',
+                ],
+            ],
+        ]);
+        $filesystem = new FilesystemManager($container);
+
+        $disk = $filesystem->disk(FilesystemTestStringBackedDisk::Local);
+
+        $this->assertInstanceOf(Filesystem::class, $disk);
+    }
+
+    public function testDiskAcceptsUnitEnum(): void
+    {
+        $container = $this->getContainer([
+            'disks' => [
+                'local' => [
+                    'driver' => 'local',
+                    'root' => __DIR__ . '/tmp',
+                ],
+            ],
+        ]);
+        $filesystem = new FilesystemManager($container);
+
+        $disk = $filesystem->disk(FilesystemTestUnitDisk::local);
+
+        $this->assertInstanceOf(Filesystem::class, $disk);
+    }
+
+    public function testDriveAcceptsStringBackedEnum(): void
+    {
+        $container = $this->getContainer([
+            'disks' => [
+                'local' => [
+                    'driver' => 'local',
+                    'root' => __DIR__ . '/tmp',
+                ],
+            ],
+        ]);
+        $filesystem = new FilesystemManager($container);
+
+        $disk = $filesystem->drive(FilesystemTestStringBackedDisk::Local);
+
+        $this->assertInstanceOf(Filesystem::class, $disk);
     }
 
     protected function getContainer(array $config = []): ContainerInterface
