@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Middleware;
 
-use BackedEnum;
 use Hyperf\Collection\Arr;
 use Hyperf\Collection\Collection;
 use Hyperf\Context\ApplicationContext;
@@ -34,7 +33,7 @@ class RateLimited
     /**
      * Create a new middleware instance.
      */
-    public function __construct(BackedEnum|string|UnitEnum $limiterName)
+    public function __construct(UnitEnum|string $limiterName)
     {
         $this->limiter = ApplicationContext::getContainer()
             ->get(RateLimiter::class);

@@ -98,7 +98,7 @@ trait HasRole
     /**
      * Check if the owner has a specific role.
      */
-    public function hasRole(BackedEnum|int|string|UnitEnum $role): bool
+    public function hasRole(UnitEnum|int|string $role): bool
     {
         $roles = $this->getCachedRoles();
 
@@ -110,7 +110,7 @@ trait HasRole
     /**
      * Normalize role value to field and value pair.
      */
-    private function normalizeRoleValue(BackedEnum|int|string|UnitEnum $role): array
+    private function normalizeRoleValue(UnitEnum|int|string $role): array
     {
         $value = $this->extractRoleValue($role);
         $isId = $this->isRoleIdType($role);
@@ -123,7 +123,7 @@ trait HasRole
     /**
      * Extract the actual value from a role of any supported type.
      */
-    private function extractRoleValue(BackedEnum|int|string|UnitEnum $role): int|string
+    private function extractRoleValue(UnitEnum|int|string $role): int|string
     {
         return match (true) {
             $role instanceof BackedEnum => $role->value,
@@ -137,7 +137,7 @@ trait HasRole
      *
      * @throws InvalidArgumentException if the role type is unsupported
      */
-    private function isRoleIdType(BackedEnum|int|string|UnitEnum $role): bool
+    private function isRoleIdType(UnitEnum|int|string $role): bool
     {
         return match (true) {
             is_int($role) => true,
@@ -150,7 +150,7 @@ trait HasRole
     /**
      * Separate roles array into IDs and names collections.
      *
-     * @param array<int, BackedEnum|int|string|UnitEnum> $roles
+     * @param array<int, int|string|UnitEnum> $roles
      */
     private function separateRolesByType(array $roles): array
     {
@@ -173,7 +173,7 @@ trait HasRole
     /**
      * Check if the owner has any of the specified roles.
      *
-     * @param array<int, BackedEnum|int|string|UnitEnum> $roles
+     * @param array<int, int|string|UnitEnum> $roles
      */
     public function hasAnyRoles(array $roles): bool
     {
@@ -189,7 +189,7 @@ trait HasRole
     /**
      * Check if the owner has all of the specified roles.
      *
-     * @param array<int, BackedEnum|int|string|UnitEnum> $roles
+     * @param array<int, int|string|UnitEnum> $roles
      */
     public function hasAllRoles(array $roles): bool
     {
@@ -205,7 +205,7 @@ trait HasRole
     /**
      * Get only the roles that match the specified roles from the owner's assigned roles.
      *
-     * @param array<int, BackedEnum|int|string|UnitEnum> $roles
+     * @param array<int, int|string|UnitEnum> $roles
      */
     public function onlyRoles(array $roles): Collection
     {
@@ -230,7 +230,7 @@ trait HasRole
     /**
      * Assign roles to the owner.
      */
-    public function assignRole(array|BackedEnum|int|string|UnitEnum ...$roles): static
+    public function assignRole(array|UnitEnum|int|string ...$roles): static
     {
         $this->loadMissing('roles');
         $roles = $this->collectRoles($roles);
@@ -250,7 +250,7 @@ trait HasRole
     /**
      * Revoke the given role from owner.
      */
-    public function removeRole(array|BackedEnum|int|string|UnitEnum ...$roles): static
+    public function removeRole(array|UnitEnum|int|string ...$roles): static
     {
         $detachRoles = $this->collectRoles($roles);
 
@@ -265,7 +265,7 @@ trait HasRole
     /**
      * Synchronize the owner's roles with the given role list.
      */
-    public function syncRoles(array|BackedEnum|int|string|UnitEnum ...$roles): array
+    public function syncRoles(array|UnitEnum|int|string ...$roles): array
     {
         $roles = $this->collectRoles($roles);
 
@@ -280,7 +280,7 @@ trait HasRole
     /**
      * Returns array of role ids.
      */
-    private function collectRoles(array|BackedEnum|int|string|UnitEnum ...$roles): array
+    private function collectRoles(array|UnitEnum|int|string ...$roles): array
     {
         $roles = BaseCollection::make($roles)
             ->flatten()
