@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Core\Database\Eloquent\Relations;
 
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Testbench\TestCase;
+use TypeError;
 
 enum PivotTestStringBackedConnection: string
 {
@@ -44,7 +45,7 @@ class PivotEnumTest extends TestCase
         $pivot = new Pivot();
 
         // Int-backed enum causes TypeError because $connection property is ?string
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $pivot->setConnection(PivotTestIntBackedConnection::Testing);
     }
 

@@ -8,6 +8,7 @@ use DateInterval;
 use DateTime;
 use Hypervel\Cache\ArrayStore;
 use Hypervel\Tests\TestCase;
+use TypeError;
 
 enum TaggedCacheTestKeyStringEnum: string
 {
@@ -252,7 +253,7 @@ class CacheTaggedCacheTest extends TestCase
         $taggableStore = $store->tags('bop');
 
         // Int-backed enum causes TypeError because itemKey() expects string
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $taggableStore->increment(TaggedCacheTestKeyIntEnum::Key1);
     }
 
@@ -287,7 +288,7 @@ class CacheTaggedCacheTest extends TestCase
         $taggableStore = $store->tags('bop');
 
         // Int-backed enum causes TypeError because itemKey() expects string
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $taggableStore->decrement(TaggedCacheTestKeyIntEnum::Key1);
     }
 

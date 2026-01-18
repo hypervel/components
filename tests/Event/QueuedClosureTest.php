@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Event;
 
 use Hypervel\Event\QueuedClosure;
 use PHPUnit\Framework\TestCase;
+use TypeError;
 
 enum QueuedClosureTestConnectionStringEnum: string
 {
@@ -53,7 +54,7 @@ class QueuedClosureTest extends TestCase
     {
         $closure = new QueuedClosure(fn () => null);
 
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $closure->onConnection(QueuedClosureTestConnectionIntEnum::Connection1);
     }
 
@@ -88,7 +89,7 @@ class QueuedClosureTest extends TestCase
     {
         $closure = new QueuedClosure(fn () => null);
 
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $closure->onQueue(QueuedClosureTestConnectionIntEnum::Connection2);
     }
 
@@ -123,7 +124,7 @@ class QueuedClosureTest extends TestCase
     {
         $closure = new QueuedClosure(fn () => null);
 
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $closure->onGroup(QueuedClosureTestConnectionIntEnum::Connection1);
     }
 

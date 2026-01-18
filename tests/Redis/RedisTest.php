@@ -20,6 +20,7 @@ use Mockery;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Redis as PhpRedis;
 use Throwable;
+use TypeError;
 
 enum RedisTestStringBackedConnection: string
 {
@@ -299,7 +300,7 @@ class RedisTest extends TestCase
         $redis = new Redis(Mockery::mock(PoolFactory::class));
 
         // Int-backed enum causes TypeError because RedisFactory::get() expects string
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $redis->connection(RedisTestIntBackedConnection::Primary);
     }
 

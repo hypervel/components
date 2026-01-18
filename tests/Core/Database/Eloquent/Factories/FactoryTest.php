@@ -20,6 +20,7 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Core\Database\Fixtures\Models\Price;
 use Mockery as m;
 use ReflectionClass;
+use TypeError;
 
 enum FactoryTestStringBackedConnection: string
 {
@@ -879,7 +880,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $factory = FactoryTestUserFactory::new()->connection(FactoryTestIntBackedConnection::Testing);
 
         // Int-backed enum causes TypeError because getConnectionName() returns ?string
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $factory->getConnectionName();
     }
 

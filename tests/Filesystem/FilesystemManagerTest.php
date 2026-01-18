@@ -18,6 +18,7 @@ use Hypervel\ObjectPool\PoolManager;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\TestCase;
+use TypeError;
 
 enum FilesystemTestStringBackedDisk: string
 {
@@ -254,7 +255,7 @@ class FilesystemManagerTest extends TestCase
         $filesystem = new FilesystemManager($container);
 
         // Int-backed enum causes TypeError because get() expects string
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $filesystem->disk(FilesystemTestIntBackedDisk::Local);
     }
 

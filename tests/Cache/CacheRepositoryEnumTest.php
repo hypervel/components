@@ -11,6 +11,7 @@ use Hypervel\Cache\TaggedCache;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface as Dispatcher;
+use TypeError;
 
 enum CacheRepositoryEnumTestKeyBackedEnum: string
 {
@@ -69,7 +70,7 @@ class CacheRepositoryEnumTest extends TestCase
         $repo = $this->getRepository();
 
         // Int-backed enum causes TypeError because store expects string key
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $repo->get(CacheRepositoryEnumTestKeyIntBackedEnum::Counter);
     }
 

@@ -12,6 +12,7 @@ use Hypervel\Broadcasting\PendingBroadcast;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use TypeError;
 
 enum PendingBroadcastTestConnectionStringEnum: string
 {
@@ -78,7 +79,7 @@ class PendingBroadcastTest extends TestCase
         $manager = m::mock(BroadcastingFactory::class);
 
         // TypeError is thrown when BroadcastManager::connection() receives int instead of ?string
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $broadcastEvent->handle($manager);
     }
 

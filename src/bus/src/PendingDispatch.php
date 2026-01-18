@@ -7,10 +7,10 @@ namespace Hypervel\Bus;
 use DateInterval;
 use DateTimeInterface;
 use Hyperf\Context\ApplicationContext;
-use UnitEnum;
 use Hypervel\Bus\Contracts\Dispatcher;
 use Hypervel\Cache\Contracts\Factory as CacheFactory;
 use Hypervel\Queue\Contracts\ShouldBeUnique;
+use UnitEnum;
 
 class PendingDispatch
 {

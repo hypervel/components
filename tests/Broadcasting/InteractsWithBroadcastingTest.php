@@ -10,6 +10,7 @@ use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactory;
 use Hypervel\Broadcasting\InteractsWithBroadcasting;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
+use TypeError;
 
 enum InteractsWithBroadcastingTestConnectionStringEnum: string
 {
@@ -105,7 +106,7 @@ class InteractsWithBroadcastingTest extends TestCase
         $manager = m::mock(BroadcastingFactory::class);
 
         // TypeError is thrown when BroadcastManager::connection() receives int instead of ?string
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $broadcastEvent->handle($manager);
     }
 }

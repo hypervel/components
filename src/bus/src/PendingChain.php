@@ -7,12 +7,12 @@ namespace Hypervel\Bus;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use UnitEnum;
 use Hyperf\Conditionable\Conditionable;
 use Hyperf\Context\ApplicationContext;
 use Hypervel\Bus\Contracts\Dispatcher;
 use Hypervel\Queue\CallQueuedClosure;
 use Laravel\SerializableClosure\SerializableClosure;
+use UnitEnum;
 
 use function Hyperf\Support\value;
 use function Hypervel\Support\enum_value;

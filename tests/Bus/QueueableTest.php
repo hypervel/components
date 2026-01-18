@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Bus;
 use Hypervel\Bus\Queueable;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use TypeError;
 
 /**
  * @internal
@@ -47,7 +48,7 @@ class QueueableTest extends TestCase
     {
         $job = new FakeJob();
 
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $job->onConnection(IntConnectionEnum::Redis);
     }
 
@@ -55,7 +56,7 @@ class QueueableTest extends TestCase
     {
         $job = new FakeJob();
 
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $job->allOnConnection(IntConnectionEnum::Redis);
     }
 
@@ -92,7 +93,7 @@ class QueueableTest extends TestCase
     {
         $job = new FakeJob();
 
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $job->onQueue(IntQueueEnum::High);
     }
 
@@ -100,7 +101,7 @@ class QueueableTest extends TestCase
     {
         $job = new FakeJob();
 
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $job->allOnQueue(IntQueueEnum::High);
     }
 }

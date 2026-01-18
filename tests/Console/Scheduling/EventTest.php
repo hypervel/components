@@ -17,6 +17,7 @@ use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
+use TypeError;
 
 enum EventTestTimezoneStringEnum: string
 {
@@ -201,7 +202,7 @@ class EventTest extends TestCase
         $event = new Event(m::mock(EventMutex::class), 'php -i');
 
         // Int-backed enum causes TypeError because $timezone property is DateTimeZone|string|null
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $event->timezone(EventTestTimezoneIntEnum::Zone1);
     }
 

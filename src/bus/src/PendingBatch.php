@@ -6,7 +6,6 @@ namespace Hypervel\Bus;
 
 use Closure;
 use Hyperf\Collection\Arr;
-use UnitEnum;
 use Hyperf\Collection\Collection;
 use Hyperf\Conditionable\Conditionable;
 use Hyperf\Coroutine\Coroutine;
@@ -17,6 +16,7 @@ use Laravel\SerializableClosure\SerializableClosure;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
+use UnitEnum;
 
 use function Hyperf\Support\value;
 use function Hypervel\Support\enum_value;

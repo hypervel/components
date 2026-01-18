@@ -12,6 +12,7 @@ use Hypervel\Queue\Middleware\RateLimited;
 use Mockery;
 use Mockery\MockInterface;
 use PHPUnit\Framework\TestCase;
+use TypeError;
 
 enum RateLimitedTestStringEnum: string
 {
@@ -71,7 +72,7 @@ class RateLimitedTest extends TestCase
     {
         $this->mockRateLimiter();
 
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
 
         new RateLimited(RateLimitedTestIntEnum::Primary);
     }

@@ -11,6 +11,7 @@ use Hypervel\Cache\RedisStore;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
+use TypeError;
 
 enum RedisTaggedCacheTestKeyStringEnum: string
 {
@@ -197,7 +198,7 @@ class CacheRedisTaggedCacheTest extends TestCase
 
     public function testIncrementWithIntBackedEnumThrowsTypeError(): void
     {
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
 
         $this->redis->tags(['votes'])->increment(RedisTaggedCacheTestKeyIntEnum::Key1);
     }

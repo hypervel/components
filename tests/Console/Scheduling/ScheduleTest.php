@@ -15,6 +15,7 @@ use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use TypeError;
 
 enum ScheduleTestQueueStringEnum: string
 {
@@ -172,7 +173,7 @@ class ScheduleTest extends TestCase
         $schedule = new Schedule();
 
         // TypeError is thrown when useStore() receives int instead of string
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $schedule->useCache(ScheduleTestCacheStoreIntEnum::Store1);
     }
 }

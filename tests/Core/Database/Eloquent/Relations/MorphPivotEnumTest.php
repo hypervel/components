@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Core\Database\Eloquent\Relations;
 
 use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Testbench\TestCase;
+use TypeError;
 
 enum MorphPivotTestStringBackedConnection: string
 {
@@ -44,7 +45,7 @@ class MorphPivotEnumTest extends TestCase
         $pivot = new MorphPivot();
 
         // Int-backed enum causes TypeError because $connection property is ?string
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $pivot->setConnection(MorphPivotTestIntBackedConnection::Testing);
     }
 

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Core\Database\Eloquent;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Testbench\TestCase;
+use TypeError;
 
 enum ModelTestStringBackedConnection: string
 {
@@ -44,7 +45,7 @@ class ModelEnumTest extends TestCase
         $model = new ModelEnumTestModel();
 
         // Int-backed enum causes TypeError because $connection property is ?string
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $model->setConnection(ModelTestIntBackedConnection::Testing);
     }
 

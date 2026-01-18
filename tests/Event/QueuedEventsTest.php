@@ -22,6 +22,7 @@ use Illuminate\Events\CallQueuedListener;
 use Mockery as m;
 use Mockery\MockInterface;
 use Psr\Container\ContainerInterface;
+use TypeError;
 
 use function Hypervel\Event\queueable;
 
@@ -315,7 +316,7 @@ class QueuedEventsTest extends TestCase
         $d->listen('some.event', TestDispatcherIntEnumQueueProperty::class . '@handle');
 
         // TypeError is thrown when pushOn() receives int instead of ?string
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $d->dispatch('some.event', ['foo', 'bar']);
     }
 

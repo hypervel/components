@@ -10,6 +10,7 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionProperty;
+use TypeError;
 
 enum BackedEnumNamedRateLimiter: string
 {
@@ -147,7 +148,7 @@ class RateLimiterEnumTest extends TestCase
         $rateLimiter = new RateLimiter(m::mock(Cache::class));
 
         // Int-backed enum causes TypeError because resolveLimiterName() returns string
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
         $rateLimiter->for(IntBackedEnumNamedRateLimiter::First, fn () => 'limit');
     }
 }
