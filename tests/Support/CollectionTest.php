@@ -284,6 +284,273 @@ class CollectionTest extends TestCase
         $this->assertCount(1, $result);
         $this->assertEquals(25, $result->first()['user']['age']);
     }
+
+    public function testCollectionFromUnitEnum(): void
+    {
+        $data = new Collection(CollectionTestUnitEnum::Foo);
+
+        $this->assertEquals([CollectionTestUnitEnum::Foo], $data->toArray());
+        $this->assertCount(1, $data);
+    }
+
+    public function testCollectionFromBackedEnum(): void
+    {
+        $data = new Collection(CollectionTestIntEnum::Foo);
+
+        $this->assertEquals([CollectionTestIntEnum::Foo], $data->toArray());
+        $this->assertCount(1, $data);
+    }
+
+    public function testCollectionFromStringBackedEnum(): void
+    {
+        $data = new Collection(CollectionTestStringEnum::Foo);
+
+        $this->assertEquals([CollectionTestStringEnum::Foo], $data->toArray());
+        $this->assertCount(1, $data);
+    }
+
+    public function testGroupByWithUnitEnumKey(): void
+    {
+        $data = new Collection([
+            ['name' => CollectionTestUnitEnum::Foo, 'value' => 1],
+            ['name' => CollectionTestUnitEnum::Foo, 'value' => 2],
+            ['name' => CollectionTestUnitEnum::Bar, 'value' => 3],
+        ]);
+
+        $result = $data->groupBy('name');
+
+        $this->assertArrayHasKey('Foo', $result->toArray());
+        $this->assertArrayHasKey('Bar', $result->toArray());
+        $this->assertCount(2, $result->get('Foo'));
+        $this->assertCount(1, $result->get('Bar'));
+    }
+
+    public function testGroupByWithIntBackedEnumKey(): void
+    {
+        $data = new Collection([
+            ['rating' => CollectionTestIntEnum::Foo, 'url' => '1'],
+            ['rating' => CollectionTestIntEnum::Bar, 'url' => '2'],
+        ]);
+
+        $result = $data->groupBy('rating');
+
+        $expected = [
+            CollectionTestIntEnum::Foo->value => [['rating' => CollectionTestIntEnum::Foo, 'url' => '1']],
+            CollectionTestIntEnum::Bar->value => [['rating' => CollectionTestIntEnum::Bar, 'url' => '2']],
+        ];
+
+        $this->assertEquals($expected, $result->toArray());
+    }
+
+    public function testGroupByWithStringBackedEnumKey(): void
+    {
+        $data = new Collection([
+            ['category' => CollectionTestStringEnum::Foo, 'value' => 1],
+            ['category' => CollectionTestStringEnum::Foo, 'value' => 2],
+            ['category' => CollectionTestStringEnum::Bar, 'value' => 3],
+        ]);
+
+        $result = $data->groupBy('category');
+
+        $this->assertArrayHasKey(CollectionTestStringEnum::Foo->value, $result->toArray());
+        $this->assertArrayHasKey(CollectionTestStringEnum::Bar->value, $result->toArray());
+    }
+
+    public function testGroupByWithCallableReturningEnum(): void
+    {
+        $data = new Collection([
+            ['value' => 1],
+            ['value' => 2],
+            ['value' => 3],
+        ]);
+
+        $result = $data->groupBy(fn ($item) => $item['value'] <= 2 ? CollectionTestUnitEnum::Foo : CollectionTestUnitEnum::Bar);
+
+        $this->assertArrayHasKey('Foo', $result->toArray());
+        $this->assertArrayHasKey('Bar', $result->toArray());
+        $this->assertCount(2, $result->get('Foo'));
+        $this->assertCount(1, $result->get('Bar'));
+    }
+
+    public function testKeyByWithUnitEnumKey(): void
+    {
+        $data = new Collection([
+            ['name' => CollectionTestUnitEnum::Foo, 'value' => 1],
+            ['name' => CollectionTestUnitEnum::Bar, 'value' => 2],
+        ]);
+
+        $result = $data->keyBy('name');
+
+        $this->assertArrayHasKey('Foo', $result->toArray());
+        $this->assertArrayHasKey('Bar', $result->toArray());
+        $this->assertEquals(1, $result->get('Foo')['value']);
+        $this->assertEquals(2, $result->get('Bar')['value']);
+    }
+
+    public function testKeyByWithIntBackedEnumKey(): void
+    {
+        $data = new Collection([
+            ['rating' => CollectionTestIntEnum::Foo, 'value' => 'first'],
+            ['rating' => CollectionTestIntEnum::Bar, 'value' => 'second'],
+        ]);
+
+        $result = $data->keyBy('rating');
+
+        $this->assertArrayHasKey(CollectionTestIntEnum::Foo->value, $result->toArray());
+        $this->assertArrayHasKey(CollectionTestIntEnum::Bar->value, $result->toArray());
+    }
+
+    public function testKeyByWithCallableReturningEnum(): void
+    {
+        $data = new Collection([
+            ['id' => 1, 'value' => 'first'],
+            ['id' => 2, 'value' => 'second'],
+        ]);
+
+        $result = $data->keyBy(fn ($item) => $item['id'] === 1 ? CollectionTestUnitEnum::Foo : CollectionTestUnitEnum::Bar);
+
+        $this->assertArrayHasKey('Foo', $result->toArray());
+        $this->assertArrayHasKey('Bar', $result->toArray());
+    }
+
+    public function testWhereWithIntBackedEnumValue(): void
+    {
+        $data = new Collection([
+            ['id' => 1, 'status' => CollectionTestIntEnum::Foo],
+            ['id' => 2, 'status' => CollectionTestIntEnum::Bar],
+            ['id' => 3, 'status' => CollectionTestIntEnum::Foo],
+        ]);
+
+        $result = $data->where('status', CollectionTestIntEnum::Foo);
+
+        $this->assertCount(2, $result);
+        $this->assertEquals([1, 3], $result->pluck('id')->values()->toArray());
+    }
+
+    public function testWhereWithUnitEnumValue(): void
+    {
+        $data = new Collection([
+            ['id' => 1, 'type' => CollectionTestUnitEnum::Foo],
+            ['id' => 2, 'type' => CollectionTestUnitEnum::Bar],
+            ['id' => 3, 'type' => CollectionTestUnitEnum::Foo],
+        ]);
+
+        $result = $data->where('type', CollectionTestUnitEnum::Foo);
+
+        $this->assertCount(2, $result);
+        $this->assertEquals([1, 3], $result->pluck('id')->values()->toArray());
+    }
+
+    public function testFirstWhereWithEnum(): void
+    {
+        $data = new Collection([
+            ['id' => 1, 'name' => CollectionTestUnitEnum::Foo],
+            ['id' => 2, 'name' => CollectionTestUnitEnum::Bar],
+            ['id' => 3, 'name' => CollectionTestUnitEnum::Baz],
+        ]);
+
+        $this->assertSame(2, $data->firstWhere('name', CollectionTestUnitEnum::Bar)['id']);
+        $this->assertSame(3, $data->firstWhere('name', CollectionTestUnitEnum::Baz)['id']);
+    }
+
+    public function testMapIntoWithIntBackedEnum(): void
+    {
+        $data = new Collection([1, 2]);
+
+        $result = $data->mapInto(CollectionTestIntEnum::class);
+
+        $this->assertSame(CollectionTestIntEnum::Foo, $result->get(0));
+        $this->assertSame(CollectionTestIntEnum::Bar, $result->get(1));
+    }
+
+    public function testMapIntoWithStringBackedEnum(): void
+    {
+        $data = new Collection(['foo', 'bar']);
+
+        $result = $data->mapInto(CollectionTestStringEnum::class);
+
+        $this->assertSame(CollectionTestStringEnum::Foo, $result->get(0));
+        $this->assertSame(CollectionTestStringEnum::Bar, $result->get(1));
+    }
+
+    public function testCollectHelperWithUnitEnum(): void
+    {
+        $data = collect(CollectionTestUnitEnum::Foo);
+
+        $this->assertEquals([CollectionTestUnitEnum::Foo], $data->toArray());
+        $this->assertCount(1, $data);
+    }
+
+    public function testCollectHelperWithBackedEnum(): void
+    {
+        $data = collect(CollectionTestIntEnum::Bar);
+
+        $this->assertEquals([CollectionTestIntEnum::Bar], $data->toArray());
+        $this->assertCount(1, $data);
+    }
+
+    public function testWhereStrictWithEnums(): void
+    {
+        $data = new Collection([
+            ['id' => 1, 'status' => CollectionTestIntEnum::Foo],
+            ['id' => 2, 'status' => CollectionTestIntEnum::Bar],
+        ]);
+
+        $result = $data->whereStrict('status', CollectionTestIntEnum::Foo);
+
+        $this->assertCount(1, $result);
+        $this->assertEquals(1, $result->first()['id']);
+    }
+
+    public function testEnumValuesArePreservedInCollection(): void
+    {
+        $data = new Collection([CollectionTestUnitEnum::Foo, CollectionTestIntEnum::Bar, CollectionTestStringEnum::Baz]);
+
+        $this->assertSame(CollectionTestUnitEnum::Foo, $data->get(0));
+        $this->assertSame(CollectionTestIntEnum::Bar, $data->get(1));
+        $this->assertSame(CollectionTestStringEnum::Baz, $data->get(2));
+    }
+
+    public function testContainsWithEnum(): void
+    {
+        $data = new Collection([CollectionTestUnitEnum::Foo, CollectionTestUnitEnum::Bar]);
+
+        $this->assertTrue($data->contains(CollectionTestUnitEnum::Foo));
+        $this->assertTrue($data->contains(CollectionTestUnitEnum::Bar));
+        $this->assertFalse($data->contains(CollectionTestUnitEnum::Baz));
+    }
+
+    public function testGroupByMixedEnumTypes(): void
+    {
+        $payload = [
+            ['name' => CollectionTestUnitEnum::Foo, 'url' => '1'],
+            ['name' => CollectionTestIntEnum::Foo, 'url' => '1'],
+            ['name' => CollectionTestStringEnum::Foo, 'url' => '2'],
+        ];
+
+        $data = new Collection($payload);
+        $result = $data->groupBy('name');
+
+        // UnitEnum uses name ('Foo'), IntBackedEnum uses value (1), StringBackedEnum uses value ('foo')
+        $this->assertEquals([
+            'Foo' => [$payload[0]],
+            1 => [$payload[1]],
+            'foo' => [$payload[2]],
+        ], $result->toArray());
+    }
+
+    public function testCountByWithUnitEnum(): void
+    {
+        $data = new Collection([
+            ['type' => CollectionTestUnitEnum::Foo],
+            ['type' => CollectionTestUnitEnum::Foo],
+            ['type' => CollectionTestUnitEnum::Bar],
+        ]);
+
+        $result = $data->countBy('type');
+
+        $this->assertEquals(['Foo' => 2, 'Bar' => 1], $result->all());
+    }
 }
 
 class CollectionTestStringable implements Stringable
@@ -296,4 +563,25 @@ class CollectionTestStringable implements Stringable
     {
         return $this->value;
     }
+}
+
+enum CollectionTestUnitEnum
+{
+    case Foo;
+    case Bar;
+    case Baz;
+}
+
+enum CollectionTestIntEnum: int
+{
+    case Foo = 1;
+    case Bar = 2;
+    case Baz = 3;
+}
+
+enum CollectionTestStringEnum: string
+{
+    case Foo = 'foo';
+    case Bar = 'bar';
+    case Baz = 'baz';
 }

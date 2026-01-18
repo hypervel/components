@@ -25,6 +25,9 @@ use Hypervel\Queue\Contracts\ShouldBeUnique;
 use Hypervel\Queue\Contracts\ShouldQueue;
 use Hypervel\Support\ProcessUtils;
 use RuntimeException;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @mixin \Hypervel\Console\Scheduling\PendingEventAttributes
@@ -155,9 +158,15 @@ class Schedule
     /**
      * Add a new job callback event to the schedule.
      */
-    public function job(object|string $job, ?string $queue = null, ?string $connection = null): CallbackEvent
-    {
+    public function job(
+        object|string $job,
+        UnitEnum|string|null $queue = null,
+        UnitEnum|string|null $connection = null
+    ): CallbackEvent {
         $jobName = $job;
+
+        $queue = is_null($queue) ? null : (string) enum_value($queue);
+        $connection = is_null($connection) ? null : (string) enum_value($connection);
 
         if (! is_string($job)) {
             $jobName = method_exists($job, 'displayName')
@@ -354,8 +363,14 @@ class Schedule
     /**
      * Specify the cache store that should be used to store mutexes.
      */
-    public function useCache(?string $store): static
+    public function useCache(UnitEnum|string|null $store): static
     {
+        if (is_null($store)) {
+            return $this;
+        }
+
+        $store = (string) enum_value($store);
+
         if ($this->eventMutex instanceof CacheAware) {
             $this->eventMutex->useStore($store);
         }

@@ -9,8 +9,10 @@ use DateInterval;
 use DateTimeInterface;
 use Illuminate\Events\CallQueuedListener;
 use Laravel\SerializableClosure\SerializableClosure;
+use UnitEnum;
 
 use function Hypervel\Bus\dispatch;
+use function Hypervel\Support\enum_value;
 
 class QueuedClosure
 {
@@ -23,6 +25,11 @@ class QueuedClosure
      * The name of the queue the job should be sent to.
      */
     public ?string $queue = null;
+
+    /**
+     * The job "group" the job should be sent to.
+     */
+    public ?string $messageGroup = null;
 
     /**
      * The number of seconds before the job should be made available.
@@ -46,9 +53,31 @@ class QueuedClosure
     /**
      * Set the desired connection for the job.
      */
-    public function onConnection(?string $connection): static
+    public function onConnection(UnitEnum|string|null $connection): static
     {
-        $this->connection = $connection;
+        $this->connection = is_null($connection) ? null : (string) enum_value($connection);
+
+        return $this;
+    }
+
+    /**
+     * Set the desired queue for the job.
+     */
+    public function onQueue(UnitEnum|string|null $queue): static
+    {
+        $this->queue = is_null($queue) ? null : (string) enum_value($queue);
+
+        return $this;
+    }
+
+    /**
+     * Set the desired job "group".
+     *
+     * This feature is only supported by some queues, such as Amazon SQS.
+     */
+    public function onGroup(UnitEnum|string $group): static
+    {
+        $this->messageGroup = (string) enum_value($group);
 
         return $this;
     }

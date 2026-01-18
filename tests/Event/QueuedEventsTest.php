@@ -25,6 +25,24 @@ use Psr\Container\ContainerInterface;
 
 use function Hypervel\Event\queueable;
 
+enum QueuedEventsTestQueueStringEnum: string
+{
+    case High = 'high-priority';
+    case Low = 'low-priority';
+}
+
+enum QueuedEventsTestQueueIntEnum: int
+{
+    case Priority1 = 1;
+    case Priority2 = 2;
+}
+
+enum QueuedEventsTestQueueUnitEnum
+{
+    case emails;
+    case notifications;
+}
+
 /**
  * @internal
  * @coversNothing
@@ -234,6 +252,94 @@ class QueuedEventsTest extends TestCase
         });
     }
 
+    public function testQueueAcceptsStringBackedEnumViaProperty(): void
+    {
+        $this->container
+            ->shouldReceive('get')
+            ->once()
+            ->with(TestDispatcherStringEnumQueueProperty::class)
+            ->andReturn(new TestDispatcherStringEnumQueueProperty());
+
+        $d = $this->getEventDispatcher();
+
+        $queue = m::mock(QueueFactoryContract::class);
+        $connection = m::mock(QueueContract::class);
+        // String-backed enum value should be used
+        $connection->shouldReceive('pushOn')->with('high-priority', m::type(CallQueuedListener::class))->once();
+        $queue->shouldReceive('connection')->with(null)->once()->andReturn($connection);
+
+        $d->setQueueResolver(fn () => $queue);
+
+        $d->listen('some.event', TestDispatcherStringEnumQueueProperty::class . '@handle');
+        $d->dispatch('some.event', ['foo', 'bar']);
+    }
+
+    public function testQueueAcceptsUnitEnumViaProperty(): void
+    {
+        $this->container
+            ->shouldReceive('get')
+            ->once()
+            ->with(TestDispatcherUnitEnumQueueProperty::class)
+            ->andReturn(new TestDispatcherUnitEnumQueueProperty());
+
+        $d = $this->getEventDispatcher();
+
+        $queue = m::mock(QueueFactoryContract::class);
+        $connection = m::mock(QueueContract::class);
+        // Unit enum name should be used
+        $connection->shouldReceive('pushOn')->with('emails', m::type(CallQueuedListener::class))->once();
+        $queue->shouldReceive('connection')->with(null)->once()->andReturn($connection);
+
+        $d->setQueueResolver(fn () => $queue);
+
+        $d->listen('some.event', TestDispatcherUnitEnumQueueProperty::class . '@handle');
+        $d->dispatch('some.event', ['foo', 'bar']);
+    }
+
+    public function testQueueAcceptsIntBackedEnumViaProperty(): void
+    {
+        $this->container
+            ->shouldReceive('get')
+            ->once()
+            ->with(TestDispatcherIntEnumQueueProperty::class)
+            ->andReturn(new TestDispatcherIntEnumQueueProperty());
+
+        $d = $this->getEventDispatcher();
+
+        $queue = m::mock(QueueFactoryContract::class);
+        $connection = m::mock(QueueContract::class);
+        // Int value 1 should be cast to string '1'
+        $connection->shouldReceive('pushOn')->with('1', m::type(CallQueuedListener::class))->once();
+        $queue->shouldReceive('connection')->with(null)->once()->andReturn($connection);
+
+        $d->setQueueResolver(fn () => $queue);
+
+        $d->listen('some.event', TestDispatcherIntEnumQueueProperty::class . '@handle');
+        $d->dispatch('some.event', ['foo', 'bar']);
+    }
+
+    public function testQueueAcceptsStringBackedEnumViaMethod(): void
+    {
+        $this->container
+            ->shouldReceive('get')
+            ->once()
+            ->with(TestDispatcherStringEnumQueueMethod::class)
+            ->andReturn(new TestDispatcherStringEnumQueueMethod());
+
+        $d = $this->getEventDispatcher();
+
+        $queue = m::mock(QueueFactoryContract::class);
+        $connection = m::mock(QueueContract::class);
+        // String-backed enum value from viaQueue() should be used
+        $connection->shouldReceive('pushOn')->with('low-priority', m::type(CallQueuedListener::class))->once();
+        $queue->shouldReceive('connection')->with(null)->once()->andReturn($connection);
+
+        $d->setQueueResolver(fn () => $queue);
+
+        $d->listen('some.event', TestDispatcherStringEnumQueueMethod::class . '@handle');
+        $d->dispatch('some.event', ['foo', 'bar']);
+    }
+
     private function getContainer(): Container
     {
         $container = new Container(
@@ -372,4 +478,43 @@ class TestDispatcherGetDelayDynamically implements ShouldQueue
 
 class TestDispatcherAnonymousQueuedClosureEvent
 {
+}
+
+class TestDispatcherStringEnumQueueProperty implements ShouldQueue
+{
+    public QueuedEventsTestQueueStringEnum $queue = QueuedEventsTestQueueStringEnum::High;
+
+    public function handle(): void
+    {
+    }
+}
+
+class TestDispatcherUnitEnumQueueProperty implements ShouldQueue
+{
+    public QueuedEventsTestQueueUnitEnum $queue = QueuedEventsTestQueueUnitEnum::emails;
+
+    public function handle(): void
+    {
+    }
+}
+
+class TestDispatcherIntEnumQueueProperty implements ShouldQueue
+{
+    public QueuedEventsTestQueueIntEnum $queue = QueuedEventsTestQueueIntEnum::Priority1;
+
+    public function handle(): void
+    {
+    }
+}
+
+class TestDispatcherStringEnumQueueMethod implements ShouldQueue
+{
+    public function handle(): void
+    {
+    }
+
+    public function viaQueue(): QueuedEventsTestQueueStringEnum
+    {
+        return QueuedEventsTestQueueStringEnum::Low;
+    }
 }

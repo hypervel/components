@@ -97,6 +97,16 @@ class Collection extends BaseCollection
     }
 
     /**
+     * Get a lazy collection for the items in this collection.
+     *
+     * @return \Hypervel\Support\LazyCollection<TKey, TValue>
+     */
+    public function lazy(): LazyCollection
+    {
+        return new LazyCollection($this->items);
+    }
+
+    /**
      * Results array of items from Collection or Arrayable.
      *
      * @return array<TKey, TValue>

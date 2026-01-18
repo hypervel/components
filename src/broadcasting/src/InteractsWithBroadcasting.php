@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Broadcasting;
 
 use Hyperf\Collection\Arr;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 trait InteractsWithBroadcasting
 {
@@ -16,8 +19,10 @@ trait InteractsWithBroadcasting
     /**
      * Broadcast the event using a specific broadcaster.
      */
-    public function broadcastVia(array|string|null $connection = null): static
+    public function broadcastVia(UnitEnum|array|string|null $connection = null): static
     {
+        $connection = is_null($connection) ? null : (string) enum_value($connection);
+
         $this->broadcastConnection = is_null($connection)
             ? [null]
             : Arr::wrap($connection);
