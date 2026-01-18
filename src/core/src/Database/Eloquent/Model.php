@@ -137,6 +137,22 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
     }
 
     /**
+     * Get a new query builder instance for the connection.
+     *
+     * Delegates to the connection so custom connections can provide
+     * custom query builders with additional methods.
+     *
+     * @return \Hyperf\Database\Query\Builder
+     */
+    protected function newBaseQueryBuilder()
+    {
+        /** @var \Hyperf\Database\Connection $connection */
+        $connection = $this->getConnection();
+
+        return $connection->query();
+    }
+
+    /**
      * @param array<array-key, static> $models
      * @return \Hypervel\Database\Eloquent\Collection<array-key, static>
      */
