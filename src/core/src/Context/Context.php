@@ -25,7 +25,7 @@ class Context extends HyperfContext
      */
     public static function set(UnitEnum|string $id, mixed $value, ?int $coroutineId = null): mixed
     {
-        return parent::set(enum_value($id), $value, $coroutineId);
+        return parent::set((string) enum_value($id), $value, $coroutineId);
     }
 
     /**
@@ -33,7 +33,7 @@ class Context extends HyperfContext
      */
     public static function get(UnitEnum|string $id, mixed $default = null, ?int $coroutineId = null): mixed
     {
-        return parent::get(enum_value($id), $default, $coroutineId);
+        return parent::get((string) enum_value($id), $default, $coroutineId);
     }
 
     /**
@@ -41,7 +41,7 @@ class Context extends HyperfContext
      */
     public static function has(UnitEnum|string $id, ?int $coroutineId = null): bool
     {
-        return parent::has(enum_value($id), $coroutineId);
+        return parent::has((string) enum_value($id), $coroutineId);
     }
 
     /**
@@ -49,7 +49,7 @@ class Context extends HyperfContext
      */
     public static function destroy(UnitEnum|string $id, ?int $coroutineId = null): void
     {
-        parent::destroy(enum_value($id), $coroutineId);
+        parent::destroy((string) enum_value($id), $coroutineId);
     }
 
     /**
@@ -57,7 +57,7 @@ class Context extends HyperfContext
      */
     public static function override(UnitEnum|string $id, Closure $closure, ?int $coroutineId = null): mixed
     {
-        return parent::override(enum_value($id), $closure, $coroutineId);
+        return parent::override((string) enum_value($id), $closure, $coroutineId);
     }
 
     /**
@@ -65,7 +65,7 @@ class Context extends HyperfContext
      */
     public static function getOrSet(UnitEnum|string $id, mixed $value, ?int $coroutineId = null): mixed
     {
-        return parent::getOrSet(enum_value($id), $value, $coroutineId);
+        return parent::getOrSet((string) enum_value($id), $value, $coroutineId);
     }
 
     /**

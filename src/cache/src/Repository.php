@@ -123,7 +123,7 @@ class Repository implements ArrayAccess, CacheContract
             return $this->many($key);
         }
 
-        $key = enum_value($key);
+        $key = (string) enum_value($key);
 
         $this->event(new RetrievingKey($this->getName(), $key));
 
@@ -198,7 +198,7 @@ class Repository implements ArrayAccess, CacheContract
             return $this->putMany($key, $value);
         }
 
-        $key = enum_value($key);
+        $key = (string) enum_value($key);
 
         if ($ttl === null) {
             return $this->forever($key, $value);
@@ -270,7 +270,7 @@ class Repository implements ArrayAccess, CacheContract
      */
     public function add(UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
-        $key = enum_value($key);
+        $key = (string) enum_value($key);
 
         $seconds = null;
 
@@ -308,7 +308,7 @@ class Repository implements ArrayAccess, CacheContract
      */
     public function increment(UnitEnum|string $key, int $value = 1): bool|int
     {
-        return $this->store->increment(enum_value($key), $value);
+        return $this->store->increment((string) enum_value($key), $value);
     }
 
     /**
@@ -316,7 +316,7 @@ class Repository implements ArrayAccess, CacheContract
      */
     public function decrement(UnitEnum|string $key, int $value = 1): bool|int
     {
-        return $this->store->decrement(enum_value($key), $value);
+        return $this->store->decrement((string) enum_value($key), $value);
     }
 
     /**
@@ -324,7 +324,7 @@ class Repository implements ArrayAccess, CacheContract
      */
     public function forever(UnitEnum|string $key, mixed $value): bool
     {
-        $key = enum_value($key);
+        $key = (string) enum_value($key);
 
         $this->event(new WritingKey($this->getName(), $key, $value));
 
@@ -408,7 +408,7 @@ class Repository implements ArrayAccess, CacheContract
      */
     public function forget(UnitEnum|string $key): bool
     {
-        $key = enum_value($key);
+        $key = (string) enum_value($key);
 
         $this->event(new ForgettingKey($this->getName(), $key));
 

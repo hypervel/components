@@ -18,6 +18,12 @@ enum CacheKeyBackedEnum: string
     case Settings = 'settings';
 }
 
+enum CacheKeyIntBackedEnum: int
+{
+    case Counter = 1;
+    case Stats = 2;
+}
+
 enum CacheKeyUnitEnum
 {
     case Dashboard;
@@ -56,6 +62,15 @@ class CacheRepositoryEnumTest extends TestCase
         $repo->getStore()->shouldReceive('get')->once()->with('Dashboard')->andReturn('dashboard-data');
 
         $this->assertSame('dashboard-data', $repo->get(CacheKeyUnitEnum::Dashboard));
+    }
+
+    public function testGetWithIntBackedEnum(): void
+    {
+        $repo = $this->getRepository();
+        // Int value 1 should be cast to string '1'
+        $repo->getStore()->shouldReceive('get')->once()->with('1')->andReturn('counter-value');
+
+        $this->assertSame('counter-value', $repo->get(CacheKeyIntBackedEnum::Counter));
     }
 
     public function testHasWithBackedEnum(): void

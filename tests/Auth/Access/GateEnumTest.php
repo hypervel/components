@@ -21,6 +21,12 @@ enum AbilitiesBackedEnum: string
     case Edit = 'edit';
 }
 
+enum AbilitiesIntBackedEnum: int
+{
+    case CreatePost = 1;
+    case DeletePost = 2;
+}
+
 enum AbilitiesUnitEnum
 {
     case ManageUsers;
@@ -55,6 +61,17 @@ class GateEnumTest extends TestCase
 
         // UnitEnum uses ->name, so key is 'ManageUsers'
         $this->assertTrue($gate->allows('ManageUsers'));
+    }
+
+    public function testDefineWithIntBackedEnum(): void
+    {
+        $gate = $this->getBasicGate();
+
+        $gate->define(AbilitiesIntBackedEnum::CreatePost, fn ($user) => true);
+
+        // Int value 1 should be cast to string '1'
+        $this->assertTrue($gate->allows('1'));
+        $this->assertTrue($gate->allows(AbilitiesIntBackedEnum::CreatePost));
     }
 
     // =========================================================================

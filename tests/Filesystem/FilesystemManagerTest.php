@@ -241,6 +241,24 @@ class FilesystemManagerTest extends TestCase
         $this->assertInstanceOf(Filesystem::class, $disk);
     }
 
+    public function testDiskAcceptsIntBackedEnum(): void
+    {
+        $container = $this->getContainer([
+            'disks' => [
+                // Int value 1 should be cast to string '1'
+                '1' => [
+                    'driver' => 'local',
+                    'root' => __DIR__ . '/tmp',
+                ],
+            ],
+        ]);
+        $filesystem = new FilesystemManager($container);
+
+        $disk = $filesystem->disk(FilesystemTestIntBackedDisk::Local);
+
+        $this->assertInstanceOf(Filesystem::class, $disk);
+    }
+
     public function testDriveAcceptsStringBackedEnum(): void
     {
         $container = $this->getContainer([

@@ -68,7 +68,9 @@ class PendingChain
      */
     public function onQueue(BackedEnum|string|null $queue): static
     {
-        $this->queue = enum_value($queue);
+        $value = enum_value($queue);
+
+        $this->queue = is_null($value) ? null : (string) $value;
 
         return $this;
     }

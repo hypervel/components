@@ -287,7 +287,7 @@ class Gate implements GateContract
     public function inspect(UnitEnum|string $ability, mixed $arguments = []): Response
     {
         try {
-            $result = $this->raw(enum_value($ability), $arguments);
+            $result = $this->raw((string) enum_value($ability), $arguments);
 
             if ($result instanceof Response) {
                 return $result;

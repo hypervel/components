@@ -140,6 +140,6 @@ class Redis
     {
         return ApplicationContext::getContainer()
             ->get(RedisFactory::class)
-            ->get(enum_value($name));
+            ->get((string) enum_value($name));
     }
 }

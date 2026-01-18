@@ -51,7 +51,7 @@ class TaggedCache extends Repository
      */
     public function increment(UnitEnum|string $key, int $value = 1): bool|int
     {
-        return $this->store->increment($this->itemKey(enum_value($key)), $value);
+        return $this->store->increment($this->itemKey((string) enum_value($key)), $value);
     }
 
     /**
@@ -59,7 +59,7 @@ class TaggedCache extends Repository
      */
     public function decrement(UnitEnum|string $key, int $value = 1): bool|int
     {
-        return $this->store->decrement($this->itemKey(enum_value($key)), $value);
+        return $this->store->decrement($this->itemKey((string) enum_value($key)), $value);
     }
 
     /**

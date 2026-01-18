@@ -27,6 +27,12 @@ enum RedisTestStringBackedConnection: string
     case Cache = 'cache';
 }
 
+enum RedisTestIntBackedConnection: int
+{
+    case Primary = 1;
+    case Replica = 2;
+}
+
 enum RedisTestUnitConnection
 {
     case default;
@@ -275,6 +281,31 @@ class RedisTest extends TestCase
         $redis = new Redis(Mockery::mock(PoolFactory::class));
 
         $result = $redis->connection(RedisTestUnitConnection::default);
+
+        $this->assertSame($mockRedisProxy, $result);
+    }
+
+    public function testConnectionAcceptsIntBackedEnum(): void
+    {
+        $mockRedisProxy = Mockery::mock(RedisProxy::class);
+
+        $mockRedisFactory = Mockery::mock(RedisFactory::class);
+        // Int value 1 should be cast to string '1'
+        $mockRedisFactory->shouldReceive('get')
+            ->with('1')
+            ->once()
+            ->andReturn($mockRedisProxy);
+
+        $mockContainer = Mockery::mock(\Hypervel\Container\Contracts\Container::class);
+        $mockContainer->shouldReceive('get')
+            ->with(RedisFactory::class)
+            ->andReturn($mockRedisFactory);
+
+        \Hypervel\Context\ApplicationContext::setContainer($mockContainer);
+
+        $redis = new Redis(Mockery::mock(PoolFactory::class));
+
+        $result = $redis->connection(RedisTestIntBackedConnection::Primary);
 
         $this->assertSame($mockRedisProxy, $result);
     }

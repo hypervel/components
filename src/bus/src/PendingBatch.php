@@ -214,7 +214,9 @@ class PendingBatch
      */
     public function onQueue(BackedEnum|string|null $queue): static
     {
-        $this->options['queue'] = enum_value($queue);
+        $value = enum_value($queue);
+
+        $this->options['queue'] = is_null($value) ? null : (string) $value;
 
         return $this;
     }

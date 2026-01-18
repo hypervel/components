@@ -14,6 +14,12 @@ enum ContextKeyBackedEnum: string
     case Tenant = 'tenant';
 }
 
+enum ContextKeyIntBackedEnum: int
+{
+    case UserId = 1;
+    case SessionId = 2;
+}
+
 enum ContextKeyUnitEnum
 {
     case Locale;
@@ -51,6 +57,16 @@ class ContextEnumTest extends TestCase
         Context::set(ContextKeyUnitEnum::Locale, 'en-US');
 
         $this->assertSame('en-US', Context::get(ContextKeyUnitEnum::Locale));
+    }
+
+    public function testSetAndGetWithIntBackedEnum(): void
+    {
+        Context::set(ContextKeyIntBackedEnum::UserId, 'user-123');
+
+        $this->assertSame('user-123', Context::get(ContextKeyIntBackedEnum::UserId));
+
+        // Verify it's stored with string key (int value cast to string)
+        $this->assertSame('user-123', Context::get('1'));
     }
 
     public function testHasWithBackedEnum(): void
