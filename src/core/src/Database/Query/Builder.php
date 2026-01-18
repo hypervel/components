@@ -8,6 +8,9 @@ use Closure;
 use Hyperf\Database\Query\Builder as BaseBuilder;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\LazyCollection;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @method $this from(\Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder|string $table, string|null $as = null)
@@ -110,5 +113,19 @@ class Builder extends BaseBuilder
     public function pluck($column, $key = null)
     {
         return new BaseCollection(parent::pluck($column, $key)->all());
+    }
+
+    /**
+     * Cast the given binding value.
+     *
+     * Overrides Hyperf's implementation to support UnitEnum (not just BackedEnum).
+     */
+    public function castBinding(mixed $value): mixed
+    {
+        if ($value instanceof UnitEnum) {
+            return enum_value($value);
+        }
+
+        return $value;
     }
 }
