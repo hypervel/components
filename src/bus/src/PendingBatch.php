@@ -194,9 +194,9 @@ class PendingBatch
     /**
      * Specify the queue connection that the batched jobs should run on.
      */
-    public function onConnection(string $connection): static
+    public function onConnection(UnitEnum|string $connection): static
     {
-        $this->options['connection'] = $connection;
+        $this->options['connection'] = enum_value($connection);
 
         return $this;
     }

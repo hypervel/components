@@ -43,7 +43,7 @@ use Hypervel\Cache\Contracts\Factory;
  * @method static bool putMany(array $values, int $seconds)
  * @method static bool flush()
  * @method static string getPrefix()
- * @method static bool missing(string $key)
+ * @method static bool missing(\UnitEnum|string $key)
  * @method static bool supportsTags()
  * @method static int|null getDefaultCacheTime()
  * @method static \Hypervel\Cache\Repository setDefaultCacheTime(int|null $seconds)

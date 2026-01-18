@@ -56,9 +56,9 @@ class PendingChain
     /**
      * Set the desired connection for the job.
      */
-    public function onConnection(?string $connection): static
+    public function onConnection(UnitEnum|string|null $connection): static
     {
-        $this->connection = $connection;
+        $this->connection = enum_value($connection);
 
         return $this;
     }
