@@ -7,6 +7,7 @@ namespace Hypervel\Sanctum;
 use DateTimeInterface;
 use Hyperf\Database\Model\Relations\MorphMany;
 use Hypervel\Sanctum\Contracts\HasAbilities;
+use Hypervel\Support\Str;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
