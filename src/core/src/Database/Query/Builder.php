@@ -7,6 +7,7 @@ namespace Hypervel\Database\Query;
 use Closure;
 use Hyperf\Database\Query\Builder as BaseBuilder;
 use Hyperf\Database\Query\Expression;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\LazyCollection;
 
@@ -300,5 +301,47 @@ class Builder extends BaseBuilder
     public function orWhereJsonDoesntContainKey(string $column): static
     {
         return $this->whereJsonDoesntContainKey($column, 'or');
+    }
+
+    /**
+     * Add a "having null" clause to the query.
+     *
+     * @param array<int, string>|string $columns
+     */
+    public function havingNull(array|string $columns, string $boolean = 'and', bool $not = false): static
+    {
+        $type = $not ? 'NotNull' : 'Null';
+
+        foreach (Arr::wrap($columns) as $column) {
+            $this->havings[] = compact('type', 'column', 'boolean');
+        }
+
+        return $this;
+    }
+
+    /**
+     * Add an "or having null" clause to the query.
+     */
+    public function orHavingNull(string $column): static
+    {
+        return $this->havingNull($column, 'or');
+    }
+
+    /**
+     * Add a "having not null" clause to the query.
+     *
+     * @param array<int, string>|string $columns
+     */
+    public function havingNotNull(array|string $columns, string $boolean = 'and'): static
+    {
+        return $this->havingNull($columns, $boolean, true);
+    }
+
+    /**
+     * Add an "or having not null" clause to the query.
+     */
+    public function orHavingNotNull(string $column): static
+    {
+        return $this->havingNotNull($column, 'or');
     }
 }

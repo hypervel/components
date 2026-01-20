@@ -37,4 +37,40 @@ trait CommonGrammar
 
         return $not . $this->compileJsonContainsKey($where['column']);
     }
+
+    /**
+     * Compile a single having clause.
+     *
+     * Extends Hyperf's implementation to add support for 'Null' and 'NotNull' types.
+     *
+     * @param array<string, mixed> $having
+     */
+    protected function compileHaving(array $having): string
+    {
+        return match ($having['type']) {
+            'Null' => $this->compileHavingNull($having),
+            'NotNull' => $this->compileHavingNotNull($having),
+            default => parent::compileHaving($having),
+        };
+    }
+
+    /**
+     * Compile a "having null" clause.
+     *
+     * @param array<string, mixed> $having
+     */
+    protected function compileHavingNull(array $having): string
+    {
+        return $having['boolean'] . ' ' . $this->wrap($having['column']) . ' is null';
+    }
+
+    /**
+     * Compile a "having not null" clause.
+     *
+     * @param array<string, mixed> $having
+     */
+    protected function compileHavingNotNull(array $having): string
+    {
+        return $having['boolean'] . ' ' . $this->wrap($having['column']) . ' is not null';
+    }
 }
