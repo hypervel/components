@@ -14,6 +14,21 @@ class PostgresGrammar extends BasePostgresGrammar
     use CommonGrammar;
 
     /**
+     * Compile a select query into SQL.
+     *
+     * Overrides to add support for groupLimit.
+     */
+    public function compileSelect(Builder $query): string
+    {
+        /** @var \Hypervel\Database\Query\Builder $query */
+        if (isset($query->groupLimit)) {
+            return $this->compileGroupLimit($query);
+        }
+
+        return parent::compileSelect($query);
+    }
+
+    /**
      * Compile a "where like" clause.
      *
      * @param array<string, mixed> $where

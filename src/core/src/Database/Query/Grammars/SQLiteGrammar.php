@@ -11,7 +11,46 @@ use Hypervel\Database\Concerns\CompilesJsonPaths;
 class SQLiteGrammar extends BaseSQLiteGrammar
 {
     use CompilesJsonPaths;
-    use CommonGrammar;
+    use CommonGrammar {
+        compileGroupLimit as compileWindowGroupLimit;
+    }
+
+    /**
+     * Compile a select query into SQL.
+     *
+     * Overrides to add support for groupLimit.
+     */
+    public function compileSelect(Builder $query): string
+    {
+        /** @var \Hypervel\Database\Query\Builder $query */
+        if (isset($query->groupLimit)) {
+            return $this->compileGroupLimit($query);
+        }
+
+        return parent::compileSelect($query);
+    }
+
+    /**
+     * Compile a group limit clause.
+     *
+     * SQLite < 3.25.0 doesn't support window functions, so we fall back
+     * to a regular select query (ignoring groupLimit) on older versions.
+     */
+    protected function compileGroupLimit(Builder $query): string
+    {
+        /** @var \Hypervel\Database\Query\Builder $query */
+        /** @var \Hypervel\Database\Connections\SQLiteConnection $connection */
+        $connection = $query->getConnection();
+        $version = $connection->getServerVersion();
+
+        if (version_compare($version, '3.25.0', '>=')) {
+            return $this->compileWindowGroupLimit($query);
+        }
+
+        $query->groupLimit = null;
+
+        return $this->compileSelect($query);
+    }
 
     /**
      * Compile a "where like" clause.

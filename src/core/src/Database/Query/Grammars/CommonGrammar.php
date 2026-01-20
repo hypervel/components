@@ -82,6 +82,65 @@ trait CommonGrammar
      */
     protected function compileNestedHavings(array $having): string
     {
-        return '(' . substr($this->compileHavings($having['query']), 7) . ')';
+        return '(' . substr($this->compileHavings($having['query'], $having['query']->havings), 7) . ')';
+    }
+
+    /**
+     * Compile a group limit clause using window functions.
+     *
+     * Wraps the query in a subquery that adds a ROW_NUMBER() column partitioned
+     * by the group column, then filters to only rows within the limit.
+     */
+    protected function compileGroupLimit(Builder $query): string
+    {
+        /** @var \Hypervel\Database\Query\Builder $query */
+        $selectBindings = array_merge($query->getRawBindings()['select'], $query->getRawBindings()['order']);
+
+        $query->setBindings($selectBindings, 'select');
+        $query->setBindings([], 'order');
+
+        $limit = (int) $query->groupLimit['value'];
+
+        /** @var int|null $offset */
+        $offset = $query->offset;
+
+        if ($offset !== null) {
+            $offset = (int) $offset;
+            $limit += $offset;
+
+            $query->offset = null; // @phpstan-ignore assign.propertyType
+        }
+
+        $components = $this->compileComponents($query);
+
+        $components['columns'] .= $this->compileRowNumber(
+            $query->groupLimit['column'],
+            $components['orders'] ?? ''
+        );
+
+        unset($components['orders']);
+
+        $table = $this->wrap('laravel_table');
+        $row = $this->wrap('laravel_row');
+
+        $sql = $this->concatenate($components);
+
+        $sql = 'select * from (' . $sql . ') as ' . $table . ' where ' . $row . ' <= ' . $limit;
+
+        if ($offset !== null) {
+            $sql .= ' and ' . $row . ' > ' . $offset;
+        }
+
+        return $sql . ' order by ' . $row;
+    }
+
+    /**
+     * Compile a row number clause for group limit.
+     */
+    protected function compileRowNumber(string $partition, string $orders): string
+    {
+        $over = trim('partition by ' . $this->wrap($partition) . ' ' . $orders);
+
+        return ', row_number() over (' . $over . ') as ' . $this->wrap('laravel_row');
     }
 }

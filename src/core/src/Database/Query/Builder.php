@@ -56,6 +56,13 @@ class Builder extends BaseBuilder
     protected array $afterQueryCallbacks = [];
 
     /**
+     * The maximum number of records to return per group.
+     *
+     * @var array{value: int, column: string}|null
+     */
+    public ?array $groupLimit = null;
+
+    /**
      * @template TValue
      *
      * @param mixed $id
@@ -510,5 +517,34 @@ class Builder extends BaseBuilder
         $result = (array) $this->sole([$column]);
 
         return Arr::first($result);
+    }
+
+    /**
+     * Add a raw grouping to the query.
+     *
+     * @param array<int, mixed> $bindings
+     */
+    public function groupByRaw(string $sql, array $bindings = []): static
+    {
+        $this->groups[] = new Expression($sql);
+
+        $this->addBinding($bindings, 'groupBy');
+
+        return $this;
+    }
+
+    /**
+     * Set the maximum number of records to return per group.
+     *
+     * Enables "top N per group" queries using window functions. The Grammar
+     * compiles this to a ROW_NUMBER() OVER (PARTITION BY column) subquery.
+     */
+    public function groupLimit(int $value, string $column): static
+    {
+        if ($value >= 0) {
+            $this->groupLimit = compact('value', 'column');
+        }
+
+        return $this;
     }
 }
