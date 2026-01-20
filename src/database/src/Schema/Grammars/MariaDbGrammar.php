@@ -1,9 +1,11 @@
 <?php
 
-namespace Illuminate\Database\Schema\Grammars;
+declare(strict_types=1);
 
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Fluent;
+namespace Hypervel\Database\Schema\Grammars;
+
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Fluent;
 
 class MariaDbGrammar extends MySqlGrammar
 {
@@ -20,7 +22,7 @@ class MariaDbGrammar extends MySqlGrammar
     /**
      * Create the column definition for a uuid type.
      *
-     * @param  \Illuminate\Support\Fluent  $column
+     * @param  \Hypervel\Support\Fluent  $column
      * @return string
      */
     protected function typeUuid(Fluent $column)
@@ -35,7 +37,7 @@ class MariaDbGrammar extends MySqlGrammar
     /**
      * Create the column definition for a spatial Geometry type.
      *
-     * @param  \Illuminate\Support\Fluent  $column
+     * @param  \Hypervel\Support\Fluent  $column
      * @return string
      */
     protected function typeGeometry(Fluent $column)
