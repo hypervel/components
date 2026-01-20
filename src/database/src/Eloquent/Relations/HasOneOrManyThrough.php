@@ -1,9 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Database\Eloquent\Relations;
 
 use Closure;
-use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -11,6 +12,7 @@ use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\UniqueConstraintViolationException;
+use Hypervel\Support\Contracts\Arrayable;
 
 /**
  * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
@@ -330,7 +332,7 @@ abstract class HasOneOrManyThrough extends Relation
      *
      * @param  mixed  $id
      * @param  array  $columns
-     * @return ($id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : TRelatedModel|null)
+     * @return ($id is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : TRelatedModel|null)
      */
     public function find($id, $columns = ['*'])
     {
@@ -363,7 +365,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Find multiple related models by their primary keys.
      *
-     * @param  \Hypervel\Contracts\Support\Arrayable|array  $ids
+     * @param  \Hypervel\Support\Contracts\Arrayable|array  $ids
      * @param  array  $columns
      * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
      */
@@ -385,7 +387,7 @@ abstract class HasOneOrManyThrough extends Relation
      *
      * @param  mixed  $id
      * @param  array  $columns
-     * @return ($id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : TRelatedModel)
+     * @return ($id is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : TRelatedModel)
      *
      * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<TRelatedModel>
      */
@@ -415,7 +417,7 @@ abstract class HasOneOrManyThrough extends Relation
      * @param  (\Closure(): TValue)|list<string>|string  $columns
      * @param  (\Closure(): TValue)|null  $callback
      * @return (
-     *     $id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>)
+     *     $id is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>)
      *     ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>|TValue
      *     : TRelatedModel|TValue
      * )
@@ -485,7 +487,7 @@ abstract class HasOneOrManyThrough extends Relation
      * @param  array  $columns
      * @param  string  $pageName
      * @param  int|null  $page
-     * @return \Hypervel\Contracts\Pagination\Paginator
+     * @return \Hypervel\Pagination\Contracts\Paginator
      */
     public function simplePaginate($perPage = null, $columns = ['*'], $pageName = 'page', $page = null)
     {
@@ -501,7 +503,7 @@ abstract class HasOneOrManyThrough extends Relation
      * @param  array  $columns
      * @param  string  $cursorName
      * @param  string|null  $cursor
-     * @return \Hypervel\Contracts\Pagination\CursorPaginator
+     * @return \Hypervel\Pagination\Contracts\CursorPaginator
      */
     public function cursorPaginate($perPage = null, $columns = ['*'], $cursorName = 'cursor', $cursor = null)
     {
