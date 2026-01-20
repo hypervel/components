@@ -4,104 +4,232 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Relations;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Database\Model\Relations\MorphToMany as BaseMorphToMany;
-use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithPivotTable;
-use Hypervel\Database\Eloquent\Relations\Concerns\WithoutAddConstraints;
-use Hypervel\Database\Eloquent\Relations\Contracts\Relation as RelationContract;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 
 /**
  * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
- * @template TParentModel of \Hypervel\Database\Eloquent\Model
- * @template TPivotModel of \Hypervel\Database\Eloquent\Relations\MorphPivot = \Hypervel\Database\Eloquent\Relations\MorphPivot
+ * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
+ * @template TPivotModel of \Hypervel\Database\Eloquent\Relations\Pivot = \Hypervel\Database\Eloquent\Relations\MorphPivot
  * @template TAccessor of string = 'pivot'
  *
- * @implements RelationContract<TRelatedModel, TParentModel, \Hypervel\Database\Eloquent\Collection<int, object{pivot: TPivotModel}&TRelatedModel>>
- *
- * @method \Hypervel\Database\Eloquent\Collection<int, object{pivot: TPivotModel}&TRelatedModel> get(array|string $columns = ['*'])
- * @method object{pivot: TPivotModel}&TRelatedModel make(array $attributes = [])
- * @method object{pivot: TPivotModel}&TRelatedModel create(array $attributes = [])
- * @method object{pivot: TPivotModel}&TRelatedModel firstOrNew(array $attributes = [], array $values = [])
- * @method object{pivot: TPivotModel}&TRelatedModel firstOrCreate(array $attributes = [], array $values = [])
- * @method object{pivot: TPivotModel}&TRelatedModel updateOrCreate(array $attributes, array $values = [])
- * @method null|(object{pivot: TPivotModel}&TRelatedModel) first(array|string $columns = ['*'])
- * @method object{pivot: TPivotModel}&TRelatedModel firstOrFail(array|string $columns = ['*'])
- * @method \Hypervel\Database\Eloquent\Collection<int, object{pivot: TPivotModel}&TRelatedModel> findMany(mixed $ids, array|string $columns = ['*'])
- * @method object{pivot: TPivotModel}&TRelatedModel findOrFail(mixed $id, array|string $columns = ['*'])
- * @method null|(object{pivot: TPivotModel}&TRelatedModel) find(mixed $id, array|string $columns = ['*'])
- * @method \Hypervel\Database\Eloquent\Builder<TRelatedModel> getQuery()
- * @method void attach(mixed $id, array $attributes = [], bool $touch = true)
- * @method int detach(mixed $ids = null, bool $touch = true)
- * @method void sync(array|\Hypervel\Support\Collection $ids, bool $detaching = true)
- * @method void syncWithoutDetaching(array|\Hypervel\Support\Collection $ids)
- * @method void toggle(mixed $ids, bool $touch = true)
- * @method string getMorphType()
- * @method string getMorphClass()
- * @method \Hypervel\Support\LazyCollection<int, object{pivot: TPivotModel}&TRelatedModel> lazy(int $chunkSize = 1000)
- * @method \Hypervel\Support\LazyCollection<int, object{pivot: TPivotModel}&TRelatedModel> lazyById(int $chunkSize = 1000, ?string $column = null, ?string $alias = null)
- * @method \Hypervel\Support\LazyCollection<int, object{pivot: TPivotModel}&TRelatedModel> lazyByIdDesc(int $chunkSize = 1000, ?string $column = null, ?string $alias = null)
- * @method \Hypervel\Database\Eloquent\Collection<int, object{pivot: TPivotModel}&TRelatedModel> getResults()
+ * @extends \Hypervel\Database\Eloquent\Relations\BelongsToMany<TRelatedModel, TDeclaringModel, TPivotModel, TAccessor>
  */
-class MorphToMany extends BaseMorphToMany implements RelationContract
+class MorphToMany extends BelongsToMany
 {
-    use InteractsWithPivotTable;
-    use WithoutAddConstraints;
+    /**
+     * The type of the polymorphic relation.
+     *
+     * @var string
+     */
+    protected $morphType;
 
     /**
-     * Get the pivot models that are currently attached.
+     * The class name of the morph type constraint.
      *
-     * Overrides trait to use MorphPivot and set morph type/class on the pivot models.
-     *
-     * @param mixed $ids
+     * @var class-string<TRelatedModel>
      */
-    protected function getCurrentlyAttachedPivots($ids = null): Collection
+    protected $morphClass;
+
+    /**
+     * Indicates if we are connecting the inverse of the relation.
+     *
+     * This primarily affects the morphClass constraint.
+     *
+     * @var bool
+     */
+    protected $inverse;
+
+    /**
+     * Create a new morph to many relationship instance.
+     *
+     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
+     * @param  TDeclaringModel  $parent
+     * @param  string  $name
+     * @param  string  $table
+     * @param  string  $foreignPivotKey
+     * @param  string  $relatedPivotKey
+     * @param  string  $parentKey
+     * @param  string  $relatedKey
+     * @param  string|null  $relationName
+     * @param  bool  $inverse
+     */
+    public function __construct(
+        Builder $query,
+        Model $parent,
+        $name,
+        $table,
+        $foreignPivotKey,
+        $relatedPivotKey,
+        $parentKey,
+        $relatedKey,
+        $relationName = null,
+        $inverse = false,
+    ) {
+        $this->inverse = $inverse;
+        $this->morphType = $name.'_type';
+        $this->morphClass = $inverse ? $query->getModel()->getMorphClass() : $parent->getMorphClass();
+
+        parent::__construct(
+            $query, $parent, $table, $foreignPivotKey,
+            $relatedPivotKey, $parentKey, $relatedKey, $relationName
+        );
+    }
+
+    /**
+     * Set the where clause for the relation query.
+     *
+     * @return $this
+     */
+    protected function addWhereConstraints()
     {
-        $query = $this->newPivotQuery();
+        parent::addWhereConstraints();
 
-        if ($ids !== null) {
-            $query->whereIn($this->relatedPivotKey, $this->parseIds($ids));
-        }
+        $this->query->where($this->qualifyPivotColumn($this->morphType), $this->morphClass);
 
-        return $query->get()->map(function ($record) {
-            /** @var class-string<MorphPivot> $class */
-            $class = $this->using ?: MorphPivot::class;
+        return $this;
+    }
 
-            $pivot = $class::fromRawAttributes($this->parent, (array) $record, $this->getTable(), true)
-                ->setPivotKeys($this->foreignPivotKey, $this->relatedPivotKey);
+    /** @inheritDoc */
+    public function addEagerConstraints(array $models)
+    {
+        parent::addEagerConstraints($models);
 
-            if ($pivot instanceof MorphPivot) {
-                $pivot->setMorphType($this->morphType)
-                    ->setMorphClass($this->morphClass);
-            }
+        $this->query->where($this->qualifyPivotColumn($this->morphType), $this->morphClass);
+    }
 
-            return $pivot;
+    /**
+     * Create a new pivot attachment record.
+     *
+     * @param  int  $id
+     * @param  bool  $timed
+     * @return array
+     */
+    protected function baseAttachRecord($id, $timed)
+    {
+        return Arr::add(
+            parent::baseAttachRecord($id, $timed), $this->morphType, $this->morphClass
+        );
+    }
+
+    /** @inheritDoc */
+    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, $columns = ['*'])
+    {
+        return parent::getRelationExistenceQuery($query, $parentQuery, $columns)->where(
+            $this->qualifyPivotColumn($this->morphType), $this->morphClass
+        );
+    }
+
+    /**
+     * Get the pivot models that are currently attached, filtered by related model keys.
+     *
+     * @param  mixed  $ids
+     * @return \Hypervel\Support\Collection<int, TPivotModel>
+     */
+    protected function getCurrentlyAttachedPivotsForIds($ids = null)
+    {
+        return parent::getCurrentlyAttachedPivotsForIds($ids)->map(function ($record) {
+            return $record instanceof MorphPivot
+                ? $record->setMorphType($this->morphType)
+                    ->setMorphClass($this->morphClass)
+                : $record;
         });
+    }
+
+    /**
+     * Create a new query builder for the pivot table.
+     *
+     * @return \Hypervel\Database\Query\Builder
+     */
+    public function newPivotQuery()
+    {
+        return parent::newPivotQuery()->where($this->morphType, $this->morphClass);
     }
 
     /**
      * Create a new pivot model instance.
      *
-     * Overrides parent to include pivotValues and set morph type/class.
-     *
-     * @param bool $exists
+     * @param  array  $attributes
+     * @param  bool  $exists
      * @return TPivotModel
      */
     public function newPivot(array $attributes = [], $exists = false)
     {
-        $attributes = array_merge(
-            array_column($this->pivotValues, 'value', 'column'),
-            $attributes
-        );
-
         $using = $this->using;
 
-        $pivot = $using ? $using::fromRawAttributes($this->parent, $attributes, $this->table, $exists)
-                        : MorphPivot::fromAttributes($this->parent, $attributes, $this->table, $exists);
+        $attributes = array_merge([$this->morphType => $this->morphClass], $attributes);
+
+        $pivot = $using
+            ? $using::fromRawAttributes($this->parent, $attributes, $this->table, $exists)
+            : MorphPivot::fromAttributes($this->parent, $attributes, $this->table, $exists);
 
         $pivot->setPivotKeys($this->foreignPivotKey, $this->relatedPivotKey)
+            ->setRelatedModel($this->related)
             ->setMorphType($this->morphType)
             ->setMorphClass($this->morphClass);
 
         return $pivot;
+    }
+
+    /**
+     * Get the pivot columns for the relation.
+     *
+     * "pivot_" is prefixed at each column for easy removal later.
+     *
+     * @return array
+     */
+    protected function aliasedPivotColumns()
+    {
+        return (new Collection([
+            $this->foreignPivotKey,
+            $this->relatedPivotKey,
+            $this->morphType,
+            ...$this->pivotColumns,
+        ]))
+            ->map(fn ($column) => $this->qualifyPivotColumn($column).' as pivot_'.$column)
+            ->unique()
+            ->all();
+    }
+
+    /**
+     * Get the foreign key "type" name.
+     *
+     * @return string
+     */
+    public function getMorphType()
+    {
+        return $this->morphType;
+    }
+
+    /**
+     * Get the fully qualified morph type for the relation.
+     *
+     * @return string
+     */
+    public function getQualifiedMorphTypeName()
+    {
+        return $this->qualifyPivotColumn($this->morphType);
+    }
+
+    /**
+     * Get the class name of the parent model.
+     *
+     * @return class-string<TRelatedModel>
+     */
+    public function getMorphClass()
+    {
+        return $this->morphClass;
+    }
+
+    /**
+     * Get the indicator for a reverse relationship.
+     *
+     * @return bool
+     */
+    public function getInverse()
+    {
+        return $this->inverse;
     }
 }
