@@ -30,9 +30,12 @@
     },
     "require": {
         "php": "^8.2",
+        "hyperf/context": "~3.1.0",
         "hyperf/database": "~3.1.0",
+        "hyperf/database-pgsql": "~3.1.0",
+        "hyperf/database-sqlite": "~3.1.0",
         "hyperf/http-message": "~3.1.0",
-        "hyperf/context": "~3.1.0"
+        "symfony/uid": "^7.4"
     },
     "require-dev": {
         "fakerphp/faker": "^2.0"
