@@ -38,7 +38,7 @@ class ConnectionFactory
      *
      * @param  array  $config
      * @param  string|null  $name
-     * @return \Illuminate\Database\Connection
+     * @return \Hypervel\Database\Connection
      */
     public function make(array $config, $name = null)
     {
@@ -67,7 +67,7 @@ class ConnectionFactory
      * Create a single database connection instance.
      *
      * @param  array  $config
-     * @return \Illuminate\Database\Connection
+     * @return \Hypervel\Database\Connection
      */
     protected function createSingleConnection(array $config)
     {
@@ -82,7 +82,7 @@ class ConnectionFactory
      * Create a read / write database connection instance.
      *
      * @param  array  $config
-     * @return \Illuminate\Database\Connection
+     * @return \Hypervel\Database\Connection
      */
     protected function createReadWriteConnection(array $config)
     {
@@ -230,7 +230,7 @@ class ConnectionFactory
      * Create a connector instance based on the configuration.
      *
      * @param  array  $config
-     * @return \Illuminate\Database\Connectors\ConnectorInterface
+     * @return \Hypervel\Database\Connectors\ConnectorInterface
      *
      * @throws \InvalidArgumentException
      */
@@ -261,7 +261,7 @@ class ConnectionFactory
      * @param  string  $database
      * @param  string  $prefix
      * @param  array  $config
-     * @return \Illuminate\Database\Connection
+     * @return \Hypervel\Database\Connection
      *
      * @throws \InvalidArgumentException
      */

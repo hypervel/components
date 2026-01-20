@@ -37,7 +37,7 @@ class SQLiteConnector extends Connector implements ConnectorInterface
      * @param  string  $path
      * @return string
      *
-     * @throws \Illuminate\Database\SQLiteDatabaseDoesNotExistException
+     * @throws \Hypervel\Database\SQLiteDatabaseDoesNotExistException
      */
     protected function parseDatabasePath(string $path): string
     {

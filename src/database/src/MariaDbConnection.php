@@ -45,7 +45,7 @@ class MariaDbConnection extends MySqlConnection
     /**
      * Get the default query grammar instance.
      *
-     * @return \Illuminate\Database\Query\Grammars\MariaDbGrammar
+     * @return \Hypervel\Database\Query\Grammars\MariaDbGrammar
      */
     protected function getDefaultQueryGrammar()
     {
@@ -55,7 +55,7 @@ class MariaDbConnection extends MySqlConnection
     /**
      * Get a schema builder instance for the connection.
      *
-     * @return \Illuminate\Database\Schema\MariaDbBuilder
+     * @return \Hypervel\Database\Schema\MariaDbBuilder
      */
     public function getSchemaBuilder()
     {
@@ -69,7 +69,7 @@ class MariaDbConnection extends MySqlConnection
     /**
      * Get the default schema grammar instance.
      *
-     * @return \Illuminate\Database\Schema\Grammars\MariaDbGrammar
+     * @return \Hypervel\Database\Schema\Grammars\MariaDbGrammar
      */
     protected function getDefaultSchemaGrammar()
     {
@@ -79,9 +79,9 @@ class MariaDbConnection extends MySqlConnection
     /**
      * Get the schema state for the connection.
      *
-     * @param  \Illuminate\Filesystem\Filesystem|null  $files
+     * @param  \Hypervel\Filesystem\Filesystem|null  $files
      * @param  callable|null  $processFactory
-     * @return \Illuminate\Database\Schema\MariaDbSchemaState
+     * @return \Hypervel\Database\Schema\MariaDbSchemaState
      */
     public function getSchemaState(?Filesystem $files = null, ?callable $processFactory = null)
     {
@@ -91,7 +91,7 @@ class MariaDbConnection extends MySqlConnection
     /**
      * Get the default post processor instance.
      *
-     * @return \Illuminate\Database\Query\Processors\MariaDbProcessor
+     * @return \Hypervel\Database\Query\Processors\MariaDbProcessor
      */
     protected function getDefaultPostProcessor()
     {
