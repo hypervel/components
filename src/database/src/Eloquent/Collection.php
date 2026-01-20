@@ -393,7 +393,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param  iterable<array-key, TModel>  $items
      * @return static
      */
-    public function merge($items)
+    public function merge($items): static
     {
         $dictionary = $this->getDictionary();
 
@@ -412,7 +412,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param  callable(TModel, TKey): TMapValue  $callback
      * @return \Hypervel\Support\Collection<TKey, TMapValue>|static<TKey, TMapValue>
      */
-    public function map(callable $callback)
+    public function map(callable $callback): \Hyperf\Collection\Enumerable
     {
         $result = parent::map($callback);
 
@@ -430,7 +430,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param  callable(TModel, TKey): array<TMapWithKeysKey, TMapWithKeysValue>  $callback
      * @return \Hypervel\Support\Collection<TMapWithKeysKey, TMapWithKeysValue>|static<TMapWithKeysKey, TMapWithKeysValue>
      */
-    public function mapWithKeys(callable $callback)
+    public function mapWithKeys(callable $callback): \Hyperf\Collection\Enumerable
     {
         $result = parent::mapWithKeys($callback);
 
@@ -487,7 +487,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param  iterable<array-key, TModel>  $items
      * @return static
      */
-    public function intersect($items)
+    public function intersect(mixed $items): static
     {
         $intersect = new static;
 
@@ -513,7 +513,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param  bool  $strict
      * @return static
      */
-    public function unique($key = null, $strict = false)
+    public function unique(mixed $key = null, bool $strict = false): static
     {
         if (! is_null($key)) {
             return parent::unique($key, $strict);
@@ -528,7 +528,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param  array<array-key, mixed>|null  $keys
      * @return static
      */
-    public function only($keys)
+    public function only($keys): static
     {
         if (is_null($keys)) {
             return new static($this->items);
@@ -715,7 +715,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<TModel, TKey>
      */
     #[\Override]
-    public function flip()
+    public function flip(): \Hyperf\Collection\Enumerable
     {
         return $this->toBase()->flip();
     }
@@ -726,7 +726,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, TKey>
      */
     #[\Override]
-    public function keys()
+    public function keys(): \Hyperf\Collection\Enumerable
     {
         return $this->toBase()->keys();
     }
@@ -739,7 +739,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, TModel|TPadValue>
      */
     #[\Override]
-    public function pad($size, $value)
+    public function pad(int $size, $value): \Hyperf\Collection\Enumerable
     {
         return $this->toBase()->pad($size, $value);
     }
@@ -750,7 +750,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int<0, 1>, static<TKey, TModel>>
      */
     #[\Override]
-    public function partition($key, $operator = null, $value = null)
+    public function partition(mixed $key, mixed $operator = null, mixed $value = null): static
     {
         return parent::partition(...func_get_args())->toBase();
     }
@@ -761,7 +761,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<array-key, mixed>
      */
     #[\Override]
-    public function pluck($value, $key = null)
+    public function pluck(array|string $value, ?string $key = null): \Hyperf\Collection\Enumerable
     {
         return $this->toBase()->pluck($value, $key);
     }
@@ -774,7 +774,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, \Hypervel\Support\Collection<int, TModel|TZipValue>>
      */
     #[\Override]
-    public function zip($items)
+    public function zip($items): \Hyperf\Collection\Enumerable
     {
         return $this->toBase()->zip(...func_get_args());
     }
@@ -814,10 +814,10 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @throws \LogicException
      */
-    public function getQueueableClass()
+    public function getQueueableClass(): ?string
     {
         if ($this->isEmpty()) {
-            return;
+            return null;
         }
 
         $class = $this->getQueueableModelClass($this->first());
@@ -849,7 +849,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @return array<int, mixed>
      */
-    public function getQueueableIds()
+    public function getQueueableIds(): array
     {
         if ($this->isEmpty()) {
             return [];
@@ -865,7 +865,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @return array<int, string>
      */
-    public function getQueueableRelations()
+    public function getQueueableRelations(): array
     {
         if ($this->isEmpty()) {
             return [];
@@ -889,10 +889,10 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @throws \LogicException
      */
-    public function getQueueableConnection()
+    public function getQueueableConnection(): ?string
     {
         if ($this->isEmpty()) {
-            return;
+            return null;
         }
 
         $connection = $this->first()->getConnectionName();

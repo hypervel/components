@@ -4,12 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent;
 
-use Hyperf\Database\Model\Model;
 use Hypervel\Database\Eloquent\Attributes\CollectedBy;
 use ReflectionClass;
 
 /**
- * @template TCollection of Collection
+ * @template TCollection of \Hypervel\Database\Eloquent\Collection
  */
 trait HasCollection
 {
@@ -23,10 +22,10 @@ trait HasCollection
     /**
      * Create a new Eloquent Collection instance.
      *
-     * @param array<array-key, Model> $models
+     * @param  array<array-key, \Hypervel\Database\Eloquent\Model>  $models
      * @return TCollection
      */
-    public function newCollection(array $models = []): Collection
+    public function newCollection(array $models = [])
     {
         static::$resolvedCollectionClasses[static::class] ??= ($this->resolveCollectionFromAttribute() ?? static::$collectionClass);
 
@@ -44,7 +43,7 @@ trait HasCollection
      *
      * @return class-string<TCollection>|null
      */
-    public function resolveCollectionFromAttribute(): ?string
+    public function resolveCollectionFromAttribute()
     {
         $reflectionClass = new ReflectionClass(static::class);
 

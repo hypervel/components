@@ -1383,7 +1383,7 @@ class Builder implements BuilderContract
 
         $segments = preg_split('/\s+as\s+/i', $this->query->from);
 
-        $qualifiedColumn = array_last($segments).'.'.$column;
+        $qualifiedColumn = Arr::last($segments).'.'.$column;
 
         $values[$qualifiedColumn] = Arr::get($values, $qualifiedColumn, $values[$column]);
 
