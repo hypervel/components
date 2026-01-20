@@ -1,16 +1,18 @@
 <?php
 
-namespace Illuminate\Database\Schema\Grammars;
+declare(strict_types=1);
 
-use Illuminate\Contracts\Database\Query\Expression;
-use Illuminate\Database\Concerns\CompilesJsonPaths;
-use Illuminate\Database\Grammar as BaseGrammar;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Fluent;
+namespace Hypervel\Database\Schema\Grammars;
+
+use Hypervel\Database\Concerns\CompilesJsonPaths;
+use Hypervel\Database\Contracts\Query\Expression;
+use Hypervel\Database\Grammar as BaseGrammar;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Fluent;
 use RuntimeException;
 use UnitEnum;
 
-use function Illuminate\Support\enum_value;
+use function Hypervel\Support\enum_value;
 
 abstract class Grammar extends BaseGrammar
 {
@@ -155,8 +157,8 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile a vector index key command.
      *
-     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
-     * @param  \Illuminate\Support\Fluent  $command
+     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
+     * @param  \Hypervel\Support\Fluent  $command
      * @return void
      *
      * @throws \RuntimeException
@@ -183,8 +185,8 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile a rename column command.
      *
-     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
-     * @param  \Illuminate\Support\Fluent  $command
+     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
+     * @param  \Hypervel\Support\Fluent  $command
      * @return list<string>|string
      */
     public function compileRenameColumn(Blueprint $blueprint, Fluent $command)
@@ -199,8 +201,8 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile a change column command into a series of SQL statements.
      *
-     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
-     * @param  \Illuminate\Support\Fluent  $command
+     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
+     * @param  \Hypervel\Support\Fluent  $command
      * @return list<string>|string
      *
      * @throws \RuntimeException
@@ -213,8 +215,8 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile a fulltext index key command.
      *
-     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
-     * @param  \Illuminate\Support\Fluent  $command
+     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
+     * @param  \Hypervel\Support\Fluent  $command
      * @return string
      *
      * @throws \RuntimeException
@@ -227,8 +229,8 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile a drop fulltext index command.
      *
-     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
-     * @param  \Illuminate\Support\Fluent  $command
+     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
+     * @param  \Hypervel\Support\Fluent  $command
      * @return string
      *
      * @throws \RuntimeException
@@ -241,8 +243,8 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile a foreign key command.
      *
-     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
-     * @param  \Illuminate\Support\Fluent  $command
+     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
+     * @param  \Hypervel\Support\Fluent  $command
      * @return string
      */
     public function compileForeign(Blueprint $blueprint, Fluent $command)
@@ -281,8 +283,8 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile a drop foreign key command.
      *
-     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
-     * @param  \Illuminate\Support\Fluent  $command
+     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
+     * @param  \Hypervel\Support\Fluent  $command
      * @return string
      */
     public function compileDropForeign(Blueprint $blueprint, Fluent $command)
@@ -293,7 +295,7 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile the blueprint's added column definitions.
      *
-     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
      * @return array
      */
     protected function getColumns(Blueprint $blueprint)
@@ -310,8 +312,8 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile the column definition.
      *
-     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
-     * @param  \Illuminate\Database\Schema\ColumnDefinition  $column
+     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
+     * @param  \Hypervel\Database\Schema\ColumnDefinition  $column
      * @return string
      */
     protected function getColumn(Blueprint $blueprint, $column)
@@ -327,7 +329,7 @@ abstract class Grammar extends BaseGrammar
     /**
      * Get the SQL for the column data type.
      *
-     * @param  \Illuminate\Support\Fluent  $column
+     * @param  \Hypervel\Support\Fluent  $column
      * @return string
      */
     protected function getType(Fluent $column)
@@ -338,7 +340,7 @@ abstract class Grammar extends BaseGrammar
     /**
      * Create the column definition for a generated, computed column type.
      *
-     * @param  \Illuminate\Support\Fluent  $column
+     * @param  \Hypervel\Support\Fluent  $column
      * @return void
      *
      * @throws \RuntimeException
@@ -351,7 +353,7 @@ abstract class Grammar extends BaseGrammar
     /**
      * Create the column definition for a vector type.
      *
-     * @param  \Illuminate\Support\Fluent  $column
+     * @param  \Hypervel\Support\Fluent  $column
      * @return string
      *
      * @throws \RuntimeException
@@ -364,7 +366,7 @@ abstract class Grammar extends BaseGrammar
     /**
      * Create the column definition for a raw column type.
      *
-     * @param  \Illuminate\Support\Fluent  $column
+     * @param  \Hypervel\Support\Fluent  $column
      * @return string
      */
     protected function typeRaw(Fluent $column)
@@ -376,8 +378,8 @@ abstract class Grammar extends BaseGrammar
      * Add the column modifiers to the definition.
      *
      * @param  string  $sql
-     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
-     * @param  \Illuminate\Support\Fluent  $column
+     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
+     * @param  \Hypervel\Support\Fluent  $column
      * @return string
      */
     protected function addModifiers($sql, Blueprint $blueprint, Fluent $column)
@@ -394,9 +396,9 @@ abstract class Grammar extends BaseGrammar
     /**
      * Get the command with a given name if it exists on the blueprint.
      *
-     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
      * @param  string  $name
-     * @return \Illuminate\Support\Fluent|null
+     * @return \Hypervel\Support\Fluent|null
      */
     protected function getCommandByName(Blueprint $blueprint, $name)
     {
@@ -410,7 +412,7 @@ abstract class Grammar extends BaseGrammar
     /**
      * Get all of the commands with a given name.
      *
-     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
      * @param  string  $name
      * @return array
      */
@@ -424,7 +426,7 @@ abstract class Grammar extends BaseGrammar
     /*
      * Determine if a command with a given name exists on the blueprint.
      *
-     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
      * @param  string  $name
      * @return bool
      */
@@ -471,7 +473,7 @@ abstract class Grammar extends BaseGrammar
     /**
      * Wrap a value in keyword identifiers.
      *
-     * @param  \Illuminate\Support\Fluent|\Illuminate\Contracts\Database\Query\Expression|string  $value
+     * @param  \Hypervel\Support\Fluent|\Hypervel\Database\Contracts\Query\Expression|string  $value
      * @return string
      */
     public function wrap($value)
