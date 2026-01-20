@@ -31,8 +31,8 @@ use function Hypervel\Support\enum_value;
 
 class Connection implements ConnectionInterface
 {
-    use Concerns\DetectsConcurrencyErrors,
-        Concerns\DetectsLostConnections,
+    use DetectsConcurrencyErrors,
+        DetectsLostConnections,
         Concerns\ManagesTransactions,
         InteractsWithTime,
         Macroable;

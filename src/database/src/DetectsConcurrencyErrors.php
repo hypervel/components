@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Database\Concerns;
+namespace Hypervel\Database;
 
 use Hyperf\Context\ApplicationContext;
 use Hypervel\Database\ConcurrencyErrorDetector;
