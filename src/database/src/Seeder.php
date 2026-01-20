@@ -4,20 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
-use FriendsOfHyperf\PrettyConsole\View\Components\TwoColumnDetail;
 use Hypervel\Console\Command;
-use Hypervel\Container\Contracts\Container as ContainerContract;
+use FriendsOfHyperf\PrettyConsole\View\Components\TwoColumnDetail;
+use Hypervel\Container\Contracts\Container;
+use Hypervel\Database\Console\Seeds\WithoutModelEvents;
 use Hypervel\Support\Arr;
 use InvalidArgumentException;
-
-use function Hyperf\Support\with;
 
 abstract class Seeder
 {
     /**
      * The container instance.
      */
-    protected ContainerContract $container;
+    protected Container $container;
 
     /**
      * The console command instance.
@@ -26,11 +25,15 @@ abstract class Seeder
 
     /**
      * Seeders that have been called at least one time.
+     *
+     * @var array<int, class-string>
      */
     protected static array $called = [];
 
     /**
      * Run the given seeder class.
+     *
+     * @param  array<int, class-string>|class-string  $class
      */
     public function call(array|string $class, bool $silent = false, array $parameters = []): static
     {
@@ -42,10 +45,8 @@ abstract class Seeder
             $name = get_class($seeder);
 
             if ($silent === false && isset($this->command)) {
-                with(new TwoColumnDetail($this->command->getOutput()))->render(
-                    $name,
-                    '<fg=yellow;options=bold>RUNNING</>'
-                );
+                (new TwoColumnDetail($this->command->getOutput()))
+                    ->render($name, '<fg=yellow;options=bold>RUNNING</>');
             }
 
             $startTime = microtime(true);
@@ -55,10 +56,8 @@ abstract class Seeder
             if ($silent === false && isset($this->command)) {
                 $runTime = number_format((microtime(true) - $startTime) * 1000);
 
-                with(new TwoColumnDetail($this->command->getOutput()))->render(
-                    $name,
-                    "<fg=gray>{$runTime} ms</> <fg=green;options=bold>DONE</>"
-                );
+                (new TwoColumnDetail($this->command->getOutput()))
+                    ->render($name, "<fg=gray>{$runTime} ms</> <fg=green;options=bold>DONE</>");
 
                 $this->command->getOutput()->writeln('');
             }
@@ -71,24 +70,30 @@ abstract class Seeder
 
     /**
      * Run the given seeder class.
+     *
+     * @param  array<int, class-string>|class-string  $class
      */
-    public function callWith(array|string $class, array $parameters = []): void
+    public function callWith(array|string $class, array $parameters = []): static
     {
-        $this->call($class, false, $parameters);
+        return $this->call($class, false, $parameters);
     }
 
     /**
      * Silently run the given seeder class.
+     *
+     * @param  array<int, class-string>|class-string  $class
      */
-    public function callSilent(array|string $class, array $parameters = []): void
+    public function callSilent(array|string $class, array $parameters = []): static
     {
-        $this->call($class, true, $parameters);
+        return $this->call($class, true, $parameters);
     }
 
     /**
      * Run the given seeder class once.
+     *
+     * @param  array<int, class-string>|class-string  $class
      */
-    public function callOnce(array|string $class, bool $silent = false, array $parameters = []): void
+    public function callOnce(array|string $class, bool $silent = false, array $parameters = []): static
     {
         $classes = Arr::wrap($class);
 
@@ -99,6 +104,8 @@ abstract class Seeder
 
             $this->call($class, $silent, $parameters);
         }
+
+        return $this;
     }
 
     /**
@@ -107,7 +114,7 @@ abstract class Seeder
     protected function resolve(string $class): Seeder
     {
         if (isset($this->container)) {
-            $instance = $this->container->get($class);
+            $instance = $this->container->make($class);
 
             $instance->setContainer($this->container);
         } else {
@@ -124,7 +131,7 @@ abstract class Seeder
     /**
      * Set the IoC container instance.
      */
-    public function setContainer(ContainerContract $container): static
+    public function setContainer(Container $container): static
     {
         $this->container = $container;
 
@@ -154,7 +161,13 @@ abstract class Seeder
 
         $callback = fn () => isset($this->container)
             ? $this->container->call([$this, 'run'], $parameters)
-            : $this->run(...$parameters); // @phpstan-ignore-line
+            : $this->run(...$parameters);
+
+        $uses = array_flip(class_uses_recursive(static::class));
+
+        if (isset($uses[WithoutModelEvents::class])) {
+            $callback = $this->withoutModelEvents($callback);
+        }
 
         return $callback();
     }
