@@ -60,4 +60,26 @@ class SQLiteGrammar extends BaseSQLiteGrammar
 
         return $this->wrap($where['column']) . ' ' . $between . ' ' . $min . ' and ' . $max;
     }
+
+    /**
+     * Compile a "where JSON contains key" clause.
+     *
+     * @param array<string, mixed> $where
+     */
+    protected function whereJsonContainsKey(Builder $query, array $where): string
+    {
+        $not = $where['not'] ? 'not ' : '';
+
+        return $not . $this->compileJsonContainsKey($where['column']);
+    }
+
+    /**
+     * Compile a "JSON contains key" statement into SQL.
+     */
+    protected function compileJsonContainsKey(string $column): string
+    {
+        [$field, $path] = $this->wrapJsonFieldAndPath($column);
+
+        return 'json_type(' . $field . $path . ') is not null';
+    }
 }

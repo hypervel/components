@@ -39,4 +39,26 @@ class MySqlGrammar extends BaseMySqlGrammar
 
         return $this->wrap($where['column']) . ' ' . $between . ' ' . $min . ' and ' . $max;
     }
+
+    /**
+     * Compile a "where JSON contains key" clause.
+     *
+     * @param array<string, mixed> $where
+     */
+    protected function whereJsonContainsKey(Builder $query, array $where): string
+    {
+        $not = $where['not'] ? 'not ' : '';
+
+        return $not . $this->compileJsonContainsKey($where['column']);
+    }
+
+    /**
+     * Compile a "JSON contains key" statement into SQL.
+     */
+    protected function compileJsonContainsKey(string $column): string
+    {
+        [$field, $path] = $this->wrapJsonFieldAndPath($column);
+
+        return 'ifnull(json_contains_path(' . $field . ", 'one'" . $path . '), 0)';
+    }
 }
