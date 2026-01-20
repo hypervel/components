@@ -4,94 +4,139 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
+use Hypervel\Context\Context;
 use Hypervel\Support\Collection;
 
+/**
+ * Manages database transaction callbacks in a coroutine-safe manner.
+ *
+ * Uses Hyperf Context to store transaction state per-coroutine, ensuring
+ * that concurrent requests don't interfere with each other's transactions.
+ */
 class DatabaseTransactionsManager
 {
-    /**
-     * All of the committed transactions.
-     *
-     * @var \Hypervel\Support\Collection<int, \Hypervel\Database\DatabaseTransactionRecord>
-     */
-    protected $committedTransactions;
+    protected const CONTEXT_COMMITTED = '__db.transactions.committed';
+    protected const CONTEXT_PENDING = '__db.transactions.pending';
+    protected const CONTEXT_CURRENT = '__db.transactions.current';
 
     /**
-     * All of the pending transactions.
+     * Get all committed transactions for the current coroutine.
      *
-     * @var \Hypervel\Support\Collection<int, \Hypervel\Database\DatabaseTransactionRecord>
+     * @return Collection<int, DatabaseTransactionRecord>
      */
-    protected $pendingTransactions;
-
-    /**
-     * The current transaction.
-     *
-     * @var array
-     */
-    protected $currentTransaction = [];
-
-    /**
-     * Create a new database transactions manager instance.
-     */
-    public function __construct()
+    protected function getCommittedTransactionsInternal(): Collection
     {
-        $this->committedTransactions = new Collection;
-        $this->pendingTransactions = new Collection;
+        return Context::get(self::CONTEXT_COMMITTED, new Collection);
+    }
+
+    /**
+     * Set committed transactions for the current coroutine.
+     *
+     * @param Collection<int, DatabaseTransactionRecord> $transactions
+     */
+    protected function setCommittedTransactions(Collection $transactions): void
+    {
+        Context::set(self::CONTEXT_COMMITTED, $transactions);
+    }
+
+    /**
+     * Get all pending transactions for the current coroutine.
+     *
+     * @return Collection<int, DatabaseTransactionRecord>
+     */
+    protected function getPendingTransactionsInternal(): Collection
+    {
+        return Context::get(self::CONTEXT_PENDING, new Collection);
+    }
+
+    /**
+     * Set pending transactions for the current coroutine.
+     *
+     * @param Collection<int, DatabaseTransactionRecord> $transactions
+     */
+    protected function setPendingTransactions(Collection $transactions): void
+    {
+        Context::set(self::CONTEXT_PENDING, $transactions);
+    }
+
+    /**
+     * Get current transaction map for the current coroutine.
+     *
+     * @return array<string, DatabaseTransactionRecord|null>
+     */
+    protected function getCurrentTransaction(): array
+    {
+        return Context::get(self::CONTEXT_CURRENT, []);
+    }
+
+    /**
+     * Set current transaction for a connection.
+     */
+    protected function setCurrentTransactionForConnection(string $connection, ?DatabaseTransactionRecord $transaction): void
+    {
+        $current = $this->getCurrentTransaction();
+        $current[$connection] = $transaction;
+        Context::set(self::CONTEXT_CURRENT, $current);
+    }
+
+    /**
+     * Get current transaction for a connection.
+     */
+    protected function getCurrentTransactionForConnection(string $connection): ?DatabaseTransactionRecord
+    {
+        return $this->getCurrentTransaction()[$connection] ?? null;
     }
 
     /**
      * Start a new database transaction.
-     *
-     * @param  string  $connection
-     * @param  int  $level
-     * @return void
      */
-    public function begin($connection, $level)
+    public function begin(string $connection, int $level): void
     {
-        $this->pendingTransactions->push(
-            $newTransaction = new DatabaseTransactionRecord(
-                $connection,
-                $level,
-                $this->currentTransaction[$connection] ?? null
-            )
+        $pending = $this->getPendingTransactionsInternal();
+
+        $newTransaction = new DatabaseTransactionRecord(
+            $connection,
+            $level,
+            $this->getCurrentTransactionForConnection($connection)
         );
 
-        $this->currentTransaction[$connection] = $newTransaction;
+        $pending->push($newTransaction);
+        $this->setPendingTransactions($pending);
+        $this->setCurrentTransactionForConnection($connection, $newTransaction);
     }
 
     /**
      * Commit the root database transaction and execute callbacks.
      *
-     * @param  string  $connection
-     * @param  int  $levelBeingCommitted
-     * @param  int  $newTransactionLevel
-     * @return array
+     * @return Collection<int, DatabaseTransactionRecord>
      */
-    public function commit($connection, $levelBeingCommitted, $newTransactionLevel)
+    public function commit(string $connection, int $levelBeingCommitted, int $newTransactionLevel): Collection
     {
         $this->stageTransactions($connection, $levelBeingCommitted);
 
-        if (isset($this->currentTransaction[$connection])) {
-            $this->currentTransaction[$connection] = $this->currentTransaction[$connection]->parent;
+        $currentForConnection = $this->getCurrentTransactionForConnection($connection);
+        if ($currentForConnection !== null) {
+            $this->setCurrentTransactionForConnection($connection, $currentForConnection->parent);
         }
 
         if (! $this->afterCommitCallbacksShouldBeExecuted($newTransactionLevel) &&
             $newTransactionLevel !== 0) {
-            return [];
+            return new Collection;
         }
 
-        // This method is only called when the root database transaction is committed so there
-        // shouldn't be any pending transactions, but going to clear them here anyways just
-        // in case. This method could be refactored to receive a level in the future too.
-        $this->pendingTransactions = $this->pendingTransactions->reject(
+        // Clear pending transactions for this connection at or above the committed level
+        $pending = $this->getPendingTransactionsInternal()->reject(
             fn ($transaction) => $transaction->connection === $connection &&
                 $transaction->level >= $levelBeingCommitted
         )->values();
+        $this->setPendingTransactions($pending);
 
-        [$forThisConnection, $forOtherConnections] = $this->committedTransactions->partition(
-            fn ($transaction) => $transaction->connection == $connection
+        $committed = $this->getCommittedTransactionsInternal();
+        [$forThisConnection, $forOtherConnections] = $committed->partition(
+            fn ($transaction) => $transaction->connection === $connection
         );
 
-        $this->committedTransactions = $forOtherConnections->values();
+        $this->setCommittedTransactions($forOtherConnections->values());
 
         $forThisConnection->map->executeCallbacks();
 
@@ -100,53 +145,51 @@ class DatabaseTransactionsManager
 
     /**
      * Move relevant pending transactions to a committed state.
-     *
-     * @param  string  $connection
-     * @param  int  $levelBeingCommitted
-     * @return void
      */
-    public function stageTransactions($connection, $levelBeingCommitted)
+    public function stageTransactions(string $connection, int $levelBeingCommitted): void
     {
-        $this->committedTransactions = $this->committedTransactions->merge(
-            $this->pendingTransactions->filter(
+        $pending = $this->getPendingTransactionsInternal();
+        $committed = $this->getCommittedTransactionsInternal();
+
+        $toStage = $pending->filter(
+            fn ($transaction) => $transaction->connection === $connection &&
+                                 $transaction->level >= $levelBeingCommitted
+        );
+
+        $this->setCommittedTransactions($committed->merge($toStage));
+
+        $this->setPendingTransactions(
+            $pending->reject(
                 fn ($transaction) => $transaction->connection === $connection &&
                                      $transaction->level >= $levelBeingCommitted
             )
-        );
-
-        $this->pendingTransactions = $this->pendingTransactions->reject(
-            fn ($transaction) => $transaction->connection === $connection &&
-                                 $transaction->level >= $levelBeingCommitted
         );
     }
 
     /**
      * Rollback the active database transaction.
-     *
-     * @param  string  $connection
-     * @param  int  $newTransactionLevel
-     * @return void
      */
-    public function rollback($connection, $newTransactionLevel)
+    public function rollback(string $connection, int $newTransactionLevel): void
     {
         if ($newTransactionLevel === 0) {
             $this->removeAllTransactionsForConnection($connection);
         } else {
-            $this->pendingTransactions = $this->pendingTransactions->reject(
-                fn ($transaction) => $transaction->connection == $connection &&
+            $pending = $this->getPendingTransactionsInternal()->reject(
+                fn ($transaction) => $transaction->connection === $connection &&
                                      $transaction->level > $newTransactionLevel
             )->values();
+            $this->setPendingTransactions($pending);
 
-            if ($this->currentTransaction) {
+            $currentForConnection = $this->getCurrentTransactionForConnection($connection);
+            if ($currentForConnection !== null) {
                 do {
-                    $this->removeCommittedTransactionsThatAreChildrenOf($this->currentTransaction[$connection]);
-
-                    $this->currentTransaction[$connection]->executeCallbacksForRollback();
-
-                    $this->currentTransaction[$connection] = $this->currentTransaction[$connection]->parent;
+                    $this->removeCommittedTransactionsThatAreChildrenOf($currentForConnection);
+                    $currentForConnection->executeCallbacksForRollback();
+                    $currentForConnection = $currentForConnection->parent;
+                    $this->setCurrentTransactionForConnection($connection, $currentForConnection);
                 } while (
-                    isset($this->currentTransaction[$connection]) &&
-                    $this->currentTransaction[$connection]->level > $newTransactionLevel
+                    $currentForConnection !== null &&
+                    $currentForConnection->level > $newTransactionLevel
                 );
             }
         }
@@ -154,60 +197,58 @@ class DatabaseTransactionsManager
 
     /**
      * Remove all pending, completed, and current transactions for the given connection name.
-     *
-     * @param  string  $connection
-     * @return void
      */
-    protected function removeAllTransactionsForConnection($connection)
+    protected function removeAllTransactionsForConnection(string $connection): void
     {
-        if ($this->currentTransaction) {
-            for ($currentTransaction = $this->currentTransaction[$connection]; isset($currentTransaction); $currentTransaction = $currentTransaction->parent) {
-                $currentTransaction->executeCallbacksForRollback();
-            }
+        $currentForConnection = $this->getCurrentTransactionForConnection($connection);
+
+        for ($current = $currentForConnection; $current !== null; $current = $current->parent) {
+            $current->executeCallbacksForRollback();
         }
 
-        $this->currentTransaction[$connection] = null;
+        $this->setCurrentTransactionForConnection($connection, null);
 
-        $this->pendingTransactions = $this->pendingTransactions->reject(
-            fn ($transaction) => $transaction->connection == $connection
-        )->values();
+        $this->setPendingTransactions(
+            $this->getPendingTransactionsInternal()->reject(
+                fn ($transaction) => $transaction->connection === $connection
+            )->values()
+        );
 
-        $this->committedTransactions = $this->committedTransactions->reject(
-            fn ($transaction) => $transaction->connection == $connection
-        )->values();
+        $this->setCommittedTransactions(
+            $this->getCommittedTransactionsInternal()->reject(
+                fn ($transaction) => $transaction->connection === $connection
+            )->values()
+        );
     }
 
     /**
      * Remove all transactions that are children of the given transaction.
-     *
-     * @param  \Hypervel\Database\DatabaseTransactionRecord  $transaction
-     * @return void
      */
-    protected function removeCommittedTransactionsThatAreChildrenOf(DatabaseTransactionRecord $transaction)
+    protected function removeCommittedTransactionsThatAreChildrenOf(DatabaseTransactionRecord $transaction): void
     {
-        [$removedTransactions, $this->committedTransactions] = $this->committedTransactions->partition(
-            fn ($committed) => $committed->connection == $transaction->connection &&
+        $committed = $this->getCommittedTransactionsInternal();
+
+        [$removedTransactions, $remaining] = $committed->partition(
+            fn ($committed) => $committed->connection === $transaction->connection &&
                                $committed->parent === $transaction
         );
 
-        // There may be multiple deeply nested transactions that have already committed that we
-        // also need to remove. We will recurse down the children of all removed transaction
-        // instances until there are no more deeply nested child transactions for removal.
+        $this->setCommittedTransactions($remaining);
+
+        // Recurse down children
         $removedTransactions->each(
-            fn ($transaction) => $this->removeCommittedTransactionsThatAreChildrenOf($transaction)
+            fn ($removed) => $this->removeCommittedTransactionsThatAreChildrenOf($removed)
         );
     }
 
     /**
      * Register a transaction callback.
-     *
-     * @param  callable  $callback
-     * @return void
      */
-    public function addCallback($callback)
+    public function addCallback(callable $callback): void
     {
         if ($current = $this->callbackApplicableTransactions()->last()) {
-            return $current->addCallback($callback);
+            $current->addCallback($callback);
+            return;
         }
 
         $callback();
@@ -215,34 +256,28 @@ class DatabaseTransactionsManager
 
     /**
      * Register a callback for transaction rollback.
-     *
-     * @param  callable  $callback
-     * @return void
      */
-    public function addCallbackForRollback($callback)
+    public function addCallbackForRollback(callable $callback): void
     {
         if ($current = $this->callbackApplicableTransactions()->last()) {
-            return $current->addCallbackForRollback($callback);
+            $current->addCallbackForRollback($callback);
         }
     }
 
     /**
      * Get the transactions that are applicable to callbacks.
      *
-     * @return \Hypervel\Support\Collection<int, \Hypervel\Database\DatabaseTransactionRecord>
+     * @return Collection<int, DatabaseTransactionRecord>
      */
-    public function callbackApplicableTransactions()
+    public function callbackApplicableTransactions(): Collection
     {
-        return $this->pendingTransactions;
+        return $this->getPendingTransactionsInternal();
     }
 
     /**
      * Determine if after commit callbacks should be executed for the given transaction level.
-     *
-     * @param  int  $level
-     * @return bool
      */
-    public function afterCommitCallbacksShouldBeExecuted($level)
+    public function afterCommitCallbacksShouldBeExecuted(int $level): bool
     {
         return $level === 0;
     }
@@ -250,20 +285,20 @@ class DatabaseTransactionsManager
     /**
      * Get all of the pending transactions.
      *
-     * @return \Hypervel\Support\Collection
+     * @return Collection<int, DatabaseTransactionRecord>
      */
-    public function getPendingTransactions()
+    public function getPendingTransactions(): Collection
     {
-        return $this->pendingTransactions;
+        return $this->getPendingTransactionsInternal();
     }
 
     /**
      * Get all of the committed transactions.
      *
-     * @return \Hypervel\Support\Collection
+     * @return Collection<int, DatabaseTransactionRecord>
      */
-    public function getCommittedTransactions()
+    public function getCommittedTransactions(): Collection
     {
-        return $this->committedTransactions;
+        return $this->getCommittedTransactionsInternal();
     }
 }

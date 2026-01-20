@@ -26,12 +26,12 @@ class ConfigProvider
         return [
             'dependencies' => [
                 ConnectionResolverInterface::class => ConnectionResolver::class,
+                DatabaseTransactionsManager::class => DatabaseTransactionsManager::class,
                 HyperfDatabaseFactory::class => DatabaseFactoryInvoker::class,
                 ModelListener::class => ModelListener::class,
             ],
             'listeners' => [
                 RegisterConnectionResolverListener::class,
-                TransactionListener::class,
             ],
             'commands' => [
                 InstallCommand::class,
