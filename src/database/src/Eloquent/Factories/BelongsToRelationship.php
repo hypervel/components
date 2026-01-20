@@ -4,38 +4,52 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Factories;
 
-use Closure;
-use Hyperf\Database\Model\Relations\BelongsTo;
-use Hyperf\Database\Model\Relations\MorphTo;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Support\Collection;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
 
 class BelongsToRelationship
 {
     /**
-     * The cached, resolved parent instance ID.
+     * The related factory instance.
+     *
+     * @var \Hypervel\Database\Eloquent\Factories\Factory|\Hypervel\Database\Eloquent\Model
      */
-    protected int|string|null $resolved = null;
+    protected $factory;
+
+    /**
+     * The relationship name.
+     *
+     * @var string
+     */
+    protected $relationship;
+
+    /**
+     * The cached, resolved parent instance ID.
+     *
+     * @var mixed
+     */
+    protected $resolved;
 
     /**
      * Create a new "belongs to" relationship definition.
-     * @param Factory|Model $factory the related factory instance or model
-     * @param string $relationship the relationship name
+     *
+     * @param  \Hypervel\Database\Eloquent\Factories\Factory|\Hypervel\Database\Eloquent\Model  $factory
+     * @param  string  $relationship
      */
-    public function __construct(
-        protected Factory|Model $factory,
-        protected string $relationship
-    ) {
+    public function __construct($factory, $relationship)
+    {
+        $this->factory = $factory;
+        $this->relationship = $relationship;
     }
 
     /**
      * Get the parent model attributes and resolvers for the given child model.
      *
-     * @return array<string, Closure|string>
+     * @param  \Hypervel\Database\Eloquent\Model  $model
+     * @return array
      */
-    public function attributesFor(Model $model): array
+    public function attributesFor(Model $model)
     {
-        /** @var BelongsTo|MorphTo $relationship */
         $relationship = $model->{$this->relationship}();
 
         return $relationship instanceof MorphTo ? [
@@ -48,8 +62,11 @@ class BelongsToRelationship
 
     /**
      * Get the deferred resolver for this relationship's parent ID.
+     *
+     * @param  string|null  $key
+     * @return \Closure
      */
-    protected function resolver(?string $key): Closure
+    protected function resolver($key)
     {
         return function () use ($key) {
             if (! $this->resolved) {
@@ -66,8 +83,11 @@ class BelongsToRelationship
 
     /**
      * Specify the model instances to always use when creating relationships.
+     *
+     * @param  \Hypervel\Support\Collection  $recycle
+     * @return $this
      */
-    public function recycle(Collection $recycle): self
+    public function recycle($recycle)
     {
         if ($this->factory instanceof Factory) {
             $this->factory = $this->factory->recycle($recycle);
