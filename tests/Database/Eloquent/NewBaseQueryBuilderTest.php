@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Core\Database\Eloquent;
+namespace Hypervel\Tests\Database\Eloquent;
 
 use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\Query\Builder as QueryBuilder;

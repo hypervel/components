@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Core\Database\Eloquent\Factories;
+namespace Hypervel\Tests\Database\Eloquent\Factories;
 
 use BadMethodCallException;
 use Carbon\Carbon;
@@ -17,7 +17,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Contracts\Application;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Core\Database\Fixtures\Models\Price;
+use Hypervel\Tests\Database\Fixtures\Models\Price;
 use Mockery as m;
 use ReflectionClass;
 
@@ -539,9 +539,9 @@ class DatabaseEloquentFactoryTest extends TestCase
     public function testResolveNestedModelNameFromFactory()
     {
         $application = $this->mock(Application::class);
-        $application->shouldReceive('getNamespace')->andReturn('Hypervel\Tests\Core\Database\Fixtures\\');
+        $application->shouldReceive('getNamespace')->andReturn('Hypervel\Tests\Database\Fixtures\\');
 
-        Factory::useNamespace('Hypervel\Tests\Core\Database\Fixtures\Factories\\');
+        Factory::useNamespace('Hypervel\Tests\Database\Fixtures\Factories\\');
 
         $factory = Price::factory();
 

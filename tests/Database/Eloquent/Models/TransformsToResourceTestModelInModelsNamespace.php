@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Core\Database\Eloquent\Models;
+namespace Hypervel\Tests\Database\Eloquent\Models;
 
 use Hypervel\Database\Eloquent\Model;
 

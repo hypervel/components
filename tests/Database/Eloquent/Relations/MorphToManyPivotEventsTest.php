@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Core\Database\Eloquent\Relations;
+namespace Hypervel\Tests\Database\Eloquent\Relations;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphPivot;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Core\Database\Eloquent\Concerns;
+namespace Hypervel\Tests\Database\Eloquent\Concerns;
 
 use Hyperf\Stringable\Str;
 use Hypervel\Database\Eloquent\Concerns\HasUuids;

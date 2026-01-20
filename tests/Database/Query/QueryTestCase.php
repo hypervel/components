@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Core\Database\Query;
+namespace Hypervel\Tests\Database\Query;
 
 use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\Query\Expression;

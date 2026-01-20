@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Core\Database\Eloquent\Concerns;
+namespace Hypervel\Tests\Database\Eloquent\Concerns;
 
 use Hypervel\Database\Eloquent\Attributes\UseResource;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Tests\Core\Database\Eloquent\Models\TransformsToResourceTestModelInModelsNamespace;
+use Hypervel\Tests\Database\Eloquent\Models\TransformsToResourceTestModelInModelsNamespace;
 use LogicException;
 
 /**
@@ -29,7 +29,7 @@ class TransformsToResourceTest extends TestCase
     public function testToResourceThrowsExceptionWhenResourceCannotBeFound(): void
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Core\Database\Eloquent\Concerns\TransformsToResourceTestModel].');
+        $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Database\Eloquent\Concerns\TransformsToResourceTestModel].');
 
         $model = new TransformsToResourceTestModel();
         $model->toResource();
@@ -58,8 +58,8 @@ class TransformsToResourceTest extends TestCase
         $result = TransformsToResourceTestModelInModelsNamespace::guessResourceName();
 
         $this->assertSame([
-            'Hypervel\Tests\Core\Database\Eloquent\Http\Resources\TransformsToResourceTestModelInModelsNamespaceResource',
-            'Hypervel\Tests\Core\Database\Eloquent\Http\Resources\TransformsToResourceTestModelInModelsNamespace',
+            'Hypervel\Tests\Database\Eloquent\Http\Resources\TransformsToResourceTestModelInModelsNamespaceResource',
+            'Hypervel\Tests\Database\Eloquent\Http\Resources\TransformsToResourceTestModelInModelsNamespace',
         ], $result);
     }
 

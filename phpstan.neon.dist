@@ -45,17 +45,17 @@ parameters:
     - '#Call to an undefined method Hyperf\\Tappable\\HigherOrderTapProxy#'
     - message: '#.*#'
       paths:
-        - src/core/src/Database/Eloquent/Builder.php
-        - src/core/src/Database/Eloquent/Collection.php
-        - src/core/src/Database/Eloquent/Concerns/HasRelationships.php
-        - src/core/src/Database/Eloquent/Concerns/QueriesRelationships.php
-        - src/core/src/Database/Eloquent/Relations/BelongsToMany.php
-        - src/core/src/Database/Eloquent/Relations/HasMany.php
-        - src/core/src/Database/Eloquent/Relations/HasManyThrough.php
-        - src/core/src/Database/Eloquent/Relations/HasOne.php
-        - src/core/src/Database/Eloquent/Relations/HasOneThrough.php
-        - src/core/src/Database/Eloquent/Relations/MorphMany.php
-        - src/core/src/Database/Eloquent/Relations/MorphOne.php
-        - src/core/src/Database/Eloquent/Relations/MorphTo.php
-        - src/core/src/Database/Eloquent/Relations/MorphToMany.php
-        - src/core/src/Database/Eloquent/Relations/Relation.php
+        - src/database/src/Eloquent/Builder.php
+        - src/database/src/Eloquent/Collection.php
+        - src/database/src/Eloquent/Concerns/HasRelationships.php
+        - src/database/src/Eloquent/Concerns/QueriesRelationships.php
+        - src/database/src/Eloquent/Relations/BelongsToMany.php
+        - src/database/src/Eloquent/Relations/HasMany.php
+        - src/database/src/Eloquent/Relations/HasManyThrough.php
+        - src/database/src/Eloquent/Relations/HasOne.php
+        - src/database/src/Eloquent/Relations/HasOneThrough.php
+        - src/database/src/Eloquent/Relations/MorphMany.php
+        - src/database/src/Eloquent/Relations/MorphOne.php
+        - src/database/src/Eloquent/Relations/MorphTo.php
+        - src/database/src/Eloquent/Relations/MorphToMany.php
+        - src/database/src/Eloquent/Relations/Relation.php

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Core\Database\Eloquent\Concerns;
+namespace Hypervel\Tests\Database\Eloquent\Concerns;
 
 use Hyperf\Database\Model\Builder;
 use Hyperf\Database\Model\Model as HyperfModel;

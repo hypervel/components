@@ -30,6 +30,7 @@ class ConfigProviderRegister
         \Hyperf\Server\ConfigProvider::class,
         \Hyperf\Signal\ConfigProvider::class,
         \Hypervel\ConfigProvider::class,
+        \Hypervel\Database\ConfigProvider::class,
         \Hypervel\Auth\ConfigProvider::class,
         \Hypervel\Broadcasting\ConfigProvider::class,
         \Hypervel\Bus\ConfigProvider::class,

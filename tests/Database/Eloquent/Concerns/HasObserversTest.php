@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Core\Database\Eloquent\Concerns;
+namespace Hypervel\Tests\Database\Eloquent\Concerns;
 
 use Hyperf\Database\Model\Events\Created;
 use Hyperf\Database\Model\Events\Updated;

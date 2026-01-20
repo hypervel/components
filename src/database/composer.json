@@ -1,12 +1,13 @@
 {
-    "name": "hypervel/core",
+    "name": "hypervel/database",
     "type": "library",
-    "description": "The core package for Hypervel.",
+    "description": "The database package for Hypervel.",
     "license": "MIT",
     "keywords": [
         "php",
         "hyperf",
-        "core",
+        "database",
+        "eloquent",
         "swoole",
         "hypervel"
     ],
@@ -22,23 +23,25 @@
     },
     "autoload": {
         "psr-4": {
-            "Hypervel\\": "src/"
-        },
-        "files": [
-            "src/helpers.php"
-        ]
+            "Hypervel\\Database\\": "src/"
+        }
     },
     "require": {
         "php": "^8.2",
-        "hyperf/http-message": "~3.1.0",
-        "hyperf/context": "~3.1.0"
+        "hyperf/database": "~3.1.0",
+        "hyperf/database-pgsql": "~3.1.0",
+        "hyperf/database-sqlite": "~3.1.0",
+        "hyperf/db-connection": "~3.1.0"
+    },
+    "require-dev": {
+        "fakerphp/faker": "^2.0"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
         "hyperf": {
-            "config": "Hypervel\\ConfigProvider"
+            "config": "Hypervel\\Database\\ConfigProvider"
         },
         "branch-alias": {
             "dev-main": "0.3-dev"
