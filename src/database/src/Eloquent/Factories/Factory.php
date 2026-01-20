@@ -9,7 +9,7 @@ use Faker\Generator;
 use Hyperf\Collection\Enumerable;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Foundation\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Foundation\Contracts\Application;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
