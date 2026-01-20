@@ -573,4 +573,44 @@ class Builder extends BaseBuilder
 
         return $this;
     }
+
+    /**
+     * Dump the current SQL and bindings.
+     */
+    public function dump(mixed ...$args): static
+    {
+        dump(
+            $this->toSql(),
+            $this->getBindings(),
+            ...$args,
+        );
+
+        return $this;
+    }
+
+    /**
+     * Dump the raw current SQL with embedded bindings.
+     */
+    public function dumpRawSql(): static
+    {
+        dump($this->toRawSql());
+
+        return $this;
+    }
+
+    /**
+     * Die and dump the current SQL and bindings.
+     */
+    public function dd(): never
+    {
+        dd($this->toSql(), $this->getBindings());
+    }
+
+    /**
+     * Die and dump the current SQL with embedded bindings.
+     */
+    public function ddRawSql(): never
+    {
+        dd($this->toRawSql());
+    }
 }
