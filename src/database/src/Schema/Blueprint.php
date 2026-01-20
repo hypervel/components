@@ -41,14 +41,14 @@ class Blueprint
     /**
      * The columns that should be added to the table.
      *
-     * @var \Illuminate\Database\Schema\ColumnDefinition[]
+     * @var \Hypervel\Database\Schema\ColumnDefinition[]
      */
     protected $columns = [];
 
     /**
      * The commands that should be run for the table.
      *
-     * @var \Illuminate\Support\Fluent[]
+     * @var \Hypervel\Support\Fluent[]
      */
     protected $commands = [];
 
@@ -90,14 +90,14 @@ class Blueprint
     /**
      * The blueprint state instance.
      *
-     * @var \Illuminate\Database\Schema\BlueprintState|null
+     * @var \Hypervel\Database\Schema\BlueprintState|null
      */
     protected $state;
 
     /**
      * Create a new schema blueprint.
      *
-     * @param  \Illuminate\Database\Connection  $connection
+     * @param  \Hypervel\Database\Connection  $connection
      * @param  string  $table
      * @param  \Closure|null  $callback
      */
@@ -179,7 +179,7 @@ class Blueprint
      * @deprecated Will be removed in a future Laravel version.
      *
      * @param  array  $names
-     * @return \Illuminate\Support\Collection
+     * @return \Hypervel\Support\Collection
      */
     protected function commandsNamed(array $names)
     {
@@ -334,7 +334,7 @@ class Blueprint
     /**
      * Indicate that the table needs to be created.
      *
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     public function create()
     {
@@ -397,7 +397,7 @@ class Blueprint
     /**
      * Indicate that the table should be dropped.
      *
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     public function drop()
     {
@@ -407,7 +407,7 @@ class Blueprint
     /**
      * Indicate that the table should be dropped if it exists.
      *
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     public function dropIfExists()
     {
@@ -418,7 +418,7 @@ class Blueprint
      * Indicate that the given columns should be dropped.
      *
      * @param  mixed  $columns
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     public function dropColumn($columns)
     {
@@ -432,7 +432,7 @@ class Blueprint
      *
      * @param  string  $from
      * @param  string  $to
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     public function renameColumn($from, $to)
     {
@@ -443,7 +443,7 @@ class Blueprint
      * Indicate that the given primary key should be dropped.
      *
      * @param  string|array|null  $index
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     public function dropPrimary($index = null)
     {
@@ -454,7 +454,7 @@ class Blueprint
      * Indicate that the given unique key should be dropped.
      *
      * @param  string|array  $index
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     public function dropUnique($index)
     {
@@ -465,7 +465,7 @@ class Blueprint
      * Indicate that the given index should be dropped.
      *
      * @param  string|array  $index
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     public function dropIndex($index)
     {
@@ -476,7 +476,7 @@ class Blueprint
      * Indicate that the given fulltext index should be dropped.
      *
      * @param  string|array  $index
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     public function dropFullText($index)
     {
@@ -487,7 +487,7 @@ class Blueprint
      * Indicate that the given spatial index should be dropped.
      *
      * @param  string|array  $index
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     public function dropSpatialIndex($index)
     {
@@ -498,7 +498,7 @@ class Blueprint
      * Indicate that the given foreign key should be dropped.
      *
      * @param  string|array  $index
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     public function dropForeign($index)
     {
@@ -509,7 +509,7 @@ class Blueprint
      * Indicate that the given column and foreign key should be dropped.
      *
      * @param  string  $column
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     public function dropConstrainedForeignId($column)
     {
@@ -521,9 +521,9 @@ class Blueprint
     /**
      * Indicate that the given foreign key should be dropped.
      *
-     * @param  \Illuminate\Database\Eloquent\Model|string  $model
+     * @param  \Hypervel\Database\Eloquent\Model|string  $model
      * @param  string|null  $column
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     public function dropForeignIdFor($model, $column = null)
     {
@@ -537,9 +537,9 @@ class Blueprint
     /**
      * Indicate that the given foreign key should be dropped.
      *
-     * @param  \Illuminate\Database\Eloquent\Model|string  $model
+     * @param  \Hypervel\Database\Eloquent\Model|string  $model
      * @param  string|null  $column
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     public function dropConstrainedForeignIdFor($model, $column = null)
     {
@@ -555,7 +555,7 @@ class Blueprint
      *
      * @param  string  $from
      * @param  string  $to
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     public function renameIndex($from, $to)
     {
@@ -632,7 +632,7 @@ class Blueprint
      * Rename the table to a given name.
      *
      * @param  string  $to
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     public function rename($to)
     {
@@ -645,7 +645,7 @@ class Blueprint
      * @param  string|array  $columns
      * @param  string|null  $name
      * @param  string|null  $algorithm
-     * @return \Illuminate\Database\Schema\IndexDefinition
+     * @return \Hypervel\Database\Schema\IndexDefinition
      */
     public function primary($columns, $name = null, $algorithm = null)
     {
@@ -658,7 +658,7 @@ class Blueprint
      * @param  string|array  $columns
      * @param  string|null  $name
      * @param  string|null  $algorithm
-     * @return \Illuminate\Database\Schema\IndexDefinition
+     * @return \Hypervel\Database\Schema\IndexDefinition
      */
     public function unique($columns, $name = null, $algorithm = null)
     {
@@ -671,7 +671,7 @@ class Blueprint
      * @param  string|array  $columns
      * @param  string|null  $name
      * @param  string|null  $algorithm
-     * @return \Illuminate\Database\Schema\IndexDefinition
+     * @return \Hypervel\Database\Schema\IndexDefinition
      */
     public function index($columns, $name = null, $algorithm = null)
     {
@@ -684,7 +684,7 @@ class Blueprint
      * @param  string|array  $columns
      * @param  string|null  $name
      * @param  string|null  $algorithm
-     * @return \Illuminate\Database\Schema\IndexDefinition
+     * @return \Hypervel\Database\Schema\IndexDefinition
      */
     public function fullText($columns, $name = null, $algorithm = null)
     {
@@ -697,7 +697,7 @@ class Blueprint
      * @param  string|array  $columns
      * @param  string|null  $name
      * @param  string|null  $operatorClass
-     * @return \Illuminate\Database\Schema\IndexDefinition
+     * @return \Hypervel\Database\Schema\IndexDefinition
      */
     public function spatialIndex($columns, $name = null, $operatorClass = null)
     {
@@ -709,7 +709,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  string|null  $name
-     * @return \Illuminate\Database\Schema\IndexDefinition
+     * @return \Hypervel\Database\Schema\IndexDefinition
      */
     public function vectorIndex($column, $name = null)
     {
@@ -721,7 +721,7 @@ class Blueprint
      *
      * @param  string  $expression
      * @param  string  $name
-     * @return \Illuminate\Database\Schema\IndexDefinition
+     * @return \Hypervel\Database\Schema\IndexDefinition
      */
     public function rawIndex($expression, $name)
     {
@@ -733,7 +733,7 @@ class Blueprint
      *
      * @param  string|array  $columns
      * @param  string|null  $name
-     * @return \Illuminate\Database\Schema\ForeignKeyDefinition
+     * @return \Hypervel\Database\Schema\ForeignKeyDefinition
      */
     public function foreign($columns, $name = null)
     {
@@ -750,7 +750,7 @@ class Blueprint
      * Create a new auto-incrementing big integer column on the table (8-byte, 0 to 18,446,744,073,709,551,615).
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function id($column = 'id')
     {
@@ -761,7 +761,7 @@ class Blueprint
      * Create a new auto-incrementing integer column on the table (4-byte, 0 to 4,294,967,295).
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function increments($column)
     {
@@ -772,7 +772,7 @@ class Blueprint
      * Create a new auto-incrementing integer column on the table (4-byte, 0 to 4,294,967,295).
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function integerIncrements($column)
     {
@@ -783,7 +783,7 @@ class Blueprint
      * Create a new auto-incrementing tiny integer column on the table (1-byte, 0 to 255).
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function tinyIncrements($column)
     {
@@ -794,7 +794,7 @@ class Blueprint
      * Create a new auto-incrementing small integer column on the table (2-byte, 0 to 65,535).
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function smallIncrements($column)
     {
@@ -805,7 +805,7 @@ class Blueprint
      * Create a new auto-incrementing medium integer column on the table (3-byte, 0 to 16,777,215).
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function mediumIncrements($column)
     {
@@ -816,7 +816,7 @@ class Blueprint
      * Create a new auto-incrementing big integer column on the table (8-byte, 0 to 18,446,744,073,709,551,615).
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function bigIncrements($column)
     {
@@ -828,7 +828,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  int|null  $length
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function char($column, $length = null)
     {
@@ -842,7 +842,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  int|null  $length
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function string($column, $length = null)
     {
@@ -855,7 +855,7 @@ class Blueprint
      * Create a new tiny text column on the table (up to 255 characters).
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function tinyText($column)
     {
@@ -866,7 +866,7 @@ class Blueprint
      * Create a new text column on the table (up to 65,535 characters / ~64 KB).
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function text($column)
     {
@@ -877,7 +877,7 @@ class Blueprint
      * Create a new medium text column on the table (up to 16,777,215 characters / ~16 MB).
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function mediumText($column)
     {
@@ -888,7 +888,7 @@ class Blueprint
      * Create a new long text column on the table (up to 4,294,967,295 characters / ~4 GB).
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function longText($column)
     {
@@ -902,7 +902,7 @@ class Blueprint
      * @param  string  $column
      * @param  bool  $autoIncrement
      * @param  bool  $unsigned
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function integer($column, $autoIncrement = false, $unsigned = false)
     {
@@ -916,7 +916,7 @@ class Blueprint
      * @param  string  $column
      * @param  bool  $autoIncrement
      * @param  bool  $unsigned
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function tinyInteger($column, $autoIncrement = false, $unsigned = false)
     {
@@ -930,7 +930,7 @@ class Blueprint
      * @param  string  $column
      * @param  bool  $autoIncrement
      * @param  bool  $unsigned
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function smallInteger($column, $autoIncrement = false, $unsigned = false)
     {
@@ -944,7 +944,7 @@ class Blueprint
      * @param  string  $column
      * @param  bool  $autoIncrement
      * @param  bool  $unsigned
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function mediumInteger($column, $autoIncrement = false, $unsigned = false)
     {
@@ -958,7 +958,7 @@ class Blueprint
      * @param  string  $column
      * @param  bool  $autoIncrement
      * @param  bool  $unsigned
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function bigInteger($column, $autoIncrement = false, $unsigned = false)
     {
@@ -970,7 +970,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  bool  $autoIncrement
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function unsignedInteger($column, $autoIncrement = false)
     {
@@ -982,7 +982,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  bool  $autoIncrement
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function unsignedTinyInteger($column, $autoIncrement = false)
     {
@@ -994,7 +994,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  bool  $autoIncrement
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function unsignedSmallInteger($column, $autoIncrement = false)
     {
@@ -1006,7 +1006,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  bool  $autoIncrement
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function unsignedMediumInteger($column, $autoIncrement = false)
     {
@@ -1018,7 +1018,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  bool  $autoIncrement
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function unsignedBigInteger($column, $autoIncrement = false)
     {
@@ -1029,7 +1029,7 @@ class Blueprint
      * Create a new unsigned big integer column on the table (8-byte, 0 to 18,446,744,073,709,551,615).
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ForeignIdColumnDefinition
+     * @return \Hypervel\Database\Schema\ForeignIdColumnDefinition
      */
     public function foreignId($column)
     {
@@ -1044,9 +1044,9 @@ class Blueprint
     /**
      * Create a foreign ID column for the given model.
      *
-     * @param  \Illuminate\Database\Eloquent\Model|string  $model
+     * @param  \Hypervel\Database\Eloquent\Model|string  $model
      * @param  string|null  $column
-     * @return \Illuminate\Database\Schema\ForeignIdColumnDefinition
+     * @return \Hypervel\Database\Schema\ForeignIdColumnDefinition
      */
     public function foreignIdFor($model, $column = null)
     {
@@ -1080,7 +1080,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  int  $precision
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function float($column, $precision = 53)
     {
@@ -1091,7 +1091,7 @@ class Blueprint
      * Create a new double column on the table.
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function double($column)
     {
@@ -1104,7 +1104,7 @@ class Blueprint
      * @param  string  $column
      * @param  int  $total
      * @param  int  $places
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function decimal($column, $total = 8, $places = 2)
     {
@@ -1115,7 +1115,7 @@ class Blueprint
      * Create a new boolean column on the table.
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function boolean($column)
     {
@@ -1127,7 +1127,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  array  $allowed
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function enum($column, array $allowed)
     {
@@ -1141,7 +1141,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  array  $allowed
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function set($column, array $allowed)
     {
@@ -1152,7 +1152,7 @@ class Blueprint
      * Create a new json column on the table.
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function json($column)
     {
@@ -1163,7 +1163,7 @@ class Blueprint
      * Create a new jsonb column on the table.
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function jsonb($column)
     {
@@ -1174,7 +1174,7 @@ class Blueprint
      * Create a new date column on the table.
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function date($column)
     {
@@ -1186,7 +1186,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  int|null  $precision
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function dateTime($column, $precision = null)
     {
@@ -1200,7 +1200,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  int|null  $precision
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function dateTimeTz($column, $precision = null)
     {
@@ -1214,7 +1214,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  int|null  $precision
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function time($column, $precision = null)
     {
@@ -1228,7 +1228,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  int|null  $precision
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function timeTz($column, $precision = null)
     {
@@ -1242,7 +1242,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  int|null  $precision
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function timestamp($column, $precision = null)
     {
@@ -1256,7 +1256,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  int|null  $precision
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function timestampTz($column, $precision = null)
     {
@@ -1269,7 +1269,7 @@ class Blueprint
      * Add nullable creation and update timestamps to the table.
      *
      * @param  int|null  $precision
-     * @return \Illuminate\Support\Collection<int, \Illuminate\Database\Schema\ColumnDefinition>
+     * @return \Hypervel\Support\Collection<int, \Hypervel\Database\Schema\ColumnDefinition>
      */
     public function timestamps($precision = null)
     {
@@ -1285,7 +1285,7 @@ class Blueprint
      * Alias for self::timestamps().
      *
      * @param  int|null  $precision
-     * @return \Illuminate\Support\Collection<int, \Illuminate\Database\Schema\ColumnDefinition>
+     * @return \Hypervel\Support\Collection<int, \Hypervel\Database\Schema\ColumnDefinition>
      */
     public function nullableTimestamps($precision = null)
     {
@@ -1296,7 +1296,7 @@ class Blueprint
      * Add nullable creation and update timestampTz columns to the table.
      *
      * @param  int|null  $precision
-     * @return \Illuminate\Support\Collection<int, \Illuminate\Database\Schema\ColumnDefinition>
+     * @return \Hypervel\Support\Collection<int, \Hypervel\Database\Schema\ColumnDefinition>
      */
     public function timestampsTz($precision = null)
     {
@@ -1312,7 +1312,7 @@ class Blueprint
      * Alias for self::timestampsTz().
      *
      * @param  int|null  $precision
-     * @return \Illuminate\Support\Collection<int, \Illuminate\Database\Schema\ColumnDefinition>
+     * @return \Hypervel\Support\Collection<int, \Hypervel\Database\Schema\ColumnDefinition>
      */
     public function nullableTimestampsTz($precision = null)
     {
@@ -1323,7 +1323,7 @@ class Blueprint
      * Add creation and update datetime columns to the table.
      *
      * @param  int|null  $precision
-     * @return \Illuminate\Support\Collection<int, \Illuminate\Database\Schema\ColumnDefinition>
+     * @return \Hypervel\Support\Collection<int, \Hypervel\Database\Schema\ColumnDefinition>
      */
     public function datetimes($precision = null)
     {
@@ -1338,7 +1338,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  int|null  $precision
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function softDeletes($column = 'deleted_at', $precision = null)
     {
@@ -1350,7 +1350,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  int|null  $precision
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function softDeletesTz($column = 'deleted_at', $precision = null)
     {
@@ -1362,7 +1362,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  int|null  $precision
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function softDeletesDatetime($column = 'deleted_at', $precision = null)
     {
@@ -1373,7 +1373,7 @@ class Blueprint
      * Create a new year column on the table.
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function year($column)
     {
@@ -1386,7 +1386,7 @@ class Blueprint
      * @param  string  $column
      * @param  int|null  $length
      * @param  bool  $fixed
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function binary($column, $length = null, $fixed = false)
     {
@@ -1397,7 +1397,7 @@ class Blueprint
      * Create a new UUID column on the table.
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function uuid($column = 'uuid')
     {
@@ -1408,7 +1408,7 @@ class Blueprint
      * Create a new UUID column on the table with a foreign key constraint.
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ForeignIdColumnDefinition
+     * @return \Hypervel\Database\Schema\ForeignIdColumnDefinition
      */
     public function foreignUuid($column)
     {
@@ -1423,7 +1423,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  int|null  $length
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function ulid($column = 'ulid', $length = 26)
     {
@@ -1435,7 +1435,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  int|null  $length
-     * @return \Illuminate\Database\Schema\ForeignIdColumnDefinition
+     * @return \Hypervel\Database\Schema\ForeignIdColumnDefinition
      */
     public function foreignUlid($column, $length = 26)
     {
@@ -1450,7 +1450,7 @@ class Blueprint
      * Create a new IP address column on the table.
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function ipAddress($column = 'ip_address')
     {
@@ -1461,7 +1461,7 @@ class Blueprint
      * Create a new MAC address column on the table.
      *
      * @param  string  $column
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function macAddress($column = 'mac_address')
     {
@@ -1474,7 +1474,7 @@ class Blueprint
      * @param  string  $column
      * @param  string|null  $subtype
      * @param  int  $srid
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function geometry($column, $subtype = null, $srid = 0)
     {
@@ -1487,7 +1487,7 @@ class Blueprint
      * @param  string  $column
      * @param  string|null  $subtype
      * @param  int  $srid
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function geography($column, $subtype = null, $srid = 4326)
     {
@@ -1499,7 +1499,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  string  $expression
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function computed($column, $expression)
     {
@@ -1511,7 +1511,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  int|null  $dimensions
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function vector($column, $dimensions = null)
     {
@@ -1681,7 +1681,7 @@ class Blueprint
     /**
      * Add the `remember_token` column to the table.
      *
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function rememberToken()
     {
@@ -1693,7 +1693,7 @@ class Blueprint
      *
      * @param  string  $column
      * @param  string  $definition
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function rawColumn($column, $definition)
     {
@@ -1704,7 +1704,7 @@ class Blueprint
      * Add a comment to the table.
      *
      * @param  string  $comment
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     public function comment($comment)
     {
@@ -1719,7 +1719,7 @@ class Blueprint
      * @param  string  $index
      * @param  string|null  $algorithm
      * @param  string|null  $operatorClass
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     protected function indexCommand($type, $columns, $index, $algorithm = null, $operatorClass = null)
     {
@@ -1741,7 +1741,7 @@ class Blueprint
      * @param  string  $command
      * @param  string  $type
      * @param  string|array  $index
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     protected function dropIndexCommand($command, $type, $index)
     {
@@ -1785,7 +1785,7 @@ class Blueprint
      * @param  string  $type
      * @param  string  $name
      * @param  array  $parameters
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     public function addColumn($type, $name, array $parameters = [])
     {
@@ -1797,8 +1797,8 @@ class Blueprint
     /**
      * Add a new column definition to the blueprint.
      *
-     * @param  \Illuminate\Database\Schema\ColumnDefinition  $definition
-     * @return \Illuminate\Database\Schema\ColumnDefinition
+     * @param  \Hypervel\Database\Schema\ColumnDefinition  $definition
+     * @return \Hypervel\Database\Schema\ColumnDefinition
      */
     protected function addColumnDefinition($definition)
     {
@@ -1857,7 +1857,7 @@ class Blueprint
      *
      * @param  string  $name
      * @param  array  $parameters
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     protected function addCommand($name, array $parameters = [])
     {
@@ -1871,7 +1871,7 @@ class Blueprint
      *
      * @param  string  $name
      * @param  array  $parameters
-     * @return \Illuminate\Support\Fluent
+     * @return \Hypervel\Support\Fluent
      */
     protected function createCommand($name, array $parameters = [])
     {
@@ -1903,7 +1903,7 @@ class Blueprint
     /**
      * Get the columns on the blueprint.
      *
-     * @return \Illuminate\Database\Schema\ColumnDefinition[]
+     * @return \Hypervel\Database\Schema\ColumnDefinition[]
      */
     public function getColumns()
     {
@@ -1913,7 +1913,7 @@ class Blueprint
     /**
      * Get the commands on the blueprint.
      *
-     * @return \Illuminate\Support\Fluent[]
+     * @return \Hypervel\Support\Fluent[]
      */
     public function getCommands()
     {
@@ -1933,7 +1933,7 @@ class Blueprint
     /**
      * Get the state of the blueprint.
      *
-     * @return \Illuminate\Database\Schema\BlueprintState
+     * @return \Hypervel\Database\Schema\BlueprintState
      */
     public function getState()
     {
@@ -1943,7 +1943,7 @@ class Blueprint
     /**
      * Get the columns on the blueprint that should be added.
      *
-     * @return \Illuminate\Database\Schema\ColumnDefinition[]
+     * @return \Hypervel\Database\Schema\ColumnDefinition[]
      */
     public function getAddedColumns()
     {
@@ -1957,7 +1957,7 @@ class Blueprint
      *
      * @deprecated Will be removed in a future Laravel version.
      *
-     * @return \Illuminate\Database\Schema\ColumnDefinition[]
+     * @return \Hypervel\Database\Schema\ColumnDefinition[]
      */
     public function getChangedColumns()
     {
