@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Concerns;
 
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Database\Eloquent\Attributes\UseResource;
 use Hypervel\Http\Resources\Json\JsonResource;
 use LogicException;

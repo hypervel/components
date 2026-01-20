@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Concerns;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
-use Hyperf\Database\Model\Model as HyperfModel;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Database\Eloquent\Attributes\ObservedBy;
 use Hypervel\Database\Eloquent\ObserverManager;
@@ -45,7 +45,7 @@ trait HasObservers
 
         $parentClass = get_parent_class(static::class);
         $hasParentWithTrait = $parentClass
-            && $parentClass !== HyperfModel::class
+            && $parentClass !== Model::class
             && method_exists($parentClass, 'resolveObserveAttributes');
 
         // Collect attributes from traits, then from the class itself
