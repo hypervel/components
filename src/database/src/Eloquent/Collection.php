@@ -351,9 +351,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param  (callable(TModel, TKey): bool)|TModel|string|int  $key
      * @param  mixed  $operator
      * @param  mixed  $value
-     * @return bool
      */
-    public function contains($key, $operator = null, $value = null)
+    public function contains($key, $operator = null, $value = null): bool
     {
         if (func_num_args() > 1 || $this->useAsCallable($key)) {
             return parent::contains(...func_get_args());
@@ -372,9 +371,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param  (callable(TModel, TKey): bool)|TModel|string|int  $key
      * @param  mixed  $operator
      * @param  mixed  $value
-     * @return bool
      */
-    public function doesntContain($key, $operator = null, $value = null)
+    public function doesntContain($key, $operator = null, $value = null): bool
     {
         return ! $this->contains(...func_get_args());
     }
@@ -467,9 +465,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Diff the collection with the given items.
      *
      * @param  iterable<array-key, TModel>  $items
-     * @return static
      */
-    public function diff($items)
+    public function diff($items): static
     {
         $diff = new static;
 
@@ -546,9 +543,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Returns all models in the collection except the models with specified keys.
      *
      * @param  array<array-key, mixed>|null  $keys
-     * @return static
      */
-    public function except($keys)
+    public function except($keys): static
     {
         if (is_null($keys)) {
             return new static($this->items);
@@ -697,7 +693,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, mixed>
      */
     #[\Override]
-    public function collapse()
+    public function collapse(): \Hyperf\Collection\Enumerable
     {
         return $this->toBase()->collapse();
     }
@@ -708,7 +704,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, mixed>
      */
     #[\Override]
-    public function flatten($depth = INF)
+    public function flatten($depth = INF): \Hyperf\Collection\Enumerable
     {
         return $this->toBase()->flatten($depth);
     }
