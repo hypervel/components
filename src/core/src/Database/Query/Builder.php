@@ -344,4 +344,40 @@ class Builder extends BaseBuilder
     {
         return $this->havingNotNull($column, 'or');
     }
+
+    /**
+     * Add a "having not between" clause to the query.
+     *
+     * @param array<int, mixed> $values
+     */
+    public function havingNotBetween(string $column, array $values, string $boolean = 'and'): static
+    {
+        $this->havingBetween($column, $values, $boolean, true);
+
+        return $this;
+    }
+
+    /**
+     * Add an "or having between" clause to the query.
+     *
+     * @param array<int, mixed> $values
+     */
+    public function orHavingBetween(string $column, array $values): static
+    {
+        $this->havingBetween($column, $values, 'or');
+
+        return $this;
+    }
+
+    /**
+     * Add an "or having not between" clause to the query.
+     *
+     * @param array<int, mixed> $values
+     */
+    public function orHavingNotBetween(string $column, array $values): static
+    {
+        $this->havingBetween($column, $values, 'or', true);
+
+        return $this;
+    }
 }
