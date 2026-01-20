@@ -547,4 +547,12 @@ class Builder extends BaseBuilder
 
         return $this;
     }
+
+    /**
+     * Add a descending "reorder" clause to the query.
+     */
+    public function reorderDesc(Closure|Expression|string $column): static
+    {
+        return $this->reorder($column, 'desc');
+    }
 }
