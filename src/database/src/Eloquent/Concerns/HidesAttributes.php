@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Concerns;
 
-use Closure;
-
 trait HidesAttributes
 {
     /**
@@ -13,21 +11,21 @@ trait HidesAttributes
      *
      * @var array<string>
      */
-    protected array $hidden = [];
+    protected $hidden = [];
 
     /**
      * The attributes that should be visible in serialization.
      *
      * @var array<string>
      */
-    protected array $visible = [];
+    protected $visible = [];
 
     /**
      * Get the hidden attributes for the model.
      *
      * @return array<string>
      */
-    public function getHidden(): array
+    public function getHidden()
     {
         return $this->hidden;
     }
@@ -35,10 +33,10 @@ trait HidesAttributes
     /**
      * Set the hidden attributes for the model.
      *
-     * @param array<string> $hidden
+     * @param  array<string>  $hidden
      * @return $this
      */
-    public function setHidden(array $hidden): static
+    public function setHidden(array $hidden)
     {
         $this->hidden = $hidden;
 
@@ -48,10 +46,10 @@ trait HidesAttributes
     /**
      * Merge new hidden attributes with existing hidden attributes on the model.
      *
-     * @param array<string> $hidden
+     * @param  array<string>  $hidden
      * @return $this
      */
-    public function mergeHidden(array $hidden): static
+    public function mergeHidden(array $hidden)
     {
         $this->hidden = array_values(array_unique(array_merge($this->hidden, $hidden)));
 
@@ -63,7 +61,7 @@ trait HidesAttributes
      *
      * @return array<string>
      */
-    public function getVisible(): array
+    public function getVisible()
     {
         return $this->visible;
     }
@@ -71,10 +69,10 @@ trait HidesAttributes
     /**
      * Set the visible attributes for the model.
      *
-     * @param array<string> $visible
+     * @param  array<string>  $visible
      * @return $this
      */
-    public function setVisible(array $visible): static
+    public function setVisible(array $visible)
     {
         $this->visible = $visible;
 
@@ -84,10 +82,10 @@ trait HidesAttributes
     /**
      * Merge new visible attributes with existing visible attributes on the model.
      *
-     * @param array<string> $visible
+     * @param  array<string>  $visible
      * @return $this
      */
-    public function mergeVisible(array $visible): static
+    public function mergeVisible(array $visible)
     {
         $this->visible = array_values(array_unique(array_merge($this->visible, $visible)));
 
@@ -97,10 +95,10 @@ trait HidesAttributes
     /**
      * Make the given, typically hidden, attributes visible.
      *
-     * @param array<string>|string|null $attributes
+     * @param  array<string>|string|null  $attributes
      * @return $this
      */
-    public function makeVisible(array|string|null $attributes): static
+    public function makeVisible($attributes)
     {
         $attributes = is_array($attributes) ? $attributes : func_get_args();
 
@@ -116,10 +114,11 @@ trait HidesAttributes
     /**
      * Make the given, typically hidden, attributes visible if the given truth test passes.
      *
-     * @param array<string>|string|null $attributes
+     * @param  bool|\Closure  $condition
+     * @param  array<string>|string|null  $attributes
      * @return $this
      */
-    public function makeVisibleIf(bool|Closure $condition, array|string|null $attributes): static
+    public function makeVisibleIf($condition, $attributes)
     {
         return value($condition, $this) ? $this->makeVisible($attributes) : $this;
     }
@@ -127,14 +126,13 @@ trait HidesAttributes
     /**
      * Make the given, typically visible, attributes hidden.
      *
-     * @param array<string>|string|null $attributes
+     * @param  array<string>|string|null  $attributes
      * @return $this
      */
-    public function makeHidden(array|string|null $attributes): static
+    public function makeHidden($attributes)
     {
         $this->hidden = array_values(array_unique(array_merge(
-            $this->hidden,
-            is_array($attributes) ? $attributes : func_get_args()
+            $this->hidden, is_array($attributes) ? $attributes : func_get_args()
         )));
 
         return $this;
@@ -143,10 +141,11 @@ trait HidesAttributes
     /**
      * Make the given, typically visible, attributes hidden if the given truth test passes.
      *
-     * @param array<string>|string|null $attributes
+     * @param  bool|\Closure  $condition
+     * @param  array<string>|string|null  $attributes
      * @return $this
      */
-    public function makeHiddenIf(bool|Closure $condition, array|string|null $attributes): static
+    public function makeHiddenIf($condition, $attributes)
     {
         return value($condition, $this) ? $this->makeHidden($attributes) : $this;
     }
