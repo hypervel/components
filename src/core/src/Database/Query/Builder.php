@@ -6,6 +6,7 @@ namespace Hypervel\Database\Query;
 
 use Closure;
 use Hyperf\Database\Query\Builder as BaseBuilder;
+use Hyperf\Database\Query\Expression;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\LazyCollection;
 
@@ -110,5 +111,36 @@ class Builder extends BaseBuilder
     public function pluck($column, $key = null)
     {
         return new BaseCollection(parent::pluck($column, $key)->all());
+    }
+
+    /**
+     * Add a "where not" clause to the query.
+     */
+    public function whereNot(
+        Closure|string|array|Expression $column,
+        mixed $operator = null,
+        mixed $value = null,
+        string $boolean = 'and',
+    ): static {
+        if (is_array($column)) {
+            $this->whereNested(function ($query) use ($column, $operator, $value, $boolean) {
+                $query->where($column, $operator, $value, $boolean);
+            }, $boolean.' not');
+
+            return $this;
+        }
+
+        return $this->where($column, $operator, $value, $boolean.' not');
+    }
+
+    /**
+     * Add an "or where not" clause to the query.
+     */
+    public function orWhereNot(
+        Closure|string|array|Expression $column,
+        mixed $operator = null,
+        mixed $value = null,
+    ): static {
+        return $this->whereNot($column, $operator, $value, 'or');
     }
 }
