@@ -59,7 +59,7 @@ class EventDispatcher implements EventDispatcherContract
     /**
      * Fire an event and call the listeners.
      */
-    public function dispatch(object|string $event, mixed $payload = [], bool $halt = false): object|string
+    public function dispatch(object|string $event, mixed $payload = [], bool $halt = false): mixed
     {
         if ($this->shouldDeferEvent($event)) {
             Context::override('__event.deferred_events', function (?array $events) use ($event, $payload, $halt) {
@@ -146,7 +146,7 @@ class EventDispatcher implements EventDispatcherContract
     /**
      * Fire an event until the first non-null response is returned.
      */
-    public function until(object|string $event, mixed $payload = []): object|string
+    public function until(object|string $event, mixed $payload = []): mixed
     {
         return $this->dispatch($event, $payload, true);
     }
@@ -154,7 +154,7 @@ class EventDispatcher implements EventDispatcherContract
     /**
      * Broadcast an event and call the listeners.
      */
-    protected function invokeListeners(object|string $event, mixed $payload, bool $halt = false): object|string
+    protected function invokeListeners(object|string $event, mixed $payload, bool $halt = false): mixed
     {
         if ($this->shouldBroadcast($event)) {
             $this->broadcastEvent($event);
@@ -165,7 +165,13 @@ class EventDispatcher implements EventDispatcherContract
 
             $this->dump($listener, $event);
 
-            if ($halt || $response === false || ($event instanceof StoppableEventInterface && $event->isPropagationStopped())) {
+            // If halting and listener returned a non-null response, return it immediately
+            if ($halt && ! is_null($response)) {
+                return $response;
+            }
+
+            // If listener returns false, stop propagation
+            if ($response === false || ($event instanceof StoppableEventInterface && $event->isPropagationStopped())) {
                 break;
             }
         }

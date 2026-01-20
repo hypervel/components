@@ -14,7 +14,7 @@ interface Dispatcher extends EventDispatcherInterface
     /**
      * Fire an event and call the listeners.
      */
-    public function dispatch(object|string $event, mixed $payload = [], bool $halt = false): object|string;
+    public function dispatch(object|string $event, mixed $payload = [], bool $halt = false): mixed;
 
     /**
      * Register an event listener with the listener provider.
@@ -28,7 +28,7 @@ interface Dispatcher extends EventDispatcherInterface
     /**
      * Fire an event until the first non-null response is returned.
      */
-    public function until(object|string $event, mixed $payload = []): object|string;
+    public function until(object|string $event, mixed $payload = []): mixed;
 
     /**
      * Get all of the listeners for a given event name.
