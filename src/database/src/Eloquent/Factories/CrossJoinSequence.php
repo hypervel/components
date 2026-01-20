@@ -11,12 +11,14 @@ class CrossJoinSequence extends Sequence
     /**
      * Create a new cross join sequence instance.
      *
-     * @param array<string, mixed> ...$sequences
+     * @param  array  ...$sequences
      */
-    public function __construct(array ...$sequences)
+    public function __construct(...$sequences)
     {
         $crossJoined = array_map(
-            fn ($a) => array_merge(...$a),
+            function ($a) {
+                return array_merge(...$a);
+            },
             Arr::crossJoin(...$sequences),
         );
 
