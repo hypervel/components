@@ -613,4 +613,16 @@ class Builder extends BaseBuilder
     {
         dd($this->toRawSql());
     }
+
+    /**
+     * Get the SQL representation of the query.
+     *
+     * Overrides Hyperf to apply beforeQuery callbacks.
+     */
+    public function toSql(): string
+    {
+        $this->applyBeforeQueryCallbacks();
+
+        return $this->grammar->compileSelect($this);
+    }
 }
