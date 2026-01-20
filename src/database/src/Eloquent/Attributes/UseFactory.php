@@ -29,10 +29,10 @@ class UseFactory
     /**
      * Create a new attribute instance.
      *
-     * @param class-string<\Hypervel\Database\Eloquent\Factories\Factory> $class
+     * @param class-string<\Hypervel\Database\Eloquent\Factories\Factory> $factoryClass
      */
     public function __construct(
-        public string $class,
+        public string $factoryClass,
     ) {
     }
 }
