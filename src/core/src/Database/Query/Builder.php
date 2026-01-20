@@ -43,6 +43,25 @@ use Hypervel\Support\LazyCollection;
 class Builder extends BaseBuilder
 {
     /**
+     * The current query value bindings.
+     *
+     * Extends Hyperf's bindings to add 'groupBy' binding type for Laravel
+     * compatibility with groupByRaw().
+     *
+     * @var array<string, array<int, mixed>>
+     */
+    public $bindings = [
+        'select' => [],
+        'from' => [],
+        'join' => [],
+        'where' => [],
+        'groupBy' => [],
+        'having' => [],
+        'order' => [],
+        'union' => [],
+    ];
+
+    /**
      * The callbacks that should be invoked before the query is executed.
      *
      * @var array<int, callable>

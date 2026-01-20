@@ -4,40 +4,69 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Core\Database\Integration;
 
+use Hyperf\Contract\ConfigInterface;
+use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\Schema\Blueprint;
-use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
+use Hyperf\Database\SQLite\Connectors\SQLiteConnector;
+use Hyperf\DbConnection\Db;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\TestCase;
 
 /**
- * SQLite integration tests for database query builder features.
+ * SQLite tests for database features.
  *
- * Uses in-memory SQLite database, so no external service is required.
- * These tests can run as part of the regular test suite.
- *
- * @group integration
- * @group sqlite-integration
+ * Unlike MySQL/PostgreSQL tests, this does NOT extend DatabaseIntegrationTestCase
+ * or use @group annotations because:
+ * - SQLite in-memory requires no external services
+ * - Each test gets an isolated :memory: database (destroyed when test ends)
+ * - No env vars, groups, or table prefixes needed for parallel safety
  *
  * @internal
  * @coversNothing
  */
-class SQLiteIntegrationTest extends DatabaseIntegrationTestCase
+class SQLiteIntegrationTest extends TestCase
 {
-    protected function getDatabaseDriver(): string
+    use RunTestsInCoroutine;
+
+    protected function setUp(): void
     {
-        return 'sqlite';
+        parent::setUp();
+
+        $this->app->set('db.connector.sqlite', new SQLiteConnector());
+
+        $config = $this->app->get(ConfigInterface::class);
+        $config->set('databases.sqlite', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+        ]);
+        $config->set('databases.default', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+        ]);
+    }
+
+    protected function db(): ConnectionInterface
+    {
+        return Db::connection('sqlite');
+    }
+
+    protected function createTestTable(string $name, callable $callback): void
+    {
+        Schema::connection('sqlite')->create($name, $callback);
     }
 
     public function testCanConnectToSqliteDatabase(): void
     {
-        // Create a simple test table
         $this->createTestTable('smoke_test', function (Blueprint $table) {
             $table->id();
             $table->string('name');
         });
 
-        // Insert a row
         $this->db()->table('smoke_test')->insert(['name' => 'test']);
 
-        // Query it back
         $result = $this->db()->table('smoke_test')->where('name', 'test')->first();
 
         $this->assertNotNull($result);
