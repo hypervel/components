@@ -8,49 +8,46 @@ use Hypervel\Database\Eloquent\Attributes\UseFactory;
 use ReflectionClass;
 
 /**
- * @template TFactory of Factory
+ * @template TFactory of \Hypervel\Database\Eloquent\Factories\Factory
  */
 trait HasFactory
 {
     /**
      * Get a new factory instance for the model.
      *
-     * @param null|array<string, mixed>|(callable(array<string, mixed>, null|static): array<string, mixed>)|int $count
-     * @param array<string, mixed>|(callable(array<string, mixed>, null|static): array<string, mixed>) $state
+     * @param  (callable(array<string, mixed>, static|null): array<string, mixed>)|array<string, mixed>|int|null  $count
+     * @param  (callable(array<string, mixed>, static|null): array<string, mixed>)|array<string, mixed>  $state
      * @return TFactory
      */
-    public static function factory(array|callable|int|null $count = null, array|callable $state = []): Factory
+    public static function factory($count = null, $state = [])
     {
         $factory = static::newFactory() ?? Factory::factoryForModel(static::class);
 
-        return $factory->count(is_numeric($count) ? $count : null)
+        return $factory
+            ->count(is_numeric($count) ? $count : null)
             ->state(is_callable($count) || is_array($count) ? $count : $state);
     }
 
     /**
      * Create a new factory instance for the model.
      *
-     * Resolution order:
-     * 1. Static $factory property on the model
-     * 2. #[UseFactory] attribute on the model class
-     *
-     * @return null|TFactory
+     * @return TFactory|null
      */
-    protected static function newFactory(): ?Factory
+    protected static function newFactory()
     {
         if (isset(static::$factory)) {
             return static::$factory::new();
         }
 
-        return static::getUseFactoryAttribute();
+        return static::getUseFactoryAttribute() ?? null;
     }
 
     /**
      * Get the factory from the UseFactory class attribute.
      *
-     * @return null|TFactory
+     * @return TFactory|null
      */
-    protected static function getUseFactoryAttribute(): ?Factory
+    protected static function getUseFactoryAttribute()
     {
         $attributes = (new ReflectionClass(static::class))
             ->getAttributes(UseFactory::class);
@@ -64,7 +61,5 @@ trait HasFactory
 
             return $factory;
         }
-
-        return null;
     }
 }
