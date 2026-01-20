@@ -4,63 +4,24 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Relations;
 
-use Hyperf\DbConnection\Model\Relations\Pivot as BasePivot;
-use Hypervel\Database\Eloquent\Concerns\HasAttributes;
-use Hypervel\Database\Eloquent\Concerns\HasCallbacks;
-use Hypervel\Database\Eloquent\Concerns\HasGlobalScopes;
-use Hypervel\Database\Eloquent\Concerns\HasObservers;
-use Hypervel\Database\Eloquent\Concerns\HasTimestamps;
-use Psr\EventDispatcher\StoppableEventInterface;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
 
-class Pivot extends BasePivot
+class Pivot extends Model
 {
-    use HasAttributes;
-    use HasCallbacks;
-    use HasGlobalScopes;
-    use HasObservers;
-    use HasTimestamps;
+    use AsPivot;
 
     /**
-     * Get a new query builder instance for the connection.
+     * Indicates if the IDs are auto-incrementing.
      *
-     * Delegates to the connection so custom connections can provide
-     * custom query builders with additional methods.
-     *
-     * @return \Hyperf\Database\Query\Builder
+     * @var bool
      */
-    protected function newBaseQueryBuilder()
-    {
-        /** @var \Hyperf\Database\Connection $connection */
-        $connection = $this->getConnection();
-
-        return $connection->query();
-    }
+    public $incrementing = false;
 
     /**
-     * Delete the pivot model record from the database.
+     * The attributes that aren't mass assignable.
      *
-     * Overrides parent to fire deleting/deleted events even for composite key pivots.
+     * @var array<string>|bool
      */
-    public function delete(): mixed
-    {
-        // If pivot has a primary key, use parent's delete which fires events
-        if (isset($this->attributes[$this->getKeyName()])) {
-            return parent::delete();
-        }
-
-        // For composite key pivots, manually fire events around the raw delete
-        if ($event = $this->fireModelEvent('deleting')) {
-            if ($event instanceof StoppableEventInterface && $event->isPropagationStopped()) {
-                return 0;
-            }
-        }
-
-        $result = $this->getDeleteQuery()->delete();
-
-        $this->exists = false;
-
-        $this->fireModelEvent('deleted');
-
-        return $result;
-    }
+    protected $guarded = [];
 }
