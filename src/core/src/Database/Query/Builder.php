@@ -7,6 +7,7 @@ namespace Hypervel\Database\Query;
 use Closure;
 use Hyperf\Database\Query\Builder as BaseBuilder;
 use Hyperf\Database\Query\Expression;
+use Hyperf\Database\Query\JoinClause;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\LazyCollection;
@@ -554,5 +555,22 @@ class Builder extends BaseBuilder
     public function reorderDesc(Closure|Expression|string $column): static
     {
         return $this->reorder($column, 'desc');
+    }
+
+    /**
+     * Add a subquery cross join to the query.
+     */
+    public function crossJoinSub(Closure|self|BaseBuilder|string $query, string $as): static
+    {
+        [$query, $bindings] = $this->createSub($query);
+
+        $expression = '(' . $query . ') as ' . $this->grammar->wrapTable($as);
+
+        $this->addBinding($bindings, 'join');
+
+        // @phpstan-ignore argument.type (Expression is valid for subquery joins)
+        $this->joins[] = new JoinClause($this, 'cross', new Expression($expression));
+
+        return $this;
     }
 }
