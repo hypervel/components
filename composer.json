@@ -112,6 +112,7 @@
         "hyperf/cache": "~3.1.0",
         "hyperf/command": "~3.1.0",
         "hyperf/config": "~3.1.0",
+        "hyperf/database-pgsql": "~3.1.0",
         "hyperf/database-sqlite": "~3.1.0",
         "hyperf/db-connection": "~3.1.0",
         "hyperf/dispatcher": "~3.1.0",
