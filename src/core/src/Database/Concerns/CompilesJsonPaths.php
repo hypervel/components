@@ -13,9 +13,9 @@ trait CompilesJsonPaths
      * Split the given JSON selector into the field and the optional path and wrap them separately.
      *
      * @param  string  $column
-     * @return array
+     * @return array{string, string}
      */
-    protected function wrapJsonFieldAndPath($column)
+    protected function wrapJsonFieldAndPath($column): array
     {
         $parts = explode('->', $column, 2);
 
@@ -31,9 +31,8 @@ trait CompilesJsonPaths
      *
      * @param  string  $value
      * @param  string  $delimiter
-     * @return string
      */
-    protected function wrapJsonPath($value, $delimiter = '->')
+    protected function wrapJsonPath($value, $delimiter = '->'): string
     {
         $value = preg_replace("/([\\\\]+)?\\'/", "''", $value);
 

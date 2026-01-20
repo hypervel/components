@@ -50,6 +50,8 @@ class MySqlConnection extends BaseMySqlConnection
      */
     protected function getDefaultQueryGrammar(): BaseMySqlGrammar
     {
-        return $this->withTablePrefix(new MySqlGrammar());
+        ($grammar = new MySqlGrammar())->setTablePrefix($this->tablePrefix);
+
+        return $grammar;
     }
 }
