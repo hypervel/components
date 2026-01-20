@@ -45,4 +45,19 @@ class SQLiteGrammar extends BaseSQLiteGrammar
             $value
         );
     }
+
+    /**
+     * Compile a "where between columns" clause.
+     *
+     * @param array<string, mixed> $where
+     */
+    protected function whereBetweenColumns(Builder $query, array $where): string
+    {
+        $between = $where['not'] ? 'not between' : 'between';
+
+        $min = $this->wrap(reset($where['values']));
+        $max = $this->wrap(end($where['values']));
+
+        return $this->wrap($where['column']) . ' ' . $between . ' ' . $min . ' and ' . $max;
+    }
 }

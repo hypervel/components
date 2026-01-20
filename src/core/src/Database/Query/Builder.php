@@ -214,4 +214,55 @@ class Builder extends BaseBuilder
     {
         return $this->whereIntegerNotInRaw($column, $values, 'or');
     }
+
+    /**
+     * Add a "where between columns" clause to the query.
+     *
+     * @param array{0: Expression|string, 1: Expression|string} $values
+     */
+    public function whereBetweenColumns(
+        Expression|string $column,
+        array $values,
+        string $boolean = 'and',
+        bool $not = false,
+    ): static {
+        $type = 'betweenColumns';
+
+        $this->wheres[] = compact('type', 'column', 'values', 'boolean', 'not');
+
+        return $this;
+    }
+
+    /**
+     * Add an "or where between columns" clause to the query.
+     *
+     * @param array{0: Expression|string, 1: Expression|string} $values
+     */
+    public function orWhereBetweenColumns(Expression|string $column, array $values): static
+    {
+        return $this->whereBetweenColumns($column, $values, 'or');
+    }
+
+    /**
+     * Add a "where not between columns" clause to the query.
+     *
+     * @param array{0: Expression|string, 1: Expression|string} $values
+     */
+    public function whereNotBetweenColumns(
+        Expression|string $column,
+        array $values,
+        string $boolean = 'and',
+    ): static {
+        return $this->whereBetweenColumns($column, $values, $boolean, true);
+    }
+
+    /**
+     * Add an "or where not between columns" clause to the query.
+     *
+     * @param array{0: Expression|string, 1: Expression|string} $values
+     */
+    public function orWhereNotBetweenColumns(Expression|string $column, array $values): static
+    {
+        return $this->whereNotBetweenColumns($column, $values, 'or');
+    }
 }
