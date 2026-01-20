@@ -625,4 +625,47 @@ class Builder extends BaseBuilder
 
         return $this->grammar->compileSelect($this);
     }
+
+    /**
+     * Execute the query as a "select" statement.
+     *
+     * Overrides Hyperf to invoke afterQuery callbacks and strip groupLimit keys.
+     *
+     * @param array<int, string>|string $columns
+     * @return \Hypervel\Support\Collection<int, object>
+     */
+    public function get($columns = ['*']): BaseCollection
+    {
+        $items = new BaseCollection($this->onceWithColumns(Arr::wrap($columns), function () {
+            return $this->processor->processSelect($this, $this->runSelect());
+        }));
+
+        return $this->applyAfterQueryCallbacks(
+            isset($this->groupLimit) ? $this->withoutGroupLimitKeys($items) : $items
+        );
+    }
+
+    /**
+     * Remove the group limit keys from the results in the collection.
+     *
+     * @param \Hypervel\Support\Collection<int, object> $items
+     * @return \Hypervel\Support\Collection<int, object>
+     */
+    protected function withoutGroupLimitKeys(BaseCollection $items): BaseCollection
+    {
+        $keysToRemove = ['laravel_row'];
+
+        $column = Arr::last(explode('.', $this->groupLimit['column']));
+
+        $keysToRemove[] = '@laravel_group := ' . $this->grammar->wrap($column);
+        $keysToRemove[] = '@laravel_group := ' . $this->grammar->wrap('pivot_' . $column);
+
+        $items->each(function ($item) use ($keysToRemove) {
+            foreach ($keysToRemove as $key) {
+                unset($item->{$key});
+            }
+        });
+
+        return $items;
+    }
 }
