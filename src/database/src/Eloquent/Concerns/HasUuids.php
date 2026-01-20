@@ -4,64 +4,30 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Concerns;
 
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 
-/**
- * Provides UUID primary key support for Eloquent models.
- */
 trait HasUuids
 {
+    use HasUniqueStringIds;
+
     /**
-     * Boot the trait.
+     * Generate a new unique key for the model.
+     *
+     * @return string
      */
-    public static function bootHasUuids(): void
+    public function newUniqueId()
     {
-        static::registerCallback('creating', function (self $model): void {
-            foreach ($model->uniqueIds() as $column) {
-                if (empty($model->{$column})) {
-                    $model->{$column} = $model->newUniqueId();
-                }
-            }
-        });
+        return (string) Str::uuid7();
     }
 
     /**
-     * Generate a new UUID for the model.
+     * Determine if given key is valid.
+     *
+     * @param  mixed  $value
+     * @return bool
      */
-    public function newUniqueId(): string
+    protected function isValidUniqueId($value): bool
     {
-        return (string) Str::orderedUuid();
-    }
-
-    /**
-     * Get the columns that should receive a unique identifier.
-     */
-    public function uniqueIds(): array
-    {
-        return [$this->getKeyName()];
-    }
-
-    /**
-     * Get the auto-incrementing key type.
-     */
-    public function getKeyType(): string
-    {
-        if (in_array($this->getKeyName(), $this->uniqueIds())) {
-            return 'string';
-        }
-
-        return $this->keyType;
-    }
-
-    /**
-     * Get the value indicating whether the IDs are incrementing.
-     */
-    public function getIncrementing(): bool
-    {
-        if (in_array($this->getKeyName(), $this->uniqueIds())) {
-            return false;
-        }
-
-        return $this->incrementing;
+        return Str::isUuid($value);
     }
 }
