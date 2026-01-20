@@ -331,7 +331,7 @@ class BelongsToMany extends Relation
     /**
      * Specify the custom pivot model to use for the relationship.
      *
-     * @template TNewPivotModel of \Illuminate\Database\Eloquent\Relations\Pivot
+     * @template TNewPivotModel of \Hypervel\Database\Eloquent\Relations\Pivot
      *
      * @param  class-string<TNewPivotModel>  $class
      * @return $this
@@ -365,7 +365,7 @@ class BelongsToMany extends Relation
     /**
      * Set a where clause for a pivot table column.
      *
-     * @param  string|\Illuminate\Contracts\Database\Query\Expression  $column
+     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
      * @param  mixed  $operator
      * @param  mixed  $value
      * @param  string  $boolean
@@ -381,7 +381,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "where between" clause for a pivot table column.
      *
-     * @param  string|\Illuminate\Contracts\Database\Query\Expression  $column
+     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
      * @param  array  $values
      * @param  string  $boolean
      * @param  bool  $not
@@ -395,7 +395,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "or where between" clause for a pivot table column.
      *
-     * @param  string|\Illuminate\Contracts\Database\Query\Expression  $column
+     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
      * @param  array  $values
      * @return $this
      */
@@ -407,7 +407,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "where pivot not between" clause for a pivot table column.
      *
-     * @param  string|\Illuminate\Contracts\Database\Query\Expression  $column
+     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
      * @param  array  $values
      * @param  string  $boolean
      * @return $this
@@ -420,7 +420,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "or where not between" clause for a pivot table column.
      *
-     * @param  string|\Illuminate\Contracts\Database\Query\Expression  $column
+     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
      * @param  array  $values
      * @return $this
      */
@@ -432,7 +432,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "where in" clause for a pivot table column.
      *
-     * @param  string|\Illuminate\Contracts\Database\Query\Expression  $column
+     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
      * @param  mixed  $values
      * @param  string  $boolean
      * @param  bool  $not
@@ -448,7 +448,7 @@ class BelongsToMany extends Relation
     /**
      * Set an "or where" clause for a pivot table column.
      *
-     * @param  string|\Illuminate\Contracts\Database\Query\Expression  $column
+     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
      * @param  mixed  $operator
      * @param  mixed  $value
      * @return $this
@@ -463,7 +463,7 @@ class BelongsToMany extends Relation
      *
      * In addition, new pivot records will receive this value.
      *
-     * @param  string|\Illuminate\Contracts\Database\Query\Expression|array<string, string>  $column
+     * @param  string|\Hypervel\Database\Contracts\Query\Expression|array<string, string>  $column
      * @param  mixed  $value
      * @return $this
      *
@@ -503,7 +503,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "where not in" clause for a pivot table column.
      *
-     * @param  string|\Illuminate\Contracts\Database\Query\Expression  $column
+     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
      * @param  mixed  $values
      * @param  string  $boolean
      * @return $this
@@ -528,7 +528,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "where null" clause for a pivot table column.
      *
-     * @param  string|\Illuminate\Contracts\Database\Query\Expression  $column
+     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
      * @param  string  $boolean
      * @param  bool  $not
      * @return $this
@@ -543,7 +543,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "where not null" clause for a pivot table column.
      *
-     * @param  string|\Illuminate\Contracts\Database\Query\Expression  $column
+     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
      * @param  string  $boolean
      * @return $this
      */
@@ -555,7 +555,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "or where null" clause for a pivot table column.
      *
-     * @param  string|\Illuminate\Contracts\Database\Query\Expression  $column
+     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
      * @param  bool  $not
      * @return $this
      */
@@ -567,7 +567,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "or where not null" clause for a pivot table column.
      *
-     * @param  string|\Illuminate\Contracts\Database\Query\Expression  $column
+     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
      * @return $this
      */
     public function orWherePivotNotNull($column)
@@ -578,7 +578,7 @@ class BelongsToMany extends Relation
     /**
      * Add an "order by" clause for a pivot table column.
      *
-     * @param  string|\Illuminate\Contracts\Database\Query\Expression  $column
+     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
      * @param  string  $direction
      * @return $this
      */
@@ -593,8 +593,8 @@ class BelongsToMany extends Relation
      * @param  mixed  $id
      * @param  array  $columns
      * @return (
-     *     $id is (\Illuminate\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>)
-     *     ? \Illuminate\Database\Eloquent\Collection<int, TRelatedModel&object{pivot: TPivotModel}>
+     *     $id is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>)
+     *     ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel&object{pivot: TPivotModel}>
      *     : TRelatedModel&object{pivot: TPivotModel}
      * )
      */
@@ -701,8 +701,8 @@ class BelongsToMany extends Relation
      * @param  mixed  $id
      * @param  array  $columns
      * @return (
-     *     $id is (\Illuminate\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>)
-     *     ? \Illuminate\Database\Eloquent\Collection<int, TRelatedModel&object{pivot: TPivotModel}>
+     *     $id is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>)
+     *     ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel&object{pivot: TPivotModel}>
      *     : (TRelatedModel&object{pivot: TPivotModel})|null
      * )
      */
@@ -724,8 +724,8 @@ class BelongsToMany extends Relation
      * @param  array  $columns
      * @return TRelatedModel&object{pivot: TPivotModel}
      *
-     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException<TRelatedModel>
-     * @throws \Illuminate\Database\MultipleRecordsFoundException
+     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<TRelatedModel>
+     * @throws \Hypervel\Database\MultipleRecordsFoundException
      */
     public function findSole($id, $columns = ['*'])
     {
@@ -737,7 +737,7 @@ class BelongsToMany extends Relation
     /**
      * Find multiple related models by their primary keys.
      *
-     * @param  \Illuminate\Contracts\Support\Arrayable|array  $ids
+     * @param  \Hypervel\Support\Contracts\Arrayable|array  $ids
      * @param  array  $columns
      * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel&object{pivot: TPivotModel}>
      */
@@ -760,12 +760,12 @@ class BelongsToMany extends Relation
      * @param  mixed  $id
      * @param  array  $columns
      * @return (
-     *     $id is (\Illuminate\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>)
-     *     ? \Illuminate\Database\Eloquent\Collection<int, TRelatedModel&object{pivot: TPivotModel}>
+     *     $id is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>)
+     *     ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel&object{pivot: TPivotModel}>
      *     : TRelatedModel&object{pivot: TPivotModel}
      * )
      *
-     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException<TRelatedModel>
+     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<TRelatedModel>
      */
     public function findOrFail($id, $columns = ['*'])
     {
@@ -793,8 +793,8 @@ class BelongsToMany extends Relation
      * @param  (\Closure(): TValue)|list<string>|string  $columns
      * @param  (\Closure(): TValue)|null  $callback
      * @return (
-     *     $id is (\Illuminate\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>)
-     *     ? \Illuminate\Database\Eloquent\Collection<int, TRelatedModel&object{pivot: TPivotModel}>|TValue
+     *     $id is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>)
+     *     ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel&object{pivot: TPivotModel}>|TValue
      *     : (TRelatedModel&object{pivot: TPivotModel})|TValue
      * )
      */
@@ -854,7 +854,7 @@ class BelongsToMany extends Relation
      * @param  array  $columns
      * @return TRelatedModel&object{pivot: TPivotModel}
      *
-     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException<TRelatedModel>
+     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<TRelatedModel>
      */
     public function firstOrFail($columns = ['*'])
     {
@@ -966,7 +966,7 @@ class BelongsToMany extends Relation
      * @param  array  $columns
      * @param  string  $pageName
      * @param  int|null  $page
-     * @return \Illuminate\Pagination\LengthAwarePaginator<int, TRelatedModel&object{pivot: TPivotModel}>
+     * @return \Hypervel\Pagination\LengthAwarePaginator<int, TRelatedModel&object{pivot: TPivotModel}>
      */
     public function paginate($perPage = null, $columns = ['*'], $pageName = 'page', $page = null)
     {
@@ -984,7 +984,7 @@ class BelongsToMany extends Relation
      * @param  array  $columns
      * @param  string  $pageName
      * @param  int|null  $page
-     * @return \Illuminate\Contracts\Pagination\Paginator<int, TRelatedModel&object{pivot: TPivotModel}>
+     * @return \Hypervel\Pagination\Contracts\Paginator<int, TRelatedModel&object{pivot: TPivotModel}>
      */
     public function simplePaginate($perPage = null, $columns = ['*'], $pageName = 'page', $page = null)
     {
@@ -1002,7 +1002,7 @@ class BelongsToMany extends Relation
      * @param  array  $columns
      * @param  string  $cursorName
      * @param  string|null  $cursor
-     * @return \Illuminate\Contracts\Pagination\CursorPaginator<int, TRelatedModel&object{pivot: TPivotModel}>
+     * @return \Hypervel\Pagination\Contracts\CursorPaginator<int, TRelatedModel&object{pivot: TPivotModel}>
      */
     public function cursorPaginate($perPage = null, $columns = ['*'], $cursorName = 'cursor', $cursor = null)
     {
@@ -1124,7 +1124,7 @@ class BelongsToMany extends Relation
      * Query lazily, by chunks of the given size.
      *
      * @param  int  $chunkSize
-     * @return \Illuminate\Support\LazyCollection<int, TRelatedModel&object{pivot: TPivotModel}>
+     * @return \Hypervel\Support\LazyCollection<int, TRelatedModel&object{pivot: TPivotModel}>
      */
     public function lazy($chunkSize = 1000)
     {
@@ -1141,7 +1141,7 @@ class BelongsToMany extends Relation
      * @param  int  $chunkSize
      * @param  string|null  $column
      * @param  string|null  $alias
-     * @return \Illuminate\Support\LazyCollection<int, TRelatedModel&object{pivot: TPivotModel}>
+     * @return \Hypervel\Support\LazyCollection<int, TRelatedModel&object{pivot: TPivotModel}>
      */
     public function lazyById($chunkSize = 1000, $column = null, $alias = null)
     {
@@ -1164,7 +1164,7 @@ class BelongsToMany extends Relation
      * @param  int  $chunkSize
      * @param  string|null  $column
      * @param  string|null  $alias
-     * @return \Illuminate\Support\LazyCollection<int, TRelatedModel&object{pivot: TPivotModel}>
+     * @return \Hypervel\Support\LazyCollection<int, TRelatedModel&object{pivot: TPivotModel}>
      */
     public function lazyByIdDesc($chunkSize = 1000, $column = null, $alias = null)
     {
@@ -1184,7 +1184,7 @@ class BelongsToMany extends Relation
     /**
      * Get a lazy collection for the given query.
      *
-     * @return \Illuminate\Support\LazyCollection<int, TRelatedModel&object{pivot: TPivotModel}>
+     * @return \Hypervel\Support\LazyCollection<int, TRelatedModel&object{pivot: TPivotModel}>
      */
     public function cursor()
     {
@@ -1311,7 +1311,7 @@ class BelongsToMany extends Relation
     /**
      * Get all of the IDs for the related models.
      *
-     * @return \Illuminate\Support\Collection<int, int|string>
+     * @return \Hypervel\Support\Collection<int, int|string>
      */
     public function allRelatedIds()
     {
@@ -1353,7 +1353,7 @@ class BelongsToMany extends Relation
     /**
      * Save an array of new models and attach them to the parent model.
      *
-     * @template TContainer of \Illuminate\Support\Collection<array-key, TRelatedModel>|array<array-key, TRelatedModel>
+     * @template TContainer of \Hypervel\Support\Collection<array-key, TRelatedModel>|array<array-key, TRelatedModel>
      *
      * @param  TContainer  $models
      * @param  array  $pivotAttributes
@@ -1373,7 +1373,7 @@ class BelongsToMany extends Relation
     /**
      * Save an array of new models without raising any events and attach them to the parent model.
      *
-     * @template TContainer of \Illuminate\Support\Collection<array-key, TRelatedModel>|array<array-key, TRelatedModel>
+     * @template TContainer of \Hypervel\Support\Collection<array-key, TRelatedModel>|array<array-key, TRelatedModel>
      *
      * @param  TContainer  $models
      * @param  array  $pivotAttributes
@@ -1674,8 +1674,8 @@ class BelongsToMany extends Relation
     /**
      * Qualify the given column name by the pivot table.
      *
-     * @param  string|\Illuminate\Contracts\Database\Query\Expression  $column
-     * @return string|\Illuminate\Contracts\Database\Query\Expression
+     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @return string|\Hypervel\Database\Contracts\Query\Expression
      */
     public function qualifyPivotColumn($column)
     {
