@@ -4,69 +4,183 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Relations;
 
-use Hyperf\DbConnection\Model\Relations\MorphPivot as BaseMorphPivot;
-use Hypervel\Database\Eloquent\Concerns\HasAttributes;
-use Hypervel\Database\Eloquent\Concerns\HasCallbacks;
-use Hypervel\Database\Eloquent\Concerns\HasGlobalScopes;
-use Hypervel\Database\Eloquent\Concerns\HasObservers;
-use Hypervel\Database\Eloquent\Concerns\HasTimestamps;
-use Psr\EventDispatcher\StoppableEventInterface;
-
-class MorphPivot extends BaseMorphPivot
+class MorphPivot extends Pivot
 {
-    use HasAttributes;
-    use HasCallbacks;
-    use HasGlobalScopes;
-    use HasObservers;
-    use HasTimestamps;
+    /**
+     * The type of the polymorphic relation.
+     *
+     * Explicitly define this so it's not included in saved attributes.
+     *
+     * @var string
+     */
+    protected $morphType;
 
     /**
-     * Get a new query builder instance for the connection.
+     * The value of the polymorphic relation.
      *
-     * Delegates to the connection so custom connections can provide
-     * custom query builders with additional methods.
+     * Explicitly define this so it's not included in saved attributes.
      *
-     * @return \Hyperf\Database\Query\Builder
+     * @var class-string
      */
-    protected function newBaseQueryBuilder()
-    {
-        /** @var \Hyperf\Database\Connection $connection */
-        $connection = $this->getConnection();
+    protected $morphClass;
 
-        return $connection->query();
+    /**
+     * Set the keys for a save update query.
+     *
+     * @param  \Hypervel\Database\Eloquent\Builder<static>  $query
+     * @return \Hypervel\Database\Eloquent\Builder<static>
+     */
+    protected function setKeysForSaveQuery($query)
+    {
+        $query->where($this->morphType, $this->morphClass);
+
+        return parent::setKeysForSaveQuery($query);
+    }
+
+    /**
+     * Set the keys for a select query.
+     *
+     * @param  \Hypervel\Database\Eloquent\Builder<static>  $query
+     * @return \Hypervel\Database\Eloquent\Builder<static>
+     */
+    protected function setKeysForSelectQuery($query)
+    {
+        $query->where($this->morphType, $this->morphClass);
+
+        return parent::setKeysForSelectQuery($query);
     }
 
     /**
      * Delete the pivot model record from the database.
      *
-     * Overrides parent to fire deleting/deleted events even for composite key pivots,
-     * while maintaining the morph type constraint.
+     * @return int
      */
-    public function delete(): mixed
+    public function delete()
     {
-        // If pivot has a primary key, use parent's delete which fires events
         if (isset($this->attributes[$this->getKeyName()])) {
-            return parent::delete();
+            return (int) parent::delete();
         }
 
-        // For composite key pivots, manually fire events around the raw delete
-        if ($event = $this->fireModelEvent('deleting')) {
-            if ($event instanceof StoppableEventInterface && $event->isPropagationStopped()) {
-                return 0;
-            }
+        if ($this->fireModelEvent('deleting') === false) {
+            return 0;
         }
 
         $query = $this->getDeleteQuery();
 
-        // Add morph type constraint (from Hyperf's MorphPivot::delete())
         $query->where($this->morphType, $this->morphClass);
 
-        $result = $query->delete();
+        return tap($query->delete(), function () {
+            $this->exists = false;
 
-        $this->exists = false;
+            $this->fireModelEvent('deleted', false);
+        });
+    }
 
-        $this->fireModelEvent('deleted');
+    /**
+     * Get the morph type for the pivot.
+     *
+     * @return string
+     */
+    public function getMorphType()
+    {
+        return $this->morphType;
+    }
 
-        return $result;
+    /**
+     * Set the morph type for the pivot.
+     *
+     * @param  string  $morphType
+     * @return $this
+     */
+    public function setMorphType($morphType)
+    {
+        $this->morphType = $morphType;
+
+        return $this;
+    }
+
+    /**
+     * Set the morph class for the pivot.
+     *
+     * @param  class-string  $morphClass
+     * @return \Hypervel\Database\Eloquent\Relations\MorphPivot
+     */
+    public function setMorphClass($morphClass)
+    {
+        $this->morphClass = $morphClass;
+
+        return $this;
+    }
+
+    /**
+     * Get the queueable identity for the entity.
+     *
+     * @return mixed
+     */
+    public function getQueueableId()
+    {
+        if (isset($this->attributes[$this->getKeyName()])) {
+            return $this->getKey();
+        }
+
+        return sprintf(
+            '%s:%s:%s:%s:%s:%s',
+            $this->foreignKey, $this->getAttribute($this->foreignKey),
+            $this->relatedKey, $this->getAttribute($this->relatedKey),
+            $this->morphType, $this->morphClass
+        );
+    }
+
+    /**
+     * Get a new query to restore one or more models by their queueable IDs.
+     *
+     * @param  array|int  $ids
+     * @return \Hypervel\Database\Eloquent\Builder<static>
+     */
+    public function newQueryForRestoration($ids)
+    {
+        if (is_array($ids)) {
+            return $this->newQueryForCollectionRestoration($ids);
+        }
+
+        if (! str_contains($ids, ':')) {
+            return parent::newQueryForRestoration($ids);
+        }
+
+        $segments = explode(':', $ids);
+
+        return $this->newQueryWithoutScopes()
+            ->where($segments[0], $segments[1])
+            ->where($segments[2], $segments[3])
+            ->where($segments[4], $segments[5]);
+    }
+
+    /**
+     * Get a new query to restore multiple models by their queueable IDs.
+     *
+     * @param  array  $ids
+     * @return \Hypervel\Database\Eloquent\Builder<static>
+     */
+    protected function newQueryForCollectionRestoration(array $ids)
+    {
+        $ids = array_values($ids);
+
+        if (! str_contains($ids[0], ':')) {
+            return parent::newQueryForRestoration($ids);
+        }
+
+        $query = $this->newQueryWithoutScopes();
+
+        foreach ($ids as $id) {
+            $segments = explode(':', $id);
+
+            $query->orWhere(function ($query) use ($segments) {
+                return $query->where($segments[0], $segments[1])
+                    ->where($segments[2], $segments[3])
+                    ->where($segments[4], $segments[5]);
+            });
+        }
+
+        return $query;
     }
 }
