@@ -4,32 +4,39 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Migrations;
 
-use Hyperf\Database\ConnectionResolverInterface;
-use Hypervel\Context\ApplicationContext;
-
 abstract class Migration
 {
     /**
-     * Enables, if supported, wrapping the migration within a transaction.
+     * The name of the database connection to use.
+     *
+     * @var string|null
      */
-    public bool $withinTransaction = true;
+    protected $connection;
 
     /**
-     * The name of the database connection to use.
+     * Enables, if supported, wrapping the migration within a transaction.
+     *
+     * @var bool
      */
-    protected ?string $connection = null;
+    public $withinTransaction = true;
 
     /**
      * Get the migration connection name.
+     *
+     * @return string|null
      */
-    public function getConnection(): string
+    public function getConnection()
     {
-        if ($connection = $this->connection) {
-            return $connection;
-        }
+        return $this->connection;
+    }
 
-        return ApplicationContext::getContainer()
-            ->get(ConnectionResolverInterface::class)
-            ->getDefaultConnection();
+    /**
+     * Determine if this migration should run.
+     *
+     * @return bool
+     */
+    public function shouldRun(): bool
+    {
+        return true;
     }
 }
