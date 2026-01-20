@@ -4,40 +4,117 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Relations;
 
-use Hyperf\Database\Model\Relations\HasOne as BaseHasOne;
-use Hypervel\Database\Eloquent\Relations\Concerns\WithoutAddConstraints;
-use Hypervel\Database\Eloquent\Relations\Contracts\Relation as RelationContract;
+use Hypervel\Database\Contracts\Eloquent\SupportsPartialRelations;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\Concerns\CanBeOneOfMany;
+use Hypervel\Database\Eloquent\Relations\Concerns\ComparesRelatedModels;
+use Hypervel\Database\Eloquent\Relations\Concerns\SupportsDefaultModels;
+use Hypervel\Database\Query\JoinClause;
 
 /**
  * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
- * @template TParentModel of \Hypervel\Database\Eloquent\Model
+ * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
  *
- * @implements RelationContract<TRelatedModel, TParentModel, null|TRelatedModel>
- *
- * @method \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> get(array|string $columns = ['*'])
- * @method null|TRelatedModel first(array|string $columns = ['*'])
- * @method TRelatedModel firstOrFail(array|string $columns = ['*'])
- * @method mixed|TRelatedModel firstOr(\Closure|array|string $columns = ['*'], ?\Closure $callback = null)
- * @method null|TRelatedModel find(mixed $id, array|string $columns = ['*'])
- * @method TRelatedModel findOrFail(mixed $id, array|string $columns = ['*'])
- * @method TRelatedModel findOrNew(mixed $id, array|string $columns = ['*'])
- * @method \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> findMany(mixed $ids, array|string $columns = ['*'])
- * @method TRelatedModel make(array $attributes = [])
- * @method TRelatedModel create(array $attributes = [])
- * @method TRelatedModel forceCreate(array $attributes)
- * @method TRelatedModel firstOrNew(array $attributes = [], array $values = [])
- * @method TRelatedModel firstOrCreate(array $attributes = [], array $values = [])
- * @method TRelatedModel updateOrCreate(array $attributes, array $values = [])
- * @method false|TRelatedModel save(\Hypervel\Database\Eloquent\Model $model)
- * @method \Hypervel\Database\Eloquent\Builder<TRelatedModel> getQuery()
- * @method TRelatedModel getRelated()
- * @method TParentModel getParent()
- * @method \Hypervel\Support\LazyCollection<int, TRelatedModel> lazy(int $chunkSize = 1000)
- * @method \Hypervel\Support\LazyCollection<int, TRelatedModel> lazyById(int $chunkSize = 1000, ?string $column = null, ?string $alias = null)
- * @method \Hypervel\Support\LazyCollection<int, TRelatedModel> lazyByIdDesc(int $chunkSize = 1000, ?string $column = null, ?string $alias = null)
- * @method null|TRelatedModel getResults()
+ * @extends \Hypervel\Database\Eloquent\Relations\HasOneOrMany<TRelatedModel, TDeclaringModel, ?TRelatedModel>
  */
-class HasOne extends BaseHasOne implements RelationContract
+class HasOne extends HasOneOrMany implements SupportsPartialRelations
 {
-    use WithoutAddConstraints;
+    use ComparesRelatedModels, CanBeOneOfMany, SupportsDefaultModels;
+
+    /** @inheritDoc */
+    public function getResults()
+    {
+        if (is_null($this->getParentKey())) {
+            return $this->getDefaultFor($this->parent);
+        }
+
+        return $this->query->first() ?: $this->getDefaultFor($this->parent);
+    }
+
+    /** @inheritDoc */
+    public function initRelation(array $models, $relation)
+    {
+        foreach ($models as $model) {
+            $model->setRelation($relation, $this->getDefaultFor($model));
+        }
+
+        return $models;
+    }
+
+    /** @inheritDoc */
+    public function match(array $models, EloquentCollection $results, $relation)
+    {
+        return $this->matchOne($models, $results, $relation);
+    }
+
+    /** @inheritDoc */
+    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, $columns = ['*'])
+    {
+        if ($this->isOneOfMany()) {
+            $this->mergeOneOfManyJoinsTo($query);
+        }
+
+        return parent::getRelationExistenceQuery($query, $parentQuery, $columns);
+    }
+
+    /**
+     * Add constraints for inner join subselect for one of many relationships.
+     *
+     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
+     * @param  string|null  $column
+     * @param  string|null  $aggregate
+     * @return void
+     */
+    public function addOneOfManySubQueryConstraints(Builder $query, $column = null, $aggregate = null)
+    {
+        $query->addSelect($this->foreignKey);
+    }
+
+    /**
+     * Get the columns that should be selected by the one of many subquery.
+     *
+     * @return array|string
+     */
+    public function getOneOfManySubQuerySelectColumns()
+    {
+        return $this->foreignKey;
+    }
+
+    /**
+     * Add join query constraints for one of many relationships.
+     *
+     * @param  \Hypervel\Database\Query\JoinClause  $join
+     * @return void
+     */
+    public function addOneOfManyJoinSubQueryConstraints(JoinClause $join)
+    {
+        $join->on($this->qualifySubSelectColumn($this->foreignKey), '=', $this->qualifyRelatedColumn($this->foreignKey));
+    }
+
+    /**
+     * Make a new related instance for the given model.
+     *
+     * @param  TDeclaringModel  $parent
+     * @return TRelatedModel
+     */
+    public function newRelatedInstanceFor(Model $parent)
+    {
+        return tap($this->related->newInstance(), function ($instance) use ($parent) {
+            $instance->setAttribute($this->getForeignKeyName(), $parent->{$this->localKey});
+            $this->applyInverseRelationToModel($instance, $parent);
+        });
+    }
+
+    /**
+     * Get the value of the model's foreign key.
+     *
+     * @param  TRelatedModel  $model
+     * @return int|string
+     */
+    protected function getRelatedKeyFrom(Model $model)
+    {
+        return $model->getAttribute($this->getForeignKeyName());
+    }
 }
