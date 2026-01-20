@@ -4,89 +4,124 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Context\ApplicationContext;
-use Hypervel\Broadcasting\Channel;
 use Hypervel\Broadcasting\Contracts\Factory as BroadcastFactory;
-use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
-use Hypervel\Broadcasting\PendingBroadcast;
+use Hypervel\Support\Arr;
 
-use function Hyperf\Tappable\tap;
+use function Hypervel\Support\tap;
 
 trait BroadcastsEvents
 {
-    protected static $isBroadcasting = true;
+    /**
+     * Indicates if the model is currently broadcasting.
+     */
+    protected static bool $isBroadcasting = true;
 
     /**
      * Boot the event broadcasting trait.
      */
     public static function bootBroadcastsEvents(): void
     {
-        static::registerCallback(
-            'created',
-            fn ($model) => $model->broadcastCreated()
-        );
+        static::created(function ($model) {
+            $model->broadcastCreated();
+        });
 
-        static::registerCallback(
-            'updated',
-            fn ($model) => $model->broadcastUpdated()
-        );
+        static::updated(function ($model) {
+            $model->broadcastUpdated();
+        });
 
-        static::registerCallback(
-            'deleted',
-            fn ($model) => $model->broadcastDeleted()
-        );
+        if (method_exists(static::class, 'bootSoftDeletes')) {
+            static::softDeleted(function ($model) {
+                $model->broadcastTrashed();
+            });
+
+            static::restored(function ($model) {
+                $model->broadcastRestored();
+            });
+        }
+
+        static::deleted(function ($model) {
+            $model->broadcastDeleted();
+        });
     }
 
     /**
      * Broadcast that the model was created.
+     *
+     * @param  \Hypervel\Broadcasting\Channel|\Hypervel\Broadcasting\Contracts\HasBroadcastChannel|array|null  $channels
+     * @return \Hypervel\Broadcasting\PendingBroadcast|null
      */
-    public function broadcastCreated(array|Channel|HasBroadcastChannel|null $channels = null): ?PendingBroadcast
+    public function broadcastCreated($channels = null)
     {
         return $this->broadcastIfBroadcastChannelsExistForEvent(
-            $this->newBroadcastableModelEvent('created'),
-            'created',
-            $channels
+            $this->newBroadcastableModelEvent('created'), 'created', $channels
         );
     }
 
     /**
      * Broadcast that the model was updated.
+     *
+     * @param  \Hypervel\Broadcasting\Channel|\Hypervel\Broadcasting\Contracts\HasBroadcastChannel|array|null  $channels
+     * @return \Hypervel\Broadcasting\PendingBroadcast|null
      */
-    public function broadcastUpdated(array|Channel|HasBroadcastChannel|null $channels = null): ?PendingBroadcast
+    public function broadcastUpdated($channels = null)
     {
         return $this->broadcastIfBroadcastChannelsExistForEvent(
-            $this->newBroadcastableModelEvent('updated'),
-            'updated',
-            $channels
+            $this->newBroadcastableModelEvent('updated'), 'updated', $channels
+        );
+    }
+
+    /**
+     * Broadcast that the model was trashed.
+     *
+     * @param  \Hypervel\Broadcasting\Channel|\Hypervel\Broadcasting\Contracts\HasBroadcastChannel|array|null  $channels
+     * @return \Hypervel\Broadcasting\PendingBroadcast|null
+     */
+    public function broadcastTrashed($channels = null)
+    {
+        return $this->broadcastIfBroadcastChannelsExistForEvent(
+            $this->newBroadcastableModelEvent('trashed'), 'trashed', $channels
+        );
+    }
+
+    /**
+     * Broadcast that the model was restored.
+     *
+     * @param  \Hypervel\Broadcasting\Channel|\Hypervel\Broadcasting\Contracts\HasBroadcastChannel|array|null  $channels
+     * @return \Hypervel\Broadcasting\PendingBroadcast|null
+     */
+    public function broadcastRestored($channels = null)
+    {
+        return $this->broadcastIfBroadcastChannelsExistForEvent(
+            $this->newBroadcastableModelEvent('restored'), 'restored', $channels
         );
     }
 
     /**
      * Broadcast that the model was deleted.
+     *
+     * @param  \Hypervel\Broadcasting\Channel|\Hypervel\Broadcasting\Contracts\HasBroadcastChannel|array|null  $channels
+     * @return \Hypervel\Broadcasting\PendingBroadcast|null
      */
-    public function broadcastDeleted(array|Channel|HasBroadcastChannel|null $channels = null): ?PendingBroadcast
+    public function broadcastDeleted($channels = null)
     {
         return $this->broadcastIfBroadcastChannelsExistForEvent(
-            $this->newBroadcastableModelEvent('deleted'),
-            'deleted',
-            $channels
+            $this->newBroadcastableModelEvent('deleted'), 'deleted', $channels
         );
     }
 
     /**
      * Broadcast the given event instance if channels are configured for the model event.
+     *
+     * @return \Hypervel\Broadcasting\PendingBroadcast|null
      */
-    protected function broadcastIfBroadcastChannelsExistForEvent(mixed $instance, string $event, mixed $channels = null): ?PendingBroadcast
+    protected function broadcastIfBroadcastChannelsExistForEvent(mixed $instance, string $event, mixed $channels = null)
     {
         if (! static::$isBroadcasting) {
             return null;
         }
 
         if (! empty($this->broadcastOn($event)) || ! empty($channels)) {
-            return ApplicationContext::getContainer()
-                ->get(BroadcastFactory::class)
-                ->event($instance->onChannels(Arr::wrap($channels)));
+            return app(BroadcastFactory::class)->event($instance->onChannels(Arr::wrap($channels)));
         }
 
         return null;
@@ -122,8 +157,10 @@ trait BroadcastsEvents
 
     /**
      * Get the channels that model events should broadcast on.
+     *
+     * @return \Hypervel\Broadcasting\Channel|array
      */
-    public function broadcastOn(string $event): array|Channel
+    public function broadcastOn(string $event)
     {
         return [$this];
     }

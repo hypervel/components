@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Database\Model\Model;
+use Hypervel\Support\Collection;
 use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
 use Hypervel\Broadcasting\InteractsWithSockets;
 use Hypervel\Broadcasting\PrivateChannel;
@@ -39,7 +38,7 @@ class BroadcastableModelEventOccurred implements ShouldBroadcast
     /**
      * Create a new event instance.
      *
-     * @param Model $model the model instance corresponding to the event
+     * @param Model $model The model instance corresponding to the event.
      * @param string $event The event name (created, updated, etc.).
      */
     public function __construct(
