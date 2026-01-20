@@ -486,4 +486,29 @@ class Builder extends BaseBuilder
 
         return isset($value) ? (int) $value : null;
     }
+
+    /**
+     * Get a single column's value from the first result of a query using a raw expression.
+     *
+     * @param array<int, mixed> $bindings
+     */
+    public function rawValue(string $expression, array $bindings = []): mixed
+    {
+        $result = (array) $this->selectRaw($expression, $bindings)->first();
+
+        return count($result) > 0 ? Arr::first($result) : null;
+    }
+
+    /**
+     * Get a single column's value from the first result of a query if it's the sole matching record.
+     *
+     * @throws \Hyperf\Database\Exception\RecordsNotFoundException
+     * @throws \Hyperf\Database\Exception\MultipleRecordsFoundException
+     */
+    public function soleValue(string $column): mixed
+    {
+        $result = (array) $this->sole([$column]);
+
+        return Arr::first($result);
+    }
 }
