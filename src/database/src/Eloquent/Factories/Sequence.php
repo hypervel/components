@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Factories;
 
-use Closure;
 use Countable;
 
 class Sequence implements Countable
@@ -12,34 +11,39 @@ class Sequence implements Countable
     /**
      * The sequence of return values.
      *
-     * @var array<int, array<string, mixed>|Closure(static): array<string, mixed>>
+     * @var array
      */
-    protected array $sequence;
+    protected $sequence;
 
     /**
      * The count of the sequence items.
+     *
+     * @var int
      */
-    public int $count;
+    public $count;
 
     /**
      * The current index of the sequence iteration.
+     *
+     * @var int
      */
-    public int $index = 0;
+    public $index = 0;
 
     /**
      * Create a new sequence instance.
      *
-     * @param array<string, mixed>|callable ...$sequence
+     * @param  mixed  ...$sequence
      */
-    public function __construct(
-        ...$sequence
-    ) {
+    public function __construct(...$sequence)
+    {
         $this->sequence = $sequence;
         $this->count = count($sequence);
     }
 
     /**
      * Get the current count of the sequence items.
+     *
+     * @return int
      */
     public function count(): int
     {
@@ -49,13 +53,14 @@ class Sequence implements Countable
     /**
      * Get the next value in the sequence.
      *
-     * @return array<string, mixed>
+     * @param  array<string, mixed>  $attributes
+     * @param  \Hypervel\Database\Eloquent\Model|null  $parent
+     * @return mixed
      */
-    public function __invoke(): array
+    public function __invoke($attributes = [], $parent = null)
     {
-        return tap(
-            value($this->sequence[$this->index % $this->count], $this),
-            fn () => $this->index++,
-        );
+        return tap(value($this->sequence[$this->index % $this->count], $this, $attributes, $parent), function () {
+            $this->index = $this->index + 1;
+        });
     }
 }
