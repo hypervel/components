@@ -4,29 +4,46 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Factories;
 
-use Hyperf\Database\Model\Relations\BelongsToMany;
-use Hyperf\Database\Model\Relations\HasOneOrMany;
-use Hyperf\Database\Model\Relations\MorphOneOrMany;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Support\Collection;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\HasOneOrMany;
+use Hypervel\Database\Eloquent\Relations\MorphOneOrMany;
 
 class Relationship
 {
     /**
-     * Create a new child relationship instance.
-     * @param Factory $factory the related factory instance
-     * @param string $relationship the relationship name
+     * The related factory instance.
+     *
+     * @var \Hypervel\Database\Eloquent\Factories\Factory
      */
-    public function __construct(
-        protected Factory $factory,
-        protected string $relationship
-    ) {
+    protected $factory;
+
+    /**
+     * The relationship name.
+     *
+     * @var string
+     */
+    protected $relationship;
+
+    /**
+     * Create a new child relationship instance.
+     *
+     * @param  \Hypervel\Database\Eloquent\Factories\Factory  $factory
+     * @param  string  $relationship
+     */
+    public function __construct(Factory $factory, $relationship)
+    {
+        $this->factory = $factory;
+        $this->relationship = $relationship;
     }
 
     /**
      * Create the child relationship for the given parent model.
+     *
+     * @param  \Hypervel\Database\Eloquent\Model  $parent
+     * @return void
      */
-    public function createFor(Model $parent): void
+    public function createFor(Model $parent)
     {
         $relationship = $parent->{$this->relationship}();
 
@@ -34,20 +51,25 @@ class Relationship
             $this->factory->state([
                 $relationship->getMorphType() => $relationship->getMorphClass(),
                 $relationship->getForeignKeyName() => $relationship->getParentKey(),
-            ])->create([], $parent);
+            ])->prependState($relationship->getQuery()->pendingAttributes)->create([], $parent);
         } elseif ($relationship instanceof HasOneOrMany) {
             $this->factory->state([
                 $relationship->getForeignKeyName() => $relationship->getParentKey(),
-            ])->create([], $parent);
+            ])->prependState($relationship->getQuery()->pendingAttributes)->create([], $parent);
         } elseif ($relationship instanceof BelongsToMany) {
-            $relationship->attach($this->factory->create([], $parent));
+            $relationship->attach(
+                $this->factory->prependState($relationship->getQuery()->pendingAttributes)->create([], $parent)
+            );
         }
     }
 
     /**
      * Specify the model instances to always use when creating relationships.
+     *
+     * @param  \Hypervel\Support\Collection  $recycle
+     * @return $this
      */
-    public function recycle(Collection $recycle): self
+    public function recycle($recycle)
     {
         $this->factory = $this->factory->recycle($recycle);
 
