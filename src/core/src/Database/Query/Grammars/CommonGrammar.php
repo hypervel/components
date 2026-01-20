@@ -41,7 +41,7 @@ trait CommonGrammar
     /**
      * Compile a single having clause.
      *
-     * Extends Hyperf's implementation to add support for 'Null' and 'NotNull' types.
+     * Extends Hyperf's implementation to add support for 'Null', 'NotNull', and 'Nested' types.
      *
      * @param array<string, mixed> $having
      */
@@ -50,6 +50,7 @@ trait CommonGrammar
         return match ($having['type']) {
             'Null' => $this->compileHavingNull($having),
             'NotNull' => $this->compileHavingNotNull($having),
+            'Nested' => $this->compileNestedHavings($having),
             default => parent::compileHaving($having),
         };
     }
@@ -72,5 +73,15 @@ trait CommonGrammar
     protected function compileHavingNotNull(array $having): string
     {
         return $having['boolean'] . ' ' . $this->wrap($having['column']) . ' is not null';
+    }
+
+    /**
+     * Compile a nested having clause.
+     *
+     * @param array<string, mixed> $having
+     */
+    protected function compileNestedHavings(array $having): string
+    {
+        return '(' . substr($this->compileHavings($having['query']), 7) . ')';
     }
 }

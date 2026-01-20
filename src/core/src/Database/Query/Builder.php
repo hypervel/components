@@ -380,4 +380,30 @@ class Builder extends BaseBuilder
 
         return $this;
     }
+
+    /**
+     * Add a nested "having" statement to the query.
+     */
+    public function havingNested(Closure $callback, string $boolean = 'and'): static
+    {
+        $callback($query = $this->forNestedWhere());
+
+        return $this->addNestedHavingQuery($query, $boolean);
+    }
+
+    /**
+     * Add another query builder as a nested having to the query builder.
+     */
+    public function addNestedHavingQuery(BaseBuilder $query, string $boolean = 'and'): static
+    {
+        if (count($query->havings)) {
+            $type = 'Nested';
+
+            $this->havings[] = compact('type', 'query', 'boolean');
+
+            $this->addBinding($query->getRawBindings()['having'], 'having');
+        }
+
+        return $this;
+    }
 }
