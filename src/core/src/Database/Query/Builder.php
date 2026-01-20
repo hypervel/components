@@ -42,6 +42,20 @@ use Hypervel\Support\LazyCollection;
 class Builder extends BaseBuilder
 {
     /**
+     * The callbacks that should be invoked before the query is executed.
+     *
+     * @var array<int, callable>
+     */
+    public array $beforeQueryCallbacks = [];
+
+    /**
+     * The callbacks that should be invoked after retrieving data from the database.
+     *
+     * @var array<int, Closure>
+     */
+    protected array $afterQueryCallbacks = [];
+
+    /**
      * @template TValue
      *
      * @param mixed $id
@@ -405,5 +419,49 @@ class Builder extends BaseBuilder
         }
 
         return $this;
+    }
+
+    /**
+     * Register a closure to be invoked before the query is executed.
+     */
+    public function beforeQuery(callable $callback): static
+    {
+        $this->beforeQueryCallbacks[] = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Invoke the "before query" modification callbacks.
+     */
+    public function applyBeforeQueryCallbacks(): void
+    {
+        foreach ($this->beforeQueryCallbacks as $callback) {
+            $callback($this);
+        }
+
+        $this->beforeQueryCallbacks = [];
+    }
+
+    /**
+     * Register a closure to be invoked after the query is executed.
+     */
+    public function afterQuery(Closure $callback): static
+    {
+        $this->afterQueryCallbacks[] = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Invoke the "after query" modification callbacks.
+     */
+    public function applyAfterQueryCallbacks(mixed $result): mixed
+    {
+        foreach ($this->afterQueryCallbacks as $callback) {
+            $result = $callback($result) ?: $result;
+        }
+
+        return $result;
     }
 }
