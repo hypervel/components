@@ -464,4 +464,26 @@ class Builder extends BaseBuilder
 
         return $result;
     }
+
+    /**
+     * Get the "limit" value for the query or null if it's not set.
+     */
+    public function getLimit(): ?int
+    {
+        /** @var int|null $value */
+        $value = $this->unions ? $this->unionLimit : $this->limit;
+
+        return isset($value) ? (int) $value : null;
+    }
+
+    /**
+     * Get the "offset" value for the query or null if it's not set.
+     */
+    public function getOffset(): ?int
+    {
+        /** @var int|null $value */
+        $value = $this->unions ? $this->unionOffset : $this->offset;
+
+        return isset($value) ? (int) $value : null;
+    }
 }
