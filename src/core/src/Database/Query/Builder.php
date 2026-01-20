@@ -59,7 +59,7 @@ class Builder extends BaseBuilder
     /**
      * The maximum number of records to return per group.
      *
-     * @var array{value: int, column: string}|null
+     * @var null|array{value: int, column: string}
      */
     public ?array $groupLimit = null;
 
@@ -148,12 +148,12 @@ class Builder extends BaseBuilder
         if (is_array($column)) {
             $this->whereNested(function ($query) use ($column, $operator, $value, $boolean) {
                 $query->where($column, $operator, $value, $boolean);
-            }, $boolean.' not');
+            }, $boolean . ' not');
 
             return $this;
         }
 
-        return $this->where($column, $operator, $value, $boolean.' not');
+        return $this->where($column, $operator, $value, $boolean . ' not');
     }
 
     /**
@@ -221,7 +221,7 @@ class Builder extends BaseBuilder
     /**
      * Add a "where in raw" clause for integer values to the query.
      *
-     * @param \Hyperf\Contract\Arrayable<array-key, int>|array<int> $values
+     * @param array<int>|\Hyperf\Contract\Arrayable<array-key, int> $values
      */
     public function orWhereIntegerInRaw(string $column, $values): static
     {
@@ -231,7 +231,7 @@ class Builder extends BaseBuilder
     /**
      * Add a "where not in raw" clause for integer values to the query.
      *
-     * @param \Hyperf\Contract\Arrayable<array-key, int>|array<int> $values
+     * @param array<int>|\Hyperf\Contract\Arrayable<array-key, int> $values
      */
     public function orWhereIntegerNotInRaw(string $column, $values): static
     {
@@ -478,7 +478,7 @@ class Builder extends BaseBuilder
      */
     public function getLimit(): ?int
     {
-        /** @var int|null $value */
+        /** @var null|int $value */
         $value = $this->unions ? $this->unionLimit : $this->limit;
 
         return isset($value) ? (int) $value : null;
@@ -489,7 +489,7 @@ class Builder extends BaseBuilder
      */
     public function getOffset(): ?int
     {
-        /** @var int|null $value */
+        /** @var null|int $value */
         $value = $this->unions ? $this->unionOffset : $this->offset;
 
         return isset($value) ? (int) $value : null;

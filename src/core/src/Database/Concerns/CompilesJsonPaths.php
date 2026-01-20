@@ -12,7 +12,7 @@ trait CompilesJsonPaths
     /**
      * Split the given JSON selector into the field and the optional path and wrap them separately.
      *
-     * @param  string  $column
+     * @param string $column
      * @return array{string, string}
      */
     protected function wrapJsonFieldAndPath($column): array
@@ -21,7 +21,7 @@ trait CompilesJsonPaths
 
         $field = $this->wrap($parts[0]);
 
-        $path = count($parts) > 1 ? ', '.$this->wrapJsonPath($parts[1], '->') : '';
+        $path = count($parts) > 1 ? ', ' . $this->wrapJsonPath($parts[1], '->') : '';
 
         return [$field, $path];
     }
@@ -29,8 +29,8 @@ trait CompilesJsonPaths
     /**
      * Wrap the given JSON path.
      *
-     * @param  string  $value
-     * @param  string  $delimiter
+     * @param string $value
+     * @param string $delimiter
      */
     protected function wrapJsonPath($value, $delimiter = '->'): string
     {
@@ -40,13 +40,13 @@ trait CompilesJsonPaths
             ->map(fn ($segment) => $this->wrapJsonPathSegment($segment))
             ->join('.');
 
-        return "'$".(str_starts_with($jsonPath, '[') ? '' : '.').$jsonPath."'";
+        return "'$" . (str_starts_with($jsonPath, '[') ? '' : '.') . $jsonPath . "'";
     }
 
     /**
      * Wrap the given JSON path segment.
      *
-     * @param  string  $segment
+     * @param string $segment
      * @return string
      */
     protected function wrapJsonPathSegment($segment)
@@ -55,12 +55,12 @@ trait CompilesJsonPaths
             $key = Str::beforeLast($segment, $parts[0]);
 
             if (! empty($key)) {
-                return '"'.$key.'"'.$parts[0];
+                return '"' . $key . '"' . $parts[0];
             }
 
             return $parts[0];
         }
 
-        return '"'.$segment.'"';
+        return '"' . $segment . '"';
     }
 }

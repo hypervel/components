@@ -67,7 +67,7 @@ class MySqlGrammar extends BaseMySqlGrammar
         /** @var \Hypervel\Database\Query\Builder $query */
         $limit = (int) $query->groupLimit['value'];
 
-        /** @var int|null $offset */
+        /** @var null|int $offset */
         $offset = $query->offset;
 
         if ($offset !== null) {
