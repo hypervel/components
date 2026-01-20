@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Database\Eloquent\Concerns;
 
 use Hypervel\Database\Eloquent\Attributes\ObservedBy;
