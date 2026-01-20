@@ -19,7 +19,6 @@ use Hyperf\Database\Model\Factory as HyperfDatabaseFactory;
 use Hyperf\ViewEngine\Compiler\CompilerInterface;
 use Hypervel\Database\Console\SeedCommand;
 use Hypervel\Database\Eloquent\Factories\LegacyFactoryInvoker as DatabaseFactoryInvoker;
-use Hypervel\Database\Listeners\RegisterConnectionsListener;
 use Hypervel\Database\Migrations\MigrationCreator;
 use Hypervel\Database\TransactionListener;
 use Hypervel\View\CompilerFactory;
@@ -35,7 +34,6 @@ class ConfigProvider
                 CompilerInterface::class => CompilerFactory::class,
             ],
             'listeners' => [
-                RegisterConnectionsListener::class,
                 TransactionListener::class,
             ],
             'commands' => [
