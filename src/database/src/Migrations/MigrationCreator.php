@@ -38,7 +38,7 @@ class MigrationCreator
      * @param  \Hypervel\Filesystem\Filesystem  $files
      * @param  string  $customStubPath
      */
-    public function __construct(Filesystem $files, $customStubPath)
+    public function __construct(Filesystem $files, ?string $customStubPath = null)
     {
         $this->files = $files;
         $this->customStubPath = $customStubPath;

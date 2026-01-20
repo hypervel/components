@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Closure;
-use Hyperf\Database\ConnectionResolverInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hyperf\Database\Query\Builder;
 
 class DatabasePresenceVerifier implements DatabasePresenceVerifierInterface

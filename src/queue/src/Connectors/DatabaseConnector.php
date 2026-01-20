@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Connectors;
 
-use Hyperf\Database\ConnectionResolverInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Queue\Contracts\Queue;
 use Hypervel\Queue\DatabaseQueue;
 

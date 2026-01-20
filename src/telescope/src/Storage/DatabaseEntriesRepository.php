@@ -7,7 +7,7 @@ namespace Hypervel\Telescope\Storage;
 use DateTimeInterface;
 use Hyperf\Collection\Collection;
 use Hyperf\Context\Context;
-use Hyperf\Database\ConnectionResolverInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hyperf\Database\Exception\UniqueConstraintViolationException;
 use Hyperf\Database\Query\Builder;
 use Hypervel\Telescope\Contracts\ClearableRepository;

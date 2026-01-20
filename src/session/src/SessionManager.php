@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Session;
 
-use Hyperf\Database\ConnectionResolverInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hyperf\HttpServer\Request;
 use Hyperf\Support\Filesystem\Filesystem;
 use Hypervel\Cache\Contracts\Factory as CacheContract;

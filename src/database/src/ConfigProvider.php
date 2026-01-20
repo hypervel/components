@@ -12,11 +12,12 @@ use Hyperf\Database\Commands\Migrations\RefreshCommand;
 use Hyperf\Database\Commands\Migrations\ResetCommand;
 use Hyperf\Database\Commands\Migrations\RollbackCommand;
 use Hyperf\Database\Commands\Migrations\StatusCommand;
-use Hyperf\Database\Migrations\MigrationCreator as HyperfMigrationCreator;
 use Hyperf\Database\Model\Factory as HyperfDatabaseFactory;
+use Hypervel\Database\Console\Migrations\MakeMigrationCommand;
 use Hypervel\Database\Console\SeedCommand;
 use Hypervel\Database\Eloquent\Factories\LegacyFactoryInvoker as DatabaseFactoryInvoker;
-use Hypervel\Database\Migrations\MigrationCreator;
+use Hypervel\Database\Eloquent\ModelListener;
+use Hypervel\Database\Listeners\RegisterConnectionResolverListener;
 
 class ConfigProvider
 {
@@ -25,13 +26,15 @@ class ConfigProvider
         return [
             'dependencies' => [
                 HyperfDatabaseFactory::class => DatabaseFactoryInvoker::class,
-                HyperfMigrationCreator::class => MigrationCreator::class,
+                ModelListener::class => ModelListener::class,
             ],
             'listeners' => [
+                RegisterConnectionResolverListener::class,
                 TransactionListener::class,
             ],
             'commands' => [
                 InstallCommand::class,
+                MakeMigrationCommand::class,
                 MigrateCommand::class,
                 FreshCommand::class,
                 RefreshCommand::class,

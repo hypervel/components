@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
-use Hyperf\Database\ConnectionResolverInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Translation\Contracts\Translator;
 use Psr\Container\ContainerInterface;
 

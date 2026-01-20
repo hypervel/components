@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing;
 
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\DbConnection\ConnectionResolver;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolver;
 
 class DatabaseConnectionResolver extends ConnectionResolver
 {
@@ -18,7 +18,7 @@ class DatabaseConnectionResolver extends ConnectionResolver
     /**
      * Get a database connection instance.
      */
-    public function connection(?string $name = null): ConnectionInterface
+    public function connection($name = null): ConnectionInterface
     {
         if (is_null($name)) {
             $name = $this->getDefaultConnection();

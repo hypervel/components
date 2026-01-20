@@ -8,7 +8,7 @@ use DateInterval;
 use DateTimeInterface;
 use Hyperf\Collection\Collection;
 use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hyperf\Database\Query\Builder;
 use Hyperf\Stringable\Str;
 use Hypervel\Queue\Contracts\ClearableQueue;

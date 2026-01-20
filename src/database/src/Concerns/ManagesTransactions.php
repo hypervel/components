@@ -18,12 +18,11 @@ trait ManagesTransactions
      * Execute a Closure within a transaction.
      *
      * @param  (\Closure(static): TReturn)  $callback
-     * @param  int  $attempts
      * @return TReturn
      *
      * @throws \Throwable
      */
-    public function transaction(Closure $callback, $attempts = 1)
+    public function transaction(Closure $callback, int $attempts = 1): mixed
     {
         for ($currentAttempt = 1; $currentAttempt <= $attempts; $currentAttempt++) {
             $this->beginTransaction();
@@ -117,11 +116,9 @@ trait ManagesTransactions
     /**
      * Start a new database transaction.
      *
-     * @return void
-     *
      * @throws \Throwable
      */
-    public function beginTransaction()
+    public function beginTransaction(): void
     {
         foreach ($this->beforeStartingTransaction as $callback) {
             $callback($this);
@@ -196,11 +193,9 @@ trait ManagesTransactions
     /**
      * Commit the active database transaction.
      *
-     * @return void
-     *
      * @throws \Throwable
      */
-    public function commit()
+    public function commit(): void
     {
         if ($this->transactionLevel() == 1) {
             $this->fireConnectionEvent('committing');
@@ -247,12 +242,9 @@ trait ManagesTransactions
     /**
      * Rollback the active database transaction.
      *
-     * @param  int|null  $toLevel
-     * @return void
-     *
      * @throws \Throwable
      */
-    public function rollBack($toLevel = null)
+    public function rollBack(?int $toLevel = null): void
     {
         // We allow developers to rollback to a certain transaction level. We will verify
         // that this given transaction level is valid before attempting to rollback to
@@ -329,10 +321,8 @@ trait ManagesTransactions
 
     /**
      * Get the number of active transactions.
-     *
-     * @return int
      */
-    public function transactionLevel()
+    public function transactionLevel(): int
     {
         return $this->transactions;
     }

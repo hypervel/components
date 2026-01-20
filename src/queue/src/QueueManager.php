@@ -6,7 +6,7 @@ namespace Hypervel\Queue;
 
 use Closure;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Database\ConnectionResolverInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hyperf\Redis\RedisFactory;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Queue\Connectors\BeanstalkdConnector;

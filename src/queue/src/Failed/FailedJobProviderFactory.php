@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Failed;
 
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Database\ConnectionResolverInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Cache\Contracts\Factory as CacheFactoryContract;
 use Psr\Container\ContainerInterface;
 

@@ -9,7 +9,7 @@ use Hyperf\Collection\Arr;
 use Hyperf\Context\Context;
 use Hyperf\Context\RequestContext;
 use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hyperf\Database\Exception\QueryException;
 use Hyperf\Database\Query\Builder;
 use Hyperf\HttpServer\Request;

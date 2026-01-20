@@ -7,7 +7,7 @@ namespace Hypervel\Cache;
 use Closure;
 use Hyperf\Collection\Arr;
 use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hyperf\Database\Query\Builder;
 use Hyperf\Support\Traits\InteractsWithTime;
 use Hypervel\Cache\Contracts\LockProvider;

@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Schema;
 
 use Hyperf\Context\ApplicationContext;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Schema\Builder;
+use Hypervel\Database\ConnectionResolverInterface;
 
 /**
  * @mixin Builder

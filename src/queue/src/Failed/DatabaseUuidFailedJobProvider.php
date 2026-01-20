@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Failed;
 
 use DateTimeInterface;
-use Hyperf\Database\ConnectionResolverInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hyperf\Database\Query\Builder;
 use Hypervel\Support\Carbon;
 use Throwable;

@@ -19,11 +19,11 @@ use Hypervel\Database\Eloquent\Relations\HasManyThrough;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Queue\Contracts\QueueableCollection;
 use Hypervel\Queue\Contracts\QueueableEntity;
-use Hypervel\Routing\Contracts\UrlRoutable;
+use Hypervel\Router\Contracts\UrlRoutable;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Contracts\Arrayable;
-use Hypervel\Support\Contracts\CanBeEscapedWhenCastToString;
+use Hyperf\Contract\CanBeEscapedWhenCastToString;
 use Hypervel\Support\Contracts\Jsonable;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable as SupportStringable;
@@ -1774,10 +1774,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Convert the model instance to an array.
-     *
-     * @return array
      */
-    public function toArray()
+    public function toArray(): array
     {
         return $this->withoutRecursion(
             fn () => array_merge($this->attributesToArray(), $this->relationsToArray()),
@@ -2127,20 +2125,16 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Get the queueable identity for the entity.
-     *
-     * @return mixed
      */
-    public function getQueueableId()
+    public function getQueueableId(): mixed
     {
         return $this->getKey();
     }
 
     /**
      * Get the queueable relationships for the entity.
-     *
-     * @return array
      */
-    public function getQueueableRelations()
+    public function getQueueableRelations(): array
     {
         return $this->withoutRecursion(function () {
             $relations = [];
@@ -2171,10 +2165,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Get the queueable connection for the entity.
-     *
-     * @return string|null
      */
-    public function getQueueableConnection()
+    public function getQueueableConnection(): ?string
     {
         return $this->getConnectionName();
     }
@@ -2396,20 +2388,16 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Get the broadcast channel route definition that is associated with the given entity.
-     *
-     * @return string
      */
-    public function broadcastChannelRoute()
+    public function broadcastChannelRoute(): string
     {
         return str_replace('\\', '.', get_class($this)).'.{'.Str::camel(class_basename($this)).'}';
     }
 
     /**
      * Get the broadcast channel name that is associated with the given entity.
-     *
-     * @return string
      */
-    public function broadcastChannel()
+    public function broadcastChannel(): string
     {
         return str_replace('\\', '.', get_class($this)).'.'.$this->getKey();
     }

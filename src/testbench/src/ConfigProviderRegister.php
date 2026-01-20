@@ -10,6 +10,7 @@ class ConfigProviderRegister
 {
     protected static $configProviders = [
         \Hyperf\Command\ConfigProvider::class,
+        \Hyperf\Database\PgSQL\ConfigProvider::class,
         \Hyperf\Database\SQLite\ConfigProvider::class,
         \Hyperf\DbConnection\ConfigProvider::class,
         \Hyperf\Di\ConfigProvider::class,

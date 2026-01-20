@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hyperf\Database\Exception\QueryException;
 use Hypervel\Cache\Contracts\RefreshableLock;
 use InvalidArgumentException;

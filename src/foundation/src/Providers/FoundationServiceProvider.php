@@ -8,7 +8,7 @@ use Hyperf\Command\Event\FailToHandle;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hyperf\Database\Grammar;
 use Hyperf\HttpServer\MiddlewareManager;
 use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;

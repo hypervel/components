@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
-use Hyperf\Database\ConnectionResolverInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hyperf\Database\Events;
 use Hyperf\Database\Events\ConnectionEvent;
 use Hyperf\Event\Contract\ListenerInterface;

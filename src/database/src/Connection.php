@@ -8,6 +8,7 @@ use Carbon\CarbonInterval;
 use Closure;
 use DateTimeInterface;
 use Exception;
+use Generator;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\StatementPrepared;
 use Hypervel\Database\Events\TransactionBeginning;
@@ -21,7 +22,7 @@ use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
 use Hypervel\Event\Contracts\Dispatcher;
 use Hypervel\Support\Arr;
-use Hypervel\Support\InteractsWithTime;
+use Hypervel\Support\Traits\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
 use PDO;
 use PDOStatement;
@@ -326,10 +327,8 @@ class Connection implements ConnectionInterface
      * Begin a fluent query against a database table.
      *
      * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Contracts\Query\Expression|\UnitEnum|string  $table
-     * @param  string|null  $as
-     * @return \Hypervel\Database\Query\Builder
      */
-    public function table($table, $as = null)
+    public function table($table, ?string $as = null): QueryBuilder
     {
         return $this->query()->from(enum_value($table), $as);
     }
@@ -348,13 +347,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Run a select statement and return a single result.
-     *
-     * @param  string  $query
-     * @param  array  $bindings
-     * @param  bool  $useReadPdo
-     * @return mixed
      */
-    public function selectOne($query, $bindings = [], $useReadPdo = true)
+    public function selectOne(string $query, array $bindings = [], bool $useReadPdo = true): mixed
     {
         $records = $this->select($query, $bindings, $useReadPdo);
 
@@ -364,14 +358,9 @@ class Connection implements ConnectionInterface
     /**
      * Run a select statement and return the first column of the first row.
      *
-     * @param  string  $query
-     * @param  array  $bindings
-     * @param  bool  $useReadPdo
-     * @return mixed
-     *
      * @throws \Hypervel\Database\MultipleColumnsSelectedException
      */
-    public function scalar($query, $bindings = [], $useReadPdo = true)
+    public function scalar(string $query, array $bindings = [], bool $useReadPdo = true): mixed
     {
         $record = $this->selectOne($query, $bindings, $useReadPdo);
 
@@ -402,13 +391,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Run a select statement against the database.
-     *
-     * @param  string  $query
-     * @param  array  $bindings
-     * @param  bool  $useReadPdo
-     * @return array
      */
-    public function select($query, $bindings = [], $useReadPdo = true)
+    public function select(string $query, array $bindings = [], bool $useReadPdo = true): array
     {
         return $this->run($query, $bindings, function ($query, $bindings) use ($useReadPdo) {
             if ($this->pretending()) {
@@ -466,12 +450,9 @@ class Connection implements ConnectionInterface
     /**
      * Run a select statement against the database and returns a generator.
      *
-     * @param  string  $query
-     * @param  array  $bindings
-     * @param  bool  $useReadPdo
      * @return \Generator<int, \stdClass>
      */
-    public function cursor($query, $bindings = [], $useReadPdo = true)
+    public function cursor(string $query, array $bindings = [], bool $useReadPdo = true): Generator
     {
         $statement = $this->run($query, $bindings, function ($query, $bindings) use ($useReadPdo) {
             if ($this->pretending()) {
@@ -529,48 +510,32 @@ class Connection implements ConnectionInterface
 
     /**
      * Run an insert statement against the database.
-     *
-     * @param  string  $query
-     * @param  array  $bindings
-     * @return bool
      */
-    public function insert($query, $bindings = [])
+    public function insert(string $query, array $bindings = []): bool
     {
         return $this->statement($query, $bindings);
     }
 
     /**
      * Run an update statement against the database.
-     *
-     * @param  string  $query
-     * @param  array  $bindings
-     * @return int
      */
-    public function update($query, $bindings = [])
+    public function update(string $query, array $bindings = []): int
     {
         return $this->affectingStatement($query, $bindings);
     }
 
     /**
      * Run a delete statement against the database.
-     *
-     * @param  string  $query
-     * @param  array  $bindings
-     * @return int
      */
-    public function delete($query, $bindings = [])
+    public function delete(string $query, array $bindings = []): int
     {
         return $this->affectingStatement($query, $bindings);
     }
 
     /**
      * Execute an SQL statement and return the boolean result.
-     *
-     * @param  string  $query
-     * @param  array  $bindings
-     * @return bool
      */
-    public function statement($query, $bindings = [])
+    public function statement(string $query, array $bindings = []): bool
     {
         return $this->run($query, $bindings, function ($query, $bindings) {
             if ($this->pretending()) {
@@ -589,12 +554,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Run an SQL statement and get the number of rows affected.
-     *
-     * @param  string  $query
-     * @param  array  $bindings
-     * @return int
      */
-    public function affectingStatement($query, $bindings = [])
+    public function affectingStatement(string $query, array $bindings = []): int
     {
         return $this->run($query, $bindings, function ($query, $bindings) {
             if ($this->pretending()) {
@@ -620,11 +581,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Run a raw, unprepared query against the PDO connection.
-     *
-     * @param  string  $query
-     * @return bool
      */
-    public function unprepared($query)
+    public function unprepared(string $query): bool
     {
         return $this->run($query, [], function ($query) {
             if ($this->pretending()) {
@@ -657,7 +615,7 @@ class Connection implements ConnectionInterface
      * @param  (\Closure(\Hypervel\Database\Connection): mixed)  $callback
      * @return array{query: string, bindings: array, time: float|null}[]
      */
-    public function pretend(Closure $callback)
+    public function pretend(Closure $callback): array
     {
         return $this->withFreshQueryLog(function () use ($callback) {
             $this->pretending = true;
@@ -747,11 +705,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Prepare the query bindings for execution.
-     *
-     * @param  array  $bindings
-     * @return array
      */
-    public function prepareBindings(array $bindings)
+    public function prepareBindings(array $bindings): array
     {
         $grammar = $this->getQueryGrammar();
 
@@ -1109,11 +1064,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Get a new raw query expression.
-     *
-     * @param  mixed  $value
-     * @return \Hypervel\Database\Contracts\Query\Expression
      */
-    public function raw($value)
+    public function raw(mixed $value): Expression
     {
         return new Expression($value);
     }
@@ -1648,10 +1600,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Get the name of the connected database.
-     *
-     * @return string
      */
-    public function getDatabaseName()
+    public function getDatabaseName(): string
     {
         return $this->database;
     }

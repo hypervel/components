@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth;
 
-use Hyperf\Database\ConnectionResolverInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Auth\Contracts\UserProvider;
 use Hypervel\Auth\Providers\DatabaseUserProvider;
 use Hypervel\Auth\Providers\EloquentUserProvider;

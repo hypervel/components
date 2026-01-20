@@ -6,7 +6,7 @@ namespace Hypervel\Database\Console;
 
 use Hyperf\Command\Concerns\Prohibitable;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Database\ConnectionResolverInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Database\Eloquent\Model;

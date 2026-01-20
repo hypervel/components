@@ -5,13 +5,25 @@ declare(strict_types=1);
 use Hypervel\Support\Str;
 
 return [
-    'default' => env('DB_CONNECTION', 'sqlite'),
+    'default' => env('DB_CONNECTION', 'pgsql'),
     'connections' => [
         'sqlite' => [
             'driver' => 'sqlite',
             'database' => ':memory:',
             'prefix' => '',
             'foreign_key_constraints' => env('DB_FOREIGN_KEYS', true),
+        ],
+        'pgsql' => [
+            'driver' => 'pgsql',
+            'host' => env('PGSQL_HOST', '127.0.0.1'),
+            'port' => env('PGSQL_PORT', '5432'),
+            'database' => env('PGSQL_DATABASE', 'testing'),
+            'username' => env('PGSQL_USERNAME', 'postgres'),
+            'password' => env('PGSQL_PASSWORD', ''),
+            'charset' => 'utf8',
+            'prefix' => '',
+            'schema' => 'public',
+            'sslmode' => 'prefer',
         ],
     ],
     'redis' => [

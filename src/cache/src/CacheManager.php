@@ -284,7 +284,7 @@ class CacheManager implements FactoryContract
      */
     protected function createDatabaseDriver(array $config): Repository
     {
-        $connectionResolver = $this->app->get(\Hyperf\Database\ConnectionResolverInterface::class);
+        $connectionResolver = $this->app->get(\Hypervel\Database\ConnectionResolverInterface::class);
 
         $store = new DatabaseStore(
             $connectionResolver,
