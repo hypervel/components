@@ -4,14 +4,35 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Query\Processors;
 
-use Hyperf\Database\Query\Builder;
+use Hypervel\Database\Query\Builder;
 
 class MySqlProcessor extends Processor
 {
     /**
-     * Process an "insert get ID" query.
+     * Process the results of a column listing query.
+     *
+     * @deprecated Will be removed in a future Laravel version.
+     *
+     * @param  array  $results
+     * @return array
      */
-    public function processInsertGetId(Builder $query, string $sql, array $values, ?string $sequence = null): int|string
+    public function processColumnListing($results)
+    {
+        return array_map(function ($result) {
+            return ((object) $result)->column_name;
+        }, $results);
+    }
+
+    /**
+     * Process an  "insert get ID" query.
+     *
+     * @param  \Hypervel\Database\Query\Builder  $query
+     * @param  string  $sql
+     * @param  array  $values
+     * @param  string|null  $sequence
+     * @return int
+     */
+    public function processInsertGetId(Builder $query, $sql, $values, $sequence = null)
     {
         $query->getConnection()->insert($sql, $values, $sequence);
 
@@ -20,10 +41,8 @@ class MySqlProcessor extends Processor
         return is_numeric($id) ? (int) $id : $id;
     }
 
-    /**
-     * Process the results of a columns query.
-     */
-    public function processColumns(array $results): array
+    /** @inheritDoc */
+    public function processColumns($results)
     {
         return array_map(function ($result) {
             $result = (object) $result;
@@ -49,10 +68,8 @@ class MySqlProcessor extends Processor
         }, $results);
     }
 
-    /**
-     * Process the results of an indexes query.
-     */
-    public function processIndexes(array $results): array
+    /** @inheritDoc */
+    public function processIndexes($results)
     {
         return array_map(function ($result) {
             $result = (object) $result;
@@ -67,10 +84,8 @@ class MySqlProcessor extends Processor
         }, $results);
     }
 
-    /**
-     * Process the results of a foreign keys query.
-     */
-    public function processForeignKeys(array $results): array
+    /** @inheritDoc */
+    public function processForeignKeys($results)
     {
         return array_map(function ($result) {
             $result = (object) $result;

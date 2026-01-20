@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Schema;
 
-use Hyperf\Support\Fluent;
+use Hypervel\Support\Fluent;
 
 /**
  * @method $this after(string $column) Place the column "after" another column (MySQL)

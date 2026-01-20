@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Database\ConnectionInterface;
 use Hyperf\Database\PgSQL\Connectors\PostgresConnector;
-use Hyperf\Database\Schema\Builder as SchemaBuilder;
 use Hyperf\Database\SQLite\Connectors\SQLiteConnector;
-use Hyperf\DbConnection\Db;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Database\Schema\Builder as SchemaBuilder;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
@@ -232,7 +232,7 @@ abstract class DatabaseIntegrationTestCase extends TestCase
      */
     protected function db(): ConnectionInterface
     {
-        return Db::connection($this->getDatabaseDriver());
+        return DB::connection($this->getDatabaseDriver());
     }
 
     /**

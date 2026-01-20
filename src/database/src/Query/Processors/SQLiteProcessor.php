@@ -6,10 +6,8 @@ namespace Hypervel\Database\Query\Processors;
 
 class SQLiteProcessor extends Processor
 {
-    /**
-     * Process the results of a columns query.
-     */
-    public function processColumns(array $results, string $sql = ''): array
+    /** @inheritDoc */
+    public function processColumns($results, $sql = '')
     {
         $hasPrimaryKey = array_sum(array_column($results, 'primary')) === 1;
 
@@ -21,7 +19,7 @@ class SQLiteProcessor extends Processor
             $safeName = preg_quote($result->name, '/');
 
             $collation = preg_match(
-                '/\b' . $safeName . '\b[^,(]+(?:\([^()]+\)[^,]*)?(?:(?:default|check|as)\s*(?:\(.*?\))?[^,]*)*collate\s+["\'`]?(\w+)/i',
+                '/\b'.$safeName.'\b[^,(]+(?:\([^()]+\)[^,]*)?(?:(?:default|check|as)\s*(?:\(.*?\))?[^,]*)*collate\s+["\'`]?(\w+)/i',
                 $sql,
                 $matches
             ) === 1 ? strtolower($matches[1]) : null;
@@ -29,7 +27,7 @@ class SQLiteProcessor extends Processor
             $isGenerated = in_array($result->extra, [2, 3]);
 
             $expression = $isGenerated && preg_match(
-                '/\b' . $safeName . '\b[^,]+\s+as\s+\(((?:[^()]+|\((?:[^()]+|\([^()]*\))*\))*)\)/i',
+                '/\b'.$safeName.'\b[^,]+\s+as\s+\(((?:[^()]+|\((?:[^()]+|\([^()]*\))*\))*)\)/i',
                 $sql,
                 $matches
             ) === 1 ? $matches[1] : null;
@@ -55,10 +53,8 @@ class SQLiteProcessor extends Processor
         }, $results);
     }
 
-    /**
-     * Process the results of an indexes query.
-     */
-    public function processIndexes(array $results): array
+    /** @inheritDoc */
+    public function processIndexes($results)
     {
         $primaryCount = 0;
 
@@ -85,10 +81,8 @@ class SQLiteProcessor extends Processor
         return $indexes;
     }
 
-    /**
-     * Process the results of a foreign keys query.
-     */
-    public function processForeignKeys(array $results): array
+    /** @inheritDoc */
+    public function processForeignKeys($results)
     {
         return array_map(function ($result) {
             $result = (object) $result;

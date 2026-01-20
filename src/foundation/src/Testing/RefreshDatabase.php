@@ -7,7 +7,7 @@ namespace Hypervel\Foundation\Testing;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Database\Connection as DatabaseConnection;
 use Hyperf\Database\Model\Booted;
-use Hyperf\DbConnection\Db;
+use Hypervel\Database\DatabaseManager;
 use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
@@ -46,7 +46,7 @@ trait RefreshDatabase
      */
     protected function restoreInMemoryDatabase(): void
     {
-        $database = $this->app->get(Db::class);
+        $database = $this->app->get(DatabaseManager::class);
 
         foreach ($this->connectionsToTransact() as $name) {
             if (isset(RefreshDatabaseState::$inMemoryConnections[$name])) {
@@ -100,7 +100,7 @@ trait RefreshDatabase
      */
     public function beginDatabaseTransaction(): void
     {
-        $database = $this->app->get(Db::class);
+        $database = $this->app->get(DatabaseManager::class);
 
         foreach ($this->connectionsToTransact() as $name) {
             $connection = $database->connection($name);
@@ -144,7 +144,7 @@ trait RefreshDatabase
      */
     protected function withoutModelEvents(callable $callback, ?string $connection = null): void
     {
-        $connection = $this->app->get(Db::class)
+        $connection = $this->app->get(DatabaseManager::class)
             ->connection($connection);
         $dispatcher = $connection->getEventDispatcher();
 

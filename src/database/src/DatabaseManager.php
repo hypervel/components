@@ -6,6 +6,7 @@ namespace Hypervel\Database;
 
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
+use Hypervel\Foundation\Contracts\Application;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -26,58 +27,38 @@ class DatabaseManager implements ConnectionResolverInterface
     }
 
     /**
-     * The application instance.
-     *
-     * @var \Hypervel\Foundation\Application
-     */
-    protected $app;
-
-    /**
-     * The database connection factory instance.
-     *
-     * @var \Hypervel\Database\Connectors\ConnectionFactory
-     */
-    protected $factory;
-
-    /**
      * The active connection instances.
      *
      * @var array<string, \Hypervel\Database\Connection>
      */
-    protected $connections = [];
+    protected array $connections = [];
 
     /**
      * The dynamically configured (DB::build) connection configurations.
      *
      * @var array<string, array>
      */
-    protected $dynamicConnectionConfigurations = [];
+    protected array $dynamicConnectionConfigurations = [];
 
     /**
      * The custom connection resolvers.
      *
      * @var array<string, callable>
      */
-    protected $extensions = [];
+    protected array $extensions = [];
 
     /**
      * The callback to be executed to reconnect to a database.
-     *
-     * @var callable
      */
-    protected $reconnector;
+    protected \Closure $reconnector;
 
     /**
      * Create a new database manager instance.
-     *
-     * @param  \Hypervel\Foundation\Application  $app
-     * @param  \Hypervel\Database\Connectors\ConnectionFactory  $factory
      */
-    public function __construct($app, ConnectionFactory $factory)
-    {
-        $this->app = $app;
-        $this->factory = $factory;
-
+    public function __construct(
+        protected Application $app,
+        protected ConnectionFactory $factory
+    ) {
         $this->reconnector = function ($connection) {
             $connection->setPdo(
                 $this->reconnect($connection->getNameWithReadWriteType())->getRawPdo()
@@ -89,9 +70,8 @@ class DatabaseManager implements ConnectionResolverInterface
      * Get a database connection instance.
      *
      * @param  \UnitEnum|string|null  $name
-     * @return \Hypervel\Database\Connection
      */
-    public function connection($name = null)
+    public function connection($name = null): ConnectionInterface
     {
         [$database, $type] = $this->parseConnectionName($name = enum_value($name) ?: $this->getDefaultConnection());
 
@@ -377,21 +357,16 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * Get the default connection name.
-     *
-     * @return string
      */
-    public function getDefaultConnection()
+    public function getDefaultConnection(): string
     {
         return $this->app['config']['database.default'];
     }
 
     /**
      * Set the default connection name.
-     *
-     * @param  string  $name
-     * @return void
      */
-    public function setDefaultConnection($name)
+    public function setDefaultConnection(string $name): void
     {
         $this->app['config']['database.default'] = $name;
     }

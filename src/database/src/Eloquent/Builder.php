@@ -524,7 +524,7 @@ class Builder implements BuilderContract
             return [];
         }
 
-        if (! is_array(array_first($values))) {
+        if (! is_array(Arr::first($values))) {
             $values = [$values];
         }
 
@@ -1282,12 +1282,12 @@ class Builder implements BuilderContract
             return 0;
         }
 
-        if (! is_array(array_first($values))) {
+        if (! is_array(Arr::first($values))) {
             $values = [$values];
         }
 
         if (is_null($update)) {
-            $update = array_keys(array_first($values));
+            $update = array_keys(Arr::first($values));
         }
 
         return $this->toBase()->upsert(

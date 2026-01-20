@@ -4,14 +4,20 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Query\Processors;
 
-use Hyperf\Database\Query\Builder;
+use Hypervel\Database\Query\Builder;
 
 class PostgresProcessor extends Processor
 {
     /**
      * Process an "insert get ID" query.
+     *
+     * @param  \Hypervel\Database\Query\Builder  $query
+     * @param  string  $sql
+     * @param  array  $values
+     * @param  string|null  $sequence
+     * @return int
      */
-    public function processInsertGetId(Builder $query, string $sql, array $values, ?string $sequence = null): int|string
+    public function processInsertGetId(Builder $query, $sql, $values, $sequence = null)
     {
         $connection = $query->getConnection();
 
@@ -26,10 +32,8 @@ class PostgresProcessor extends Processor
         return is_numeric($id) ? (int) $id : $id;
     }
 
-    /**
-     * Process the results of a types query.
-     */
-    public function processTypes(array $results): array
+    /** @inheritDoc */
+    public function processTypes($results)
     {
         return array_map(function ($result) {
             $result = (object) $result;
@@ -37,7 +41,7 @@ class PostgresProcessor extends Processor
             return [
                 'name' => $result->name,
                 'schema' => $result->schema,
-                'schema_qualified_name' => $result->schema . '.' . $result->name,
+                'schema_qualified_name' => $result->schema.'.'.$result->name,
                 'implicit' => (bool) $result->implicit,
                 'type' => match (strtolower($result->type)) {
                     'b' => 'base',
@@ -72,10 +76,8 @@ class PostgresProcessor extends Processor
         }, $results);
     }
 
-    /**
-     * Process the results of a columns query.
-     */
-    public function processColumns(array $results): array
+    /** @inheritDoc */
+    public function processColumns($results)
     {
         return array_map(function ($result) {
             $result = (object) $result;
@@ -103,10 +105,8 @@ class PostgresProcessor extends Processor
         }, $results);
     }
 
-    /**
-     * Process the results of an indexes query.
-     */
-    public function processIndexes(array $results): array
+    /** @inheritDoc */
+    public function processIndexes($results)
     {
         return array_map(function ($result) {
             $result = (object) $result;
@@ -121,10 +121,8 @@ class PostgresProcessor extends Processor
         }, $results);
     }
 
-    /**
-     * Process the results of a foreign keys query.
-     */
-    public function processForeignKeys(array $results): array
+    /** @inheritDoc */
+    public function processForeignKeys($results)
     {
         return array_map(function ($result) {
             $result = (object) $result;

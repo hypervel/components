@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Schema;
 
 use Closure;
-use Hypervel\Container\Contracts\Container;
+use Hypervel\Container\Container;
 use Hypervel\Database\Connection;
 use Hypervel\Database\PostgresConnection;
 use Hypervel\Support\Traits\Macroable;

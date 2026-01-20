@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Foundation\Testing;
 use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\ConnectionInterface;
-use Hyperf\DbConnection\Db;
+use Hypervel\Database\DatabaseManager;
 use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -66,7 +66,7 @@ class RefreshDatabaseTest extends TestCase
         $this->app = $this->getApplication([
             ConfigInterface::class => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
-            Db::class => fn () => $this->getMockedDatabase(),
+            DatabaseManager::class => fn () => $this->getMockedDatabase(),
         ]);
 
         $this->refreshTestDatabase();
@@ -87,7 +87,7 @@ class RefreshDatabaseTest extends TestCase
         $this->app = $this->getApplication([
             ConfigInterface::class => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
-            Db::class => fn () => $this->getMockedDatabase(),
+            DatabaseManager::class => fn () => $this->getMockedDatabase(),
         ]);
 
         $this->refreshTestDatabase();
@@ -108,7 +108,7 @@ class RefreshDatabaseTest extends TestCase
         $this->app = $this->getApplication([
             ConfigInterface::class => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
-            Db::class => fn () => $this->getMockedDatabase(),
+            DatabaseManager::class => fn () => $this->getMockedDatabase(),
         ]);
 
         $this->refreshTestDatabase();
@@ -129,7 +129,7 @@ class RefreshDatabaseTest extends TestCase
         $this->app = $this->getApplication([
             ConfigInterface::class => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
-            Db::class => fn () => $this->getMockedDatabase(),
+            DatabaseManager::class => fn () => $this->getMockedDatabase(),
         ]);
 
         $this->refreshTestDatabase();
@@ -144,7 +144,7 @@ class RefreshDatabaseTest extends TestCase
         ], $config));
     }
 
-    protected function getMockedDatabase(): Db
+    protected function getMockedDatabase(): DatabaseManager
     {
         $connection = m::mock(ConnectionInterface::class);
         $connection->shouldReceive('getEventDispatcher')
@@ -167,7 +167,7 @@ class RefreshDatabaseTest extends TestCase
             ->once()
             ->andReturn($pdo);
 
-        $db = m::mock(Db::class);
+        $db = m::mock(DatabaseManager::class);
         $db->shouldReceive('connection')
             ->twice()
             ->with(null)

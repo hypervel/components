@@ -374,7 +374,7 @@ class Connection implements ConnectionInterface
             throw new MultipleColumnsSelectedException;
         }
 
-        return array_first($record);
+        return Arr::first($record);
     }
 
     /**

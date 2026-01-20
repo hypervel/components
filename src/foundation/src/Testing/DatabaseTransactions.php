@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing;
 
 use Hyperf\Database\Connection as DatabaseConnection;
-use Hyperf\DbConnection\Db;
+use Hypervel\Database\DatabaseManager;
 
 trait DatabaseTransactions
 {
@@ -14,7 +14,7 @@ trait DatabaseTransactions
      */
     public function beginDatabaseTransaction(): void
     {
-        $database = $this->app->get(Db::class);
+        $database = $this->app->get(DatabaseManager::class);
 
         foreach ($this->connectionsToTransact() as $name) {
             $connection = $database->connection($name);

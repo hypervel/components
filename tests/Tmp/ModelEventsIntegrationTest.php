@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Tmp;
 
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Schema\Blueprint;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
 

@@ -10,6 +10,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
 use Hypervel\Database\Eloquent\Relations\Concerns\SupportsInverseRelations;
 use Hypervel\Database\UniqueConstraintViolationException;
+use Hypervel\Support\Arr;
 
 /**
  * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
@@ -296,7 +297,7 @@ abstract class HasOneOrMany extends Relation
      */
     public function upsert(array $values, $uniqueBy, $update = null)
     {
-        if (! empty($values) && ! is_array(array_first($values))) {
+        if (! empty($values) && ! is_array(Arr::first($values))) {
             $values = [$values];
         }
 

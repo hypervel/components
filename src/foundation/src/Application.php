@@ -605,7 +605,7 @@ class Application extends Container implements ApplicationContract
                 \Hyperf\HttpServer\Contract\ResponseInterface::class,
                 \Hyperf\HttpServer\Response::class,
             ],
-            \Hyperf\DbConnection\Db::class => ['db'],
+            \Hypervel\Database\DatabaseManager::class => ['db'],
             \Hypervel\Database\Schema\SchemaProxy::class => ['db.schema'],
             \Hypervel\Auth\Contracts\Factory::class => [
                 'auth',

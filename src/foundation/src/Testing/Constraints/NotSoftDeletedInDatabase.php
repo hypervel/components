@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Constraints;
 
-use Hyperf\DbConnection\Connection;
+use Hypervel\Database\Connection;
 use PHPUnit\Framework\Constraint\Constraint;
 
 class NotSoftDeletedInDatabase extends Constraint
