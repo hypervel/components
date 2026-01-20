@@ -14,6 +14,8 @@ interface LengthAwarePaginator extends Paginator
 {
     /**
      * Create a range of pagination URLs.
+     *
+     * @return array<int, string>
      */
     public function getUrlRange(int $start, int $end): array;
 

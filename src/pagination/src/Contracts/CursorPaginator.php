@@ -22,6 +22,7 @@ interface CursorPaginator
     /**
      * Add a set of query string values to the paginator.
      *
+     * @param array<string, mixed>|string|null $key
      * @return $this
      */
     public function appends(array|string|null $key, ?string $value = null): static;
@@ -104,6 +105,8 @@ interface CursorPaginator
 
     /**
      * Render the paginator using a given view.
+     *
+     * @param array<string, mixed> $data
      */
     public function render(?string $view = null, array $data = []): string;
 }
