@@ -11,6 +11,7 @@ use Hypervel\Database\Concerns\CompilesJsonPaths;
 class MySqlGrammar extends BaseMySqlGrammar
 {
     use CompilesJsonPaths;
+    use CommonGrammar;
 
     /**
      * Compile a "where like" clause.
@@ -23,33 +24,6 @@ class MySqlGrammar extends BaseMySqlGrammar
         $where['operator'] .= $where['caseSensitive'] ? 'like binary' : 'like';
 
         return $this->whereBasic($query, $where);
-    }
-
-    /**
-     * Compile a "where between columns" clause.
-     *
-     * @param array<string, mixed> $where
-     */
-    protected function whereBetweenColumns(Builder $query, array $where): string
-    {
-        $between = $where['not'] ? 'not between' : 'between';
-
-        $min = $this->wrap(reset($where['values']));
-        $max = $this->wrap(end($where['values']));
-
-        return $this->wrap($where['column']) . ' ' . $between . ' ' . $min . ' and ' . $max;
-    }
-
-    /**
-     * Compile a "where JSON contains key" clause.
-     *
-     * @param array<string, mixed> $where
-     */
-    protected function whereJsonContainsKey(Builder $query, array $where): string
-    {
-        $not = $where['not'] ? 'not ' : '';
-
-        return $not . $this->compileJsonContainsKey($where['column']);
     }
 
     /**
