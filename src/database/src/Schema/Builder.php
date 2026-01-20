@@ -1,12 +1,14 @@
 <?php
 
-namespace Illuminate\Database\Schema;
+declare(strict_types=1);
+
+namespace Hypervel\Database\Schema;
 
 use Closure;
-use Illuminate\Container\Container;
-use Illuminate\Database\Connection;
-use Illuminate\Database\PostgresConnection;
-use Illuminate\Support\Traits\Macroable;
+use Hypervel\Container\Contracts\Container;
+use Hypervel\Database\Connection;
+use Hypervel\Database\PostgresConnection;
+use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use LogicException;
 use RuntimeException;
@@ -18,21 +20,21 @@ class Builder
     /**
      * The database connection instance.
      *
-     * @var \Illuminate\Database\Connection
+     * @var \Hypervel\Database\Connection
      */
     protected $connection;
 
     /**
      * The schema grammar instance.
      *
-     * @var \Illuminate\Database\Schema\Grammars\Grammar
+     * @var \Hypervel\Database\Schema\Grammars\Grammar
      */
     protected $grammar;
 
     /**
      * The Blueprint resolver callback.
      *
-     * @var \Closure(\Illuminate\Database\Connection, string, \Closure|null): \Illuminate\Database\Schema\Blueprint
+     * @var \Closure(\Hypervel\Database\Connection, string, \Closure|null): \Hypervel\Database\Schema\Blueprint
      */
     protected $resolver;
 
@@ -58,7 +60,7 @@ class Builder
     /**
      * Create a new database Schema manager.
      *
-     * @param  \Illuminate\Database\Connection  $connection
+     * @param  \Hypervel\Database\Connection  $connection
      */
     public function __construct(Connection $connection)
     {
@@ -676,7 +678,7 @@ class Builder
     /**
      * Execute the blueprint to build / modify the table.
      *
-     * @param  \Illuminate\Database\Schema\Blueprint  $blueprint
+     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
      * @return void
      */
     protected function build(Blueprint $blueprint)
@@ -689,7 +691,7 @@ class Builder
      *
      * @param  string  $table
      * @param  \Closure|null  $callback
-     * @return \Illuminate\Database\Schema\Blueprint
+     * @return \Hypervel\Database\Schema\Blueprint
      */
     protected function createBlueprint($table, ?Closure $callback = null)
     {
@@ -754,7 +756,7 @@ class Builder
     /**
      * Get the database connection instance.
      *
-     * @return \Illuminate\Database\Connection
+     * @return \Hypervel\Database\Connection
      */
     public function getConnection()
     {
@@ -764,7 +766,7 @@ class Builder
     /**
      * Set the Schema Blueprint resolver callback.
      *
-     * @param  \Closure(\Illuminate\Database\Connection, string, \Closure|null): \Illuminate\Database\Schema\Blueprint  $resolver
+     * @param  \Closure(\Hypervel\Database\Connection, string, \Closure|null): \Hypervel\Database\Schema\Blueprint  $resolver
      * @return void
      */
     public function blueprintResolver(Closure $resolver)
