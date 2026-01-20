@@ -25,7 +25,7 @@ class ConfigProvider
     {
         return [
             'dependencies' => [
-                ConnectionResolverInterface::class => DatabaseManager::class,
+                ConnectionResolverInterface::class => ConnectionResolver::class,
                 HyperfDatabaseFactory::class => DatabaseFactoryInvoker::class,
                 ModelListener::class => ModelListener::class,
             ],

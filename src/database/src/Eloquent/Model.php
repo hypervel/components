@@ -62,10 +62,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * The table associated with the model.
-     *
-     * @var string|null
      */
-    protected $table;
+    protected ?string $table = null;
 
     /**
      * The primary key for the model.

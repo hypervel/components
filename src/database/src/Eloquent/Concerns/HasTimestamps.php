@@ -10,10 +10,8 @@ trait HasTimestamps
 {
     /**
      * Indicates if the model should be timestamped.
-     *
-     * @var bool
      */
-    public $timestamps = true;
+    public bool $timestamps = true;
 
     /**
      * The list of models classes that have timestamps temporarily disabled.

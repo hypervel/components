@@ -13,14 +13,14 @@ trait GuardsAttributes
      *
      * @var array<int, string>
      */
-    protected $fillable = [];
+    protected array $fillable = [];
 
     /**
      * The attributes that aren't mass assignable.
      *
      * @var array<string>
      */
-    protected $guarded = ['*'];
+    protected array $guarded = ['*'];
 
     /**
      * Indicates if all mass assignment is enabled.

@@ -167,22 +167,6 @@ class TestModelWithMockDispatcher extends Model
 {
     protected ?string $table = 'test_models';
 
-    private ?EventDispatcherInterface $mockDispatcher = null;
-
-    public function setMockDispatcher(EventDispatcherInterface $dispatcher): void
-    {
-        $this->mockDispatcher = $dispatcher;
-    }
-
-    public function getEventDispatcher(): ?EventDispatcherInterface
-    {
-        if (Context::get($this->getWithoutEventContextKey())) {
-            return null;
-        }
-
-        return $this->mockDispatcher;
-    }
-
     public static function getWithoutEventContextKey(): string
     {
         return parent::getWithoutEventContextKey();

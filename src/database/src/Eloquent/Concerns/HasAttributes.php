@@ -81,9 +81,9 @@ trait HasAttributes
     /**
      * The attributes that should be cast.
      *
-     * @var array
+     * @var array<string, string>
      */
-    protected $casts = [];
+    protected array $casts = [];
 
     /**
      * The attributes that have been cast using custom classes.
