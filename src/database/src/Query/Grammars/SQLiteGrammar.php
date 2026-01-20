@@ -1,11 +1,13 @@
 <?php
 
-namespace Illuminate\Database\Query\Grammars;
+declare(strict_types=1);
 
-use Illuminate\Database\Query\Builder;
-use Illuminate\Support\Arr;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
+namespace Hypervel\Database\Query\Grammars;
+
+use Hypervel\Database\Query\Builder;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 
 class SQLiteGrammar extends Grammar
 {
@@ -23,7 +25,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile the lock into SQL.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  \Hypervel\Database\Query\Builder  $query
      * @param  bool|string  $value
      * @return string
      */
@@ -46,7 +48,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile a basic where clause.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  \Hypervel\Database\Query\Builder  $query
      * @param  array  $where
      * @return string
      */
@@ -65,7 +67,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile a "where like" clause.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  \Hypervel\Database\Query\Builder  $query
      * @param  array  $where
      * @return string
      */
@@ -98,7 +100,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile a "where date" clause.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  \Hypervel\Database\Query\Builder  $query
      * @param  array  $where
      * @return string
      */
@@ -110,7 +112,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile a "where day" clause.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  \Hypervel\Database\Query\Builder  $query
      * @param  array  $where
      * @return string
      */
@@ -122,7 +124,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile a "where month" clause.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  \Hypervel\Database\Query\Builder  $query
      * @param  array  $where
      * @return string
      */
@@ -134,7 +136,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile a "where year" clause.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  \Hypervel\Database\Query\Builder  $query
      * @param  array  $where
      * @return string
      */
@@ -146,7 +148,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile a "where time" clause.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  \Hypervel\Database\Query\Builder  $query
      * @param  array  $where
      * @return string
      */
@@ -159,7 +161,7 @@ class SQLiteGrammar extends Grammar
      * Compile a date based where clause.
      *
      * @param  string  $type
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  \Hypervel\Database\Query\Builder  $query
      * @param  array  $where
      * @return string
      */
@@ -173,8 +175,8 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile the index hints for the query.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
-     * @param  \Illuminate\Database\Query\IndexHint  $indexHint
+     * @param  \Hypervel\Database\Query\Builder  $query
+     * @param  \Hypervel\Database\Query\IndexHint  $indexHint
      * @return string
      */
     protected function compileIndexHint(Builder $query, $indexHint)
@@ -240,7 +242,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile a group limit clause.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  \Hypervel\Database\Query\Builder  $query
      * @return string
      */
     protected function compileGroupLimit(Builder $query)
@@ -259,7 +261,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile an update statement into SQL.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  \Hypervel\Database\Query\Builder  $query
      * @param  array  $values
      * @return string
      */
@@ -275,7 +277,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile an insert ignore statement into SQL.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  \Hypervel\Database\Query\Builder  $query
      * @param  array  $values
      * @return string
      */
@@ -287,7 +289,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile an insert ignore statement using a subquery into SQL.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  \Hypervel\Database\Query\Builder  $query
      * @param  array  $columns
      * @param  string  $sql
      * @return string
@@ -300,7 +302,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile the columns for an update statement.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  \Hypervel\Database\Query\Builder  $query
      * @param  array  $values
      * @return string
      */
@@ -324,7 +326,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile an "upsert" statement into SQL.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  \Hypervel\Database\Query\Builder  $query
      * @param  array  $values
      * @param  array  $uniqueBy
      * @param  array  $update
@@ -379,7 +381,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile an update statement with joins or limit into SQL.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  \Hypervel\Database\Query\Builder  $query
      * @param  array  $values
      * @return string
      */
@@ -426,7 +428,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile a delete statement into SQL.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  \Hypervel\Database\Query\Builder  $query
      * @return string
      */
     public function compileDelete(Builder $query)
@@ -441,7 +443,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile a delete statement with joins or limit into SQL.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  \Hypervel\Database\Query\Builder  $query
      * @return string
      */
     protected function compileDeleteWithJoinsOrLimit(Builder $query)
@@ -458,7 +460,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile a truncate table statement into SQL.
      *
-     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  \Hypervel\Database\Query\Builder  $query
      * @return array
      */
     public function compileTruncate(Builder $query)
