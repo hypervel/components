@@ -63,10 +63,8 @@ class Migrator
 
     /**
      * The name of the default connection.
-     *
-     * @var string
      */
-    protected $connection;
+    protected ?string $connection = null;
 
     /**
      * The paths to all of the migration files.
@@ -656,12 +654,8 @@ class Migrator
 
     /**
      * Execute the given callback using the given connection as the default connection.
-     *
-     * @param  string  $name
-     * @param  callable  $callback
-     * @return mixed
      */
-    public function usingConnection($name, callable $callback)
+    public function usingConnection(?string $name, callable $callback): mixed
     {
         $previousConnection = $this->resolver->getDefaultConnection();
 
@@ -677,7 +671,7 @@ class Migrator
     /**
      * Set the default connection name.
      */
-    public function setConnection(string $name): void
+    public function setConnection(?string $name): void
     {
         if (! is_null($name)) {
             $this->resolver->setDefaultConnection($name);
