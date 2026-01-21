@@ -38,7 +38,7 @@ class HasManyThrough extends HasOneOrManyThrough
     }
 
     /** @inheritDoc */
-    public function initRelation(array $models, $relation)
+    public function initRelation(array $models, string $relation): array
     {
         foreach ($models as $model) {
             $model->setRelation($relation, $this->related->newCollection());
@@ -48,7 +48,7 @@ class HasManyThrough extends HasOneOrManyThrough
     }
 
     /** @inheritDoc */
-    public function match(array $models, EloquentCollection $results, $relation)
+    public function match(array $models, EloquentCollection $results, string $relation): array
     {
         $dictionary = $this->buildDictionary($results);
 

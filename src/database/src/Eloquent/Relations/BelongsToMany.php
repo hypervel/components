@@ -218,7 +218,7 @@ class BelongsToMany extends Relation
     }
 
     /** @inheritDoc */
-    public function addEagerConstraints(array $models)
+    public function addEagerConstraints(array $models): void
     {
         $whereIn = $this->whereInMethod($this->parent, $this->parentKey);
 
@@ -230,7 +230,7 @@ class BelongsToMany extends Relation
     }
 
     /** @inheritDoc */
-    public function initRelation(array $models, $relation)
+    public function initRelation(array $models, string $relation): array
     {
         foreach ($models as $model) {
             $model->setRelation($relation, $this->related->newCollection());
@@ -240,7 +240,7 @@ class BelongsToMany extends Relation
     }
 
     /** @inheritDoc */
-    public function match(array $models, EloquentCollection $results, $relation)
+    public function match(array $models, EloquentCollection $results, string $relation): array
     {
         $dictionary = $this->buildDictionary($results);
 
@@ -806,7 +806,7 @@ class BelongsToMany extends Relation
     }
 
     /** @inheritDoc */
-    public function get($columns = ['*'])
+    public function get(array $columns = ['*']): EloquentCollection
     {
         // First we'll add the proper select columns onto the query so it is run with
         // the proper columns. Then, we will get the results and hydrate our pivot
@@ -1261,7 +1261,7 @@ class BelongsToMany extends Relation
     }
 
     /** @inheritDoc */
-    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, $columns = ['*'])
+    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         if ($parentQuery->getQuery()->from == $query->getQuery()->from) {
             return $this->getRelationExistenceQueryForSelfJoin($query, $parentQuery, $columns);

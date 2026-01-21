@@ -34,7 +34,7 @@ class HasOne extends HasOneOrMany implements SupportsPartialRelations
     }
 
     /** @inheritDoc */
-    public function initRelation(array $models, $relation)
+    public function initRelation(array $models, string $relation): array
     {
         foreach ($models as $model) {
             $model->setRelation($relation, $this->getDefaultFor($model));
@@ -44,13 +44,13 @@ class HasOne extends HasOneOrMany implements SupportsPartialRelations
     }
 
     /** @inheritDoc */
-    public function match(array $models, EloquentCollection $results, $relation)
+    public function match(array $models, EloquentCollection $results, string $relation): array
     {
         return $this->matchOne($models, $results, $relation);
     }
 
     /** @inheritDoc */
-    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, $columns = ['*'])
+    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         if ($this->isOneOfMany()) {
             $this->mergeOneOfManyJoinsTo($query);

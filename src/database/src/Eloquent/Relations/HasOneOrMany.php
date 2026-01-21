@@ -91,7 +91,7 @@ abstract class HasOneOrMany extends Relation
     }
 
     /** @inheritDoc */
-    public function addEagerConstraints(array $models)
+    public function addEagerConstraints(array $models): void
     {
         $whereIn = $this->whereInMethod($this->parent, $this->localKey);
 
@@ -162,7 +162,7 @@ abstract class HasOneOrMany extends Relation
     /**
      * Get the value of a relationship by one or many type.
      */
-    protected function getRelationValue(array $dictionary, string $key, string $type): mixed
+    protected function getRelationValue(array $dictionary, int|string $key, string $type): mixed
     {
         $value = $dictionary[$key];
 
@@ -449,7 +449,7 @@ abstract class HasOneOrMany extends Relation
     }
 
     /** @inheritDoc */
-    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, $columns = ['*'])
+    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         if ($query->getQuery()->from == $parentQuery->getQuery()->from) {
             return $this->getRelationExistenceQueryForSelfRelation($query, $parentQuery, $columns);

@@ -36,7 +36,7 @@ class HasOneThrough extends HasOneOrManyThrough implements SupportsPartialRelati
     }
 
     /** @inheritDoc */
-    public function initRelation(array $models, $relation)
+    public function initRelation(array $models, string $relation): array
     {
         foreach ($models as $model) {
             $model->setRelation($relation, $this->getDefaultFor($model));
@@ -46,7 +46,7 @@ class HasOneThrough extends HasOneOrManyThrough implements SupportsPartialRelati
     }
 
     /** @inheritDoc */
-    public function match(array $models, EloquentCollection $results, $relation)
+    public function match(array $models, EloquentCollection $results, string $relation): array
     {
         $dictionary = $this->buildDictionary($results);
 
@@ -69,7 +69,7 @@ class HasOneThrough extends HasOneOrManyThrough implements SupportsPartialRelati
     }
 
     /** @inheritDoc */
-    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, $columns = ['*'])
+    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         if ($this->isOneOfMany()) {
             $this->mergeOneOfManyJoinsTo($query);

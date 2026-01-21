@@ -1327,7 +1327,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * @param  \Hypervel\Database\Eloquent\Builder<static>  $query
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
-    protected function setKeysForSelectQuery($query)
+    protected function setKeysForSelectQuery(Builder $query): Builder
     {
         $query->where($this->getKeyName(), '=', $this->getKeyForSelectQuery());
 
@@ -1350,7 +1350,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * @param  \Hypervel\Database\Eloquent\Builder<static>  $query
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
-    protected function setKeysForSaveQuery($query)
+    protected function setKeysForSaveQuery(Builder $query): Builder
     {
         $query->where($this->getKeyName(), '=', $this->getKeyForSaveQuery());
 
@@ -1661,10 +1661,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Get a new query to restore one or more models by their queueable IDs.
      *
-     * @param  array|int  $ids
+     * @param  array|int|string  $ids
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
-    public function newQueryForRestoration($ids)
+    public function newQueryForRestoration(array|int|string $ids): Builder
     {
         return $this->newQueryWithoutScopes()->whereKey($ids);
     }

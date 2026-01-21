@@ -144,7 +144,7 @@ abstract class HasOneOrManyThrough extends Relation
     }
 
     /** @inheritDoc */
-    public function addEagerConstraints(array $models)
+    public function addEagerConstraints(array $models): void
     {
         $whereIn = $this->whereInMethod($this->farParent, $this->localKey);
 
@@ -406,7 +406,7 @@ abstract class HasOneOrManyThrough extends Relation
     }
 
     /** @inheritDoc */
-    public function get($columns = ['*'])
+    public function get(array $columns = ['*']): EloquentCollection
     {
         $builder = $this->prepareQueryBuilder($columns);
 
@@ -593,7 +593,7 @@ abstract class HasOneOrManyThrough extends Relation
     }
 
     /** @inheritDoc */
-    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, $columns = ['*'])
+    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         if ($parentQuery->getQuery()->from === $query->getQuery()->from) {
             return $this->getRelationExistenceQueryForSelfRelation($query, $parentQuery, $columns);

@@ -47,7 +47,7 @@ class MorphMany extends MorphOneOrMany
     }
 
     /** @inheritDoc */
-    public function initRelation(array $models, $relation)
+    public function initRelation(array $models, string $relation): array
     {
         foreach ($models as $model) {
             $model->setRelation($relation, $this->related->newCollection());
@@ -57,7 +57,7 @@ class MorphMany extends MorphOneOrMany
     }
 
     /** @inheritDoc */
-    public function match(array $models, EloquentCollection $results, $relation)
+    public function match(array $models, EloquentCollection $results, string $relation): array
     {
         return $this->matchMany($models, $results, $relation);
     }

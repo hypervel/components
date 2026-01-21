@@ -77,7 +77,7 @@ class MorphTo extends BelongsTo
 
     /** @inheritDoc */
     #[\Override]
-    public function addEagerConstraints(array $models)
+    public function addEagerConstraints(array $models): void
     {
         $this->buildDictionary($this->models = new EloquentCollection($models));
     }
@@ -177,7 +177,7 @@ class MorphTo extends BelongsTo
 
     /** @inheritDoc */
     #[\Override]
-    public function match(array $models, EloquentCollection $results, $relation)
+    public function match(array $models, EloquentCollection $results, string $relation): array
     {
         return $models;
     }
@@ -207,7 +207,7 @@ class MorphTo extends BelongsTo
      * @return TDeclaringModel
      */
     #[\Override]
-    public function associate(?Model $model): Model
+    public function associate(Model|string|int|null $model): Model
     {
         if ($model instanceof Model) {
             $foreignKey = $this->ownerKey && $model->{$this->ownerKey}

@@ -40,7 +40,7 @@ class BelongsTo extends Relation
     /**
      * The associated key on the parent model.
      */
-    protected string $ownerKey;
+    protected ?string $ownerKey;
 
     /**
      * The name of the relationship.
@@ -53,7 +53,7 @@ class BelongsTo extends Relation
      * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
      * @param  TDeclaringModel  $child
      */
-    public function __construct(Builder $query, Model $child, string $foreignKey, string $ownerKey, string $relationName)
+    public function __construct(Builder $query, Model $child, string $foreignKey, ?string $ownerKey, string $relationName)
     {
         $this->ownerKey = $ownerKey;
         $this->relationName = $relationName;
@@ -93,7 +93,7 @@ class BelongsTo extends Relation
     }
 
     /** @inheritDoc */
-    public function addEagerConstraints(array $models)
+    public function addEagerConstraints(array $models): void
     {
         // We'll grab the primary key name of the related models since it could be set to
         // a non-standard name and not "id". We will then construct the constraint for
@@ -129,7 +129,7 @@ class BelongsTo extends Relation
     }
 
     /** @inheritDoc */
-    public function initRelation(array $models, $relation)
+    public function initRelation(array $models, string $relation): array
     {
         foreach ($models as $model) {
             $model->setRelation($relation, $this->getDefaultFor($model));
@@ -139,7 +139,7 @@ class BelongsTo extends Relation
     }
 
     /** @inheritDoc */
-    public function match(array $models, EloquentCollection $results, $relation)
+    public function match(array $models, EloquentCollection $results, string $relation): array
     {
         // First we will get to build a dictionary of the child models by their primary
         // key of the relationship, then we can easily match the children back onto
@@ -220,7 +220,7 @@ class BelongsTo extends Relation
     }
 
     /** @inheritDoc */
-    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, $columns = ['*'])
+    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         if ($parentQuery->getQuery()->from == $query->getQuery()->from) {
             return $this->getRelationExistenceQueryForSelfRelation($query, $parentQuery, $columns);
@@ -238,7 +238,7 @@ class BelongsTo extends Relation
      * @param  \Hypervel\Database\Eloquent\Builder<TDeclaringModel>  $parentQuery
      * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
      */
-    public function getRelationExistenceQueryForSelfRelation(Builder $query, Builder $parentQuery, array|string $columns = ['*']): Builder
+    public function getRelationExistenceQueryForSelfRelation(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         $query->select($columns)->from(
             $query->getModel()->getTable().' as '.$hash = $this->getRelationCountHash()

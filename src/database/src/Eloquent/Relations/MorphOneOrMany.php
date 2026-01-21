@@ -58,7 +58,7 @@ abstract class MorphOneOrMany extends HasOneOrMany
     }
 
     /** @inheritDoc */
-    public function addEagerConstraints(array $models)
+    public function addEagerConstraints(array $models): void
     {
         parent::addEagerConstraints($models);
 
@@ -117,7 +117,7 @@ abstract class MorphOneOrMany extends HasOneOrMany
     }
 
     /** @inheritDoc */
-    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, $columns = ['*'])
+    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         return parent::getRelationExistenceQuery($query, $parentQuery, $columns)->where(
             $query->qualifyColumn($this->getMorphType()), $this->morphClass

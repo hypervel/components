@@ -82,7 +82,7 @@ class MorphToMany extends BelongsToMany
     }
 
     /** @inheritDoc */
-    public function addEagerConstraints(array $models)
+    public function addEagerConstraints(array $models): void
     {
         parent::addEagerConstraints($models);
 
@@ -100,7 +100,7 @@ class MorphToMany extends BelongsToMany
     }
 
     /** @inheritDoc */
-    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, $columns = ['*'])
+    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         return parent::getRelationExistenceQuery($query, $parentQuery, $columns)->where(
             $this->qualifyPivotColumn($this->morphType), $this->morphClass

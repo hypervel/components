@@ -252,10 +252,10 @@ trait AsPivot
     /**
      * Get a new query to restore one or more models by their queueable IDs.
      *
-     * @param  int[]|string[]|string  $ids
+     * @param  array|int|string  $ids
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
-    public function newQueryForRestoration(array|string $ids): Builder
+    public function newQueryForRestoration(array|int|string $ids): Builder
     {
         if (is_array($ids)) {
             return $this->newQueryForCollectionRestoration($ids);
