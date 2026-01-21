@@ -25,27 +25,21 @@ abstract class HasOneOrMany extends Relation
 
     /**
      * The foreign key of the parent model.
-     *
-     * @var string
      */
-    protected $foreignKey;
+    protected string $foreignKey;
 
     /**
      * The local key of the parent model.
-     *
-     * @var string
      */
-    protected $localKey;
+    protected string $localKey;
 
     /**
      * Create a new has one or many relationship instance.
      *
      * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
      * @param  TDeclaringModel  $parent
-     * @param  string  $foreignKey
-     * @param  string  $localKey
      */
-    public function __construct(Builder $query, Model $parent, $foreignKey, $localKey)
+    public function __construct(Builder $query, Model $parent, string $foreignKey, string $localKey)
     {
         $this->localKey = $localKey;
         $this->foreignKey = $foreignKey;
@@ -56,10 +50,9 @@ abstract class HasOneOrMany extends Relation
     /**
      * Create and return an un-saved instance of the related model.
      *
-     * @param  array  $attributes
      * @return TRelatedModel
      */
-    public function make(array $attributes = [])
+    public function make(array $attributes = []): Model
     {
         return tap($this->related->newInstance($attributes), function ($instance) {
             $this->setForeignAttributesForCreate($instance);
@@ -70,10 +63,9 @@ abstract class HasOneOrMany extends Relation
     /**
      * Create and return an un-saved instance of the related models.
      *
-     * @param  iterable  $records
      * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
      */
-    public function makeMany($records)
+    public function makeMany(iterable $records): EloquentCollection
     {
         $instances = $this->related->newCollection();
 
@@ -86,10 +78,8 @@ abstract class HasOneOrMany extends Relation
 
     /**
      * Set the base constraints on the relation query.
-     *
-     * @return void
      */
-    public function addConstraints()
+    public function addConstraints(): void
     {
         if (static::shouldAddConstraints()) {
             $query = $this->getRelationQuery();
@@ -118,10 +108,9 @@ abstract class HasOneOrMany extends Relation
      *
      * @param  array<int, TDeclaringModel>  $models
      * @param  \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>  $results
-     * @param  string  $relation
      * @return array<int, TDeclaringModel>
      */
-    public function matchOne(array $models, EloquentCollection $results, $relation)
+    public function matchOne(array $models, EloquentCollection $results, string $relation): array
     {
         return $this->matchOneOrMany($models, $results, $relation, 'one');
     }
@@ -131,10 +120,9 @@ abstract class HasOneOrMany extends Relation
      *
      * @param  array<int, TDeclaringModel>  $models
      * @param  \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>  $results
-     * @param  string  $relation
      * @return array<int, TDeclaringModel>
      */
-    public function matchMany(array $models, EloquentCollection $results, $relation)
+    public function matchMany(array $models, EloquentCollection $results, string $relation): array
     {
         return $this->matchOneOrMany($models, $results, $relation, 'many');
     }
@@ -144,11 +132,9 @@ abstract class HasOneOrMany extends Relation
      *
      * @param  array<int, TDeclaringModel>  $models
      * @param  \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>  $results
-     * @param  string  $relation
-     * @param  string  $type
      * @return array<int, TDeclaringModel>
      */
-    protected function matchOneOrMany(array $models, EloquentCollection $results, $relation, $type)
+    protected function matchOneOrMany(array $models, EloquentCollection $results, string $relation, string $type): array
     {
         $dictionary = $this->buildDictionary($results);
 
@@ -175,13 +161,8 @@ abstract class HasOneOrMany extends Relation
 
     /**
      * Get the value of a relationship by one or many type.
-     *
-     * @param  array  $dictionary
-     * @param  string  $key
-     * @param  string  $type
-     * @return mixed
      */
-    protected function getRelationValue(array $dictionary, $key, $type)
+    protected function getRelationValue(array $dictionary, string $key, string $type): mixed
     {
         $value = $dictionary[$key];
 
@@ -194,7 +175,7 @@ abstract class HasOneOrMany extends Relation
      * @param  \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>  $results
      * @return array<array<int, TRelatedModel>>
      */
-    protected function buildDictionary(EloquentCollection $results)
+    protected function buildDictionary(EloquentCollection $results): array
     {
         $foreign = $this->getForeignKeyName();
 
@@ -206,11 +187,9 @@ abstract class HasOneOrMany extends Relation
     /**
      * Find a model by its primary key or return a new instance of the related model.
      *
-     * @param  mixed  $id
-     * @param  array  $columns
      * @return ($id is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : TRelatedModel)
      */
-    public function findOrNew($id, $columns = ['*'])
+    public function findOrNew(mixed $id, array $columns = ['*']): EloquentCollection|Model
     {
         if (is_null($instance = $this->find($id, $columns))) {
             $instance = $this->related->newInstance();
@@ -224,11 +203,9 @@ abstract class HasOneOrMany extends Relation
     /**
      * Get the first related model record matching the attributes or instantiate it.
      *
-     * @param  array  $attributes
-     * @param  array  $values
      * @return TRelatedModel
      */
-    public function firstOrNew(array $attributes = [], array $values = [])
+    public function firstOrNew(array $attributes = [], array $values = []): Model
     {
         if (is_null($instance = $this->where($attributes)->first())) {
             $instance = $this->related->newInstance(array_merge($attributes, $values));
@@ -242,11 +219,9 @@ abstract class HasOneOrMany extends Relation
     /**
      * Get the first record matching the attributes. If the record is not found, create it.
      *
-     * @param  array  $attributes
-     * @param  array  $values
      * @return TRelatedModel
      */
-    public function firstOrCreate(array $attributes = [], array $values = [])
+    public function firstOrCreate(array $attributes = [], array $values = []): Model
     {
         if (is_null($instance = (clone $this)->where($attributes)->first())) {
             $instance = $this->createOrFirst($attributes, $values);
@@ -258,11 +233,9 @@ abstract class HasOneOrMany extends Relation
     /**
      * Attempt to create the record. If a unique constraint violation occurs, attempt to find the matching record.
      *
-     * @param  array  $attributes
-     * @param  array  $values
      * @return TRelatedModel
      */
-    public function createOrFirst(array $attributes = [], array $values = [])
+    public function createOrFirst(array $attributes = [], array $values = []): Model
     {
         try {
             return $this->getQuery()->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, $values)));
@@ -274,11 +247,9 @@ abstract class HasOneOrMany extends Relation
     /**
      * Create or update a related record matching the attributes, and fill it with values.
      *
-     * @param  array  $attributes
-     * @param  array  $values
      * @return TRelatedModel
      */
-    public function updateOrCreate(array $attributes, array $values = [])
+    public function updateOrCreate(array $attributes, array $values = []): Model
     {
         return tap($this->firstOrCreate($attributes, $values), function ($instance) use ($values) {
             if (! $instance->wasRecentlyCreated) {
@@ -289,13 +260,8 @@ abstract class HasOneOrMany extends Relation
 
     /**
      * Insert new records or update the existing ones.
-     *
-     * @param  array  $values
-     * @param  array|string  $uniqueBy
-     * @param  array|null  $update
-     * @return int
      */
-    public function upsert(array $values, $uniqueBy, $update = null)
+    public function upsert(array $values, array|string $uniqueBy, ?array $update = null): int
     {
         if (! empty($values) && ! is_array(Arr::first($values))) {
             $values = [$values];
@@ -314,7 +280,7 @@ abstract class HasOneOrMany extends Relation
      * @param  TRelatedModel  $model
      * @return TRelatedModel|false
      */
-    public function save(Model $model)
+    public function save(Model $model): Model|false
     {
         $this->setForeignAttributesForCreate($model);
 
@@ -327,7 +293,7 @@ abstract class HasOneOrMany extends Relation
      * @param  TRelatedModel  $model
      * @return TRelatedModel|false
      */
-    public function saveQuietly(Model $model)
+    public function saveQuietly(Model $model): Model|false
     {
         return Model::withoutEvents(function () use ($model) {
             return $this->save($model);
@@ -340,7 +306,7 @@ abstract class HasOneOrMany extends Relation
      * @param  iterable<TRelatedModel>  $models
      * @return iterable<TRelatedModel>
      */
-    public function saveMany($models)
+    public function saveMany(iterable $models): iterable
     {
         foreach ($models as $model) {
             $this->save($model);
@@ -355,7 +321,7 @@ abstract class HasOneOrMany extends Relation
      * @param  iterable<TRelatedModel>  $models
      * @return iterable<TRelatedModel>
      */
-    public function saveManyQuietly($models)
+    public function saveManyQuietly(iterable $models): iterable
     {
         return Model::withoutEvents(function () use ($models) {
             return $this->saveMany($models);
@@ -365,10 +331,9 @@ abstract class HasOneOrMany extends Relation
     /**
      * Create a new instance of the related model.
      *
-     * @param  array  $attributes
      * @return TRelatedModel
      */
-    public function create(array $attributes = [])
+    public function create(array $attributes = []): Model
     {
         return tap($this->related->newInstance($attributes), function ($instance) {
             $this->setForeignAttributesForCreate($instance);
@@ -382,10 +347,9 @@ abstract class HasOneOrMany extends Relation
     /**
      * Create a new instance of the related model without raising any events to the parent model.
      *
-     * @param  array  $attributes
      * @return TRelatedModel
      */
-    public function createQuietly(array $attributes = [])
+    public function createQuietly(array $attributes = []): Model
     {
         return Model::withoutEvents(fn () => $this->create($attributes));
     }
@@ -393,10 +357,9 @@ abstract class HasOneOrMany extends Relation
     /**
      * Create a new instance of the related model. Allow mass-assignment.
      *
-     * @param  array  $attributes
      * @return TRelatedModel
      */
-    public function forceCreate(array $attributes = [])
+    public function forceCreate(array $attributes = []): Model
     {
         $attributes[$this->getForeignKeyName()] = $this->getParentKey();
 
@@ -406,10 +369,9 @@ abstract class HasOneOrMany extends Relation
     /**
      * Create a new instance of the related model with mass assignment without raising model events.
      *
-     * @param  array  $attributes
      * @return TRelatedModel
      */
-    public function forceCreateQuietly(array $attributes = [])
+    public function forceCreateQuietly(array $attributes = []): Model
     {
         return Model::withoutEvents(fn () => $this->forceCreate($attributes));
     }
@@ -417,10 +379,9 @@ abstract class HasOneOrMany extends Relation
     /**
      * Create a Collection of new instances of the related model.
      *
-     * @param  iterable  $records
      * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
      */
-    public function createMany(iterable $records)
+    public function createMany(iterable $records): EloquentCollection
     {
         $instances = $this->related->newCollection();
 
@@ -434,10 +395,9 @@ abstract class HasOneOrMany extends Relation
     /**
      * Create a Collection of new instances of the related model without raising any events to the parent model.
      *
-     * @param  iterable  $records
      * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
      */
-    public function createManyQuietly(iterable $records)
+    public function createManyQuietly(iterable $records): EloquentCollection
     {
         return Model::withoutEvents(fn () => $this->createMany($records));
     }
@@ -445,10 +405,9 @@ abstract class HasOneOrMany extends Relation
     /**
      * Create a Collection of new instances of the related model, allowing mass-assignment.
      *
-     * @param  iterable  $records
      * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
      */
-    public function forceCreateMany(iterable $records)
+    public function forceCreateMany(iterable $records): EloquentCollection
     {
         $instances = $this->related->newCollection();
 
@@ -462,10 +421,9 @@ abstract class HasOneOrMany extends Relation
     /**
      * Create a Collection of new instances of the related model, allowing mass-assignment and without raising any events to the parent model.
      *
-     * @param  iterable  $records
      * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
      */
-    public function forceCreateManyQuietly(iterable $records)
+    public function forceCreateManyQuietly(iterable $records): EloquentCollection
     {
         return Model::withoutEvents(fn () => $this->forceCreateMany($records));
     }
@@ -474,9 +432,8 @@ abstract class HasOneOrMany extends Relation
      * Set the foreign ID for creating a related model.
      *
      * @param  TRelatedModel  $model
-     * @return void
      */
-    protected function setForeignAttributesForCreate(Model $model)
+    protected function setForeignAttributesForCreate(Model $model): void
     {
         $model->setAttribute($this->getForeignKeyName(), $this->getParentKey());
 
@@ -506,10 +463,9 @@ abstract class HasOneOrMany extends Relation
      *
      * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
      * @param  \Hypervel\Database\Eloquent\Builder<TDeclaringModel>  $parentQuery
-     * @param  mixed  $columns
      * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
      */
-    public function getRelationExistenceQueryForSelfRelation(Builder $query, Builder $parentQuery, $columns = ['*'])
+    public function getRelationExistenceQueryForSelfRelation(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         $query->from($query->getModel()->getTable().' as '.$hash = $this->getRelationCountHash());
 
@@ -523,10 +479,9 @@ abstract class HasOneOrMany extends Relation
     /**
      * Alias to set the "limit" value of the query.
      *
-     * @param  int  $value
      * @return $this
      */
-    public function take($value)
+    public function take(int $value): static
     {
         return $this->limit($value);
     }
@@ -534,10 +489,9 @@ abstract class HasOneOrMany extends Relation
     /**
      * Set the "limit" value of the query.
      *
-     * @param  int  $value
      * @return $this
      */
-    public function limit($value)
+    public function limit(int $value): static
     {
         if ($this->parent->exists) {
             $this->query->limit($value);
@@ -550,10 +504,8 @@ abstract class HasOneOrMany extends Relation
 
     /**
      * Get the key for comparing against the parent key in "has" query.
-     *
-     * @return string
      */
-    public function getExistenceCompareKey()
+    public function getExistenceCompareKey(): string
     {
         return $this->getQualifiedForeignKeyName();
     }
@@ -568,20 +520,16 @@ abstract class HasOneOrMany extends Relation
 
     /**
      * Get the fully qualified parent key name.
-     *
-     * @return string
      */
-    public function getQualifiedParentKeyName()
+    public function getQualifiedParentKeyName(): string
     {
         return $this->parent->qualifyColumn($this->localKey);
     }
 
     /**
      * Get the plain foreign key.
-     *
-     * @return string
      */
-    public function getForeignKeyName()
+    public function getForeignKeyName(): string
     {
         $segments = explode('.', $this->getQualifiedForeignKeyName());
 
@@ -590,20 +538,16 @@ abstract class HasOneOrMany extends Relation
 
     /**
      * Get the foreign key for the relationship.
-     *
-     * @return string
      */
-    public function getQualifiedForeignKeyName()
+    public function getQualifiedForeignKeyName(): string
     {
         return $this->foreignKey;
     }
 
     /**
      * Get the local key for the relationship.
-     *
-     * @return string
      */
-    public function getLocalKeyName()
+    public function getLocalKeyName(): string
     {
         return $this->localKey;
     }
