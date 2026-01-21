@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Casts;
 
-use Hyperf\Database\Model\Castable;
-use Hyperf\Database\Model\CastsAttributes;
+use Hypervel\Database\Contracts\Eloquent\Castable;
+use Hypervel\Database\Contracts\Eloquent\CastsAttributes;
 use Hyperf\Stringable\Stringable;
 
 class AsStringable implements Castable
