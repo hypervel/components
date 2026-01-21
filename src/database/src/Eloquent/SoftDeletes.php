@@ -6,8 +6,6 @@ namespace Hypervel\Database\Eloquent;
 
 use Hypervel\Support\Collection as BaseCollection;
 
-use function Hypervel\Support\tap;
-
 /**
  * @method static \Hypervel\Database\Eloquent\Builder<static> withTrashed(bool $withTrashed = true)
  * @method static \Hypervel\Database\Eloquent\Builder<static> onlyTrashed()
