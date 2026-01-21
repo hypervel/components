@@ -2,26 +2,34 @@
 
 declare(strict_types=1);
 
-namespace Hyperf\Database\Commands\Migrations;
+namespace Hypervel\Database\Console\Migrations;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Command\Command;
+use Hypervel\Console\Command;
+use Hypervel\Database\Migrations\Migrator;
+use Hypervel\Support\Collection;
 
 abstract class BaseCommand extends Command
 {
     /**
-     * Get all the migration paths.
+     * The migrator instance.
+     */
+    protected Migrator $migrator;
+
+    /**
+     * Get all of the migration paths.
+     *
+     * @return string[]
      */
     protected function getMigrationPaths(): array
     {
         // Here, we will check to see if a path option has been defined. If it has we will
         // use the path relative to the root of the installation folder so our database
         // migrations may be run for any customized path from within the application.
-        if ($this->input->hasOption('path') && $this->input->getOption('path')) {
-            return Collection::make($this->input->getOption('path'))->map(function ($path) {
+        if ($this->input->hasOption('path') && $this->option('path')) {
+            return (new Collection($this->option('path')))->map(function ($path) {
                 return ! $this->usingRealPath()
-                                ? BASE_PATH . DIRECTORY_SEPARATOR . $path
-                                : $path;
+                    ? base_path($path)
+                    : $path;
             })->all();
         }
 
@@ -33,21 +41,17 @@ abstract class BaseCommand extends Command
 
     /**
      * Determine if the given path(s) are pre-resolved "real" paths.
-     *
-     * @return bool
      */
-    protected function usingRealPath()
+    protected function usingRealPath(): bool
     {
-        return $this->input->hasOption('realpath') && $this->input->getOption('realpath');
+        return $this->input->hasOption('realpath') && $this->option('realpath');
     }
 
     /**
      * Get the path to the migration directory.
-     *
-     * @return string
      */
-    protected function getMigrationPath()
+    protected function getMigrationPath(): string
     {
-        return BASE_PATH . DIRECTORY_SEPARATOR . 'database' . DIRECTORY_SEPARATOR . 'migrations';
+        return database_path('migrations');
     }
 }

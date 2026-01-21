@@ -4,16 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
-use Hyperf\Database\Commands\Migrations\BaseCommand as MigrationBaseCommand;
-use Hyperf\Database\Commands\Migrations\FreshCommand;
-use Hyperf\Database\Commands\Migrations\InstallCommand;
-use Hyperf\Database\Commands\Migrations\MigrateCommand;
-use Hyperf\Database\Commands\Migrations\RefreshCommand;
-use Hyperf\Database\Commands\Migrations\ResetCommand;
-use Hyperf\Database\Commands\Migrations\RollbackCommand;
-use Hyperf\Database\Commands\Migrations\StatusCommand;
 use Hyperf\Database\Model\Factory as HyperfDatabaseFactory;
+use Hypervel\Database\Console\Migrations\FreshCommand;
+use Hypervel\Database\Console\Migrations\InstallCommand;
 use Hypervel\Database\Console\Migrations\MakeMigrationCommand;
+use Hypervel\Database\Console\Migrations\MigrateCommand;
+use Hypervel\Database\Console\Migrations\RefreshCommand;
+use Hypervel\Database\Console\Migrations\ResetCommand;
+use Hypervel\Database\Console\Migrations\RollbackCommand;
+use Hypervel\Database\Console\Migrations\StatusCommand;
 use Hypervel\Database\Console\SeedCommand;
 use Hypervel\Database\Eloquent\Factories\LegacyFactoryInvoker as DatabaseFactoryInvoker;
 use Hypervel\Database\Eloquent\ModelListener;
@@ -34,22 +33,15 @@ class ConfigProvider
                 RegisterConnectionResolverListener::class,
             ],
             'commands' => [
+                FreshCommand::class,
                 InstallCommand::class,
                 MakeMigrationCommand::class,
                 MigrateCommand::class,
-                FreshCommand::class,
                 RefreshCommand::class,
                 ResetCommand::class,
                 RollbackCommand::class,
-                StatusCommand::class,
                 SeedCommand::class,
-            ],
-            'annotations' => [
-                'scan' => [
-                    'class_map' => [
-                        MigrationBaseCommand::class => __DIR__ . '/../class_map/Database/Commands/Migrations/BaseCommand.php',
-                    ],
-                ],
+                StatusCommand::class,
             ],
         ];
     }

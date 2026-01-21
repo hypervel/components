@@ -4,20 +4,24 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Console\Migrations;
 
-use Hyperf\Command\Command;
 use Hypervel\Database\Migrations\MigrationCreator;
 use Hypervel\Support\Str;
-use Symfony\Component\Console\Input\InputArgument;
-use Symfony\Component\Console\Input\InputOption;
-use Throwable;
 
-class MakeMigrationCommand extends Command
+class MakeMigrationCommand extends BaseCommand
 {
+    protected ?string $signature = 'make:migration
+        {name : The name of the migration}
+        {--create= : The table to be created}
+        {--table= : The table to migrate}
+        {--path= : The location where the migration file should be created}
+        {--realpath : Indicate any provided migration file paths are pre-resolved absolute paths}';
+
+    protected string $description = 'Create a new migration file';
+
     public function __construct(
         protected MigrationCreator $creator
     ) {
-        parent::__construct('make:migration');
-        $this->setDescription('Create a new migration file');
+        parent::__construct();
     }
 
     /**
@@ -28,11 +32,11 @@ class MakeMigrationCommand extends Command
         // It's possible for the developer to specify the tables to modify in this
         // schema operation. The developer may also specify if this table needs
         // to be freshly created so we can create the appropriate migrations.
-        $name = Str::snake(trim($this->input->getArgument('name')));
+        $name = Str::snake(trim($this->argument('name')));
 
-        $table = $this->input->getOption('table');
+        $table = $this->option('table');
 
-        $create = $this->input->getOption('create') ?: false;
+        $create = $this->option('create') ?: false;
 
         // If no table was given as an option but a create option is given then we
         // will use the "create" option as the table name. This allows the devs
@@ -56,40 +60,19 @@ class MakeMigrationCommand extends Command
         $this->writeMigration($name, $table, $create);
     }
 
-    protected function getArguments(): array
-    {
-        return [
-            ['name', InputArgument::REQUIRED, 'The name of the migration'],
-        ];
-    }
-
-    protected function getOptions(): array
-    {
-        return [
-            ['create', null, InputOption::VALUE_OPTIONAL, 'The table to be created'],
-            ['table', null, InputOption::VALUE_OPTIONAL, 'The table to migrate'],
-            ['path', null, InputOption::VALUE_OPTIONAL, 'The location where the migration file should be created'],
-            ['realpath', null, InputOption::VALUE_NONE, 'Indicate any provided migration file paths are pre-resolved absolute paths'],
-        ];
-    }
-
     /**
      * Write the migration file to disk.
      */
     protected function writeMigration(string $name, ?string $table, bool $create): void
     {
-        try {
-            $file = pathinfo($this->creator->create(
-                $name,
-                $this->getMigrationPath(),
-                $table,
-                $create
-            ), PATHINFO_FILENAME);
+        $file = $this->creator->create(
+            $name,
+            $this->getMigrationPath(),
+            $table,
+            $create
+        );
 
-            $this->info("<info>[INFO] Created Migration:</info> {$file}");
-        } catch (Throwable $e) {
-            $this->error("<error>[ERROR] Created Migration:</error> {$e->getMessage()}");
-        }
+        $this->components->info(sprintf('Migration [%s] created successfully.', $file));
     }
 
     /**
@@ -97,20 +80,12 @@ class MakeMigrationCommand extends Command
      */
     protected function getMigrationPath(): string
     {
-        if (! is_null($targetPath = $this->input->getOption('path'))) {
+        if (! is_null($targetPath = $this->option('path'))) {
             return ! $this->usingRealPath()
-                ? BASE_PATH . '/' . $targetPath
+                ? base_path($targetPath)
                 : $targetPath;
         }
 
-        return BASE_PATH . DIRECTORY_SEPARATOR . 'database' . DIRECTORY_SEPARATOR . 'migrations';
-    }
-
-    /**
-     * Determine if the given path(s) are pre-resolved "real" paths.
-     */
-    protected function usingRealPath(): bool
-    {
-        return $this->input->hasOption('realpath') && $this->input->getOption('realpath');
+        return parent::getMigrationPath();
     }
 }

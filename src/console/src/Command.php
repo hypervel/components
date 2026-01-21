@@ -11,12 +11,15 @@ use Hyperf\Command\Event\AfterExecute;
 use Hyperf\Command\Event\AfterHandle;
 use Hyperf\Command\Event\BeforeHandle;
 use Hyperf\Command\Event\FailToHandle;
+use Hypervel\Console\Contracts\CommandMutex;
+use Hypervel\Console\Contracts\Isolatable;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
 use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Swoole\ExitException;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 use Throwable;
 
@@ -29,6 +32,16 @@ abstract class Command extends HyperfCommand
 
     protected ApplicationContract $app;
 
+    /**
+     * Indicates whether only one instance of the command can run at any given time.
+     */
+    protected bool $isolated = false;
+
+    /**
+     * The default exit code for isolated commands.
+     */
+    protected int $isolatedExitCode = self::SUCCESS;
+
     public function __construct(?string $name = null)
     {
         parent::__construct($name);
@@ -36,12 +49,46 @@ abstract class Command extends HyperfCommand
         /** @var ApplicationContract $app */
         $app = ApplicationContext::getContainer();
         $this->app = $app;
+
+        if ($this instanceof Isolatable) {
+            $this->configureIsolation();
+        }
+    }
+
+    /**
+     * Configure the console command for isolation.
+     */
+    protected function configureIsolation(): void
+    {
+        $this->getDefinition()->addOption(new InputOption(
+            'isolated',
+            null,
+            InputOption::VALUE_OPTIONAL,
+            'Do not run the command if another instance of the command is already running',
+            $this->isolated
+        ));
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $this->disableDispatcher($input);
         $this->replaceOutput();
+
+        // Check if the command should be isolated and if another instance is running
+        if ($this instanceof Isolatable
+            && $this->option('isolated') !== false
+            && ! $this->commandIsolationMutex()->create($this)
+        ) {
+            $this->comment(sprintf(
+                'The [%s] command is already running.',
+                $this->getName()
+            ));
+
+            return (int) (is_numeric($this->option('isolated'))
+                ? $this->option('isolated')
+                : $this->isolatedExitCode);
+        }
+
         $method = method_exists($this, 'handle') ? 'handle' : '__invoke';
 
         $callback = function () use ($method): int {
@@ -74,6 +121,11 @@ abstract class Command extends HyperfCommand
                 $this->eventDispatcher->dispatch(new FailToHandle($this, $exception));
             } finally {
                 $this->eventDispatcher?->dispatch(new AfterExecute($this, $exception ?? null));
+
+                // Release the isolation mutex if applicable
+                if ($this instanceof Isolatable && $this->option('isolated') !== false) {
+                    $this->commandIsolationMutex()->forget($this);
+                }
             }
 
             return $this->exitCode;
@@ -86,6 +138,16 @@ abstract class Command extends HyperfCommand
         }
 
         return $this->exitCode >= 0 && $this->exitCode <= 255 ? $this->exitCode : self::INVALID;
+    }
+
+    /**
+     * Get a command isolation mutex instance for the command.
+     */
+    protected function commandIsolationMutex(): CommandMutex
+    {
+        return $this->app->bound(CommandMutex::class)
+            ? $this->app->get(CommandMutex::class)
+            : $this->app->get(CacheCommandMutex::class);
     }
 
     protected function replaceOutput(): void
