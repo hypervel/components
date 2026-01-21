@@ -19,7 +19,7 @@ trait HasFactory
      * @param  (callable(array<string, mixed>, static|null): array<string, mixed>)|array<string, mixed>  $state
      * @return TFactory
      */
-    public static function factory($count = null, $state = [])
+    public static function factory(callable|array|int|null $count = null, callable|array $state = []): Factory
     {
         $factory = static::newFactory() ?? Factory::factoryForModel(static::class);
 
@@ -33,7 +33,7 @@ trait HasFactory
      *
      * @return TFactory|null
      */
-    protected static function newFactory()
+    protected static function newFactory(): ?Factory
     {
         if (isset(static::$factory)) {
             return static::$factory::new();
@@ -47,7 +47,7 @@ trait HasFactory
      *
      * @return TFactory|null
      */
-    protected static function getUseFactoryAttribute()
+    protected static function getUseFactoryAttribute(): ?Factory
     {
         $attributes = (new ReflectionClass(static::class))
             ->getAttributes(UseFactory::class);
@@ -61,5 +61,7 @@ trait HasFactory
 
             return $factory;
         }
+
+        return null;
     }
 }

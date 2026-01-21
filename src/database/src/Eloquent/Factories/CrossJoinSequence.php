@@ -10,10 +10,8 @@ class CrossJoinSequence extends Sequence
 {
     /**
      * Create a new cross join sequence instance.
-     *
-     * @param  array  ...$sequences
      */
-    public function __construct(...$sequences)
+    public function __construct(array ...$sequences)
     {
         $crossJoined = array_map(
             function ($a) {

@@ -8,30 +8,24 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\HasOneOrMany;
 use Hypervel\Database\Eloquent\Relations\MorphOneOrMany;
+use Hypervel\Support\Collection;
 
 class Relationship
 {
     /**
      * The related factory instance.
-     *
-     * @var \Hypervel\Database\Eloquent\Factories\Factory
      */
-    protected $factory;
+    protected Factory $factory;
 
     /**
      * The relationship name.
-     *
-     * @var string
      */
-    protected $relationship;
+    protected string $relationship;
 
     /**
      * Create a new child relationship instance.
-     *
-     * @param  \Hypervel\Database\Eloquent\Factories\Factory  $factory
-     * @param  string  $relationship
      */
-    public function __construct(Factory $factory, $relationship)
+    public function __construct(Factory $factory, string $relationship)
     {
         $this->factory = $factory;
         $this->relationship = $relationship;
@@ -39,11 +33,8 @@ class Relationship
 
     /**
      * Create the child relationship for the given parent model.
-     *
-     * @param  \Hypervel\Database\Eloquent\Model  $parent
-     * @return void
      */
-    public function createFor(Model $parent)
+    public function createFor(Model $parent): void
     {
         $relationship = $parent->{$this->relationship}();
 
@@ -66,10 +57,9 @@ class Relationship
     /**
      * Specify the model instances to always use when creating relationships.
      *
-     * @param  \Hypervel\Support\Collection  $recycle
      * @return $this
      */
-    public function recycle($recycle)
+    public function recycle(Collection $recycle): static
     {
         $this->factory = $this->factory->recycle($recycle);
 

@@ -36,144 +36,107 @@ abstract class Factory
     /**
      * The name of the factory's corresponding model.
      *
-     * @var class-string<TModel>
+     * @var class-string<TModel>|null
      */
-    protected $model;
+    protected ?string $model = null;
 
     /**
      * The number of models that should be generated.
-     *
-     * @var int|null
      */
-    protected $count;
+    protected ?int $count = null;
 
     /**
      * The state transformations that will be applied to the model.
-     *
-     * @var \Hypervel\Support\Collection
      */
-    protected $states;
+    protected Collection $states;
 
     /**
      * The parent relationships that will be applied to the model.
-     *
-     * @var \Hypervel\Support\Collection
      */
-    protected $has;
+    protected Collection $has;
 
     /**
      * The child relationships that will be applied to the model.
-     *
-     * @var \Hypervel\Support\Collection
      */
-    protected $for;
+    protected Collection $for;
 
     /**
      * The model instances to always use when creating relationships.
-     *
-     * @var \Hypervel\Support\Collection
      */
-    protected $recycle;
+    protected Collection $recycle;
 
     /**
      * The "after making" callbacks that will be applied to the model.
-     *
-     * @var \Hypervel\Support\Collection
      */
-    protected $afterMaking;
+    protected Collection $afterMaking;
 
     /**
      * The "after creating" callbacks that will be applied to the model.
-     *
-     * @var \Hypervel\Support\Collection
      */
-    protected $afterCreating;
+    protected Collection $afterCreating;
 
     /**
      * Whether relationships should not be automatically created.
-     *
-     * @var bool
      */
-    protected $expandRelationships = true;
+    protected bool $expandRelationships = true;
 
     /**
      * The relationships that should not be automatically created.
-     *
-     * @var array
      */
-    protected $excludeRelationships = [];
+    protected array $excludeRelationships = [];
 
     /**
      * The name of the database connection that will be used to create the models.
-     *
-     * @var \UnitEnum|string|null
      */
-    protected $connection;
+    protected UnitEnum|string|null $connection = null;
 
     /**
      * The current Faker instance.
-     *
-     * @var \Faker\Generator
      */
-    protected $faker;
+    protected ?Generator $faker = null;
 
     /**
      * The default namespace where factories reside.
-     *
-     * @var string
      */
-    public static $namespace = 'Database\\Factories\\';
+    public static string $namespace = 'Database\\Factories\\';
 
     /**
      * @deprecated use $modelNameResolvers
      *
      * @var callable(self): class-string<TModel>
      */
-    protected static $modelNameResolver;
+    protected static mixed $modelNameResolver = null;
 
     /**
      * The default model name resolvers.
      *
      * @var array<class-string, callable(self): class-string<TModel>>
      */
-    protected static $modelNameResolvers = [];
+    protected static array $modelNameResolvers = [];
 
     /**
      * The factory name resolver.
      *
-     * @var callable
+     * @var callable|null
      */
-    protected static $factoryNameResolver;
+    protected static mixed $factoryNameResolver = null;
 
     /**
      * Whether to expand relationships by default.
-     *
-     * @var bool
      */
-    protected static $expandRelationshipsByDefault = true;
+    protected static bool $expandRelationshipsByDefault = true;
 
     /**
      * Create a new factory instance.
-     *
-     * @param  int|null  $count
-     * @param  \Hypervel\Support\Collection|null  $states
-     * @param  \Hypervel\Support\Collection|null  $has
-     * @param  \Hypervel\Support\Collection|null  $for
-     * @param  \Hypervel\Support\Collection|null  $afterMaking
-     * @param  \Hypervel\Support\Collection|null  $afterCreating
-     * @param  \UnitEnum|string|null  $connection
-     * @param  \Hypervel\Support\Collection|null  $recycle
-     * @param  bool|null  $expandRelationships
-     * @param  array  $excludeRelationships
      */
     public function __construct(
-        $count = null,
+        ?int $count = null,
         ?Collection $states = null,
         ?Collection $has = null,
         ?Collection $for = null,
         ?Collection $afterMaking = null,
         ?Collection $afterCreating = null,
-        $connection = null,
+        UnitEnum|string|null $connection = null,
         ?Collection $recycle = null,
         ?bool $expandRelationships = null,
         array $excludeRelationships = [],
@@ -196,36 +159,30 @@ abstract class Factory
      *
      * @return array<string, mixed>
      */
-    abstract public function definition();
+    abstract public function definition(): array;
 
     /**
      * Get a new factory instance for the given attributes.
      *
      * @param  (callable(array<string, mixed>): array<string, mixed>)|array<string, mixed>  $attributes
-     * @return static
      */
-    public static function new($attributes = [])
+    public static function new(callable|array $attributes = []): static
     {
         return (new static)->state($attributes)->configure();
     }
 
     /**
      * Get a new factory instance for the given number of models.
-     *
-     * @param  int  $count
-     * @return static
      */
-    public static function times(int $count)
+    public static function times(int $count): static
     {
         return static::new()->count($count);
     }
 
     /**
      * Configure the factory.
-     *
-     * @return static
      */
-    public function configure()
+    public function configure(): static
     {
         return $this;
     }
@@ -234,10 +191,9 @@ abstract class Factory
      * Get the raw attributes generated by the factory.
      *
      * @param  (callable(array<string, mixed>): array<string, mixed>)|array<string, mixed>  $attributes
-     * @param  \Hypervel\Database\Eloquent\Model|null  $parent
      * @return array<int|string, mixed>
      */
-    public function raw($attributes = [], ?Model $parent = null)
+    public function raw(callable|array $attributes = [], ?Model $parent = null): array
     {
         if ($this->count === null) {
             return $this->state($attributes)->getExpandedAttributes($parent);
@@ -254,7 +210,7 @@ abstract class Factory
      * @param  (callable(array<string, mixed>): array<string, mixed>)|array<string, mixed>  $attributes
      * @return TModel
      */
-    public function createOne($attributes = [])
+    public function createOne(callable|array $attributes = []): Model
     {
         return $this->count(null)->create($attributes);
     }
@@ -265,7 +221,7 @@ abstract class Factory
      * @param  (callable(array<string, mixed>): array<string, mixed>)|array<string, mixed>  $attributes
      * @return TModel
      */
-    public function createOneQuietly($attributes = [])
+    public function createOneQuietly(callable|array $attributes = []): Model
     {
         return $this->count(null)->createQuietly($attributes);
     }
@@ -276,7 +232,7 @@ abstract class Factory
      * @param  int|null|iterable<int, array<string, mixed>>  $records
      * @return \Hypervel\Database\Eloquent\Collection<int, TModel>
      */
-    public function createMany(int|iterable|null $records = null)
+    public function createMany(int|iterable|null $records = null): EloquentCollection
     {
         $records ??= ($this->count ?? 1);
 
@@ -299,7 +255,7 @@ abstract class Factory
      * @param  int|null|iterable<int, array<string, mixed>>  $records
      * @return \Hypervel\Database\Eloquent\Collection<int, TModel>
      */
-    public function createManyQuietly(int|iterable|null $records = null)
+    public function createManyQuietly(int|iterable|null $records = null): EloquentCollection
     {
         return Model::withoutEvents(fn () => $this->createMany($records));
     }
@@ -308,10 +264,9 @@ abstract class Factory
      * Create a collection of models and persist them to the database.
      *
      * @param  (callable(array<string, mixed>): array<string, mixed>)|array<string, mixed>  $attributes
-     * @param  \Hypervel\Database\Eloquent\Model|null  $parent
      * @return \Hypervel\Database\Eloquent\Collection<int, TModel>|TModel
      */
-    public function create($attributes = [], ?Model $parent = null)
+    public function create(callable|array $attributes = [], ?Model $parent = null): EloquentCollection|Model
     {
         if (! empty($attributes)) {
             return $this->state($attributes)->create([], $parent);
@@ -336,10 +291,9 @@ abstract class Factory
      * Create a collection of models and persist them to the database without dispatching any model events.
      *
      * @param  (callable(array<string, mixed>): array<string, mixed>)|array<string, mixed>  $attributes
-     * @param  \Hypervel\Database\Eloquent\Model|null  $parent
      * @return \Hypervel\Database\Eloquent\Collection<int, TModel>|TModel
      */
-    public function createQuietly($attributes = [], ?Model $parent = null)
+    public function createQuietly(callable|array $attributes = [], ?Model $parent = null): EloquentCollection|Model
     {
         return Model::withoutEvents(fn () => $this->create($attributes, $parent));
     }
@@ -348,10 +302,9 @@ abstract class Factory
      * Create a callback that persists a model in the database when invoked.
      *
      * @param  array<string, mixed>  $attributes
-     * @param  \Hypervel\Database\Eloquent\Model|null  $parent
      * @return \Closure(): (\Hypervel\Database\Eloquent\Collection<int, TModel>|TModel)
      */
-    public function lazy(array $attributes = [], ?Model $parent = null)
+    public function lazy(array $attributes = [], ?Model $parent = null): Closure
     {
         return fn () => $this->create($attributes, $parent);
     }
@@ -360,9 +313,8 @@ abstract class Factory
      * Set the connection name on the results and store them.
      *
      * @param  \Hypervel\Support\Collection<int, \Hypervel\Database\Eloquent\Model>  $results
-     * @return void
      */
-    protected function store(Collection $results)
+    protected function store(Collection $results): void
     {
         $results->each(function ($model) {
             if (! isset($this->connection)) {
@@ -383,11 +335,8 @@ abstract class Factory
 
     /**
      * Create the children for the given model.
-     *
-     * @param  \Hypervel\Database\Eloquent\Model  $model
-     * @return void
      */
-    protected function createChildren(Model $model)
+    protected function createChildren(Model $model): void
     {
         Model::unguarded(function () use ($model) {
             $this->has->each(function ($has) use ($model) {
@@ -402,7 +351,7 @@ abstract class Factory
      * @param  (callable(array<string, mixed>): array<string, mixed>)|array<string, mixed>  $attributes
      * @return TModel
      */
-    public function makeOne($attributes = [])
+    public function makeOne(callable|array $attributes = []): Model
     {
         return $this->count(null)->make($attributes);
     }
@@ -411,10 +360,9 @@ abstract class Factory
      * Create a collection of models.
      *
      * @param  (callable(array<string, mixed>): array<string, mixed>)|array<string, mixed>  $attributes
-     * @param  \Hypervel\Database\Eloquent\Model|null  $parent
      * @return \Hypervel\Database\Eloquent\Collection<int, TModel>|TModel
      */
-    public function make($attributes = [], ?Model $parent = null)
+    public function make(callable|array $attributes = [], ?Model $parent = null): EloquentCollection|Model
     {
         $autoEagerLoadingEnabled = Model::isAutomaticallyEagerLoadingRelationships();
 
@@ -483,10 +431,9 @@ abstract class Factory
     /**
      * Make an instance of the model with the given attributes.
      *
-     * @param  \Hypervel\Database\Eloquent\Model|null  $parent
-     * @return \Hypervel\Database\Eloquent\Model
+     * @return TModel
      */
-    protected function makeInstance(?Model $parent)
+    protected function makeInstance(?Model $parent): Model
     {
         return Model::unguarded(function () use ($parent) {
             return tap($this->newModel($this->getExpandedAttributes($parent)), function ($instance) {
@@ -499,22 +446,16 @@ abstract class Factory
 
     /**
      * Get a raw attributes array for the model.
-     *
-     * @param  \Hypervel\Database\Eloquent\Model|null  $parent
-     * @return mixed
      */
-    protected function getExpandedAttributes(?Model $parent)
+    protected function getExpandedAttributes(?Model $parent): array
     {
         return $this->expandAttributes($this->getRawAttributes($parent));
     }
 
     /**
      * Get the raw attributes for the model as an array.
-     *
-     * @param  \Hypervel\Database\Eloquent\Model|null  $parent
-     * @return array
      */
-    protected function getRawAttributes(?Model $parent)
+    protected function getRawAttributes(?Model $parent): array
     {
         return $this->states->pipe(function ($states) {
             return $this->for->isEmpty() ? $states : new Collection(array_merge([function () {
@@ -531,10 +472,8 @@ abstract class Factory
 
     /**
      * Create the parent relationship resolvers (as deferred Closures).
-     *
-     * @return array
      */
-    protected function parentResolvers()
+    protected function parentResolvers(): array
     {
         return $this->for
             ->map(fn (BelongsToRelationship $for) => $for->recycle($this->recycle)->attributesFor($this->newModel()))
@@ -544,11 +483,8 @@ abstract class Factory
 
     /**
      * Expand all attributes to their underlying values.
-     *
-     * @param  array  $definition
-     * @return array
      */
-    protected function expandAttributes(array $definition)
+    protected function expandAttributes(array $definition): array
     {
         return (new Collection($definition))
             ->map($evaluateRelations = function ($attribute, $key) {
@@ -584,9 +520,8 @@ abstract class Factory
      * Add a new state transformation to the model definition.
      *
      * @param  (callable(array<string, mixed>, Model|null): array<string, mixed>)|array<string, mixed>  $state
-     * @return static
      */
-    public function state($state)
+    public function state(callable|array $state): static
     {
         return $this->newInstance([
             'states' => $this->states->concat([
@@ -599,9 +534,8 @@ abstract class Factory
      * Prepend a new state transformation to the model definition.
      *
      * @param  (callable(array<string, mixed>, Model|null): array<string, mixed>)|array<string, mixed>  $state
-     * @return static
      */
-    public function prependState($state)
+    public function prependState(callable|array $state): static
     {
         return $this->newInstance([
             'states' => $this->states->prepend(
@@ -612,57 +546,40 @@ abstract class Factory
 
     /**
      * Set a single model attribute.
-     *
-     * @param  string|int  $key
-     * @param  mixed  $value
-     * @return static
      */
-    public function set($key, $value)
+    public function set(string|int $key, mixed $value): static
     {
         return $this->state([$key => $value]);
     }
 
     /**
      * Add a new sequenced state transformation to the model definition.
-     *
-     * @param  mixed  ...$sequence
-     * @return static
      */
-    public function sequence(...$sequence)
+    public function sequence(mixed ...$sequence): static
     {
         return $this->state(new Sequence(...$sequence));
     }
 
     /**
      * Add a new sequenced state transformation to the model definition and update the pending creation count to the size of the sequence.
-     *
-     * @param  array  ...$sequence
-     * @return static
      */
-    public function forEachSequence(...$sequence)
+    public function forEachSequence(array ...$sequence): static
     {
         return $this->state(new Sequence(...$sequence))->count(count($sequence));
     }
 
     /**
      * Add a new cross joined sequenced state transformation to the model definition.
-     *
-     * @param  array  ...$sequence
-     * @return static
      */
-    public function crossJoinSequence(...$sequence)
+    public function crossJoinSequence(array ...$sequence): static
     {
         return $this->state(new CrossJoinSequence(...$sequence));
     }
 
     /**
      * Define a child relationship for the model.
-     *
-     * @param  \Hypervel\Database\Eloquent\Factories\Factory  $factory
-     * @param  string|null  $relationship
-     * @return static
      */
-    public function has(self $factory, $relationship = null)
+    public function has(self $factory, ?string $relationship = null): static
     {
         return $this->newInstance([
             'has' => $this->has->concat([new Relationship(
@@ -673,11 +590,8 @@ abstract class Factory
 
     /**
      * Attempt to guess the relationship name for a "has" relationship.
-     *
-     * @param  string  $related
-     * @return string
      */
-    protected function guessRelationship(string $related)
+    protected function guessRelationship(string $related): string
     {
         $guess = Str::camel(Str::plural(class_basename($related)));
 
@@ -687,12 +601,9 @@ abstract class Factory
     /**
      * Define an attached relationship for the model.
      *
-     * @param  \Hypervel\Database\Eloquent\Factories\Factory|\Hypervel\Support\Collection|\Hypervel\Database\Eloquent\Model|array  $factory
      * @param  (callable(): array<string, mixed>)|array<string, mixed>  $pivot
-     * @param  string|null  $relationship
-     * @return static
      */
-    public function hasAttached($factory, $pivot = [], $relationship = null)
+    public function hasAttached(self|Collection|Model|array $factory, callable|array $pivot = [], ?string $relationship = null): static
     {
         return $this->newInstance([
             'has' => $this->has->concat([new BelongsToManyRelationship(
@@ -709,12 +620,8 @@ abstract class Factory
 
     /**
      * Define a parent relationship for the model.
-     *
-     * @param  \Hypervel\Database\Eloquent\Factories\Factory|\Hypervel\Database\Eloquent\Model  $factory
-     * @param  string|null  $relationship
-     * @return static
      */
-    public function for($factory, $relationship = null)
+    public function for(self|Model $factory, ?string $relationship = null): static
     {
         return $this->newInstance(['for' => $this->for->concat([new BelongsToRelationship(
             $factory,
@@ -726,11 +633,8 @@ abstract class Factory
 
     /**
      * Provide model instances to use instead of any nested factory calls when creating relationships.
-     *
-     * @param  \Hypervel\Database\Eloquent\Model|\Hypervel\Support\Collection|array  $model
-     * @return static
      */
-    public function recycle($model)
+    public function recycle(Model|Collection|array $model): static
     {
         // Group provided models by the type and merge them into existing recycle collection
         return $this->newInstance([
@@ -751,7 +655,7 @@ abstract class Factory
      * @param  class-string<TClass>  $modelClassName
      * @return TClass|null
      */
-    public function getRandomRecycledModel($modelClassName)
+    public function getRandomRecycledModel(string $modelClassName): ?Model
     {
         return $this->recycle->get($modelClassName)?->random();
     }
@@ -760,9 +664,8 @@ abstract class Factory
      * Add a new "after making" callback to the model definition.
      *
      * @param  \Closure(TModel): mixed  $callback
-     * @return static
      */
-    public function afterMaking(Closure $callback)
+    public function afterMaking(Closure $callback): static
     {
         return $this->newInstance(['afterMaking' => $this->afterMaking->concat([$callback])]);
     }
@@ -771,20 +674,16 @@ abstract class Factory
      * Add a new "after creating" callback to the model definition.
      *
      * @param  \Closure(TModel, \Hypervel\Database\Eloquent\Model|null): mixed  $callback
-     * @return static
      */
-    public function afterCreating(Closure $callback)
+    public function afterCreating(Closure $callback): static
     {
         return $this->newInstance(['afterCreating' => $this->afterCreating->concat([$callback])]);
     }
 
     /**
      * Call the "after making" callbacks for the given model instances.
-     *
-     * @param  \Hypervel\Support\Collection  $instances
-     * @return void
      */
-    protected function callAfterMaking(Collection $instances)
+    protected function callAfterMaking(Collection $instances): void
     {
         $instances->each(function ($model) {
             $this->afterMaking->each(function ($callback) use ($model) {
@@ -795,12 +694,8 @@ abstract class Factory
 
     /**
      * Call the "after creating" callbacks for the given model instances.
-     *
-     * @param  \Hypervel\Support\Collection  $instances
-     * @param  \Hypervel\Database\Eloquent\Model|null  $parent
-     * @return void
      */
-    protected function callAfterCreating(Collection $instances, ?Model $parent = null)
+    protected function callAfterCreating(Collection $instances, ?Model $parent = null): void
     {
         $instances->each(function ($model) use ($parent) {
             $this->afterCreating->each(function ($callback) use ($model, $parent) {
@@ -811,11 +706,8 @@ abstract class Factory
 
     /**
      * Specify how many models should be generated.
-     *
-     * @param  int|null  $count
-     * @return static
      */
-    public function count(?int $count)
+    public function count(?int $count): static
     {
         return $this->newInstance(['count' => $count]);
     }
@@ -824,41 +716,32 @@ abstract class Factory
      * Indicate that related parent models should not be created.
      *
      * @param  array<string|class-string<Model>>  $parents
-     * @return static
      */
-    public function withoutParents($parents = [])
+    public function withoutParents(array $parents = []): static
     {
         return $this->newInstance(! $parents ? ['expandRelationships' => false] : ['excludeRelationships' => $parents]);
     }
 
     /**
      * Get the name of the database connection that is used to generate models.
-     *
-     * @return string
      */
-    public function getConnectionName()
+    public function getConnectionName(): ?string
     {
         return enum_value($this->connection);
     }
 
     /**
      * Specify the database connection that should be used to generate models.
-     *
-     * @param  \UnitEnum|string|null  $connection
-     * @return static
      */
-    public function connection(UnitEnum|string|null $connection)
+    public function connection(UnitEnum|string|null $connection): static
     {
         return $this->newInstance(['connection' => $connection]);
     }
 
     /**
      * Create a new instance of the factory builder with the given mutated properties.
-     *
-     * @param  array  $arguments
-     * @return static
      */
-    protected function newInstance(array $arguments = [])
+    protected function newInstance(array $arguments = []): static
     {
         return new static(...array_values(array_merge([
             'count' => $this->count,
@@ -880,7 +763,7 @@ abstract class Factory
      * @param  array<string, mixed>  $attributes
      * @return TModel
      */
-    public function newModel(array $attributes = [])
+    public function newModel(array $attributes = []): Model
     {
         $model = $this->modelName();
 
@@ -892,7 +775,7 @@ abstract class Factory
      *
      * @return class-string<TModel>
      */
-    public function modelName()
+    public function modelName(): string
     {
         if ($this->model !== null) {
             return $this->model;
@@ -919,20 +802,16 @@ abstract class Factory
      * Specify the callback that should be invoked to guess model names based on factory names.
      *
      * @param  callable(self): class-string<TModel>  $callback
-     * @return void
      */
-    public static function guessModelNamesUsing(callable $callback)
+    public static function guessModelNamesUsing(callable $callback): void
     {
         static::$modelNameResolvers[static::class] = $callback;
     }
 
     /**
      * Specify the default namespace that contains the application's model factories.
-     *
-     * @param  string  $namespace
-     * @return void
      */
-    public static function useNamespace(string $namespace)
+    public static function useNamespace(string $namespace): void
     {
         static::$namespace = $namespace;
     }
@@ -945,7 +824,7 @@ abstract class Factory
      * @param  class-string<TClass>  $modelName
      * @return \Hypervel\Database\Eloquent\Factories\Factory<TClass>
      */
-    public static function factoryForModel(string $modelName)
+    public static function factoryForModel(string $modelName): self
     {
         $factory = static::resolveFactoryName($modelName);
 
@@ -956,42 +835,35 @@ abstract class Factory
      * Specify the callback that should be invoked to guess factory names based on dynamic relationship names.
      *
      * @param  callable(class-string<\Hypervel\Database\Eloquent\Model>): class-string<\Hypervel\Database\Eloquent\Factories\Factory>  $callback
-     * @return void
      */
-    public static function guessFactoryNamesUsing(callable $callback)
+    public static function guessFactoryNamesUsing(callable $callback): void
     {
         static::$factoryNameResolver = $callback;
     }
 
     /**
      * Specify that relationships should create parent relationships by default.
-     *
-     * @return void
      */
-    public static function expandRelationshipsByDefault()
+    public static function expandRelationshipsByDefault(): void
     {
         static::$expandRelationshipsByDefault = true;
     }
 
     /**
      * Specify that relationships should not create parent relationships by default.
-     *
-     * @return void
      */
-    public static function dontExpandRelationshipsByDefault()
+    public static function dontExpandRelationshipsByDefault(): void
     {
         static::$expandRelationshipsByDefault = false;
     }
 
     /**
      * Get a new Faker instance.
-     *
-     * @return \Faker\Generator|null
      */
-    protected function withFaker()
+    protected function withFaker(): ?Generator
     {
         if (! class_exists(Generator::class)) {
-            return;
+            return null;
         }
 
         return ApplicationContext::getContainer()->make(Generator::class);
@@ -1005,7 +877,7 @@ abstract class Factory
      * @param  class-string<TClass>  $modelName
      * @return class-string<\Hypervel\Database\Eloquent\Factories\Factory<TClass>>
      */
-    public static function resolveFactoryName(string $modelName)
+    public static function resolveFactoryName(string $modelName): string
     {
         $resolver = static::$factoryNameResolver ?? function (string $modelName) {
             $appNamespace = static::appNamespace();
@@ -1022,10 +894,8 @@ abstract class Factory
 
     /**
      * Get the application namespace for the application.
-     *
-     * @return string
      */
-    protected static function appNamespace()
+    protected static function appNamespace(): string
     {
         try {
             return ApplicationContext::getContainer()
@@ -1038,10 +908,8 @@ abstract class Factory
 
     /**
      * Flush the factory's global state.
-     *
-     * @return void
      */
-    public static function flushState()
+    public static function flushState(): void
     {
         static::$modelNameResolver = null;
         static::$modelNameResolvers = [];
@@ -1052,12 +920,8 @@ abstract class Factory
 
     /**
      * Proxy dynamic factory methods onto their proper methods.
-     *
-     * @param  string  $method
-     * @param  array  $parameters
-     * @return mixed
      */
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         if (static::hasMacro($method)) {
             return $this->macroCall($method, $parameters);
@@ -1085,13 +949,13 @@ abstract class Factory
 
         if (str_starts_with($method, 'for')) {
             return $this->for($factory->state($parameters[0] ?? []), $relationship);
-        } elseif (str_starts_with($method, 'has')) {
-            return $this->has(
-                $factory
-                    ->count(is_numeric($parameters[0] ?? null) ? $parameters[0] : 1)
-                    ->state((is_callable($parameters[0] ?? null) || is_array($parameters[0] ?? null)) ? $parameters[0] : ($parameters[1] ?? [])),
-                $relationship
-            );
         }
+
+        return $this->has(
+            $factory
+                ->count(is_numeric($parameters[0] ?? null) ? $parameters[0] : 1)
+                ->state((is_callable($parameters[0] ?? null) || is_array($parameters[0] ?? null)) ? $parameters[0] : ($parameters[1] ?? [])),
+            $relationship
+        );
     }
 }

@@ -5,36 +5,29 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Factories;
 
 use Countable;
+use Hypervel\Database\Eloquent\Model;
 
 class Sequence implements Countable
 {
     /**
      * The sequence of return values.
-     *
-     * @var array
      */
-    protected $sequence;
+    protected array $sequence;
 
     /**
      * The count of the sequence items.
-     *
-     * @var int
      */
-    public $count;
+    public int $count;
 
     /**
      * The current index of the sequence iteration.
-     *
-     * @var int
      */
-    public $index = 0;
+    public int $index = 0;
 
     /**
      * Create a new sequence instance.
-     *
-     * @param  mixed  ...$sequence
      */
-    public function __construct(...$sequence)
+    public function __construct(mixed ...$sequence)
     {
         $this->sequence = $sequence;
         $this->count = count($sequence);
@@ -42,8 +35,6 @@ class Sequence implements Countable
 
     /**
      * Get the current count of the sequence items.
-     *
-     * @return int
      */
     public function count(): int
     {
@@ -54,10 +45,8 @@ class Sequence implements Countable
      * Get the next value in the sequence.
      *
      * @param  array<string, mixed>  $attributes
-     * @param  \Hypervel\Database\Eloquent\Model|null  $parent
-     * @return mixed
      */
-    public function __invoke($attributes = [], $parent = null)
+    public function __invoke(array $attributes = [], ?Model $parent = null): mixed
     {
         return tap(value($this->sequence[$this->index % $this->count], $this, $attributes, $parent), function () {
             $this->index = $this->index + 1;

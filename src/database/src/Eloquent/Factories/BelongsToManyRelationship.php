@@ -11,33 +11,27 @@ class BelongsToManyRelationship
 {
     /**
      * The related factory instance.
-     *
-     * @var \Hypervel\Database\Eloquent\Factories\Factory|\Hypervel\Support\Collection|\Hypervel\Database\Eloquent\Model|array
      */
-    protected $factory;
+    protected Factory|Collection|Model|array $factory;
 
     /**
      * The pivot attributes / attribute resolver.
      *
      * @var callable|array
      */
-    protected $pivot;
+    protected mixed $pivot;
 
     /**
      * The relationship name.
-     *
-     * @var string
      */
-    protected $relationship;
+    protected string $relationship;
 
     /**
      * Create a new attached relationship definition.
      *
-     * @param  \Hypervel\Database\Eloquent\Factories\Factory|\Hypervel\Support\Collection|\Hypervel\Database\Eloquent\Model|array  $factory
-     * @param  callable|array  $pivot
-     * @param  string  $relationship
+     * @param callable|array $pivot
      */
-    public function __construct($factory, $pivot, $relationship)
+    public function __construct(Factory|Collection|Model|array $factory, callable|array $pivot, string $relationship)
     {
         $this->factory = $factory;
         $this->pivot = $pivot;
@@ -46,11 +40,8 @@ class BelongsToManyRelationship
 
     /**
      * Create the attached relationship for the given model.
-     *
-     * @param  \Hypervel\Database\Eloquent\Model  $model
-     * @return void
      */
-    public function createFor(Model $model)
+    public function createFor(Model $model): void
     {
         $factoryInstance = $this->factory instanceof Factory;
 
@@ -69,10 +60,9 @@ class BelongsToManyRelationship
     /**
      * Specify the model instances to always use when creating relationships.
      *
-     * @param  \Hypervel\Support\Collection  $recycle
      * @return $this
      */
-    public function recycle($recycle)
+    public function recycle(Collection $recycle): static
     {
         if ($this->factory instanceof Factory) {
             $this->factory = $this->factory->recycle($recycle);
