@@ -271,9 +271,9 @@ trait CanBeOneOfMany
     /**
      * Get the one of many inner join subselect builder instance.
      *
-     * @return \Hypervel\Database\Eloquent\Builder<*>|void
+     * @return \Hypervel\Database\Eloquent\Builder<*>|null
      */
-    public function getOneOfManySubQuery()
+    public function getOneOfManySubQuery(): ?Builder
     {
         return $this->oneOfManySubQuery;
     }
@@ -312,20 +312,16 @@ trait CanBeOneOfMany
 
     /**
      * Determine whether the relationship is a one-of-many relationship.
-     *
-     * @return bool
      */
-    public function isOneOfMany()
+    public function isOneOfMany(): bool
     {
         return $this->isOneOfMany;
     }
 
     /**
      * Get the name of the relationship.
-     *
-     * @return string
      */
-    public function getRelationName()
+    public function getRelationName(): string
     {
         return $this->relationName;
     }

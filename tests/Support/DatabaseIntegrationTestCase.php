@@ -248,14 +248,33 @@ abstract class DatabaseIntegrationTestCase extends TestCase
     {
         $this->createdTables[] = $name;
 
-        // Drop first in case it exists from a previous failed run
+        // Drop first in case it exists from a previous failed run (with CASCADE for FK constraints)
+        $this->dropTableCascade($name);
+
+        $this->getSchemaBuilder()->create($name, $callback);
+    }
+
+    /**
+     * Drop a table with CASCADE to handle foreign key constraints.
+     */
+    protected function dropTableCascade(string $name): void
+    {
         try {
-            $this->getSchemaBuilder()->dropIfExists($name);
+            $fullName = $this->tablePrefix . $name;
+            $driver = $this->getDatabaseDriver();
+
+            if ($driver === 'pgsql') {
+                $this->db()->statement("DROP TABLE IF EXISTS \"{$fullName}\" CASCADE");
+            } elseif ($driver === 'mysql') {
+                $this->db()->statement('SET FOREIGN_KEY_CHECKS=0');
+                $this->db()->statement("DROP TABLE IF EXISTS `{$fullName}`");
+                $this->db()->statement('SET FOREIGN_KEY_CHECKS=1');
+            } else {
+                $this->getSchemaBuilder()->dropIfExists($name);
+            }
         } catch (Throwable) {
             // Ignore errors during cleanup
         }
-
-        $this->getSchemaBuilder()->create($name, $callback);
     }
 
     /**
@@ -264,11 +283,7 @@ abstract class DatabaseIntegrationTestCase extends TestCase
     protected function dropTestTables(): void
     {
         foreach (array_reverse($this->createdTables) as $table) {
-            try {
-                $this->getSchemaBuilder()->dropIfExists($table);
-            } catch (Throwable) {
-                // Ignore errors during cleanup
-            }
+            $this->dropTableCascade($table);
         }
 
         $this->createdTables = [];

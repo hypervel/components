@@ -560,10 +560,8 @@ abstract class HasOneOrMany extends Relation
 
     /**
      * Get the key value of the parent's local key.
-     *
-     * @return mixed
      */
-    public function getParentKey()
+    public function getParentKey(): mixed
     {
         return $this->parent->getAttribute($this->localKey);
     }
