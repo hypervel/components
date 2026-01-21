@@ -14,6 +14,7 @@ use Hypervel\Database\Console\Migrations\ResetCommand;
 use Hypervel\Database\Console\Migrations\RollbackCommand;
 use Hypervel\Database\Console\Migrations\StatusCommand;
 use Hypervel\Database\Console\SeedCommand;
+use Hypervel\Database\Console\WipeCommand;
 use Hypervel\Database\Eloquent\Factories\LegacyFactoryInvoker as DatabaseFactoryInvoker;
 use Hypervel\Database\Eloquent\ModelListener;
 use Hypervel\Database\Listeners\RegisterConnectionResolverListener;
@@ -45,6 +46,7 @@ class ConfigProvider
                 RollbackCommand::class,
                 SeedCommand::class,
                 StatusCommand::class,
+                WipeCommand::class,
             ],
         ];
     }
