@@ -85,12 +85,12 @@ class DatabaseManager implements ConnectionResolverInterface
      * @param  array  $config
      * @return \Hypervel\Database\ConnectionInterface
      *
-     * @throws \RuntimeException Always - dynamic connections not supported in Swoole
+     * @throws \RuntimeException Always - dynamic connections not supported in Hypervel
      */
     public function build(array $config)
     {
         throw new RuntimeException(
-            'Dynamic database connections via DB::build() are not supported in Swoole. ' .
+            'Dynamic database connections via DB::build() are not supported in Hypervel. ' .
             'Configure all connections in config/databases.php instead.'
         );
     }
@@ -116,12 +116,12 @@ class DatabaseManager implements ConnectionResolverInterface
      * @param  bool  $force
      * @return \Hypervel\Database\ConnectionInterface
      *
-     * @throws \RuntimeException Always - dynamic connections not supported in Swoole
+     * @throws \RuntimeException Always - dynamic connections not supported in Hypervel
      */
     public function connectUsing(string $name, array $config, bool $force = false)
     {
         throw new RuntimeException(
-            'Dynamic database connections via DB::connectUsing() are not supported in Swoole. ' .
+            'Dynamic database connections via DB::connectUsing() are not supported in Hypervel. ' .
             'Configure all connections in config/databases.php instead.'
         );
     }
