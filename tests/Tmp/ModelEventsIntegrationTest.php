@@ -186,9 +186,9 @@ class ModelEventsIntegrationTest extends DatabaseIntegrationTestCase
 
 class TmpUser extends Model
 {
-    protected $table = 'tmp_users';
+    protected ?string $table = 'tmp_users';
 
-    protected $fillable = ['name', 'email'];
+    protected array $fillable = ['name', 'email'];
 
     public static array $eventLog = [];
 }
