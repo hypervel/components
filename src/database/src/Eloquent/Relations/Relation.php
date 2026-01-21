@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\MultipleRecordsFoundException;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Traits\ForwardsCalls;
@@ -35,28 +36,26 @@ abstract class Relation implements BuilderContract
      *
      * @var \Hypervel\Database\Eloquent\Builder<TRelatedModel>
      */
-    protected $query;
+    protected Builder $query;
 
     /**
      * The parent model instance.
      *
      * @var TDeclaringModel
      */
-    protected $parent;
+    protected Model $parent;
 
     /**
      * The related model instance.
      *
      * @var TRelatedModel
      */
-    protected $related;
+    protected Model $related;
 
     /**
      * Indicates whether the eagerly loaded relation should implicitly return an empty collection.
-     *
-     * @var bool
      */
-    protected $eagerKeysWereEmpty = false;
+    protected bool $eagerKeysWereEmpty = false;
 
     /**
      * The context key for storing whether constraints are enabled.
@@ -68,21 +67,17 @@ abstract class Relation implements BuilderContract
      *
      * @var array<string, class-string<\Hypervel\Database\Eloquent\Model>>
      */
-    public static $morphMap = [];
+    public static array $morphMap = [];
 
     /**
      * Prevents morph relationships without a morph map.
-     *
-     * @var bool
      */
-    protected static $requireMorphMap = false;
+    protected static bool $requireMorphMap = false;
 
     /**
      * The count of self joins.
-     *
-     * @var int
      */
-    protected static $selfJoinCount = 0;
+    protected static int $selfJoinCount = 0;
 
     /**
      * Create a new relation instance.
@@ -107,7 +102,7 @@ abstract class Relation implements BuilderContract
      * @param  Closure(): TReturn  $callback
      * @return TReturn
      */
-    public static function noConstraints(Closure $callback)
+    public static function noConstraints(Closure $callback): mixed
     {
         $previous = Context::get(static::CONSTRAINTS_CONTEXT_KEY, true);
 
@@ -133,37 +128,32 @@ abstract class Relation implements BuilderContract
 
     /**
      * Set the base constraints on the relation query.
-     *
-     * @return void
      */
-    abstract public function addConstraints();
+    abstract public function addConstraints(): void;
 
     /**
      * Set the constraints for an eager load of the relation.
      *
      * @param  array<int, TDeclaringModel>  $models
-     * @return void
      */
-    abstract public function addEagerConstraints(array $models);
+    abstract public function addEagerConstraints(array $models): void;
 
     /**
      * Initialize the relation on a set of models.
      *
      * @param  array<int, TDeclaringModel>  $models
-     * @param  string  $relation
      * @return array<int, TDeclaringModel>
      */
-    abstract public function initRelation(array $models, $relation);
+    abstract public function initRelation(array $models, string $relation): array;
 
     /**
      * Match the eagerly loaded results to their parents.
      *
      * @param  array<int, TDeclaringModel>  $models
      * @param  \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>  $results
-     * @param  string  $relation
      * @return array<int, TDeclaringModel>
      */
-    abstract public function match(array $models, EloquentCollection $results, $relation);
+    abstract public function match(array $models, EloquentCollection $results, string $relation): array;
 
     /**
      * Get the results of the relationship.
@@ -177,7 +167,7 @@ abstract class Relation implements BuilderContract
      *
      * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
      */
-    public function getEager()
+    public function getEager(): EloquentCollection
     {
         return $this->eagerKeysWereEmpty
             ? $this->related->newCollection()
@@ -187,13 +177,12 @@ abstract class Relation implements BuilderContract
     /**
      * Execute the query and get the first result if it's the sole matching record.
      *
-     * @param  array|string  $columns
      * @return TRelatedModel
      *
      * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<TRelatedModel>
      * @throws \Hypervel\Database\MultipleRecordsFoundException
      */
-    public function sole($columns = ['*'])
+    public function sole(array|string $columns = ['*']): Model
     {
         $result = $this->limit(2)->get($columns);
 
@@ -213,20 +202,17 @@ abstract class Relation implements BuilderContract
     /**
      * Execute the query as a "select" statement.
      *
-     * @param  array  $columns
      * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
      */
-    public function get($columns = ['*'])
+    public function get(array $columns = ['*']): EloquentCollection
     {
         return $this->query->get($columns);
     }
 
     /**
      * Touch all of the related models for the relationship.
-     *
-     * @return void
      */
-    public function touch()
+    public function touch(): void
     {
         $model = $this->getRelated();
 
@@ -239,11 +225,8 @@ abstract class Relation implements BuilderContract
 
     /**
      * Run a raw update against the base query.
-     *
-     * @param  array  $attributes
-     * @return int
      */
-    public function rawUpdate(array $attributes = [])
+    public function rawUpdate(array $attributes = []): int
     {
         return $this->query->withoutGlobalScopes()->update($attributes);
     }
@@ -255,7 +238,7 @@ abstract class Relation implements BuilderContract
      * @param  \Hypervel\Database\Eloquent\Builder<TDeclaringModel>  $parentQuery
      * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
      */
-    public function getRelationExistenceCountQuery(Builder $query, Builder $parentQuery)
+    public function getRelationExistenceCountQuery(Builder $query, Builder $parentQuery): Builder
     {
         return $this->getRelationExistenceQuery(
             $query, $parentQuery, new Expression('count(*)')
@@ -269,10 +252,9 @@ abstract class Relation implements BuilderContract
      *
      * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
      * @param  \Hypervel\Database\Eloquent\Builder<TDeclaringModel>  $parentQuery
-     * @param  mixed  $columns
      * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
      */
-    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, $columns = ['*'])
+    public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         return $query->select($columns)->whereColumn(
             $this->getQualifiedParentKeyName(), '=', $this->getExistenceCompareKey()
@@ -281,11 +263,8 @@ abstract class Relation implements BuilderContract
 
     /**
      * Get a relationship join table hash.
-     *
-     * @param  bool  $incrementJoinCount
-     * @return string
      */
-    public function getRelationCountHash($incrementJoinCount = true)
+    public function getRelationCountHash(bool $incrementJoinCount = true): string
     {
         return 'laravel_reserved_'.($incrementJoinCount ? static::$selfJoinCount++ : static::$selfJoinCount);
     }
@@ -294,10 +273,9 @@ abstract class Relation implements BuilderContract
      * Get all of the primary keys for an array of models.
      *
      * @param  array<int, TDeclaringModel>  $models
-     * @param  string|null  $key
      * @return array<int, int|string|null>
      */
-    protected function getKeys(array $models, $key = null)
+    protected function getKeys(array $models, ?string $key = null): array
     {
         return (new BaseCollection($models))->map(function ($value) use ($key) {
             return $key ? $value->getAttribute($key) : $value->getKey();
@@ -309,7 +287,7 @@ abstract class Relation implements BuilderContract
      *
      * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
      */
-    protected function getRelationQuery()
+    protected function getRelationQuery(): Builder
     {
         return $this->query;
     }
@@ -319,27 +297,23 @@ abstract class Relation implements BuilderContract
      *
      * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
      */
-    public function getQuery()
+    public function getQuery(): Builder
     {
         return $this->query;
     }
 
     /**
      * Get the base query builder driving the Eloquent builder.
-     *
-     * @return \Hypervel\Database\Query\Builder
      */
-    public function getBaseQuery()
+    public function getBaseQuery(): QueryBuilder
     {
         return $this->query->getQuery();
     }
 
     /**
      * Get a base query builder instance.
-     *
-     * @return \Hypervel\Database\Query\Builder
      */
-    public function toBase()
+    public function toBase(): QueryBuilder
     {
         return $this->query->toBase();
     }
@@ -349,17 +323,15 @@ abstract class Relation implements BuilderContract
      *
      * @return TDeclaringModel
      */
-    public function getParent()
+    public function getParent(): Model
     {
         return $this->parent;
     }
 
     /**
      * Get the fully qualified parent key name.
-     *
-     * @return string
      */
-    public function getQualifiedParentKeyName()
+    public function getQualifiedParentKeyName(): string
     {
         return $this->parent->getQualifiedKeyName();
     }
@@ -369,37 +341,31 @@ abstract class Relation implements BuilderContract
      *
      * @return TRelatedModel
      */
-    public function getRelated()
+    public function getRelated(): Model
     {
         return $this->related;
     }
 
     /**
      * Get the name of the "created at" column.
-     *
-     * @return string
      */
-    public function createdAt()
+    public function createdAt(): string
     {
         return $this->parent->getCreatedAtColumn();
     }
 
     /**
      * Get the name of the "updated at" column.
-     *
-     * @return string
      */
-    public function updatedAt()
+    public function updatedAt(): string
     {
         return $this->parent->getUpdatedAtColumn();
     }
 
     /**
      * Get the name of the related model's "updated at" column.
-     *
-     * @return string
      */
-    public function relatedUpdatedAt()
+    public function relatedUpdatedAt(): string
     {
         return $this->related->getUpdatedAtColumn();
     }
@@ -407,13 +373,9 @@ abstract class Relation implements BuilderContract
     /**
      * Add a whereIn eager constraint for the given set of model keys to be loaded.
      *
-     * @param  string  $whereIn
-     * @param  string  $key
-     * @param  array  $modelKeys
      * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>|null  $query
-     * @return void
      */
-    protected function whereInEager(string $whereIn, string $key, array $modelKeys, ?Builder $query = null)
+    protected function whereInEager(string $whereIn, string $key, array $modelKeys, ?Builder $query = null): void
     {
         ($query ?? $this->query)->{$whereIn}($key, $modelKeys);
 
@@ -424,12 +386,8 @@ abstract class Relation implements BuilderContract
 
     /**
      * Get the name of the "where in" method for eager loading.
-     *
-     * @param  \Hypervel\Database\Eloquent\Model  $model
-     * @param  string  $key
-     * @return string
      */
-    protected function whereInMethod(Model $model, $key)
+    protected function whereInMethod(Model $model, string $key): string
     {
         return $model->getKeyName() === last(explode('.', $key))
             && in_array($model->getKeyType(), ['int', 'integer'])
@@ -439,21 +397,16 @@ abstract class Relation implements BuilderContract
 
     /**
      * Prevent polymorphic relationships from being used without model mappings.
-     *
-     * @param  bool  $requireMorphMap
-     * @return void
      */
-    public static function requireMorphMap($requireMorphMap = true)
+    public static function requireMorphMap(bool $requireMorphMap = true): void
     {
         static::$requireMorphMap = $requireMorphMap;
     }
 
     /**
      * Determine if polymorphic relationships require explicit model mapping.
-     *
-     * @return bool
      */
-    public static function requiresMorphMap()
+    public static function requiresMorphMap(): bool
     {
         return static::$requireMorphMap;
     }
@@ -462,10 +415,8 @@ abstract class Relation implements BuilderContract
      * Define the morph map for polymorphic relations and require all morphed models to be explicitly mapped.
      *
      * @param  array<string, class-string<\Hypervel\Database\Eloquent\Model>>  $map
-     * @param  bool  $merge
-     * @return array
      */
-    public static function enforceMorphMap(array $map, $merge = true)
+    public static function enforceMorphMap(array $map, bool $merge = true): array
     {
         static::requireMorphMap();
 
@@ -476,10 +427,9 @@ abstract class Relation implements BuilderContract
      * Set or get the morph map for polymorphic relations.
      *
      * @param  array<string, class-string<\Hypervel\Database\Eloquent\Model>>|null  $map
-     * @param  bool  $merge
      * @return array<string, class-string<\Hypervel\Database\Eloquent\Model>>
      */
-    public static function morphMap(?array $map = null, $merge = true)
+    public static function morphMap(?array $map = null, bool $merge = true): array
     {
         $map = static::buildMorphMapFromModels($map);
 
@@ -498,7 +448,7 @@ abstract class Relation implements BuilderContract
      * @param  list<class-string<\Hypervel\Database\Eloquent\Model>>|null  $models
      * @return array<string, class-string<\Hypervel\Database\Eloquent\Model>>|null
      */
-    protected static function buildMorphMapFromModels(?array $models = null)
+    protected static function buildMorphMapFromModels(?array $models = null): ?array
     {
         if (is_null($models) || ! array_is_list($models)) {
             return $models;
@@ -512,10 +462,9 @@ abstract class Relation implements BuilderContract
     /**
      * Get the model associated with a custom polymorphic type.
      *
-     * @param  string  $alias
      * @return class-string<\Hypervel\Database\Eloquent\Model>|null
      */
-    public static function getMorphedModel($alias)
+    public static function getMorphedModel(string $alias): ?string
     {
         return static::$morphMap[$alias] ?? null;
     }
@@ -524,21 +473,16 @@ abstract class Relation implements BuilderContract
      * Get the alias associated with a custom polymorphic class.
      *
      * @param  class-string<\Hypervel\Database\Eloquent\Model>  $className
-     * @return int|string
      */
-    public static function getMorphAlias(string $className)
+    public static function getMorphAlias(string $className): int|string
     {
         return array_search($className, static::$morphMap, strict: true) ?: $className;
     }
 
     /**
      * Handle dynamic method calls to the relationship.
-     *
-     * @param  string  $method
-     * @param  array  $parameters
-     * @return mixed
      */
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         if (static::hasMacro($method)) {
             return $this->macroCall($method, $parameters);
@@ -549,10 +493,8 @@ abstract class Relation implements BuilderContract
 
     /**
      * Force a clone of the underlying query builder when cloning.
-     *
-     * @return void
      */
-    public function __clone()
+    public function __clone(): void
     {
         $this->query = clone $this->query;
     }
