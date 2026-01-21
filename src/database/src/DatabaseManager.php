@@ -69,24 +69,14 @@ class DatabaseManager implements ConnectionResolverInterface
     /**
      * Get a database connection instance.
      *
+     * Delegates to ConnectionResolver for pooled, per-coroutine connection management.
+     *
      * @param  \UnitEnum|string|null  $name
      */
     public function connection($name = null): ConnectionInterface
     {
-        [$database, $type] = $this->parseConnectionName($name = enum_value($name) ?: $this->getDefaultConnection());
-
-        // If we haven't created this connection, we'll create it based on the config
-        // provided in the application. Once we've created the connections we will
-        // set the "fetch mode" for PDO which determines the query return types.
-        if (! isset($this->connections[$name])) {
-            $this->connections[$name] = $this->configure(
-                $this->makeConnection($database), $type
-            );
-
-            $this->dispatchConnectionEstablishedEvent($this->connections[$name]);
-        }
-
-        return $this->connections[$name];
+        return $this->app->get(ConnectionResolverInterface::class)
+            ->connection(enum_value($name));
     }
 
     /**
@@ -94,14 +84,15 @@ class DatabaseManager implements ConnectionResolverInterface
      *
      * @param  array  $config
      * @return \Hypervel\Database\ConnectionInterface
+     *
+     * @throws \RuntimeException Always - dynamic connections not supported in Swoole
      */
     public function build(array $config)
     {
-        $config['name'] ??= static::calculateDynamicConnectionName($config);
-
-        $this->dynamicConnectionConfigurations[$config['name']] = $config;
-
-        return $this->connectUsing($config['name'], $config, true);
+        throw new RuntimeException(
+            'Dynamic database connections via DB::build() are not supported in Swoole. ' .
+            'Configure all connections in config/databases.php instead.'
+        );
     }
 
     /**
@@ -124,24 +115,15 @@ class DatabaseManager implements ConnectionResolverInterface
      * @param  array  $config
      * @param  bool  $force
      * @return \Hypervel\Database\ConnectionInterface
+     *
+     * @throws \RuntimeException Always - dynamic connections not supported in Swoole
      */
     public function connectUsing(string $name, array $config, bool $force = false)
     {
-        if ($force) {
-            $this->purge($name = enum_value($name));
-        }
-
-        if (isset($this->connections[$name])) {
-            throw new RuntimeException("Cannot establish connection [$name] because another connection with that name already exists.");
-        }
-
-        $connection = $this->configure(
-            $this->factory->make($config, $name), null
+        throw new RuntimeException(
+            'Dynamic database connections via DB::connectUsing() are not supported in Swoole. ' .
+            'Configure all connections in config/databases.php instead.'
         );
-
-        $this->dispatchConnectionEstablishedEvent($connection);
-
-        return tap($connection, fn ($connection) => $this->connections[$name] = $connection);
     }
 
     /**

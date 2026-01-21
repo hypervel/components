@@ -16,11 +16,9 @@ use Hypervel\Database\Console\Migrations\StatusCommand;
 use Hypervel\Database\Console\SeedCommand;
 use Hypervel\Database\Console\WipeCommand;
 use Hypervel\Database\Eloquent\Factories\LegacyFactoryInvoker as DatabaseFactoryInvoker;
-use Hypervel\Database\Eloquent\ModelListener;
 use Hypervel\Database\Listeners\RegisterConnectionResolverListener;
 use Hypervel\Database\Migrations\DatabaseMigrationRepositoryFactory;
 use Hypervel\Database\Migrations\MigrationRepositoryInterface;
-use Hypervel\Database\Migrations\Migrator;
 
 class ConfigProvider
 {
@@ -29,11 +27,8 @@ class ConfigProvider
         return [
             'dependencies' => [
                 ConnectionResolverInterface::class => ConnectionResolver::class,
-                DatabaseTransactionsManager::class => DatabaseTransactionsManager::class,
                 HyperfDatabaseFactory::class => DatabaseFactoryInvoker::class,
                 MigrationRepositoryInterface::class => DatabaseMigrationRepositoryFactory::class,
-                Migrator::class => Migrator::class,
-                ModelListener::class => ModelListener::class,
             ],
             'listeners' => [
                 RegisterConnectionResolverListener::class,
