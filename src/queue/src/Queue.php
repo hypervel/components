@@ -11,7 +11,7 @@ use Hyperf\Collection\Arr;
 use Hyperf\Collection\Collection;
 use Hyperf\Stringable\Str;
 use Hyperf\Support\Traits\InteractsWithTime;
-use Hypervel\Database\TransactionManager;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Encryption\Contracts\Encrypter;
 use Hypervel\Queue\Contracts\ShouldBeEncrypted;
 use Hypervel\Queue\Contracts\ShouldQueueAfterCommit;
@@ -279,9 +279,9 @@ abstract class Queue
     protected function enqueueUsing(object|string $job, ?string $payload, ?string $queue, DateInterval|DateTimeInterface|int|null $delay, callable $callback): mixed
     {
         if ($this->shouldDispatchAfterCommit($job)
-            && $this->container->has(TransactionManager::class)
+            && $this->container->has(DatabaseTransactionsManager::class)
         ) {
-            return $this->container->get(TransactionManager::class)
+            return $this->container->get(DatabaseTransactionsManager::class)
                 ->addCallback(
                     function () use ($queue, $job, $payload, $delay, $callback) {
                         $this->raiseJobQueueingEvent($queue, $job, $payload, $delay);

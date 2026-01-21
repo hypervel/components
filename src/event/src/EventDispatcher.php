@@ -12,7 +12,7 @@ use Hyperf\Context\Context;
 use Hyperf\Stringable\Str;
 use Hypervel\Broadcasting\Contracts\Factory as BroadcastFactory;
 use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
-use Hypervel\Database\TransactionManager;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Event\Contracts\Dispatcher as EventDispatcherContract;
 use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
 use Hypervel\Event\Contracts\ShouldDispatchAfterCommit;
@@ -382,8 +382,12 @@ class EventDispatcher implements EventDispatcherContract
     /**
      * Get the database transaction manager implementation from the resolver.
      */
-    protected function resolveTransactionManager(): ?TransactionManager
+    protected function resolveTransactionManager(): ?DatabaseTransactionsManager
     {
+        if ($this->transactionManagerResolver === null) {
+            return null;
+        }
+
         return call_user_func($this->transactionManagerResolver);
     }
 

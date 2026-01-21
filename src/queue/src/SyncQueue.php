@@ -6,7 +6,7 @@ namespace Hypervel\Queue;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Database\TransactionManager;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
 use Hypervel\Queue\Contracts\Job as JobContract;
 use Hypervel\Queue\Contracts\Queue as QueueContract;
@@ -75,9 +75,9 @@ class SyncQueue extends Queue implements QueueContract
     public function push(object|string $job, mixed $data = '', ?string $queue = null): mixed
     {
         if ($this->shouldDispatchAfterCommit($job)
-            && $this->container->has(TransactionManager::class)
+            && $this->container->has(DatabaseTransactionsManager::class)
         ) {
-            return $this->container->get(TransactionManager::class)
+            return $this->container->get(DatabaseTransactionsManager::class)
                 ->addCallback(
                     fn () => $this->executeJob($job, $data, $queue)
                 );
