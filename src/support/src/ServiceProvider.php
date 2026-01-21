@@ -7,7 +7,7 @@ namespace Hypervel\Support;
 use Closure;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\TranslatorLoaderInterface;
-use Hyperf\Database\Migrations\Migrator;
+use Hypervel\Database\Migrations\Migrator;
 use Hyperf\ViewEngine\Compiler\BladeCompiler;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactoryContract;
 use Hypervel\Foundation\Contracts\Application as ApplicationContract;
