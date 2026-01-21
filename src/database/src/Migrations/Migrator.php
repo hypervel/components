@@ -9,7 +9,9 @@ use FriendsOfHyperf\PrettyConsole\View\Components\BulletList;
 use FriendsOfHyperf\PrettyConsole\View\Components\Info;
 use FriendsOfHyperf\PrettyConsole\View\Components\Task;
 use FriendsOfHyperf\PrettyConsole\View\Components\TwoColumnDetail;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
+use Hypervel\Database\Contracts\Events\MigrationEvent as MigrationEventContract;
 use Hypervel\Database\Events\MigrationEnded;
 use Hypervel\Database\Events\MigrationsEnded;
 use Hypervel\Database\Events\MigrationSkipped;
@@ -18,6 +20,7 @@ use Hypervel\Database\Events\MigrationStarted;
 use Hypervel\Database\Events\NoPendingMigrations;
 use Hypervel\Event\Contracts\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
+use Hypervel\Database\Schema\Grammars\Grammar as SchemaGrammar;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -27,39 +30,9 @@ use Symfony\Component\Console\Output\OutputInterface;
 class Migrator
 {
     /**
-     * The event dispatcher instance.
-     *
-     * @var \Hypervel\Event\Contracts\Dispatcher
-     */
-    protected $events;
-
-    /**
-     * The migration repository implementation.
-     *
-     * @var \Hypervel\Database\Migrations\MigrationRepositoryInterface
-     */
-    protected $repository;
-
-    /**
-     * The filesystem instance.
-     *
-     * @var \Hypervel\Filesystem\Filesystem
-     */
-    protected $files;
-
-    /**
-     * The connection resolver instance.
-     *
-     * @var \Hypervel\Database\ConnectionResolverInterface
-     */
-    protected $resolver;
-
-    /**
      * The custom connection resolver callback.
-     *
-     * @var \Closure|null
      */
-    protected static $connectionResolverCallback;
+    protected static ?Closure $connectionResolverCallback = null;
 
     /**
      * The name of the default connection.
@@ -71,47 +44,36 @@ class Migrator
      *
      * @var string[]
      */
-    protected $paths = [];
+    protected array $paths = [];
 
     /**
      * The paths that have already been required.
      *
      * @var array<string, \Hypervel\Database\Migrations\Migration|null>
      */
-    protected static $requiredPathCache = [];
+    protected static array $requiredPathCache = [];
 
     /**
      * The output interface implementation.
-     *
-     * @var \Symfony\Component\Console\Output\OutputInterface
      */
-    protected $output;
+    protected ?OutputInterface $output = null;
 
     /**
      * The pending migrations to skip.
      *
      * @var list<string>
      */
-    protected static $withoutMigrations = [];
+    protected static array $withoutMigrations = [];
 
     /**
      * Create a new migrator instance.
-     *
-     * @param  \Hypervel\Database\Migrations\MigrationRepositoryInterface  $repository
-     * @param  \Hypervel\Database\ConnectionResolverInterface  $resolver
-     * @param  \Hypervel\Filesystem\Filesystem  $files
-     * @param  \Hypervel\Event\Contracts\Dispatcher|null  $dispatcher
      */
     public function __construct(
-        MigrationRepositoryInterface $repository,
-        Resolver $resolver,
-        Filesystem $files,
-        ?Dispatcher $dispatcher = null,
+        protected MigrationRepositoryInterface $repository,
+        protected Resolver $resolver,
+        protected Filesystem $files,
+        protected ?Dispatcher $events = null,
     ) {
-        $this->files = $files;
-        $this->events = $dispatcher;
-        $this->resolver = $resolver;
-        $this->repository = $repository;
     }
 
     /**
@@ -121,7 +83,7 @@ class Migrator
      * @param  array<string, mixed>  $options
      * @return string[]
      */
-    public function run($paths = [], array $options = [])
+    public function run(array|string $paths = [], array $options = []): array
     {
         // Once we grab all of the migration files for the path, we will compare them
         // against the migrations that have already been run for this package then
@@ -147,7 +109,7 @@ class Migrator
      * @param  string[]  $ran
      * @return string[]
      */
-    protected function pendingMigrations($files, $ran)
+    protected function pendingMigrations(array $files, array $ran): array
     {
         $migrationsToSkip = $this->migrationsToSkip();
 
@@ -164,7 +126,7 @@ class Migrator
      *
      * @return list<string>
      */
-    protected function migrationsToSkip()
+    protected function migrationsToSkip(): array
     {
         return (new Collection(self::$withoutMigrations))
             ->map($this->getMigrationName(...))
@@ -176,9 +138,8 @@ class Migrator
      *
      * @param  string[]  $migrations
      * @param  array<string, mixed>  $options
-     * @return void
      */
-    public function runPending(array $migrations, array $options = [])
+    public function runPending(array $migrations, array $options = []): void
     {
         // First we will just make sure that there are any migrations to run. If there
         // aren't, we will just make a note of it to the developer so they're aware
@@ -222,13 +183,8 @@ class Migrator
 
     /**
      * Run "up" a migration instance.
-     *
-     * @param  string  $file
-     * @param  int  $batch
-     * @param  bool  $pretend
-     * @return void
      */
-    protected function runUp($file, $batch, $pretend)
+    protected function runUp(string $file, int $batch, bool $pretend): void
     {
         // First we will resolve a "real" instance of the migration class from this
         // migration file name. Once we have the instances we can run the actual
@@ -266,7 +222,7 @@ class Migrator
      * @param  array<string, mixed>  $options
      * @return string[]
      */
-    public function rollback($paths = [], array $options = [])
+    public function rollback(array|string $paths = [], array $options = []): array
     {
         // We want to pull in the last batch of migrations that ran on the previous
         // migration operation. We'll then reverse those migrations and run each
@@ -290,9 +246,8 @@ class Migrator
      * Get the migrations for a rollback operation.
      *
      * @param  array<string, mixed>  $options
-     * @return array
      */
-    protected function getMigrationsForRollback(array $options)
+    protected function getMigrationsForRollback(array $options): array
     {
         if (($steps = $options['step'] ?? 0) > 0) {
             return $this->repository->getMigrations($steps);
@@ -308,12 +263,11 @@ class Migrator
     /**
      * Rollback the given migrations.
      *
-     * @param  array  $migrations
      * @param  string[]|string  $paths
      * @param  array<string, mixed>  $options
      * @return string[]
      */
-    protected function rollbackMigrations(array $migrations, $paths, array $options)
+    protected function rollbackMigrations(array $migrations, array|string $paths, array $options): array
     {
         $rolledBack = [];
 
@@ -352,10 +306,8 @@ class Migrator
      * Rolls all of the currently applied migrations back.
      *
      * @param  string[]|string  $paths
-     * @param  bool  $pretend
-     * @return array
      */
-    public function reset($paths = [], $pretend = false)
+    public function reset(array|string $paths = [], bool $pretend = false): array
     {
         // Next, we will reverse the migration list so we can run them back in the
         // correct order for resetting this database. This will allow us to get
@@ -378,10 +330,8 @@ class Migrator
      *
      * @param  string[]  $migrations
      * @param  string[]  $paths
-     * @param  bool  $pretend
-     * @return array
      */
-    protected function resetMigrations(array $migrations, array $paths, $pretend = false)
+    protected function resetMigrations(array $migrations, array $paths, bool $pretend = false): array
     {
         // Since the getRan method that retrieves the migration name just gives us the
         // migration name, we will format the names into objects with the name as a
@@ -395,13 +345,8 @@ class Migrator
 
     /**
      * Run "down" a migration instance.
-     *
-     * @param  string  $file
-     * @param  object  $migration
-     * @param  bool  $pretend
-     * @return void
      */
-    protected function runDown($file, $migration, $pretend)
+    protected function runDown(string $file, object $migration, bool $pretend): void
     {
         // First we will get the file name of the migration so we can resolve out an
         // instance of the migration. Once we get an instance we can either run a
@@ -424,12 +369,8 @@ class Migrator
 
     /**
      * Run a migration inside a transaction if the database supports it.
-     *
-     * @param  object  $migration
-     * @param  string  $method
-     * @return void
      */
-    protected function runMigration($migration, $method)
+    protected function runMigration(object $migration, string $method): void
     {
         $connection = $this->resolveConnection(
             $migration->getConnection()
@@ -453,12 +394,8 @@ class Migrator
 
     /**
      * Pretend to run the migrations.
-     *
-     * @param  object  $migration
-     * @param  string  $method
-     * @return void
      */
-    protected function pretendToRun($migration, $method)
+    protected function pretendToRun(object $migration, string $method): void
     {
         $name = get_class($migration);
 
@@ -478,12 +415,8 @@ class Migrator
 
     /**
      * Get all of the queries that would be run for a migration.
-     *
-     * @param  object  $migration
-     * @param  string  $method
-     * @return array
      */
-    protected function getQueries($migration, $method)
+    protected function getQueries(object $migration, string $method): array
     {
         // Now that we have the connections we can resolve it and pretend to run the
         // queries against the database returning the array of raw SQL statements
@@ -501,13 +434,8 @@ class Migrator
 
     /**
      * Run a migration method on the given connection.
-     *
-     * @param  \Hypervel\Database\Connection  $connection
-     * @param  object  $migration
-     * @param  string  $method
-     * @return void
      */
-    protected function runMethod($connection, $migration, $method)
+    protected function runMethod(Connection $connection, object $migration, string $method): void
     {
         $previousConnection = $this->resolver->getDefaultConnection();
 
@@ -522,11 +450,8 @@ class Migrator
 
     /**
      * Resolve a migration instance from a file.
-     *
-     * @param  string  $file
-     * @return object
      */
-    public function resolve($file)
+    public function resolve(string $file): object
     {
         $class = $this->getMigrationClass($file);
 
@@ -535,11 +460,8 @@ class Migrator
 
     /**
      * Resolve a migration instance from a migration path.
-     *
-     * @param  string  $path
-     * @return object
      */
-    protected function resolvePath(string $path)
+    protected function resolvePath(string $path): object
     {
         $class = $this->getMigrationClass($this->getMigrationName($path));
 
@@ -575,7 +497,7 @@ class Migrator
      * @param  string|array  $paths
      * @return array<string, string>
      */
-    public function getMigrationFiles($paths)
+    public function getMigrationFiles(array|string $paths): array
     {
         return (new Collection($paths))
             ->flatMap(fn ($path) => str_ends_with($path, '.php') ? [$path] : $this->files->glob($path.'/*_*.php'))
@@ -590,9 +512,8 @@ class Migrator
      * Require in all the migration files in a given path.
      *
      * @param  string[]  $files
-     * @return void
      */
-    public function requireFiles(array $files)
+    public function requireFiles(array $files): void
     {
         foreach ($files as $file) {
             $this->files->requireOnce($file);
@@ -601,22 +522,16 @@ class Migrator
 
     /**
      * Get the name of the migration.
-     *
-     * @param  string  $path
-     * @return string
      */
-    public function getMigrationName($path)
+    public function getMigrationName(string $path): string
     {
         return str_replace('.php', '', basename($path));
     }
 
     /**
      * Register a custom migration path.
-     *
-     * @param  string  $path
-     * @return void
      */
-    public function path($path)
+    public function path(string $path): void
     {
         $this->paths = array_unique(array_merge($this->paths, [$path]));
     }
@@ -626,7 +541,7 @@ class Migrator
      *
      * @return string[]
      */
-    public function paths()
+    public function paths(): array
     {
         return $this->paths;
     }
@@ -635,19 +550,16 @@ class Migrator
      * Set the pending migrations to skip.
      *
      * @param  list<string>  $migrations
-     * @return void
      */
-    public static function withoutMigrations(array $migrations)
+    public static function withoutMigrations(array $migrations): void
     {
         static::$withoutMigrations = $migrations;
     }
 
     /**
      * Get the default connection name.
-     *
-     * @return string
      */
-    public function getConnection()
+    public function getConnection(): ?string
     {
         return $this->connection;
     }
@@ -684,11 +596,8 @@ class Migrator
 
     /**
      * Resolve the database connection instance.
-     *
-     * @param  string  $connection
-     * @return \Hypervel\Database\Connection
      */
-    public function resolveConnection($connection)
+    public function resolveConnection(?string $connection): Connection
     {
         if (static::$connectionResolverCallback) {
             return call_user_func(
@@ -703,22 +612,16 @@ class Migrator
 
     /**
      * Set a connection resolver callback.
-     *
-     * @param  \Closure  $callback
-     * @return void
      */
-    public static function resolveConnectionsUsing(Closure $callback)
+    public static function resolveConnectionsUsing(Closure $callback): void
     {
         static::$connectionResolverCallback = $callback;
     }
 
     /**
      * Get the schema grammar out of a migration connection.
-     *
-     * @param  \Hypervel\Database\Connection  $connection
-     * @return \Hypervel\Database\Schema\Grammars\Grammar
      */
-    protected function getSchemaGrammar($connection)
+    protected function getSchemaGrammar(Connection $connection): SchemaGrammar
     {
         if (is_null($grammar = $connection->getSchemaGrammar())) {
             $connection->useDefaultSchemaGrammar();
@@ -731,61 +634,48 @@ class Migrator
 
     /**
      * Get the migration repository instance.
-     *
-     * @return \Hypervel\Database\Migrations\MigrationRepositoryInterface
      */
-    public function getRepository()
+    public function getRepository(): MigrationRepositoryInterface
     {
         return $this->repository;
     }
 
     /**
      * Determine if the migration repository exists.
-     *
-     * @return bool
      */
-    public function repositoryExists()
+    public function repositoryExists(): bool
     {
         return $this->repository->repositoryExists();
     }
 
     /**
      * Determine if any migrations have been run.
-     *
-     * @return bool
      */
-    public function hasRunAnyMigrations()
+    public function hasRunAnyMigrations(): bool
     {
         return $this->repositoryExists() && count($this->repository->getRan()) > 0;
     }
 
     /**
      * Delete the migration repository data store.
-     *
-     * @return void
      */
-    public function deleteRepository()
+    public function deleteRepository(): void
     {
         $this->repository->deleteRepository();
     }
 
     /**
      * Get the file system instance.
-     *
-     * @return \Hypervel\Filesystem\Filesystem
      */
-    public function getFilesystem()
+    public function getFilesystem(): Filesystem
     {
         return $this->files;
     }
 
     /**
      * Set the output implementation that should be used by the console.
-     *
-     * @param  \Symfony\Component\Console\Output\OutputInterface  $output
-     * @return $this
      */
-    public function setOutput(OutputInterface $output)
+    public function setOutput(OutputInterface $output): static
     {
         $this->output = $output;
 
@@ -814,11 +704,8 @@ class Migrator
 
     /**
      * Fire the given event for the migration.
-     *
-     * @param  \Hypervel\Database\Contracts\Events\MigrationEvent  $event
-     * @return void
      */
-    public function fireMigrationEvent($event)
+    public function fireMigrationEvent(MigrationEventContract $event): void
     {
         $this->events?->dispatch($event);
     }

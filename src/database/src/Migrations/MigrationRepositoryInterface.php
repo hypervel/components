@@ -8,91 +8,61 @@ interface MigrationRepositoryInterface
 {
     /**
      * Get the completed migrations.
-     *
-     * @return array
      */
-    public function getRan();
+    public function getRan(): array;
 
     /**
      * Get the list of migrations.
-     *
-     * @param  int  $steps
-     * @return array
      */
-    public function getMigrations($steps);
+    public function getMigrations(int $steps): array;
 
     /**
      * Get the list of the migrations by batch.
-     *
-     * @param  int  $batch
-     * @return array
      */
-    public function getMigrationsByBatch($batch);
+    public function getMigrationsByBatch(int $batch): array;
 
     /**
      * Get the last migration batch.
-     *
-     * @return array
      */
-    public function getLast();
+    public function getLast(): array;
 
     /**
      * Get the completed migrations with their batch numbers.
-     *
-     * @return array
      */
-    public function getMigrationBatches();
+    public function getMigrationBatches(): array;
 
     /**
      * Log that a migration was run.
-     *
-     * @param  string  $file
-     * @param  int  $batch
-     * @return void
      */
-    public function log($file, $batch);
+    public function log(string $file, int $batch): void;
 
     /**
      * Remove a migration from the log.
-     *
-     * @param  object  $migration
-     * @return void
      */
-    public function delete($migration);
+    public function delete(object $migration): void;
 
     /**
      * Get the next migration batch number.
-     *
-     * @return int
      */
-    public function getNextBatchNumber();
+    public function getNextBatchNumber(): int;
 
     /**
      * Create the migration repository data store.
-     *
-     * @return void
      */
-    public function createRepository();
+    public function createRepository(): void;
 
     /**
      * Determine if the migration repository exists.
-     *
-     * @return bool
      */
-    public function repositoryExists();
+    public function repositoryExists(): bool;
 
     /**
      * Delete the migration repository data store.
-     *
-     * @return void
      */
-    public function deleteRepository();
+    public function deleteRepository(): void;
 
     /**
      * Set the information source to gather data.
-     *
-     * @param  string  $name
-     * @return void
      */
-    public function setSource($name);
+    public function setSource(string $name): void;
 }

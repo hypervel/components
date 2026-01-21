@@ -8,32 +8,24 @@ abstract class Migration
 {
     /**
      * The name of the database connection to use.
-     *
-     * @var string|null
      */
-    protected $connection;
+    protected ?string $connection = null;
 
     /**
      * Enables, if supported, wrapping the migration within a transaction.
-     *
-     * @var bool
      */
-    public $withinTransaction = true;
+    public bool $withinTransaction = true;
 
     /**
      * Get the migration connection name.
-     *
-     * @return string|null
      */
-    public function getConnection()
+    public function getConnection(): ?string
     {
         return $this->connection;
     }
 
     /**
      * Determine if this migration should run.
-     *
-     * @return bool
      */
     public function shouldRun(): bool
     {

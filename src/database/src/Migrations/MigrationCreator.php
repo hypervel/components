@@ -12,50 +12,25 @@ use InvalidArgumentException;
 class MigrationCreator
 {
     /**
-     * The filesystem instance.
-     *
-     * @var \Hypervel\Filesystem\Filesystem
-     */
-    protected $files;
-
-    /**
-     * The custom app stubs directory.
-     *
-     * @var string
-     */
-    protected $customStubPath;
-
-    /**
      * The registered post create hooks.
-     *
-     * @var array
      */
-    protected $postCreate = [];
+    protected array $postCreate = [];
 
     /**
      * Create a new migration creator instance.
-     *
-     * @param  \Hypervel\Filesystem\Filesystem  $files
-     * @param  string  $customStubPath
      */
-    public function __construct(Filesystem $files, ?string $customStubPath = null)
-    {
-        $this->files = $files;
-        $this->customStubPath = $customStubPath;
+    public function __construct(
+        protected Filesystem $files,
+        protected ?string $customStubPath = null
+    ) {
     }
 
     /**
      * Create a new migration at the given path.
      *
-     * @param  string  $name
-     * @param  string  $path
-     * @param  string|null  $table
-     * @param  bool  $create
-     * @return string
-     *
      * @throws \Exception
      */
-    public function create($name, $path, $table = null, $create = false)
+    public function create(string $name, string $path, ?string $table = null, bool $create = false): string
     {
         $this->ensureMigrationDoesntAlreadyExist($name, $path);
 
@@ -83,13 +58,9 @@ class MigrationCreator
     /**
      * Ensure that a migration with the given name doesn't already exist.
      *
-     * @param  string  $name
-     * @param  string|null  $migrationPath
-     * @return void
-     *
      * @throws \InvalidArgumentException
      */
-    protected function ensureMigrationDoesntAlreadyExist($name, $migrationPath = null)
+    protected function ensureMigrationDoesntAlreadyExist(string $name, ?string $migrationPath = null): void
     {
         if (! empty($migrationPath)) {
             $migrationFiles = $this->files->glob($migrationPath.'/*.php');
@@ -106,12 +77,8 @@ class MigrationCreator
 
     /**
      * Get the migration stub file.
-     *
-     * @param  string|null  $table
-     * @param  bool  $create
-     * @return string
      */
-    protected function getStub($table, $create)
+    protected function getStub(?string $table, bool $create): string
     {
         if (is_null($table)) {
             $stub = $this->files->exists($customPath = $this->customStubPath.'/migration.stub')
@@ -132,12 +99,8 @@ class MigrationCreator
 
     /**
      * Populate the place-holders in the migration stub.
-     *
-     * @param  string  $stub
-     * @param  string|null  $table
-     * @return string
      */
-    protected function populateStub($stub, $table)
+    protected function populateStub(string $stub, ?string $table): string
     {
         // Here we will replace the table place-holders with the table specified by
         // the developer, which is useful for quickly creating a tables creation
@@ -154,35 +117,24 @@ class MigrationCreator
 
     /**
      * Get the class name of a migration name.
-     *
-     * @param  string  $name
-     * @return string
      */
-    protected function getClassName($name)
+    protected function getClassName(string $name): string
     {
         return Str::studly($name);
     }
 
     /**
      * Get the full path to the migration.
-     *
-     * @param  string  $name
-     * @param  string  $path
-     * @return string
      */
-    protected function getPath($name, $path)
+    protected function getPath(string $name, string $path): string
     {
         return $path.'/'.$this->getDatePrefix().'_'.$name.'.php';
     }
 
     /**
      * Fire the registered post create hooks.
-     *
-     * @param  string|null  $table
-     * @param  string  $path
-     * @return void
      */
-    protected function firePostCreateHooks($table, $path)
+    protected function firePostCreateHooks(?string $table, string $path): void
     {
         foreach ($this->postCreate as $callback) {
             $callback($table, $path);
@@ -191,41 +143,32 @@ class MigrationCreator
 
     /**
      * Register a post migration create hook.
-     *
-     * @param  \Closure  $callback
-     * @return void
      */
-    public function afterCreate(Closure $callback)
+    public function afterCreate(Closure $callback): void
     {
         $this->postCreate[] = $callback;
     }
 
     /**
      * Get the date prefix for the migration.
-     *
-     * @return string
      */
-    protected function getDatePrefix()
+    protected function getDatePrefix(): string
     {
         return date('Y_m_d_His');
     }
 
     /**
      * Get the path to the stubs.
-     *
-     * @return string
      */
-    public function stubPath()
+    public function stubPath(): string
     {
         return __DIR__.'/stubs';
     }
 
     /**
      * Get the filesystem instance.
-     *
-     * @return \Hypervel\Filesystem\Filesystem
      */
-    public function getFilesystem()
+    public function getFilesystem(): Filesystem
     {
         return $this->files;
     }
