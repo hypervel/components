@@ -194,7 +194,9 @@ class Migrator
         $name = $this->getMigrationName($file);
 
         if ($pretend) {
-            return $this->pretendToRun($migration, 'up');
+            $this->pretendToRun($migration, 'up');
+
+            return;
         }
 
         $shouldRunMigration = $migration instanceof Migration
@@ -356,7 +358,9 @@ class Migrator
         $name = $this->getMigrationName($file);
 
         if ($pretend) {
-            return $this->pretendToRun($instance, 'down');
+            $this->pretendToRun($instance, 'down');
+
+            return;
         }
 
         $this->write(Task::class, $name, fn () => $this->runMigration($instance, 'down'));
