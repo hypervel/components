@@ -20,6 +20,7 @@ use Hypervel\Database\Eloquent\ModelListener;
 use Hypervel\Database\Listeners\RegisterConnectionResolverListener;
 use Hypervel\Database\Migrations\DatabaseMigrationRepositoryFactory;
 use Hypervel\Database\Migrations\MigrationRepositoryInterface;
+use Hypervel\Database\Migrations\Migrator;
 
 class ConfigProvider
 {
@@ -31,6 +32,7 @@ class ConfigProvider
                 DatabaseTransactionsManager::class => DatabaseTransactionsManager::class,
                 HyperfDatabaseFactory::class => DatabaseFactoryInvoker::class,
                 MigrationRepositoryInterface::class => DatabaseMigrationRepositoryFactory::class,
+                Migrator::class => Migrator::class,
                 ModelListener::class => ModelListener::class,
             ],
             'listeners' => [
