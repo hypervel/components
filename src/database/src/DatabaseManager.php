@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
+use Closure;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Foundation\Contracts\Application;
@@ -14,6 +15,7 @@ use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use PDO;
 use RuntimeException;
+use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
@@ -50,7 +52,7 @@ class DatabaseManager implements ConnectionResolverInterface
     /**
      * The callback to be executed to reconnect to a database.
      */
-    protected \Closure $reconnector;
+    protected Closure $reconnector;
 
     /**
      * Create a new database manager instance.
@@ -70,10 +72,8 @@ class DatabaseManager implements ConnectionResolverInterface
      * Get a database connection instance.
      *
      * Delegates to ConnectionResolver for pooled, per-coroutine connection management.
-     *
-     * @param  \UnitEnum|string|null  $name
      */
-    public function connection($name = null): ConnectionInterface
+    public function connection(UnitEnum|string|null $name = null): ConnectionInterface
     {
         return $this->app->get(ConnectionResolverInterface::class)
             ->connection(enum_value($name));
@@ -82,12 +82,9 @@ class DatabaseManager implements ConnectionResolverInterface
     /**
      * Build a database connection instance from the given configuration.
      *
-     * @param  array  $config
-     * @return \Hypervel\Database\ConnectionInterface
-     *
-     * @throws \RuntimeException Always - dynamic connections not supported in Hypervel
+     * @throws RuntimeException Always - dynamic connections not supported in Hypervel
      */
-    public function build(array $config)
+    public function build(array $config): ConnectionInterface
     {
         throw new RuntimeException(
             'Dynamic database connections via DB::build() are not supported in Hypervel. ' .
@@ -97,11 +94,8 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * Calculate the dynamic connection name for an on-demand connection based on its configuration.
-     *
-     * @param  array  $config
-     * @return string
      */
-    public static function calculateDynamicConnectionName(array $config)
+    public static function calculateDynamicConnectionName(array $config): string
     {
         return 'dynamic_'.md5((new Collection($config))->map(function ($value, $key) {
             return $key.(is_string($value) || is_int($value) ? $value : '');
@@ -111,14 +105,9 @@ class DatabaseManager implements ConnectionResolverInterface
     /**
      * Get a database connection instance from the given configuration.
      *
-     * @param  \UnitEnum|string  $name
-     * @param  array  $config
-     * @param  bool  $force
-     * @return \Hypervel\Database\ConnectionInterface
-     *
-     * @throws \RuntimeException Always - dynamic connections not supported in Hypervel
+     * @throws RuntimeException Always - dynamic connections not supported in Hypervel
      */
-    public function connectUsing(string $name, array $config, bool $force = false)
+    public function connectUsing(string $name, array $config, bool $force = false): ConnectionInterface
     {
         throw new RuntimeException(
             'Dynamic database connections via DB::connectUsing() are not supported in Hypervel. ' .
@@ -129,10 +118,9 @@ class DatabaseManager implements ConnectionResolverInterface
     /**
      * Parse the connection into an array of the name and read / write type.
      *
-     * @param  string  $name
-     * @return array
+     * @return array{0: string, 1: string|null}
      */
-    protected function parseConnectionName($name)
+    protected function parseConnectionName(string $name): array
     {
         return Str::endsWith($name, ['::read', '::write'])
             ? explode('::', $name, 2)
@@ -141,11 +129,8 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * Make the database connection instance.
-     *
-     * @param  string  $name
-     * @return \Hypervel\Database\Connection
      */
-    protected function makeConnection($name)
+    protected function makeConnection(string $name): Connection
     {
         $config = $this->configuration($name);
 
@@ -169,12 +154,9 @@ class DatabaseManager implements ConnectionResolverInterface
     /**
      * Get the configuration for a connection.
      *
-     * @param  string  $name
-     * @return array
-     *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
-    protected function configuration($name)
+    protected function configuration(string $name): array
     {
         $connections = $this->app['config']['database.connections'];
 
@@ -190,12 +172,8 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * Prepare the database connection instance.
-     *
-     * @param  \Hypervel\Database\Connection  $connection
-     * @param  string  $type
-     * @return \Hypervel\Database\Connection
      */
-    protected function configure(Connection $connection, $type)
+    protected function configure(Connection $connection, ?string $type): Connection
     {
         $connection = $this->setPdoForType($connection, $type)->setReadWriteType($type);
 
@@ -220,11 +198,8 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * Dispatch the ConnectionEstablished event if the event dispatcher is available.
-     *
-     * @param  \Hypervel\Database\Connection  $connection
-     * @return void
      */
-    protected function dispatchConnectionEstablishedEvent(Connection $connection)
+    protected function dispatchConnectionEstablishedEvent(Connection $connection): void
     {
         if (! $this->app->bound('events')) {
             return;
@@ -237,12 +212,8 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * Prepare the read / write mode for database connection instance.
-     *
-     * @param  \Hypervel\Database\Connection  $connection
-     * @param  string|null  $type
-     * @return \Hypervel\Database\Connection
      */
-    protected function setPdoForType(Connection $connection, $type = null)
+    protected function setPdoForType(Connection $connection, ?string $type = null): Connection
     {
         if ($type === 'read') {
             $connection->setPdo($connection->getReadPdo());
@@ -255,11 +226,8 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * Disconnect from the given database and remove from local cache.
-     *
-     * @param  \UnitEnum|string|null  $name
-     * @return void
      */
-    public function purge($name = null)
+    public function purge(UnitEnum|string|null $name = null): void
     {
         $this->disconnect($name = enum_value($name) ?: $this->getDefaultConnection());
 
@@ -268,11 +236,8 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * Disconnect from the given database.
-     *
-     * @param  \UnitEnum|string|null  $name
-     * @return void
      */
-    public function disconnect($name = null)
+    public function disconnect(UnitEnum|string|null $name = null): void
     {
         if (isset($this->connections[$name = enum_value($name) ?: $this->getDefaultConnection()])) {
             $this->connections[$name]->disconnect();
@@ -281,11 +246,8 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * Reconnect to the given database.
-     *
-     * @param  \UnitEnum|string|null  $name
-     * @return \Hypervel\Database\Connection
      */
-    public function reconnect($name = null)
+    public function reconnect(UnitEnum|string|null $name = null): Connection
     {
         $this->disconnect($name = enum_value($name) ?: $this->getDefaultConnection());
 
@@ -300,12 +262,8 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * Set the default database connection for the callback execution.
-     *
-     * @param  \UnitEnum|string  $name
-     * @param  callable  $callback
-     * @return mixed
      */
-    public function usingConnection($name, callable $callback)
+    public function usingConnection(UnitEnum|string $name, callable $callback): mixed
     {
         $previousName = $this->getDefaultConnection();
 
@@ -320,11 +278,8 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * Refresh the PDO connections on a given connection.
-     *
-     * @param  string  $name
-     * @return \Hypervel\Database\Connection
      */
-    protected function refreshPdoConnections($name)
+    protected function refreshPdoConnections(string $name): Connection
     {
         [$database, $type] = $this->parseConnectionName($name);
 
@@ -358,7 +313,7 @@ class DatabaseManager implements ConnectionResolverInterface
      *
      * @return string[]
      */
-    public function supportedDrivers()
+    public function supportedDrivers(): array
     {
         return ['mysql', 'mariadb', 'pgsql', 'sqlite'];
     }
@@ -368,7 +323,7 @@ class DatabaseManager implements ConnectionResolverInterface
      *
      * @return string[]
      */
-    public function availableDrivers()
+    public function availableDrivers(): array
     {
         return array_intersect(
             $this->supportedDrivers(),
@@ -378,23 +333,16 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * Register an extension connection resolver.
-     *
-     * @param  string  $name
-     * @param  callable  $resolver
-     * @return void
      */
-    public function extend($name, callable $resolver)
+    public function extend(string $name, callable $resolver): void
     {
         $this->extensions[$name] = $resolver;
     }
 
     /**
      * Remove an extension connection resolver.
-     *
-     * @param  string  $name
-     * @return void
      */
-    public function forgetExtension($name)
+    public function forgetExtension(string $name): void
     {
         unset($this->extensions[$name]);
     }
@@ -402,31 +350,25 @@ class DatabaseManager implements ConnectionResolverInterface
     /**
      * Return all of the created connections.
      *
-     * @return array<string, \Hypervel\Database\Connection>
+     * @return array<string, Connection>
      */
-    public function getConnections()
+    public function getConnections(): array
     {
         return $this->connections;
     }
 
     /**
      * Set the database reconnector callback.
-     *
-     * @param  callable  $reconnector
-     * @return void
      */
-    public function setReconnector(callable $reconnector)
+    public function setReconnector(callable $reconnector): void
     {
         $this->reconnector = $reconnector;
     }
 
     /**
      * Set the application instance used by the manager.
-     *
-     * @param  \Hypervel\Foundation\Application  $app
-     * @return $this
      */
-    public function setApplication($app)
+    public function setApplication(Application $app): static
     {
         $this->app = $app;
 
@@ -435,12 +377,8 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * Dynamically pass methods to the default connection.
-     *
-     * @param  string  $method
-     * @param  array  $parameters
-     * @return mixed
      */
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         if (static::hasMacro($method)) {
             return $this->macroCall($method, $parameters);
