@@ -24,29 +24,24 @@ abstract class Grammar extends BaseGrammar
      *
      * @var string[]
      */
-    protected $modifiers = [];
+    protected array $modifiers = [];
 
     /**
      * If this Grammar supports schema changes wrapped in a transaction.
-     *
-     * @var bool
      */
-    protected $transactions = false;
+    protected bool $transactions = false;
 
     /**
      * The commands to be executed outside of create or alter command.
      *
-     * @var array
+     * @var string[]
      */
-    protected $fluentCommands = [];
+    protected array $fluentCommands = [];
 
     /**
      * Compile a create database command.
-     *
-     * @param  string  $name
-     * @return string
      */
-    public function compileCreateDatabase($name)
+    public function compileCreateDatabase(string $name): string
     {
         return sprintf('create database %s',
             $this->wrapValue($name),
@@ -55,11 +50,8 @@ abstract class Grammar extends BaseGrammar
 
     /**
      * Compile a drop database if exists command.
-     *
-     * @param  string  $name
-     * @return string
      */
-    public function compileDropDatabaseIfExists($name)
+    public function compileDropDatabaseIfExists(string $name): string
     {
         return sprintf('drop database if exists %s',
             $this->wrapValue($name)
@@ -68,35 +60,26 @@ abstract class Grammar extends BaseGrammar
 
     /**
      * Compile the query to determine the schemas.
-     *
-     * @return string
      */
-    public function compileSchemas()
+    public function compileSchemas(): string
     {
         throw new RuntimeException('This database driver does not support retrieving schemas.');
     }
 
     /**
      * Compile the query to determine if the given table exists.
-     *
-     * @param  string|null  $schema
-     * @param  string  $table
-     * @return string|null
      */
-    public function compileTableExists($schema, $table)
+    public function compileTableExists(?string $schema, string $table): ?string
     {
-        //
+        return null;
     }
 
     /**
      * Compile the query to determine the tables.
      *
      * @param  string|string[]|null  $schema
-     * @return string
-     *
-     * @throws \RuntimeException
      */
-    public function compileTables($schema)
+    public function compileTables(string|array|null $schema): string
     {
         throw new RuntimeException('This database driver does not support retrieving tables.');
     }
@@ -105,11 +88,8 @@ abstract class Grammar extends BaseGrammar
      * Compile the query to determine the views.
      *
      * @param  string|string[]|null  $schema
-     * @return string
-     *
-     * @throws \RuntimeException
      */
-    public function compileViews($schema)
+    public function compileViews(string|array|null $schema): string
     {
         throw new RuntimeException('This database driver does not support retrieving views.');
     }
@@ -118,67 +98,40 @@ abstract class Grammar extends BaseGrammar
      * Compile the query to determine the user-defined types.
      *
      * @param  string|string[]|null  $schema
-     * @return string
-     *
-     * @throws \RuntimeException
      */
-    public function compileTypes($schema)
+    public function compileTypes(string|array|null $schema): string
     {
         throw new RuntimeException('This database driver does not support retrieving user-defined types.');
     }
 
     /**
      * Compile the query to determine the columns.
-     *
-     * @param  string|null  $schema
-     * @param  string  $table
-     * @return string
-     *
-     * @throws \RuntimeException
      */
-    public function compileColumns($schema, $table)
+    public function compileColumns(?string $schema, string $table): string
     {
         throw new RuntimeException('This database driver does not support retrieving columns.');
     }
 
     /**
      * Compile the query to determine the indexes.
-     *
-     * @param  string|null  $schema
-     * @param  string  $table
-     * @return string
-     *
-     * @throws \RuntimeException
      */
-    public function compileIndexes($schema, $table)
+    public function compileIndexes(?string $schema, string $table): string
     {
         throw new RuntimeException('This database driver does not support retrieving indexes.');
     }
 
     /**
      * Compile a vector index key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return void
-     *
-     * @throws \RuntimeException
      */
-    public function compileVectorIndex(Blueprint $blueprint, Fluent $command)
+    public function compileVectorIndex(Blueprint $blueprint, Fluent $command): string
     {
         throw new RuntimeException('The database driver in use does not support vector indexes.');
     }
 
     /**
      * Compile the query to determine the foreign keys.
-     *
-     * @param  string|null  $schema
-     * @param  string  $table
-     * @return string
-     *
-     * @throws \RuntimeException
      */
-    public function compileForeignKeys($schema, $table)
+    public function compileForeignKeys(?string $schema, string $table): string
     {
         throw new RuntimeException('This database driver does not support retrieving foreign keys.');
     }
@@ -186,11 +139,9 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile a rename column command.
      *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
      * @return list<string>|string
      */
-    public function compileRenameColumn(Blueprint $blueprint, Fluent $command)
+    public function compileRenameColumn(Blueprint $blueprint, Fluent $command): array|string
     {
         return sprintf('alter table %s rename column %s to %s',
             $this->wrapTable($blueprint),
@@ -202,53 +153,33 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile a change column command into a series of SQL statements.
      *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
      * @return list<string>|string
-     *
-     * @throws \RuntimeException
      */
-    public function compileChange(Blueprint $blueprint, Fluent $command)
+    public function compileChange(Blueprint $blueprint, Fluent $command): array|string
     {
         throw new RuntimeException('This database driver does not support modifying columns.');
     }
 
     /**
      * Compile a fulltext index key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
-     *
-     * @throws \RuntimeException
      */
-    public function compileFulltext(Blueprint $blueprint, Fluent $command)
+    public function compileFulltext(Blueprint $blueprint, Fluent $command): string
     {
         throw new RuntimeException('This database driver does not support fulltext index creation.');
     }
 
     /**
      * Compile a drop fulltext index command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
-     *
-     * @throws \RuntimeException
      */
-    public function compileDropFullText(Blueprint $blueprint, Fluent $command)
+    public function compileDropFullText(Blueprint $blueprint, Fluent $command): string
     {
         throw new RuntimeException('This database driver does not support fulltext index removal.');
     }
 
     /**
      * Compile a foreign key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileForeign(Blueprint $blueprint, Fluent $command)
+    public function compileForeign(Blueprint $blueprint, Fluent $command): string
     {
         // We need to prepare several of the elements of the foreign key definition
         // before we can create the SQL, such as wrapping the tables and convert
@@ -283,12 +214,8 @@ abstract class Grammar extends BaseGrammar
 
     /**
      * Compile a drop foreign key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileDropForeign(Blueprint $blueprint, Fluent $command)
+    public function compileDropForeign(Blueprint $blueprint, Fluent $command): string
     {
         throw new RuntimeException('This database driver does not support dropping foreign keys.');
     }
@@ -296,10 +223,9 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile the blueprint's added column definitions.
      *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @return array
+     * @return string[]
      */
-    protected function getColumns(Blueprint $blueprint)
+    protected function getColumns(Blueprint $blueprint): array
     {
         $columns = [];
 
@@ -313,11 +239,9 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile the column definition.
      *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
      * @param  \Hypervel\Database\Schema\ColumnDefinition  $column
-     * @return string
      */
-    protected function getColumn(Blueprint $blueprint, $column)
+    protected function getColumn(Blueprint $blueprint, Fluent $column): string
     {
         // Each of the column types has their own compiler functions, which are tasked
         // with turning the column definition into its SQL format for this platform
@@ -329,61 +253,40 @@ abstract class Grammar extends BaseGrammar
 
     /**
      * Get the SQL for the column data type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function getType(Fluent $column)
+    protected function getType(Fluent $column): string
     {
         return $this->{'type'.ucfirst($column->type)}($column);
     }
 
     /**
      * Create the column definition for a generated, computed column type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return void
-     *
-     * @throws \RuntimeException
      */
-    protected function typeComputed(Fluent $column)
+    protected function typeComputed(Fluent $column): void
     {
         throw new RuntimeException('This database driver does not support the computed type.');
     }
 
     /**
      * Create the column definition for a vector type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
-     *
-     * @throws \RuntimeException
      */
-    protected function typeVector(Fluent $column)
+    protected function typeVector(Fluent $column): string
     {
         throw new RuntimeException('This database driver does not support the vector type.');
     }
 
     /**
      * Create the column definition for a raw column type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeRaw(Fluent $column)
+    protected function typeRaw(Fluent $column): string
     {
         return $column->offsetGet('definition');
     }
 
     /**
      * Add the column modifiers to the definition.
-     *
-     * @param  string  $sql
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function addModifiers($sql, Blueprint $blueprint, Fluent $column)
+    protected function addModifiers(string $sql, Blueprint $blueprint, Fluent $column): string
     {
         foreach ($this->modifiers as $modifier) {
             if (method_exists($this, $method = "modify{$modifier}")) {
@@ -396,42 +299,34 @@ abstract class Grammar extends BaseGrammar
 
     /**
      * Get the command with a given name if it exists on the blueprint.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  string  $name
-     * @return \Hypervel\Support\Fluent|null
      */
-    protected function getCommandByName(Blueprint $blueprint, $name)
+    protected function getCommandByName(Blueprint $blueprint, string $name): ?Fluent
     {
         $commands = $this->getCommandsByName($blueprint, $name);
 
         if (count($commands) > 0) {
             return Arr::first($commands);
         }
+
+        return null;
     }
 
     /**
      * Get all of the commands with a given name.
      *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  string  $name
-     * @return array
+     * @return Fluent[]
      */
-    protected function getCommandsByName(Blueprint $blueprint, $name)
+    protected function getCommandsByName(Blueprint $blueprint, string $name): array
     {
         return array_filter($blueprint->getCommands(), function ($value) use ($name) {
             return $value->name == $name;
         });
     }
 
-    /*
+    /**
      * Determine if a command with a given name exists on the blueprint.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  string  $name
-     * @return bool
      */
-    protected function hasCommand(Blueprint $blueprint, $name)
+    protected function hasCommand(Blueprint $blueprint, string $name): bool
     {
         foreach ($blueprint->getCommands() as $command) {
             if ($command->name === $name) {
@@ -445,11 +340,10 @@ abstract class Grammar extends BaseGrammar
     /**
      * Add a prefix to an array of values.
      *
-     * @param  string  $prefix
-     * @param  array<string>  $values
-     * @return array<string>
+     * @param  string[]  $values
+     * @return string[]
      */
-    public function prefixArray($prefix, array $values)
+    public function prefixArray(string $prefix, array $values): array
     {
         return array_map(function ($value) use ($prefix) {
             return $prefix.' '.$value;
@@ -469,11 +363,8 @@ abstract class Grammar extends BaseGrammar
 
     /**
      * Wrap a value in keyword identifiers.
-     *
-     * @param  \Hypervel\Support\Fluent|\Hypervel\Database\Contracts\Query\Expression|string  $value
-     * @return string
      */
-    public function wrap($value)
+    public function wrap(Fluent|Expression|string $value): string
     {
         return parent::wrap(
             $value instanceof Fluent ? $value->name : $value,
@@ -482,11 +373,8 @@ abstract class Grammar extends BaseGrammar
 
     /**
      * Format a value so that it can be used in "default" clauses.
-     *
-     * @param  mixed  $value
-     * @return string
      */
-    protected function getDefaultValue($value)
+    protected function getDefaultValue(mixed $value): string|int|float
     {
         if ($value instanceof Expression) {
             return $this->getValue($value);
@@ -504,19 +392,17 @@ abstract class Grammar extends BaseGrammar
     /**
      * Get the fluent commands for the grammar.
      *
-     * @return array
+     * @return string[]
      */
-    public function getFluentCommands()
+    public function getFluentCommands(): array
     {
         return $this->fluentCommands;
     }
 
     /**
      * Check if this Grammar supports schema changes wrapped in a transaction.
-     *
-     * @return bool
      */
-    public function supportsSchemaTransactions()
+    public function supportsSchemaTransactions(): bool
     {
         return $this->transactions;
     }

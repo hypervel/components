@@ -18,7 +18,7 @@ class MySqlGrammar extends Grammar
      *
      * @var string[]
      */
-    protected $modifiers = [
+    protected array $modifiers = [
         'Unsigned', 'Charset', 'Collate', 'VirtualAs', 'StoredAs', 'Nullable',
         'Default', 'OnUpdate', 'Invisible', 'Increment', 'Comment', 'After', 'First',
     ];
@@ -28,22 +28,19 @@ class MySqlGrammar extends Grammar
      *
      * @var string[]
      */
-    protected $serials = ['bigInteger', 'integer', 'mediumInteger', 'smallInteger', 'tinyInteger'];
+    protected array $serials = ['bigInteger', 'integer', 'mediumInteger', 'smallInteger', 'tinyInteger'];
 
     /**
      * The commands to be executed outside of create or alter commands.
      *
      * @var string[]
      */
-    protected $fluentCommands = ['AutoIncrementStartingValues'];
+    protected array $fluentCommands = ['AutoIncrementStartingValues'];
 
     /**
      * Compile a create database command.
-     *
-     * @param  string  $name
-     * @return string
      */
-    public function compileCreateDatabase($name)
+    public function compileCreateDatabase(string $name): string
     {
         $sql = parent::compileCreateDatabase($name);
 
@@ -60,10 +57,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile the query to determine the schemas.
-     *
-     * @return string
      */
-    public function compileSchemas()
+    public function compileSchemas(): string
     {
         return 'select schema_name as name, schema_name = schema() as `default` from information_schema.schemata where '
             .$this->compileSchemaWhereClause(null, 'schema_name')
@@ -72,12 +67,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile the query to determine if the given table exists.
-     *
-     * @param  string|null  $schema
-     * @param  string  $table
-     * @return string
      */
-    public function compileTableExists($schema, $table)
+    public function compileTableExists(?string $schema, string $table): string
     {
         return sprintf(
             'select exists (select 1 from information_schema.tables where '
@@ -89,11 +80,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile the query to determine the tables.
-     *
-     * @param  string|string[]|null  $schema
-     * @return string
      */
-    public function compileTables($schema)
+    public function compileTables(string|array|null $schema): string
     {
         return sprintf(
             'select table_name as `name`, table_schema as `schema`, (data_length + index_length) as `size`, '
@@ -107,11 +95,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile the query to determine the views.
-     *
-     * @param  string|string[]|null  $schema
-     * @return string
      */
-    public function compileViews($schema)
+    public function compileViews(string|array|null $schema): string
     {
         return 'select table_name as `name`, table_schema as `schema`, view_definition as `definition` '
             .'from information_schema.views where '
@@ -121,12 +106,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile the query to compare the schema.
-     *
-     * @param  string|string[]|null  $schema
-     * @param  string  $column
-     * @return string
      */
-    protected function compileSchemaWhereClause($schema, $column)
+    protected function compileSchemaWhereClause(string|array|null $schema, string $column): string
     {
         return $column.(match (true) {
             ! empty($schema) && is_array($schema) => ' in ('.$this->quoteString($schema).')',
@@ -137,12 +118,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile the query to determine the columns.
-     *
-     * @param  string|null  $schema
-     * @param  string  $table
-     * @return string
      */
-    public function compileColumns($schema, $table)
+    public function compileColumns(?string $schema, string $table): string
     {
         return sprintf(
             'select column_name as `name`, data_type as `type_name`, column_type as `type`, '
@@ -158,12 +135,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile the query to determine the indexes.
-     *
-     * @param  string|null  $schema
-     * @param  string  $table
-     * @return string
      */
-    public function compileIndexes($schema, $table)
+    public function compileIndexes(?string $schema, string $table): string
     {
         return sprintf(
             'select index_name as `name`, group_concat(column_name order by seq_in_index) as `columns`, '
@@ -177,12 +150,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile the query to determine the foreign keys.
-     *
-     * @param  string|null  $schema
-     * @param  string  $table
-     * @return string
      */
-    public function compileForeignKeys($schema, $table)
+    public function compileForeignKeys(?string $schema, string $table): string
     {
         return sprintf(
             'select kc.constraint_name as `name`, '
@@ -203,12 +172,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile a create table command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileCreate(Blueprint $blueprint, Fluent $command)
+    public function compileCreate(Blueprint $blueprint, Fluent $command): string
     {
         $sql = $this->compileCreateTable(
             $blueprint, $command
@@ -229,12 +194,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Create the main create table clause.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    protected function compileCreateTable($blueprint, $command)
+    protected function compileCreateTable(Blueprint $blueprint, Fluent $command): string
     {
         $tableStructure = $this->getColumns($blueprint);
 
@@ -257,12 +218,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Append the character set specifications to a command.
-     *
-     * @param  string  $sql
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @return string
      */
-    protected function compileCreateEncoding($sql, Blueprint $blueprint)
+    protected function compileCreateEncoding(string $sql, Blueprint $blueprint): string
     {
         // First we will set the character set if one has been set on either the create
         // blueprint itself or on the root configuration for the connection that the
@@ -287,12 +244,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Append the engine specifications to a command.
-     *
-     * @param  string  $sql
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @return string
      */
-    protected function compileCreateEngine($sql, Blueprint $blueprint)
+    protected function compileCreateEngine(string $sql, Blueprint $blueprint): string
     {
         if (isset($blueprint->engine)) {
             return $sql.' engine = '.$blueprint->engine;
@@ -305,12 +258,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile an add column command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileAdd(Blueprint $blueprint, Fluent $command)
+    public function compileAdd(Blueprint $blueprint, Fluent $command): string
     {
         return sprintf('alter table %s add %s%s%s',
             $this->wrapTable($blueprint),
@@ -322,21 +271,19 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile the auto-incrementing column starting values.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileAutoIncrementStartingValues(Blueprint $blueprint, Fluent $command)
+    public function compileAutoIncrementStartingValues(Blueprint $blueprint, Fluent $command): ?string
     {
         if ($command->column->autoIncrement
             && $value = $command->column->get('startingValue', $command->column->get('from'))) {
             return 'alter table '.$this->wrapTable($blueprint).' auto_increment = '.$value;
         }
+
+        return null;
     }
 
     /** @inheritDoc */
-    public function compileRenameColumn(Blueprint $blueprint, Fluent $command)
+    public function compileRenameColumn(Blueprint $blueprint, Fluent $command): array|string
     {
         $isMaria = $this->connection->isMaria();
         $version = $this->connection->getServerVersion();
@@ -351,12 +298,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile a rename column command for legacy versions of MySQL.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    protected function compileLegacyRenameColumn(Blueprint $blueprint, Fluent $command)
+    protected function compileLegacyRenameColumn(Blueprint $blueprint, Fluent $command): string
     {
         $column = (new Collection($this->connection->getSchemaBuilder()->getColumns($blueprint->getTable())))
             ->firstWhere('name', $command->from);
@@ -395,7 +338,7 @@ class MySqlGrammar extends Grammar
     }
 
     /** @inheritDoc */
-    public function compileChange(Blueprint $blueprint, Fluent $command)
+    public function compileChange(Blueprint $blueprint, Fluent $command): array|string
     {
         $column = $command->column;
 
@@ -422,12 +365,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile a primary key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compilePrimary(Blueprint $blueprint, Fluent $command)
+    public function compilePrimary(Blueprint $blueprint, Fluent $command): string
     {
         return sprintf('alter table %s add primary key %s(%s)%s',
             $this->wrapTable($blueprint),
@@ -439,61 +378,40 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile a unique key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileUnique(Blueprint $blueprint, Fluent $command)
+    public function compileUnique(Blueprint $blueprint, Fluent $command): string
     {
         return $this->compileKey($blueprint, $command, 'unique');
     }
 
     /**
      * Compile a plain index key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileIndex(Blueprint $blueprint, Fluent $command)
+    public function compileIndex(Blueprint $blueprint, Fluent $command): string
     {
         return $this->compileKey($blueprint, $command, 'index');
     }
 
     /**
      * Compile a fulltext index key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileFullText(Blueprint $blueprint, Fluent $command)
+    public function compileFullText(Blueprint $blueprint, Fluent $command): string
     {
         return $this->compileKey($blueprint, $command, 'fulltext');
     }
 
     /**
      * Compile a spatial index key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileSpatialIndex(Blueprint $blueprint, Fluent $command)
+    public function compileSpatialIndex(Blueprint $blueprint, Fluent $command): string
     {
         return $this->compileKey($blueprint, $command, 'spatial index');
     }
 
     /**
      * Compile an index creation command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @param  string  $type
-     * @return string
      */
-    protected function compileKey(Blueprint $blueprint, Fluent $command, $type)
+    protected function compileKey(Blueprint $blueprint, Fluent $command, string $type): string
     {
         return sprintf('alter table %s add %s %s%s(%s)%s',
             $this->wrapTable($blueprint),
@@ -507,36 +425,24 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile a drop table command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileDrop(Blueprint $blueprint, Fluent $command)
+    public function compileDrop(Blueprint $blueprint, Fluent $command): string
     {
         return 'drop table '.$this->wrapTable($blueprint);
     }
 
     /**
      * Compile a drop table (if exists) command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileDropIfExists(Blueprint $blueprint, Fluent $command)
+    public function compileDropIfExists(Blueprint $blueprint, Fluent $command): string
     {
         return 'drop table if exists '.$this->wrapTable($blueprint);
     }
 
     /**
      * Compile a drop column command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileDropColumn(Blueprint $blueprint, Fluent $command)
+    public function compileDropColumn(Blueprint $blueprint, Fluent $command): string
     {
         $columns = $this->prefixArray('drop', $this->wrapArray($command->columns));
 
@@ -555,24 +461,16 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile a drop primary key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileDropPrimary(Blueprint $blueprint, Fluent $command)
+    public function compileDropPrimary(Blueprint $blueprint, Fluent $command): string
     {
         return 'alter table '.$this->wrapTable($blueprint).' drop primary key';
     }
 
     /**
      * Compile a drop unique key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileDropUnique(Blueprint $blueprint, Fluent $command)
+    public function compileDropUnique(Blueprint $blueprint, Fluent $command): string
     {
         $index = $this->wrap($command->index);
 
@@ -581,12 +479,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile a drop index command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileDropIndex(Blueprint $blueprint, Fluent $command)
+    public function compileDropIndex(Blueprint $blueprint, Fluent $command): string
     {
         $index = $this->wrap($command->index);
 
@@ -595,36 +489,24 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile a drop fulltext index command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileDropFullText(Blueprint $blueprint, Fluent $command)
+    public function compileDropFullText(Blueprint $blueprint, Fluent $command): string
     {
         return $this->compileDropIndex($blueprint, $command);
     }
 
     /**
      * Compile a drop spatial index command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileDropSpatialIndex(Blueprint $blueprint, Fluent $command)
+    public function compileDropSpatialIndex(Blueprint $blueprint, Fluent $command): string
     {
         return $this->compileDropIndex($blueprint, $command);
     }
 
     /**
      * Compile a foreign key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileForeign(Blueprint $blueprint, Fluent $command)
+    public function compileForeign(Blueprint $blueprint, Fluent $command): string
     {
         $sql = parent::compileForeign($blueprint, $command);
 
@@ -637,12 +519,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile a drop foreign key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileDropForeign(Blueprint $blueprint, Fluent $command)
+    public function compileDropForeign(Blueprint $blueprint, Fluent $command): string
     {
         $index = $this->wrap($command->index);
 
@@ -651,12 +529,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile a rename table command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileRename(Blueprint $blueprint, Fluent $command)
+    public function compileRename(Blueprint $blueprint, Fluent $command): string
     {
         $from = $this->wrapTable($blueprint);
 
@@ -665,12 +539,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile a rename index command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileRenameIndex(Blueprint $blueprint, Fluent $command)
+    public function compileRenameIndex(Blueprint $blueprint, Fluent $command): string
     {
         return sprintf('alter table %s rename index %s to %s',
             $this->wrapTable($blueprint),
@@ -681,54 +551,40 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile the SQL needed to drop all tables.
-     *
-     * @param  array<string>  $tables
-     * @return string
      */
-    public function compileDropAllTables($tables)
+    public function compileDropAllTables(array $tables): string
     {
         return 'drop table '.implode(', ', $this->escapeNames($tables));
     }
 
     /**
      * Compile the SQL needed to drop all views.
-     *
-     * @param  array<string>  $views
-     * @return string
      */
-    public function compileDropAllViews($views)
+    public function compileDropAllViews(array $views): string
     {
         return 'drop view '.implode(', ', $this->escapeNames($views));
     }
 
     /**
      * Compile the command to enable foreign key constraints.
-     *
-     * @return string
      */
-    public function compileEnableForeignKeyConstraints()
+    public function compileEnableForeignKeyConstraints(): string
     {
         return 'SET FOREIGN_KEY_CHECKS=1;';
     }
 
     /**
      * Compile the command to disable foreign key constraints.
-     *
-     * @return string
      */
-    public function compileDisableForeignKeyConstraints()
+    public function compileDisableForeignKeyConstraints(): string
     {
         return 'SET FOREIGN_KEY_CHECKS=0;';
     }
 
     /**
      * Compile a table comment command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileTableComment(Blueprint $blueprint, Fluent $command)
+    public function compileTableComment(Blueprint $blueprint, Fluent $command): string
     {
         return sprintf('alter table %s comment = %s',
             $this->wrapTable($blueprint),
@@ -738,11 +594,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Quote-escape the given tables, views, or types.
-     *
-     * @param  array<string>  $names
-     * @return array<string>
      */
-    public function escapeNames($names)
+    public function escapeNames(array $names): array
     {
         return array_map(
             fn ($name) => (new Collection(explode('.', $name)))->map($this->wrapValue(...))->implode('.'),
@@ -752,132 +605,96 @@ class MySqlGrammar extends Grammar
 
     /**
      * Create the column definition for a char type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeChar(Fluent $column)
+    protected function typeChar(Fluent $column): string
     {
         return "char({$column->length})";
     }
 
     /**
      * Create the column definition for a string type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeString(Fluent $column)
+    protected function typeString(Fluent $column): string
     {
         return "varchar({$column->length})";
     }
 
     /**
      * Create the column definition for a tiny text type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeTinyText(Fluent $column)
+    protected function typeTinyText(Fluent $column): string
     {
         return 'tinytext';
     }
 
     /**
      * Create the column definition for a text type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeText(Fluent $column)
+    protected function typeText(Fluent $column): string
     {
         return 'text';
     }
 
     /**
      * Create the column definition for a medium text type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeMediumText(Fluent $column)
+    protected function typeMediumText(Fluent $column): string
     {
         return 'mediumtext';
     }
 
     /**
      * Create the column definition for a long text type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeLongText(Fluent $column)
+    protected function typeLongText(Fluent $column): string
     {
         return 'longtext';
     }
 
     /**
      * Create the column definition for a big integer type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeBigInteger(Fluent $column)
+    protected function typeBigInteger(Fluent $column): string
     {
         return 'bigint';
     }
 
     /**
      * Create the column definition for an integer type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeInteger(Fluent $column)
+    protected function typeInteger(Fluent $column): string
     {
         return 'int';
     }
 
     /**
      * Create the column definition for a medium integer type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeMediumInteger(Fluent $column)
+    protected function typeMediumInteger(Fluent $column): string
     {
         return 'mediumint';
     }
 
     /**
      * Create the column definition for a tiny integer type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeTinyInteger(Fluent $column)
+    protected function typeTinyInteger(Fluent $column): string
     {
         return 'tinyint';
     }
 
     /**
      * Create the column definition for a small integer type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeSmallInteger(Fluent $column)
+    protected function typeSmallInteger(Fluent $column): string
     {
         return 'smallint';
     }
 
     /**
      * Create the column definition for a float type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeFloat(Fluent $column)
+    protected function typeFloat(Fluent $column): string
     {
         if ($column->precision) {
             return "float({$column->precision})";
@@ -888,88 +705,64 @@ class MySqlGrammar extends Grammar
 
     /**
      * Create the column definition for a double type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeDouble(Fluent $column)
+    protected function typeDouble(Fluent $column): string
     {
         return 'double';
     }
 
     /**
      * Create the column definition for a decimal type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeDecimal(Fluent $column)
+    protected function typeDecimal(Fluent $column): string
     {
         return "decimal({$column->total}, {$column->places})";
     }
 
     /**
      * Create the column definition for a boolean type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeBoolean(Fluent $column)
+    protected function typeBoolean(Fluent $column): string
     {
         return 'tinyint(1)';
     }
 
     /**
      * Create the column definition for an enumeration type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeEnum(Fluent $column)
+    protected function typeEnum(Fluent $column): string
     {
         return sprintf('enum(%s)', $this->quoteString($column->allowed));
     }
 
     /**
      * Create the column definition for a set enumeration type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeSet(Fluent $column)
+    protected function typeSet(Fluent $column): string
     {
         return sprintf('set(%s)', $this->quoteString($column->allowed));
     }
 
     /**
      * Create the column definition for a json type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeJson(Fluent $column)
+    protected function typeJson(Fluent $column): string
     {
         return 'json';
     }
 
     /**
      * Create the column definition for a jsonb type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeJsonb(Fluent $column)
+    protected function typeJsonb(Fluent $column): string
     {
         return 'json';
     }
 
     /**
      * Create the column definition for a date type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeDate(Fluent $column)
+    protected function typeDate(Fluent $column): string
     {
         $isMaria = $this->connection->isMaria();
         $version = $this->connection->getServerVersion();
@@ -986,11 +779,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Create the column definition for a date-time type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeDateTime(Fluent $column)
+    protected function typeDateTime(Fluent $column): string
     {
         $current = $column->precision ? "CURRENT_TIMESTAMP($column->precision)" : 'CURRENT_TIMESTAMP';
 
@@ -1007,44 +797,32 @@ class MySqlGrammar extends Grammar
 
     /**
      * Create the column definition for a date-time (with time zone) type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeDateTimeTz(Fluent $column)
+    protected function typeDateTimeTz(Fluent $column): string
     {
         return $this->typeDateTime($column);
     }
 
     /**
      * Create the column definition for a time type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeTime(Fluent $column)
+    protected function typeTime(Fluent $column): string
     {
         return $column->precision ? "time($column->precision)" : 'time';
     }
 
     /**
      * Create the column definition for a time (with time zone) type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeTimeTz(Fluent $column)
+    protected function typeTimeTz(Fluent $column): string
     {
         return $this->typeTime($column);
     }
 
     /**
      * Create the column definition for a timestamp type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeTimestamp(Fluent $column)
+    protected function typeTimestamp(Fluent $column): string
     {
         $current = $column->precision ? "CURRENT_TIMESTAMP($column->precision)" : 'CURRENT_TIMESTAMP';
 
@@ -1061,22 +839,16 @@ class MySqlGrammar extends Grammar
 
     /**
      * Create the column definition for a timestamp (with time zone) type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeTimestampTz(Fluent $column)
+    protected function typeTimestampTz(Fluent $column): string
     {
         return $this->typeTimestamp($column);
     }
 
     /**
      * Create the column definition for a year type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeYear(Fluent $column)
+    protected function typeYear(Fluent $column): string
     {
         $isMaria = $this->connection->isMaria();
         $version = $this->connection->getServerVersion();
@@ -1093,11 +865,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Create the column definition for a binary type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeBinary(Fluent $column)
+    protected function typeBinary(Fluent $column): string
     {
         if ($column->length) {
             return $column->fixed ? "binary({$column->length})" : "varbinary({$column->length})";
@@ -1108,44 +877,32 @@ class MySqlGrammar extends Grammar
 
     /**
      * Create the column definition for a uuid type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeUuid(Fluent $column)
+    protected function typeUuid(Fluent $column): string
     {
         return 'char(36)';
     }
 
     /**
      * Create the column definition for an IP address type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeIpAddress(Fluent $column)
+    protected function typeIpAddress(Fluent $column): string
     {
         return 'varchar(45)';
     }
 
     /**
      * Create the column definition for a MAC address type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeMacAddress(Fluent $column)
+    protected function typeMacAddress(Fluent $column): string
     {
         return 'varchar(17)';
     }
 
     /**
      * Create the column definition for a spatial Geometry type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeGeometry(Fluent $column)
+    protected function typeGeometry(Fluent $column): string
     {
         $subtype = $column->subtype ? strtolower($column->subtype) : null;
 
@@ -1165,11 +922,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Create the column definition for a spatial Geography type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeGeography(Fluent $column)
+    protected function typeGeography(Fluent $column): string
     {
         return $this->typeGeometry($column);
     }
@@ -1177,23 +931,17 @@ class MySqlGrammar extends Grammar
     /**
      * Create the column definition for a generated, computed column type.
      *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return void
-     *
      * @throws \RuntimeException
      */
-    protected function typeComputed(Fluent $column)
+    protected function typeComputed(Fluent $column): void
     {
         throw new RuntimeException('This database driver requires a type, see the virtualAs / storedAs modifiers.');
     }
 
     /**
      * Create the column definition for a vector type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeVector(Fluent $column)
+    protected function typeVector(Fluent $column): string
     {
         return isset($column->dimensions) && $column->dimensions !== ''
             ? "vector({$column->dimensions})"
@@ -1202,12 +950,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Get the SQL for a generated virtual column modifier.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string|null
      */
-    protected function modifyVirtualAs(Blueprint $blueprint, Fluent $column)
+    protected function modifyVirtualAs(Blueprint $blueprint, Fluent $column): ?string
     {
         if (! is_null($virtualAs = $column->virtualAsJson)) {
             if ($this->isJsonSelector($virtualAs)) {
@@ -1220,16 +964,14 @@ class MySqlGrammar extends Grammar
         if (! is_null($virtualAs = $column->virtualAs)) {
             return " as ({$this->getValue($virtualAs)})";
         }
+
+        return null;
     }
 
     /**
      * Get the SQL for a generated stored column modifier.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string|null
      */
-    protected function modifyStoredAs(Blueprint $blueprint, Fluent $column)
+    protected function modifyStoredAs(Blueprint $blueprint, Fluent $column): ?string
     {
         if (! is_null($storedAs = $column->storedAsJson)) {
             if ($this->isJsonSelector($storedAs)) {
@@ -1242,58 +984,50 @@ class MySqlGrammar extends Grammar
         if (! is_null($storedAs = $column->storedAs)) {
             return " as ({$this->getValue($storedAs)}) stored";
         }
+
+        return null;
     }
 
     /**
      * Get the SQL for an unsigned column modifier.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string|null
      */
-    protected function modifyUnsigned(Blueprint $blueprint, Fluent $column)
+    protected function modifyUnsigned(Blueprint $blueprint, Fluent $column): ?string
     {
         if ($column->unsigned) {
             return ' unsigned';
         }
+
+        return null;
     }
 
     /**
      * Get the SQL for a character set column modifier.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string|null
      */
-    protected function modifyCharset(Blueprint $blueprint, Fluent $column)
+    protected function modifyCharset(Blueprint $blueprint, Fluent $column): ?string
     {
         if (! is_null($column->charset)) {
             return ' character set '.$column->charset;
         }
+
+        return null;
     }
 
     /**
      * Get the SQL for a collation column modifier.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string|null
      */
-    protected function modifyCollate(Blueprint $blueprint, Fluent $column)
+    protected function modifyCollate(Blueprint $blueprint, Fluent $column): ?string
     {
         if (! is_null($column->collation)) {
             return " collate '{$column->collation}'";
         }
+
+        return null;
     }
 
     /**
      * Get the SQL for a nullable column modifier.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string|null
      */
-    protected function modifyNullable(Blueprint $blueprint, Fluent $column)
+    protected function modifyNullable(Blueprint $blueprint, Fluent $column): ?string
     {
         if (is_null($column->virtualAs) &&
             is_null($column->virtualAsJson) &&
@@ -1305,115 +1039,100 @@ class MySqlGrammar extends Grammar
         if ($column->nullable === false) {
             return ' not null';
         }
+
+        return null;
     }
 
     /**
      * Get the SQL for an invisible column modifier.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string|null
      */
-    protected function modifyInvisible(Blueprint $blueprint, Fluent $column)
+    protected function modifyInvisible(Blueprint $blueprint, Fluent $column): ?string
     {
         if (! is_null($column->invisible)) {
             return ' invisible';
         }
+
+        return null;
     }
 
     /**
      * Get the SQL for a default column modifier.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string|null
      */
-    protected function modifyDefault(Blueprint $blueprint, Fluent $column)
+    protected function modifyDefault(Blueprint $blueprint, Fluent $column): ?string
     {
         if (! is_null($column->default)) {
             return ' default '.$this->getDefaultValue($column->default);
         }
+
+        return null;
     }
 
     /**
      * Get the SQL for an "on update" column modifier.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string|null
      */
-    protected function modifyOnUpdate(Blueprint $blueprint, Fluent $column)
+    protected function modifyOnUpdate(Blueprint $blueprint, Fluent $column): ?string
     {
         if (! is_null($column->onUpdate)) {
             return ' on update '.$this->getValue($column->onUpdate);
         }
+
+        return null;
     }
 
     /**
      * Get the SQL for an auto-increment column modifier.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string|null
      */
-    protected function modifyIncrement(Blueprint $blueprint, Fluent $column)
+    protected function modifyIncrement(Blueprint $blueprint, Fluent $column): ?string
     {
         if (in_array($column->type, $this->serials) && $column->autoIncrement) {
             return $this->hasCommand($blueprint, 'primary') || ($column->change && ! $column->primary)
                 ? ' auto_increment'
                 : ' auto_increment primary key';
         }
+
+        return null;
     }
 
     /**
      * Get the SQL for a "first" column modifier.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string|null
      */
-    protected function modifyFirst(Blueprint $blueprint, Fluent $column)
+    protected function modifyFirst(Blueprint $blueprint, Fluent $column): ?string
     {
         if (! is_null($column->first)) {
             return ' first';
         }
+
+        return null;
     }
 
     /**
      * Get the SQL for an "after" column modifier.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string|null
      */
-    protected function modifyAfter(Blueprint $blueprint, Fluent $column)
+    protected function modifyAfter(Blueprint $blueprint, Fluent $column): ?string
     {
         if (! is_null($column->after)) {
             return ' after '.$this->wrap($column->after);
         }
+
+        return null;
     }
 
     /**
      * Get the SQL for a "comment" column modifier.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string|null
      */
-    protected function modifyComment(Blueprint $blueprint, Fluent $column)
+    protected function modifyComment(Blueprint $blueprint, Fluent $column): ?string
     {
         if (! is_null($column->comment)) {
             return " comment '".addslashes($column->comment)."'";
         }
+
+        return null;
     }
 
     /**
      * Wrap a single string in keyword identifiers.
-     *
-     * @param  string  $value
-     * @return string
      */
-    protected function wrapValue($value)
+    protected function wrapValue(string $value): string
     {
         if ($value !== '*') {
             return '`'.str_replace('`', '``', $value).'`';
@@ -1424,11 +1143,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Wrap the given JSON selector.
-     *
-     * @param  string  $value
-     * @return string
      */
-    protected function wrapJsonSelector($value)
+    protected function wrapJsonSelector(string $value): string
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($value);
 

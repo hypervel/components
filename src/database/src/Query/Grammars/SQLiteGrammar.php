@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Query\Grammars;
 
 use Hypervel\Database\Query\Builder;
+use Hypervel\Database\Query\IndexHint;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -16,7 +17,7 @@ class SQLiteGrammar extends Grammar
      *
      * @var string[]
      */
-    protected $operators = [
+    protected array $operators = [
         '=', '<', '>', '<=', '>=', '<>', '!=',
         'like', 'not like', 'ilike',
         '&', '|', '<<', '>>',
@@ -24,35 +25,24 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Compile the lock into SQL.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  bool|string  $value
-     * @return string
      */
-    protected function compileLock(Builder $query, $value)
+    protected function compileLock(Builder $query, bool|string $value): string
     {
         return '';
     }
 
     /**
      * Wrap a union subquery in parentheses.
-     *
-     * @param  string  $sql
-     * @return string
      */
-    protected function wrapUnion($sql)
+    protected function wrapUnion(string $sql): string
     {
         return 'select * from ('.$sql.')';
     }
 
     /**
      * Compile a basic where clause.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $where
-     * @return string
      */
-    protected function whereBasic(Builder $query, $where)
+    protected function whereBasic(Builder $query, array $where): string
     {
         if ($where['operator'] === '<=>') {
             $column = $this->wrap($where['column']);
@@ -66,12 +56,8 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Compile a "where like" clause.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $where
-     * @return string
      */
-    protected function whereLike(Builder $query, $where)
+    protected function whereLike(Builder $query, array $where): string
     {
         if ($where['caseSensitive'] == false) {
             return parent::whereLike($query, $where);
@@ -83,12 +69,8 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Convert a LIKE pattern to a GLOB pattern using simple string replacement.
-     *
-     * @param  string  $value
-     * @param  bool  $caseSensitive
-     * @return string
      */
-    public function prepareWhereLikeBinding($value, $caseSensitive)
+    public function prepareWhereLikeBinding(string $value, bool $caseSensitive): string
     {
         return $caseSensitive === false ? $value : str_replace(
             ['*', '?', '%', '_'],
@@ -99,73 +81,48 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Compile a "where date" clause.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $where
-     * @return string
      */
-    protected function whereDate(Builder $query, $where)
+    protected function whereDate(Builder $query, array $where): string
     {
         return $this->dateBasedWhere('%Y-%m-%d', $query, $where);
     }
 
     /**
      * Compile a "where day" clause.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $where
-     * @return string
      */
-    protected function whereDay(Builder $query, $where)
+    protected function whereDay(Builder $query, array $where): string
     {
         return $this->dateBasedWhere('%d', $query, $where);
     }
 
     /**
      * Compile a "where month" clause.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $where
-     * @return string
      */
-    protected function whereMonth(Builder $query, $where)
+    protected function whereMonth(Builder $query, array $where): string
     {
         return $this->dateBasedWhere('%m', $query, $where);
     }
 
     /**
      * Compile a "where year" clause.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $where
-     * @return string
      */
-    protected function whereYear(Builder $query, $where)
+    protected function whereYear(Builder $query, array $where): string
     {
         return $this->dateBasedWhere('%Y', $query, $where);
     }
 
     /**
      * Compile a "where time" clause.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $where
-     * @return string
      */
-    protected function whereTime(Builder $query, $where)
+    protected function whereTime(Builder $query, array $where): string
     {
         return $this->dateBasedWhere('%H:%M:%S', $query, $where);
     }
 
     /**
      * Compile a date based where clause.
-     *
-     * @param  string  $type
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $where
-     * @return string
      */
-    protected function dateBasedWhere($type, Builder $query, $where)
+    protected function dateBasedWhere(string $type, Builder $query, array $where): string
     {
         $value = $this->parameter($where['value']);
 
@@ -174,12 +131,8 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Compile the index hints for the query.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  \Hypervel\Database\Query\IndexHint  $indexHint
-     * @return string
      */
-    protected function compileIndexHint(Builder $query, $indexHint)
+    protected function compileIndexHint(Builder $query, IndexHint $indexHint): string
     {
         return $indexHint->type === 'force'
             ? "indexed by {$indexHint->index}"
@@ -188,13 +141,8 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Compile a "JSON length" statement into SQL.
-     *
-     * @param  string  $column
-     * @param  string  $operator
-     * @param  string  $value
-     * @return string
      */
-    protected function compileJsonLength($column, $operator, $value)
+    protected function compileJsonLength(string $column, string $operator, string $value): string
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($column);
 
@@ -203,12 +151,8 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Compile a "JSON contains" statement into SQL.
-     *
-     * @param  string  $column
-     * @param  mixed  $value
-     * @return string
      */
-    protected function compileJsonContains($column, $value)
+    protected function compileJsonContains(string $column, string $value): string
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($column);
 
@@ -217,22 +161,16 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Prepare the binding for a "JSON contains" statement.
-     *
-     * @param  mixed  $binding
-     * @return mixed
      */
-    public function prepareBindingForJsonContains($binding)
+    public function prepareBindingForJsonContains(mixed $binding): mixed
     {
         return $binding;
     }
 
     /**
      * Compile a "JSON contains key" statement into SQL.
-     *
-     * @param  string  $column
-     * @return string
      */
-    protected function compileJsonContainsKey($column)
+    protected function compileJsonContainsKey(string $column): string
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($column);
 
@@ -241,11 +179,8 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Compile a group limit clause.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @return string
      */
-    protected function compileGroupLimit(Builder $query)
+    protected function compileGroupLimit(Builder $query): string
     {
         $version = $query->getConnection()->getServerVersion();
 
@@ -260,12 +195,8 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Compile an update statement into SQL.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $values
-     * @return string
      */
-    public function compileUpdate(Builder $query, array $values)
+    public function compileUpdate(Builder $query, array $values): string
     {
         if (isset($query->joins) || isset($query->limit)) {
             return $this->compileUpdateWithJoinsOrLimit($query, $values);
@@ -276,37 +207,24 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Compile an insert ignore statement into SQL.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $values
-     * @return string
      */
-    public function compileInsertOrIgnore(Builder $query, array $values)
+    public function compileInsertOrIgnore(Builder $query, array $values): string
     {
         return Str::replaceFirst('insert', 'insert or ignore', $this->compileInsert($query, $values));
     }
 
     /**
      * Compile an insert ignore statement using a subquery into SQL.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $columns
-     * @param  string  $sql
-     * @return string
      */
-    public function compileInsertOrIgnoreUsing(Builder $query, array $columns, string $sql)
+    public function compileInsertOrIgnoreUsing(Builder $query, array $columns, string $sql): string
     {
         return Str::replaceFirst('insert', 'insert or ignore', $this->compileInsertUsing($query, $columns, $sql));
     }
 
     /**
      * Compile the columns for an update statement.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $values
-     * @return string
      */
-    protected function compileUpdateColumns(Builder $query, array $values)
+    protected function compileUpdateColumns(Builder $query, array $values): string
     {
         $jsonGroups = $this->groupJsonColumnsForUpdate($values);
 
@@ -325,14 +243,8 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Compile an "upsert" statement into SQL.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $values
-     * @param  array  $uniqueBy
-     * @param  array  $update
-     * @return string
      */
-    public function compileUpsert(Builder $query, array $values, array $uniqueBy, array $update)
+    public function compileUpsert(Builder $query, array $values, array $uniqueBy, array $update): string
     {
         $sql = $this->compileInsert($query, $values);
 
@@ -349,11 +261,8 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Group the nested JSON columns.
-     *
-     * @param  array  $values
-     * @return array
      */
-    protected function groupJsonColumnsForUpdate(array $values)
+    protected function groupJsonColumnsForUpdate(array $values): array
     {
         $groups = [];
 
@@ -368,24 +277,16 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Compile a "JSON" patch statement into SQL.
-     *
-     * @param  string  $column
-     * @param  mixed  $value
-     * @return string
      */
-    protected function compileJsonPatch($column, $value)
+    protected function compileJsonPatch(string $column, mixed $value): string
     {
         return "json_patch(ifnull({$this->wrap($column)}, json('{}')), json({$this->parameter($value)}))";
     }
 
     /**
      * Compile an update statement with joins or limit into SQL.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $values
-     * @return string
      */
-    protected function compileUpdateWithJoinsOrLimit(Builder $query, array $values)
+    protected function compileUpdateWithJoinsOrLimit(Builder $query, array $values): string
     {
         $table = $this->wrapTable($query->from);
 
@@ -400,13 +301,9 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Prepare the bindings for an update statement.
-     *
-     * @param  array  $bindings
-     * @param  array  $values
-     * @return array
      */
     #[\Override]
-    public function prepareBindingsForUpdate(array $bindings, array $values)
+    public function prepareBindingsForUpdate(array $bindings, array $values): array
     {
         $groups = $this->groupJsonColumnsForUpdate($values);
 
@@ -427,11 +324,8 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Compile a delete statement into SQL.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @return string
      */
-    public function compileDelete(Builder $query)
+    public function compileDelete(Builder $query): string
     {
         if (isset($query->joins) || isset($query->limit)) {
             return $this->compileDeleteWithJoinsOrLimit($query);
@@ -442,11 +336,8 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Compile a delete statement with joins or limit into SQL.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @return string
      */
-    protected function compileDeleteWithJoinsOrLimit(Builder $query)
+    protected function compileDeleteWithJoinsOrLimit(Builder $query): string
     {
         $table = $this->wrapTable($query->from);
 
@@ -459,11 +350,8 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Compile a truncate table statement into SQL.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @return array
      */
-    public function compileTruncate(Builder $query)
+    public function compileTruncate(Builder $query): array
     {
         [$schema, $table] = $query->getConnection()->getSchemaBuilder()->parseSchemaAndTable($query->from);
 
@@ -477,11 +365,8 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Wrap the given JSON selector.
-     *
-     * @param  string  $value
-     * @return string
      */
-    protected function wrapJsonSelector($value)
+    protected function wrapJsonSelector(string $value): string
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($value);
 

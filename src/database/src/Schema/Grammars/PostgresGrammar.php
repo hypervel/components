@@ -14,39 +14,34 @@ class PostgresGrammar extends Grammar
 {
     /**
      * If this Grammar supports schema changes wrapped in a transaction.
-     *
-     * @var bool
      */
-    protected $transactions = true;
+    protected bool $transactions = true;
 
     /**
      * The possible column modifiers.
      *
      * @var string[]
      */
-    protected $modifiers = ['Collate', 'Nullable', 'Default', 'VirtualAs', 'StoredAs', 'GeneratedAs', 'Increment'];
+    protected array $modifiers = ['Collate', 'Nullable', 'Default', 'VirtualAs', 'StoredAs', 'GeneratedAs', 'Increment'];
 
     /**
      * The columns available as serials.
      *
      * @var string[]
      */
-    protected $serials = ['bigInteger', 'integer', 'mediumInteger', 'smallInteger', 'tinyInteger'];
+    protected array $serials = ['bigInteger', 'integer', 'mediumInteger', 'smallInteger', 'tinyInteger'];
 
     /**
      * The commands to be executed outside of create or alter command.
      *
      * @var string[]
      */
-    protected $fluentCommands = ['AutoIncrementStartingValues', 'Comment'];
+    protected array $fluentCommands = ['AutoIncrementStartingValues', 'Comment'];
 
     /**
      * Compile a create database command.
-     *
-     * @param  string  $name
-     * @return string
      */
-    public function compileCreateDatabase($name)
+    public function compileCreateDatabase(string $name): string
     {
         $sql = parent::compileCreateDatabase($name);
 
@@ -59,10 +54,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile the query to determine the schemas.
-     *
-     * @return string
      */
-    public function compileSchemas()
+    public function compileSchemas(): string
     {
         return 'select nspname as name, nspname = current_schema() as "default" from pg_namespace where '
             .$this->compileSchemaWhereClause(null, 'nspname')
@@ -71,12 +64,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile the query to determine if the given table exists.
-     *
-     * @param  string|null  $schema
-     * @param  string  $table
-     * @return string
      */
-    public function compileTableExists($schema, $table)
+    public function compileTableExists(?string $schema, string $table): ?string
     {
         return sprintf(
             'select exists (select 1 from pg_class c, pg_namespace n where '
@@ -90,9 +79,8 @@ class PostgresGrammar extends Grammar
      * Compile the query to determine the tables.
      *
      * @param  string|string[]|null  $schema
-     * @return string
      */
-    public function compileTables($schema)
+    public function compileTables(string|array|null $schema): string
     {
         return 'select c.relname as name, n.nspname as schema, pg_total_relation_size(c.oid) as size, '
             ."obj_description(c.oid, 'pg_class') as comment from pg_class c, pg_namespace n "
@@ -103,11 +91,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile the query to determine the views.
-     *
-     * @param  string|string[]|null  $schema
-     * @return string
      */
-    public function compileViews($schema)
+    public function compileViews(string|array|null $schema): string
     {
         return 'select viewname as name, schemaname as schema, definition from pg_views where '
             .$this->compileSchemaWhereClause($schema, 'schemaname')
@@ -116,11 +101,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile the query to determine the user-defined types.
-     *
-     * @param  string|string[]|null  $schema
-     * @return string
      */
-    public function compileTypes($schema)
+    public function compileTypes(string|array|null $schema): string
     {
         return 'select t.typname as name, n.nspname as schema, t.typtype as type, t.typcategory as category, '
             ."((t.typinput = 'array_in'::regproc and t.typoutput = 'array_out'::regproc) or t.typtype = 'm') as implicit "
@@ -135,12 +117,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile the query to compare the schema.
-     *
-     * @param  string|string[]|null  $schema
-     * @param  string  $column
-     * @return string
      */
-    protected function compileSchemaWhereClause($schema, $column)
+    protected function compileSchemaWhereClause(string|array|null $schema, string $column): string
     {
         return $column.(match (true) {
             ! empty($schema) && is_array($schema) => ' in ('.$this->quoteString($schema).')',
@@ -151,12 +129,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile the query to determine the columns.
-     *
-     * @param  string|null  $schema
-     * @param  string  $table
-     * @return string
      */
-    public function compileColumns($schema, $table)
+    public function compileColumns(?string $schema, string $table): string
     {
         return sprintf(
             'select a.attname as name, t.typname as type_name, format_type(a.atttypid, a.atttypmod) as type, '
@@ -175,12 +149,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile the query to determine the indexes.
-     *
-     * @param  string|null  $schema
-     * @param  string  $table
-     * @return string
      */
-    public function compileIndexes($schema, $table)
+    public function compileIndexes(?string $schema, string $table): string
     {
         return sprintf(
             "select ic.relname as name, string_agg(a.attname, ',' order by indseq.ord) as columns, "
@@ -201,12 +171,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile the query to determine the foreign keys.
-     *
-     * @param  string|null  $schema
-     * @param  string  $table
-     * @return string
      */
-    public function compileForeignKeys($schema, $table)
+    public function compileForeignKeys(?string $schema, string $table): string
     {
         return sprintf(
             'select c.conname as name, '
@@ -231,12 +197,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile a create table command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileCreate(Blueprint $blueprint, Fluent $command)
+    public function compileCreate(Blueprint $blueprint, Fluent $command): string
     {
         return sprintf('%s table %s (%s)',
             $blueprint->temporary ? 'create temporary' : 'create',
@@ -247,12 +209,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile a column addition command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileAdd(Blueprint $blueprint, Fluent $command)
+    public function compileAdd(Blueprint $blueprint, Fluent $command): string
     {
         return sprintf('alter table %s add column %s',
             $this->wrapTable($blueprint),
@@ -262,12 +220,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile the auto-incrementing column starting values.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileAutoIncrementStartingValues(Blueprint $blueprint, Fluent $command)
+    public function compileAutoIncrementStartingValues(Blueprint $blueprint, Fluent $command): ?string
     {
         if ($command->column->autoIncrement
             && $value = $command->column->get('startingValue', $command->column->get('from'))) {
@@ -277,10 +231,12 @@ class PostgresGrammar extends Grammar
 
             return 'alter sequence '.$table.'_'.$command->column->name.'_seq restart with '.$value;
         }
+
+        return null;
     }
 
     /** @inheritDoc */
-    public function compileChange(Blueprint $blueprint, Fluent $command)
+    public function compileChange(Blueprint $blueprint, Fluent $command): array|string
     {
         $column = $command->column;
 
@@ -308,12 +264,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile a primary key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compilePrimary(Blueprint $blueprint, Fluent $command)
+    public function compilePrimary(Blueprint $blueprint, Fluent $command): string
     {
         $columns = $this->columnize($command->columns);
 
@@ -323,11 +275,9 @@ class PostgresGrammar extends Grammar
     /**
      * Compile a unique key command.
      *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
      * @return string[]
      */
-    public function compileUnique(Blueprint $blueprint, Fluent $command)
+    public function compileUnique(Blueprint $blueprint, Fluent $command): array
     {
         $uniqueStatement = 'unique';
 
@@ -372,12 +322,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile a plain index key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileIndex(Blueprint $blueprint, Fluent $command)
+    public function compileIndex(Blueprint $blueprint, Fluent $command): string
     {
         return sprintf('create index %s%s on %s%s (%s)',
             $command->online ? 'concurrently ' : '',
@@ -390,14 +336,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile a fulltext index key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
-     *
-     * @throws \RuntimeException
      */
-    public function compileFulltext(Blueprint $blueprint, Fluent $command)
+    public function compileFulltext(Blueprint $blueprint, Fluent $command): string
     {
         $language = $command->language ?: 'english';
 
@@ -415,12 +355,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile a spatial index key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileSpatialIndex(Blueprint $blueprint, Fluent $command)
+    public function compileSpatialIndex(Blueprint $blueprint, Fluent $command): string
     {
         $command->algorithm = 'gist';
 
@@ -433,24 +369,16 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile a vector index key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileVectorIndex(Blueprint $blueprint, Fluent $command)
+    public function compileVectorIndex(Blueprint $blueprint, Fluent $command): string
     {
         return $this->compileIndexWithOperatorClass($blueprint, $command);
     }
 
     /**
      * Compile a spatial index with operator class key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    protected function compileIndexWithOperatorClass(Blueprint $blueprint, Fluent $command)
+    protected function compileIndexWithOperatorClass(Blueprint $blueprint, Fluent $command): string
     {
         $columns = $this->columnizeWithOperatorClass($command->columns, $command->operatorClass);
 
@@ -465,12 +393,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Convert an array of column names to a delimited string with operator class.
-     *
-     * @param  array  $columns
-     * @param  string  $operatorClass
-     * @return string
      */
-    protected function columnizeWithOperatorClass(array $columns, $operatorClass)
+    protected function columnizeWithOperatorClass(array $columns, string $operatorClass): string
     {
         return implode(', ', array_map(function ($column) use ($operatorClass) {
             return $this->wrap($column).' '.$operatorClass;
@@ -479,12 +403,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile a foreign key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileForeign(Blueprint $blueprint, Fluent $command)
+    public function compileForeign(Blueprint $blueprint, Fluent $command): string
     {
         $sql = parent::compileForeign($blueprint, $command);
 
@@ -505,80 +425,56 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile a drop table command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileDrop(Blueprint $blueprint, Fluent $command)
+    public function compileDrop(Blueprint $blueprint, Fluent $command): string
     {
         return 'drop table '.$this->wrapTable($blueprint);
     }
 
     /**
      * Compile a drop table (if exists) command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileDropIfExists(Blueprint $blueprint, Fluent $command)
+    public function compileDropIfExists(Blueprint $blueprint, Fluent $command): string
     {
         return 'drop table if exists '.$this->wrapTable($blueprint);
     }
 
     /**
      * Compile the SQL needed to drop all tables.
-     *
-     * @param  array<string>  $tables
-     * @return string
      */
-    public function compileDropAllTables($tables)
+    public function compileDropAllTables(array $tables): string
     {
         return 'drop table '.implode(', ', $this->escapeNames($tables)).' cascade';
     }
 
     /**
      * Compile the SQL needed to drop all views.
-     *
-     * @param  array<string>  $views
-     * @return string
      */
-    public function compileDropAllViews($views)
+    public function compileDropAllViews(array $views): string
     {
         return 'drop view '.implode(', ', $this->escapeNames($views)).' cascade';
     }
 
     /**
      * Compile the SQL needed to drop all types.
-     *
-     * @param  array<string>  $types
-     * @return string
      */
-    public function compileDropAllTypes($types)
+    public function compileDropAllTypes(array $types): string
     {
         return 'drop type '.implode(', ', $this->escapeNames($types)).' cascade';
     }
 
     /**
      * Compile the SQL needed to drop all domains.
-     *
-     * @param  array<string>  $domains
-     * @return string
      */
-    public function compileDropAllDomains($domains)
+    public function compileDropAllDomains(array $domains): string
     {
         return 'drop domain '.implode(', ', $this->escapeNames($domains)).' cascade';
     }
 
     /**
      * Compile a drop column command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileDropColumn(Blueprint $blueprint, Fluent $command)
+    public function compileDropColumn(Blueprint $blueprint, Fluent $command): string
     {
         $columns = $this->prefixArray('drop column', $this->wrapArray($command->columns));
 
@@ -587,12 +483,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile a drop primary key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileDropPrimary(Blueprint $blueprint, Fluent $command)
+    public function compileDropPrimary(Blueprint $blueprint, Fluent $command): string
     {
         [, $table] = $this->connection->getSchemaBuilder()->parseSchemaAndTable($blueprint->getTable());
         $index = $this->wrap("{$this->connection->getTablePrefix()}{$table}_pkey");
@@ -602,12 +494,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile a drop unique key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileDropUnique(Blueprint $blueprint, Fluent $command)
+    public function compileDropUnique(Blueprint $blueprint, Fluent $command): string
     {
         $index = $this->wrap($command->index);
 
@@ -616,48 +504,32 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile a drop index command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileDropIndex(Blueprint $blueprint, Fluent $command)
+    public function compileDropIndex(Blueprint $blueprint, Fluent $command): string
     {
         return "drop index {$this->wrap($command->index)}";
     }
 
     /**
      * Compile a drop fulltext index command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileDropFullText(Blueprint $blueprint, Fluent $command)
+    public function compileDropFullText(Blueprint $blueprint, Fluent $command): string
     {
         return $this->compileDropIndex($blueprint, $command);
     }
 
     /**
      * Compile a drop spatial index command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileDropSpatialIndex(Blueprint $blueprint, Fluent $command)
+    public function compileDropSpatialIndex(Blueprint $blueprint, Fluent $command): string
     {
         return $this->compileDropIndex($blueprint, $command);
     }
 
     /**
      * Compile a drop foreign key command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileDropForeign(Blueprint $blueprint, Fluent $command)
+    public function compileDropForeign(Blueprint $blueprint, Fluent $command): string
     {
         $index = $this->wrap($command->index);
 
@@ -666,12 +538,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile a rename table command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileRename(Blueprint $blueprint, Fluent $command)
+    public function compileRename(Blueprint $blueprint, Fluent $command): string
     {
         $from = $this->wrapTable($blueprint);
 
@@ -680,12 +548,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile a rename index command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileRenameIndex(Blueprint $blueprint, Fluent $command)
+    public function compileRenameIndex(Blueprint $blueprint, Fluent $command): string
     {
         return sprintf('alter index %s rename to %s',
             $this->wrap($command->from),
@@ -695,32 +559,24 @@ class PostgresGrammar extends Grammar
 
     /**
      * Compile the command to enable foreign key constraints.
-     *
-     * @return string
      */
-    public function compileEnableForeignKeyConstraints()
+    public function compileEnableForeignKeyConstraints(): string
     {
         return 'SET CONSTRAINTS ALL IMMEDIATE;';
     }
 
     /**
      * Compile the command to disable foreign key constraints.
-     *
-     * @return string
      */
-    public function compileDisableForeignKeyConstraints()
+    public function compileDisableForeignKeyConstraints(): string
     {
         return 'SET CONSTRAINTS ALL DEFERRED;';
     }
 
     /**
      * Compile a comment command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileComment(Blueprint $blueprint, Fluent $command)
+    public function compileComment(Blueprint $blueprint, Fluent $command): ?string
     {
         if (! is_null($comment = $command->column->comment) || $command->column->change) {
             return sprintf('comment on column %s.%s is %s',
@@ -729,16 +585,14 @@ class PostgresGrammar extends Grammar
                 is_null($comment) ? 'NULL' : "'".str_replace("'", "''", $comment)."'"
             );
         }
+
+        return null;
     }
 
     /**
      * Compile a table comment command.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return string
      */
-    public function compileTableComment(Blueprint $blueprint, Fluent $command)
+    public function compileTableComment(Blueprint $blueprint, Fluent $command): string
     {
         return sprintf('comment on table %s is %s',
             $this->wrapTable($blueprint),
@@ -748,11 +602,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Quote-escape the given tables, views, or types.
-     *
-     * @param  array<string>  $names
-     * @return array<string>
      */
-    public function escapeNames($names)
+    public function escapeNames(array $names): array
     {
         return array_map(
             fn ($name) => (new Collection(explode('.', $name)))->map($this->wrapValue(...))->implode('.'),
@@ -762,11 +613,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Create the column definition for a char type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeChar(Fluent $column)
+    protected function typeChar(Fluent $column): string
     {
         if ($column->length) {
             return "char({$column->length})";
@@ -777,11 +625,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Create the column definition for a string type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeString(Fluent $column)
+    protected function typeString(Fluent $column): string
     {
         if ($column->length) {
             return "varchar({$column->length})";
@@ -792,110 +637,80 @@ class PostgresGrammar extends Grammar
 
     /**
      * Create the column definition for a tiny text type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeTinyText(Fluent $column)
+    protected function typeTinyText(Fluent $column): string
     {
         return 'varchar(255)';
     }
 
     /**
      * Create the column definition for a text type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeText(Fluent $column)
+    protected function typeText(Fluent $column): string
     {
         return 'text';
     }
 
     /**
      * Create the column definition for a medium text type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeMediumText(Fluent $column)
+    protected function typeMediumText(Fluent $column): string
     {
         return 'text';
     }
 
     /**
      * Create the column definition for a long text type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeLongText(Fluent $column)
+    protected function typeLongText(Fluent $column): string
     {
         return 'text';
     }
 
     /**
      * Create the column definition for an integer type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeInteger(Fluent $column)
+    protected function typeInteger(Fluent $column): string
     {
         return $column->autoIncrement && is_null($column->generatedAs) && ! $column->change ? 'serial' : 'integer';
     }
 
     /**
      * Create the column definition for a big integer type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeBigInteger(Fluent $column)
+    protected function typeBigInteger(Fluent $column): string
     {
         return $column->autoIncrement && is_null($column->generatedAs) && ! $column->change ? 'bigserial' : 'bigint';
     }
 
     /**
      * Create the column definition for a medium integer type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeMediumInteger(Fluent $column)
+    protected function typeMediumInteger(Fluent $column): string
     {
         return $this->typeInteger($column);
     }
 
     /**
      * Create the column definition for a tiny integer type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeTinyInteger(Fluent $column)
+    protected function typeTinyInteger(Fluent $column): string
     {
         return $this->typeSmallInteger($column);
     }
 
     /**
      * Create the column definition for a small integer type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeSmallInteger(Fluent $column)
+    protected function typeSmallInteger(Fluent $column): string
     {
         return $column->autoIncrement && is_null($column->generatedAs) && ! $column->change ? 'smallserial' : 'smallint';
     }
 
     /**
      * Create the column definition for a float type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeFloat(Fluent $column)
+    protected function typeFloat(Fluent $column): string
     {
         if ($column->precision) {
             return "float({$column->precision})";
@@ -906,55 +721,40 @@ class PostgresGrammar extends Grammar
 
     /**
      * Create the column definition for a double type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeDouble(Fluent $column)
+    protected function typeDouble(Fluent $column): string
     {
         return 'double precision';
     }
 
     /**
      * Create the column definition for a real type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeReal(Fluent $column)
+    protected function typeReal(Fluent $column): string
     {
         return 'real';
     }
 
     /**
      * Create the column definition for a decimal type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeDecimal(Fluent $column)
+    protected function typeDecimal(Fluent $column): string
     {
         return "decimal({$column->total}, {$column->places})";
     }
 
     /**
      * Create the column definition for a boolean type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeBoolean(Fluent $column)
+    protected function typeBoolean(Fluent $column): string
     {
         return 'boolean';
     }
 
     /**
      * Create the column definition for an enumeration type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeEnum(Fluent $column)
+    protected function typeEnum(Fluent $column): string
     {
         return sprintf(
             'varchar(255) check ("%s" in (%s))',
@@ -965,33 +765,24 @@ class PostgresGrammar extends Grammar
 
     /**
      * Create the column definition for a json type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeJson(Fluent $column)
+    protected function typeJson(Fluent $column): string
     {
         return 'json';
     }
 
     /**
      * Create the column definition for a jsonb type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeJsonb(Fluent $column)
+    protected function typeJsonb(Fluent $column): string
     {
         return 'jsonb';
     }
 
     /**
      * Create the column definition for a date type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeDate(Fluent $column)
+    protected function typeDate(Fluent $column): string
     {
         if ($column->useCurrent) {
             $column->default(new Expression('CURRENT_DATE'));
@@ -1002,55 +793,40 @@ class PostgresGrammar extends Grammar
 
     /**
      * Create the column definition for a date-time type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeDateTime(Fluent $column)
+    protected function typeDateTime(Fluent $column): string
     {
         return $this->typeTimestamp($column);
     }
 
     /**
      * Create the column definition for a date-time (with time zone) type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeDateTimeTz(Fluent $column)
+    protected function typeDateTimeTz(Fluent $column): string
     {
         return $this->typeTimestampTz($column);
     }
 
     /**
      * Create the column definition for a time type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeTime(Fluent $column)
+    protected function typeTime(Fluent $column): string
     {
         return 'time'.(is_null($column->precision) ? '' : "($column->precision)").' without time zone';
     }
 
     /**
      * Create the column definition for a time (with time zone) type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeTimeTz(Fluent $column)
+    protected function typeTimeTz(Fluent $column): string
     {
         return 'time'.(is_null($column->precision) ? '' : "($column->precision)").' with time zone';
     }
 
     /**
      * Create the column definition for a timestamp type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeTimestamp(Fluent $column)
+    protected function typeTimestamp(Fluent $column): string
     {
         if ($column->useCurrent) {
             $column->default(new Expression('CURRENT_TIMESTAMP'));
@@ -1061,11 +837,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Create the column definition for a timestamp (with time zone) type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeTimestampTz(Fluent $column)
+    protected function typeTimestampTz(Fluent $column): string
     {
         if ($column->useCurrent) {
             $column->default(new Expression('CURRENT_TIMESTAMP'));
@@ -1076,11 +849,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Create the column definition for a year type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeYear(Fluent $column)
+    protected function typeYear(Fluent $column): string
     {
         if ($column->useCurrent) {
             $column->default(new Expression('EXTRACT(YEAR FROM CURRENT_DATE)'));
@@ -1091,55 +861,40 @@ class PostgresGrammar extends Grammar
 
     /**
      * Create the column definition for a binary type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeBinary(Fluent $column)
+    protected function typeBinary(Fluent $column): string
     {
         return 'bytea';
     }
 
     /**
      * Create the column definition for a uuid type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeUuid(Fluent $column)
+    protected function typeUuid(Fluent $column): string
     {
         return 'uuid';
     }
 
     /**
      * Create the column definition for an IP address type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeIpAddress(Fluent $column)
+    protected function typeIpAddress(Fluent $column): string
     {
         return 'inet';
     }
 
     /**
      * Create the column definition for a MAC address type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeMacAddress(Fluent $column)
+    protected function typeMacAddress(Fluent $column): string
     {
         return 'macaddr';
     }
 
     /**
      * Create the column definition for a spatial Geometry type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeGeometry(Fluent $column)
+    protected function typeGeometry(Fluent $column): string
     {
         if ($column->subtype) {
             return sprintf('geometry(%s%s)',
@@ -1153,11 +908,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Create the column definition for a spatial Geography type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeGeography(Fluent $column)
+    protected function typeGeography(Fluent $column): string
     {
         if ($column->subtype) {
             return sprintf('geography(%s%s)',
@@ -1171,11 +923,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Create the column definition for a vector type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeVector(Fluent $column)
+    protected function typeVector(Fluent $column): string
     {
         return isset($column->dimensions) && $column->dimensions !== ''
             ? "vector({$column->dimensions})"
@@ -1184,26 +933,20 @@ class PostgresGrammar extends Grammar
 
     /**
      * Get the SQL for a collation column modifier.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string|null
      */
-    protected function modifyCollate(Blueprint $blueprint, Fluent $column)
+    protected function modifyCollate(Blueprint $blueprint, Fluent $column): ?string
     {
         if (! is_null($column->collation)) {
             return ' collate '.$this->wrapValue($column->collation);
         }
+
+        return null;
     }
 
     /**
      * Get the SQL for a nullable column modifier.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string|null
      */
-    protected function modifyNullable(Blueprint $blueprint, Fluent $column)
+    protected function modifyNullable(Blueprint $blueprint, Fluent $column): string
     {
         if ($column->change) {
             return $column->nullable ? 'drop not null' : 'set not null';
@@ -1214,12 +957,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Get the SQL for a default column modifier.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string|null
      */
-    protected function modifyDefault(Blueprint $blueprint, Fluent $column)
+    protected function modifyDefault(Blueprint $blueprint, Fluent $column): ?string
     {
         if ($column->change) {
             if (! $column->autoIncrement || ! is_null($column->generatedAs)) {
@@ -1232,16 +971,14 @@ class PostgresGrammar extends Grammar
         if (! is_null($column->default)) {
             return ' default '.$this->getDefaultValue($column->default);
         }
+
+        return null;
     }
 
     /**
      * Get the SQL for an auto-increment column modifier.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string|null
      */
-    protected function modifyIncrement(Blueprint $blueprint, Fluent $column)
+    protected function modifyIncrement(Blueprint $blueprint, Fluent $column): ?string
     {
         if (! $column->change
             && ! $this->hasCommand($blueprint, 'primary')
@@ -1249,16 +986,14 @@ class PostgresGrammar extends Grammar
             && $column->autoIncrement) {
             return ' primary key';
         }
+
+        return null;
     }
 
     /**
      * Get the SQL for a generated virtual column modifier.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string|null
      */
-    protected function modifyVirtualAs(Blueprint $blueprint, Fluent $column)
+    protected function modifyVirtualAs(Blueprint $blueprint, Fluent $column): ?string
     {
         if ($column->change) {
             if (array_key_exists('virtualAs', $column->getAttributes())) {
@@ -1273,16 +1008,14 @@ class PostgresGrammar extends Grammar
         if (! is_null($column->virtualAs)) {
             return " generated always as ({$this->getValue($column->virtualAs)}) virtual";
         }
+
+        return null;
     }
 
     /**
      * Get the SQL for a generated stored column modifier.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string|null
      */
-    protected function modifyStoredAs(Blueprint $blueprint, Fluent $column)
+    protected function modifyStoredAs(Blueprint $blueprint, Fluent $column): ?string
     {
         if ($column->change) {
             if (array_key_exists('storedAs', $column->getAttributes())) {
@@ -1297,16 +1030,16 @@ class PostgresGrammar extends Grammar
         if (! is_null($column->storedAs)) {
             return " generated always as ({$this->getValue($column->storedAs)}) stored";
         }
+
+        return null;
     }
 
     /**
      * Get the SQL for an identity column modifier.
      *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Support\Fluent  $column
      * @return string|list<string>|null
      */
-    protected function modifyGeneratedAs(Blueprint $blueprint, Fluent $column)
+    protected function modifyGeneratedAs(Blueprint $blueprint, Fluent $column): array|string|null
     {
         $sql = null;
 

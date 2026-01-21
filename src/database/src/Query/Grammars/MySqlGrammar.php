@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Query\Grammars;
 
 use Hypervel\Database\Query\Builder;
+use Hypervel\Database\Query\IndexHint;
 use Hypervel\Database\Query\JoinLateralClause;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -16,16 +17,12 @@ class MySqlGrammar extends Grammar
      *
      * @var string[]
      */
-    protected $operators = ['sounds like'];
+    protected array $operators = ['sounds like'];
 
     /**
      * Compile a "where like" clause.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $where
-     * @return string
      */
-    protected function whereLike(Builder $query, $where)
+    protected function whereLike(Builder $query, array $where): string
     {
         $where['operator'] = $where['not'] ? 'not ' : '';
 
@@ -36,12 +33,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Add a "where null" clause to the query.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $where
-     * @return string
      */
-    protected function whereNull(Builder $query, $where)
+    protected function whereNull(Builder $query, array $where): string
     {
         $columnValue = (string) $this->getValue($where['column']);
 
@@ -56,12 +49,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Add a "where not null" clause to the query.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $where
-     * @return string
      */
-    protected function whereNotNull(Builder $query, $where)
+    protected function whereNotNull(Builder $query, array $where): string
     {
         $columnValue = (string) $this->getValue($where['column']);
 
@@ -76,12 +65,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile a "where fulltext" clause.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $where
-     * @return string
      */
-    public function whereFullText(Builder $query, $where)
+    public function whereFullText(Builder $query, array $where): string
     {
         $columns = $this->columnize($where['columns']);
 
@@ -100,12 +85,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile the index hints for the query.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  \Hypervel\Database\Query\IndexHint  $indexHint
-     * @return string
      */
-    protected function compileIndexHint(Builder $query, $indexHint)
+    protected function compileIndexHint(Builder $query, IndexHint $indexHint): string
     {
         return match ($indexHint->type) {
             'hint' => "use index ({$indexHint->index})",
@@ -116,11 +97,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile a group limit clause.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @return string
      */
-    protected function compileGroupLimit(Builder $query)
+    protected function compileGroupLimit(Builder $query): string
     {
         return $this->useLegacyGroupLimit($query)
             ? $this->compileLegacyGroupLimit($query)
@@ -129,11 +107,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Determine whether to use a legacy group limit clause for MySQL < 8.0.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @return bool
      */
-    public function useLegacyGroupLimit(Builder $query)
+    public function useLegacyGroupLimit(Builder $query): bool
     {
         $version = $query->getConnection()->getServerVersion();
 
@@ -144,11 +119,8 @@ class MySqlGrammar extends Grammar
      * Compile a group limit clause for MySQL < 8.0.
      *
      * Derived from https://softonsofa.com/tweaking-eloquent-relations-how-to-get-n-related-models-per-parent/.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @return string
      */
-    protected function compileLegacyGroupLimit(Builder $query)
+    protected function compileLegacyGroupLimit(Builder $query): string
     {
         $limit = (int) $query->groupLimit['value'];
         $offset = $query->offset;
@@ -192,37 +164,24 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile an insert ignore statement into SQL.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $values
-     * @return string
      */
-    public function compileInsertOrIgnore(Builder $query, array $values)
+    public function compileInsertOrIgnore(Builder $query, array $values): string
     {
         return Str::replaceFirst('insert', 'insert ignore', $this->compileInsert($query, $values));
     }
 
     /**
      * Compile an insert ignore statement using a subquery into SQL.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $columns
-     * @param  string  $sql
-     * @return string
      */
-    public function compileInsertOrIgnoreUsing(Builder $query, array $columns, string $sql)
+    public function compileInsertOrIgnoreUsing(Builder $query, array $columns, string $sql): string
     {
         return Str::replaceFirst('insert', 'insert ignore', $this->compileInsertUsing($query, $columns, $sql));
     }
 
     /**
      * Compile a "JSON contains" statement into SQL.
-     *
-     * @param  string  $column
-     * @param  string  $value
-     * @return string
      */
-    protected function compileJsonContains($column, $value)
+    protected function compileJsonContains(string $column, string $value): string
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($column);
 
@@ -231,12 +190,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile a "JSON overlaps" statement into SQL.
-     *
-     * @param  string  $column
-     * @param  string  $value
-     * @return string
      */
-    protected function compileJsonOverlaps($column, $value)
+    protected function compileJsonOverlaps(string $column, string $value): string
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($column);
 
@@ -245,11 +200,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile a "JSON contains key" statement into SQL.
-     *
-     * @param  string  $column
-     * @return string
      */
-    protected function compileJsonContainsKey($column)
+    protected function compileJsonContainsKey(string $column): string
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($column);
 
@@ -258,13 +210,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile a "JSON length" statement into SQL.
-     *
-     * @param  string  $column
-     * @param  string  $operator
-     * @param  string  $value
-     * @return string
      */
-    protected function compileJsonLength($column, $operator, $value)
+    protected function compileJsonLength(string $column, string $operator, string $value): string
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($column);
 
@@ -273,34 +220,24 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile a "JSON value cast" statement into SQL.
-     *
-     * @param  string  $value
-     * @return string
      */
-    public function compileJsonValueCast($value)
+    public function compileJsonValueCast(string $value): string
     {
         return 'cast('.$value.' as json)';
     }
 
     /**
      * Compile the random statement into SQL.
-     *
-     * @param  string|int  $seed
-     * @return string
      */
-    public function compileRandom($seed)
+    public function compileRandom(string|int $seed): string
     {
         return 'RAND('.$seed.')';
     }
 
     /**
      * Compile the lock into SQL.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  bool|string  $value
-     * @return string
      */
-    protected function compileLock(Builder $query, $value)
+    protected function compileLock(Builder $query, bool|string $value): string
     {
         if (! is_string($value)) {
             return $value ? 'for update' : 'lock in share mode';
@@ -311,12 +248,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile an insert statement into SQL.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $values
-     * @return string
      */
-    public function compileInsert(Builder $query, array $values)
+    public function compileInsert(Builder $query, array $values): string
     {
         if (empty($values)) {
             $values = [[]];
@@ -327,12 +260,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile the columns for an update statement.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $values
-     * @return string
      */
-    protected function compileUpdateColumns(Builder $query, array $values)
+    protected function compileUpdateColumns(Builder $query, array $values): string
     {
         return (new Collection($values))->map(function ($value, $key) {
             if ($this->isJsonSelector($key)) {
@@ -345,14 +274,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile an "upsert" statement into SQL.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  array  $values
-     * @param  array  $uniqueBy
-     * @param  array  $update
-     * @return string
      */
-    public function compileUpsert(Builder $query, array $values, array $uniqueBy, array $update)
+    public function compileUpsert(Builder $query, array $values, array $uniqueBy, array $update): string
     {
         $useUpsertAlias = $query->connection->getConfig('use_upsert_alias');
 
@@ -391,12 +314,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Prepare a JSON column being updated using the JSON_SET function.
-     *
-     * @param  string  $key
-     * @param  mixed  $value
-     * @return string
      */
-    protected function compileJsonUpdateColumn($key, $value)
+    protected function compileJsonUpdateColumn(string $key, mixed $value): string
     {
         if (is_bool($value)) {
             $value = $value ? 'true' : 'false';
@@ -413,14 +332,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile an update statement without joins into SQL.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  string  $table
-     * @param  string  $columns
-     * @param  string  $where
-     * @return string
      */
-    protected function compileUpdateWithoutJoins(Builder $query, $table, $columns, $where)
+    protected function compileUpdateWithoutJoins(Builder $query, string $table, string $columns, string $where): string
     {
         $sql = parent::compileUpdateWithoutJoins($query, $table, $columns, $where);
 
@@ -439,13 +352,9 @@ class MySqlGrammar extends Grammar
      * Prepare the bindings for an update statement.
      *
      * Booleans, integers, and doubles are inserted into JSON updates as raw values.
-     *
-     * @param  array  $bindings
-     * @param  array  $values
-     * @return array
      */
     #[\Override]
-    public function prepareBindingsForUpdate(array $bindings, array $values)
+    public function prepareBindingsForUpdate(array $bindings, array $values): array
     {
         $values = (new Collection($values))
             ->reject(fn ($value, $column) => $this->isJsonSelector($column) && is_bool($value))
@@ -457,13 +366,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile a delete query that does not use joins.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  string  $table
-     * @param  string  $where
-     * @return string
      */
-    protected function compileDeleteWithoutJoins(Builder $query, $table, $where)
+    protected function compileDeleteWithoutJoins(Builder $query, string $table, string $where): string
     {
         $sql = parent::compileDeleteWithoutJoins($query, $table, $where);
 
@@ -483,32 +387,24 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile a query to get the number of open connections for a database.
-     *
-     * @return string
      */
-    public function compileThreadCount()
+    public function compileThreadCount(): string
     {
         return 'select variable_value as `Value` from performance_schema.session_status where variable_name = \'threads_connected\'';
     }
 
     /**
      * Wrap a single string in keyword identifiers.
-     *
-     * @param  string  $value
-     * @return string
      */
-    protected function wrapValue($value)
+    protected function wrapValue(string $value): string
     {
         return $value === '*' ? $value : '`'.str_replace('`', '``', $value).'`';
     }
 
     /**
      * Wrap the given JSON selector.
-     *
-     * @param  string  $value
-     * @return string
      */
-    protected function wrapJsonSelector($value)
+    protected function wrapJsonSelector(string $value): string
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($value);
 
@@ -517,11 +413,8 @@ class MySqlGrammar extends Grammar
 
     /**
      * Wrap the given JSON selector for boolean values.
-     *
-     * @param  string  $value
-     * @return string
      */
-    protected function wrapJsonBooleanSelector($value)
+    protected function wrapJsonBooleanSelector(string $value): string
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($value);
 

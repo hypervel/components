@@ -10,7 +10,7 @@ use Hypervel\Support\Fluent;
 class MariaDbGrammar extends MySqlGrammar
 {
     /** @inheritDoc */
-    public function compileRenameColumn(Blueprint $blueprint, Fluent $command)
+    public function compileRenameColumn(Blueprint $blueprint, Fluent $command): array|string
     {
         if (version_compare($this->connection->getServerVersion(), '10.5.2', '<')) {
             return $this->compileLegacyRenameColumn($blueprint, $command);
@@ -21,11 +21,8 @@ class MariaDbGrammar extends MySqlGrammar
 
     /**
      * Create the column definition for a uuid type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeUuid(Fluent $column)
+    protected function typeUuid(Fluent $column): string
     {
         if (version_compare($this->connection->getServerVersion(), '10.7.0', '<')) {
             return 'char(36)';
@@ -36,11 +33,8 @@ class MariaDbGrammar extends MySqlGrammar
 
     /**
      * Create the column definition for a spatial Geometry type.
-     *
-     * @param  \Hypervel\Support\Fluent  $column
-     * @return string
      */
-    protected function typeGeometry(Fluent $column)
+    protected function typeGeometry(Fluent $column): string
     {
         $subtype = $column->subtype ? strtolower($column->subtype) : null;
 
@@ -56,11 +50,8 @@ class MariaDbGrammar extends MySqlGrammar
 
     /**
      * Wrap the given JSON selector.
-     *
-     * @param  string  $value
-     * @return string
      */
-    protected function wrapJsonSelector($value)
+    protected function wrapJsonSelector(string $value): string
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($value);
 
