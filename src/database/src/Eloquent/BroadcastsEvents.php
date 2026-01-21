@@ -7,8 +7,6 @@ namespace Hypervel\Database\Eloquent;
 use Hypervel\Broadcasting\Contracts\Factory as BroadcastFactory;
 use Hypervel\Support\Arr;
 
-use function Hypervel\Support\tap;
-
 trait BroadcastsEvents
 {
     /**
