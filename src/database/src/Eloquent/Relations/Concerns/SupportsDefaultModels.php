@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Relations\Concerns;
 
 use Closure;
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Model;
 
 trait SupportsDefaultModels
 {

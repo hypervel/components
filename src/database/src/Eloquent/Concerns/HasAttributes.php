@@ -55,28 +55,28 @@ trait HasAttributes
      *
      * @var array<string, mixed>
      */
-    protected $attributes = [];
+    protected array $attributes = [];
 
     /**
      * The model attribute's original state.
      *
      * @var array<string, mixed>
      */
-    protected $original = [];
+    protected array $original = [];
 
     /**
      * The changed model attributes.
      *
      * @var array<string, mixed>
      */
-    protected $changes = [];
+    protected array $changes = [];
 
     /**
      * The previous state of the changed model attributes.
      *
      * @var array<string, mixed>
      */
-    protected $previous = [];
+    protected array $previous = [];
 
     /**
      * The attributes that should be cast.

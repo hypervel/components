@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Relations\Concerns;
 
-use Hyperf\Contract\SupportsPartialRelations;
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Contracts\Eloquent\SupportsPartialRelations;
+use Hypervel\Database\Eloquent\Model;
 
 trait ComparesRelatedModels
 {

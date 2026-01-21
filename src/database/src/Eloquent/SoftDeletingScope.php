@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent;
 
-use Hyperf\Database\Model\Builder;
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
 
 class SoftDeletingScope implements Scope
 {

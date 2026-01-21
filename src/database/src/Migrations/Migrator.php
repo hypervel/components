@@ -676,11 +676,8 @@ class Migrator
 
     /**
      * Set the default connection name.
-     *
-     * @param  string  $name
-     * @return void
      */
-    public function setConnection($name)
+    public function setConnection(string $name): void
     {
         if (! is_null($name)) {
             $this->resolver->setDefaultConnection($name);

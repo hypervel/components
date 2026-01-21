@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Database\Query;
 
 use Closure;
-use Hyperf\Database\Query\Builder;
-use Hyperf\Database\Query\Grammars\Grammar;
-use Hyperf\Database\Query\Processors\Processor;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Database\Query\Grammars\Grammar;
+use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\ConnectionInterface;
 
 class JoinClause extends Builder

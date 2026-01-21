@@ -81,10 +81,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Indicates if the IDs are auto-incrementing.
-     *
-     * @var bool
      */
-    public $incrementing = true;
+    public bool $incrementing = true;
 
     /**
      * The relations to eager load on every query.

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Relations\Concerns;
 
 use Hyperf\Collection\Arr;
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Model;
 use Hyperf\Stringable\Str;
 use Hypervel\Database\Eloquent\RelationNotFoundException;
 

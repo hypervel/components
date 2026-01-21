@@ -172,10 +172,8 @@ class Builder implements BuilderContract
 
     /**
      * The maximum number of records to return per group.
-     *
-     * @var array|null
      */
-    public $groupLimit;
+    public ?array $groupLimit = null;
 
     /**
      * The number of records to skip.
@@ -221,17 +219,13 @@ class Builder implements BuilderContract
 
     /**
      * The callbacks that should be invoked before the query is executed.
-     *
-     * @var array
      */
-    public $beforeQueryCallbacks = [];
+    public array $beforeQueryCallbacks = [];
 
     /**
      * The callbacks that should be invoked after retrieving data from the database.
-     *
-     * @var array
      */
-    protected $afterQueryCallbacks = [];
+    protected array $afterQueryCallbacks = [];
 
     /**
      * All of the available clause operators.
@@ -785,12 +779,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a subquery cross join to the query.
-     *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|string  $query
-     * @param  string  $as
-     * @return $this
      */
-    public function crossJoinSub($query, $as)
+    public function crossJoinSub(Closure|self|EloquentBuilder|string $query, string $as): static
     {
         [$query, $bindings] = $this->createSub($query);
 

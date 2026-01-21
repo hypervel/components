@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent;
 
-use Hyperf\Database\Model\Builder;
-use Hyperf\Database\Query\Builder as QueryBuilder;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 
 /**
  * @template TBuilder of Builder
