@@ -8,7 +8,10 @@ use Closure;
 use Generator;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Expression;
+use Hypervel\Database\Query\Grammars\Grammar as QueryGrammar;
+use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
+use PDO;
 use UnitEnum;
 
 interface ConnectionInterface
@@ -126,4 +129,44 @@ interface ConnectionInterface
      * Get a schema builder instance for the connection.
      */
     public function getSchemaBuilder(): SchemaBuilder;
+
+    /**
+     * Get the query grammar used by the connection.
+     */
+    public function getQueryGrammar(): QueryGrammar;
+
+    /**
+     * Get the query post processor used by the connection.
+     */
+    public function getPostProcessor(): Processor;
+
+    /**
+     * Get the current PDO connection.
+     */
+    public function getPdo(): PDO;
+
+    /**
+     * Get the table prefix for the connection.
+     */
+    public function getTablePrefix(): string;
+
+    /**
+     * Get the database server version.
+     */
+    public function getServerVersion(): string;
+
+    /**
+     * Get an option from the configuration options.
+     */
+    public function getConfig(?string $option = null): mixed;
+
+    /**
+     * Run a select statement against the database using the write connection.
+     */
+    public function selectFromWriteConnection(string $query, array $bindings = []): array;
+
+    /**
+     * Indicate if any records have been modified.
+     */
+    public function recordsHaveBeenModified(bool $value = true): void;
 }
