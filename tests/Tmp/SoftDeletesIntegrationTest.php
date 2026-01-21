@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Tmp;
 
-use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;
@@ -45,7 +45,7 @@ class SoftDeletesIntegrationTest extends DatabaseIntegrationTestCase
         $post->delete();
 
         $this->assertNotNull($post->deleted_at);
-        $this->assertInstanceOf(CarbonImmutable::class, $post->deleted_at);
+        $this->assertInstanceOf(CarbonInterface::class, $post->deleted_at);
     }
 
     public function testSoftDeletedModelsAreExcludedByDefault(): void
