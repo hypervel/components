@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Schema;
 
-use Hyperf\Support\Fluent;
+use Hypervel\Support\Fluent;
 
 /**
  * @method $this algorithm(string $algorithm) Specify an algorithm for the index (MySQL/PostgreSQL)

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Schema;
 
-use Hyperf\Support\Fluent;
+use Hypervel\Support\Fluent;
 
 /**
  * @method ForeignKeyDefinition deferrable(bool $value = true) Set the foreign key as deferrable (PostgreSQL)
