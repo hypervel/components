@@ -10,12 +10,8 @@ class MariaDbConnector extends MySqlConnector
 {
     /**
      * Get the sql_mode value.
-     *
-     * @param  \PDO  $connection
-     * @param  array  $config
-     * @return string|null
      */
-    protected function getSqlMode(PDO $connection, array $config)
+    protected function getSqlMode(PDO $connection, array $config): ?string
     {
         if (isset($config['modes'])) {
             return implode(',', $config['modes']);

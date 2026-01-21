@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Database\Concerns;
 
 use Hypervel\Container\Contracts\Container;
@@ -31,11 +33,9 @@ trait BuildsQueries
     /**
      * Chunk the results of the query.
      *
-     * @param  int  $count
      * @param  callable(\Hypervel\Support\Collection<int, TValue>, int): mixed  $callback
-     * @return bool
      */
-    public function chunk($count, callable $callback)
+    public function chunk(int $count, callable $callback): bool
     {
         $this->enforceOrderBy();
 
@@ -83,10 +83,9 @@ trait BuildsQueries
      * @template TReturn
      *
      * @param  callable(TValue): TReturn  $callback
-     * @param  int  $count
      * @return \Hypervel\Support\Collection<int, TReturn>
      */
-    public function chunkMap(callable $callback, $count = 1000)
+    public function chunkMap(callable $callback, int $count = 1000): Collection
     {
         $collection = new Collection;
 
@@ -103,12 +102,8 @@ trait BuildsQueries
      * Execute a callback over each item while chunking.
      *
      * @param  callable(TValue, int): mixed  $callback
-     * @param  int  $count
-     * @return bool
-     *
-     * @throws \RuntimeException
      */
-    public function each(callable $callback, $count = 1000)
+    public function each(callable $callback, int $count = 1000): bool
     {
         return $this->chunk($count, function ($results) use ($callback) {
             foreach ($results as $key => $value) {
@@ -122,13 +117,9 @@ trait BuildsQueries
     /**
      * Chunk the results of a query by comparing IDs.
      *
-     * @param  int  $count
      * @param  callable(\Hypervel\Support\Collection<int, TValue>, int): mixed  $callback
-     * @param  string|null  $column
-     * @param  string|null  $alias
-     * @return bool
      */
-    public function chunkById($count, callable $callback, $column = null, $alias = null)
+    public function chunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
     {
         return $this->orderedChunkById($count, $callback, $column, $alias);
     }
@@ -136,13 +127,9 @@ trait BuildsQueries
     /**
      * Chunk the results of a query by comparing IDs in descending order.
      *
-     * @param  int  $count
      * @param  callable(\Hypervel\Support\Collection<int, TValue>, int): mixed  $callback
-     * @param  string|null  $column
-     * @param  string|null  $alias
-     * @return bool
      */
-    public function chunkByIdDesc($count, callable $callback, $column = null, $alias = null)
+    public function chunkByIdDesc(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
     {
         return $this->orderedChunkById($count, $callback, $column, $alias, descending: true);
     }
@@ -150,16 +137,9 @@ trait BuildsQueries
     /**
      * Chunk the results of a query by comparing IDs in a given order.
      *
-     * @param  int  $count
      * @param  callable(\Hypervel\Support\Collection<int, TValue>, int): mixed  $callback
-     * @param  string|null  $column
-     * @param  string|null  $alias
-     * @param  bool  $descending
-     * @return bool
-     *
-     * @throws \RuntimeException
      */
-    public function orderedChunkById($count, callable $callback, $column = null, $alias = null, $descending = false)
+    public function orderedChunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null, bool $descending = false): bool
     {
         $column ??= $this->defaultKeyName();
         $alias ??= $column;
@@ -226,12 +206,8 @@ trait BuildsQueries
      * Execute a callback over each item while chunking by ID.
      *
      * @param  callable(TValue, int): mixed  $callback
-     * @param  int  $count
-     * @param  string|null  $column
-     * @param  string|null  $alias
-     * @return bool
      */
-    public function eachById(callable $callback, $count = 1000, $column = null, $alias = null)
+    public function eachById(callable $callback, int $count = 1000, ?string $column = null, ?string $alias = null): bool
     {
         return $this->chunkById($count, function ($results, $page) use ($callback, $count) {
             foreach ($results as $key => $value) {
@@ -245,12 +221,9 @@ trait BuildsQueries
     /**
      * Query lazily, by chunks of the given size.
      *
-     * @param  int  $chunkSize
      * @return \Hypervel\Support\LazyCollection<int, TValue>
-     *
-     * @throws \InvalidArgumentException
      */
-    public function lazy($chunkSize = 1000)
+    public function lazy(int $chunkSize = 1000): LazyCollection
     {
         if ($chunkSize < 1) {
             throw new InvalidArgumentException('The chunk size should be at least 1');
@@ -278,14 +251,9 @@ trait BuildsQueries
     /**
      * Query lazily, by chunking the results of a query by comparing IDs.
      *
-     * @param  int  $chunkSize
-     * @param  string|null  $column
-     * @param  string|null  $alias
      * @return \Hypervel\Support\LazyCollection<int, TValue>
-     *
-     * @throws \InvalidArgumentException
      */
-    public function lazyById($chunkSize = 1000, $column = null, $alias = null)
+    public function lazyById(int $chunkSize = 1000, ?string $column = null, ?string $alias = null): LazyCollection
     {
         return $this->orderedLazyById($chunkSize, $column, $alias);
     }
@@ -293,14 +261,9 @@ trait BuildsQueries
     /**
      * Query lazily, by chunking the results of a query by comparing IDs in descending order.
      *
-     * @param  int  $chunkSize
-     * @param  string|null  $column
-     * @param  string|null  $alias
      * @return \Hypervel\Support\LazyCollection<int, TValue>
-     *
-     * @throws \InvalidArgumentException
      */
-    public function lazyByIdDesc($chunkSize = 1000, $column = null, $alias = null)
+    public function lazyByIdDesc(int $chunkSize = 1000, ?string $column = null, ?string $alias = null): LazyCollection
     {
         return $this->orderedLazyById($chunkSize, $column, $alias, true);
     }
@@ -308,15 +271,9 @@ trait BuildsQueries
     /**
      * Query lazily, by chunking the results of a query by comparing IDs in a given order.
      *
-     * @param  int  $chunkSize
-     * @param  string|null  $column
-     * @param  string|null  $alias
-     * @param  bool  $descending
-     * @return \Hypervel\Support\LazyCollection
-     *
-     * @throws \InvalidArgumentException
+     * @return \Hypervel\Support\LazyCollection<int, TValue>
      */
-    protected function orderedLazyById($chunkSize = 1000, $column = null, $alias = null, $descending = false)
+    protected function orderedLazyById(int $chunkSize = 1000, ?string $column = null, ?string $alias = null, bool $descending = false): LazyCollection
     {
         if ($chunkSize < 1) {
             throw new InvalidArgumentException('The chunk size should be at least 1');
@@ -358,10 +315,9 @@ trait BuildsQueries
     /**
      * Execute the query and get the first result.
      *
-     * @param  array|string  $columns
      * @return TValue|null
      */
-    public function first($columns = ['*'])
+    public function first(array|string $columns = ['*'])
     {
         return $this->limit(1)->get($columns)->first();
     }
@@ -369,13 +325,11 @@ trait BuildsQueries
     /**
      * Execute the query and get the first result or throw an exception.
      *
-     * @param  array|string  $columns
-     * @param  string|null  $message
      * @return TValue
      *
      * @throws \Hypervel\Database\RecordNotFoundException
      */
-    public function firstOrFail($columns = ['*'], $message = null)
+    public function firstOrFail(array|string $columns = ['*'], ?string $message = null)
     {
         if (! is_null($result = $this->first($columns))) {
             return $result;
@@ -387,13 +341,12 @@ trait BuildsQueries
     /**
      * Execute the query and get the first result if it's the sole matching record.
      *
-     * @param  array|string  $columns
      * @return TValue
      *
      * @throws \Hypervel\Database\RecordsNotFoundException
      * @throws \Hypervel\Database\MultipleRecordsFoundException
      */
-    public function sole($columns = ['*'])
+    public function sole(array|string $columns = ['*'])
     {
         $result = $this->limit(2)->get($columns);
 
@@ -413,13 +366,9 @@ trait BuildsQueries
     /**
      * Paginate the given query using a cursor paginator.
      *
-     * @param  int  $perPage
-     * @param  array|string  $columns
-     * @param  string  $cursorName
-     * @param  \Hypervel\Pagination\Cursor|string|null  $cursor
      * @return \Hypervel\Contracts\Pagination\CursorPaginator
      */
-    protected function paginateUsingCursor($perPage, $columns = ['*'], $cursorName = 'cursor', $cursor = null)
+    protected function paginateUsingCursor(int $perPage, array|string $columns = ['*'], string $cursorName = 'cursor', Cursor|string|null $cursor = null)
     {
         if (! $cursor instanceof Cursor) {
             $cursor = is_string($cursor)
@@ -513,10 +462,8 @@ trait BuildsQueries
      * Get the original column name of the given column, without any aliasing.
      *
      * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>  $builder
-     * @param  string  $parameter
-     * @return string
      */
-    protected function getOriginalColumnNameForCursorPagination($builder, string $parameter)
+    protected function getOriginalColumnNameForCursorPagination(\Hypervel\Database\Query\Builder|Builder $builder, string $parameter): string
     {
         $columns = $builder instanceof Builder ? $builder->getQuery()->getColumns() : $builder->getColumns();
 
@@ -539,15 +486,8 @@ trait BuildsQueries
 
     /**
      * Create a new length-aware paginator instance.
-     *
-     * @param  \Hypervel\Support\Collection  $items
-     * @param  int  $total
-     * @param  int  $perPage
-     * @param  int  $currentPage
-     * @param  array  $options
-     * @return \Hypervel\Pagination\LengthAwarePaginator
      */
-    protected function paginator($items, $total, $perPage, $currentPage, $options)
+    protected function paginator(Collection $items, int $total, int $perPage, int $currentPage, array $options): LengthAwarePaginator
     {
         return Container::getInstance()->makeWith(LengthAwarePaginator::class, compact(
             'items', 'total', 'perPage', 'currentPage', 'options'
@@ -556,14 +496,8 @@ trait BuildsQueries
 
     /**
      * Create a new simple paginator instance.
-     *
-     * @param  \Hypervel\Support\Collection  $items
-     * @param  int  $perPage
-     * @param  int  $currentPage
-     * @param  array  $options
-     * @return \Hypervel\Pagination\Paginator
      */
-    protected function simplePaginator($items, $perPage, $currentPage, $options)
+    protected function simplePaginator(Collection $items, int $perPage, int $currentPage, array $options): Paginator
     {
         return Container::getInstance()->makeWith(Paginator::class, compact(
             'items', 'perPage', 'currentPage', 'options'
@@ -572,14 +506,8 @@ trait BuildsQueries
 
     /**
      * Create a new cursor paginator instance.
-     *
-     * @param  \Hypervel\Support\Collection  $items
-     * @param  int  $perPage
-     * @param  \Hypervel\Pagination\Cursor  $cursor
-     * @param  array  $options
-     * @return \Hypervel\Pagination\CursorPaginator
      */
-    protected function cursorPaginator($items, $perPage, $cursor, $options)
+    protected function cursorPaginator(Collection $items, int $perPage, ?Cursor $cursor, array $options): CursorPaginator
     {
         return Container::getInstance()->makeWith(CursorPaginator::class, compact(
             'items', 'perPage', 'cursor', 'options'
@@ -592,7 +520,7 @@ trait BuildsQueries
      * @param  callable($this): mixed  $callback
      * @return $this
      */
-    public function tap($callback)
+    public function tap(callable $callback): static
     {
         $callback($this);
 
@@ -607,7 +535,7 @@ trait BuildsQueries
      * @param  (callable($this): TReturn)  $callback
      * @return (TReturn is null|void ? $this : TReturn)
      */
-    public function pipe($callback)
+    public function pipe(callable $callback)
     {
         return $callback($this) ?? $this;
     }

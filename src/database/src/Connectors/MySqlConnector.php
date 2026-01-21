@@ -10,11 +10,8 @@ class MySqlConnector extends Connector implements ConnectorInterface
 {
     /**
      * Establish a database connection.
-     *
-     * @param  array  $config
-     * @return \PDO
      */
-    public function connect(array $config)
+    public function connect(array $config): PDO
     {
         $dsn = $this->getDsn($config);
 
@@ -40,11 +37,8 @@ class MySqlConnector extends Connector implements ConnectorInterface
      * Create a DSN string from a configuration.
      *
      * Chooses socket or host/port based on the 'unix_socket' config value.
-     *
-     * @param  array  $config
-     * @return string
      */
-    protected function getDsn(array $config)
+    protected function getDsn(array $config): string
     {
         return $this->hasSocket($config)
             ? $this->getSocketDsn($config)
@@ -53,33 +47,24 @@ class MySqlConnector extends Connector implements ConnectorInterface
 
     /**
      * Determine if the given configuration array has a UNIX socket value.
-     *
-     * @param  array  $config
-     * @return bool
      */
-    protected function hasSocket(array $config)
+    protected function hasSocket(array $config): bool
     {
         return isset($config['unix_socket']) && ! empty($config['unix_socket']);
     }
 
     /**
      * Get the DSN string for a socket configuration.
-     *
-     * @param  array  $config
-     * @return string
      */
-    protected function getSocketDsn(array $config)
+    protected function getSocketDsn(array $config): string
     {
         return "mysql:unix_socket={$config['unix_socket']};dbname={$config['database']}";
     }
 
     /**
      * Get the DSN string for a host / port configuration.
-     *
-     * @param  array  $config
-     * @return string
      */
-    protected function getHostDsn(array $config)
+    protected function getHostDsn(array $config): string
     {
         return isset($config['port'])
             ? "mysql:host={$config['host']};port={$config['port']};dbname={$config['database']}"
@@ -88,12 +73,8 @@ class MySqlConnector extends Connector implements ConnectorInterface
 
     /**
      * Configure the given PDO connection.
-     *
-     * @param  \PDO  $connection
-     * @param  array  $config
-     * @return void
      */
-    protected function configureConnection(PDO $connection, array $config)
+    protected function configureConnection(PDO $connection, array $config): void
     {
         if (isset($config['isolation_level'])) {
             $connection->exec(sprintf('SET SESSION TRANSACTION ISOLATION LEVEL %s;', $config['isolation_level']));
@@ -126,12 +107,8 @@ class MySqlConnector extends Connector implements ConnectorInterface
 
     /**
      * Get the sql_mode value.
-     *
-     * @param  \PDO  $connection
-     * @param  array  $config
-     * @return string|null
      */
-    protected function getSqlMode(PDO $connection, array $config)
+    protected function getSqlMode(PDO $connection, array $config): ?string
     {
         if (isset($config['modes'])) {
             return implode(',', $config['modes']);

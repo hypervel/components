@@ -12,10 +12,9 @@ trait BuildsWhereDateClauses
     /**
      * Add a where clause to determine if a "date" column is in the past to the query.
      *
-     * @param  array|string  $columns
      * @return $this
      */
-    public function wherePast($columns)
+    public function wherePast(array|string $columns): static
     {
         return $this->wherePastOrFuture($columns, '<', 'and');
     }
@@ -23,10 +22,9 @@ trait BuildsWhereDateClauses
     /**
      * Add a where clause to determine if a "date" column is in the past or now to the query.
      *
-     * @param  array|string  $columns
      * @return $this
      */
-    public function whereNowOrPast($columns)
+    public function whereNowOrPast(array|string $columns): static
     {
         return $this->wherePastOrFuture($columns, '<=', 'and');
     }
@@ -34,10 +32,9 @@ trait BuildsWhereDateClauses
     /**
      * Add an "or where" clause to determine if a "date" column is in the past to the query.
      *
-     * @param  array|string  $columns
      * @return $this
      */
-    public function orWherePast($columns)
+    public function orWherePast(array|string $columns): static
     {
         return $this->wherePastOrFuture($columns, '<', 'or');
     }
@@ -45,10 +42,9 @@ trait BuildsWhereDateClauses
     /**
      * Add a where clause to determine if a "date" column is in the past or now to the query.
      *
-     * @param  array|string  $columns
      * @return $this
      */
-    public function orWhereNowOrPast($columns)
+    public function orWhereNowOrPast(array|string $columns): static
     {
         return $this->wherePastOrFuture($columns, '<=', 'or');
     }
@@ -56,10 +52,9 @@ trait BuildsWhereDateClauses
     /**
      * Add a where clause to determine if a "date" column is in the future to the query.
      *
-     * @param  array|string  $columns
      * @return $this
      */
-    public function whereFuture($columns)
+    public function whereFuture(array|string $columns): static
     {
         return $this->wherePastOrFuture($columns, '>', 'and');
     }
@@ -67,10 +62,9 @@ trait BuildsWhereDateClauses
     /**
      * Add a where clause to determine if a "date" column is in the future or now to the query.
      *
-     * @param  array|string  $columns
      * @return $this
      */
-    public function whereNowOrFuture($columns)
+    public function whereNowOrFuture(array|string $columns): static
     {
         return $this->wherePastOrFuture($columns, '>=', 'and');
     }
@@ -78,10 +72,9 @@ trait BuildsWhereDateClauses
     /**
      * Add an "or where" clause to determine if a "date" column is in the future to the query.
      *
-     * @param  array|string  $columns
      * @return $this
      */
-    public function orWhereFuture($columns)
+    public function orWhereFuture(array|string $columns): static
     {
         return $this->wherePastOrFuture($columns, '>', 'or');
     }
@@ -89,10 +82,9 @@ trait BuildsWhereDateClauses
     /**
      * Add an "or where" clause to determine if a "date" column is in the future or now to the query.
      *
-     * @param  array|string  $columns
      * @return $this
      */
-    public function orWhereNowOrFuture($columns)
+    public function orWhereNowOrFuture(array|string $columns): static
     {
         return $this->wherePastOrFuture($columns, '>=', 'or');
     }
@@ -100,12 +92,9 @@ trait BuildsWhereDateClauses
     /**
      * Add an "where" clause to determine if a "date" column is in the past or future.
      *
-     * @param  array|string  $columns
-     * @param  string  $operator
-     * @param  string  $boolean
      * @return $this
      */
-    protected function wherePastOrFuture($columns, $operator, $boolean)
+    protected function wherePastOrFuture(array|string $columns, string $operator, string $boolean): static
     {
         $type = 'Basic';
         $value = Carbon::now();
@@ -122,11 +111,9 @@ trait BuildsWhereDateClauses
     /**
      * Add a "where date" clause to determine if a "date" column is today to the query.
      *
-     * @param  array|string  $columns
-     * @param  string  $boolean
      * @return $this
      */
-    public function whereToday($columns, $boolean = 'and')
+    public function whereToday(array|string $columns, string $boolean = 'and'): static
     {
         return $this->whereTodayBeforeOrAfter($columns, '=', $boolean);
     }
@@ -134,10 +121,9 @@ trait BuildsWhereDateClauses
     /**
      * Add a "where date" clause to determine if a "date" column is before today.
      *
-     * @param  array|string  $columns
      * @return $this
      */
-    public function whereBeforeToday($columns)
+    public function whereBeforeToday(array|string $columns): static
     {
         return $this->whereTodayBeforeOrAfter($columns, '<', 'and');
     }
@@ -145,10 +131,9 @@ trait BuildsWhereDateClauses
     /**
      * Add a "where date" clause to determine if a "date" column is today or before to the query.
      *
-     * @param  array|string  $columns
      * @return $this
      */
-    public function whereTodayOrBefore($columns)
+    public function whereTodayOrBefore(array|string $columns): static
     {
         return $this->whereTodayBeforeOrAfter($columns, '<=', 'and');
     }
@@ -156,10 +141,9 @@ trait BuildsWhereDateClauses
     /**
      * Add a "where date" clause to determine if a "date" column is after today.
      *
-     * @param  array|string  $columns
      * @return $this
      */
-    public function whereAfterToday($columns)
+    public function whereAfterToday(array|string $columns): static
     {
         return $this->whereTodayBeforeOrAfter($columns, '>', 'and');
     }
@@ -167,10 +151,9 @@ trait BuildsWhereDateClauses
     /**
      * Add a "where date" clause to determine if a "date" column is today or after to the query.
      *
-     * @param  array|string  $columns
      * @return $this
      */
-    public function whereTodayOrAfter($columns)
+    public function whereTodayOrAfter(array|string $columns): static
     {
         return $this->whereTodayBeforeOrAfter($columns, '>=', 'and');
     }
@@ -178,10 +161,9 @@ trait BuildsWhereDateClauses
     /**
      * Add an "or where date" clause to determine if a "date" column is today to the query.
      *
-     * @param  array|string  $columns
      * @return $this
      */
-    public function orWhereToday($columns)
+    public function orWhereToday(array|string $columns): static
     {
         return $this->whereToday($columns, 'or');
     }
@@ -189,10 +171,9 @@ trait BuildsWhereDateClauses
     /**
      * Add an "or where date" clause to determine if a "date" column is before today.
      *
-     * @param  array|string  $columns
      * @return $this
      */
-    public function orWhereBeforeToday($columns)
+    public function orWhereBeforeToday(array|string $columns): static
     {
         return $this->whereTodayBeforeOrAfter($columns, '<', 'or');
     }
@@ -200,10 +181,9 @@ trait BuildsWhereDateClauses
     /**
      * Add an "or where date" clause to determine if a "date" column is today or before to the query.
      *
-     * @param  array|string  $columns
      * @return $this
      */
-    public function orWhereTodayOrBefore($columns)
+    public function orWhereTodayOrBefore(array|string $columns): static
     {
         return $this->whereTodayBeforeOrAfter($columns, '<=', 'or');
     }
@@ -211,10 +191,9 @@ trait BuildsWhereDateClauses
     /**
      * Add an "or where date" clause to determine if a "date" column is after today.
      *
-     * @param  array|string  $columns
      * @return $this
      */
-    public function orWhereAfterToday($columns)
+    public function orWhereAfterToday(array|string $columns): static
     {
         return $this->whereTodayBeforeOrAfter($columns, '>', 'or');
     }
@@ -222,10 +201,9 @@ trait BuildsWhereDateClauses
     /**
      * Add an "or where date" clause to determine if a "date" column is today or after to the query.
      *
-     * @param  array|string  $columns
      * @return $this
      */
-    public function orWhereTodayOrAfter($columns)
+    public function orWhereTodayOrAfter(array|string $columns): static
     {
         return $this->whereTodayBeforeOrAfter($columns, '>=', 'or');
     }
@@ -233,12 +211,9 @@ trait BuildsWhereDateClauses
     /**
      * Add a "where date" clause to determine if a "date" column is today or after to the query.
      *
-     * @param  array|string  $columns
-     * @param  string  $operator
-     * @param  string  $boolean
      * @return $this
      */
-    protected function whereTodayBeforeOrAfter($columns, $operator, $boolean)
+    protected function whereTodayBeforeOrAfter(array|string $columns, string $operator, string $boolean): static
     {
         $value = Carbon::today()->format('Y-m-d');
 

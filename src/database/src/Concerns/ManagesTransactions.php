@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Database\Concerns;
 
 use Closure;
@@ -77,14 +79,9 @@ trait ManagesTransactions
     /**
      * Handle an exception encountered when running a transacted statement.
      *
-     * @param  \Throwable  $e
-     * @param  int  $currentAttempt
-     * @param  int  $maxAttempts
-     * @return void
-     *
      * @throws \Throwable
      */
-    protected function handleTransactionException(Throwable $e, $currentAttempt, $maxAttempts)
+    protected function handleTransactionException(Throwable $e, int $currentAttempt, int $maxAttempts): void
     {
         // On a deadlock, MySQL rolls back the entire transaction so we can't just
         // retry the query. We have to throw this exception all the way out and
@@ -138,11 +135,9 @@ trait ManagesTransactions
     /**
      * Create a transaction within the database.
      *
-     * @return void
-     *
      * @throws \Throwable
      */
-    protected function createTransaction()
+    protected function createTransaction(): void
     {
         if ($this->transactions == 0) {
             $this->reconnectIfMissingConnection();
@@ -160,11 +155,9 @@ trait ManagesTransactions
     /**
      * Create a save point within the database.
      *
-     * @return void
-     *
      * @throws \Throwable
      */
-    protected function createSavepoint()
+    protected function createSavepoint(): void
     {
         $this->getPdo()->exec(
             $this->queryGrammar->compileSavepoint('trans'.($this->transactions + 1))
@@ -174,12 +167,9 @@ trait ManagesTransactions
     /**
      * Handle an exception from a transaction beginning.
      *
-     * @param  \Throwable  $e
-     * @return void
-     *
      * @throws \Throwable
      */
-    protected function handleBeginTransactionException(Throwable $e)
+    protected function handleBeginTransactionException(Throwable $e): void
     {
         if ($this->causedByLostConnection($e)) {
             $this->reconnect();
@@ -217,14 +207,9 @@ trait ManagesTransactions
     /**
      * Handle an exception encountered when committing a transaction.
      *
-     * @param  \Throwable  $e
-     * @param  int  $currentAttempt
-     * @param  int  $maxAttempts
-     * @return void
-     *
      * @throws \Throwable
      */
-    protected function handleCommitTransactionException(Throwable $e, $currentAttempt, $maxAttempts)
+    protected function handleCommitTransactionException(Throwable $e, int $currentAttempt, int $maxAttempts): void
     {
         $this->transactions = max(0, $this->transactions - 1);
 
@@ -278,12 +263,9 @@ trait ManagesTransactions
     /**
      * Perform a rollback within the database.
      *
-     * @param  int  $toLevel
-     * @return void
-     *
      * @throws \Throwable
      */
-    protected function performRollBack($toLevel)
+    protected function performRollBack(int $toLevel): void
     {
         if ($toLevel == 0) {
             $pdo = $this->getPdo();
@@ -301,12 +283,9 @@ trait ManagesTransactions
     /**
      * Handle an exception from a rollback.
      *
-     * @param  \Throwable  $e
-     * @return void
-     *
      * @throws \Throwable
      */
-    protected function handleRollBackException(Throwable $e)
+    protected function handleRollBackException(Throwable $e): void
     {
         if ($this->causedByLostConnection($e)) {
             $this->transactions = 0;
@@ -330,15 +309,14 @@ trait ManagesTransactions
     /**
      * Execute the callback after a transaction commits.
      *
-     * @param  callable  $callback
-     * @return void
-     *
      * @throws \RuntimeException
      */
-    public function afterCommit($callback)
+    public function afterCommit(callable $callback): void
     {
         if ($this->transactionsManager) {
-            return $this->transactionsManager->addCallback($callback);
+            $this->transactionsManager->addCallback($callback);
+
+            return;
         }
 
         throw new RuntimeException('Transactions Manager has not been set.');
@@ -347,15 +325,14 @@ trait ManagesTransactions
     /**
      * Execute the callback after a transaction rolls back.
      *
-     * @param  callable  $callback
-     * @return void
-     *
      * @throws \RuntimeException
      */
-    public function afterRollBack($callback)
+    public function afterRollBack(callable $callback): void
     {
         if ($this->transactionsManager) {
-            return $this->transactionsManager->addCallbackForRollback($callback);
+            $this->transactionsManager->addCallbackForRollback($callback);
+
+            return;
         }
 
         throw new RuntimeException('Transactions Manager has not been set.');

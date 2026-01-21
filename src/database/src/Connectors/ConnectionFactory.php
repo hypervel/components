@@ -12,35 +12,23 @@ use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Support\Arr;
 use InvalidArgumentException;
+use PDO;
 use PDOException;
 
 class ConnectionFactory
 {
     /**
-     * The IoC container instance.
-     *
-     * @var \Hypervel\Container\Contracts\Container
-     */
-    protected $container;
-
-    /**
      * Create a new connection factory instance.
-     *
-     * @param  \Hypervel\Container\Contracts\Container  $container
      */
-    public function __construct(Container $container)
-    {
-        $this->container = $container;
+    public function __construct(
+        protected Container $container
+    ) {
     }
 
     /**
      * Establish a PDO connection based on the configuration.
-     *
-     * @param  array  $config
-     * @param  string|null  $name
-     * @return \Hypervel\Database\Connection
      */
-    public function make(array $config, $name = null)
+    public function make(array $config, ?string $name = null): Connection
     {
         $config = $this->parseConfig($config, $name);
 
@@ -53,23 +41,16 @@ class ConnectionFactory
 
     /**
      * Parse and prepare the database configuration.
-     *
-     * @param  array  $config
-     * @param  string  $name
-     * @return array
      */
-    protected function parseConfig(array $config, $name)
+    protected function parseConfig(array $config, ?string $name): array
     {
         return Arr::add(Arr::add($config, 'prefix', ''), 'name', $name);
     }
 
     /**
      * Create a single database connection instance.
-     *
-     * @param  array  $config
-     * @return \Hypervel\Database\Connection
      */
-    protected function createSingleConnection(array $config)
+    protected function createSingleConnection(array $config): Connection
     {
         $pdo = $this->createPdoResolver($config);
 
@@ -80,11 +61,8 @@ class ConnectionFactory
 
     /**
      * Create a read / write database connection instance.
-     *
-     * @param  array  $config
-     * @return \Hypervel\Database\Connection
      */
-    protected function createReadWriteConnection(array $config)
+    protected function createReadWriteConnection(array $config): Connection
     {
         $connection = $this->createSingleConnection($this->getWriteConfig($config));
 
@@ -95,22 +73,16 @@ class ConnectionFactory
 
     /**
      * Create a new PDO instance for reading.
-     *
-     * @param  array  $config
-     * @return \Closure
      */
-    protected function createReadPdo(array $config)
+    protected function createReadPdo(array $config): \Closure
     {
         return $this->createPdoResolver($this->getReadConfig($config));
     }
 
     /**
      * Get the read configuration for a read / write connection.
-     *
-     * @param  array  $config
-     * @return array
      */
-    protected function getReadConfig(array $config)
+    protected function getReadConfig(array $config): array
     {
         return $this->mergeReadWriteConfig(
             $config, $this->getReadWriteConfig($config, 'read')
@@ -119,11 +91,8 @@ class ConnectionFactory
 
     /**
      * Get the write configuration for a read / write connection.
-     *
-     * @param  array  $config
-     * @return array
      */
-    protected function getWriteConfig(array $config)
+    protected function getWriteConfig(array $config): array
     {
         return $this->mergeReadWriteConfig(
             $config, $this->getReadWriteConfig($config, 'write')
@@ -132,12 +101,8 @@ class ConnectionFactory
 
     /**
      * Get a read / write level configuration.
-     *
-     * @param  array  $config
-     * @param  string  $type
-     * @return array
      */
-    protected function getReadWriteConfig(array $config, $type)
+    protected function getReadWriteConfig(array $config, string $type): array
     {
         return isset($config[$type][0])
             ? Arr::random($config[$type])
@@ -146,23 +111,16 @@ class ConnectionFactory
 
     /**
      * Merge a configuration for a read / write connection.
-     *
-     * @param  array  $config
-     * @param  array  $merge
-     * @return array
      */
-    protected function mergeReadWriteConfig(array $config, array $merge)
+    protected function mergeReadWriteConfig(array $config, array $merge): array
     {
         return Arr::except(array_merge($config, $merge), ['read', 'write']);
     }
 
     /**
      * Create a new Closure that resolves to a PDO instance.
-     *
-     * @param  array  $config
-     * @return \Closure
      */
-    protected function createPdoResolver(array $config)
+    protected function createPdoResolver(array $config): \Closure
     {
         return array_key_exists('host', $config)
             ? $this->createPdoResolverWithHosts($config)
@@ -171,13 +129,8 @@ class ConnectionFactory
 
     /**
      * Create a new Closure that resolves to a PDO instance with a specific host or an array of hosts.
-     *
-     * @param  array  $config
-     * @return \Closure
-     *
-     * @throws \PDOException
      */
-    protected function createPdoResolverWithHosts(array $config)
+    protected function createPdoResolverWithHosts(array $config): \Closure
     {
         return function () use ($config) {
             foreach (Arr::shuffle($this->parseHosts($config)) as $host) {
@@ -199,12 +152,9 @@ class ConnectionFactory
     /**
      * Parse the hosts configuration item into an array.
      *
-     * @param  array  $config
-     * @return array
-     *
      * @throws \InvalidArgumentException
      */
-    protected function parseHosts(array $config)
+    protected function parseHosts(array $config): array
     {
         $hosts = Arr::wrap($config['host']);
 
@@ -217,11 +167,8 @@ class ConnectionFactory
 
     /**
      * Create a new Closure that resolves to a PDO instance where there is no configured host.
-     *
-     * @param  array  $config
-     * @return \Closure
      */
-    protected function createPdoResolverWithoutHosts(array $config)
+    protected function createPdoResolverWithoutHosts(array $config): \Closure
     {
         return fn () => $this->createConnector($config)->connect($config);
     }
@@ -229,12 +176,9 @@ class ConnectionFactory
     /**
      * Create a connector instance based on the configuration.
      *
-     * @param  array  $config
-     * @return \Hypervel\Database\Connectors\ConnectorInterface
-     *
      * @throws \InvalidArgumentException
      */
-    public function createConnector(array $config)
+    public function createConnector(array $config): ConnectorInterface
     {
         if (! isset($config['driver'])) {
             throw new InvalidArgumentException('A driver must be specified.');
@@ -256,16 +200,9 @@ class ConnectionFactory
     /**
      * Create a new connection instance.
      *
-     * @param  string  $driver
-     * @param  \PDO|\Closure  $connection
-     * @param  string  $database
-     * @param  string  $prefix
-     * @param  array  $config
-     * @return \Hypervel\Database\Connection
-     *
      * @throws \InvalidArgumentException
      */
-    protected function createConnection($driver, $connection, $database, $prefix = '', array $config = [])
+    protected function createConnection(string $driver, PDO|\Closure $connection, string $database, string $prefix = '', array $config = []): Connection
     {
         if ($resolver = Connection::getResolver($driver)) {
             return $resolver($connection, $database, $prefix, $config);

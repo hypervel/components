@@ -13,10 +13,8 @@ class PostgresConnector extends Connector implements ConnectorInterface
 
     /**
      * The default PDO connection options.
-     *
-     * @var array
      */
-    protected $options = [
+    protected array $options = [
         PDO::ATTR_CASE => PDO::CASE_NATURAL,
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_ORACLE_NULLS => PDO::NULL_NATURAL,
@@ -25,11 +23,8 @@ class PostgresConnector extends Connector implements ConnectorInterface
 
     /**
      * Establish a database connection.
-     *
-     * @param  array  $config
-     * @return \PDO
      */
-    public function connect(array $config)
+    public function connect(array $config): PDO
     {
         // First we'll create the basic DSN and connection instance connecting to the
         // using the configuration option specified by the developer. We will also
@@ -54,11 +49,8 @@ class PostgresConnector extends Connector implements ConnectorInterface
 
     /**
      * Create a DSN string from a configuration.
-     *
-     * @param  array  $config
-     * @return string
      */
-    protected function getDsn(array $config)
+    protected function getDsn(array $config): string
     {
         // First we will create the basic DSN setup as well as the port if it is in
         // in the configuration options. This will give us the basic DSN we will
@@ -98,12 +90,8 @@ class PostgresConnector extends Connector implements ConnectorInterface
 
     /**
      * Add the SSL options to the DSN.
-     *
-     * @param  string  $dsn
-     * @param  array  $config
-     * @return string
      */
-    protected function addSslOptions($dsn, array $config)
+    protected function addSslOptions(string $dsn, array $config): string
     {
         foreach (['sslmode', 'sslcert', 'sslkey', 'sslrootcert'] as $option) {
             if (isset($config[$option])) {
@@ -116,12 +104,8 @@ class PostgresConnector extends Connector implements ConnectorInterface
 
     /**
      * Set the connection transaction isolation level.
-     *
-     * @param  \PDO  $connection
-     * @param  array  $config
-     * @return void
      */
-    protected function configureIsolationLevel($connection, array $config)
+    protected function configureIsolationLevel(PDO $connection, array $config): void
     {
         if (isset($config['isolation_level'])) {
             $connection->prepare("set session characteristics as transaction isolation level {$config['isolation_level']}")->execute();
@@ -130,12 +114,8 @@ class PostgresConnector extends Connector implements ConnectorInterface
 
     /**
      * Set the timezone on the connection.
-     *
-     * @param  \PDO  $connection
-     * @param  array  $config
-     * @return void
      */
-    protected function configureTimezone($connection, array $config)
+    protected function configureTimezone(PDO $connection, array $config): void
     {
         if (isset($config['timezone'])) {
             $timezone = $config['timezone'];
@@ -146,12 +126,8 @@ class PostgresConnector extends Connector implements ConnectorInterface
 
     /**
      * Set the "search_path" on the database connection.
-     *
-     * @param  \PDO  $connection
-     * @param  array  $config
-     * @return void
      */
-    protected function configureSearchPath($connection, $config)
+    protected function configureSearchPath(PDO $connection, array $config): void
     {
         if (isset($config['search_path']) || isset($config['schema'])) {
             $searchPath = $this->quoteSearchPath(
@@ -164,23 +140,16 @@ class PostgresConnector extends Connector implements ConnectorInterface
 
     /**
      * Format the search path for the DSN.
-     *
-     * @param  array  $searchPath
-     * @return string
      */
-    protected function quoteSearchPath($searchPath)
+    protected function quoteSearchPath(array $searchPath): string
     {
         return count($searchPath) === 1 ? '"'.$searchPath[0].'"' : '"'.implode('", "', $searchPath).'"';
     }
 
     /**
      * Configure the synchronous_commit setting.
-     *
-     * @param  \PDO  $connection
-     * @param  array  $config
-     * @return void
      */
-    protected function configureSynchronousCommit($connection, array $config)
+    protected function configureSynchronousCommit(PDO $connection, array $config): void
     {
         if (isset($config['synchronous_commit'])) {
             $connection->prepare("set synchronous_commit to '{$config['synchronous_commit']}'")->execute();

@@ -15,10 +15,8 @@ class Connector
 
     /**
      * The default PDO connection options.
-     *
-     * @var array
      */
-    protected $options = [
+    protected array $options = [
         PDO::ATTR_CASE => PDO::CASE_NATURAL,
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_ORACLE_NULLS => PDO::NULL_NATURAL,
@@ -29,14 +27,9 @@ class Connector
     /**
      * Create a new PDO connection.
      *
-     * @param  string  $dsn
-     * @param  array  $config
-     * @param  array  $options
-     * @return \PDO
-     *
      * @throws \Exception
      */
-    public function createConnection($dsn, array $config, array $options)
+    public function createConnection(string $dsn, array $config, array $options): PDO
     {
         [$username, $password] = [
             $config['username'] ?? null, $config['password'] ?? null,
@@ -55,14 +48,8 @@ class Connector
 
     /**
      * Create a new PDO connection instance.
-     *
-     * @param  string  $dsn
-     * @param  string  $username
-     * @param  string  $password
-     * @param  array  $options
-     * @return \PDO
      */
-    protected function createPdoConnection($dsn, $username, #[\SensitiveParameter] $password, $options)
+    protected function createPdoConnection(string $dsn, ?string $username, #[\SensitiveParameter] ?string $password, array $options): PDO
     {
         return version_compare(PHP_VERSION, '8.4.0', '<')
             ? new PDO($dsn, $username, $password, $options)
@@ -72,16 +59,9 @@ class Connector
     /**
      * Handle an exception that occurred during connect execution.
      *
-     * @param  \Throwable  $e
-     * @param  string  $dsn
-     * @param  string  $username
-     * @param  string  $password
-     * @param  array  $options
-     * @return \PDO
-     *
      * @throws \Throwable
      */
-    protected function tryAgainIfCausedByLostConnection(Throwable $e, $dsn, $username, #[\SensitiveParameter] $password, $options)
+    protected function tryAgainIfCausedByLostConnection(Throwable $e, string $dsn, ?string $username, #[\SensitiveParameter] ?string $password, array $options): PDO
     {
         if ($this->causedByLostConnection($e)) {
             return $this->createPdoConnection($dsn, $username, $password, $options);
@@ -92,11 +72,8 @@ class Connector
 
     /**
      * Get the PDO options based on the configuration.
-     *
-     * @param  array  $config
-     * @return array
      */
-    public function getOptions(array $config)
+    public function getOptions(array $config): array
     {
         $options = $config['options'] ?? [];
 
@@ -105,21 +82,16 @@ class Connector
 
     /**
      * Get the default PDO connection options.
-     *
-     * @return array
      */
-    public function getDefaultOptions()
+    public function getDefaultOptions(): array
     {
         return $this->options;
     }
 
     /**
      * Set the default PDO connection options.
-     *
-     * @param  array  $options
-     * @return void
      */
-    public function setDefaultOptions(array $options)
+    public function setDefaultOptions(array $options): void
     {
         $this->options = $options;
     }

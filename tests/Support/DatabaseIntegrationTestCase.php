@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Database\PgSQL\Connectors\PostgresConnector;
-use Hyperf\Database\SQLite\Connectors\SQLiteConnector;
 use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Connectors\PostgresConnector;
+use Hypervel\Database\Connectors\SQLiteConnector;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;

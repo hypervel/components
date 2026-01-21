@@ -4,17 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Connectors;
 
+use PDO;
 use Hypervel\Database\SQLiteDatabaseDoesNotExistException;
 
 class SQLiteConnector extends Connector implements ConnectorInterface
 {
     /**
      * Establish a database connection.
-     *
-     * @param  array  $config
-     * @return \PDO
      */
-    public function connect(array $config)
+    public function connect(array $config): PDO
     {
         $options = $this->getOptions($config);
 
@@ -33,9 +31,6 @@ class SQLiteConnector extends Connector implements ConnectorInterface
 
     /**
      * Get the absolute database path.
-     *
-     * @param  string  $path
-     * @return string
      *
      * @throws \Hypervel\Database\SQLiteDatabaseDoesNotExistException
      */
@@ -67,12 +62,8 @@ class SQLiteConnector extends Connector implements ConnectorInterface
 
     /**
      * Set miscellaneous user-configured pragmas.
-     *
-     * @param  \PDO  $connection
-     * @param  array  $config
-     * @return void
      */
-    protected function configurePragmas($connection, array $config): void
+    protected function configurePragmas(PDO $connection, array $config): void
     {
         if (! isset($config['pragmas'])) {
             return;
@@ -85,12 +76,8 @@ class SQLiteConnector extends Connector implements ConnectorInterface
 
     /**
      * Enable or disable foreign key constraints if configured.
-     *
-     * @param  \PDO  $connection
-     * @param  array  $config
-     * @return void
      */
-    protected function configureForeignKeyConstraints($connection, array $config): void
+    protected function configureForeignKeyConstraints(PDO $connection, array $config): void
     {
         if (! isset($config['foreign_key_constraints'])) {
             return;
@@ -103,12 +90,8 @@ class SQLiteConnector extends Connector implements ConnectorInterface
 
     /**
      * Set the busy timeout if configured.
-     *
-     * @param  \PDO  $connection
-     * @param  array  $config
-     * @return void
      */
-    protected function configureBusyTimeout($connection, array $config): void
+    protected function configureBusyTimeout(PDO $connection, array $config): void
     {
         if (! isset($config['busy_timeout'])) {
             return;
@@ -119,12 +102,8 @@ class SQLiteConnector extends Connector implements ConnectorInterface
 
     /**
      * Set the journal mode if configured.
-     *
-     * @param  \PDO  $connection
-     * @param  array  $config
-     * @return void
      */
-    protected function configureJournalMode($connection, array $config): void
+    protected function configureJournalMode(PDO $connection, array $config): void
     {
         if (! isset($config['journal_mode'])) {
             return;
@@ -135,12 +114,8 @@ class SQLiteConnector extends Connector implements ConnectorInterface
 
     /**
      * Set the synchronous mode if configured.
-     *
-     * @param  \PDO  $connection
-     * @param  array  $config
-     * @return void
      */
-    protected function configureSynchronous($connection, array $config): void
+    protected function configureSynchronous(PDO $connection, array $config): void
     {
         if (! isset($config['synchronous'])) {
             return;
