@@ -19,7 +19,7 @@ class HasMany extends HasOneOrMany
      *
      * @return \Hypervel\Database\Eloquent\Relations\HasOne<TRelatedModel, TDeclaringModel>
      */
-    public function one()
+    public function one(): HasOne
     {
         return HasOne::noConstraints(fn () => tap(
             new HasOne(
