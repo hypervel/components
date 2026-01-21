@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Database;
 
 use Exception;
-use Hypervel\Database\Query\Grammars\PostgresGrammar as QueryGrammar;
+use Hypervel\Database\Query\Grammars\PostgresGrammar;
 use Hypervel\Database\Query\Processors\PostgresProcessor;
-use Hypervel\Database\Schema\Grammars\PostgresGrammar as SchemaGrammar;
+use Hypervel\Database\Schema\Grammars\PostgresGrammar as PostgresSchemaGrammar;
 use Hypervel\Database\Schema\PostgresBuilder;
 use Hypervel\Database\Schema\PostgresSchemaState;
 use Hypervel\Filesystem\Filesystem;
@@ -15,20 +15,17 @@ use Hypervel\Filesystem\Filesystem;
 class PostgresConnection extends Connection
 {
     /**
-     * {@inheritdoc}
+     * Get a human-readable name for the given connection driver.
      */
-    public function getDriverTitle()
+    public function getDriverTitle(): string
     {
         return 'PostgreSQL';
     }
 
     /**
      * Escape a binary value for safe SQL embedding.
-     *
-     * @param  string  $value
-     * @return string
      */
-    protected function escapeBinary($value)
+    protected function escapeBinary(string $value): string
     {
         $hex = bin2hex($value);
 
@@ -37,42 +34,32 @@ class PostgresConnection extends Connection
 
     /**
      * Escape a bool value for safe SQL embedding.
-     *
-     * @param  bool  $value
-     * @return string
      */
-    protected function escapeBool($value)
+    protected function escapeBool(bool $value): string
     {
         return $value ? 'true' : 'false';
     }
 
     /**
      * Determine if the given database exception was caused by a unique constraint violation.
-     *
-     * @param  \Exception  $exception
-     * @return bool
      */
-    protected function isUniqueConstraintError(Exception $exception)
+    protected function isUniqueConstraintError(Exception $exception): bool
     {
         return '23505' === $exception->getCode();
     }
 
     /**
      * Get the default query grammar instance.
-     *
-     * @return \Hypervel\Database\Query\Grammars\PostgresGrammar
      */
-    protected function getDefaultQueryGrammar()
+    protected function getDefaultQueryGrammar(): PostgresGrammar
     {
-        return new QueryGrammar($this);
+        return new PostgresGrammar($this);
     }
 
     /**
      * Get a schema builder instance for the connection.
-     *
-     * @return \Hypervel\Database\Schema\PostgresBuilder
      */
-    public function getSchemaBuilder()
+    public function getSchemaBuilder(): PostgresBuilder
     {
         if (is_null($this->schemaGrammar)) {
             $this->useDefaultSchemaGrammar();
@@ -83,32 +70,24 @@ class PostgresConnection extends Connection
 
     /**
      * Get the default schema grammar instance.
-     *
-     * @return \Hypervel\Database\Schema\Grammars\PostgresGrammar
      */
-    protected function getDefaultSchemaGrammar()
+    protected function getDefaultSchemaGrammar(): PostgresSchemaGrammar
     {
-        return new SchemaGrammar($this);
+        return new PostgresSchemaGrammar($this);
     }
 
     /**
      * Get the schema state for the connection.
-     *
-     * @param  \Hypervel\Filesystem\Filesystem|null  $files
-     * @param  callable|null  $processFactory
-     * @return \Hypervel\Database\Schema\PostgresSchemaState
      */
-    public function getSchemaState(?Filesystem $files = null, ?callable $processFactory = null)
+    public function getSchemaState(?Filesystem $files = null, ?callable $processFactory = null): PostgresSchemaState
     {
         return new PostgresSchemaState($this, $files, $processFactory);
     }
 
     /**
      * Get the default post processor instance.
-     *
-     * @return \Hypervel\Database\Query\Processors\PostgresProcessor
      */
-    protected function getDefaultPostProcessor()
+    protected function getDefaultPostProcessor(): PostgresProcessor
     {
         return new PostgresProcessor;
     }

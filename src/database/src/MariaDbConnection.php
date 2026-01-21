@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
-use Hypervel\Database\Query\Grammars\MariaDbGrammar as QueryGrammar;
+use Hypervel\Database\Query\Grammars\MariaDbGrammar;
 use Hypervel\Database\Query\Processors\MariaDbProcessor;
-use Hypervel\Database\Schema\Grammars\MariaDbGrammar as SchemaGrammar;
+use Hypervel\Database\Schema\Grammars\MariaDbGrammar as MariaDbSchemaGrammar;
 use Hypervel\Database\Schema\MariaDbBuilder;
 use Hypervel\Database\Schema\MariaDbSchemaState;
 use Hypervel\Filesystem\Filesystem;
@@ -15,27 +15,23 @@ use Hypervel\Support\Str;
 class MariaDbConnection extends MySqlConnection
 {
     /**
-     * {@inheritdoc}
+     * Get a human-readable name for the given connection driver.
      */
-    public function getDriverTitle()
+    public function getDriverTitle(): string
     {
         return 'MariaDB';
     }
 
     /**
      * Determine if the connected database is a MariaDB database.
-     *
-     * @return bool
      */
-    public function isMaria()
+    public function isMaria(): bool
     {
         return true;
     }
 
     /**
      * Get the server version for the connection.
-     *
-     * @return string
      */
     public function getServerVersion(): string
     {
@@ -44,20 +40,16 @@ class MariaDbConnection extends MySqlConnection
 
     /**
      * Get the default query grammar instance.
-     *
-     * @return \Hypervel\Database\Query\Grammars\MariaDbGrammar
      */
-    protected function getDefaultQueryGrammar()
+    protected function getDefaultQueryGrammar(): MariaDbGrammar
     {
-        return new QueryGrammar($this);
+        return new MariaDbGrammar($this);
     }
 
     /**
      * Get a schema builder instance for the connection.
-     *
-     * @return \Hypervel\Database\Schema\MariaDbBuilder
      */
-    public function getSchemaBuilder()
+    public function getSchemaBuilder(): MariaDbBuilder
     {
         if (is_null($this->schemaGrammar)) {
             $this->useDefaultSchemaGrammar();
@@ -68,32 +60,24 @@ class MariaDbConnection extends MySqlConnection
 
     /**
      * Get the default schema grammar instance.
-     *
-     * @return \Hypervel\Database\Schema\Grammars\MariaDbGrammar
      */
-    protected function getDefaultSchemaGrammar()
+    protected function getDefaultSchemaGrammar(): MariaDbSchemaGrammar
     {
-        return new SchemaGrammar($this);
+        return new MariaDbSchemaGrammar($this);
     }
 
     /**
      * Get the schema state for the connection.
-     *
-     * @param  \Hypervel\Filesystem\Filesystem|null  $files
-     * @param  callable|null  $processFactory
-     * @return \Hypervel\Database\Schema\MariaDbSchemaState
      */
-    public function getSchemaState(?Filesystem $files = null, ?callable $processFactory = null)
+    public function getSchemaState(?Filesystem $files = null, ?callable $processFactory = null): MariaDbSchemaState
     {
         return new MariaDbSchemaState($this, $files, $processFactory);
     }
 
     /**
      * Get the default post processor instance.
-     *
-     * @return \Hypervel\Database\Query\Processors\MariaDbProcessor
      */
-    protected function getDefaultPostProcessor()
+    protected function getDefaultPostProcessor(): MariaDbProcessor
     {
         return new MariaDbProcessor;
     }

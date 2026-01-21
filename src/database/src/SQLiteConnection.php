@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Database;
 
 use Exception;
-use Hypervel\Database\Query\Grammars\SQLiteGrammar as QueryGrammar;
+use Hypervel\Database\Query\Grammars\SQLiteGrammar;
 use Hypervel\Database\Query\Processors\SQLiteProcessor;
-use Hypervel\Database\Schema\Grammars\SQLiteGrammar as SchemaGrammar;
+use Hypervel\Database\Schema\Grammars\SQLiteGrammar as SQLiteSchemaGrammar;
 use Hypervel\Database\Schema\SQLiteBuilder;
 use Hypervel\Database\Schema\SqliteSchemaState;
 use Hypervel\Filesystem\Filesystem;
@@ -15,19 +15,17 @@ use Hypervel\Filesystem\Filesystem;
 class SQLiteConnection extends Connection
 {
     /**
-     * {@inheritdoc}
+     * Get a human-readable name for the given connection driver.
      */
-    public function getDriverTitle()
+    public function getDriverTitle(): string
     {
         return 'SQLite';
     }
 
     /**
      * Run the statement to start a new transaction.
-     *
-     * @return void
      */
-    protected function executeBeginTransactionStatement()
+    protected function executeBeginTransactionStatement(): void
     {
         if (version_compare(PHP_VERSION, '8.4.0', '>=')) {
             $mode = $this->getConfig('transaction_mode') ?? 'DEFERRED';
@@ -42,11 +40,8 @@ class SQLiteConnection extends Connection
 
     /**
      * Escape a binary value for safe SQL embedding.
-     *
-     * @param  string  $value
-     * @return string
      */
-    protected function escapeBinary($value)
+    protected function escapeBinary(string $value): string
     {
         $hex = bin2hex($value);
 
@@ -55,31 +50,24 @@ class SQLiteConnection extends Connection
 
     /**
      * Determine if the given database exception was caused by a unique constraint violation.
-     *
-     * @param  \Exception  $exception
-     * @return bool
      */
-    protected function isUniqueConstraintError(Exception $exception)
+    protected function isUniqueConstraintError(Exception $exception): bool
     {
         return (bool) preg_match('#(column(s)? .* (is|are) not unique|UNIQUE constraint failed: .*)#i', $exception->getMessage());
     }
 
     /**
      * Get the default query grammar instance.
-     *
-     * @return \Hypervel\Database\Query\Grammars\SQLiteGrammar
      */
-    protected function getDefaultQueryGrammar()
+    protected function getDefaultQueryGrammar(): SQLiteGrammar
     {
-        return new QueryGrammar($this);
+        return new SQLiteGrammar($this);
     }
 
     /**
      * Get a schema builder instance for the connection.
-     *
-     * @return \Hypervel\Database\Schema\SQLiteBuilder
      */
-    public function getSchemaBuilder()
+    public function getSchemaBuilder(): SQLiteBuilder
     {
         if (is_null($this->schemaGrammar)) {
             $this->useDefaultSchemaGrammar();
@@ -90,33 +78,24 @@ class SQLiteConnection extends Connection
 
     /**
      * Get the default schema grammar instance.
-     *
-     * @return \Hypervel\Database\Schema\Grammars\SQLiteGrammar
      */
-    protected function getDefaultSchemaGrammar()
+    protected function getDefaultSchemaGrammar(): SQLiteSchemaGrammar
     {
-        return new SchemaGrammar($this);
+        return new SQLiteSchemaGrammar($this);
     }
 
     /**
      * Get the schema state for the connection.
-     *
-     * @param  \Hypervel\Filesystem\Filesystem|null  $files
-     * @param  callable|null  $processFactory
-     *
-     * @throws \RuntimeException
      */
-    public function getSchemaState(?Filesystem $files = null, ?callable $processFactory = null)
+    public function getSchemaState(?Filesystem $files = null, ?callable $processFactory = null): SqliteSchemaState
     {
         return new SqliteSchemaState($this, $files, $processFactory);
     }
 
     /**
      * Get the default post processor instance.
-     *
-     * @return \Hypervel\Database\Query\Processors\SQLiteProcessor
      */
-    protected function getDefaultPostProcessor()
+    protected function getDefaultPostProcessor(): SQLiteProcessor
     {
         return new SQLiteProcessor;
     }

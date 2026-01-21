@@ -8,15 +8,14 @@ use Closure;
 use Generator;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Expression;
+use UnitEnum;
 
 interface ConnectionInterface
 {
     /**
      * Begin a fluent query against a database table.
-     *
-     * @param Closure|Builder|\UnitEnum|string $table
      */
-    public function table($table, ?string $as = null): Builder;
+    public function table(Closure|Builder|UnitEnum|string $table, ?string $as = null): Builder;
 
     /**
      * Get a new raw query expression.

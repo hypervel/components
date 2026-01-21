@@ -9,8 +9,10 @@ use Hyperf\Coroutine\Coroutine;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolFactory;
 use Psr\Container\ContainerInterface;
+use UnitEnum;
 
 use function Hyperf\Coroutine\defer;
+use function Hypervel\Support\enum_value;
 
 /**
  * Resolves database connections from a connection pool.
@@ -41,9 +43,9 @@ class ConnectionResolver implements ConnectionResolverInterface
      * coroutine's context. When the coroutine ends, the connection is
      * automatically released back to the pool.
      */
-    public function connection($name = null): ConnectionInterface
+    public function connection(UnitEnum|string|null $name = null): ConnectionInterface
     {
-        $name = $name ?? $this->getDefaultConnection();
+        $name = enum_value($name) ?: $this->getDefaultConnection();
         $contextKey = $this->getContextKey($name);
 
         // Check if this coroutine already has a connection

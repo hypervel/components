@@ -27,6 +27,7 @@ use Hypervel\Support\Traits\Macroable;
 use PDO;
 use PDOStatement;
 use RuntimeException;
+use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
@@ -41,194 +42,155 @@ class Connection implements ConnectionInterface
     /**
      * The active PDO connection.
      *
-     * @var \PDO|(\Closure(): \PDO)
+     * @var PDO|(Closure(): PDO)|null
      */
-    protected $pdo;
+    protected PDO|Closure|null $pdo;
 
     /**
      * The active PDO connection used for reads.
      *
-     * @var \PDO|(\Closure(): \PDO)
+     * @var PDO|(Closure(): PDO)|null
      */
-    protected $readPdo;
+    protected PDO|Closure|null $readPdo = null;
 
     /**
      * The database connection configuration options for reading.
-     *
-     * @var array
      */
-    protected $readPdoConfig = [];
+    protected array $readPdoConfig = [];
 
     /**
      * The name of the connected database.
-     *
-     * @var string
      */
-    protected $database;
+    protected string $database;
 
     /**
      * The type of the connection.
-     *
-     * @var string|null
      */
-    protected $readWriteType;
+    protected ?string $readWriteType = null;
 
     /**
      * The table prefix for the connection.
-     *
-     * @var string
      */
-    protected $tablePrefix = '';
+    protected string $tablePrefix = '';
 
     /**
      * The database connection configuration options.
-     *
-     * @var array
      */
-    protected $config = [];
+    protected array $config = [];
 
     /**
      * The reconnector instance for the connection.
      *
-     * @var (callable(\Hypervel\Database\Connection): mixed)
+     * @var (callable(Connection): mixed)|null
      */
-    protected $reconnector;
+    protected mixed $reconnector = null;
 
     /**
      * The query grammar implementation.
-     *
-     * @var \Hypervel\Database\Query\Grammars\Grammar
      */
-    protected $queryGrammar;
+    protected QueryGrammar $queryGrammar;
 
     /**
      * The schema grammar implementation.
-     *
-     * @var \Hypervel\Database\Schema\Grammars\Grammar
      */
-    protected $schemaGrammar;
+    protected ?Schema\Grammars\Grammar $schemaGrammar = null;
 
     /**
      * The query post processor implementation.
-     *
-     * @var \Hypervel\Database\Query\Processors\Processor
      */
-    protected $postProcessor;
+    protected Processor $postProcessor;
 
     /**
      * The event dispatcher instance.
-     *
-     * @var \Hypervel\Event\Contracts\Dispatcher|null
      */
-    protected $events;
+    protected ?Dispatcher $events = null;
 
     /**
      * The default fetch mode of the connection.
-     *
-     * @var int
      */
-    protected $fetchMode = PDO::FETCH_OBJ;
+    protected int $fetchMode = PDO::FETCH_OBJ;
 
     /**
      * The number of active transactions.
-     *
-     * @var int
      */
-    protected $transactions = 0;
+    protected int $transactions = 0;
 
     /**
      * The transaction manager instance.
-     *
-     * @var \Hypervel\Database\DatabaseTransactionsManager|null
      */
-    protected $transactionsManager;
+    protected ?DatabaseTransactionsManager $transactionsManager = null;
 
     /**
      * Indicates if changes have been made to the database.
-     *
-     * @var bool
      */
-    protected $recordsModified = false;
+    protected bool $recordsModified = false;
 
     /**
      * Indicates if the connection should use the "write" PDO connection.
-     *
-     * @var bool
      */
-    protected $readOnWriteConnection = false;
+    protected bool $readOnWriteConnection = false;
 
     /**
      * All of the queries run against the connection.
      *
      * @var array{query: string, bindings: array, time: float|null}[]
      */
-    protected $queryLog = [];
+    protected array $queryLog = [];
 
     /**
      * Indicates whether queries are being logged.
-     *
-     * @var bool
      */
-    protected $loggingQueries = false;
+    protected bool $loggingQueries = false;
 
     /**
      * The duration of all executed queries in milliseconds.
-     *
-     * @var float
      */
-    protected $totalQueryDuration = 0.0;
+    protected float $totalQueryDuration = 0.0;
 
     /**
      * All of the registered query duration handlers.
      *
-     * @var array{has_run: bool, handler: (callable(\Hypervel\Database\Connection, class-string<\Hypervel\Database\Events\QueryExecuted>): mixed)}[]
+     * @var array{has_run: bool, handler: callable}[]
      */
-    protected $queryDurationHandlers = [];
+    protected array $queryDurationHandlers = [];
 
     /**
      * Indicates if the connection is in a "dry run".
-     *
-     * @var bool
      */
-    protected $pretending = false;
+    protected bool $pretending = false;
 
     /**
      * All of the callbacks that should be invoked before a transaction is started.
      *
-     * @var \Closure[]
+     * @var Closure[]
      */
-    protected $beforeStartingTransaction = [];
+    protected array $beforeStartingTransaction = [];
 
     /**
      * All of the callbacks that should be invoked before a query is executed.
      *
-     * @var (\Closure(string, array, \Hypervel\Database\Connection): mixed)[]
+     * @var Closure[]
      */
-    protected $beforeExecutingCallbacks = [];
+    protected array $beforeExecutingCallbacks = [];
 
     /**
      * The connection resolvers.
      *
-     * @var \Closure[]
+     * @var array<string, Closure>
      */
-    protected static $resolvers = [];
+    protected static array $resolvers = [];
 
     /**
      * The last retrieved PDO read / write type.
      *
-     * @var null|'read'|'write'
+     * @var 'read'|'write'|null
      */
-    protected $latestPdoTypeRetrieved = null;
+    protected ?string $latestPdoTypeRetrieved = null;
 
     /**
      * Create a new database connection instance.
-     *
-     * @param  \PDO|(\Closure(): \PDO)  $pdo
-     * @param  string  $database
-     * @param  string  $tablePrefix
-     * @param  array  $config
      */
-    public function __construct($pdo, $database = '', $tablePrefix = '', array $config = [])
+    public function __construct(PDO|Closure $pdo, string $database = '', string $tablePrefix = '', array $config = [])
     {
         $this->pdo = $pdo;
 
@@ -251,70 +213,56 @@ class Connection implements ConnectionInterface
 
     /**
      * Set the query grammar to the default implementation.
-     *
-     * @return void
      */
-    public function useDefaultQueryGrammar()
+    public function useDefaultQueryGrammar(): void
     {
         $this->queryGrammar = $this->getDefaultQueryGrammar();
     }
 
     /**
      * Get the default query grammar instance.
-     *
-     * @return \Hypervel\Database\Query\Grammars\Grammar
      */
-    protected function getDefaultQueryGrammar()
+    protected function getDefaultQueryGrammar(): QueryGrammar
     {
         return new QueryGrammar($this);
     }
 
     /**
      * Set the schema grammar to the default implementation.
-     *
-     * @return void
      */
-    public function useDefaultSchemaGrammar()
+    public function useDefaultSchemaGrammar(): void
     {
         $this->schemaGrammar = $this->getDefaultSchemaGrammar();
     }
 
     /**
      * Get the default schema grammar instance.
-     *
-     * @return \Hypervel\Database\Schema\Grammars\Grammar|null
      */
-    protected function getDefaultSchemaGrammar()
+    protected function getDefaultSchemaGrammar(): ?Schema\Grammars\Grammar
     {
-        //
+        return null;
     }
 
     /**
      * Set the query post processor to the default implementation.
-     *
-     * @return void
      */
-    public function useDefaultPostProcessor()
+    public function useDefaultPostProcessor(): void
     {
         $this->postProcessor = $this->getDefaultPostProcessor();
     }
 
     /**
      * Get the default post processor instance.
-     *
-     * @return \Hypervel\Database\Query\Processors\Processor
      */
-    protected function getDefaultPostProcessor()
+    protected function getDefaultPostProcessor(): Processor
     {
         return new Processor;
     }
 
     /**
      * Get a schema builder instance for the connection.
-     *
-     * @return \Hypervel\Database\Schema\Builder
      */
-    public function getSchemaBuilder()
+    public function getSchemaBuilder(): SchemaBuilder
     {
         if (is_null($this->schemaGrammar)) {
             $this->useDefaultSchemaGrammar();
@@ -325,20 +273,16 @@ class Connection implements ConnectionInterface
 
     /**
      * Begin a fluent query against a database table.
-     *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Contracts\Query\Expression|\UnitEnum|string  $table
      */
-    public function table($table, ?string $as = null): QueryBuilder
+    public function table(Closure|QueryBuilder|UnitEnum|string $table, ?string $as = null): QueryBuilder
     {
         return $this->query()->from(enum_value($table), $as);
     }
 
     /**
      * Get a new query builder instance.
-     *
-     * @return \Hypervel\Database\Query\Builder
      */
-    public function query()
+    public function query(): QueryBuilder
     {
         return new QueryBuilder(
             $this, $this->getQueryGrammar(), $this->getPostProcessor()
@@ -379,12 +323,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Run a select statement against the database.
-     *
-     * @param  string  $query
-     * @param  array  $bindings
-     * @return array
      */
-    public function selectFromWriteConnection($query, $bindings = [])
+    public function selectFromWriteConnection(string $query, array $bindings = []): array
     {
         return $this->select($query, $bindings, false);
     }
@@ -416,13 +356,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Run a select statement against the database and returns all of the result sets.
-     *
-     * @param  string  $query
-     * @param  array  $bindings
-     * @param  bool  $useReadPdo
-     * @return array
      */
-    public function selectResultSets($query, $bindings = [], $useReadPdo = true)
+    public function selectResultSets(string $query, array $bindings = [], bool $useReadPdo = true): array
     {
         return $this->run($query, $bindings, function ($query, $bindings) use ($useReadPdo) {
             if ($this->pretending()) {
@@ -484,11 +419,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Configure the PDO prepared statement.
-     *
-     * @param  \PDOStatement  $statement
-     * @return \PDOStatement
      */
-    protected function prepared(PDOStatement $statement)
+    protected function prepared(PDOStatement $statement): PDOStatement
     {
         $statement->setFetchMode($this->fetchMode);
 
@@ -499,11 +431,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Get the PDO connection to use for a select query.
-     *
-     * @param  bool  $useReadPdo
-     * @return \PDO
      */
-    protected function getPdoForSelect($useReadPdo = true)
+    protected function getPdoForSelect(bool $useReadPdo = true): PDO
     {
         return $useReadPdo ? $this->getReadPdo() : $this->getPdo();
     }
@@ -599,10 +528,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Get the number of open connections for the database.
-     *
-     * @return int|null
      */
-    public function threadCount()
+    public function threadCount(): ?int
     {
         $query = $this->getQueryGrammar()->compileThreadCount();
 
@@ -635,11 +562,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Execute the given callback without "pretending".
-     *
-     * @param  \Closure  $callback
-     * @return mixed
      */
-    public function withoutPretending(Closure $callback)
+    public function withoutPretending(Closure $callback): mixed
     {
         if (! $this->pretending) {
             return $callback();
@@ -657,10 +581,9 @@ class Connection implements ConnectionInterface
     /**
      * Execute the given callback in "dry run" mode.
      *
-     * @param  (\Closure(): array{query: string, bindings: array, time: float|null}[])  $callback
      * @return array{query: string, bindings: array, time: float|null}[]
      */
-    protected function withFreshQueryLog($callback)
+    protected function withFreshQueryLog(Closure $callback): array
     {
         $loggingQueries = $this->loggingQueries;
 
@@ -683,12 +606,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Bind values to their parameters in the given statement.
-     *
-     * @param  \PDOStatement  $statement
-     * @param  array  $bindings
-     * @return void
      */
-    public function bindValues($statement, $bindings)
+    public function bindValues(PDOStatement $statement, array $bindings): void
     {
         foreach ($bindings as $key => $value) {
             $statement->bindValue(
@@ -727,14 +646,9 @@ class Connection implements ConnectionInterface
     /**
      * Run a SQL statement and log its execution context.
      *
-     * @param  string  $query
-     * @param  array  $bindings
-     * @param  \Closure  $callback
-     * @return mixed
-     *
-     * @throws \Hypervel\Database\QueryException
+     * @throws QueryException
      */
-    protected function run($query, $bindings, Closure $callback)
+    protected function run(string $query, array $bindings, Closure $callback): mixed
     {
         foreach ($this->beforeExecutingCallbacks as $beforeExecutingCallback) {
             $beforeExecutingCallback($query, $bindings, $this);
@@ -768,14 +682,9 @@ class Connection implements ConnectionInterface
     /**
      * Run a SQL statement.
      *
-     * @param  string  $query
-     * @param  array  $bindings
-     * @param  \Closure  $callback
-     * @return mixed
-     *
-     * @throws \Hypervel\Database\QueryException
+     * @throws QueryException
      */
-    protected function runQueryCallback($query, $bindings, Closure $callback)
+    protected function runQueryCallback(string $query, array $bindings, Closure $callback): mixed
     {
         // To execute the statement, we'll simply call the callback, which will actually
         // run the SQL against the PDO connection. Then we can calculate the time it
@@ -805,24 +714,16 @@ class Connection implements ConnectionInterface
 
     /**
      * Determine if the given database exception was caused by a unique constraint violation.
-     *
-     * @param  \Exception  $exception
-     * @return bool
      */
-    protected function isUniqueConstraintError(Exception $exception)
+    protected function isUniqueConstraintError(Exception $exception): bool
     {
         return false;
     }
 
     /**
      * Log a query in the connection's query log.
-     *
-     * @param  string  $query
-     * @param  array  $bindings
-     * @param  float|null  $time
-     * @return void
      */
-    public function logQuery($query, $bindings, $time = null)
+    public function logQuery(string $query, array $bindings, ?float $time = null): void
     {
         $this->totalQueryDuration += $time ?? 0.0;
 
@@ -841,23 +742,16 @@ class Connection implements ConnectionInterface
 
     /**
      * Get the elapsed time in milliseconds since a given starting point.
-     *
-     * @param  float  $start
-     * @return float
      */
-    protected function getElapsedTime($start)
+    protected function getElapsedTime(float $start): float
     {
         return round((microtime(true) - $start) * 1000, 2);
     }
 
     /**
      * Register a callback to be invoked when the connection queries for longer than a given amount of time.
-     *
-     * @param  \DateTimeInterface|\Carbon\CarbonInterval|float|int  $threshold
-     * @param  (callable(\Hypervel\Database\Connection, \Hypervel\Database\Events\QueryExecuted): mixed)  $handler
-     * @return void
      */
-    public function whenQueryingForLongerThan($threshold, $handler)
+    public function whenQueryingForLongerThan(DateTimeInterface|CarbonInterval|float|int $threshold, callable $handler): void
     {
         $threshold = $threshold instanceof DateTimeInterface
             ? $this->secondsUntil($threshold) * 1000
@@ -885,10 +779,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Allow all the query duration handlers to run again, even if they have already run.
-     *
-     * @return void
      */
-    public function allowQueryDurationHandlersToRunAgain()
+    public function allowQueryDurationHandlersToRunAgain(): void
     {
         foreach ($this->queryDurationHandlers as $key => $queryDurationHandler) {
             $this->queryDurationHandlers[$key]['has_run'] = false;
@@ -897,20 +789,16 @@ class Connection implements ConnectionInterface
 
     /**
      * Get the duration of all run queries in milliseconds.
-     *
-     * @return float
      */
-    public function totalQueryDuration()
+    public function totalQueryDuration(): float
     {
         return $this->totalQueryDuration;
     }
 
     /**
      * Reset the duration of all run queries.
-     *
-     * @return void
      */
-    public function resetTotalQueryDuration()
+    public function resetTotalQueryDuration(): void
     {
         $this->totalQueryDuration = 0.0;
     }
@@ -918,15 +806,9 @@ class Connection implements ConnectionInterface
     /**
      * Handle a query exception.
      *
-     * @param  \Hypervel\Database\QueryException  $e
-     * @param  string  $query
-     * @param  array  $bindings
-     * @param  \Closure  $callback
-     * @return mixed
-     *
-     * @throws \Hypervel\Database\QueryException
+     * @throws QueryException
      */
-    protected function handleQueryException(QueryException $e, $query, $bindings, Closure $callback)
+    protected function handleQueryException(QueryException $e, string $query, array $bindings, Closure $callback): mixed
     {
         if ($this->transactions >= 1) {
             throw $e;
@@ -940,15 +822,9 @@ class Connection implements ConnectionInterface
     /**
      * Handle a query exception that occurred during query execution.
      *
-     * @param  \Hypervel\Database\QueryException  $e
-     * @param  string  $query
-     * @param  array  $bindings
-     * @param  \Closure  $callback
-     * @return mixed
-     *
-     * @throws \Hypervel\Database\QueryException
+     * @throws QueryException
      */
-    protected function tryAgainIfCausedByLostConnection(QueryException $e, $query, $bindings, Closure $callback)
+    protected function tryAgainIfCausedByLostConnection(QueryException $e, string $query, array $bindings, Closure $callback): mixed
     {
         if ($this->causedByLostConnection($e->getPrevious())) {
             $this->reconnect();
@@ -962,11 +838,9 @@ class Connection implements ConnectionInterface
     /**
      * Reconnect to the database.
      *
-     * @return mixed|false
-     *
-     * @throws \Hypervel\Database\LostConnectionException
+     * @throws LostConnectionException
      */
-    public function reconnect()
+    public function reconnect(): mixed
     {
         if (is_callable($this->reconnector)) {
             return call_user_func($this->reconnector, $this);
@@ -977,10 +851,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Reconnect to the database if a PDO connection is missing.
-     *
-     * @return void
      */
-    public function reconnectIfMissingConnection()
+    public function reconnectIfMissingConnection(): void
     {
         if (is_null($this->pdo)) {
             $this->reconnect();
@@ -989,21 +861,16 @@ class Connection implements ConnectionInterface
 
     /**
      * Disconnect from the underlying PDO connection.
-     *
-     * @return void
      */
-    public function disconnect()
+    public function disconnect(): void
     {
         $this->setPdo(null)->setReadPdo(null);
     }
 
     /**
      * Register a hook to be run just before a database transaction is started.
-     *
-     * @param  \Closure  $callback
-     * @return $this
      */
-    public function beforeStartingTransaction(Closure $callback)
+    public function beforeStartingTransaction(Closure $callback): static
     {
         $this->beforeStartingTransaction[] = $callback;
 
@@ -1012,11 +879,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Register a hook to be run just before a database query is executed.
-     *
-     * @param  \Closure  $callback
-     * @return $this
      */
-    public function beforeExecuting(Closure $callback)
+    public function beforeExecuting(Closure $callback): static
     {
         $this->beforeExecutingCallbacks[] = $callback;
 
@@ -1025,22 +889,16 @@ class Connection implements ConnectionInterface
 
     /**
      * Register a database query listener with the connection.
-     *
-     * @param  \Closure(\Hypervel\Database\Events\QueryExecuted)  $callback
-     * @return void
      */
-    public function listen(Closure $callback)
+    public function listen(Closure $callback): void
     {
         $this->events?->listen(Events\QueryExecuted::class, $callback);
     }
 
     /**
      * Fire an event for this connection.
-     *
-     * @param  string  $event
-     * @return array|null
      */
-    protected function fireConnectionEvent($event)
+    protected function fireConnectionEvent(string $event): ?array
     {
         return $this->events?->dispatch(match ($event) {
             'beganTransaction' => new TransactionBeginning($this),
@@ -1053,11 +911,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Fire the given event if possible.
-     *
-     * @param  mixed  $event
-     * @return void
      */
-    protected function event($event)
+    protected function event(mixed $event): void
     {
         $this->events?->dispatch($event);
     }
@@ -1073,13 +928,9 @@ class Connection implements ConnectionInterface
     /**
      * Escape a value for safe SQL embedding.
      *
-     * @param  string|float|int|bool|null  $value
-     * @param  bool  $binary
-     * @return string
-     *
-     * @throws \RuntimeException
+     * @throws RuntimeException
      */
-    public function escape($value, $binary = false)
+    public function escape(string|float|int|bool|null $value, bool $binary = false): string
     {
         if ($value === null) {
             return 'null';
@@ -1106,22 +957,16 @@ class Connection implements ConnectionInterface
 
     /**
      * Escape a string value for safe SQL embedding.
-     *
-     * @param  string  $value
-     * @return string
      */
-    protected function escapeString($value)
+    protected function escapeString(string $value): string
     {
         return $this->getReadPdo()->quote($value);
     }
 
     /**
      * Escape a boolean value for safe SQL embedding.
-     *
-     * @param  bool  $value
-     * @return string
      */
-    protected function escapeBool($value)
+    protected function escapeBool(bool $value): string
     {
         return $value ? '1' : '0';
     }
@@ -1129,33 +974,25 @@ class Connection implements ConnectionInterface
     /**
      * Escape a binary value for safe SQL embedding.
      *
-     * @param  string  $value
-     * @return string
-     *
-     * @throws \RuntimeException
+     * @throws RuntimeException
      */
-    protected function escapeBinary($value)
+    protected function escapeBinary(string $value): string
     {
         throw new RuntimeException('The database connection does not support escaping binary values.');
     }
 
     /**
      * Determine if the database connection has modified any database records.
-     *
-     * @return bool
      */
-    public function hasModifiedRecords()
+    public function hasModifiedRecords(): bool
     {
         return $this->recordsModified;
     }
 
     /**
      * Indicate if any records have been modified.
-     *
-     * @param  bool  $value
-     * @return void
      */
-    public function recordsHaveBeenModified($value = true)
+    public function recordsHaveBeenModified(bool $value = true): void
     {
         if (! $this->recordsModified) {
             $this->recordsModified = $value;
@@ -1177,21 +1014,16 @@ class Connection implements ConnectionInterface
 
     /**
      * Reset the record modification state.
-     *
-     * @return void
      */
-    public function forgetRecordModificationState()
+    public function forgetRecordModificationState(): void
     {
         $this->recordsModified = false;
     }
 
     /**
      * Indicate that the connection should use the write PDO connection for reads.
-     *
-     * @param  bool  $value
-     * @return $this
      */
-    public function useWriteConnectionWhenReading($value = true)
+    public function useWriteConnectionWhenReading(bool $value = true): static
     {
         $this->readOnWriteConnection = $value;
 
@@ -1200,10 +1032,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Get the current PDO connection.
-     *
-     * @return \PDO
      */
-    public function getPdo()
+    public function getPdo(): PDO
     {
         $this->latestPdoTypeRetrieved = 'write';
 
@@ -1216,20 +1046,16 @@ class Connection implements ConnectionInterface
 
     /**
      * Get the current PDO connection parameter without executing any reconnect logic.
-     *
-     * @return \PDO|\Closure|null
      */
-    public function getRawPdo()
+    public function getRawPdo(): PDO|Closure|null
     {
         return $this->pdo;
     }
 
     /**
      * Get the current PDO connection used for reading.
-     *
-     * @return \PDO
      */
-    public function getReadPdo()
+    public function getReadPdo(): PDO
     {
         if ($this->transactions > 0) {
             return $this->getPdo();
@@ -1251,21 +1077,16 @@ class Connection implements ConnectionInterface
 
     /**
      * Get the current read PDO connection parameter without executing any reconnect logic.
-     *
-     * @return \PDO|\Closure|null
      */
-    public function getRawReadPdo()
+    public function getRawReadPdo(): PDO|Closure|null
     {
         return $this->readPdo;
     }
 
     /**
      * Set the PDO connection.
-     *
-     * @param  \PDO|\Closure|null  $pdo
-     * @return $this
      */
-    public function setPdo($pdo)
+    public function setPdo(PDO|Closure|null $pdo): static
     {
         $this->transactions = 0;
 
@@ -1276,11 +1097,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Set the PDO connection used for reading.
-     *
-     * @param  \PDO|\Closure|null  $pdo
-     * @return $this
      */
-    public function setReadPdo($pdo)
+    public function setReadPdo(PDO|Closure|null $pdo): static
     {
         $this->readPdo = $pdo;
 
@@ -1289,11 +1107,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Set the read PDO connection configuration.
-     *
-     * @param  array  $config
-     * @return $this
      */
-    public function setReadPdoConfig(array $config)
+    public function setReadPdoConfig(array $config): static
     {
         $this->readPdoConfig = $config;
 
@@ -1302,11 +1117,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Set the reconnect instance on the connection.
-     *
-     * @param  (callable(\Hypervel\Database\Connection): mixed)  $reconnector
-     * @return $this
      */
-    public function setReconnector(callable $reconnector)
+    public function setReconnector(callable $reconnector): static
     {
         $this->reconnector = $reconnector;
 
@@ -1315,20 +1127,16 @@ class Connection implements ConnectionInterface
 
     /**
      * Get the database connection name.
-     *
-     * @return string|null
      */
-    public function getName()
+    public function getName(): ?string
     {
         return $this->getConfig('name');
     }
 
     /**
      * Get the database connection with its read / write type.
-     *
-     * @return string|null
      */
-    public function getNameWithReadWriteType()
+    public function getNameWithReadWriteType(): ?string
     {
         $name = $this->getName().($this->readWriteType ? '::'.$this->readWriteType : '');
 
@@ -1337,21 +1145,16 @@ class Connection implements ConnectionInterface
 
     /**
      * Get an option from the configuration options.
-     *
-     * @param  string|null  $option
-     * @return mixed
      */
-    public function getConfig($option = null)
+    public function getConfig(?string $option = null): mixed
     {
         return Arr::get($this->config, $option);
     }
 
     /**
      * Get the basic connection information as an array for debugging.
-     *
-     * @return array
      */
-    protected function getConnectionDetails()
+    protected function getConnectionDetails(): array
     {
         $config = $this->latestReadWriteTypeUsed() === 'read'
             ? $this->readPdoConfig
@@ -1369,41 +1172,32 @@ class Connection implements ConnectionInterface
 
     /**
      * Get the PDO driver name.
-     *
-     * @return string
      */
-    public function getDriverName()
+    public function getDriverName(): string
     {
         return $this->getConfig('driver');
     }
 
     /**
      * Get a human-readable name for the given connection driver.
-     *
-     * @return string
      */
-    public function getDriverTitle()
+    public function getDriverTitle(): string
     {
         return $this->getDriverName();
     }
 
     /**
      * Get the query grammar used by the connection.
-     *
-     * @return \Hypervel\Database\Query\Grammars\Grammar
      */
-    public function getQueryGrammar()
+    public function getQueryGrammar(): QueryGrammar
     {
         return $this->queryGrammar;
     }
 
     /**
      * Set the query grammar used by the connection.
-     *
-     * @param  \Hypervel\Database\Query\Grammars\Grammar  $grammar
-     * @return $this
      */
-    public function setQueryGrammar(Query\Grammars\Grammar $grammar)
+    public function setQueryGrammar(Query\Grammars\Grammar $grammar): static
     {
         $this->queryGrammar = $grammar;
 
@@ -1412,21 +1206,16 @@ class Connection implements ConnectionInterface
 
     /**
      * Get the schema grammar used by the connection.
-     *
-     * @return \Hypervel\Database\Schema\Grammars\Grammar
      */
-    public function getSchemaGrammar()
+    public function getSchemaGrammar(): ?Schema\Grammars\Grammar
     {
         return $this->schemaGrammar;
     }
 
     /**
      * Set the schema grammar used by the connection.
-     *
-     * @param  \Hypervel\Database\Schema\Grammars\Grammar  $grammar
-     * @return $this
      */
-    public function setSchemaGrammar(Schema\Grammars\Grammar $grammar)
+    public function setSchemaGrammar(Schema\Grammars\Grammar $grammar): static
     {
         $this->schemaGrammar = $grammar;
 
@@ -1435,21 +1224,16 @@ class Connection implements ConnectionInterface
 
     /**
      * Get the query post processor used by the connection.
-     *
-     * @return \Hypervel\Database\Query\Processors\Processor
      */
-    public function getPostProcessor()
+    public function getPostProcessor(): Processor
     {
         return $this->postProcessor;
     }
 
     /**
      * Set the query post processor used by the connection.
-     *
-     * @param  \Hypervel\Database\Query\Processors\Processor  $processor
-     * @return $this
      */
-    public function setPostProcessor(Processor $processor)
+    public function setPostProcessor(Processor $processor): static
     {
         $this->postProcessor = $processor;
 
@@ -1458,21 +1242,16 @@ class Connection implements ConnectionInterface
 
     /**
      * Get the event dispatcher used by the connection.
-     *
-     * @return \Hypervel\Event\Contracts\Dispatcher|null
      */
-    public function getEventDispatcher()
+    public function getEventDispatcher(): ?Dispatcher
     {
         return $this->events;
     }
 
     /**
      * Set the event dispatcher instance on the connection.
-     *
-     * @param  \Hypervel\Event\Contracts\Dispatcher  $events
-     * @return $this
      */
-    public function setEventDispatcher(Dispatcher $events)
+    public function setEventDispatcher(Dispatcher $events): static
     {
         $this->events = $events;
 
@@ -1481,31 +1260,24 @@ class Connection implements ConnectionInterface
 
     /**
      * Unset the event dispatcher for this connection.
-     *
-     * @return void
      */
-    public function unsetEventDispatcher()
+    public function unsetEventDispatcher(): void
     {
         $this->events = null;
     }
 
     /**
      * Run the statement to start a new transaction.
-     *
-     * @return void
      */
-    protected function executeBeginTransactionStatement()
+    protected function executeBeginTransactionStatement(): void
     {
         $this->getPdo()->beginTransaction();
     }
 
     /**
      * Set the transaction manager instance on the connection.
-     *
-     * @param  \Hypervel\Database\DatabaseTransactionsManager  $manager
-     * @return $this
      */
-    public function setTransactionManager($manager)
+    public function setTransactionManager(DatabaseTransactionsManager $manager): static
     {
         $this->transactionsManager = $manager;
 
@@ -1514,20 +1286,16 @@ class Connection implements ConnectionInterface
 
     /**
      * Unset the transaction manager for this connection.
-     *
-     * @return void
      */
-    public function unsetTransactionManager()
+    public function unsetTransactionManager(): void
     {
         $this->transactionsManager = null;
     }
 
     /**
      * Determine if the connection is in a "dry run".
-     *
-     * @return bool
      */
-    public function pretending()
+    public function pretending(): bool
     {
         return $this->pretending === true;
     }
@@ -1537,17 +1305,15 @@ class Connection implements ConnectionInterface
      *
      * @return array{query: string, bindings: array, time: float|null}[]
      */
-    public function getQueryLog()
+    public function getQueryLog(): array
     {
         return $this->queryLog;
     }
 
     /**
      * Get the connection query log with embedded bindings.
-     *
-     * @return array
      */
-    public function getRawQueryLog()
+    public function getRawQueryLog(): array
     {
         return array_map(fn (array $log) => [
             'raw_query' => $this->queryGrammar->substituteBindingsIntoRawSql(
@@ -1560,40 +1326,32 @@ class Connection implements ConnectionInterface
 
     /**
      * Clear the query log.
-     *
-     * @return void
      */
-    public function flushQueryLog()
+    public function flushQueryLog(): void
     {
         $this->queryLog = [];
     }
 
     /**
      * Enable the query log on the connection.
-     *
-     * @return void
      */
-    public function enableQueryLog()
+    public function enableQueryLog(): void
     {
         $this->loggingQueries = true;
     }
 
     /**
      * Disable the query log on the connection.
-     *
-     * @return void
      */
-    public function disableQueryLog()
+    public function disableQueryLog(): void
     {
         $this->loggingQueries = false;
     }
 
     /**
      * Determine whether we're logging queries.
-     *
-     * @return bool
      */
-    public function logging()
+    public function logging(): bool
     {
         return $this->loggingQueries;
     }
@@ -1608,11 +1366,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Set the name of the connected database.
-     *
-     * @param  string  $database
-     * @return $this
      */
-    public function setDatabaseName($database)
+    public function setDatabaseName(string $database): static
     {
         $this->database = $database;
 
@@ -1621,11 +1376,8 @@ class Connection implements ConnectionInterface
 
     /**
      * Set the read / write type of the connection.
-     *
-     * @param  string|null  $readWriteType
-     * @return $this
      */
-    public function setReadWriteType($readWriteType)
+    public function setReadWriteType(?string $readWriteType): static
     {
         $this->readWriteType = $readWriteType;
 
@@ -1637,28 +1389,23 @@ class Connection implements ConnectionInterface
      *
      * @return 'read'|'write'|null
      */
-    protected function latestReadWriteTypeUsed()
+    protected function latestReadWriteTypeUsed(): ?string
     {
         return $this->readWriteType ?? $this->latestPdoTypeRetrieved;
     }
 
     /**
      * Get the table prefix for the connection.
-     *
-     * @return string
      */
-    public function getTablePrefix()
+    public function getTablePrefix(): string
     {
         return $this->tablePrefix;
     }
 
     /**
      * Set the table prefix in use by the connection.
-     *
-     * @param  string  $prefix
-     * @return $this
      */
-    public function setTablePrefix($prefix)
+    public function setTablePrefix(string $prefix): static
     {
         $this->tablePrefix = $prefix;
 
@@ -1696,33 +1443,24 @@ class Connection implements ConnectionInterface
 
     /**
      * Register a connection resolver.
-     *
-     * @param  string  $driver
-     * @param  \Closure  $callback
-     * @return void
      */
-    public static function resolverFor($driver, Closure $callback)
+    public static function resolverFor(string $driver, Closure $callback): void
     {
         static::$resolvers[$driver] = $callback;
     }
 
     /**
      * Get the connection resolver for the given driver.
-     *
-     * @param  string  $driver
-     * @return \Closure|null
      */
-    public static function getResolver($driver)
+    public static function getResolver(string $driver): ?Closure
     {
         return static::$resolvers[$driver] ?? null;
     }
 
     /**
      * Prepare the instance for cloning.
-     *
-     * @return void
      */
-    public function __clone()
+    public function __clone(): void
     {
         // When cloning, re-initialize grammars to reference cloned connection...
         $this->useDefaultQueryGrammar();
