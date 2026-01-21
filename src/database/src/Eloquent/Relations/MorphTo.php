@@ -22,71 +22,53 @@ class MorphTo extends BelongsTo
 
     /**
      * The type of the polymorphic relation.
-     *
-     * @var string
      */
-    protected $morphType;
+    protected string $morphType;
 
     /**
      * The associated key on the parent model.
-     *
-     * @var string|null
      */
-    protected $ownerKey;
+    protected ?string $ownerKey;
 
     /**
      * The models whose relations are being eager loaded.
      *
      * @var \Hypervel\Database\Eloquent\Collection<int, TDeclaringModel>
      */
-    protected $models;
+    protected EloquentCollection $models;
 
     /**
      * All of the models keyed by ID.
-     *
-     * @var array
      */
-    protected $dictionary = [];
+    protected array $dictionary = [];
 
     /**
      * A buffer of dynamic calls to query macros.
-     *
-     * @var array
      */
-    protected $macroBuffer = [];
+    protected array $macroBuffer = [];
 
     /**
      * A map of relations to load for each individual morph type.
-     *
-     * @var array
      */
-    protected $morphableEagerLoads = [];
+    protected array $morphableEagerLoads = [];
 
     /**
      * A map of relationship counts to load for each individual morph type.
-     *
-     * @var array
      */
-    protected $morphableEagerLoadCounts = [];
+    protected array $morphableEagerLoadCounts = [];
 
     /**
      * A map of constraints to apply for each individual morph type.
-     *
-     * @var array
      */
-    protected $morphableConstraints = [];
+    protected array $morphableConstraints = [];
 
     /**
      * Create a new morph to relationship instance.
      *
      * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
      * @param  TDeclaringModel  $parent
-     * @param  string  $foreignKey
-     * @param  string|null  $ownerKey
-     * @param  string  $type
-     * @param  string  $relation
      */
-    public function __construct(Builder $query, Model $parent, $foreignKey, $ownerKey, $type, $relation)
+    public function __construct(Builder $query, Model $parent, string $foreignKey, ?string $ownerKey, string $type, string $relation)
     {
         $this->morphType = $type;
 
@@ -104,9 +86,8 @@ class MorphTo extends BelongsTo
      * Build a dictionary with the models.
      *
      * @param  \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>  $models
-     * @return void
      */
-    protected function buildDictionary(EloquentCollection $models)
+    protected function buildDictionary(EloquentCollection $models): void
     {
         foreach ($models as $model) {
             if ($model->{$this->morphType}) {
@@ -125,7 +106,7 @@ class MorphTo extends BelongsTo
      *
      * @return \Hypervel\Database\Eloquent\Collection<int, TDeclaringModel>
      */
-    public function getEager()
+    public function getEager(): EloquentCollection
     {
         foreach (array_keys($this->dictionary) as $type) {
             $this->matchToMorphParents($type, $this->getResultsByType($type));
@@ -137,10 +118,9 @@ class MorphTo extends BelongsTo
     /**
      * Get all of the relation results for a type.
      *
-     * @param  string  $type
      * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
      */
-    protected function getResultsByType($type)
+    protected function getResultsByType(string $type): EloquentCollection
     {
         $instance = $this->createModelByType($type);
 
@@ -169,12 +149,8 @@ class MorphTo extends BelongsTo
 
     /**
      * Gather all of the foreign keys for a given type.
-     *
-     * @param  string  $type
-     * @param  string  $keyType
-     * @return array
      */
-    protected function gatherKeysByType($type, $keyType)
+    protected function gatherKeysByType(string $type, string $keyType): array
     {
         return $keyType !== 'string'
             ? array_keys($this->dictionary[$type])
@@ -186,10 +162,9 @@ class MorphTo extends BelongsTo
     /**
      * Create a new model instance by type.
      *
-     * @param  string  $type
      * @return TRelatedModel
      */
-    public function createModelByType($type)
+    public function createModelByType(string $type): Model
     {
         $class = Model::getActualClassNameForMorph($type);
 
@@ -210,11 +185,9 @@ class MorphTo extends BelongsTo
     /**
      * Match the results for a given type to their parents.
      *
-     * @param  string  $type
      * @param  \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>  $results
-     * @return void
      */
-    protected function matchToMorphParents($type, EloquentCollection $results)
+    protected function matchToMorphParents(string $type, EloquentCollection $results): void
     {
         foreach ($results as $result) {
             $ownerKey = ! is_null($this->ownerKey) ? $this->getDictionaryKey($result->{$this->ownerKey}) : $result->getKey();
@@ -234,7 +207,7 @@ class MorphTo extends BelongsTo
      * @return TDeclaringModel
      */
     #[\Override]
-    public function associate($model)
+    public function associate(?Model $model): Model
     {
         if ($model instanceof Model) {
             $foreignKey = $this->ownerKey && $model->{$this->ownerKey}
@@ -259,7 +232,7 @@ class MorphTo extends BelongsTo
      * @return TDeclaringModel
      */
     #[\Override]
-    public function dissociate()
+    public function dissociate(): Model
     {
         $this->parent->setAttribute($this->foreignKey, null);
 
@@ -270,7 +243,7 @@ class MorphTo extends BelongsTo
 
     /** @inheritDoc */
     #[\Override]
-    public function touch()
+    public function touch(): void
     {
         if (! is_null($this->getParentKey())) {
             parent::touch();
@@ -286,20 +259,16 @@ class MorphTo extends BelongsTo
 
     /**
      * Get the foreign key "type" name.
-     *
-     * @return string
      */
-    public function getMorphType()
+    public function getMorphType(): string
     {
         return $this->morphType;
     }
 
     /**
      * Get the dictionary used by the relationship.
-     *
-     * @return array
      */
-    public function getDictionary()
+    public function getDictionary(): array
     {
         return $this->dictionary;
     }
@@ -307,10 +276,9 @@ class MorphTo extends BelongsTo
     /**
      * Specify which relations to load for a given morph type.
      *
-     * @param  array  $with
      * @return $this
      */
-    public function morphWith(array $with)
+    public function morphWith(array $with): static
     {
         $this->morphableEagerLoads = array_merge(
             $this->morphableEagerLoads, $with
@@ -322,10 +290,9 @@ class MorphTo extends BelongsTo
     /**
      * Specify which relationship counts to load for a given morph type.
      *
-     * @param  array  $withCount
      * @return $this
      */
-    public function morphWithCount(array $withCount)
+    public function morphWithCount(array $withCount): static
     {
         $this->morphableEagerLoadCounts = array_merge(
             $this->morphableEagerLoadCounts, $withCount
@@ -337,10 +304,9 @@ class MorphTo extends BelongsTo
     /**
      * Specify constraints on the query for a given morph type.
      *
-     * @param  array  $callbacks
      * @return $this
      */
-    public function constrain(array $callbacks)
+    public function constrain(array $callbacks): static
     {
         $this->morphableConstraints = array_merge(
             $this->morphableConstraints, $callbacks
@@ -354,7 +320,7 @@ class MorphTo extends BelongsTo
      *
      * @return $this
      */
-    public function withTrashed()
+    public function withTrashed(): static
     {
         $callback = fn ($query) => $query->hasMacro('withTrashed') ? $query->withTrashed() : $query;
 
@@ -371,7 +337,7 @@ class MorphTo extends BelongsTo
      *
      * @return $this
      */
-    public function withoutTrashed()
+    public function withoutTrashed(): static
     {
         $callback = fn ($query) => $query->hasMacro('withoutTrashed') ? $query->withoutTrashed() : $query;
 
@@ -388,7 +354,7 @@ class MorphTo extends BelongsTo
      *
      * @return $this
      */
-    public function onlyTrashed()
+    public function onlyTrashed(): static
     {
         $callback = fn ($query) => $query->hasMacro('onlyTrashed') ? $query->onlyTrashed() : $query;
 
@@ -406,7 +372,7 @@ class MorphTo extends BelongsTo
      * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
      * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
      */
-    protected function replayMacros(Builder $query)
+    protected function replayMacros(Builder $query): Builder
     {
         foreach ($this->macroBuffer as $macro) {
             $query->{$macro['method']}(...$macro['parameters']);
@@ -417,7 +383,7 @@ class MorphTo extends BelongsTo
 
     /** @inheritDoc */
     #[\Override]
-    public function getQualifiedOwnerKeyName()
+    public function getQualifiedOwnerKeyName(): string
     {
         if (is_null($this->ownerKey)) {
             return '';
@@ -428,12 +394,8 @@ class MorphTo extends BelongsTo
 
     /**
      * Handle dynamic method calls to the relationship.
-     *
-     * @param  string  $method
-     * @param  array  $parameters
-     * @return mixed
      */
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         try {
             $result = parent::__call($method, $parameters);
