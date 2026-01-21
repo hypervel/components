@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Database\Migrations;
 
 use Closure;
-use Hypervel\Console\View\Components\BulletList;
-use Hypervel\Console\View\Components\Info;
-use Hypervel\Console\View\Components\Task;
-use Hypervel\Console\View\Components\TwoColumnDetail;
+use FriendsOfHyperf\PrettyConsole\View\Components\BulletList;
+use FriendsOfHyperf\PrettyConsole\View\Components\Info;
+use FriendsOfHyperf\PrettyConsole\View\Components\Task;
+use FriendsOfHyperf\PrettyConsole\View\Components\TwoColumnDetail;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
 use Hypervel\Database\Events\MigrationEnded;
 use Hypervel\Database\Events\MigrationsEnded;
@@ -795,15 +795,15 @@ class Migrator
     /**
      * Write to the console's output.
      *
-     * @param  string  $component
+     * @param  class-string  $component
      * @param  array<int, string>|string  ...$arguments
-     * @return void
      */
-    protected function write($component, ...$arguments)
+    protected function write(string $component, mixed ...$arguments): void
     {
-        if ($this->output && class_exists($component)) {
+        if ($this->output) {
             (new $component($this->output))->render(...$arguments);
         } else {
+            // Still execute callbacks when there's no output (e.g., running programmatically)
             foreach ($arguments as $argument) {
                 if (is_callable($argument)) {
                     $argument();
