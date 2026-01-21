@@ -24,7 +24,7 @@ class HasManyThrough extends HasOneOrManyThrough
      *
      * @return \Hypervel\Database\Eloquent\Relations\HasOneThrough<TRelatedModel, TIntermediateModel, TDeclaringModel>
      */
-    public function one()
+    public function one(): HasOneThrough
     {
         return HasOneThrough::noConstraints(fn () => new HasOneThrough(
             tap($this->getQuery(), fn (Builder $query) => $query->getQuery()->joins = []),
