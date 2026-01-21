@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database;
 
 use Hyperf\Context\Context;
-use Hyperf\Database\Events\TransactionCommitted;
+use Hypervel\Database\Events\TransactionCommitted;
 
 class TransactionManager
 {
