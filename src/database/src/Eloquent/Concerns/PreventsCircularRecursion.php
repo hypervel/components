@@ -13,18 +13,14 @@ trait PreventsCircularRecursion
     /**
      * The cache of objects processed to prevent infinite recursion.
      *
-     * @var WeakMap<static, array<string, mixed>>
+     * @var WeakMap<static, array<string, mixed>>|null
      */
-    protected static $recursionCache;
+    protected static ?WeakMap $recursionCache = null;
 
     /**
      * Prevent a method from being called multiple times on the same object within the same call stack.
-     *
-     * @param  callable  $callback
-     * @param  mixed  $default
-     * @return mixed
      */
-    protected function withoutRecursion($callback, $default = null)
+    protected function withoutRecursion(callable $callback, mixed $default = null): mixed
     {
         $trace = debug_backtrace(DEBUG_BACKTRACE_PROVIDE_OBJECT, 2);
 
@@ -53,11 +49,8 @@ trait PreventsCircularRecursion
 
     /**
      * Remove an entry from the recursion cache for an object.
-     *
-     * @param  object  $object
-     * @param  string  $hash
      */
-    protected static function clearRecursiveCallValue($object, string $hash)
+    protected static function clearRecursiveCallValue(object $object, string $hash): void
     {
         if ($stack = Arr::except(static::getRecursiveCallStack($object), $hash)) {
             static::getRecursionCache()->offsetSet($object, $stack);
@@ -69,10 +62,9 @@ trait PreventsCircularRecursion
     /**
      * Get the stack of methods being called recursively for the current object.
      *
-     * @param  object  $object
-     * @return array
+     * @return array<string, mixed>
      */
-    protected static function getRecursiveCallStack($object): array
+    protected static function getRecursiveCallStack(object $object): array
     {
         return static::getRecursionCache()->offsetExists($object)
             ? static::getRecursionCache()->offsetGet($object)
@@ -82,22 +74,17 @@ trait PreventsCircularRecursion
     /**
      * Get the current recursion cache being used by the model.
      *
-     * @return WeakMap
+     * @return WeakMap<object, array<string, mixed>>
      */
-    protected static function getRecursionCache()
+    protected static function getRecursionCache(): WeakMap
     {
         return static::$recursionCache ??= new WeakMap();
     }
 
     /**
      * Set a value in the recursion cache for the given object and method.
-     *
-     * @param  object  $object
-     * @param  string  $hash
-     * @param  mixed  $value
-     * @return mixed
      */
-    protected static function setRecursiveCallValue($object, string $hash, $value)
+    protected static function setRecursiveCallValue(object $object, string $hash, mixed $value): mixed
     {
         static::getRecursionCache()->offsetSet(
             $object,

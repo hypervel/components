@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Concerns;
 
+use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\Date;
 
 trait HasTimestamps
@@ -16,17 +17,14 @@ trait HasTimestamps
     /**
      * The list of models classes that have timestamps temporarily disabled.
      *
-     * @var array
+     * @var array<int, class-string>
      */
-    protected static $ignoreTimestampsOn = [];
+    protected static array $ignoreTimestampsOn = [];
 
     /**
      * Update the model's update timestamp.
-     *
-     * @param  string|null  $attribute
-     * @return bool
      */
-    public function touch($attribute = null)
+    public function touch(?string $attribute = null): bool
     {
         if ($attribute) {
             $this->$attribute = $this->freshTimestamp();
@@ -45,11 +43,8 @@ trait HasTimestamps
 
     /**
      * Update the model's update timestamp without raising any events.
-     *
-     * @param  string|null  $attribute
-     * @return bool
      */
-    public function touchQuietly($attribute = null)
+    public function touchQuietly(?string $attribute = null): bool
     {
         return static::withoutEvents(fn () => $this->touch($attribute));
     }
@@ -59,7 +54,7 @@ trait HasTimestamps
      *
      * @return $this
      */
-    public function updateTimestamps()
+    public function updateTimestamps(): static
     {
         $time = $this->freshTimestamp();
 
@@ -81,10 +76,9 @@ trait HasTimestamps
     /**
      * Set the value of the "created at" attribute.
      *
-     * @param  mixed  $value
      * @return $this
      */
-    public function setCreatedAt($value)
+    public function setCreatedAt(mixed $value): static
     {
         $this->{$this->getCreatedAtColumn()} = $value;
 
@@ -94,10 +88,9 @@ trait HasTimestamps
     /**
      * Set the value of the "updated at" attribute.
      *
-     * @param  mixed  $value
      * @return $this
      */
-    public function setUpdatedAt($value)
+    public function setUpdatedAt(mixed $value): static
     {
         $this->{$this->getUpdatedAtColumn()} = $value;
 
@@ -106,60 +99,48 @@ trait HasTimestamps
 
     /**
      * Get a fresh timestamp for the model.
-     *
-     * @return \Hypervel\Support\Carbon
      */
-    public function freshTimestamp()
+    public function freshTimestamp(): Carbon
     {
         return Date::now();
     }
 
     /**
      * Get a fresh timestamp for the model.
-     *
-     * @return string
      */
-    public function freshTimestampString()
+    public function freshTimestampString(): string
     {
         return $this->fromDateTime($this->freshTimestamp());
     }
 
     /**
      * Determine if the model uses timestamps.
-     *
-     * @return bool
      */
-    public function usesTimestamps()
+    public function usesTimestamps(): bool
     {
         return $this->timestamps && ! static::isIgnoringTimestamps($this::class);
     }
 
     /**
      * Get the name of the "created at" column.
-     *
-     * @return string|null
      */
-    public function getCreatedAtColumn()
+    public function getCreatedAtColumn(): ?string
     {
         return static::CREATED_AT;
     }
 
     /**
      * Get the name of the "updated at" column.
-     *
-     * @return string|null
      */
-    public function getUpdatedAtColumn()
+    public function getUpdatedAtColumn(): ?string
     {
         return static::UPDATED_AT;
     }
 
     /**
      * Get the fully qualified "created at" column.
-     *
-     * @return string|null
      */
-    public function getQualifiedCreatedAtColumn()
+    public function getQualifiedCreatedAtColumn(): ?string
     {
         $column = $this->getCreatedAtColumn();
 
@@ -168,10 +149,8 @@ trait HasTimestamps
 
     /**
      * Get the fully qualified "updated at" column.
-     *
-     * @return string|null
      */
-    public function getQualifiedUpdatedAtColumn()
+    public function getQualifiedUpdatedAtColumn(): ?string
     {
         $column = $this->getUpdatedAtColumn();
 
@@ -180,11 +159,8 @@ trait HasTimestamps
 
     /**
      * Disable timestamps for the current class during the given callback scope.
-     *
-     * @param  callable  $callback
-     * @return mixed
      */
-    public static function withoutTimestamps(callable $callback)
+    public static function withoutTimestamps(callable $callback): mixed
     {
         return static::withoutTimestampsOn([static::class], $callback);
     }
@@ -192,11 +168,9 @@ trait HasTimestamps
     /**
      * Disable timestamps for the given model classes during the given callback scope.
      *
-     * @param  array  $models
-     * @param  callable  $callback
-     * @return mixed
+     * @param  array<int, class-string>  $models
      */
-    public static function withoutTimestampsOn($models, $callback)
+    public static function withoutTimestampsOn(array $models, callable $callback): mixed
     {
         static::$ignoreTimestampsOn = array_values(array_merge(static::$ignoreTimestampsOn, $models));
 
@@ -214,10 +188,9 @@ trait HasTimestamps
     /**
      * Determine if the given model is ignoring timestamps / touches.
      *
-     * @param  string|null  $class
-     * @return bool
+     * @param  class-string|null  $class
      */
-    public static function isIgnoringTimestamps($class = null)
+    public static function isIgnoringTimestamps(?string $class = null): bool
     {
         $class ??= static::class;
 

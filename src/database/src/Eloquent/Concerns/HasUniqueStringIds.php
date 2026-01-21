@@ -10,25 +10,18 @@ trait HasUniqueStringIds
 {
     /**
      * Generate a new unique key for the model.
-     *
-     * @return mixed
      */
-    abstract public function newUniqueId();
+    abstract public function newUniqueId(): string;
 
     /**
      * Determine if given key is valid.
-     *
-     * @param  mixed  $value
-     * @return bool
      */
-    abstract protected function isValidUniqueId($value): bool;
+    abstract protected function isValidUniqueId(mixed $value): bool;
 
     /**
      * Initialize the trait.
-     *
-     * @return void
      */
-    public function initializeHasUniqueStringIds()
+    public function initializeHasUniqueStringIds(): void
     {
         $this->usesUniqueIds = true;
     }
@@ -36,9 +29,9 @@ trait HasUniqueStringIds
     /**
      * Get the columns that should receive a unique identifier.
      *
-     * @return array
+     * @return array<int, string>
      */
-    public function uniqueIds()
+    public function uniqueIds(): array
     {
         return $this->usesUniqueIds() ? [$this->getKeyName()] : parent::uniqueIds();
     }
@@ -47,13 +40,11 @@ trait HasUniqueStringIds
      * Retrieve the model for a bound value.
      *
      * @param  \Hypervel\Database\Eloquent\Model|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>  $query
-     * @param  mixed  $value
-     * @param  string|null  $field
      * @return \Hypervel\Database\Contracts\Eloquent\Builder
      *
      * @throws \Hypervel\Database\Eloquent\ModelNotFoundException
      */
-    public function resolveRouteBindingQuery($query, $value, $field = null)
+    public function resolveRouteBindingQuery(mixed $query, mixed $value, ?string $field = null)
     {
         if ($field && in_array($field, $this->uniqueIds()) && ! $this->isValidUniqueId($value)) {
             $this->handleInvalidUniqueId($value, $field);
@@ -68,10 +59,8 @@ trait HasUniqueStringIds
 
     /**
      * Get the auto-incrementing key type.
-     *
-     * @return string
      */
-    public function getKeyType()
+    public function getKeyType(): string
     {
         if (in_array($this->getKeyName(), $this->uniqueIds())) {
             return 'string';
@@ -82,10 +71,8 @@ trait HasUniqueStringIds
 
     /**
      * Get the value indicating whether the IDs are incrementing.
-     *
-     * @return bool
      */
-    public function getIncrementing()
+    public function getIncrementing(): bool
     {
         if (in_array($this->getKeyName(), $this->uniqueIds())) {
             return false;
@@ -97,13 +84,9 @@ trait HasUniqueStringIds
     /**
      * Throw an exception for the given invalid unique ID.
      *
-     * @param  mixed  $value
-     * @param  string|null  $field
-     * @return never
-     *
      * @throws \Hypervel\Database\Eloquent\ModelNotFoundException
      */
-    protected function handleInvalidUniqueId($value, $field)
+    protected function handleInvalidUniqueId(mixed $value, ?string $field): never
     {
         throw (new ModelNotFoundException)->setModel(get_class($this), $value);
     }

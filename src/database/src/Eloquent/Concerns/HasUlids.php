@@ -12,21 +12,16 @@ trait HasUlids
 
     /**
      * Generate a new unique key for the model.
-     *
-     * @return string
      */
-    public function newUniqueId()
+    public function newUniqueId(): string
     {
         return strtolower((string) Str::ulid());
     }
 
     /**
      * Determine if given key is valid.
-     *
-     * @param  mixed  $value
-     * @return bool
      */
-    protected function isValidUniqueId($value): bool
+    protected function isValidUniqueId(mixed $value): bool
     {
         return Str::isUlid($value);
     }
