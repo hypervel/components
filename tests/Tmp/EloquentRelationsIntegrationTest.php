@@ -43,7 +43,7 @@ class EloquentRelationsIntegrationTest extends DatabaseIntegrationTestCase
         // Profiles table (one-to-one with users)
         $this->createTestTable('rel_profiles', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained('rel_users')->onDelete('cascade');
+            $table->foreignId('user_id')->nullable()->constrained('rel_users')->onDelete('cascade');
             $table->string('bio')->nullable();
             $table->string('avatar')->nullable();
             $table->timestamps();

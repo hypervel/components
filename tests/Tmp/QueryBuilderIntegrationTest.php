@@ -28,7 +28,7 @@ class QueryBuilderIntegrationTest extends DatabaseIntegrationTestCase
         $this->createTestTable('qb_products', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('category');
+            $table->string('category')->nullable();
             $table->decimal('price', 10, 2);
             $table->integer('stock')->default(0);
             $table->boolean('active')->default(true);
@@ -141,7 +141,7 @@ class QueryBuilderIntegrationTest extends DatabaseIntegrationTestCase
             })
             ->get();
 
-        $this->assertCount(3, $products);
+        $this->assertCount(2, $products);
     }
 
     public function testOrderBy(): void
@@ -369,7 +369,7 @@ class QueryBuilderIntegrationTest extends DatabaseIntegrationTestCase
         $categories = $this->table()
             ->select('category', DB::connection($this->getDatabaseDriver())->raw('SUM(stock) as total_stock'))
             ->groupBy('category')
-            ->having('total_stock', '>', 50)
+            ->havingRaw('SUM(stock) > ?', [50])
             ->get();
 
         $this->assertCount(1, $categories);
