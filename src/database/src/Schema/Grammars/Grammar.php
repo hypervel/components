@@ -458,12 +458,8 @@ abstract class Grammar extends BaseGrammar
 
     /**
      * Wrap a table in keyword identifiers.
-     *
-     * @param  mixed  $table
-     * @param  string|null  $prefix
-     * @return string
      */
-    public function wrapTable($table, $prefix = null)
+    public function wrapTable(Blueprint|Expression|string $table, ?string $prefix = null): string
     {
         return parent::wrapTable(
             $table instanceof Blueprint ? $table->getTable() : $table,

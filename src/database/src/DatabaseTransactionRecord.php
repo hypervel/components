@@ -8,47 +8,37 @@ class DatabaseTransactionRecord
 {
     /**
      * The name of the database connection.
-     *
-     * @var string
      */
-    public $connection;
+    public string $connection;
 
     /**
      * The transaction level.
-     *
-     * @var int
      */
-    public $level;
+    public int $level;
 
     /**
      * The parent instance of this transaction.
-     *
-     * @var \Hypervel\Database\DatabaseTransactionRecord
      */
-    public $parent;
+    public ?DatabaseTransactionRecord $parent;
 
     /**
      * The callbacks that should be executed after committing.
      *
-     * @var array
+     * @var callable[]
      */
-    protected $callbacks = [];
+    protected array $callbacks = [];
 
     /**
      * The callbacks that should be executed after rollback.
      *
-     * @var array
+     * @var callable[]
      */
-    protected $callbacksForRollback = [];
+    protected array $callbacksForRollback = [];
 
     /**
      * Create a new database transaction record instance.
-     *
-     * @param  string  $connection
-     * @param  int  $level
-     * @param  \Hypervel\Database\DatabaseTransactionRecord|null  $parent
      */
-    public function __construct($connection, $level, ?DatabaseTransactionRecord $parent = null)
+    public function __construct(string $connection, int $level, ?DatabaseTransactionRecord $parent = null)
     {
         $this->connection = $connection;
         $this->level = $level;
@@ -57,32 +47,24 @@ class DatabaseTransactionRecord
 
     /**
      * Register a callback to be executed after committing.
-     *
-     * @param  callable  $callback
-     * @return void
      */
-    public function addCallback($callback)
+    public function addCallback(callable $callback): void
     {
         $this->callbacks[] = $callback;
     }
 
     /**
      * Register a callback to be executed after rollback.
-     *
-     * @param  callable  $callback
-     * @return void
      */
-    public function addCallbackForRollback($callback)
+    public function addCallbackForRollback(callable $callback): void
     {
         $this->callbacksForRollback[] = $callback;
     }
 
     /**
      * Execute all of the callbacks.
-     *
-     * @return void
      */
-    public function executeCallbacks()
+    public function executeCallbacks(): void
     {
         foreach ($this->callbacks as $callback) {
             $callback();
@@ -91,10 +73,8 @@ class DatabaseTransactionRecord
 
     /**
      * Execute all of the callbacks for rollback.
-     *
-     * @return void
      */
-    public function executeCallbacksForRollback()
+    public function executeCallbacksForRollback(): void
     {
         foreach ($this->callbacksForRollback as $callback) {
             $callback();
@@ -104,9 +84,9 @@ class DatabaseTransactionRecord
     /**
      * Get all of the callbacks.
      *
-     * @return array
+     * @return callable[]
      */
-    public function getCallbacks()
+    public function getCallbacks(): array
     {
         return $this->callbacks;
     }
@@ -114,9 +94,9 @@ class DatabaseTransactionRecord
     /**
      * Get all of the callbacks for rollback.
      *
-     * @return array
+     * @return callable[]
      */
-    public function getCallbacksForRollback()
+    public function getCallbacksForRollback(): array
     {
         return $this->callbacksForRollback;
     }

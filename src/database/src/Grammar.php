@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Database;
 
 use Hypervel\Database\Contracts\Query\Expression;
@@ -13,15 +15,11 @@ abstract class Grammar
 
     /**
      * The connection used for escaping values.
-     *
-     * @var \Hypervel\Database\Connection
      */
-    protected $connection;
+    protected Connection $connection;
 
     /**
      * Create a new grammar instance.
-     *
-     * @param  \Hypervel\Database\Connection  $connection
      */
     public function __construct(Connection $connection)
     {
@@ -31,22 +29,18 @@ abstract class Grammar
     /**
      * Wrap an array of values.
      *
-     * @param  array<\Hypervel\Database\Contracts\Query\Expression|string>  $values
+     * @param  array<Expression|string>  $values
      * @return array<string>
      */
-    public function wrapArray(array $values)
+    public function wrapArray(array $values): array
     {
         return array_map($this->wrap(...), $values);
     }
 
     /**
      * Wrap a table in keyword identifiers.
-     *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $table
-     * @param  string|null  $prefix
-     * @return string
      */
-    public function wrapTable($table, $prefix = null)
+    public function wrapTable(Expression|string $table, ?string $prefix = null): string
     {
         if ($this->isExpression($table)) {
             return $this->getValue($table);
@@ -77,11 +71,8 @@ abstract class Grammar
 
     /**
      * Wrap a value in keyword identifiers.
-     *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $value
-     * @return string
      */
-    public function wrap($value)
+    public function wrap(Expression|string $value): string
     {
         if ($this->isExpression($value)) {
             return $this->getValue($value);
@@ -106,11 +97,8 @@ abstract class Grammar
 
     /**
      * Wrap a value that has an alias.
-     *
-     * @param  string  $value
-     * @return string
      */
-    protected function wrapAliasedValue($value)
+    protected function wrapAliasedValue(string $value): string
     {
         $segments = preg_split('/\s+as\s+/i', $value);
 
@@ -119,12 +107,8 @@ abstract class Grammar
 
     /**
      * Wrap a table that has an alias.
-     *
-     * @param  string  $value
-     * @param  string|null  $prefix
-     * @return string
      */
-    protected function wrapAliasedTable($value, $prefix = null)
+    protected function wrapAliasedTable(string $value, ?string $prefix = null): string
     {
         $segments = preg_split('/\s+as\s+/i', $value);
 
@@ -137,9 +121,8 @@ abstract class Grammar
      * Wrap the given value segments.
      *
      * @param  list<string>  $segments
-     * @return string
      */
-    protected function wrapSegments($segments)
+    protected function wrapSegments(array $segments): string
     {
         return (new Collection($segments))->map(function ($segment, $key) use ($segments) {
             return $key == 0 && count($segments) > 1
@@ -150,11 +133,8 @@ abstract class Grammar
 
     /**
      * Wrap a single string in keyword identifiers.
-     *
-     * @param  string  $value
-     * @return string
      */
-    protected function wrapValue($value)
+    protected function wrapValue(string $value): string
     {
         if ($value !== '*') {
             return '"'.str_replace('"', '""', $value).'"';
@@ -166,23 +146,17 @@ abstract class Grammar
     /**
      * Wrap the given JSON selector.
      *
-     * @param  string  $value
-     * @return string
-     *
-     * @throws \RuntimeException
+     * @throws RuntimeException
      */
-    protected function wrapJsonSelector($value)
+    protected function wrapJsonSelector(string $value): string
     {
         throw new RuntimeException('This database engine does not support JSON operations.');
     }
 
     /**
      * Determine if the given string is a JSON selector.
-     *
-     * @param  string  $value
-     * @return bool
      */
-    protected function isJsonSelector($value)
+    protected function isJsonSelector(string $value): bool
     {
         return str_contains($value, '->');
     }
@@ -190,32 +164,25 @@ abstract class Grammar
     /**
      * Convert an array of column names into a delimited string.
      *
-     * @param  array<\Hypervel\Database\Contracts\Query\Expression|string>  $columns
-     * @return string
+     * @param  array<Expression|string>  $columns
      */
-    public function columnize(array $columns)
+    public function columnize(array $columns): string
     {
         return implode(', ', array_map($this->wrap(...), $columns));
     }
 
     /**
      * Create query parameter place-holders for an array.
-     *
-     * @param  array<mixed>  $values
-     * @return string
      */
-    public function parameterize(array $values)
+    public function parameterize(array $values): string
     {
         return implode(', ', array_map($this->parameter(...), $values));
     }
 
     /**
      * Get the appropriate query parameter place-holder for a value.
-     *
-     * @param  mixed  $value
-     * @return string
      */
-    public function parameter($value)
+    public function parameter(mixed $value): string
     {
         return $this->isExpression($value) ? $this->getValue($value) : '?';
     }
@@ -224,9 +191,8 @@ abstract class Grammar
      * Quote the given string literal.
      *
      * @param  string|array<string>  $value
-     * @return string
      */
-    public function quoteString($value)
+    public function quoteString(string|array $value): string
     {
         if (is_array($value)) {
             return implode(', ', array_map([$this, __FUNCTION__], $value));
@@ -237,34 +203,24 @@ abstract class Grammar
 
     /**
      * Escapes a value for safe SQL embedding.
-     *
-     * @param  string|float|int|bool|null  $value
-     * @param  bool  $binary
-     * @return string
      */
-    public function escape($value, $binary = false)
+    public function escape(string|float|int|bool|null $value, bool $binary = false): string
     {
         return $this->connection->escape($value, $binary);
     }
 
     /**
      * Determine if the given value is a raw expression.
-     *
-     * @param  mixed  $value
-     * @return bool
      */
-    public function isExpression($value)
+    public function isExpression(mixed $value): bool
     {
         return $value instanceof Expression;
     }
 
     /**
      * Transforms expressions to their scalar types.
-     *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string|int|float  $expression
-     * @return string|int|float
      */
-    public function getValue($expression)
+    public function getValue(Expression|string|int|float $expression): string|int|float
     {
         if ($this->isExpression($expression)) {
             return $this->getValue($expression->getValue($this));
@@ -275,10 +231,8 @@ abstract class Grammar
 
     /**
      * Get the format for database stored dates.
-     *
-     * @return string
      */
-    public function getDateFormat()
+    public function getDateFormat(): string
     {
         return 'Y-m-d H:i:s';
     }
@@ -287,10 +241,8 @@ abstract class Grammar
      * Get the grammar's table prefix.
      *
      * @deprecated Use DB::getTablePrefix()
-     *
-     * @return string
      */
-    public function getTablePrefix()
+    public function getTablePrefix(): string
     {
         return $this->connection->getTablePrefix();
     }
@@ -299,11 +251,8 @@ abstract class Grammar
      * Set the grammar's table prefix.
      *
      * @deprecated Use DB::setTablePrefix()
-     *
-     * @param  string  $prefix
-     * @return $this
      */
-    public function setTablePrefix($prefix)
+    public function setTablePrefix(string $prefix): static
     {
         $this->connection->setTablePrefix($prefix);
 

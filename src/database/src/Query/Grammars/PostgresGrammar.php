@@ -17,7 +17,7 @@ class PostgresGrammar extends Grammar
      *
      * @var string[]
      */
-    protected $operators = [
+    protected array $operators = [
         '=', '<', '>', '<=', '>=', '<>', '!=',
         'like', 'not like', 'between', 'ilike', 'not ilike',
         '~', '&', '|', '#', '<<', '>>', '<<=', '>>=',
@@ -28,25 +28,23 @@ class PostgresGrammar extends Grammar
     /**
      * The Postgres grammar specific custom operators.
      *
-     * @var array
+     * @var string[]
      */
-    protected static $customOperators = [];
+    protected static array $customOperators = [];
 
     /**
      * The grammar specific bitwise operators.
      *
-     * @var array
+     * @var string[]
      */
-    protected $bitwiseOperators = [
+    protected array $bitwiseOperators = [
         '~', '&', '|', '#', '<<', '>>', '<<=', '>>=',
     ];
 
     /**
      * Indicates if the cascade option should be used when truncating.
-     *
-     * @var bool
      */
-    protected static $cascadeTruncate = true;
+    protected static bool $cascadeTruncate = true;
 
     /**
      * Compile a basic where clause.
@@ -697,11 +695,8 @@ class PostgresGrammar extends Grammar
 
     /**
      * Wrap the given JSON selector.
-     *
-     * @param  string  $value
-     * @return string
      */
-    protected function wrapJsonSelector($value)
+    protected function wrapJsonSelector(string $value): string
     {
         $path = explode('->', $value);
 
