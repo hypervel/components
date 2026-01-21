@@ -8,6 +8,7 @@ use Closure;
 use Generator;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Expression;
+use Hypervel\Database\Schema\Builder as SchemaBuilder;
 use UnitEnum;
 
 interface ConnectionInterface
@@ -115,4 +116,14 @@ interface ConnectionInterface
      * Get the name of the connected database.
      */
     public function getDatabaseName(): string;
+
+    /**
+     * Get the connection name.
+     */
+    public function getName(): ?string;
+
+    /**
+     * Get a schema builder instance for the connection.
+     */
+    public function getSchemaBuilder(): SchemaBuilder;
 }

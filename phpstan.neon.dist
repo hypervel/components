@@ -28,6 +28,35 @@ parameters:
   ignoreErrors:
     # Framework traits provided for userland - not used internally but intentionally available
     - '#Trait Hypervel\\[A-Za-z\\\\]+ is used zero times and is not analysed\.#'
+
+    # Fluent class uses magic __get/__set/__call for dynamic properties and methods (ColumnDefinition, IndexDefinition, etc.)
+    - '#Access to an undefined property Hypervel\\Support\\Fluent::\$#'
+    - '#Access to an undefined property Hypervel\\Database\\Schema\\ColumnDefinition::\$#'
+    - '#Access to an undefined property Hypervel\\Database\\Schema\\IndexDefinition::\$#'
+    - '#Access to an undefined property Hypervel\\Database\\Schema\\ForeignKeyDefinition::\$#'
+    - '#Call to an undefined method Hypervel\\Support\\Fluent::#'
+    - '#Call to an undefined method Hypervel\\Database\\Schema\\ColumnDefinition::#'
+    - '#Call to an undefined method Hypervel\\Database\\Schema\\IndexDefinition::#'
+    - '#Call to an undefined method Hypervel\\Database\\Schema\\ForeignKeyDefinition::#'
+
+    # SoftDeletes trait methods - optionally mixed in, can't be statically verified
+    - '#Call to an undefined method .*::(getDeletedAtColumn|getQualifiedDeletedAtColumn|withTrashed|withoutTrashed|onlyTrashed|forceDelete|restore|trashed|isForceDeleting)\(\)#'
+
+    # Generic template type limitations - PHPStan can't resolve methods through generic TModel/TRelatedModel
+    - '#Call to an undefined method TModel of Hypervel\\Database\\Eloquent\\Model::#'
+    - '#Call to an undefined method TRelatedModel of Hypervel\\Database\\Eloquent\\Model::#'
+    - '#Call to an undefined method TPivotModel of Hypervel\\Database\\Eloquent\\Relations\\Pivot::#'
+
+    # Eloquent Model magic __call forwarding to Query Builder
+    - '#Call to an undefined method Hypervel\\Database\\Eloquent\\Model::(where|whereIn|find|first|get|create|update|forceCreate)\(\)#'
+    - '#Call to an undefined method Hypervel\\Database\\Query\\Builder::(with|load)\(\)#'
+
+    # Driver-specific methods (MySQL/MariaDB)
+    - '#Call to an undefined method Hypervel\\Database\\Connection::isMaria\(\)#'
+
+    # Non-generic interface usage in PHPDoc (Arrayable, etc.)
+    - '#PHPDoc tag @return contains generic type Hypervel\\Support\\Contracts\\Arrayable<.*> but interface .* is not generic#'
+    - '#PHPDoc tag @param contains generic type Hypervel\\Support\\Contracts\\Arrayable<.*> but interface .* is not generic#'
     - '#Result of method .* \(void\) is used\.#'
     - '#Unsafe usage of new static#'
     - '#Class [a-zA-Z0-9\\\\_]+ not found.#'
@@ -43,19 +72,3 @@ parameters:
     - '#Call to an undefined method Hyperf\\Database\\Query\\Builder::firstOrFail\(\)#'
     - '#Access to an undefined property Hyperf\\Collection\\HigherOrderCollectionProxy#'
     - '#Call to an undefined method Hyperf\\Tappable\\HigherOrderTapProxy#'
-    - message: '#.*#'
-      paths:
-        - src/database/src/Eloquent/Builder.php
-        - src/database/src/Eloquent/Collection.php
-        - src/database/src/Eloquent/Concerns/HasRelationships.php
-        - src/database/src/Eloquent/Concerns/QueriesRelationships.php
-        - src/database/src/Eloquent/Relations/BelongsToMany.php
-        - src/database/src/Eloquent/Relations/HasMany.php
-        - src/database/src/Eloquent/Relations/HasManyThrough.php
-        - src/database/src/Eloquent/Relations/HasOne.php
-        - src/database/src/Eloquent/Relations/HasOneThrough.php
-        - src/database/src/Eloquent/Relations/MorphMany.php
-        - src/database/src/Eloquent/Relations/MorphOne.php
-        - src/database/src/Eloquent/Relations/MorphTo.php
-        - src/database/src/Eloquent/Relations/MorphToMany.php
-        - src/database/src/Eloquent/Relations/Relation.php

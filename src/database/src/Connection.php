@@ -898,9 +898,9 @@ class Connection implements ConnectionInterface
     /**
      * Fire an event for this connection.
      */
-    protected function fireConnectionEvent(string $event): ?array
+    protected function fireConnectionEvent(string $event): void
     {
-        return $this->events?->dispatch(match ($event) {
+        $this->events?->dispatch(match ($event) {
             'beganTransaction' => new TransactionBeginning($this),
             'committed' => new TransactionCommitted($this),
             'committing' => new TransactionCommitting($this),

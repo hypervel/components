@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent;
 
-use Hypervel\Queue\Contracts\EntityNotFoundException;
+use Hypervel\Queue\Exceptions\EntityNotFoundException;
 use Hypervel\Queue\Contracts\EntityResolver as EntityResolverContract;
 
 class QueueEntityResolver implements EntityResolverContract

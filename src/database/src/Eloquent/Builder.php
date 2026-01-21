@@ -16,7 +16,7 @@ use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Database\UniqueConstraintViolationException;
-use Hyperf\Pagination\Paginator;
+use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Contracts\Arrayable;
@@ -1111,7 +1111,7 @@ class Builder implements BuilderContract
      * @param  string  $pageName
      * @param  int|null  $page
      * @param  \Closure|int|null  $total
-     * @return \Hyperf\Pagination\LengthAwarePaginator
+     * @return \Hypervel\Pagination\LengthAwarePaginator
      *
      * @throws \InvalidArgumentException
      */
@@ -1140,7 +1140,7 @@ class Builder implements BuilderContract
      * @param  array|string  $columns
      * @param  string  $pageName
      * @param  int|null  $page
-     * @return \Hyperf\Contract\PaginatorInterface
+     * @return \Hypervel\Pagination\Contracts\Paginator
      */
     public function simplePaginate($perPage = null, $columns = ['*'], $pageName = 'page', $page = null)
     {
@@ -1165,8 +1165,8 @@ class Builder implements BuilderContract
      * @param  int|null  $perPage
      * @param  array|string  $columns
      * @param  string  $cursorName
-     * @param  \Hyperf\Pagination\Cursor|string|null  $cursor
-     * @return \Hyperf\Contract\CursorPaginatorInterface
+     * @param  \Hypervel\Pagination\Cursor|string|null  $cursor
+     * @return \Hypervel\Pagination\Contracts\CursorPaginator
      */
     public function cursorPaginate($perPage = null, $columns = ['*'], $cursorName = 'cursor', $cursor = null)
     {
