@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Relations;
 
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
 
 /**
  * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
@@ -19,7 +20,7 @@ class MorphMany extends MorphOneOrMany
      *
      * @return \Hypervel\Database\Eloquent\Relations\MorphOne<TRelatedModel, TDeclaringModel>
      */
-    public function one()
+    public function one(): MorphOne
     {
         return MorphOne::noConstraints(fn () => tap(
             new MorphOne(
@@ -62,7 +63,7 @@ class MorphMany extends MorphOneOrMany
     }
 
     /** @inheritDoc */
-    public function forceCreate(array $attributes = [])
+    public function forceCreate(array $attributes = []): Model
     {
         $attributes[$this->getMorphType()] = $this->morphClass;
 

@@ -1,7 +1,10 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Database\Eloquent\Relations\Concerns;
 
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Str;
 
@@ -9,42 +12,28 @@ trait AsPivot
 {
     /**
      * The parent model of the relationship.
-     *
-     * @var \Hypervel\Database\Eloquent\Model
      */
-    public $pivotParent;
+    public ?Model $pivotParent = null;
 
     /**
      * The related model of the relationship.
-     *
-     * @var \Hypervel\Database\Eloquent\Model
      */
-    public $pivotRelated;
+    public ?Model $pivotRelated = null;
 
     /**
      * The name of the foreign key column.
-     *
-     * @var string
      */
-    protected $foreignKey;
+    protected string $foreignKey;
 
     /**
      * The name of the "other key" column.
-     *
-     * @var string
      */
-    protected $relatedKey;
+    protected string $relatedKey;
 
     /**
      * Create a new pivot model instance.
-     *
-     * @param  \Hypervel\Database\Eloquent\Model  $parent
-     * @param  array  $attributes
-     * @param  string  $table
-     * @param  bool  $exists
-     * @return static
      */
-    public static function fromAttributes(Model $parent, $attributes, $table, $exists = false)
+    public static function fromAttributes(Model $parent, array $attributes, string $table, bool $exists = false): static
     {
         $instance = new static;
 
@@ -70,14 +59,8 @@ trait AsPivot
 
     /**
      * Create a new pivot model from raw values returned from a query.
-     *
-     * @param  \Hypervel\Database\Eloquent\Model  $parent
-     * @param  array  $attributes
-     * @param  string  $table
-     * @param  bool  $exists
-     * @return static
      */
-    public static function fromRawAttributes(Model $parent, $attributes, $table, $exists = false)
+    public static function fromRawAttributes(Model $parent, array $attributes, string $table, bool $exists = false): static
     {
         $instance = static::fromAttributes($parent, [], $table, $exists);
 
@@ -96,7 +79,7 @@ trait AsPivot
      * @param  \Hypervel\Database\Eloquent\Builder<static>  $query
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
-    protected function setKeysForSelectQuery($query)
+    protected function setKeysForSelectQuery(Builder $query): Builder
     {
         if (isset($this->attributes[$this->getKeyName()])) {
             return parent::setKeysForSelectQuery($query);
@@ -117,17 +100,15 @@ trait AsPivot
      * @param  \Hypervel\Database\Eloquent\Builder<static>  $query
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
-    protected function setKeysForSaveQuery($query)
+    protected function setKeysForSaveQuery(Builder $query): Builder
     {
         return $this->setKeysForSelectQuery($query);
     }
 
     /**
      * Delete the pivot model record from the database.
-     *
-     * @return int
      */
-    public function delete()
+    public function delete(): int
     {
         if (isset($this->attributes[$this->getKeyName()])) {
             return (int) parent::delete();
@@ -151,7 +132,7 @@ trait AsPivot
      *
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
-    protected function getDeleteQuery()
+    protected function getDeleteQuery(): Builder
     {
         return $this->newQueryWithoutRelationships()->where([
             $this->foreignKey => $this->getOriginal($this->foreignKey, $this->getAttribute($this->foreignKey)),
@@ -161,10 +142,8 @@ trait AsPivot
 
     /**
      * Get the table associated with the model.
-     *
-     * @return string
      */
-    public function getTable()
+    public function getTable(): string
     {
         if (! isset($this->table)) {
             $this->setTable(str_replace(
@@ -177,30 +156,24 @@ trait AsPivot
 
     /**
      * Get the foreign key column name.
-     *
-     * @return string
      */
-    public function getForeignKey()
+    public function getForeignKey(): string
     {
         return $this->foreignKey;
     }
 
     /**
      * Get the "related key" column name.
-     *
-     * @return string
      */
-    public function getRelatedKey()
+    public function getRelatedKey(): string
     {
         return $this->relatedKey;
     }
 
     /**
      * Get the "related key" column name.
-     *
-     * @return string
      */
-    public function getOtherKey()
+    public function getOtherKey(): string
     {
         return $this->getRelatedKey();
     }
@@ -208,11 +181,9 @@ trait AsPivot
     /**
      * Set the key names for the pivot model instance.
      *
-     * @param  string  $foreignKey
-     * @param  string  $relatedKey
      * @return $this
      */
-    public function setPivotKeys($foreignKey, $relatedKey)
+    public function setPivotKeys(string $foreignKey, string $relatedKey): static
     {
         $this->foreignKey = $foreignKey;
 
@@ -224,10 +195,9 @@ trait AsPivot
     /**
      * Set the related model of the relationship.
      *
-     * @param  \Hypervel\Database\Eloquent\Model|null  $related
      * @return $this
      */
-    public function setRelatedModel(?Model $related = null)
+    public function setRelatedModel(?Model $related = null): static
     {
         $this->pivotRelated = $related;
 
@@ -236,11 +206,8 @@ trait AsPivot
 
     /**
      * Determine if the pivot model or given attributes has timestamp attributes.
-     *
-     * @param  array|null  $attributes
-     * @return bool
      */
-    public function hasTimestampAttributes($attributes = null)
+    public function hasTimestampAttributes(?array $attributes = null): bool
     {
         return ($createdAt = $this->getCreatedAtColumn()) !== null
             && array_key_exists($createdAt, $attributes ?? $this->attributes);
@@ -288,7 +255,7 @@ trait AsPivot
      * @param  int[]|string[]|string  $ids
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
-    public function newQueryForRestoration($ids)
+    public function newQueryForRestoration(array|string $ids): Builder
     {
         if (is_array($ids)) {
             return $this->newQueryForCollectionRestoration($ids);
@@ -311,7 +278,7 @@ trait AsPivot
      * @param  int[]|string[]  $ids
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
-    protected function newQueryForCollectionRestoration(array $ids)
+    protected function newQueryForCollectionRestoration(array $ids): Builder
     {
         $ids = array_values($ids);
 

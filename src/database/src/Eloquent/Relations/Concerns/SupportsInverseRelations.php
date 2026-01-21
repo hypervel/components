@@ -84,10 +84,11 @@ trait SupportsInverseRelations
     /**
      * Set the inverse relation on all models in a collection.
      *
-     * @param \Hypervel\Database\Eloquent\Collection $models
-     * @return \Hypervel\Database\Eloquent\Collection
+     * @template TCollection of \Hypervel\Database\Eloquent\Collection
+     * @param TCollection $models
+     * @return TCollection
      */
-    protected function applyInverseRelationToCollection($models, ?Model $parent = null)
+    protected function applyInverseRelationToCollection(mixed $models, ?Model $parent = null): mixed
     {
         $parent ??= $this->getParent();
 

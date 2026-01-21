@@ -30,39 +30,30 @@ class BelongsTo extends Relation
      *
      * @var TDeclaringModel
      */
-    protected $child;
+    protected Model $child;
 
     /**
      * The foreign key of the parent model.
-     *
-     * @var string
      */
-    protected $foreignKey;
+    protected string $foreignKey;
 
     /**
      * The associated key on the parent model.
-     *
-     * @var string
      */
-    protected $ownerKey;
+    protected string $ownerKey;
 
     /**
      * The name of the relationship.
-     *
-     * @var string
      */
-    protected $relationName;
+    protected string $relationName;
 
     /**
      * Create a new belongs to relationship instance.
      *
      * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
      * @param  TDeclaringModel  $child
-     * @param  string  $foreignKey
-     * @param  string  $ownerKey
-     * @param  string  $relationName
      */
-    public function __construct(Builder $query, Model $child, $foreignKey, $ownerKey, $relationName)
+    public function __construct(Builder $query, Model $child, string $foreignKey, string $ownerKey, string $relationName)
     {
         $this->ownerKey = $ownerKey;
         $this->relationName = $relationName;
@@ -88,10 +79,8 @@ class BelongsTo extends Relation
 
     /**
      * Set the base constraints on the relation query.
-     *
-     * @return void
      */
-    public function addConstraints()
+    public function addConstraints(): void
     {
         if (static::shouldAddConstraints()) {
             // For belongs to relationships, which are essentially the inverse of has one
@@ -120,9 +109,8 @@ class BelongsTo extends Relation
      * Gather the keys from an array of related models.
      *
      * @param  array<int, TDeclaringModel>  $models
-     * @return array
      */
-    protected function getEagerModelKeys(array $models)
+    protected function getEagerModelKeys(array $models): array
     {
         $keys = [];
 
@@ -184,7 +172,7 @@ class BelongsTo extends Relation
      * @param  TRelatedModel|int|string|null  $model
      * @return TDeclaringModel
      */
-    public function associate($model)
+    public function associate(Model|int|string|null $model): Model
     {
         $ownerKey = $model instanceof Model ? $model->getAttribute($this->ownerKey) : $model;
 
@@ -204,7 +192,7 @@ class BelongsTo extends Relation
      *
      * @return TDeclaringModel
      */
-    public function dissociate()
+    public function dissociate(): Model
     {
         $this->child->setAttribute($this->foreignKey, null);
 
@@ -216,17 +204,15 @@ class BelongsTo extends Relation
      *
      * @return TDeclaringModel
      */
-    public function disassociate()
+    public function disassociate(): Model
     {
         return $this->dissociate();
     }
 
     /**
      * Touch all of the related models for the relationship.
-     *
-     * @return void
      */
-    public function touch()
+    public function touch(): void
     {
         if (! is_null($this->getParentKey())) {
             parent::touch();
@@ -250,10 +236,9 @@ class BelongsTo extends Relation
      *
      * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
      * @param  \Hypervel\Database\Eloquent\Builder<TDeclaringModel>  $parentQuery
-     * @param  mixed  $columns
      * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
      */
-    public function getRelationExistenceQueryForSelfRelation(Builder $query, Builder $parentQuery, $columns = ['*'])
+    public function getRelationExistenceQueryForSelfRelation(Builder $query, Builder $parentQuery, array|string $columns = ['*']): Builder
     {
         $query->select($columns)->from(
             $query->getModel()->getTable().' as '.$hash = $this->getRelationCountHash()
@@ -268,10 +253,8 @@ class BelongsTo extends Relation
 
     /**
      * Determine if the related model has an auto-incrementing ID.
-     *
-     * @return bool
      */
-    protected function relationHasIncrementingId()
+    protected function relationHasIncrementingId(): bool
     {
         return $this->related->getIncrementing() &&
             in_array($this->related->getKeyType(), ['int', 'integer']);
@@ -293,27 +276,23 @@ class BelongsTo extends Relation
      *
      * @return TDeclaringModel
      */
-    public function getChild()
+    public function getChild(): Model
     {
         return $this->child;
     }
 
     /**
      * Get the foreign key of the relationship.
-     *
-     * @return string
      */
-    public function getForeignKeyName()
+    public function getForeignKeyName(): string
     {
         return $this->foreignKey;
     }
 
     /**
      * Get the fully qualified foreign key of the relationship.
-     *
-     * @return string
      */
-    public function getQualifiedForeignKeyName()
+    public function getQualifiedForeignKeyName(): string
     {
         return $this->child->qualifyColumn($this->foreignKey);
     }
@@ -328,20 +307,16 @@ class BelongsTo extends Relation
 
     /**
      * Get the associated key of the relationship.
-     *
-     * @return string
      */
-    public function getOwnerKeyName()
+    public function getOwnerKeyName(): string
     {
         return $this->ownerKey;
     }
 
     /**
      * Get the fully qualified associated key of the relationship.
-     *
-     * @return string
      */
-    public function getQualifiedOwnerKeyName()
+    public function getQualifiedOwnerKeyName(): string
     {
         return $this->related->qualifyColumn($this->ownerKey);
     }
@@ -360,9 +335,8 @@ class BelongsTo extends Relation
      * Get the value of the model's foreign key.
      *
      * @param  TDeclaringModel  $model
-     * @return mixed
      */
-    protected function getForeignKeyFrom(Model $model)
+    protected function getForeignKeyFrom(Model $model): mixed
     {
         $foreignKey = $model->{$this->foreignKey};
 
@@ -371,10 +345,8 @@ class BelongsTo extends Relation
 
     /**
      * Get the name of the relationship.
-     *
-     * @return string
      */
-    public function getRelationName()
+    public function getRelationName(): string
     {
         return $this->relationName;
     }
