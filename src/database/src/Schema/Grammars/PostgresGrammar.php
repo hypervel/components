@@ -235,7 +235,7 @@ class PostgresGrammar extends Grammar
         return null;
     }
 
-    /** @inheritDoc */
+    #[\Override]
     public function compileChange(Blueprint $blueprint, Fluent $command): array|string
     {
         $column = $command->column;

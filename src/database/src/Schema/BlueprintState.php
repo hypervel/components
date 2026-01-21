@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Database\Schema;
 
 use Hypervel\Database\Connection;
@@ -12,51 +14,42 @@ class BlueprintState
 {
     /**
      * The blueprint instance.
-     *
-     * @var \Hypervel\Database\Schema\Blueprint
      */
-    protected $blueprint;
+    protected Blueprint $blueprint;
 
     /**
      * The connection instance.
-     *
-     * @var \Hypervel\Database\Connection
      */
-    protected $connection;
+    protected Connection $connection;
 
     /**
      * The columns.
      *
      * @var \Hypervel\Database\Schema\ColumnDefinition[]
      */
-    private $columns;
+    private array $columns;
 
     /**
      * The primary key.
-     *
-     * @var \Hypervel\Database\Schema\IndexDefinition|null
      */
-    private $primaryKey;
+    private ?IndexDefinition $primaryKey;
 
     /**
      * The indexes.
      *
      * @var \Hypervel\Database\Schema\IndexDefinition[]
      */
-    private $indexes;
+    private array $indexes;
 
     /**
      * The foreign keys.
      *
      * @var \Hypervel\Database\Schema\ForeignKeyDefinition[]
      */
-    private $foreignKeys;
+    private array $foreignKeys;
 
     /**
      * Create a new blueprint state instance.
-     *
-     * @param  \Hypervel\Database\Schema\Blueprint  $blueprint
-     * @param  \Hypervel\Database\Connection  $connection
      */
     public function __construct(Blueprint $blueprint, Connection $connection)
     {
@@ -107,10 +100,8 @@ class BlueprintState
 
     /**
      * Get the primary key.
-     *
-     * @return \Hypervel\Database\Schema\IndexDefinition|null
      */
-    public function getPrimaryKey()
+    public function getPrimaryKey(): ?IndexDefinition
     {
         return $this->primaryKey;
     }
@@ -120,7 +111,7 @@ class BlueprintState
      *
      * @return \Hypervel\Database\Schema\ColumnDefinition[]
      */
-    public function getColumns()
+    public function getColumns(): array
     {
         return $this->columns;
     }
@@ -130,7 +121,7 @@ class BlueprintState
      *
      * @return \Hypervel\Database\Schema\IndexDefinition[]
      */
-    public function getIndexes()
+    public function getIndexes(): array
     {
         return $this->indexes;
     }
@@ -140,18 +131,15 @@ class BlueprintState
      *
      * @return \Hypervel\Database\Schema\ForeignKeyDefinition[]
      */
-    public function getForeignKeys()
+    public function getForeignKeys(): array
     {
         return $this->foreignKeys;
     }
 
-    /*
+    /**
      * Update the blueprint's state.
-     *
-     * @param  \Hypervel\Support\Fluent  $command
-     * @return void
      */
-    public function update(Fluent $command)
+    public function update(Fluent $command): void
     {
         switch ($command->name) {
             case 'alter':

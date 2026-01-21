@@ -9,7 +9,7 @@ use Hypervel\Support\Fluent;
 
 class MariaDbGrammar extends MySqlGrammar
 {
-    /** @inheritDoc */
+    #[\Override]
     public function compileRenameColumn(Blueprint $blueprint, Fluent $command): array|string
     {
         if (version_compare($this->connection->getServerVersion(), '10.5.2', '<')) {

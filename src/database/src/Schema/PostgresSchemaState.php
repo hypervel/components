@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Database\Schema;
 
 use Hypervel\Database\Connection;
@@ -9,12 +11,9 @@ class PostgresSchemaState extends SchemaState
 {
     /**
      * Dump the database's schema into a file.
-     *
-     * @param  \Hypervel\Database\Connection  $connection
-     * @param  string  $path
-     * @return void
      */
-    public function dump(Connection $connection, $path)
+    #[\Override]
+    public function dump(Connection $connection, string $path): void
     {
         $commands = new Collection([
             $this->baseDumpCommand().' --schema-only > '.$path,
@@ -33,11 +32,9 @@ class PostgresSchemaState extends SchemaState
 
     /**
      * Load the given schema file into the database.
-     *
-     * @param  string  $path
-     * @return void
      */
-    public function load($path)
+    #[\Override]
+    public function load(string $path): void
     {
         $command = 'pg_restore --no-owner --no-acl --clean --if-exists --host="${:LARAVEL_LOAD_HOST}" --port="${:LARAVEL_LOAD_PORT}" --username="${:LARAVEL_LOAD_USER}" --dbname="${:LARAVEL_LOAD_DATABASE}" "${:LARAVEL_LOAD_PATH}"';
 
@@ -54,9 +51,8 @@ class PostgresSchemaState extends SchemaState
 
     /**
      * Get the name of the application's migration table.
-     *
-     * @return string
      */
+    #[\Override]
     protected function getMigrationTable(): string
     {
         [$schema, $table] = $this->connection->getSchemaBuilder()->parseSchemaAndTable($this->migrationTable, withDefaultSchema: true);
@@ -66,21 +62,17 @@ class PostgresSchemaState extends SchemaState
 
     /**
      * Get the base dump command arguments for PostgreSQL as a string.
-     *
-     * @return string
      */
-    protected function baseDumpCommand()
+    protected function baseDumpCommand(): string
     {
         return 'pg_dump --no-owner --no-acl --host="${:LARAVEL_LOAD_HOST}" --port="${:LARAVEL_LOAD_PORT}" --username="${:LARAVEL_LOAD_USER}" --dbname="${:LARAVEL_LOAD_DATABASE}"';
     }
 
     /**
      * Get the base variables for a dump / load command.
-     *
-     * @param  array  $config
-     * @return array
      */
-    protected function baseVariables(array $config)
+    #[\Override]
+    protected function baseVariables(array $config): array
     {
         $config['host'] ??= '';
 

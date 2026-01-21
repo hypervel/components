@@ -323,7 +323,7 @@ class SQLiteGrammar extends Grammar
         ], $indexes, [$foreignKeyConstraintsEnabled ? $this->compileEnableForeignKeyConstraints() : null]));
     }
 
-    /** @inheritDoc */
+    #[\Override]
     public function compileChange(Blueprint $blueprint, Fluent $command): array|string
     {
         // Handled on table alteration...
@@ -571,10 +571,6 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Get the SQL to get or set a PRAGMA value.
-     *
-     * @param  string  $key
-     * @param  mixed  $value
-     * @return string
      */
     public function pragma(string $key, mixed $value = null): string
     {

@@ -12,7 +12,7 @@ use Hypervel\Database\ConnectionResolverInterface;
  */
 class SchemaProxy
 {
-    public function __call(string $name, array $arguments)
+    public function __call(string $name, array $arguments): mixed
     {
         return $this->connection()
             ->{$name}(...$arguments);

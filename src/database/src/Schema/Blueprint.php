@@ -527,7 +527,7 @@ class Blueprint
     /**
      * Specify the primary key(s) for the table.
      */
-    public function primary(array|string $columns, ?string $name = null, ?string $algorithm = null): IndexDefinition
+    public function primary(array|string $columns, ?string $name = null, ?string $algorithm = null): Fluent
     {
         return $this->indexCommand('primary', $columns, $name, $algorithm);
     }
@@ -535,7 +535,7 @@ class Blueprint
     /**
      * Specify a unique index for the table.
      */
-    public function unique(array|string $columns, ?string $name = null, ?string $algorithm = null): IndexDefinition
+    public function unique(array|string $columns, ?string $name = null, ?string $algorithm = null): Fluent
     {
         return $this->indexCommand('unique', $columns, $name, $algorithm);
     }
@@ -543,7 +543,7 @@ class Blueprint
     /**
      * Specify an index for the table.
      */
-    public function index(array|string $columns, ?string $name = null, ?string $algorithm = null): IndexDefinition
+    public function index(array|string $columns, ?string $name = null, ?string $algorithm = null): Fluent
     {
         return $this->indexCommand('index', $columns, $name, $algorithm);
     }
@@ -551,7 +551,7 @@ class Blueprint
     /**
      * Specify a fulltext index for the table.
      */
-    public function fullText(array|string $columns, ?string $name = null, ?string $algorithm = null): IndexDefinition
+    public function fullText(array|string $columns, ?string $name = null, ?string $algorithm = null): Fluent
     {
         return $this->indexCommand('fulltext', $columns, $name, $algorithm);
     }
@@ -559,7 +559,7 @@ class Blueprint
     /**
      * Specify a spatial index for the table.
      */
-    public function spatialIndex(array|string $columns, ?string $name = null, ?string $operatorClass = null): IndexDefinition
+    public function spatialIndex(array|string $columns, ?string $name = null, ?string $operatorClass = null): Fluent
     {
         return $this->indexCommand('spatialIndex', $columns, $name, null, $operatorClass);
     }
@@ -567,7 +567,7 @@ class Blueprint
     /**
      * Specify a vector index for the table.
      */
-    public function vectorIndex(string $column, ?string $name = null): IndexDefinition
+    public function vectorIndex(string $column, ?string $name = null): Fluent
     {
         return $this->indexCommand('vectorIndex', $column, $name, 'hnsw', 'vector_cosine_ops');
     }
@@ -575,7 +575,7 @@ class Blueprint
     /**
      * Specify a raw index for the table.
      */
-    public function rawIndex(string $expression, string $name): IndexDefinition
+    public function rawIndex(string $expression, string $name): Fluent
     {
         return $this->index([new Expression($expression)], $name);
     }
@@ -1301,7 +1301,7 @@ class Blueprint
     /**
      * Create a new index command on the blueprint.
      */
-    protected function indexCommand(string $type, array|string $columns, ?string $index, ?string $algorithm = null, ?string $operatorClass = null): IndexDefinition
+    protected function indexCommand(string $type, array|string $columns, ?string $index, ?string $algorithm = null, ?string $operatorClass = null): Fluent
     {
         $columns = (array) $columns;
 

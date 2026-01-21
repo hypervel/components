@@ -282,7 +282,7 @@ class MySqlGrammar extends Grammar
         return null;
     }
 
-    /** @inheritDoc */
+    #[\Override]
     public function compileRenameColumn(Blueprint $blueprint, Fluent $command): array|string
     {
         $isMaria = $this->connection->isMaria();
@@ -337,7 +337,7 @@ class MySqlGrammar extends Grammar
         );
     }
 
-    /** @inheritDoc */
+    #[\Override]
     public function compileChange(Blueprint $blueprint, Fluent $command): array|string
     {
         $column = $command->column;

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Database\Schema;
 
 use Hypervel\Database\Connection;
@@ -10,45 +12,31 @@ abstract class SchemaState
 {
     /**
      * The connection instance.
-     *
-     * @var \Hypervel\Database\Connection
      */
-    protected $connection;
+    protected Connection $connection;
 
     /**
      * The filesystem instance.
-     *
-     * @var \Hypervel\Filesystem\Filesystem
      */
-    protected $files;
+    protected Filesystem $files;
 
     /**
      * The name of the application's migration table.
-     *
-     * @var string
      */
-    protected $migrationTable = 'migrations';
+    protected string $migrationTable = 'migrations';
 
     /**
      * The process factory callback.
-     *
-     * @var callable
      */
-    protected $processFactory;
+    protected \Closure $processFactory;
 
     /**
      * The output callable instance.
-     *
-     * @var callable
      */
-    protected $output;
+    protected mixed $output;
 
     /**
      * Create a new dumper instance.
-     *
-     * @param  \Hypervel\Database\Connection  $connection
-     * @param  \Hypervel\Filesystem\Filesystem|null  $files
-     * @param  callable|null  $processFactory
      */
     public function __construct(Connection $connection, ?Filesystem $files = null, ?callable $processFactory = null)
     {
@@ -67,36 +55,24 @@ abstract class SchemaState
 
     /**
      * Dump the database's schema into a file.
-     *
-     * @param  \Hypervel\Database\Connection  $connection
-     * @param  string  $path
-     * @return void
      */
-    abstract public function dump(Connection $connection, $path);
+    abstract public function dump(Connection $connection, string $path): void;
 
     /**
      * Load the given schema file into the database.
-     *
-     * @param  string  $path
-     * @return void
      */
-    abstract public function load($path);
+    abstract public function load(string $path): void;
 
     /**
      * Create a new process instance.
-     *
-     * @param  mixed  ...$arguments
-     * @return \Symfony\Component\Process\Process
      */
-    public function makeProcess(...$arguments)
+    public function makeProcess(mixed ...$arguments): Process
     {
         return call_user_func($this->processFactory, ...$arguments);
     }
 
     /**
      * Determine if the current connection has a migration table.
-     *
-     * @return bool
      */
     public function hasMigrationTable(): bool
     {
@@ -105,8 +81,6 @@ abstract class SchemaState
 
     /**
      * Get the name of the application's migration table.
-     *
-     * @return string
      */
     protected function getMigrationTable(): string
     {
@@ -115,11 +89,8 @@ abstract class SchemaState
 
     /**
      * Specify the name of the application's migration table.
-     *
-     * @param  string  $table
-     * @return $this
      */
-    public function withMigrationTable(string $table)
+    public function withMigrationTable(string $table): static
     {
         $this->migrationTable = $table;
 
@@ -128,11 +99,8 @@ abstract class SchemaState
 
     /**
      * Specify the callback that should be used to handle process output.
-     *
-     * @param  callable  $output
-     * @return $this
      */
-    public function handleOutputUsing(callable $output)
+    public function handleOutputUsing(callable $output): static
     {
         $this->output = $output;
 

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Database\Schema;
 
 use Exception;
@@ -11,12 +13,9 @@ class MySqlSchemaState extends SchemaState
 {
     /**
      * Dump the database's schema into a file.
-     *
-     * @param  \Hypervel\Database\Connection  $connection
-     * @param  string  $path
-     * @return void
      */
-    public function dump(Connection $connection, $path)
+    #[\Override]
+    public function dump(Connection $connection, string $path): void
     {
         $this->executeDumpProcess($this->makeProcess(
             $this->baseDumpCommand().' --routines --result-file="${:LARAVEL_LOAD_PATH}" --no-data'
@@ -33,11 +32,8 @@ class MySqlSchemaState extends SchemaState
 
     /**
      * Remove the auto-incrementing state from the given schema dump.
-     *
-     * @param  string  $path
-     * @return void
      */
-    protected function removeAutoIncrementingState(string $path)
+    protected function removeAutoIncrementingState(string $path): void
     {
         $this->files->put($path, preg_replace(
             '/\s+AUTO_INCREMENT=[0-9]+/iu',
@@ -48,11 +44,8 @@ class MySqlSchemaState extends SchemaState
 
     /**
      * Append the migration data to the schema dump.
-     *
-     * @param  string  $path
-     * @return void
      */
-    protected function appendMigrationData(string $path)
+    protected function appendMigrationData(string $path): void
     {
         $process = $this->executeDumpProcess($this->makeProcess(
             $this->baseDumpCommand().' '.$this->getMigrationTable().' --no-create-info --skip-extended-insert --skip-routines --compact --complete-insert'
@@ -65,11 +58,9 @@ class MySqlSchemaState extends SchemaState
 
     /**
      * Load the given schema file into the database.
-     *
-     * @param  string  $path
-     * @return void
      */
-    public function load($path)
+    #[\Override]
+    public function load(string $path): void
     {
         $command = 'mysql '.$this->connectionString().' --database="${:LARAVEL_LOAD_DATABASE}" < "${:LARAVEL_LOAD_PATH}"';
 
@@ -82,10 +73,8 @@ class MySqlSchemaState extends SchemaState
 
     /**
      * Get the base dump command arguments for MySQL as a string.
-     *
-     * @return string
      */
-    protected function baseDumpCommand()
+    protected function baseDumpCommand(): string
     {
         $command = 'mysqldump '.$this->connectionString().' --no-tablespaces --skip-add-locks --skip-comments --skip-set-charset --tz-utc --column-statistics=0';
 
@@ -98,10 +87,8 @@ class MySqlSchemaState extends SchemaState
 
     /**
      * Generate a basic connection string (--socket, --host, --port, --user, --password) for the database.
-     *
-     * @return string
      */
-    protected function connectionString()
+    protected function connectionString(): string
     {
         $value = ' --user="${:LARAVEL_LOAD_USER}" --password="${:LARAVEL_LOAD_PASSWORD}"';
 
@@ -126,11 +113,9 @@ class MySqlSchemaState extends SchemaState
 
     /**
      * Get the base variables for a dump / load command.
-     *
-     * @param  array  $config
-     * @return array
      */
-    protected function baseVariables(array $config)
+    #[\Override]
+    protected function baseVariables(array $config): array
     {
         $config['host'] ??= '';
 
@@ -147,14 +132,8 @@ class MySqlSchemaState extends SchemaState
 
     /**
      * Execute the given dump process.
-     *
-     * @param  \Symfony\Component\Process\Process  $process
-     * @param  callable  $output
-     * @param  array  $variables
-     * @param  int  $depth
-     * @return \Symfony\Component\Process\Process
      */
-    protected function executeDumpProcess(Process $process, $output, array $variables, int $depth = 0)
+    protected function executeDumpProcess(Process $process, ?callable $output, array $variables, int $depth = 0): Process
     {
         if ($depth > 30) {
             throw new Exception('Dump execution exceeded maximum depth of 30.');

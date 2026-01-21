@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Database\Schema;
 
 use Hypervel\Database\Connection;
@@ -9,12 +11,9 @@ class SqliteSchemaState extends SchemaState
 {
     /**
      * Dump the database's schema into a file.
-     *
-     * @param  \Hypervel\Database\Connection  $connection
-     * @param  string  $path
-     * @return void
      */
-    public function dump(Connection $connection, $path)
+    #[\Override]
+    public function dump(Connection $connection, string $path): void
     {
         $process = $this->makeProcess($this->baseCommand().' ".schema --indent"')
             ->setTimeout(null)
@@ -33,11 +32,8 @@ class SqliteSchemaState extends SchemaState
 
     /**
      * Append the migration data to the schema dump.
-     *
-     * @param  string  $path
-     * @return void
      */
-    protected function appendMigrationData(string $path)
+    protected function appendMigrationData(string $path): void
     {
         $process = $this->makeProcess(
             $this->baseCommand().' ".dump \''.$this->getMigrationTable().'\'"'
@@ -54,11 +50,9 @@ class SqliteSchemaState extends SchemaState
 
     /**
      * Load the given schema file into the database.
-     *
-     * @param  string  $path
-     * @return void
      */
-    public function load($path)
+    #[\Override]
+    public function load(string $path): void
     {
         $database = $this->connection->getDatabaseName();
 
@@ -80,21 +74,17 @@ class SqliteSchemaState extends SchemaState
 
     /**
      * Get the base sqlite command arguments as a string.
-     *
-     * @return string
      */
-    protected function baseCommand()
+    protected function baseCommand(): string
     {
         return 'sqlite3 "${:LARAVEL_LOAD_DATABASE}"';
     }
 
     /**
      * Get the base variables for a dump / load command.
-     *
-     * @param  array  $config
-     * @return array
      */
-    protected function baseVariables(array $config)
+    #[\Override]
+    protected function baseVariables(array $config): array
     {
         return [
             'LARAVEL_LOAD_DATABASE' => $config['database'],

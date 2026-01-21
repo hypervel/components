@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Database\Schema;
 
 use Hypervel\Database\QueryException;
@@ -10,28 +12,24 @@ class SQLiteBuilder extends Builder
 {
     /**
      * Create a database in the schema.
-     *
-     * @param  string  $name
-     * @return bool
      */
-    public function createDatabase($name)
+    #[\Override]
+    public function createDatabase(string $name): bool
     {
         return File::put($name, '') !== false;
     }
 
     /**
      * Drop a database from the schema if the database exists.
-     *
-     * @param  string  $name
-     * @return bool
      */
-    public function dropDatabaseIfExists($name)
+    #[\Override]
+    public function dropDatabaseIfExists(string $name): bool
     {
         return ! File::exists($name) || File::delete($name);
     }
 
-    /** @inheritDoc */
-    public function getTables($schema = null)
+    #[\Override]
+    public function getTables(array|string|null $schema = null): array
     {
         try {
             $withSize = $this->connection->scalar($this->grammar->compileDbstatExists());
@@ -60,8 +58,8 @@ class SQLiteBuilder extends Builder
         );
     }
 
-    /** @inheritDoc */
-    public function getViews($schema = null)
+    #[\Override]
+    public function getViews(array|string|null $schema = null): array
     {
         $schema ??= array_column($this->getSchemas(), 'name');
 
@@ -76,8 +74,8 @@ class SQLiteBuilder extends Builder
         return $this->connection->getPostProcessor()->processViews($views);
     }
 
-    /** @inheritDoc */
-    public function getColumns($table)
+    #[\Override]
+    public function getColumns(string $table): array
     {
         [$schema, $table] = $this->parseSchemaAndTable($table);
 
@@ -91,10 +89,9 @@ class SQLiteBuilder extends Builder
 
     /**
      * Drop all tables from the database.
-     *
-     * @return void
      */
-    public function dropAllTables()
+    #[\Override]
+    public function dropAllTables(): void
     {
         foreach ($this->getCurrentSchemaListing() as $schema) {
             $database = $schema === 'main'
@@ -120,10 +117,9 @@ class SQLiteBuilder extends Builder
 
     /**
      * Drop all views from the database.
-     *
-     * @return void
      */
-    public function dropAllViews()
+    #[\Override]
+    public function dropAllViews(): void
     {
         foreach ($this->getCurrentSchemaListing() as $schema) {
             $this->pragma('writable_schema', 1);
@@ -138,12 +134,8 @@ class SQLiteBuilder extends Builder
 
     /**
      * Get the value for the given pragma name or set the given value.
-     *
-     * @param  string  $key
-     * @param  mixed  $value
-     * @return mixed
      */
-    public function pragma($key, $value = null)
+    public function pragma(string $key, mixed $value = null): mixed
     {
         return is_null($value)
             ? $this->connection->scalar($this->grammar->pragma($key))
@@ -152,21 +144,17 @@ class SQLiteBuilder extends Builder
 
     /**
      * Empty the database file.
-     *
-     * @param  string|null  $path
-     * @return void
      */
-    public function refreshDatabaseFile($path = null)
+    public function refreshDatabaseFile(?string $path = null): void
     {
         file_put_contents($path ?? $this->connection->getDatabaseName(), '');
     }
 
     /**
      * Get the names of current schemas for the connection.
-     *
-     * @return string[]|null
      */
-    public function getCurrentSchemaListing()
+    #[\Override]
+    public function getCurrentSchemaListing(): array
     {
         return ['main'];
     }

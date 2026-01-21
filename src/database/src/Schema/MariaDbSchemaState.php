@@ -1,16 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Database\Schema;
 
 class MariaDbSchemaState extends MySqlSchemaState
 {
     /**
      * Load the given schema file into the database.
-     *
-     * @param  string  $path
-     * @return void
      */
-    public function load($path)
+    #[\Override]
+    public function load(string $path): void
     {
         $command = 'mariadb '.$this->connectionString().' --database="${:LARAVEL_LOAD_DATABASE}" < "${:LARAVEL_LOAD_PATH}"';
 
@@ -23,10 +23,9 @@ class MariaDbSchemaState extends MySqlSchemaState
 
     /**
      * Get the base dump command arguments for MariaDB as a string.
-     *
-     * @return string
      */
-    protected function baseDumpCommand()
+    #[\Override]
+    protected function baseDumpCommand(): string
     {
         $command = 'mariadb-dump '.$this->connectionString().' --no-tablespaces --skip-add-locks --skip-comments --skip-set-charset --tz-utc';
 
