@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Watchers;
 
 use Hyperf\Collection\Collection;
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Model;
 use Hyperf\Stringable\Str;
 use Hypervel\Auth\Access\Events\GateEvaluated;
 use Hypervel\Auth\Access\Response;

@@ -6,8 +6,8 @@ namespace Hypervel\Router\Middleware;
 
 use BackedEnum;
 use Closure;
-use Hyperf\Database\Model\Model;
-use Hyperf\Database\Model\ModelNotFoundException;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hyperf\Di\ReflectionType;
 use Hyperf\HttpServer\Router\Dispatched;
 use Hypervel\Http\RouteDependency;

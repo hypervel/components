@@ -6,7 +6,7 @@ namespace Hypervel\Sanctum;
 
 use BackedEnum;
 use DateTimeInterface;
-use Hyperf\Database\Model\Relations\MorphMany;
+use Hypervel\Database\Eloquent\Relations\MorphMany;
 use Hypervel\Sanctum\Contracts\HasAbilities;
 use Hypervel\Support\Str;
 

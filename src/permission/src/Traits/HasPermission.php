@@ -6,7 +6,7 @@ namespace Hypervel\Permission\Traits;
 
 use BackedEnum;
 use Hyperf\Collection\Collection as BaseCollection;
-use Hyperf\Database\Model\Relations\MorphToMany;
+use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Permission\Contracts\Permission;
 use Hypervel\Permission\Contracts\Role;

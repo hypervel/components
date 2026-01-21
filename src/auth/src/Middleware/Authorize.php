@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Auth\Middleware;
 
 use Hyperf\Collection\Collection;
-use Hyperf\Database\Model\Model;
 use Hyperf\HttpServer\Router\Dispatched;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\Contracts\Gate;
 use Psr\Http\Message\ResponseInterface;

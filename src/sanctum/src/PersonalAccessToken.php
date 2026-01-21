@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Sanctum;
 
 use BackedEnum;
-use Hyperf\Database\Model\Events\Deleting;
-use Hyperf\Database\Model\Events\Updating;
-use Hyperf\Database\Model\Relations\MorphTo;
+use Hypervel\Database\Eloquent\Events\Deleting;
+use Hypervel\Database\Eloquent\Events\Updating;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Auth\Contracts\Authenticatable;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\Contracts\Repository as CacheRepository;
@@ -23,7 +23,7 @@ use Hypervel\Support\Str;
  * @property string $name
  * @property null|\Carbon\Carbon $last_used_at
  * @property null|\Carbon\Carbon $expires_at
- * @method static \Hyperf\Database\Model\Builder where(string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and')
+ * @method static \Hypervel\Database\Eloquent\Builder where(string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and')
  * @method static static|null find(mixed $id, array $columns = ['*'])
  */
 class PersonalAccessToken extends Model implements HasAbilities

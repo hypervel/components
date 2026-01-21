@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
-use Hyperf\Database\Connection as DatabaseConnection;
+use Hypervel\Database\Connection as DatabaseConnection;
 use Hypervel\Database\DatabaseManager;
 
 trait DatabaseTransactions

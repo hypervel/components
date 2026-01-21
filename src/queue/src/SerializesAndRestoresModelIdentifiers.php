@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Queue;
 
 use Hyperf\Collection\Collection;
-use Hyperf\Database\Model\Builder;
-use Hyperf\Database\Model\Collection as EloquentCollection;
-use Hyperf\Database\Model\Model;
-use Hyperf\Database\Model\Relations\Concerns\AsPivot;
-use Hyperf\Database\Model\Relations\Pivot;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
+use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\ModelIdentifier;
 use Hypervel\Queue\Contracts\QueueableCollection;
 use Hypervel\Queue\Contracts\QueueableEntity;

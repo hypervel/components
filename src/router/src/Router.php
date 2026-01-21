@@ -6,7 +6,7 @@ namespace Hypervel\Router;
 
 use Closure;
 use Hyperf\Context\ApplicationContext;
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Model;
 use Hyperf\HttpServer\Request;
 use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\HttpServer\Router\DispatcherFactory;

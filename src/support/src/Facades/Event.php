@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hyperf\Database\Model\Register;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Testing\Fakes\EventFake;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
@@ -46,7 +46,7 @@ class Event extends Facade
     {
         static::swap($fake = new EventFake(static::getFacadeRoot(), $eventsToFake));
 
-        Register::setEventDispatcher($fake);
+        Model::setEventDispatcher($fake);
         Cache::refreshEventDispatcher();
 
         return $fake;
@@ -76,7 +76,7 @@ class Event extends Facade
         return tap($callable(), function () use ($originalDispatcher) {
             static::swap($originalDispatcher);
 
-            Register::setEventDispatcher($originalDispatcher);
+            Model::setEventDispatcher($originalDispatcher);
             Cache::refreshEventDispatcher();
         });
     }
@@ -93,7 +93,7 @@ class Event extends Facade
         return tap($callable(), function () use ($originalDispatcher) {
             static::swap($originalDispatcher);
 
-            Register::setEventDispatcher($originalDispatcher);
+            Model::setEventDispatcher($originalDispatcher);
             Cache::refreshEventDispatcher();
         });
     }

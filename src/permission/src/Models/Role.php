@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Permission\Models;
 
 use Carbon\Carbon;
-use Hyperf\Database\Model\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Permission\Contracts\Role as RoleContract;

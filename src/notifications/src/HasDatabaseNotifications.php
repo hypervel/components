@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications;
 
-use Hyperf\Database\Model\Relations\MorphMany;
-use Hyperf\Database\Query\Builder;
+use Hypervel\Database\Eloquent\Relations\MorphMany;
+use Hypervel\Database\Query\Builder;
 
 trait HasDatabaseNotifications
 {

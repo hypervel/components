@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Notifications;
 
 use Hyperf\Collection\Collection;
-use Hyperf\Database\Model\Collection as ModelCollection;
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Collection as ModelCollection;
+use Hypervel\Database\Eloquent\Model;
 use Hyperf\Stringable\Str;
 use Hypervel\Bus\Contracts\Dispatcher as BusDispatcherContract;
 use Hypervel\Notifications\Events\NotificationSending;

@@ -6,7 +6,7 @@ namespace Hypervel\Queue;
 
 use __PHP_Incomplete_Class;
 use Exception;
-use Hyperf\Database\Model\ModelNotFoundException;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\Contracts\Dispatcher;
 use Hypervel\Bus\UniqueLock;

@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Features;
 
-use Hyperf\Database\Events\ConnectionEvent;
-use Hyperf\Database\Events\QueryExecuted;
-use Hyperf\Database\Events\TransactionBeginning;
-use Hyperf\Database\Events\TransactionCommitted;
-use Hyperf\Database\Events\TransactionRolledBack;
+use Hypervel\Database\Events\ConnectionEvent;
+use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Database\Events\TransactionBeginning;
+use Hypervel\Database\Events\TransactionCommitted;
+use Hypervel\Database\Events\TransactionRolledBack;
 use Hypervel\Event\Contracts\Dispatcher;
 use Hypervel\Sentry\Integrations\Integration;
 use Sentry\Breadcrumb;

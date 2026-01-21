@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\NestedSet\Eloquent;
 
-use Hyperf\Database\Model\Model;
-use Hyperf\Database\Model\Relations\Constraint;
+use Hypervel\Database\Eloquent\Model;
 
 class AncestorsRelation extends BaseRelation
 {
@@ -14,7 +13,7 @@ class AncestorsRelation extends BaseRelation
      */
     public function addConstraints(): void
     {
-        if (! Constraint::isConstraint()) {
+        if (! static::shouldAddConstraints()) {
             return;
         }
 

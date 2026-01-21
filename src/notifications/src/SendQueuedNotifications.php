@@ -6,8 +6,8 @@ namespace Hypervel\Notifications;
 
 use DateTime;
 use Hyperf\Collection\Collection;
-use Hyperf\Database\Model\Collection as EloquentCollection;
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Collection as EloquentCollection;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Bus\Queueable;
 use Hypervel\Queue\Contracts\ShouldBeEncrypted;
 use Hypervel\Queue\Contracts\ShouldQueue;

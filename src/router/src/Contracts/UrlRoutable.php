@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Router\Contracts;
 
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Model;
 
 interface UrlRoutable
 {

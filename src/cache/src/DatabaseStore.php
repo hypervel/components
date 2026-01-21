@@ -6,12 +6,12 @@ namespace Hypervel\Cache;
 
 use Closure;
 use Hyperf\Collection\Arr;
-use Hyperf\Database\ConnectionInterface;
-use Hypervel\Database\ConnectionResolverInterface;
-use Hyperf\Database\Query\Builder;
 use Hyperf\Support\Traits\InteractsWithTime;
 use Hypervel\Cache\Contracts\LockProvider;
 use Hypervel\Cache\Contracts\Store;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Query\Builder;
 use Throwable;
 
 class DatabaseStore implements Store, LockProvider

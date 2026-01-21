@@ -6,7 +6,7 @@ namespace Hypervel\Queue\Failed;
 
 use DateTimeInterface;
 use Hypervel\Database\ConnectionResolverInterface;
-use Hyperf\Database\Query\Builder;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Support\Carbon;
 use Throwable;
 

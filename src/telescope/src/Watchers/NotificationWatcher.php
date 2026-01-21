@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\Events\NotificationSent;
 use Hypervel\Queue\Contracts\ShouldQueue;

@@ -6,8 +6,8 @@ namespace Hypervel\Auth\Providers;
 
 use Closure;
 use Hyperf\Contract\Arrayable;
-use Hyperf\Database\ConnectionInterface;
 use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Auth\Contracts\UserProvider;
 use Hypervel\Auth\GenericUser;
 use Hypervel\Hashing\Contracts\Hasher as HashContract;

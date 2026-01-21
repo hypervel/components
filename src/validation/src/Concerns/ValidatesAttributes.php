@@ -17,7 +17,7 @@ use Egulias\EmailValidator\Validation\MultipleValidationWithAnd;
 use Egulias\EmailValidator\Validation\NoRFCWarningsValidation;
 use Egulias\EmailValidator\Validation\RFCValidation;
 use Exception;
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Model;
 use Hyperf\HttpMessage\Upload\UploadedFile;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Support\Arr;

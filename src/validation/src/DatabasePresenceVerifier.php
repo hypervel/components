@@ -6,7 +6,7 @@ namespace Hypervel\Validation;
 
 use Closure;
 use Hypervel\Database\ConnectionResolverInterface;
-use Hyperf\Database\Query\Builder;
+use Hypervel\Database\Query\Builder;
 
 class DatabasePresenceVerifier implements DatabasePresenceVerifierInterface
 {

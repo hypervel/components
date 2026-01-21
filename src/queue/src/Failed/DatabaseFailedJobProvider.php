@@ -7,7 +7,7 @@ namespace Hypervel\Queue\Failed;
 use Carbon\Carbon;
 use DateTimeInterface;
 use Hypervel\Database\ConnectionResolverInterface;
-use Hyperf\Database\Query\Builder;
+use Hypervel\Database\Query\Builder;
 use Throwable;
 
 class DatabaseFailedJobProvider implements CountableFailedJobProvider, FailedJobProviderInterface, PrunableFailedJobProvider

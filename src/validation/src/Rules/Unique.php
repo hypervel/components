@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Traits\Conditionable;
 use Stringable;
 

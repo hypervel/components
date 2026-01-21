@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Constraints;
 
-use Hyperf\Database\Query\Expression;
 use Hypervel\Database\Connection;
+use Hypervel\Database\Query\Expression;
 use PHPUnit\Framework\Constraint\Constraint;
 
 class HasInDatabase extends Constraint

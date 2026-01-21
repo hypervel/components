@@ -6,9 +6,9 @@ namespace Hypervel\Auth\Providers;
 
 use Closure;
 use Hyperf\Contract\Arrayable;
-use Hyperf\Database\Model\Builder;
-use Hyperf\Database\Model\Model;
 use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Auth\Contracts\UserProvider;
 use Hypervel\Hashing\Contracts\Hasher as HashContract;
 
@@ -19,7 +19,7 @@ class EloquentUserProvider implements UserProvider
     /**
      * The callback that may modify the user retrieval queries.
      *
-     * @var null|(Closure(\Hyperf\Database\Model\Builder):mixed)
+     * @var null|(Closure(\Hypervel\Database\Eloquent\Builder):mixed)
      */
     protected $queryCallback;
 
@@ -176,7 +176,7 @@ class EloquentUserProvider implements UserProvider
     /**
      * Sets the callback to modify the query before retrieving users.
      *
-     * @param null|(Closure(\Hyperf\Database\Model\Builder):mixed) $queryCallback
+     * @param null|(Closure(\Hypervel\Database\Eloquent\Builder):mixed) $queryCallback
      *
      * @return $this
      */

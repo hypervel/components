@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing;
 
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Database\Connection as DatabaseConnection;
-use Hyperf\Database\Model\Booted;
+use Hypervel\Database\Connection as DatabaseConnection;
 use Hypervel\Database\DatabaseManager;
+use Hypervel\Database\Eloquent\Events\Booted;
 use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
 use Psr\EventDispatcher\EventDispatcherInterface;
 

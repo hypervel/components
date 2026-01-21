@@ -6,8 +6,8 @@ namespace Hypervel\Telescope\Watchers;
 
 use Hyperf\Collection\Collection;
 use Hyperf\Context\Context;
-use Hyperf\Database\Model\Events\Event;
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Events\Event;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Telescope\FormatModel;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Storage\EntryModel;
@@ -20,12 +20,12 @@ class ModelWatcher extends Watcher
     public const HYDRATIONS = 'telescope.watcher.model.hydrations';
 
     public const MODEL_EVENTS = [
-        \Hyperf\Database\Model\Events\Created::class,
-        \Hyperf\Database\Model\Events\Deleted::class,
-        \Hyperf\Database\Model\Events\ForceDeleted::class,
-        \Hyperf\Database\Model\Events\Restored::class,
-        \Hyperf\Database\Model\Events\Retrieved::class,
-        \Hyperf\Database\Model\Events\Updated::class,
+        \Hypervel\Database\Eloquent\Events\Created::class,
+        \Hypervel\Database\Eloquent\Events\Deleted::class,
+        \Hypervel\Database\Eloquent\Events\ForceDeleted::class,
+        \Hypervel\Database\Eloquent\Events\Restored::class,
+        \Hypervel\Database\Eloquent\Events\Retrieved::class,
+        \Hypervel\Database\Eloquent\Events\Updated::class,
     ];
 
     /**

@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\NestedSet\Eloquent;
 
 use Hyperf\Collection\Collection as HyperfCollection;
-use Hyperf\Database\Model\Builder as EloquentBuilder;
-use Hyperf\Database\Model\Model;
-use Hyperf\Database\Model\ModelNotFoundException;
-use Hyperf\Database\Query\Builder as BaseQueryBuilder;
-use Hyperf\Database\Query\Expression;
+use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\Query\Builder as BaseQueryBuilder;
+use Hypervel\Database\Query\Expression;
 use Hypervel\NestedSet\NestedSet;
 use Hypervel\Support\Arr;
 use LogicException;

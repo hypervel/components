@@ -6,10 +6,10 @@ namespace Hypervel\NestedSet;
 
 use Carbon\Carbon;
 use Exception;
-use Hyperf\Database\Model\Model;
-use Hyperf\Database\Model\Relations\BelongsTo;
-use Hyperf\Database\Model\Relations\HasMany;
-use Hyperf\Database\Query\Builder as HyperfQueryBuilder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Query\Builder as HyperfQueryBuilder;
 use Hypervel\NestedSet\Eloquent\AncestorsRelation;
 use Hypervel\NestedSet\Eloquent\Collection;
 use Hypervel\NestedSet\Eloquent\DescendantsRelation;

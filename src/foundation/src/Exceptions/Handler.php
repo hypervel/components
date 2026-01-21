@@ -11,7 +11,7 @@ use Hyperf\Context\Context;
 use Hyperf\Contract\MessageBag as MessageBagContract;
 use Hyperf\Contract\MessageProvider;
 use Hyperf\Contract\SessionInterface;
-use Hyperf\Database\Model\ModelNotFoundException;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hyperf\ExceptionHandler\ExceptionHandler;
 use Hyperf\HttpMessage\Base\Response as BaseResponse;
 use Hyperf\HttpMessage\Exception\HttpException as HyperfHttpException;

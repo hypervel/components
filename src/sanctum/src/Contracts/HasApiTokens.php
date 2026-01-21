@@ -6,7 +6,7 @@ namespace Hypervel\Sanctum\Contracts;
 
 use BackedEnum;
 use DateTimeInterface;
-use Hyperf\Database\Model\Relations\MorphMany;
+use Hypervel\Database\Eloquent\Relations\MorphMany;
 
 interface HasApiTokens
 {

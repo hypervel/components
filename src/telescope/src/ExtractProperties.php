@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope;
 
 use Hyperf\Collection\Collection;
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Model;
 use ReflectionClass;
 
 class ExtractProperties

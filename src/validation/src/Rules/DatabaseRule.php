@@ -7,7 +7,7 @@ namespace Hypervel\Validation\Rules;
 use BackedEnum;
 use Closure;
 use Hyperf\Contract\Arrayable;
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
 
 use function Hypervel\Support\enum_value;
