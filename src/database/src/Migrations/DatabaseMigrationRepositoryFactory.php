@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Migrations;
 
+use Hyperf\Contract\ConfigInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Psr\Container\ContainerInterface;
 
@@ -11,7 +12,7 @@ class DatabaseMigrationRepositoryFactory
 {
     public function __invoke(ContainerInterface $container): DatabaseMigrationRepository
     {
-        $config = $container->get(\Hypervel\Config\Contracts\Config::class);
+        $config = $container->get(ConfigInterface::class);
 
         $migrations = $config->get('database.migrations', 'migrations');
 
