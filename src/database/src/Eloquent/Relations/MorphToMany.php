@@ -6,6 +6,7 @@ namespace Hypervel\Database\Eloquent\Relations;
 
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 
@@ -21,52 +22,40 @@ class MorphToMany extends BelongsToMany
 {
     /**
      * The type of the polymorphic relation.
-     *
-     * @var string
      */
-    protected $morphType;
+    protected string $morphType;
 
     /**
      * The class name of the morph type constraint.
      *
      * @var class-string<TRelatedModel>
      */
-    protected $morphClass;
+    protected string $morphClass;
 
     /**
      * Indicates if we are connecting the inverse of the relation.
      *
      * This primarily affects the morphClass constraint.
-     *
-     * @var bool
      */
-    protected $inverse;
+    protected bool $inverse;
 
     /**
      * Create a new morph to many relationship instance.
      *
      * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
      * @param  TDeclaringModel  $parent
-     * @param  string  $name
-     * @param  string  $table
-     * @param  string  $foreignPivotKey
-     * @param  string  $relatedPivotKey
-     * @param  string  $parentKey
-     * @param  string  $relatedKey
-     * @param  string|null  $relationName
-     * @param  bool  $inverse
      */
     public function __construct(
         Builder $query,
         Model $parent,
-        $name,
-        $table,
-        $foreignPivotKey,
-        $relatedPivotKey,
-        $parentKey,
-        $relatedKey,
-        $relationName = null,
-        $inverse = false,
+        string $name,
+        string $table,
+        string $foreignPivotKey,
+        string $relatedPivotKey,
+        string $parentKey,
+        string $relatedKey,
+        ?string $relationName = null,
+        bool $inverse = false,
     ) {
         $this->inverse = $inverse;
         $this->morphType = $name.'_type';
@@ -83,7 +72,7 @@ class MorphToMany extends BelongsToMany
      *
      * @return $this
      */
-    protected function addWhereConstraints()
+    protected function addWhereConstraints(): static
     {
         parent::addWhereConstraints();
 
@@ -102,12 +91,8 @@ class MorphToMany extends BelongsToMany
 
     /**
      * Create a new pivot attachment record.
-     *
-     * @param  int  $id
-     * @param  bool  $timed
-     * @return array
      */
-    protected function baseAttachRecord($id, $timed)
+    protected function baseAttachRecord(int $id, bool $timed): array
     {
         return Arr::add(
             parent::baseAttachRecord($id, $timed), $this->morphType, $this->morphClass
@@ -125,10 +110,9 @@ class MorphToMany extends BelongsToMany
     /**
      * Get the pivot models that are currently attached, filtered by related model keys.
      *
-     * @param  mixed  $ids
      * @return \Hypervel\Support\Collection<int, TPivotModel>
      */
-    protected function getCurrentlyAttachedPivotsForIds($ids = null)
+    protected function getCurrentlyAttachedPivotsForIds(mixed $ids = null): Collection
     {
         return parent::getCurrentlyAttachedPivotsForIds($ids)->map(function ($record) {
             return $record instanceof MorphPivot
@@ -140,10 +124,8 @@ class MorphToMany extends BelongsToMany
 
     /**
      * Create a new query builder for the pivot table.
-     *
-     * @return \Hypervel\Database\Query\Builder
      */
-    public function newPivotQuery()
+    public function newPivotQuery(): QueryBuilder
     {
         return parent::newPivotQuery()->where($this->morphType, $this->morphClass);
     }
@@ -151,11 +133,9 @@ class MorphToMany extends BelongsToMany
     /**
      * Create a new pivot model instance.
      *
-     * @param  array  $attributes
-     * @param  bool  $exists
      * @return TPivotModel
      */
-    public function newPivot(array $attributes = [], $exists = false)
+    public function newPivot(array $attributes = [], bool $exists = false): Pivot
     {
         $using = $this->using;
 
@@ -177,10 +157,8 @@ class MorphToMany extends BelongsToMany
      * Get the pivot columns for the relation.
      *
      * "pivot_" is prefixed at each column for easy removal later.
-     *
-     * @return array
      */
-    protected function aliasedPivotColumns()
+    protected function aliasedPivotColumns(): array
     {
         return (new Collection([
             $this->foreignPivotKey,
@@ -195,20 +173,16 @@ class MorphToMany extends BelongsToMany
 
     /**
      * Get the foreign key "type" name.
-     *
-     * @return string
      */
-    public function getMorphType()
+    public function getMorphType(): string
     {
         return $this->morphType;
     }
 
     /**
      * Get the fully qualified morph type for the relation.
-     *
-     * @return string
      */
-    public function getQualifiedMorphTypeName()
+    public function getQualifiedMorphTypeName(): string
     {
         return $this->qualifyPivotColumn($this->morphType);
     }
@@ -218,17 +192,15 @@ class MorphToMany extends BelongsToMany
      *
      * @return class-string<TRelatedModel>
      */
-    public function getMorphClass()
+    public function getMorphClass(): string
     {
         return $this->morphClass;
     }
 
     /**
      * Get the indicator for a reverse relationship.
-     *
-     * @return bool
      */
-    public function getInverse()
+    public function getInverse(): bool
     {
         return $this->inverse;
     }
