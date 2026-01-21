@@ -63,32 +63,24 @@ class MorphOne extends MorphOneOrMany implements SupportsPartialRelations
      * Add constraints for inner join subselect for one of many relationships.
      *
      * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  string|null  $column
-     * @param  string|null  $aggregate
-     * @return void
      */
-    public function addOneOfManySubQueryConstraints(Builder $query, $column = null, $aggregate = null)
+    public function addOneOfManySubQueryConstraints(Builder $query, ?string $column = null, ?string $aggregate = null): void
     {
         $query->addSelect($this->foreignKey, $this->morphType);
     }
 
     /**
      * Get the columns that should be selected by the one of many subquery.
-     *
-     * @return array|string
      */
-    public function getOneOfManySubQuerySelectColumns()
+    public function getOneOfManySubQuerySelectColumns(): array|string
     {
         return [$this->foreignKey, $this->morphType];
     }
 
     /**
      * Add join query constraints for one of many relationships.
-     *
-     * @param  \Hypervel\Database\Query\JoinClause  $join
-     * @return void
      */
-    public function addOneOfManyJoinSubQueryConstraints(JoinClause $join)
+    public function addOneOfManyJoinSubQueryConstraints(JoinClause $join): void
     {
         $join
             ->on($this->qualifySubSelectColumn($this->morphType), '=', $this->qualifyRelatedColumn($this->morphType))
