@@ -17,20 +17,16 @@ trait HasGlobalScopes
 {
     /**
      * Boot the has global scopes trait for a model.
-     *
-     * @return void
      */
-    public static function bootHasGlobalScopes()
+    public static function bootHasGlobalScopes(): void
     {
         static::addGlobalScopes(static::resolveGlobalScopeAttributes());
     }
 
     /**
      * Resolve the global scope class names from the attributes.
-     *
-     * @return array
      */
-    public static function resolveGlobalScopeAttributes()
+    public static function resolveGlobalScopeAttributes(): array
     {
         $reflectionClass = new ReflectionClass(static::class);
 
@@ -50,11 +46,10 @@ trait HasGlobalScopes
      *
      * @param  \Hypervel\Database\Eloquent\Scope|(\Closure(\Hypervel\Database\Eloquent\Builder<static>): mixed)|string  $scope
      * @param  \Hypervel\Database\Eloquent\Scope|(\Closure(\Hypervel\Database\Eloquent\Builder<static>): mixed)|null  $implementation
-     * @return mixed
      *
      * @throws \InvalidArgumentException
      */
-    public static function addGlobalScope($scope, $implementation = null)
+    public static function addGlobalScope(Scope|Closure|string $scope, Scope|Closure|null $implementation = null): mixed
     {
         if (is_string($scope) && ($implementation instanceof Closure || $implementation instanceof Scope)) {
             return static::$globalScopes[static::class][$scope] = $implementation;
@@ -71,11 +66,8 @@ trait HasGlobalScopes
 
     /**
      * Register multiple global scopes on the model.
-     *
-     * @param  array  $scopes
-     * @return void
      */
-    public static function addGlobalScopes(array $scopes)
+    public static function addGlobalScopes(array $scopes): void
     {
         foreach ($scopes as $key => $scope) {
             if (is_string($key)) {
@@ -88,11 +80,8 @@ trait HasGlobalScopes
 
     /**
      * Determine if a model has a global scope.
-     *
-     * @param  \Hypervel\Database\Eloquent\Scope|string  $scope
-     * @return bool
      */
-    public static function hasGlobalScope($scope)
+    public static function hasGlobalScope(Scope|string $scope): bool
     {
         return ! is_null(static::getGlobalScope($scope));
     }
@@ -100,10 +89,9 @@ trait HasGlobalScopes
     /**
      * Get a global scope registered with the model.
      *
-     * @param  \Hypervel\Database\Eloquent\Scope|string  $scope
      * @return \Hypervel\Database\Eloquent\Scope|(\Closure(\Hypervel\Database\Eloquent\Builder<static>): mixed)|null
      */
-    public static function getGlobalScope($scope)
+    public static function getGlobalScope(Scope|string $scope): Scope|Closure|null
     {
         if (is_string($scope)) {
             return Arr::get(static::$globalScopes, static::class.'.'.$scope);
@@ -116,31 +104,24 @@ trait HasGlobalScopes
 
     /**
      * Get all of the global scopes that are currently registered.
-     *
-     * @return array
      */
-    public static function getAllGlobalScopes()
+    public static function getAllGlobalScopes(): array
     {
         return static::$globalScopes;
     }
 
     /**
      * Set the current global scopes.
-     *
-     * @param  array  $scopes
-     * @return void
      */
-    public static function setAllGlobalScopes($scopes)
+    public static function setAllGlobalScopes(array $scopes): void
     {
         static::$globalScopes = $scopes;
     }
 
     /**
      * Get the global scopes for this class instance.
-     *
-     * @return array
      */
-    public function getGlobalScopes()
+    public function getGlobalScopes(): array
     {
         return Arr::get(static::$globalScopes, static::class, []);
     }

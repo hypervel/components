@@ -66,7 +66,7 @@ trait HasEvents
      *
      * @var array<string, class-string>
      */
-    protected $dispatchesEvents = [];
+    protected array $dispatchesEvents = [];
 
     /**
      * User exposed observable events.
@@ -75,7 +75,7 @@ trait HasEvents
      *
      * @var string[]
      */
-    protected $observables = [];
+    protected array $observables = [];
 
     /**
      * Boot the has event trait for a model.
