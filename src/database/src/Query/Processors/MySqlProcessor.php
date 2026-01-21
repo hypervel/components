@@ -12,11 +12,8 @@ class MySqlProcessor extends Processor
      * Process the results of a column listing query.
      *
      * @deprecated Will be removed in a future Laravel version.
-     *
-     * @param  array  $results
-     * @return array
      */
-    public function processColumnListing($results)
+    public function processColumnListing(array $results): array
     {
         return array_map(function ($result) {
             return ((object) $result)->column_name;
@@ -24,15 +21,10 @@ class MySqlProcessor extends Processor
     }
 
     /**
-     * Process an  "insert get ID" query.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  string  $sql
-     * @param  array  $values
-     * @param  string|null  $sequence
-     * @return int
+     * Process an "insert get ID" query.
      */
-    public function processInsertGetId(Builder $query, $sql, $values, $sequence = null)
+    #[\Override]
+    public function processInsertGetId(Builder $query, string $sql, array $values, ?string $sequence = null): int|string
     {
         $query->getConnection()->insert($sql, $values, $sequence);
 
@@ -41,8 +33,8 @@ class MySqlProcessor extends Processor
         return is_numeric($id) ? (int) $id : $id;
     }
 
-    /** @inheritDoc */
-    public function processColumns($results)
+    #[\Override]
+    public function processColumns(array $results): array
     {
         return array_map(function ($result) {
             $result = (object) $result;
@@ -68,8 +60,8 @@ class MySqlProcessor extends Processor
         }, $results);
     }
 
-    /** @inheritDoc */
-    public function processIndexes($results)
+    #[\Override]
+    public function processIndexes(array $results): array
     {
         return array_map(function ($result) {
             $result = (object) $result;
@@ -84,8 +76,8 @@ class MySqlProcessor extends Processor
         }, $results);
     }
 
-    /** @inheritDoc */
-    public function processForeignKeys($results)
+    #[\Override]
+    public function processForeignKeys(array $results): array
     {
         return array_map(function ($result) {
             $result = (object) $result;

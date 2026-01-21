@@ -6,8 +6,8 @@ namespace Hypervel\Database\Query\Processors;
 
 class SQLiteProcessor extends Processor
 {
-    /** @inheritDoc */
-    public function processColumns($results, $sql = '')
+    #[\Override]
+    public function processColumns(array $results, string $sql = ''): array
     {
         $hasPrimaryKey = array_sum(array_column($results, 'primary')) === 1;
 
@@ -53,8 +53,8 @@ class SQLiteProcessor extends Processor
         }, $results);
     }
 
-    /** @inheritDoc */
-    public function processIndexes($results)
+    #[\Override]
+    public function processIndexes(array $results): array
     {
         $primaryCount = 0;
 
@@ -81,8 +81,8 @@ class SQLiteProcessor extends Processor
         return $indexes;
     }
 
-    /** @inheritDoc */
-    public function processForeignKeys($results)
+    #[\Override]
+    public function processForeignKeys(array $results): array
     {
         return array_map(function ($result) {
             $result = (object) $result;

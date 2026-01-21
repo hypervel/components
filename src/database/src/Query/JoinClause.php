@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Database\Query;
 
 use Closure;
-use Hypervel\Database\Query\Builder;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Contracts\Query\Expression as ExpressionContract;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
-use Hypervel\Database\ConnectionInterface;
 
 class JoinClause extends Builder
 {
@@ -19,10 +19,8 @@ class JoinClause extends Builder
 
     /**
      * The table the join clause is joining to.
-     *
-     * @var \Hypervel\Database\Contracts\Query\Expression|string
      */
-    public $table;
+    public ExpressionContract|string $table;
 
     /**
      * The connection of the parent query builder.
@@ -75,14 +73,14 @@ class JoinClause extends Builder
      *
      * on `contacts`.`user_id` = `users`.`id` and `contacts`.`info_id` = `info`.`id`
      *
-     * @param \Closure|\Hypervel\Database\Contracts\Query\Expression|string $first
-     * @param \Hypervel\Database\Contracts\Query\Expression|string|null $second
-     * @return $this
-     *
      * @throws \InvalidArgumentException
      */
-    public function on($first, ?string $operator = null, $second = null, string $boolean = 'and'): static
-    {
+    public function on(
+        Closure|ExpressionContract|string $first,
+        ?string $operator = null,
+        ExpressionContract|string|null $second = null,
+        string $boolean = 'and',
+    ): static {
         if ($first instanceof Closure) {
             return $this->whereNested($first, $boolean);
         }
@@ -92,12 +90,12 @@ class JoinClause extends Builder
 
     /**
      * Add an "or on" clause to the join.
-     *
-     * @param \Closure|\Hypervel\Database\Contracts\Query\Expression|string $first
-     * @param \Hypervel\Database\Contracts\Query\Expression|string|null $second
      */
-    public function orOn($first, ?string $operator = null, $second = null): static
-    {
+    public function orOn(
+        Closure|ExpressionContract|string $first,
+        ?string $operator = null,
+        ExpressionContract|string|null $second = null,
+    ): static {
         return $this->on($first, $operator, $second, 'or');
     }
 
