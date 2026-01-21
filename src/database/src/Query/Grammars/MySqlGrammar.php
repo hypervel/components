@@ -112,6 +112,7 @@ class MySqlGrammar extends Grammar
     {
         $version = $query->getConnection()->getServerVersion();
 
+        // @phpstan-ignore method.notFound (MySqlGrammar is only used with MySqlConnection which has isMaria())
         return ! $query->getConnection()->isMaria() && version_compare($version, '8.0.11', '<');
     }
 
