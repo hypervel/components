@@ -4,49 +4,30 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Migrations;
 
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
+use Hypervel\Database\Query\Builder;
 
 class DatabaseMigrationRepository implements MigrationRepositoryInterface
 {
     /**
-     * The database connection resolver instance.
-     *
-     * @var \Hypervel\Database\ConnectionResolverInterface
-     */
-    protected $resolver;
-
-    /**
-     * The name of the migration table.
-     *
-     * @var string
-     */
-    protected $table;
-
-    /**
      * The name of the database connection to use.
-     *
-     * @var string
      */
-    protected $connection;
+    protected ?string $connection = null;
 
     /**
      * Create a new database migration repository instance.
-     *
-     * @param  \Hypervel\Database\ConnectionResolverInterface  $resolver
-     * @param  string  $table
      */
-    public function __construct(Resolver $resolver, $table)
-    {
-        $this->table = $table;
-        $this->resolver = $resolver;
+    public function __construct(
+        protected Resolver $resolver,
+        protected string $table
+    ) {
     }
 
     /**
      * Get the completed migrations.
-     *
-     * @return array
      */
-    public function getRan()
+    public function getRan(): array
     {
         return $this->table()
             ->orderBy('batch', 'asc')
@@ -56,11 +37,8 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Get the list of migrations.
-     *
-     * @param  int  $steps
-     * @return array
      */
-    public function getMigrations($steps)
+    public function getMigrations(int $steps): array
     {
         $query = $this->table()->where('batch', '>=', '1');
 
@@ -73,11 +51,8 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Get the list of the migrations by batch number.
-     *
-     * @param  int  $batch
-     * @return array
      */
-    public function getMigrationsByBatch($batch)
+    public function getMigrationsByBatch(int $batch): array
     {
         return $this->table()
             ->where('batch', $batch)
@@ -88,10 +63,8 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Get the last migration batch.
-     *
-     * @return array
      */
-    public function getLast()
+    public function getLast(): array
     {
         $query = $this->table()->where('batch', $this->getLastBatchNumber());
 
@@ -100,10 +73,8 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Get the completed migrations with their batch numbers.
-     *
-     * @return array
      */
-    public function getMigrationBatches()
+    public function getMigrationBatches(): array
     {
         return $this->table()
             ->orderBy('batch', 'asc')
@@ -113,12 +84,8 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Log that a migration was run.
-     *
-     * @param  string  $file
-     * @param  int  $batch
-     * @return void
      */
-    public function log($file, $batch)
+    public function log(string $file, int $batch): void
     {
         $record = ['migration' => $file, 'batch' => $batch];
 
@@ -127,41 +94,32 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Remove a migration from the log.
-     *
-     * @param  object  $migration
-     * @return void
      */
-    public function delete($migration)
+    public function delete(object $migration): void
     {
         $this->table()->where('migration', $migration->migration)->delete();
     }
 
     /**
      * Get the next migration batch number.
-     *
-     * @return int
      */
-    public function getNextBatchNumber()
+    public function getNextBatchNumber(): int
     {
         return $this->getLastBatchNumber() + 1;
     }
 
     /**
      * Get the last migration batch number.
-     *
-     * @return int
      */
-    public function getLastBatchNumber()
+    public function getLastBatchNumber(): int
     {
-        return $this->table()->max('batch');
+        return $this->table()->max('batch') ?? 0;
     }
 
     /**
      * Create the migration repository data store.
-     *
-     * @return void
      */
-    public function createRepository()
+    public function createRepository(): void
     {
         $schema = $this->getConnection()->getSchemaBuilder();
 
@@ -177,10 +135,8 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Determine if the migration repository exists.
-     *
-     * @return bool
      */
-    public function repositoryExists()
+    public function repositoryExists(): bool
     {
         $schema = $this->getConnection()->getSchemaBuilder();
 
@@ -189,10 +145,8 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Delete the migration repository data store.
-     *
-     * @return void
      */
-    public function deleteRepository()
+    public function deleteRepository(): void
     {
         $schema = $this->getConnection()->getSchemaBuilder();
 
@@ -201,41 +155,32 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
 
     /**
      * Get a query builder for the migration table.
-     *
-     * @return \Hypervel\Database\Query\Builder
      */
-    protected function table()
+    protected function table(): Builder
     {
         return $this->getConnection()->table($this->table)->useWritePdo();
     }
 
     /**
      * Get the connection resolver instance.
-     *
-     * @return \Hypervel\Database\ConnectionResolverInterface
      */
-    public function getConnectionResolver()
+    public function getConnectionResolver(): Resolver
     {
         return $this->resolver;
     }
 
     /**
      * Resolve the database connection instance.
-     *
-     * @return \Hypervel\Database\Connection
      */
-    public function getConnection()
+    public function getConnection(): Connection
     {
         return $this->resolver->connection($this->connection);
     }
 
     /**
      * Set the information source to gather data.
-     *
-     * @param  string  $name
-     * @return void
      */
-    public function setSource($name)
+    public function setSource(string $name): void
     {
         $this->connection = $name;
     }
