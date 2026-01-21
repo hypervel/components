@@ -79,7 +79,7 @@ class HasOneThrough extends HasOneOrManyThrough implements SupportsPartialRelati
     }
 
     /** @inheritDoc */
-    public function addOneOfManySubQueryConstraints(Builder $query, $column = null, $aggregate = null)
+    public function addOneOfManySubQueryConstraints(Builder $query, ?string $column = null, ?string $aggregate = null): void
     {
         $query->addSelect([$this->getQualifiedFirstKeyName()]);
 
@@ -90,13 +90,13 @@ class HasOneThrough extends HasOneOrManyThrough implements SupportsPartialRelati
     }
 
     /** @inheritDoc */
-    public function getOneOfManySubQuerySelectColumns()
+    public function getOneOfManySubQuerySelectColumns(): array|string
     {
         return [$this->getQualifiedFirstKeyName()];
     }
 
     /** @inheritDoc */
-    public function addOneOfManyJoinSubQueryConstraints(JoinClause $join)
+    public function addOneOfManyJoinSubQueryConstraints(JoinClause $join): void
     {
         $join->on($this->qualifySubSelectColumn($this->firstKey), '=', $this->getQualifiedFirstKeyName());
     }
