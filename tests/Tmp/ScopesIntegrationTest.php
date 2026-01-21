@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Tmp;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Scope;
-use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
 
 /**
@@ -18,25 +18,25 @@ use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
  */
 class ScopesIntegrationTest extends DatabaseIntegrationTestCase
 {
+    use RefreshDatabase;
+
     protected function getDatabaseDriver(): string
     {
         return 'pgsql';
     }
 
+    protected function migrateFreshUsing(): array
+    {
+        return [
+            '--database' => $this->getRefreshConnection(),
+            '--realpath' => true,
+            '--path' => __DIR__ . '/../database/migrations',
+        ];
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
-
-        $this->createTestTable('scope_articles', function (Blueprint $table) {
-            $table->id();
-            $table->string('title');
-            $table->string('status')->default('draft');
-            $table->string('category')->nullable();
-            $table->integer('views')->default(0);
-            $table->boolean('is_featured')->default(false);
-            $table->foreignId('author_id')->nullable();
-            $table->timestamps();
-        });
 
         // Seed test data
         ScopeArticle::create(['title' => 'Published Article 1', 'status' => 'published', 'category' => 'tech', 'views' => 100, 'is_featured' => true]);
@@ -113,6 +113,9 @@ class ScopesIntegrationTest extends DatabaseIntegrationTestCase
 
     public function testGlobalScope(): void
     {
+        // Clear existing data for this test
+        ScopeArticle::query()->delete();
+
         // GlobalScopeArticle has a global scope that only shows published
         GlobalScopeArticle::create(['title' => 'Global Published', 'status' => 'published']);
         GlobalScopeArticle::create(['title' => 'Global Draft', 'status' => 'draft']);
@@ -125,6 +128,9 @@ class ScopesIntegrationTest extends DatabaseIntegrationTestCase
 
     public function testWithoutGlobalScope(): void
     {
+        // Clear existing data for this test
+        ScopeArticle::query()->delete();
+
         GlobalScopeArticle::create(['title' => 'Without Scope Published', 'status' => 'published']);
         GlobalScopeArticle::create(['title' => 'Without Scope Draft', 'status' => 'draft']);
 
@@ -135,6 +141,9 @@ class ScopesIntegrationTest extends DatabaseIntegrationTestCase
 
     public function testWithoutGlobalScopes(): void
     {
+        // Clear existing data for this test
+        ScopeArticle::query()->delete();
+
         GlobalScopeArticle::create(['title' => 'Test Published', 'status' => 'published']);
         GlobalScopeArticle::create(['title' => 'Test Draft', 'status' => 'draft']);
 
@@ -153,12 +162,6 @@ class ScopesIntegrationTest extends DatabaseIntegrationTestCase
 
     public function testScopeOnRelation(): void
     {
-        $this->createTestTable('scope_authors', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->timestamps();
-        });
-
         $author = ScopeAuthor::create(['name' => 'John']);
 
         ScopeArticle::where('title', 'Published Article 1')->update(['author_id' => $author->id]);

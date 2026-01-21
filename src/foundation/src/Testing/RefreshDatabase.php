@@ -7,7 +7,7 @@ namespace Hypervel\Foundation\Testing;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Database\Connection as DatabaseConnection;
 use Hypervel\Database\DatabaseManager;
-use Hypervel\Database\Eloquent\Events\Booted;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
@@ -38,7 +38,7 @@ trait RefreshDatabase
      */
     protected function refreshModelBootedStates(): void
     {
-        Booted::$container = [];
+        Model::clearBootedModels();
     }
 
     /**
@@ -113,7 +113,10 @@ trait RefreshDatabase
 
             $connection->unsetEventDispatcher();
             $connection->beginTransaction();
-            $connection->setEventDispatcher($dispatcher);
+
+            if ($dispatcher) {
+                $connection->setEventDispatcher($dispatcher);
+            }
         }
 
         $this->beforeApplicationDestroyed(function () use ($database) {
@@ -128,11 +131,14 @@ trait RefreshDatabase
                 }
 
                 if ($connection instanceof DatabaseConnection) {
-                    $connection->resetRecordsModified();
+                    $connection->forgetRecordModificationState();
                 }
 
                 $connection->rollBack();
-                $connection->setEventDispatcher($dispatcher);
+
+                if ($dispatcher) {
+                    $connection->setEventDispatcher($dispatcher);
+                }
                 // this will trigger a database refresh warning
                 // $connection->disconnect();
             }
