@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Database\Console\Migrations;
 
 use Hyperf\Command\Command;
-use Hyperf\Database\Commands\Migrations\TableGuesser;
 use Hypervel\Database\Migrations\MigrationCreator;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Input\InputArgument;
