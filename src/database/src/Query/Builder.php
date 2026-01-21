@@ -21,6 +21,10 @@ use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\PostgresConnection;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
+use Hypervel\Pagination\Contracts\CursorPaginator as CursorPaginatorContract;
+use Hypervel\Pagination\Contracts\Paginator as PaginatorContract;
+use Hypervel\Pagination\Cursor;
+use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -1846,51 +1850,32 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where JSON contains" clause to the query.
-     *
-     * @param  string  $column
-     * @param  mixed  $value
-     * @return $this
      */
-    public function orWhereJsonContains($column, $value)
+    public function orWhereJsonContains(string $column, mixed $value): static
     {
         return $this->whereJsonContains($column, $value, 'or');
     }
 
     /**
      * Add a "where JSON not contains" clause to the query.
-     *
-     * @param  string  $column
-     * @param  mixed  $value
-     * @param  string  $boolean
-     * @return $this
      */
-    public function whereJsonDoesntContain($column, $value, $boolean = 'and')
+    public function whereJsonDoesntContain(string $column, mixed $value, string $boolean = 'and'): static
     {
         return $this->whereJsonContains($column, $value, $boolean, true);
     }
 
     /**
      * Add an "or where JSON not contains" clause to the query.
-     *
-     * @param  string  $column
-     * @param  mixed  $value
-     * @return $this
      */
-    public function orWhereJsonDoesntContain($column, $value)
+    public function orWhereJsonDoesntContain(string $column, mixed $value): static
     {
         return $this->whereJsonDoesntContain($column, $value, 'or');
     }
 
     /**
      * Add a "where JSON overlaps" clause to the query.
-     *
-     * @param  string  $column
-     * @param  mixed  $value
-     * @param  string  $boolean
-     * @param  bool  $not
-     * @return $this
      */
-    public function whereJsonOverlaps($column, $value, $boolean = 'and', $not = false)
+    public function whereJsonOverlaps(string $column, mixed $value, string $boolean = 'and', bool $not = false): static
     {
         $type = 'JsonOverlaps';
 
@@ -1905,50 +1890,32 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where JSON overlaps" clause to the query.
-     *
-     * @param  string  $column
-     * @param  mixed  $value
-     * @return $this
      */
-    public function orWhereJsonOverlaps($column, $value)
+    public function orWhereJsonOverlaps(string $column, mixed $value): static
     {
         return $this->whereJsonOverlaps($column, $value, 'or');
     }
 
     /**
      * Add a "where JSON not overlap" clause to the query.
-     *
-     * @param  string  $column
-     * @param  mixed  $value
-     * @param  string  $boolean
-     * @return $this
      */
-    public function whereJsonDoesntOverlap($column, $value, $boolean = 'and')
+    public function whereJsonDoesntOverlap(string $column, mixed $value, string $boolean = 'and'): static
     {
         return $this->whereJsonOverlaps($column, $value, $boolean, true);
     }
 
     /**
      * Add an "or where JSON not overlap" clause to the query.
-     *
-     * @param  string  $column
-     * @param  mixed  $value
-     * @return $this
      */
-    public function orWhereJsonDoesntOverlap($column, $value)
+    public function orWhereJsonDoesntOverlap(string $column, mixed $value): static
     {
         return $this->whereJsonDoesntOverlap($column, $value, 'or');
     }
 
     /**
      * Add a clause that determines if a JSON path exists to the query.
-     *
-     * @param  string  $column
-     * @param  string  $boolean
-     * @param  bool  $not
-     * @return $this
      */
-    public function whereJsonContainsKey($column, $boolean = 'and', $not = false)
+    public function whereJsonContainsKey(string $column, string $boolean = 'and', bool $not = false): static
     {
         $type = 'JsonContainsKey';
 
@@ -1959,48 +1926,32 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or" clause that determines if a JSON path exists to the query.
-     *
-     * @param  string  $column
-     * @return $this
      */
-    public function orWhereJsonContainsKey($column)
+    public function orWhereJsonContainsKey(string $column): static
     {
         return $this->whereJsonContainsKey($column, 'or');
     }
 
     /**
      * Add a clause that determines if a JSON path does not exist to the query.
-     *
-     * @param  string  $column
-     * @param  string  $boolean
-     * @return $this
      */
-    public function whereJsonDoesntContainKey($column, $boolean = 'and')
+    public function whereJsonDoesntContainKey(string $column, string $boolean = 'and'): static
     {
         return $this->whereJsonContainsKey($column, $boolean, true);
     }
 
     /**
      * Add an "or" clause that determines if a JSON path does not exist to the query.
-     *
-     * @param  string  $column
-     * @return $this
      */
-    public function orWhereJsonDoesntContainKey($column)
+    public function orWhereJsonDoesntContainKey(string $column): static
     {
         return $this->whereJsonDoesntContainKey($column, 'or');
     }
 
     /**
      * Add a "where JSON length" clause to the query.
-     *
-     * @param  string  $column
-     * @param  mixed  $operator
-     * @param  mixed  $value
-     * @param  string  $boolean
-     * @return $this
      */
-    public function whereJsonLength($column, $operator, $value = null, $boolean = 'and')
+    public function whereJsonLength(string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): static
     {
         $type = 'JsonLength';
 
@@ -2026,13 +1977,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where JSON length" clause to the query.
-     *
-     * @param  string  $column
-     * @param  mixed  $operator
-     * @param  mixed  $value
-     * @return $this
      */
-    public function orWhereJsonLength($column, $operator, $value = null)
+    public function orWhereJsonLength(string $column, mixed $operator, mixed $value = null): static
     {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value, $operator, func_num_args() === 2
@@ -2043,12 +1989,8 @@ class Builder implements BuilderContract
 
     /**
      * Handles dynamic "where" clauses to the query.
-     *
-     * @param  string  $method
-     * @param  array  $parameters
-     * @return $this
      */
-    public function dynamicWhere($method, $parameters)
+    public function dynamicWhere(string $method, array $parameters): static
     {
         $finder = substr($method, 5);
 
@@ -2086,14 +2028,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a single dynamic "where" clause statement to the query.
-     *
-     * @param  string  $segment
-     * @param  string  $connector
-     * @param  array  $parameters
-     * @param  int  $index
-     * @return void
      */
-    protected function addDynamic($segment, $connector, $parameters, $index)
+    protected function addDynamic(string $segment, string $connector, array $parameters, int $index): void
     {
         // Once we have parsed out the columns and formatted the boolean operators we
         // are ready to add it to this query as a where clause just like any other
@@ -2105,13 +2041,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where fulltext" clause to the query.
-     *
-     * @param  string|string[]  $columns
-     * @param  string  $value
-     * @param  string  $boolean
-     * @return $this
      */
-    public function whereFullText($columns, $value, array $options = [], $boolean = 'and')
+    public function whereFullText(string|array $columns, string $value, array $options = [], string $boolean = 'and'): static
     {
         $type = 'Fulltext';
 
@@ -2126,12 +2057,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or where fulltext" clause to the query.
-     *
-     * @param  string|string[]  $columns
-     * @param  string  $value
-     * @return $this
      */
-    public function orWhereFullText($columns, $value, array $options = [])
+    public function orWhereFullText(string|array $columns, string $value, array $options = []): static
     {
         return $this->whereFullText($columns, $value, $options, 'or');
     }
@@ -2139,13 +2066,9 @@ class Builder implements BuilderContract
     /**
      * Add a "where" clause to the query for multiple columns with "and" conditions between them.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression[]|\Closure[]|string[]  $columns
-     * @param  mixed  $operator
-     * @param  mixed  $value
-     * @param  string  $boolean
-     * @return $this
+     * @param  array<ExpressionContract|Closure|string>  $columns
      */
-    public function whereAll($columns, $operator = null, $value = null, $boolean = 'and')
+    public function whereAll(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value, $operator, func_num_args() === 2
@@ -2163,12 +2086,9 @@ class Builder implements BuilderContract
     /**
      * Add an "or where" clause to the query for multiple columns with "and" conditions between them.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression[]|\Closure[]|string[]  $columns
-     * @param  mixed  $operator
-     * @param  mixed  $value
-     * @return $this
+     * @param  array<ExpressionContract|Closure|string>  $columns
      */
-    public function orWhereAll($columns, $operator = null, $value = null)
+    public function orWhereAll(array $columns, mixed $operator = null, mixed $value = null): static
     {
         return $this->whereAll($columns, $operator, $value, 'or');
     }
@@ -2176,13 +2096,9 @@ class Builder implements BuilderContract
     /**
      * Add a "where" clause to the query for multiple columns with "or" conditions between them.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression[]|\Closure[]|string[]  $columns
-     * @param  mixed  $operator
-     * @param  mixed  $value
-     * @param  string  $boolean
-     * @return $this
+     * @param  array<ExpressionContract|Closure|string>  $columns
      */
-    public function whereAny($columns, $operator = null, $value = null, $boolean = 'and')
+    public function whereAny(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value, $operator, func_num_args() === 2
@@ -2200,12 +2116,9 @@ class Builder implements BuilderContract
     /**
      * Add an "or where" clause to the query for multiple columns with "or" conditions between them.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression[]|\Closure[]|string[]  $columns
-     * @param  mixed  $operator
-     * @param  mixed  $value
-     * @return $this
+     * @param  array<ExpressionContract|Closure|string>  $columns
      */
-    public function orWhereAny($columns, $operator = null, $value = null)
+    public function orWhereAny(array $columns, mixed $operator = null, mixed $value = null): static
     {
         return $this->whereAny($columns, $operator, $value, 'or');
     }
@@ -2213,13 +2126,9 @@ class Builder implements BuilderContract
     /**
      * Add a "where not" clause to the query for multiple columns where none of the conditions should be true.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression[]|\Closure[]|string[]  $columns
-     * @param  mixed  $operator
-     * @param  mixed  $value
-     * @param  string  $boolean
-     * @return $this
+     * @param  array<ExpressionContract|Closure|string>  $columns
      */
-    public function whereNone($columns, $operator = null, $value = null, $boolean = 'and')
+    public function whereNone(array $columns, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
         return $this->whereAny($columns, $operator, $value, $boolean.' not');
     }
@@ -2227,23 +2136,17 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not" clause to the query for multiple columns where none of the conditions should be true.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression[]|\Closure[]|string[]  $columns
-     * @param  mixed  $operator
-     * @param  mixed  $value
-     * @return $this
+     * @param  array<ExpressionContract|Closure|string>  $columns
      */
-    public function orWhereNone($columns, $operator = null, $value = null)
+    public function orWhereNone(array $columns, mixed $operator = null, mixed $value = null): static
     {
         return $this->whereNone($columns, $operator, $value, 'or');
     }
 
     /**
      * Add a "group by" clause to the query.
-     *
-     * @param  array|\Hypervel\Database\Contracts\Query\Expression|string  ...$groups
-     * @return $this
      */
-    public function groupBy(...$groups)
+    public function groupBy(array|ExpressionContract|string ...$groups): static
     {
         foreach ($groups as $group) {
             $this->groups = array_merge(
@@ -2257,11 +2160,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a raw "groupBy" clause to the query.
-     *
-     * @param  string  $sql
-     * @return $this
      */
-    public function groupByRaw($sql, array $bindings = [])
+    public function groupByRaw(string $sql, array $bindings = []): static
     {
         $this->groups[] = new Expression($sql);
 
@@ -2272,15 +2172,13 @@ class Builder implements BuilderContract
 
     /**
      * Add a "having" clause to the query.
-     *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|\Closure|string  $column
-     * @param  \DateTimeInterface|string|int|float|null  $operator
-     * @param  \Hypervel\Database\Contracts\Query\Expression|\DateTimeInterface|string|int|float|null  $value
-     * @param  string  $boolean
-     * @return $this
      */
-    public function having($column, $operator = null, $value = null, $boolean = 'and')
-    {
+    public function having(
+        ExpressionContract|Closure|string $column,
+        DateTimeInterface|string|int|float|null $operator = null,
+        ExpressionContract|DateTimeInterface|string|int|float|null $value = null,
+        string $boolean = 'and',
+    ): static {
         $type = 'Basic';
 
         if ($column instanceof ConditionExpression) {
@@ -2324,14 +2222,12 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or having" clause to the query.
-     *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|\Closure|string  $column
-     * @param  \DateTimeInterface|string|int|float|null  $operator
-     * @param  \Hypervel\Database\Contracts\Query\Expression|\DateTimeInterface|string|int|float|null  $value
-     * @return $this
      */
-    public function orHaving($column, $operator = null, $value = null)
-    {
+    public function orHaving(
+        ExpressionContract|Closure|string $column,
+        DateTimeInterface|string|int|float|null $operator = null,
+        ExpressionContract|DateTimeInterface|string|int|float|null $value = null,
+    ): static {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value, $operator, func_num_args() === 2
         );
@@ -2341,11 +2237,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a nested "having" statement to the query.
-     *
-     * @param  string  $boolean
-     * @return $this
      */
-    public function havingNested(Closure $callback, $boolean = 'and')
+    public function havingNested(Closure $callback, string $boolean = 'and'): static
     {
         $callback($query = $this->forNestedWhere());
 
@@ -2354,12 +2247,8 @@ class Builder implements BuilderContract
 
     /**
      * Add another query builder as a nested having to the query builder.
-     *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @param  string  $boolean
-     * @return $this
      */
-    public function addNestedHavingQuery($query, $boolean = 'and')
+    public function addNestedHavingQuery(self $query, string $boolean = 'and'): static
     {
         if (count($query->havings)) {
             $type = 'Nested';
@@ -2374,13 +2263,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "having null" clause to the query.
-     *
-     * @param  array|string  $columns
-     * @param  string  $boolean
-     * @param  bool  $not
-     * @return $this
      */
-    public function havingNull($columns, $boolean = 'and', $not = false)
+    public function havingNull(array|string $columns, string $boolean = 'and', bool $not = false): static
     {
         $type = $not ? 'NotNull' : 'Null';
 
@@ -2393,47 +2277,32 @@ class Builder implements BuilderContract
 
     /**
      * Add an "or having null" clause to the query.
-     *
-     * @param  string  $column
-     * @return $this
      */
-    public function orHavingNull($column)
+    public function orHavingNull(string $column): static
     {
         return $this->havingNull($column, 'or');
     }
 
     /**
      * Add a "having not null" clause to the query.
-     *
-     * @param  array|string  $columns
-     * @param  string  $boolean
-     * @return $this
      */
-    public function havingNotNull($columns, $boolean = 'and')
+    public function havingNotNull(array|string $columns, string $boolean = 'and'): static
     {
         return $this->havingNull($columns, $boolean, true);
     }
 
     /**
      * Add an "or having not null" clause to the query.
-     *
-     * @param  string  $column
-     * @return $this
      */
-    public function orHavingNotNull($column)
+    public function orHavingNotNull(string $column): static
     {
         return $this->havingNotNull($column, 'or');
     }
 
     /**
      * Add a "having between" clause to the query.
-     *
-     * @param  string  $column
-     * @param  string  $boolean
-     * @param  bool  $not
-     * @return $this
      */
-    public function havingBetween($column, iterable $values, $boolean = 'and', $not = false)
+    public function havingBetween(string $column, iterable $values, string $boolean = 'and', bool $not = false): static
     {
         $type = 'between';
 
@@ -2450,49 +2319,32 @@ class Builder implements BuilderContract
 
     /**
      * Add a "having not between" clause to the query.
-     *
-     * @param  string  $column
-     * @param  iterable  $values
-     * @param  string  $boolean
-     * @return $this
      */
-    public function havingNotBetween($column, iterable $values, $boolean = 'and')
+    public function havingNotBetween(string $column, iterable $values, string $boolean = 'and'): static
     {
         return $this->havingBetween($column, $values, $boolean, true);
     }
 
     /**
      * Add an "or having between" clause to the query.
-     *
-     * @param  string  $column
-     * @param  iterable  $values
-     * @return $this
      */
-    public function orHavingBetween($column, iterable $values)
+    public function orHavingBetween(string $column, iterable $values): static
     {
         return $this->havingBetween($column, $values, 'or');
     }
 
     /**
      * Add an "or having not between" clause to the query.
-     *
-     * @param  string  $column
-     * @param  iterable  $values
-     * @return $this
      */
-    public function orHavingNotBetween($column, iterable $values)
+    public function orHavingNotBetween(string $column, iterable $values): static
     {
         return $this->havingBetween($column, $values, 'or', true);
     }
 
     /**
      * Add a raw "having" clause to the query.
-     *
-     * @param  string  $sql
-     * @param  string  $boolean
-     * @return $this
      */
-    public function havingRaw($sql, array $bindings = [], $boolean = 'and')
+    public function havingRaw(string $sql, array $bindings = [], string $boolean = 'and'): static
     {
         $type = 'Raw';
 
@@ -2505,11 +2357,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a raw "or having" clause to the query.
-     *
-     * @param  string  $sql
-     * @return $this
      */
-    public function orHavingRaw($sql, array $bindings = [])
+    public function orHavingRaw(string $sql, array $bindings = []): static
     {
         return $this->havingRaw($sql, $bindings, 'or');
     }
@@ -2517,13 +2366,11 @@ class Builder implements BuilderContract
     /**
      * Add an "order by" clause to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Contracts\Query\Expression|string  $column
-     * @param  string  $direction
-     * @return $this
+     * @param  Closure|self|EloquentBuilder<*>|ExpressionContract|string  $column
      *
      * @throws \InvalidArgumentException
      */
-    public function orderBy($column, $direction = 'asc')
+    public function orderBy(Closure|self|EloquentBuilder|ExpressionContract|string $column, string $direction = 'asc'): static
     {
         if ($this->isQueryable($column)) {
             [$query, $bindings] = $this->createSub($column);
@@ -2550,10 +2397,9 @@ class Builder implements BuilderContract
     /**
      * Add a descending "order by" clause to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Contracts\Query\Expression|string  $column
-     * @return $this
+     * @param  Closure|self|EloquentBuilder<*>|ExpressionContract|string  $column
      */
-    public function orderByDesc($column)
+    public function orderByDesc(Closure|self|EloquentBuilder|ExpressionContract|string $column): static
     {
         return $this->orderBy($column, 'desc');
     }
@@ -2561,10 +2407,9 @@ class Builder implements BuilderContract
     /**
      * Add an "order by" clause for a timestamp to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Contracts\Query\Expression|string  $column
-     * @return $this
+     * @param  Closure|self|ExpressionContract|string  $column
      */
-    public function latest($column = 'created_at')
+    public function latest(Closure|self|ExpressionContract|string $column = 'created_at'): static
     {
         return $this->orderBy($column, 'desc');
     }
@@ -2572,10 +2417,9 @@ class Builder implements BuilderContract
     /**
      * Add an "order by" clause for a timestamp to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Contracts\Query\Expression|string  $column
-     * @return $this
+     * @param  Closure|self|ExpressionContract|string  $column
      */
-    public function oldest($column = 'created_at')
+    public function oldest(Closure|self|ExpressionContract|string $column = 'created_at'): static
     {
         return $this->orderBy($column, 'asc');
     }
@@ -2583,11 +2427,9 @@ class Builder implements BuilderContract
     /**
      * Add a vector-distance "order by" clause to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
-     * @param  \Hypervel\Support\Collection<int, float>|\Hypervel\Support\Contracts\Arrayable|array<int, float>  $vector
-     * @return $this
+     * @param  Collection<int, float>|Arrayable<int, float>|array<int, float>|string  $vector
      */
-    public function orderByVectorDistance($column, $vector)
+    public function orderByVectorDistance(ExpressionContract|string $column, Collection|Arrayable|array|string $vector): static
     {
         $this->ensureConnectionSupportsVectors();
 
@@ -2615,23 +2457,16 @@ class Builder implements BuilderContract
 
     /**
      * Put the query's results in random order.
-     *
-     * @param  string|int  $seed
-     * @return $this
      */
-    public function inRandomOrder($seed = '')
+    public function inRandomOrder(string|int $seed = ''): static
     {
         return $this->orderByRaw($this->grammar->compileRandom($seed));
     }
 
     /**
      * Add a raw "order by" clause to the query.
-     *
-     * @param  string  $sql
-     * @param  array  $bindings
-     * @return $this
      */
-    public function orderByRaw($sql, $bindings = [])
+    public function orderByRaw(string $sql, array $bindings = []): static
     {
         $type = 'Raw';
 
@@ -2644,53 +2479,41 @@ class Builder implements BuilderContract
 
     /**
      * Alias to set the "offset" value of the query.
-     *
-     * @param  int  $value
-     * @return $this
      */
-    public function skip($value)
+    public function skip(int $value): static
     {
         return $this->offset($value);
     }
 
     /**
      * Set the "offset" value of the query.
-     *
-     * @param  int  $value
-     * @return $this
      */
-    public function offset($value)
+    public function offset(int $value): static
     {
         $property = $this->unions ? 'unionOffset' : 'offset';
 
-        $this->$property = max(0, (int) $value);
+        $this->$property = max(0, $value);
 
         return $this;
     }
 
     /**
      * Alias to set the "limit" value of the query.
-     *
-     * @param  int  $value
-     * @return $this
      */
-    public function take($value)
+    public function take(int $value): static
     {
         return $this->limit($value);
     }
 
     /**
      * Set the "limit" value of the query.
-     *
-     * @param  int  $value
-     * @return $this
      */
-    public function limit($value)
+    public function limit(int $value): static
     {
         $property = $this->unions ? 'unionLimit' : 'limit';
 
         if ($value >= 0) {
-            $this->$property = ! is_null($value) ? (int) $value : null;
+            $this->$property = $value;
         }
 
         return $this;
@@ -2698,12 +2521,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a "group limit" clause to the query.
-     *
-     * @param  int  $value
-     * @param  string  $column
-     * @return $this
      */
-    public function groupLimit($value, $column)
+    public function groupLimit(int $value, string $column): static
     {
         if ($value >= 0) {
             $this->groupLimit = compact('value', 'column');
@@ -2714,25 +2533,16 @@ class Builder implements BuilderContract
 
     /**
      * Set the limit and offset for a given page.
-     *
-     * @param  int  $page
-     * @param  int  $perPage
-     * @return $this
      */
-    public function forPage($page, $perPage = 15)
+    public function forPage(int $page, int $perPage = 15): static
     {
         return $this->offset(($page - 1) * $perPage)->limit($perPage);
     }
 
     /**
      * Constrain the query to the previous "page" of results before a given ID.
-     *
-     * @param  int  $perPage
-     * @param  int|null  $lastId
-     * @param  string  $column
-     * @return $this
      */
-    public function forPageBeforeId($perPage = 15, $lastId = 0, $column = 'id')
+    public function forPageBeforeId(int $perPage = 15, ?int $lastId = 0, string $column = 'id'): static
     {
         $this->orders = $this->removeExistingOrdersFor($column);
 
@@ -2748,13 +2558,8 @@ class Builder implements BuilderContract
 
     /**
      * Constrain the query to the next "page" of results after a given ID.
-     *
-     * @param  int  $perPage
-     * @param  int|null  $lastId
-     * @param  string  $column
-     * @return $this
      */
-    public function forPageAfterId($perPage = 15, $lastId = 0, $column = 'id')
+    public function forPageAfterId(int $perPage = 15, ?int $lastId = 0, string $column = 'id'): static
     {
         $this->orders = $this->removeExistingOrdersFor($column);
 
@@ -2771,11 +2576,9 @@ class Builder implements BuilderContract
     /**
      * Remove all existing orders and optionally add a new order.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Contracts\Query\Expression|string|null  $column
-     * @param  string  $direction
-     * @return $this
+     * @param  Closure|self|ExpressionContract|string|null  $column
      */
-    public function reorder($column = null, $direction = 'asc')
+    public function reorder(Closure|self|ExpressionContract|string|null $column = null, string $direction = 'asc'): static
     {
         $this->orders = null;
         $this->unionOrders = null;
@@ -2792,21 +2595,17 @@ class Builder implements BuilderContract
     /**
      * Add descending "reorder" clause to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Contracts\Query\Expression|string|null  $column
-     * @return $this
+     * @param  Closure|self|ExpressionContract|string|null  $column
      */
-    public function reorderDesc($column)
+    public function reorderDesc(Closure|self|ExpressionContract|string|null $column): static
     {
         return $this->reorder($column, 'desc');
     }
 
     /**
      * Get an array with all orders with a given column removed.
-     *
-     * @param  string  $column
-     * @return array
      */
-    protected function removeExistingOrdersFor($column)
+    protected function removeExistingOrdersFor(string $column): array
     {
         return (new Collection($this->orders))
             ->reject(fn ($order) => isset($order['column']) && $order['column'] === $column)
@@ -2817,11 +2616,9 @@ class Builder implements BuilderContract
     /**
      * Add a "union" statement to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>  $query
-     * @param  bool  $all
-     * @return $this
+     * @param  Closure|self|EloquentBuilder<*>  $query
      */
-    public function union($query, $all = false)
+    public function union(Closure|self|EloquentBuilder $query, bool $all = false): static
     {
         if ($query instanceof Closure) {
             $query($query = $this->newQuery());
@@ -2837,21 +2634,17 @@ class Builder implements BuilderContract
     /**
      * Add a "union all" statement to the query.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>  $query
-     * @return $this
+     * @param  Closure|self|EloquentBuilder<*>  $query
      */
-    public function unionAll($query)
+    public function unionAll(Closure|self|EloquentBuilder $query): static
     {
         return $this->union($query, true);
     }
 
     /**
      * Lock the selected rows in the table.
-     *
-     * @param  string|bool  $value
-     * @return $this
      */
-    public function lock($value = true)
+    public function lock(string|bool $value = true): static
     {
         $this->lock = $value;
 
@@ -2864,30 +2657,24 @@ class Builder implements BuilderContract
 
     /**
      * Lock the selected rows in the table for updating.
-     *
-     * @return $this
      */
-    public function lockForUpdate()
+    public function lockForUpdate(): static
     {
         return $this->lock(true);
     }
 
     /**
      * Share lock the selected rows in the table.
-     *
-     * @return $this
      */
-    public function sharedLock()
+    public function sharedLock(): static
     {
         return $this->lock(false);
     }
 
     /**
      * Register a closure to be invoked before the query is executed.
-     *
-     * @return $this
      */
-    public function beforeQuery(callable $callback)
+    public function beforeQuery(callable $callback): static
     {
         $this->beforeQueryCallbacks[] = $callback;
 
@@ -2896,10 +2683,8 @@ class Builder implements BuilderContract
 
     /**
      * Invoke the "before query" modification callbacks.
-     *
-     * @return void
      */
-    public function applyBeforeQueryCallbacks()
+    public function applyBeforeQueryCallbacks(): void
     {
         foreach ($this->beforeQueryCallbacks as $callback) {
             $callback($this);
@@ -2910,10 +2695,8 @@ class Builder implements BuilderContract
 
     /**
      * Register a closure to be invoked after the query is executed.
-     *
-     * @return $this
      */
-    public function afterQuery(Closure $callback)
+    public function afterQuery(Closure $callback): static
     {
         $this->afterQueryCallbacks[] = $callback;
 
@@ -2922,11 +2705,8 @@ class Builder implements BuilderContract
 
     /**
      * Invoke the "after query" modification callbacks.
-     *
-     * @param  mixed  $result
-     * @return mixed
      */
-    public function applyAfterQueryCallbacks($result)
+    public function applyAfterQueryCallbacks(mixed $result): mixed
     {
         foreach ($this->afterQueryCallbacks as $afterQueryCallback) {
             $result = $afterQueryCallback($result) ?: $result;
@@ -2937,10 +2717,8 @@ class Builder implements BuilderContract
 
     /**
      * Get the SQL representation of the query.
-     *
-     * @return string
      */
-    public function toSql()
+    public function toSql(): string
     {
         $this->applyBeforeQueryCallbacks();
 
@@ -2949,10 +2727,8 @@ class Builder implements BuilderContract
 
     /**
      * Get the raw SQL representation of the query with embedded bindings.
-     *
-     * @return string
      */
-    public function toRawSql()
+    public function toRawSql(): string
     {
         return $this->grammar->substituteBindingsIntoRawSql(
             $this->toSql(), $this->connection->prepareBindings($this->getBindings())
@@ -2962,11 +2738,9 @@ class Builder implements BuilderContract
     /**
      * Execute a query for a single record by ID.
      *
-     * @param  int|string  $id
-     * @param  string|\Hypervel\Database\Contracts\Query\Expression|array<string|\Hypervel\Database\Contracts\Query\Expression>  $columns
-     * @return \stdClass|null
+     * @param  ExpressionContract|array<ExpressionContract|string>|string  $columns
      */
-    public function find($id, $columns = ['*'])
+    public function find(int|string $id, ExpressionContract|array|string $columns = ['*']): ?\stdClass
     {
         return $this->where('id', '=', $id)->first($columns);
     }
@@ -2976,12 +2750,11 @@ class Builder implements BuilderContract
      *
      * @template TValue
      *
-     * @param  mixed  $id
-     * @param  (\Closure(): TValue)|string|\Hypervel\Database\Contracts\Query\Expression|array<string|\Hypervel\Database\Contracts\Query\Expression>  $columns
-     * @param  (\Closure(): TValue)|null  $callback
+     * @param  (Closure(): TValue)|ExpressionContract|array<ExpressionContract|string>|string  $columns
+     * @param  (Closure(): TValue)|null  $callback
      * @return \stdClass|TValue
      */
-    public function findOr($id, $columns = ['*'], ?Closure $callback = null)
+    public function findOr(mixed $id, Closure|ExpressionContract|array|string $columns = ['*'], ?Closure $callback = null): mixed
     {
         if ($columns instanceof Closure) {
             $callback = $columns;
@@ -2998,11 +2771,8 @@ class Builder implements BuilderContract
 
     /**
      * Get a single column's value from the first result of a query.
-     *
-     * @param  string  $column
-     * @return mixed
      */
-    public function value($column)
+    public function value(string $column): mixed
     {
         $result = (array) $this->first([$column]);
 
@@ -3011,10 +2781,8 @@ class Builder implements BuilderContract
 
     /**
      * Get a single expression value from the first result of a query.
-     *
-     * @return mixed
      */
-    public function rawValue(string $expression, array $bindings = [])
+    public function rawValue(string $expression, array $bindings = []): mixed
     {
         $result = (array) $this->selectRaw($expression, $bindings)->first();
 
@@ -3024,13 +2792,10 @@ class Builder implements BuilderContract
     /**
      * Get a single column's value from the first result of a query if it's the sole matching record.
      *
-     * @param  string  $column
-     * @return mixed
-     *
      * @throws \Hypervel\Database\RecordsNotFoundException
      * @throws \Hypervel\Database\MultipleRecordsFoundException
      */
-    public function soleValue($column)
+    public function soleValue(string $column): mixed
     {
         $result = (array) $this->sole([$column]);
 
@@ -3040,10 +2805,10 @@ class Builder implements BuilderContract
     /**
      * Execute the query as a "select" statement.
      *
-     * @param  string|\Hypervel\Database\Contracts\Query\Expression|array<string|\Hypervel\Database\Contracts\Query\Expression>  $columns
-     * @return \Hypervel\Support\Collection<int, \stdClass>
+     * @param  ExpressionContract|array<ExpressionContract|string>|string  $columns
+     * @return Collection<int, \stdClass>
      */
-    public function get($columns = ['*'])
+    public function get(ExpressionContract|array|string $columns = ['*']): Collection
     {
         $items = new Collection($this->onceWithColumns(Arr::wrap($columns), function () {
             return $this->processor->processSelect($this, $this->runSelect());
@@ -3056,10 +2821,8 @@ class Builder implements BuilderContract
 
     /**
      * Run the query as a "select" statement against the connection.
-     *
-     * @return array
      */
-    protected function runSelect()
+    protected function runSelect(): array
     {
         return $this->connection->select(
             $this->toSql(), $this->getBindings(), ! $this->useWritePdo
@@ -3068,11 +2831,8 @@ class Builder implements BuilderContract
 
     /**
      * Remove the group limit keys from the results in the collection.
-     *
-     * @param  \Hypervel\Support\Collection  $items
-     * @return \Hypervel\Support\Collection
      */
-    protected function withoutGroupLimitKeys($items)
+    protected function withoutGroupLimitKeys(Collection $items): Collection
     {
         $keysToRemove = ['laravel_row'];
 
@@ -3095,15 +2855,15 @@ class Builder implements BuilderContract
     /**
      * Paginate the given query into a simple paginator.
      *
-     * @param  int|\Closure  $perPage
-     * @param  string|\Hypervel\Database\Contracts\Query\Expression|array<string|\Hypervel\Database\Contracts\Query\Expression>  $columns
-     * @param  string  $pageName
-     * @param  int|null  $page
-     * @param  \Closure|int|null  $total
-     * @return \Hypervel\Pagination\LengthAwarePaginator
+     * @param  ExpressionContract|array<ExpressionContract|string>|string  $columns
      */
-    public function paginate($perPage = 15, $columns = ['*'], $pageName = 'page', $page = null, $total = null)
-    {
+    public function paginate(
+        int|Closure $perPage = 15,
+        ExpressionContract|array|string $columns = ['*'],
+        string $pageName = 'page',
+        ?int $page = null,
+        Closure|int|null $total = null,
+    ): LengthAwarePaginator {
         $page = $page ?: Paginator::resolveCurrentPage($pageName);
 
         $total = value($total) ?? $this->getCountForPagination();
@@ -3123,14 +2883,14 @@ class Builder implements BuilderContract
      *
      * This is more efficient on larger data-sets, etc.
      *
-     * @param  int  $perPage
-     * @param  string|\Hypervel\Database\Contracts\Query\Expression|array<string|\Hypervel\Database\Contracts\Query\Expression>  $columns
-     * @param  string  $pageName
-     * @param  int|null  $page
-     * @return \Hypervel\Pagination\Contracts\Paginator
+     * @param  ExpressionContract|array<ExpressionContract|string>|string  $columns
      */
-    public function simplePaginate($perPage = 15, $columns = ['*'], $pageName = 'page', $page = null)
-    {
+    public function simplePaginate(
+        int $perPage = 15,
+        ExpressionContract|array|string $columns = ['*'],
+        string $pageName = 'page',
+        ?int $page = null,
+    ): PaginatorContract {
         $page = $page ?: Paginator::resolveCurrentPage($pageName);
 
         $this->offset(($page - 1) * $perPage)->limit($perPage + 1);
@@ -3146,24 +2906,21 @@ class Builder implements BuilderContract
      *
      * This is more efficient on larger data-sets, etc.
      *
-     * @param  int|null  $perPage
-     * @param  string|\Hypervel\Database\Contracts\Query\Expression|array<string|\Hypervel\Database\Contracts\Query\Expression>  $columns
-     * @param  string  $cursorName
-     * @param  \Hypervel\Pagination\Cursor|string|null  $cursor
-     * @return \Hypervel\Pagination\Contracts\CursorPaginator
+     * @param  ExpressionContract|array<ExpressionContract|string>|string  $columns
      */
-    public function cursorPaginate($perPage = 15, $columns = ['*'], $cursorName = 'cursor', $cursor = null)
-    {
+    public function cursorPaginate(
+        ?int $perPage = 15,
+        ExpressionContract|array|string $columns = ['*'],
+        string $cursorName = 'cursor',
+        Cursor|string|null $cursor = null,
+    ): CursorPaginatorContract {
         return $this->paginateUsingCursor($perPage, $columns, $cursorName, $cursor);
     }
 
     /**
      * Ensure the proper order by required for cursor pagination.
-     *
-     * @param  bool  $shouldReverse
-     * @return \Hypervel\Support\Collection
      */
-    protected function ensureOrderForCursorPagination($shouldReverse = false)
+    protected function ensureOrderForCursorPagination(bool $shouldReverse = false): Collection
     {
         if (empty($this->orders) && empty($this->unionOrders)) {
             $this->enforceOrderBy();
@@ -3194,10 +2951,10 @@ class Builder implements BuilderContract
     /**
      * Get the count of the total records for the paginator.
      *
-     * @param  array<string|\Hypervel\Database\Contracts\Query\Expression>  $columns
+     * @param  array<ExpressionContract|string>  $columns
      * @return int<0, max>
      */
-    public function getCountForPagination($columns = ['*'])
+    public function getCountForPagination(array $columns = ['*']): int
     {
         $results = $this->runPaginationCountQuery($columns);
 
@@ -3216,10 +2973,10 @@ class Builder implements BuilderContract
     /**
      * Run a pagination count query.
      *
-     * @param  array<string|\Hypervel\Database\Contracts\Query\Expression>  $columns
+     * @param  array<ExpressionContract|string>  $columns
      * @return array<mixed>
      */
-    protected function runPaginationCountQuery($columns = ['*'])
+    protected function runPaginationCountQuery(array $columns = ['*']): array
     {
         if ($this->groups || $this->havings) {
             $clone = $this->cloneForPaginationCount();
@@ -3245,10 +3002,8 @@ class Builder implements BuilderContract
 
     /**
      * Clone the existing query instance for usage in a pagination subquery.
-     *
-     * @return self
      */
-    protected function cloneForPaginationCount()
+    protected function cloneForPaginationCount(): self
     {
         return $this->cloneWithout(['orders', 'limit', 'offset'])
             ->cloneWithoutBindings(['order']);
@@ -3257,10 +3012,10 @@ class Builder implements BuilderContract
     /**
      * Remove the column aliases since they will break count queries.
      *
-     * @param  array<string|\Hypervel\Database\Contracts\Query\Expression>  $columns
-     * @return array<string|\Hypervel\Database\Contracts\Query\Expression>
+     * @param  array<ExpressionContract|string>  $columns
+     * @return array<ExpressionContract|string>
      */
-    protected function withoutSelectAliases(array $columns)
+    protected function withoutSelectAliases(array $columns): array
     {
         return array_map(function ($column) {
             return is_string($column) && ($aliasPosition = stripos($column, ' as ')) !== false
@@ -3272,9 +3027,9 @@ class Builder implements BuilderContract
     /**
      * Get a lazy collection for the given query.
      *
-     * @return \Hypervel\Support\LazyCollection<int, \stdClass>
+     * @return LazyCollection<int, \stdClass>
      */
-    public function cursor()
+    public function cursor(): LazyCollection
     {
         if (is_null($this->columns)) {
             $this->columns = ['*'];
@@ -3292,11 +3047,9 @@ class Builder implements BuilderContract
     /**
      * Throw an exception if the query doesn't have an orderBy clause.
      *
-     * @return void
-     *
      * @throws \RuntimeException
      */
-    protected function enforceOrderBy()
+    protected function enforceOrderBy(): void
     {
         if (empty($this->orders) && empty($this->unionOrders)) {
             throw new RuntimeException('You must specify an orderBy clause when using this function.');
@@ -3306,11 +3059,9 @@ class Builder implements BuilderContract
     /**
      * Get a collection instance containing the values of a given column.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
-     * @param  string|null  $key
-     * @return \Hypervel\Support\Collection<array-key, mixed>
+     * @return Collection<array-key, mixed>
      */
-    public function pluck($column, $key = null)
+    public function pluck(ExpressionContract|string $column, ?string $key = null): Collection
     {
         // First, we will need to select the results of the query accounting for the
         // given columns / key. Once we have the results, we will be able to take
@@ -3344,11 +3095,8 @@ class Builder implements BuilderContract
 
     /**
      * Strip off the table name or alias from a column identifier.
-     *
-     * @param  string  $column
-     * @return string|null
      */
-    protected function stripTableForPluck($column)
+    protected function stripTableForPluck(ExpressionContract|string|null $column): ?string
     {
         if (is_null($column)) {
             return $column;
@@ -3365,13 +3113,8 @@ class Builder implements BuilderContract
 
     /**
      * Retrieve column values from rows represented as objects.
-     *
-     * @param  array  $queryResult
-     * @param  string  $column
-     * @param  string  $key
-     * @return \Hypervel\Support\Collection
      */
-    protected function pluckFromObjectColumn($queryResult, $column, $key)
+    protected function pluckFromObjectColumn(array $queryResult, string $column, ?string $key): Collection
     {
         $results = [];
 
@@ -3390,13 +3133,8 @@ class Builder implements BuilderContract
 
     /**
      * Retrieve column values from rows represented as arrays.
-     *
-     * @param  array  $queryResult
-     * @param  string  $column
-     * @param  string  $key
-     * @return \Hypervel\Support\Collection
      */
-    protected function pluckFromArrayColumn($queryResult, $column, $key)
+    protected function pluckFromArrayColumn(array $queryResult, string $column, ?string $key): Collection
     {
         $results = [];
 
@@ -3415,22 +3153,16 @@ class Builder implements BuilderContract
 
     /**
      * Concatenate values of a given column as a string.
-     *
-     * @param  string  $column
-     * @param  string  $glue
-     * @return string
      */
-    public function implode($column, $glue = '')
+    public function implode(string $column, string $glue = ''): string
     {
         return $this->pluck($column)->implode($glue);
     }
 
     /**
      * Determine if any rows exist for the current query.
-     *
-     * @return bool
      */
-    public function exists()
+    public function exists(): bool
     {
         $this->applyBeforeQueryCallbacks();
 
@@ -3452,30 +3184,24 @@ class Builder implements BuilderContract
 
     /**
      * Determine if no rows exist for the current query.
-     *
-     * @return bool
      */
-    public function doesntExist()
+    public function doesntExist(): bool
     {
         return ! $this->exists();
     }
 
     /**
      * Execute the given callback if no rows exist for the current query.
-     *
-     * @return mixed
      */
-    public function existsOr(Closure $callback)
+    public function existsOr(Closure $callback): mixed
     {
         return $this->exists() ? true : $callback();
     }
 
     /**
      * Execute the given callback if rows exist for the current query.
-     *
-     * @return mixed
      */
-    public function doesntExistOr(Closure $callback)
+    public function doesntExistOr(Closure $callback): mixed
     {
         return $this->doesntExist() ? true : $callback();
     }
@@ -3483,43 +3209,33 @@ class Builder implements BuilderContract
     /**
      * Retrieve the "count" result of the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $columns
      * @return int<0, max>
      */
-    public function count($columns = '*')
+    public function count(ExpressionContract|string $columns = '*'): int
     {
         return (int) $this->aggregate(__FUNCTION__, Arr::wrap($columns));
     }
 
     /**
      * Retrieve the minimum value of a given column.
-     *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
-     * @return mixed
      */
-    public function min($column)
+    public function min(ExpressionContract|string $column): mixed
     {
         return $this->aggregate(__FUNCTION__, [$column]);
     }
 
     /**
      * Retrieve the maximum value of a given column.
-     *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
-     * @return mixed
      */
-    public function max($column)
+    public function max(ExpressionContract|string $column): mixed
     {
         return $this->aggregate(__FUNCTION__, [$column]);
     }
 
     /**
      * Retrieve the sum of the values of a given column.
-     *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
-     * @return mixed
      */
-    public function sum($column)
+    public function sum(ExpressionContract|string $column): mixed
     {
         $result = $this->aggregate(__FUNCTION__, [$column]);
 
@@ -3528,34 +3244,24 @@ class Builder implements BuilderContract
 
     /**
      * Retrieve the average of the values of a given column.
-     *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
-     * @return mixed
      */
-    public function avg($column)
+    public function avg(ExpressionContract|string $column): mixed
     {
         return $this->aggregate(__FUNCTION__, [$column]);
     }
 
     /**
      * Alias for the "avg" method.
-     *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
-     * @return mixed
      */
-    public function average($column)
+    public function average(ExpressionContract|string $column): mixed
     {
         return $this->avg($column);
     }
 
     /**
      * Execute an aggregate function on the database.
-     *
-     * @param  string  $function
-     * @param  array  $columns
-     * @return mixed
      */
-    public function aggregate($function, $columns = ['*'])
+    public function aggregate(string $function, array $columns = ['*']): mixed
     {
         $results = $this->cloneWithout($this->unions || $this->havings ? [] : ['columns'])
             ->cloneWithoutBindings($this->unions || $this->havings ? [] : ['select'])
@@ -3565,16 +3271,14 @@ class Builder implements BuilderContract
         if (! $results->isEmpty()) {
             return array_change_key_case((array) $results[0])['aggregate'];
         }
+
+        return null;
     }
 
     /**
      * Execute a numeric aggregate function on the database.
-     *
-     * @param  string  $function
-     * @param  array  $columns
-     * @return float|int
      */
-    public function numericAggregate($function, $columns = ['*'])
+    public function numericAggregate(string $function, array $columns = ['*']): float|int
     {
         $result = $this->aggregate($function, $columns);
 
@@ -3600,11 +3304,9 @@ class Builder implements BuilderContract
     /**
      * Set the aggregate property without running the query.
      *
-     * @param  string  $function
-     * @param  array<\Hypervel\Database\Contracts\Query\Expression|string>  $columns
-     * @return $this
+     * @param  array<ExpressionContract|string>  $columns
      */
-    protected function setAggregate($function, $columns)
+    protected function setAggregate(string $function, array $columns): static
     {
         $this->aggregate = compact('function', 'columns');
 
@@ -3624,11 +3326,11 @@ class Builder implements BuilderContract
      *
      * @template TResult
      *
-     * @param  array<string|\Hypervel\Database\Contracts\Query\Expression>  $columns
+     * @param  array<ExpressionContract|string>  $columns
      * @param  callable(): TResult  $callback
      * @return TResult
      */
-    protected function onceWithColumns($columns, $callback)
+    protected function onceWithColumns(array $columns, callable $callback): mixed
     {
         $original = $this->columns;
 
@@ -3645,10 +3347,8 @@ class Builder implements BuilderContract
 
     /**
      * Insert new records into the database.
-     *
-     * @return bool
      */
-    public function insert(array $values)
+    public function insert(array $values): bool
     {
         // Since every insert gets treated like a batch insert, we will make sure the
         // bindings are structured in a way that is convenient when building these
@@ -3688,7 +3388,7 @@ class Builder implements BuilderContract
      *
      * @return int<0, max>
      */
-    public function insertOrIgnore(array $values)
+    public function insertOrIgnore(array $values): int
     {
         if (empty($values)) {
             return 0;
@@ -3714,11 +3414,8 @@ class Builder implements BuilderContract
 
     /**
      * Insert a new record and get the value of the primary key.
-     *
-     * @param  string|null  $sequence
-     * @return int
      */
-    public function insertGetId(array $values, $sequence = null)
+    public function insertGetId(array $values, ?string $sequence = null): int
     {
         $this->applyBeforeQueryCallbacks();
 
@@ -3732,10 +3429,9 @@ class Builder implements BuilderContract
     /**
      * Insert new records into the table using a subquery.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|string  $query
-     * @return int
+     * @param  Closure|self|EloquentBuilder<*>|string  $query
      */
-    public function insertUsing(array $columns, $query)
+    public function insertUsing(array $columns, Closure|self|EloquentBuilder|string $query): int
     {
         $this->applyBeforeQueryCallbacks();
 
@@ -3750,10 +3446,9 @@ class Builder implements BuilderContract
     /**
      * Insert new records into the table using a subquery while ignoring errors.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|string  $query
-     * @return int
+     * @param  Closure|self|EloquentBuilder<*>|string  $query
      */
-    public function insertOrIgnoreUsing(array $columns, $query)
+    public function insertOrIgnoreUsing(array $columns, Closure|self|EloquentBuilder|string $query): int
     {
         $this->applyBeforeQueryCallbacks();
 
@@ -3770,7 +3465,7 @@ class Builder implements BuilderContract
      *
      * @return int<0, max>
      */
-    public function update(array $values)
+    public function update(array $values): int
     {
         $this->applyBeforeQueryCallbacks();
 
@@ -3797,10 +3492,8 @@ class Builder implements BuilderContract
 
     /**
      * Update records in a PostgreSQL database using the update from syntax.
-     *
-     * @return int
      */
-    public function updateFrom(array $values)
+    public function updateFrom(array $values): int
     {
         if (! method_exists($this->grammar, 'compileUpdateFrom')) {
             throw new LogicException('This database engine does not support the updateFrom method.');
@@ -3817,10 +3510,8 @@ class Builder implements BuilderContract
 
     /**
      * Insert or update a record matching the attributes, and fill it with values.
-     *
-     * @return bool
      */
-    public function updateOrInsert(array $attributes, array|callable $values = [])
+    public function updateOrInsert(array $attributes, array|callable $values = []): bool
     {
         $exists = $this->where($attributes)->exists();
 
@@ -3841,10 +3532,8 @@ class Builder implements BuilderContract
 
     /**
      * Insert new records or update the existing ones.
-     *
-     * @return int
      */
-    public function upsert(array $values, array|string $uniqueBy, ?array $update = null)
+    public function upsert(array $values, array|string $uniqueBy, ?array $update = null): int
     {
         if (empty($values)) {
             return 0;
@@ -3884,13 +3573,11 @@ class Builder implements BuilderContract
     /**
      * Increment a column's value by a given amount.
      *
-     * @param  string  $column
-     * @param  float|int  $amount
      * @return int<0, max>
      *
      * @throws \InvalidArgumentException
      */
-    public function increment($column, $amount = 1, array $extra = [])
+    public function increment(string $column, float|int $amount = 1, array $extra = []): int
     {
         if (! is_numeric($amount)) {
             throw new InvalidArgumentException('Non-numeric value passed to increment method.');
@@ -3908,7 +3595,7 @@ class Builder implements BuilderContract
      *
      * @throws \InvalidArgumentException
      */
-    public function incrementEach(array $columns, array $extra = [])
+    public function incrementEach(array $columns, array $extra = []): int
     {
         foreach ($columns as $column => $amount) {
             if (! is_numeric($amount)) {
@@ -3926,13 +3613,11 @@ class Builder implements BuilderContract
     /**
      * Decrement a column's value by a given amount.
      *
-     * @param  string  $column
-     * @param  float|int  $amount
      * @return int<0, max>
      *
      * @throws \InvalidArgumentException
      */
-    public function decrement($column, $amount = 1, array $extra = [])
+    public function decrement(string $column, float|int $amount = 1, array $extra = []): int
     {
         if (! is_numeric($amount)) {
             throw new InvalidArgumentException('Non-numeric value passed to decrement method.');
@@ -3950,7 +3635,7 @@ class Builder implements BuilderContract
      *
      * @throws \InvalidArgumentException
      */
-    public function decrementEach(array $columns, array $extra = [])
+    public function decrementEach(array $columns, array $extra = []): int
     {
         foreach ($columns as $column => $amount) {
             if (! is_numeric($amount)) {
@@ -3967,11 +3652,8 @@ class Builder implements BuilderContract
 
     /**
      * Delete records from the database.
-     *
-     * @param  mixed  $id
-     * @return int
      */
-    public function delete($id = null)
+    public function delete(mixed $id = null): int
     {
         // If an ID is passed to the method, we will set the where clause to check the
         // ID to let developers to simply and quickly remove a single row from this
@@ -3991,10 +3673,8 @@ class Builder implements BuilderContract
 
     /**
      * Run a "truncate" statement on the table.
-     *
-     * @return void
      */
-    public function truncate()
+    public function truncate(): void
     {
         $this->applyBeforeQueryCallbacks();
 
@@ -4005,20 +3685,16 @@ class Builder implements BuilderContract
 
     /**
      * Get a new instance of the query builder.
-     *
-     * @return \Hypervel\Database\Query\Builder
      */
-    public function newQuery()
+    public function newQuery(): self
     {
         return new static($this->connection, $this->grammar, $this->processor);
     }
 
     /**
      * Create a new query instance for a sub-query.
-     *
-     * @return \Hypervel\Database\Query\Builder
      */
-    protected function forSubQuery()
+    protected function forSubQuery(): self
     {
         return $this->newQuery();
     }
@@ -4028,7 +3704,7 @@ class Builder implements BuilderContract
      *
      * @return list<string>
      */
-    public function getColumns()
+    public function getColumns(): array
     {
         return ! is_null($this->columns)
             ? array_map(fn ($column) => $this->grammar->getValue($column), $this->columns)
@@ -4037,21 +3713,16 @@ class Builder implements BuilderContract
 
     /**
      * Create a raw database expression.
-     *
-     * @param  mixed  $value
-     * @return \Hypervel\Database\Contracts\Query\Expression
      */
-    public function raw($value)
+    public function raw(mixed $value): ExpressionContract
     {
         return $this->connection->raw($value);
     }
 
     /**
      * Get the query builder instances that are used in the union of the query.
-     *
-     * @return \Hypervel\Support\Collection
      */
-    protected function getUnionBuilders()
+    protected function getUnionBuilders(): Collection
     {
         return isset($this->unions)
             ? (new Collection($this->unions))->pluck('query')
@@ -4060,10 +3731,8 @@ class Builder implements BuilderContract
 
     /**
      * Get the "limit" value for the query or null if it's not set.
-     *
-     * @return mixed
      */
-    public function getLimit()
+    public function getLimit(): ?int
     {
         $value = $this->unions ? $this->unionLimit : $this->limit;
 
@@ -4072,10 +3741,8 @@ class Builder implements BuilderContract
 
     /**
      * Get the "offset" value for the query or null if it's not set.
-     *
-     * @return mixed
      */
-    public function getOffset()
+    public function getOffset(): ?int
     {
         $value = $this->unions ? $this->unionOffset : $this->offset;
 
@@ -4087,7 +3754,7 @@ class Builder implements BuilderContract
      *
      * @return list<mixed>
      */
-    public function getBindings()
+    public function getBindings(): array
     {
         return Arr::flatten($this->bindings);
     }
@@ -4107,7 +3774,7 @@ class Builder implements BuilderContract
      *      unionOrder: list<mixed>,
      * }
      */
-    public function getRawBindings()
+    public function getRawBindings(): array
     {
         return $this->bindings;
     }
@@ -4117,11 +3784,10 @@ class Builder implements BuilderContract
      *
      * @param  list<mixed>  $bindings
      * @param  "select"|"from"|"join"|"where"|"groupBy"|"having"|"order"|"union"|"unionOrder"  $type
-     * @return $this
      *
      * @throws \InvalidArgumentException
      */
-    public function setBindings(array $bindings, $type = 'where')
+    public function setBindings(array $bindings, string $type = 'where'): static
     {
         if (! array_key_exists($type, $this->bindings)) {
             throw new InvalidArgumentException("Invalid binding type: {$type}.");
@@ -4135,13 +3801,11 @@ class Builder implements BuilderContract
     /**
      * Add a binding to the query.
      *
-     * @param  mixed  $value
      * @param  "select"|"from"|"join"|"where"|"groupBy"|"having"|"order"|"union"|"unionOrder"  $type
-     * @return $this
      *
      * @throws \InvalidArgumentException
      */
-    public function addBinding($value, $type = 'where')
+    public function addBinding(mixed $value, string $type = 'where'): static
     {
         if (! array_key_exists($type, $this->bindings)) {
             throw new InvalidArgumentException("Invalid binding type: {$type}.");
@@ -4161,11 +3825,8 @@ class Builder implements BuilderContract
 
     /**
      * Cast the given binding value.
-     *
-     * @param  mixed  $value
-     * @return mixed
      */
-    public function castBinding($value)
+    public function castBinding(mixed $value): mixed
     {
         if ($value instanceof UnitEnum) {
             return enum_value($value);
@@ -4176,11 +3837,8 @@ class Builder implements BuilderContract
 
     /**
      * Merge an array of bindings into our bindings.
-     *
-     * @param  self  $query
-     * @return $this
      */
-    public function mergeBindings(self $query)
+    public function mergeBindings(self $query): static
     {
         $this->bindings = array_merge_recursive($this->bindings, $query->bindings);
 
@@ -4193,7 +3851,7 @@ class Builder implements BuilderContract
      * @param  array<mixed>  $bindings
      * @return list<mixed>
      */
-    public function cleanBindings(array $bindings)
+    public function cleanBindings(array $bindings): array
     {
         return (new Collection($bindings))
             ->reject(function ($binding) {
@@ -4206,41 +3864,32 @@ class Builder implements BuilderContract
 
     /**
      * Get a scalar type value from an unknown type of input.
-     *
-     * @param  mixed  $value
-     * @return mixed
      */
-    protected function flattenValue($value)
+    protected function flattenValue(mixed $value): mixed
     {
         return is_array($value) ? head(Arr::flatten($value)) : $value;
     }
 
     /**
      * Get the default key name of the table.
-     *
-     * @return string
      */
-    protected function defaultKeyName()
+    protected function defaultKeyName(): string
     {
         return 'id';
     }
 
     /**
      * Get the database connection instance.
-     *
-     * @return \Hypervel\Database\ConnectionInterface
      */
-    public function getConnection()
+    public function getConnection(): ConnectionInterface
     {
         return $this->connection;
     }
 
     /**
      * Ensure the database connection supports vector queries.
-     *
-     * @return void
      */
-    protected function ensureConnectionSupportsVectors()
+    protected function ensureConnectionSupportsVectors(): void
     {
         if (! $this->connection instanceof PostgresConnection) {
             throw new RuntimeException('Vector distance queries are only supported by Postgres.');
@@ -4249,30 +3898,24 @@ class Builder implements BuilderContract
 
     /**
      * Get the database query processor instance.
-     *
-     * @return \Hypervel\Database\Query\Processors\Processor
      */
-    public function getProcessor()
+    public function getProcessor(): Processor
     {
         return $this->processor;
     }
 
     /**
      * Get the query grammar instance.
-     *
-     * @return \Hypervel\Database\Query\Grammars\Grammar
      */
-    public function getGrammar()
+    public function getGrammar(): Grammar
     {
         return $this->grammar;
     }
 
     /**
      * Use the "write" PDO connection when executing the query.
-     *
-     * @return $this
      */
-    public function useWritePdo()
+    public function useWritePdo(): static
     {
         $this->useWritePdo = true;
 
@@ -4281,11 +3924,8 @@ class Builder implements BuilderContract
 
     /**
      * Determine if the value is a query builder instance or a Closure.
-     *
-     * @param  mixed  $value
-     * @return bool
      */
-    protected function isQueryable($value)
+    protected function isQueryable(mixed $value): bool
     {
         return $value instanceof self ||
                $value instanceof EloquentBuilder ||
@@ -4295,20 +3935,16 @@ class Builder implements BuilderContract
 
     /**
      * Clone the query.
-     *
-     * @return static
      */
-    public function clone()
+    public function clone(): static
     {
         return clone $this;
     }
 
     /**
      * Clone the query without the given properties.
-     *
-     * @return static
      */
-    public function cloneWithout(array $properties)
+    public function cloneWithout(array $properties): static
     {
         return tap($this->clone(), function ($clone) use ($properties) {
             foreach ($properties as $property) {
@@ -4319,10 +3955,8 @@ class Builder implements BuilderContract
 
     /**
      * Clone the query without the given bindings.
-     *
-     * @return static
      */
-    public function cloneWithoutBindings(array $except)
+    public function cloneWithoutBindings(array $except): static
     {
         return tap($this->clone(), function ($clone) use ($except) {
             foreach ($except as $type) {
@@ -4333,11 +3967,8 @@ class Builder implements BuilderContract
 
     /**
      * Dump the current SQL and bindings.
-     *
-     * @param  mixed  ...$args
-     * @return $this
      */
-    public function dump(...$args)
+    public function dump(mixed ...$args): static
     {
         dump(
             $this->toSql(),
@@ -4350,10 +3981,8 @@ class Builder implements BuilderContract
 
     /**
      * Dump the raw current SQL with embedded bindings.
-     *
-     * @return $this
      */
-    public function dumpRawSql()
+    public function dumpRawSql(): static
     {
         dump($this->toRawSql());
 
@@ -4362,20 +3991,16 @@ class Builder implements BuilderContract
 
     /**
      * Die and dump the current SQL and bindings.
-     *
-     * @return never
      */
-    public function dd()
+    public function dd(): never
     {
         dd($this->toSql(), $this->getBindings());
     }
 
     /**
      * Die and dump the current SQL with embedded bindings.
-     *
-     * @return never
      */
-    public function ddRawSql()
+    public function ddRawSql(): never
     {
         dd($this->toRawSql());
     }
@@ -4383,13 +4008,9 @@ class Builder implements BuilderContract
     /**
      * Handle dynamic method calls into the method.
      *
-     * @param  string  $method
-     * @param  array  $parameters
-     * @return mixed
-     *
      * @throws \BadMethodCallException
      */
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         if (static::hasMacro($method)) {
             return $this->macroCall($method, $parameters);
