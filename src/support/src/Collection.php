@@ -16,4 +16,19 @@ use Hypervel\Support\Traits\TransformsToResourceCollection;
 class Collection extends BaseCollection
 {
     use TransformsToResourceCollection;
+
+    /**
+     * Push one or more items onto the end of the collection.
+     *
+     * @param TValue ...$values
+     * @return $this
+     */
+    public function push(...$values): static
+    {
+        foreach ($values as $value) {
+            $this->items[] = $value;
+        }
+
+        return $this;
+    }
 }

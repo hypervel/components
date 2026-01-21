@@ -502,7 +502,7 @@ abstract class Grammar extends BaseGrammar
 
         return is_bool($value)
             ? "'".(int) $value."'"
-            : "'".str_replace("'", "''", $value)."'";
+            : "'".str_replace("'", "''", (string) $value)."'";
     }
 
     /**
