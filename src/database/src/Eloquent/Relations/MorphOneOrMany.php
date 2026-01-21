@@ -20,28 +20,23 @@ abstract class MorphOneOrMany extends HasOneOrMany
 {
     /**
      * The foreign key type for the relationship.
-     *
-     * @var string
      */
-    protected $morphType;
+    protected string $morphType;
 
     /**
      * The class name of the parent model.
      *
      * @var class-string<TRelatedModel>
      */
-    protected $morphClass;
+    protected string $morphClass;
 
     /**
      * Create a new morph one or many relationship instance.
      *
      * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
      * @param  TDeclaringModel  $parent
-     * @param  string  $type
-     * @param  string  $id
-     * @param  string  $localKey
      */
-    public function __construct(Builder $query, Model $parent, $type, $id, $localKey)
+    public function __construct(Builder $query, Model $parent, string $type, string $id, string $localKey)
     {
         $this->morphType = $type;
 
@@ -52,10 +47,8 @@ abstract class MorphOneOrMany extends HasOneOrMany
 
     /**
      * Set the base constraints on the relation query.
-     *
-     * @return void
      */
-    public function addConstraints()
+    public function addConstraints(): void
     {
         if (static::shouldAddConstraints()) {
             $this->getRelationQuery()->where($this->morphType, $this->morphClass);
@@ -75,10 +68,9 @@ abstract class MorphOneOrMany extends HasOneOrMany
     /**
      * Create a new instance of the related model. Allow mass-assignment.
      *
-     * @param  array  $attributes
      * @return TRelatedModel
      */
-    public function forceCreate(array $attributes = [])
+    public function forceCreate(array $attributes = []): Model
     {
         $attributes[$this->getForeignKeyName()] = $this->getParentKey();
         $attributes[$this->getMorphType()] = $this->morphClass;
@@ -90,9 +82,8 @@ abstract class MorphOneOrMany extends HasOneOrMany
      * Set the foreign ID and type for creating a related model.
      *
      * @param  TRelatedModel  $model
-     * @return void
      */
-    protected function setForeignAttributesForCreate(Model $model)
+    protected function setForeignAttributesForCreate(Model $model): void
     {
         $model->{$this->getForeignKeyName()} = $this->getParentKey();
 
@@ -111,13 +102,8 @@ abstract class MorphOneOrMany extends HasOneOrMany
 
     /**
      * Insert new records or update the existing ones.
-     *
-     * @param  array  $values
-     * @param  array|string  $uniqueBy
-     * @param  array|null  $update
-     * @return int
      */
-    public function upsert(array $values, $uniqueBy, $update = null)
+    public function upsert(array $values, array|string $uniqueBy, ?array $update = null): int
     {
         if (! empty($values) && ! is_array(Arr::first($values))) {
             $values = [$values];
@@ -140,20 +126,16 @@ abstract class MorphOneOrMany extends HasOneOrMany
 
     /**
      * Get the foreign key "type" name.
-     *
-     * @return string
      */
-    public function getQualifiedMorphType()
+    public function getQualifiedMorphType(): string
     {
         return $this->morphType;
     }
 
     /**
      * Get the plain morph type name without the table.
-     *
-     * @return string
      */
-    public function getMorphType()
+    public function getMorphType(): string
     {
         return last(explode('.', $this->morphType));
     }
@@ -163,7 +145,7 @@ abstract class MorphOneOrMany extends HasOneOrMany
      *
      * @return class-string<TRelatedModel>
      */
-    public function getMorphClass()
+    public function getMorphClass(): string
     {
         return $this->morphClass;
     }
