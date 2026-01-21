@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Relations;
 
+use Hypervel\Database\Eloquent\Builder;
+
 class MorphPivot extends Pivot
 {
     /**
      * The type of the polymorphic relation.
      *
      * Explicitly define this so it's not included in saved attributes.
-     *
-     * @var string
      */
-    protected $morphType;
+    protected string $morphType;
 
     /**
      * The value of the polymorphic relation.
@@ -22,7 +22,7 @@ class MorphPivot extends Pivot
      *
      * @var class-string
      */
-    protected $morphClass;
+    protected string $morphClass;
 
     /**
      * Set the keys for a save update query.
@@ -30,7 +30,7 @@ class MorphPivot extends Pivot
      * @param  \Hypervel\Database\Eloquent\Builder<static>  $query
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
-    protected function setKeysForSaveQuery($query)
+    protected function setKeysForSaveQuery(Builder $query): Builder
     {
         $query->where($this->morphType, $this->morphClass);
 
@@ -43,7 +43,7 @@ class MorphPivot extends Pivot
      * @param  \Hypervel\Database\Eloquent\Builder<static>  $query
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
-    protected function setKeysForSelectQuery($query)
+    protected function setKeysForSelectQuery(Builder $query): Builder
     {
         $query->where($this->morphType, $this->morphClass);
 
@@ -52,10 +52,8 @@ class MorphPivot extends Pivot
 
     /**
      * Delete the pivot model record from the database.
-     *
-     * @return int
      */
-    public function delete()
+    public function delete(): int
     {
         if (isset($this->attributes[$this->getKeyName()])) {
             return (int) parent::delete();
@@ -78,10 +76,8 @@ class MorphPivot extends Pivot
 
     /**
      * Get the morph type for the pivot.
-     *
-     * @return string
      */
-    public function getMorphType()
+    public function getMorphType(): string
     {
         return $this->morphType;
     }
@@ -89,10 +85,9 @@ class MorphPivot extends Pivot
     /**
      * Set the morph type for the pivot.
      *
-     * @param  string  $morphType
      * @return $this
      */
-    public function setMorphType($morphType)
+    public function setMorphType(string $morphType): static
     {
         $this->morphType = $morphType;
 
@@ -103,9 +98,9 @@ class MorphPivot extends Pivot
      * Set the morph class for the pivot.
      *
      * @param  class-string  $morphClass
-     * @return \Hypervel\Database\Eloquent\Relations\MorphPivot
+     * @return $this
      */
-    public function setMorphClass($morphClass)
+    public function setMorphClass(string $morphClass): static
     {
         $this->morphClass = $morphClass;
 
@@ -132,10 +127,9 @@ class MorphPivot extends Pivot
     /**
      * Get a new query to restore one or more models by their queueable IDs.
      *
-     * @param  array|int  $ids
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
-    public function newQueryForRestoration($ids)
+    public function newQueryForRestoration(array|int|string $ids): Builder
     {
         if (is_array($ids)) {
             return $this->newQueryForCollectionRestoration($ids);
@@ -156,10 +150,9 @@ class MorphPivot extends Pivot
     /**
      * Get a new query to restore multiple models by their queueable IDs.
      *
-     * @param  array  $ids
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
-    protected function newQueryForCollectionRestoration(array $ids)
+    protected function newQueryForCollectionRestoration(array $ids): Builder
     {
         $ids = array_values($ids);
 
