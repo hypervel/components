@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Relations;
 
 use Closure;
+use Hypervel\Context\Context;
 use Hypervel\Database\Contracts\Eloquent\Builder as BuilderContract;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
@@ -58,11 +59,9 @@ abstract class Relation implements BuilderContract
     protected $eagerKeysWereEmpty = false;
 
     /**
-     * Indicates if the relation is adding constraints.
-     *
-     * @var bool
+     * The context key for storing whether constraints are enabled.
      */
-    protected static $constraints = true;
+    protected const CONSTRAINTS_CONTEXT_KEY = '__database.relation.constraints';
 
     /**
      * An array to map morph names to their class names in the database.
@@ -110,9 +109,9 @@ abstract class Relation implements BuilderContract
      */
     public static function noConstraints(Closure $callback)
     {
-        $previous = static::$constraints;
+        $previous = Context::get(static::CONSTRAINTS_CONTEXT_KEY, true);
 
-        static::$constraints = false;
+        Context::set(static::CONSTRAINTS_CONTEXT_KEY, false);
 
         // When resetting the relation where clause, we want to shift the first element
         // off of the bindings, leaving only the constraints that the developers put
@@ -120,8 +119,16 @@ abstract class Relation implements BuilderContract
         try {
             return $callback();
         } finally {
-            static::$constraints = $previous;
+            Context::set(static::CONSTRAINTS_CONTEXT_KEY, $previous);
         }
+    }
+
+    /**
+     * Determine if constraints should be added to the relation query.
+     */
+    public static function shouldAddConstraints(): bool
+    {
+        return Context::get(static::CONSTRAINTS_CONTEXT_KEY, true);
     }
 
     /**

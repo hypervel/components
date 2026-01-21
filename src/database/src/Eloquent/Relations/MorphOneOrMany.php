@@ -57,7 +57,7 @@ abstract class MorphOneOrMany extends HasOneOrMany
      */
     public function addConstraints()
     {
-        if (static::$constraints) {
+        if (static::shouldAddConstraints()) {
             $this->getRelationQuery()->where($this->morphType, $this->morphClass);
 
             parent::addConstraints();

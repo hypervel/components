@@ -104,7 +104,7 @@ abstract class HasOneOrManyThrough extends Relation
 
         $this->performJoin($query);
 
-        if (static::$constraints) {
+        if (static::shouldAddConstraints()) {
             $query->where($this->getQualifiedFirstKeyName(), '=', $localValue);
         }
     }
