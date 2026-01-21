@@ -107,19 +107,19 @@ class HasOneThrough extends HasOneOrManyThrough implements SupportsPartialRelati
      * @param  TDeclaringModel  $parent
      * @return TRelatedModel
      */
-    public function newRelatedInstanceFor(Model $parent)
+    public function newRelatedInstanceFor(Model $parent): Model
     {
         return $this->related->newInstance();
     }
 
     /** @inheritDoc */
-    protected function getRelatedKeyFrom(Model $model)
+    protected function getRelatedKeyFrom(Model $model): mixed
     {
         return $model->getAttribute($this->getForeignKeyName());
     }
 
     /** @inheritDoc */
-    public function getParentKey()
+    public function getParentKey(): mixed
     {
         return $this->farParent->getAttribute($this->localKey);
     }

@@ -585,7 +585,7 @@ abstract class HasOneOrMany extends Relation
     {
         $segments = explode('.', $this->getQualifiedForeignKeyName());
 
-        return array_last($segments);
+        return Arr::last($segments);
     }
 
     /**

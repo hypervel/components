@@ -432,7 +432,7 @@ class Grammar extends BaseGrammar
 
         $min = $this->parameter(is_array($where['values']) ? Arr::first($where['values']) : $where['values'][0]);
 
-        $max = $this->parameter(is_array($where['values']) ? array_last($where['values']) : $where['values'][1]);
+        $max = $this->parameter(is_array($where['values']) ? Arr::last($where['values']) : $where['values'][1]);
 
         return $this->wrap($where['column']).' '.$between.' '.$min.' and '.$max;
     }
@@ -450,7 +450,7 @@ class Grammar extends BaseGrammar
 
         $min = $this->wrap(is_array($where['values']) ? Arr::first($where['values']) : $where['values'][0]);
 
-        $max = $this->wrap(is_array($where['values']) ? array_last($where['values']) : $where['values'][1]);
+        $max = $this->wrap(is_array($where['values']) ? Arr::last($where['values']) : $where['values'][1]);
 
         return $this->wrap($where['column']).' '.$between.' '.$min.' and '.$max;
     }
@@ -468,7 +468,7 @@ class Grammar extends BaseGrammar
 
         $min = $this->wrap(is_array($where['columns']) ? Arr::first($where['columns']) : $where['columns'][0]);
 
-        $max = $this->wrap(is_array($where['columns']) ? array_last($where['columns']) : $where['columns'][1]);
+        $max = $this->wrap(is_array($where['columns']) ? Arr::last($where['columns']) : $where['columns'][1]);
 
         return $this->parameter($where['value']).' '.$between.' '.$min.' and '.$max;
     }

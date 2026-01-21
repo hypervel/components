@@ -279,7 +279,7 @@ class MorphTo extends BelongsTo
 
     /** @inheritDoc */
     #[\Override]
-    protected function newRelatedInstanceFor(Model $parent)
+    protected function newRelatedInstanceFor(Model $parent): Model
     {
         return $parent->{$this->getRelationName()}()->getRelated()->newInstance();
     }

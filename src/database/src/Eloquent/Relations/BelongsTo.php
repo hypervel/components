@@ -283,7 +283,7 @@ class BelongsTo extends Relation
      * @param  TDeclaringModel  $parent
      * @return TRelatedModel
      */
-    protected function newRelatedInstanceFor(Model $parent)
+    protected function newRelatedInstanceFor(Model $parent): Model
     {
         return $this->related->newInstance();
     }
@@ -320,10 +320,8 @@ class BelongsTo extends Relation
 
     /**
      * Get the key value of the child's foreign key.
-     *
-     * @return mixed
      */
-    public function getParentKey()
+    public function getParentKey(): mixed
     {
         return $this->getForeignKeyFrom($this->child);
     }
@@ -352,9 +350,8 @@ class BelongsTo extends Relation
      * Get the value of the model's foreign key.
      *
      * @param  TRelatedModel  $model
-     * @return int|string
      */
-    protected function getRelatedKeyFrom(Model $model)
+    protected function getRelatedKeyFrom(Model $model): mixed
     {
         return $model->{$this->ownerKey};
     }

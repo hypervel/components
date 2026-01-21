@@ -101,7 +101,7 @@ class MorphOne extends MorphOneOrMany implements SupportsPartialRelations
      * @param  TDeclaringModel  $parent
      * @return TRelatedModel
      */
-    public function newRelatedInstanceFor(Model $parent)
+    public function newRelatedInstanceFor(Model $parent): Model
     {
         return tap($this->related->newInstance(), function ($instance) use ($parent) {
             $instance->setAttribute($this->getForeignKeyName(), $parent->{$this->localKey})
@@ -115,9 +115,8 @@ class MorphOne extends MorphOneOrMany implements SupportsPartialRelations
      * Get the value of the model's foreign key.
      *
      * @param  TRelatedModel  $model
-     * @return int|string
      */
-    protected function getRelatedKeyFrom(Model $model)
+    protected function getRelatedKeyFrom(Model $model): mixed
     {
         return $model->getAttribute($this->getForeignKeyName());
     }
