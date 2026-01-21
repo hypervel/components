@@ -26,10 +26,9 @@ class AsDataObject implements CastsAttributes
      * Cast the given value.
      *
      * @param array<string, mixed> $attributes
-     * @param mixed $model
      */
     public function get(
-        $model,
+        mixed $model,
         string $key,
         mixed $value,
         array $attributes,
@@ -48,10 +47,9 @@ class AsDataObject implements CastsAttributes
      * Prepare the given value for storage.
      *
      * @param array<string, mixed> $attributes
-     * @param mixed $model
      */
     public function set(
-        $model,
+        mixed $model,
         string $key,
         mixed $value,
         array $attributes,

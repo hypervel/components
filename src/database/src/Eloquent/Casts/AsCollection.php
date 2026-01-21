@@ -15,7 +15,6 @@ class AsCollection implements Castable
     /**
      * Get the caster class to use when casting from / to this cast target.
      *
-     * @param array $arguments
      * @return CastsAttributes<Collection<array-key, mixed>, iterable>
      */
     public static function castUsing(array $arguments): CastsAttributes
@@ -27,7 +26,7 @@ class AsCollection implements Castable
                 $this->arguments = array_pad(array_values($this->arguments), 2, '');
             }
 
-            public function get($model, $key, $value, $attributes)
+            public function get(mixed $model, string $key, mixed $value, array $attributes): ?Collection
             {
                 if (! isset($attributes[$key])) {
                     return null;
@@ -60,7 +59,7 @@ class AsCollection implements Castable
                     : $instance->mapInto($this->arguments[1][0]);
             }
 
-            public function set($model, $key, $value, $attributes)
+            public function set(mixed $model, string $key, mixed $value, array $attributes): array
             {
                 return [$key => Json::encode($value)];
             }

@@ -36,12 +36,12 @@ class AsBinary implements Castable
                 }
             }
 
-            public function get($model, $key, $value, $attributes)
+            public function get(mixed $model, string $key, mixed $value, array $attributes): ?string
             {
                 return BinaryCodec::decode($attributes[$key] ?? null, $this->format);
             }
 
-            public function set($model, $key, $value, $attributes)
+            public function set(mixed $model, string $key, mixed $value, array $attributes): array
             {
                 return [$key => BinaryCodec::encode($value, $this->format)];
             }

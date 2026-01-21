@@ -11,14 +11,14 @@ class Json
      *
      * @var callable|null
      */
-    protected static $encoder;
+    protected static mixed $encoder = null;
 
     /**
-     * The custom JSON decode.
+     * The custom JSON decoder.
      *
      * @var callable|null
      */
-    protected static $decoder;
+    protected static mixed $decoder = null;
 
     /**
      * Encode the given value.

@@ -13,19 +13,18 @@ class AsUri implements Castable
     /**
      * Get the caster class to use when casting from / to this cast target.
      *
-     * @param array $arguments
      * @return CastsAttributes<Uri, string|Uri>
      */
     public static function castUsing(array $arguments): CastsAttributes
     {
         return new class implements CastsAttributes
         {
-            public function get($model, $key, $value, $attributes)
+            public function get(mixed $model, string $key, mixed $value, array $attributes): ?Uri
             {
                 return isset($value) ? new Uri($value) : null;
             }
 
-            public function set($model, $key, $value, $attributes)
+            public function set(mixed $model, string $key, mixed $value, array $attributes): ?string
             {
                 return isset($value) ? (string) $value : null;
             }

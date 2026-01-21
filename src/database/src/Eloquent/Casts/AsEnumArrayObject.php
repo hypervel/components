@@ -25,14 +25,14 @@ class AsEnumArrayObject implements Castable
     {
         return new class($arguments) implements CastsAttributes
         {
-            protected $arguments;
+            protected array $arguments;
 
             public function __construct(array $arguments)
             {
                 $this->arguments = $arguments;
             }
 
-            public function get($model, $key, $value, $attributes)
+            public function get(mixed $model, string $key, mixed $value, array $attributes): ?ArrayObject
             {
                 if (! isset($attributes[$key])) {
                     return null;
@@ -53,7 +53,7 @@ class AsEnumArrayObject implements Castable
                 })->toArray());
             }
 
-            public function set($model, $key, $value, $attributes)
+            public function set(mixed $model, string $key, mixed $value, array $attributes): array
             {
                 if ($value === null) {
                     return [$key => null];
@@ -68,14 +68,14 @@ class AsEnumArrayObject implements Castable
                 return [$key => Json::encode($storable)];
             }
 
-            public function serialize($model, string $key, $value, array $attributes)
+            public function serialize(mixed $model, string $key, mixed $value, array $attributes): array
             {
                 return (new Collection($value->getArrayCopy()))
                     ->map(fn ($enum) => $this->getStorableEnumValue($enum))
                     ->toArray();
             }
 
-            protected function getStorableEnumValue($enum)
+            protected function getStorableEnumValue(mixed $enum): string|int
             {
                 if (is_string($enum) || is_int($enum)) {
                     return $enum;

@@ -11,14 +11,14 @@ class Attribute
      *
      * @var callable|null
      */
-    public $get;
+    public mixed $get;
 
     /**
      * The attribute mutator.
      *
      * @var callable|null
      */
-    public $set;
+    public mixed $set;
 
     /**
      * Indicates if caching is enabled for this attribute.
