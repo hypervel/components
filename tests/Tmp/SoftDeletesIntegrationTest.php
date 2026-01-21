@@ -30,7 +30,7 @@ class SoftDeletesIntegrationTest extends DatabaseIntegrationTestCase
         return [
             '--database' => $this->getRefreshConnection(),
             '--realpath' => true,
-            '--path' => __DIR__ . '/../database/migrations',
+            '--path' => __DIR__ . '/migrations',
         ];
     }
 
