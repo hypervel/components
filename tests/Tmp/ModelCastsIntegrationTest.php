@@ -13,7 +13,7 @@ use Hypervel\Database\Eloquent\Casts\AsEncryptedArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsEncryptedCollection;
 use Hypervel\Database\Eloquent\Casts\AsStringable;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Collection;
 use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
 
@@ -25,30 +25,20 @@ use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
  */
 class ModelCastsIntegrationTest extends DatabaseIntegrationTestCase
 {
+    use RefreshDatabase;
+
     protected function getDatabaseDriver(): string
     {
         return 'pgsql';
     }
 
-    protected function setUp(): void
+    protected function migrateFreshUsing(): array
     {
-        parent::setUp();
-
-        $this->createTestTable('cast_models', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->integer('age')->nullable();
-            $table->decimal('price', 10, 2)->nullable();
-            $table->boolean('is_active')->default(false);
-            $table->jsonb('metadata')->nullable();
-            $table->jsonb('settings')->nullable();
-            $table->jsonb('tags')->nullable();
-            $table->timestamp('published_at')->nullable();
-            $table->date('birth_date')->nullable();
-            $table->text('content')->nullable();
-            $table->string('status')->nullable();
-            $table->timestamps();
-        });
+        return [
+            '--database' => $this->getRefreshConnection(),
+            '--realpath' => true,
+            '--path' => __DIR__ . '/../database/migrations',
+        ];
     }
 
     public function testIntegerCast(): void

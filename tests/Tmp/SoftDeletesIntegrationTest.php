@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Tmp;
 use Carbon\CarbonInterface;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
-use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
 
 /**
@@ -18,22 +18,20 @@ use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
  */
 class SoftDeletesIntegrationTest extends DatabaseIntegrationTestCase
 {
+    use RefreshDatabase;
+
     protected function getDatabaseDriver(): string
     {
         return 'pgsql';
     }
 
-    protected function setUp(): void
+    protected function migrateFreshUsing(): array
     {
-        parent::setUp();
-
-        $this->createTestTable('soft_posts', function (Blueprint $table) {
-            $table->id();
-            $table->string('title');
-            $table->text('body');
-            $table->softDeletes();
-            $table->timestamps();
-        });
+        return [
+            '--database' => $this->getRefreshConnection(),
+            '--realpath' => true,
+            '--path' => __DIR__ . '/../database/migrations',
+        ];
     }
 
     public function testSoftDeleteSetsDeletedAt(): void

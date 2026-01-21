@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Tmp;
 
-use Exception;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
 use RuntimeException;
@@ -19,29 +18,20 @@ use RuntimeException;
  */
 class TransactionsIntegrationTest extends DatabaseIntegrationTestCase
 {
+    use RefreshDatabase;
+
     protected function getDatabaseDriver(): string
     {
         return 'pgsql';
     }
 
-    protected function setUp(): void
+    protected function migrateFreshUsing(): array
     {
-        parent::setUp();
-
-        $this->createTestTable('tx_accounts', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->decimal('balance', 10, 2)->default(0);
-            $table->timestamps();
-        });
-
-        $this->createTestTable('tx_transfers', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('from_account_id')->constrained('tx_accounts');
-            $table->foreignId('to_account_id')->constrained('tx_accounts');
-            $table->decimal('amount', 10, 2);
-            $table->timestamps();
-        });
+        return [
+            '--database' => $this->getRefreshConnection(),
+            '--realpath' => true,
+            '--path' => __DIR__ . '/../database/migrations',
+        ];
     }
 
     protected function conn(): \Hypervel\Database\ConnectionInterface
@@ -145,19 +135,20 @@ class TransactionsIntegrationTest extends DatabaseIntegrationTestCase
 
     public function testTransactionLevel(): void
     {
-        $this->assertSame(0, $this->conn()->transactionLevel());
+        // RefreshDatabase wraps tests in a transaction, so we track relative levels
+        $baseLevel = $this->conn()->transactionLevel();
 
         $this->conn()->beginTransaction();
-        $this->assertSame(1, $this->conn()->transactionLevel());
+        $this->assertSame($baseLevel + 1, $this->conn()->transactionLevel());
 
         $this->conn()->beginTransaction();
-        $this->assertSame(2, $this->conn()->transactionLevel());
+        $this->assertSame($baseLevel + 2, $this->conn()->transactionLevel());
 
         $this->conn()->rollBack();
-        $this->assertSame(1, $this->conn()->transactionLevel());
+        $this->assertSame($baseLevel + 1, $this->conn()->transactionLevel());
 
         $this->conn()->rollBack();
-        $this->assertSame(0, $this->conn()->transactionLevel());
+        $this->assertSame($baseLevel, $this->conn()->transactionLevel());
     }
 
     public function testTransferBetweenAccounts(): void

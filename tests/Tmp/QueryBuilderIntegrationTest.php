@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Tmp;
 
-use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
 
@@ -16,24 +16,25 @@ use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
  */
 class QueryBuilderIntegrationTest extends DatabaseIntegrationTestCase
 {
+    use RefreshDatabase;
+
     protected function getDatabaseDriver(): string
     {
         return 'pgsql';
     }
 
+    protected function migrateFreshUsing(): array
+    {
+        return [
+            '--database' => $this->getRefreshConnection(),
+            '--realpath' => true,
+            '--path' => __DIR__ . '/../database/migrations',
+        ];
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
-
-        $this->createTestTable('qb_products', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->string('category')->nullable();
-            $table->decimal('price', 10, 2);
-            $table->integer('stock')->default(0);
-            $table->boolean('active')->default(true);
-            $table->timestamps();
-        });
 
         // Seed test data
         DB::connection($this->getDatabaseDriver())->table('qb_products')->insert([

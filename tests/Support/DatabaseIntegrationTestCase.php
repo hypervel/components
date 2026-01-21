@@ -8,51 +8,27 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Database\PgSQL\Connectors\PostgresConnector;
 use Hyperf\Database\SQLite\Connectors\SQLiteConnector;
 use Hypervel\Database\ConnectionInterface;
-use Hypervel\Support\Facades\DB;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
-use Throwable;
 
 /**
  * Base test case for database integration tests.
  *
- * Provides parallel-safe database testing infrastructure:
- * - Uses TEST_TOKEN env var (from paratest) to create unique table prefixes per worker
- * - Configures database connection from environment variables
- * - Drops test tables in tearDown (safe for parallel execution)
+ * Supports parallel testing via TEST_TOKEN environment variable - each
+ * worker gets its own database (e.g., testing_1, testing_2).
  *
- * Subclasses should override configurePackage() to add package-specific
- * configuration and implement getDatabaseDriver() to specify the driver.
- *
- * NOTE: Concrete test classes extending this (or its subclasses) MUST add
- * @group integration and @group {driver}-integration for proper test filtering in CI.
+ * Subclasses that need migrations should use RefreshDatabase trait and implement:
+ * - getDatabaseDriver(): Return the database driver name
+ * - migrateFreshUsing(): Return migration options including path
  *
  * @internal
  * @coversNothing
  */
 abstract class DatabaseIntegrationTestCase extends TestCase
 {
-    use RunTestsInCoroutine;
-
-    /**
-     * Base table prefix for integration tests.
-     */
-    protected string $basePrefix = 'dbtest';
-
-    /**
-     * Computed prefix (includes TEST_TOKEN if running in parallel).
-     */
-    protected string $tablePrefix;
-
-    /**
-     * Tables created during tests (for cleanup).
-     *
-     * @var array<string>
-     */
-    protected array $createdTables = [];
 
     protected function setUp(): void
     {
@@ -62,50 +38,22 @@ abstract class DatabaseIntegrationTestCase extends TestCase
             );
         }
 
-        $this->computeTablePrefix();
-
         parent::setUp();
 
         $this->configureDatabase();
-        $this->configurePackage();
-    }
-
-    /**
-     * Tear down inside coroutine - runs INSIDE the Swoole coroutine context.
-     *
-     * Database operations require coroutine context in Swoole/Hyperf.
-     */
-    protected function tearDownInCoroutine(): void
-    {
-        $this->dropTestTables();
-    }
-
-    /**
-     * Compute parallel-safe prefix based on TEST_TOKEN from paratest.
-     *
-     * Each worker gets a unique prefix (e.g., dbtest_1_, dbtest_2_).
-     * This provides isolation without needing separate databases.
-     */
-    protected function computeTablePrefix(): void
-    {
-        $testToken = env('TEST_TOKEN', '');
-
-        if ($testToken !== '') {
-            $this->tablePrefix = "{$this->basePrefix}_{$testToken}_";
-        } else {
-            $this->tablePrefix = "{$this->basePrefix}_";
-        }
     }
 
     /**
      * Configure database connection settings from environment variables.
+     *
+     * Uses ParallelTesting to get worker-specific database names when
+     * running with paratest.
      */
     protected function configureDatabase(): void
     {
         $driver = $this->getDatabaseDriver();
         $config = $this->app->get(ConfigInterface::class);
 
-        // Register driver-specific connectors (not loaded by default in test environment)
         $this->registerConnectors($driver);
 
         $connectionConfig = match ($driver) {
@@ -121,9 +69,6 @@ abstract class DatabaseIntegrationTestCase extends TestCase
 
     /**
      * Register database connectors for non-MySQL drivers.
-     *
-     * MySQL connector is registered by default. PostgreSQL and SQLite
-     * connectors must be explicitly registered in test environment.
      */
     protected function registerConnectors(string $driver): void
     {
@@ -141,16 +86,18 @@ abstract class DatabaseIntegrationTestCase extends TestCase
      */
     protected function getMySqlConnectionConfig(): array
     {
+        $baseDatabase = env('MYSQL_DATABASE', 'testing');
+
         return [
             'driver' => 'mysql',
             'host' => env('MYSQL_HOST', '127.0.0.1'),
             'port' => (int) env('MYSQL_PORT', 3306),
-            'database' => env('MYSQL_DATABASE', 'testing'),
+            'database' => ParallelTesting::databaseName($baseDatabase),
             'username' => env('MYSQL_USERNAME', 'root'),
             'password' => env('MYSQL_PASSWORD', ''),
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
-            'prefix' => $this->tablePrefix,
+            'prefix' => '',
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => 10,
@@ -169,16 +116,18 @@ abstract class DatabaseIntegrationTestCase extends TestCase
      */
     protected function getPostgresConnectionConfig(): array
     {
+        $baseDatabase = env('PGSQL_DATABASE', 'testing');
+
         return [
             'driver' => 'pgsql',
             'host' => env('PGSQL_HOST', '127.0.0.1'),
             'port' => (int) env('PGSQL_PORT', 5432),
-            'database' => env('PGSQL_DATABASE', 'testing'),
+            'database' => ParallelTesting::databaseName($baseDatabase),
             'username' => env('PGSQL_USERNAME', 'postgres'),
             'password' => env('PGSQL_PASSWORD', ''),
             'charset' => 'utf8',
             'schema' => 'public',
-            'prefix' => $this->tablePrefix,
+            'prefix' => '',
             'pool' => [
                 'min_connections' => 1,
                 'max_connections' => 10,
@@ -200,18 +149,8 @@ abstract class DatabaseIntegrationTestCase extends TestCase
         return [
             'driver' => 'sqlite',
             'database' => ':memory:',
-            'prefix' => $this->tablePrefix,
+            'prefix' => '',
         ];
-    }
-
-    /**
-     * Configure package-specific settings.
-     *
-     * Override this method in subclasses to add package-specific configuration.
-     */
-    protected function configurePackage(): void
-    {
-        // Override in subclasses
     }
 
     /**
@@ -236,64 +175,10 @@ abstract class DatabaseIntegrationTestCase extends TestCase
     }
 
     /**
-     * Create a test table and track it for cleanup.
-     *
-     * Drops the table first if it exists (from a previous failed run),
-     * then creates it fresh.
-     *
-     * @param string $name Table name (without prefix)
-     * @param callable $callback Schema builder callback
+     * Get the connection name for RefreshDatabase.
      */
-    protected function createTestTable(string $name, callable $callback): void
+    protected function getRefreshConnection(): string
     {
-        $this->createdTables[] = $name;
-
-        // Drop first in case it exists from a previous failed run (with CASCADE for FK constraints)
-        $this->dropTableCascade($name);
-
-        $this->getSchemaBuilder()->create($name, $callback);
-    }
-
-    /**
-     * Drop a table with CASCADE to handle foreign key constraints.
-     */
-    protected function dropTableCascade(string $name): void
-    {
-        try {
-            $fullName = $this->tablePrefix . $name;
-            $driver = $this->getDatabaseDriver();
-
-            if ($driver === 'pgsql') {
-                $this->db()->statement("DROP TABLE IF EXISTS \"{$fullName}\" CASCADE");
-            } elseif ($driver === 'mysql') {
-                $this->db()->statement('SET FOREIGN_KEY_CHECKS=0');
-                $this->db()->statement("DROP TABLE IF EXISTS `{$fullName}`");
-                $this->db()->statement('SET FOREIGN_KEY_CHECKS=1');
-            } else {
-                $this->getSchemaBuilder()->dropIfExists($name);
-            }
-        } catch (Throwable) {
-            // Ignore errors during cleanup
-        }
-    }
-
-    /**
-     * Drop all test tables created during this test.
-     */
-    protected function dropTestTables(): void
-    {
-        foreach (array_reverse($this->createdTables) as $table) {
-            $this->dropTableCascade($table);
-        }
-
-        $this->createdTables = [];
-    }
-
-    /**
-     * Get full table name with prefix.
-     */
-    protected function getFullTableName(string $name): string
-    {
-        return $this->tablePrefix . $name;
+        return $this->getDatabaseDriver();
     }
 }

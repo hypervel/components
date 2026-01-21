@@ -12,7 +12,7 @@ use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Database\Eloquent\Relations\MorphMany;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
-use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
 
 /**
@@ -23,64 +23,20 @@ use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
  */
 class EloquentRelationsIntegrationTest extends DatabaseIntegrationTestCase
 {
+    use RefreshDatabase;
+
     protected function getDatabaseDriver(): string
     {
         return 'pgsql';
     }
 
-    protected function setUp(): void
+    protected function migrateFreshUsing(): array
     {
-        parent::setUp();
-
-        // Users table
-        $this->createTestTable('rel_users', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->timestamps();
-        });
-
-        // Profiles table (one-to-one with users)
-        $this->createTestTable('rel_profiles', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('user_id')->nullable()->constrained('rel_users')->onDelete('cascade');
-            $table->string('bio')->nullable();
-            $table->string('avatar')->nullable();
-            $table->timestamps();
-        });
-
-        // Posts table (one-to-many with users)
-        $this->createTestTable('rel_posts', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('user_id')->constrained('rel_users')->onDelete('cascade');
-            $table->string('title');
-            $table->text('body');
-            $table->timestamps();
-        });
-
-        // Tags table (many-to-many with posts)
-        $this->createTestTable('rel_tags', function (Blueprint $table) {
-            $table->id();
-            $table->string('name')->unique();
-            $table->timestamps();
-        });
-
-        // Pivot table for posts-tags
-        $this->createTestTable('rel_post_tag', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('post_id')->constrained('rel_posts')->onDelete('cascade');
-            $table->foreignId('tag_id')->constrained('rel_tags')->onDelete('cascade');
-            $table->timestamps();
-        });
-
-        // Comments table (polymorphic)
-        $this->createTestTable('rel_comments', function (Blueprint $table) {
-            $table->id();
-            $table->morphs('commentable');
-            $table->foreignId('user_id')->constrained('rel_users')->onDelete('cascade');
-            $table->text('body');
-            $table->timestamps();
-        });
+        return [
+            '--database' => $this->getRefreshConnection(),
+            '--realpath' => true,
+            '--path' => __DIR__ . '/../database/migrations',
+        ];
     }
 
     public function testHasOneRelation(): void

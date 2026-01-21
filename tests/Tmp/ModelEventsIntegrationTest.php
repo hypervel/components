@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Tmp;
 
-use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
 
 /**
@@ -16,9 +16,20 @@ use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
  */
 class ModelEventsIntegrationTest extends DatabaseIntegrationTestCase
 {
+    use RefreshDatabase;
+
     protected function getDatabaseDriver(): string
     {
         return 'pgsql';
+    }
+
+    protected function migrateFreshUsing(): array
+    {
+        return [
+            '--database' => $this->getRefreshConnection(),
+            '--realpath' => true,
+            '--path' => __DIR__ . '/../database/migrations',
+        ];
     }
 
     protected function setUp(): void
@@ -27,14 +38,6 @@ class ModelEventsIntegrationTest extends DatabaseIntegrationTestCase
 
         // Reset static state
         TmpUser::$eventLog = [];
-
-        // Create the test table
-        $this->createTestTable('tmp_users', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->timestamps();
-        });
     }
 
     public function testBasicModelCanBeCreatedAndRetrieved(): void
