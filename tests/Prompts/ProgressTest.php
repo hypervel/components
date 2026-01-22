@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Prompts;
 
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hypervel\Prompts\Prompt;
 use PHPUnit\Framework\TestCase;
 

@@ -42,7 +42,7 @@ class CacheDatabaseLockTest extends TestCase
         $owner = $lock->owner();
 
         // First attempt throws exception (key exists)
-        $table->shouldReceive('insert')->once()->andThrow(new QueryException('', [], new Exception()));
+        $table->shouldReceive('insert')->once()->andThrow(new QueryException('', '', [], new Exception()));
 
         // So it tries to update
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
@@ -67,7 +67,7 @@ class CacheDatabaseLockTest extends TestCase
         [$lock, $table] = $this->getLock();
 
         // Insert fails
-        $table->shouldReceive('insert')->once()->andThrow(new QueryException('', [], new Exception()));
+        $table->shouldReceive('insert')->once()->andThrow(new QueryException('', '', [], new Exception()));
 
         // Update fails too (someone else owns it)
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);

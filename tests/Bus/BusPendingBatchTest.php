@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Bus;
 
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Bus\Batch;

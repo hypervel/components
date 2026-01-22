@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Http;
 
 use Carbon\Carbon;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\HttpMessage\Upload\UploadedFile;

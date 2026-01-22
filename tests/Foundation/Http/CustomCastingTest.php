@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Foundation\Http;
 use ArrayObject;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hyperf\Context\Context;
 use Hypervel\Foundation\Http\Casts\AsDataObjectArray;
 use Hypervel\Foundation\Http\Casts\AsDataObjectCollection;
