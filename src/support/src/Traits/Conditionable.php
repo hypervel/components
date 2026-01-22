@@ -15,10 +15,9 @@ trait Conditionable
      * @template TWhenParameter
      * @template TWhenReturnType
      *
-     * @param null|(Closure($this): TWhenParameter)|TWhenParameter $value
-     * @param null|(callable($this, TWhenParameter): TWhenReturnType) $callback
-     * @param null|(callable($this, TWhenParameter): TWhenReturnType) $default
-     * @param null|mixed $value
+     * @param  (\Closure($this): TWhenParameter)|TWhenParameter|null  $value
+     * @param  (callable($this, TWhenParameter): TWhenReturnType)|null  $callback
+     * @param  (callable($this, TWhenParameter): TWhenReturnType)|null  $default
      * @return $this|TWhenReturnType
      */
     public function when($value = null, ?callable $callback = null, ?callable $default = null)
@@ -35,8 +34,7 @@ trait Conditionable
 
         if ($value) {
             return $callback($this, $value) ?? $this;
-        }
-        if ($default) {
+        } elseif ($default) {
             return $default($this, $value) ?? $this;
         }
 
@@ -49,10 +47,9 @@ trait Conditionable
      * @template TUnlessParameter
      * @template TUnlessReturnType
      *
-     * @param null|(Closure($this): TUnlessParameter)|TUnlessParameter $value
-     * @param null|(callable($this, TUnlessParameter): TUnlessReturnType) $callback
-     * @param null|(callable($this, TUnlessParameter): TUnlessReturnType) $default
-     * @param null|mixed $value
+     * @param  (\Closure($this): TUnlessParameter)|TUnlessParameter|null  $value
+     * @param  (callable($this, TUnlessParameter): TUnlessReturnType)|null  $callback
+     * @param  (callable($this, TUnlessParameter): TUnlessReturnType)|null  $default
      * @return $this|TUnlessReturnType
      */
     public function unless($value = null, ?callable $callback = null, ?callable $default = null)
@@ -69,8 +66,7 @@ trait Conditionable
 
         if (! $value) {
             return $callback($this, $value) ?? $this;
-        }
-        if ($default) {
+        } elseif ($default) {
             return $default($this, $value) ?? $this;
         }
 
