@@ -1361,8 +1361,8 @@ trait HasAttributes
         // that is returned back out to the developers after we convert it here.
         try {
             $date = Date::createFromFormat($format, $value);
+        // @phpstan-ignore catch.neverThrown (defensive: some Carbon versions/configs may throw)
         } catch (InvalidArgumentException) {
-            // @phpstan-ignore catch.neverThrown (defensive: some Carbon versions/configs may throw)
             $date = false;
         }
 
@@ -2159,6 +2159,7 @@ trait HasAttributes
     {
         $instance = is_object($class) ? $class : new $class;
 
+        // @phpstan-ignore method.nonObject (HigherOrderProxy: ->map->name returns Collection, not string)
         return (new Collection((new ReflectionClass($instance))->getMethods()))->filter(function ($method) use ($instance) {
             $returnType = $method->getReturnType();
 
@@ -2170,7 +2171,6 @@ trait HasAttributes
             }
 
             return false;
-        // @phpstan-ignore method.nonObject (HigherOrderProxy: ->map->name returns Collection, not string)
         })->map->name->values()->all();
     }
 }

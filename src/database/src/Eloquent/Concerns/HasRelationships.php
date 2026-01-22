@@ -433,6 +433,7 @@ trait HasRelationships
      *          : \Hypervel\Database\Eloquent\PendingHasThroughRelationship<TIntermediateModel, $this, \Hypervel\Database\Eloquent\Relations\HasOne<TIntermediateModel, $this>>
      *     )
      * )
+     * @phpstan-ignore conditionalType.alwaysFalse (template covariance limitation with conditional return types)
      */
     public function through(string|HasMany|HasOne $relationship): PendingHasThroughRelationship
     {

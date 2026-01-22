@@ -27,6 +27,7 @@ trait HasCollection
      */
     public function newCollection(array $models = [])
     {
+        // @phpstan-ignore assign.propertyType (generic type narrowing loss with static property)
         static::$resolvedCollectionClasses[static::class] ??= ($this->resolveCollectionFromAttribute() ?? static::$collectionClass);
 
         $collection = new static::$resolvedCollectionClasses[static::class]($models);
