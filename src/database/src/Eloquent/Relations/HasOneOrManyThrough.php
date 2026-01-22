@@ -88,6 +88,7 @@ abstract class HasOneOrManyThrough extends Relation
 
         $localValue = $this->farParent[$this->localKey];
 
+        // @phpstan-ignore argument.type (Builder<*> vs Builder<TRelatedModel>)
         $this->performJoin($query);
 
         if (static::shouldAddConstraints()) {
