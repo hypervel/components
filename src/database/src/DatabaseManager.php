@@ -78,11 +78,13 @@ class DatabaseManager implements ConnectionResolverInterface
      * Get a database connection instance.
      *
      * Delegates to ConnectionResolver for pooled, per-coroutine connection management.
+     * Resolves the default connection name here (checking Context for usingConnection override)
+     * before passing to the resolver.
      */
     public function connection(UnitEnum|string|null $name = null): ConnectionInterface
     {
         return $this->app->get(ConnectionResolverInterface::class)
-            ->connection(enum_value($name));
+            ->connection(enum_value($name) ?? $this->getDefaultConnection());
     }
 
     /**
