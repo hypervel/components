@@ -20,7 +20,7 @@ class ForeignKeyDefinition extends Fluent
     /**
      * Indicate that updates should cascade.
      */
-    public function cascadeOnUpdate(): static
+    public function cascadeOnUpdate(): self
     {
         return $this->onUpdate('cascade');
     }
@@ -28,7 +28,7 @@ class ForeignKeyDefinition extends Fluent
     /**
      * Indicate that updates should be restricted.
      */
-    public function restrictOnUpdate(): static
+    public function restrictOnUpdate(): self
     {
         return $this->onUpdate('restrict');
     }
@@ -36,7 +36,7 @@ class ForeignKeyDefinition extends Fluent
     /**
      * Indicate that updates should set the foreign key value to null.
      */
-    public function nullOnUpdate(): static
+    public function nullOnUpdate(): self
     {
         return $this->onUpdate('set null');
     }
@@ -44,7 +44,7 @@ class ForeignKeyDefinition extends Fluent
     /**
      * Indicate that updates should have "no action".
      */
-    public function noActionOnUpdate(): static
+    public function noActionOnUpdate(): self
     {
         return $this->onUpdate('no action');
     }
@@ -52,7 +52,7 @@ class ForeignKeyDefinition extends Fluent
     /**
      * Indicate that deletes should cascade.
      */
-    public function cascadeOnDelete(): static
+    public function cascadeOnDelete(): self
     {
         return $this->onDelete('cascade');
     }
@@ -60,7 +60,7 @@ class ForeignKeyDefinition extends Fluent
     /**
      * Indicate that deletes should be restricted.
      */
-    public function restrictOnDelete(): static
+    public function restrictOnDelete(): self
     {
         return $this->onDelete('restrict');
     }
@@ -68,7 +68,7 @@ class ForeignKeyDefinition extends Fluent
     /**
      * Indicate that deletes should set the foreign key value to null.
      */
-    public function nullOnDelete(): static
+    public function nullOnDelete(): self
     {
         return $this->onDelete('set null');
     }
@@ -76,7 +76,7 @@ class ForeignKeyDefinition extends Fluent
     /**
      * Indicate that deletes should have "no action".
      */
-    public function noActionOnDelete(): static
+    public function noActionOnDelete(): self
     {
         return $this->onDelete('no action');
     }
