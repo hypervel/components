@@ -22,7 +22,7 @@ class AuthDatabaseUserProviderTest extends TestCase
     public function testRetrieveByIDReturnsUserWhenUserIsFound()
     {
         $builder = m::mock(Builder::class);
-        $builder->shouldReceive('find')->once()->with(1)->andReturn(['id' => 1, 'name' => 'Dayle']);
+        $builder->shouldReceive('find')->once()->with(1)->andReturn((object) ['id' => 1, 'name' => 'Dayle']);
         $conn = m::mock(ConnectionInterface::class);
         $conn->shouldReceive('table')->once()->with('foo')->andReturn($builder);
         $hasher = m::mock(Hasher::class);
@@ -52,7 +52,7 @@ class AuthDatabaseUserProviderTest extends TestCase
         $builder = m::mock(Builder::class);
         $builder->shouldReceive('where')->once()->with('username', 'dayle');
         $builder->shouldReceive('whereIn')->once()->with('group', ['one', 'two']);
-        $builder->shouldReceive('first')->once()->andReturn(['id' => 1, 'name' => 'taylor']);
+        $builder->shouldReceive('first')->once()->andReturn((object) ['id' => 1, 'name' => 'taylor']);
         $conn = m::mock(ConnectionInterface::class);
         $conn->shouldReceive('table')->once()->with('foo')->andReturn($builder);
         $hasher = m::mock(Hasher::class);
@@ -69,7 +69,7 @@ class AuthDatabaseUserProviderTest extends TestCase
         $builder = m::mock(Builder::class);
         $builder->shouldReceive('where')->once()->with('username', 'dayle');
         $builder->shouldReceive('whereIn')->once()->with('group', ['one', 'two']);
-        $builder->shouldReceive('first')->once()->andReturn(['id' => 1, 'name' => 'taylor']);
+        $builder->shouldReceive('first')->once()->andReturn((object) ['id' => 1, 'name' => 'taylor']);
         $conn = m::mock(ConnectionInterface::class);
         $conn->shouldReceive('table')->once()->with('foo')->andReturn($builder);
         $hasher = m::mock(Hasher::class);
