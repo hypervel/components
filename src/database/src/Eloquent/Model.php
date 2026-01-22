@@ -7,7 +7,9 @@ namespace Hypervel\Database\Eloquent;
 use ArrayAccess;
 use Closure;
 use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
+use Hypervel\Event\Contracts\Dispatcher;
 use Hypervel\Database\Eloquent\Attributes\Boot;
 use Hypervel\Database\Eloquent\Attributes\Initialize;
 use Hypervel\Database\Eloquent\Attributes\Scope as LocalScope;
@@ -16,7 +18,9 @@ use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
 use Hypervel\Database\Eloquent\Relations\HasManyThrough;
+use Hypervel\Database\Eloquent\Relations;
 use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Queue\Contracts\QueueableCollection;
 use Hypervel\Queue\Contracts\QueueableEntity;
 use Hypervel\Router\Contracts\UrlRoutable;
@@ -34,6 +38,7 @@ use LogicException;
 use ReflectionClass;
 use ReflectionMethod;
 use Stringable;
+use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
@@ -55,10 +60,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * The connection name for the model.
-     *
-     * @var \UnitEnum|string|null
      */
-    protected $connection;
+    protected UnitEnum|string|null $connection = null;
 
     /**
      * The table associated with the model.
@@ -67,17 +70,13 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * The primary key for the model.
-     *
-     * @var string
      */
-    protected $primaryKey = 'id';
+    protected string $primaryKey = 'id';
 
     /**
      * The "type" of the primary key ID.
-     *
-     * @var string
      */
-    protected $keyType = 'int';
+    protected string $keyType = 'int';
 
     /**
      * Indicates if the IDs are auto-incrementing.
@@ -87,114 +86,96 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * The relations to eager load on every query.
      *
-     * @var array
+     * @var array<int, string>
      */
-    protected $with = [];
+    protected array $with = [];
 
     /**
      * The relationship counts that should be eager loaded on every query.
      *
-     * @var array
+     * @var array<int, string>
      */
-    protected $withCount = [];
+    protected array $withCount = [];
 
     /**
      * Indicates whether lazy loading will be prevented on this model.
-     *
-     * @var bool
      */
-    public $preventsLazyLoading = false;
+    public bool $preventsLazyLoading = false;
 
     /**
      * The number of models to return for pagination.
-     *
-     * @var int
      */
-    protected $perPage = 15;
+    protected int $perPage = 15;
 
     /**
      * Indicates if the model exists.
-     *
-     * @var bool
      */
-    public $exists = false;
+    public bool $exists = false;
 
     /**
      * Indicates if the model was inserted during the object's lifecycle.
-     *
-     * @var bool
      */
-    public $wasRecentlyCreated = false;
+    public bool $wasRecentlyCreated = false;
 
     /**
      * Indicates that the object's string representation should be escaped when __toString is invoked.
-     *
-     * @var bool
      */
-    protected $escapeWhenCastingToString = false;
+    protected bool $escapeWhenCastingToString = false;
 
     /**
      * The connection resolver instance.
-     *
-     * @var \Hypervel\Database\ConnectionResolverInterface|null
      */
-    protected static $resolver;
+    protected static ?Resolver $resolver = null;
 
     /**
      * The event dispatcher instance.
-     *
-     * @var \Hypervel\Event\Contracts\Dispatcher|null
      */
-    protected static $dispatcher;
+    protected static ?Dispatcher $dispatcher = null;
 
     /**
      * The array of booted models.
      *
-     * @var array
+     * @var array<class-string<self>, bool>
      */
-    protected static $booted = [];
+    protected static array $booted = [];
 
     /**
      * The callbacks that should be executed after the model has booted.
      *
-     * @var array
+     * @var array<class-string<self>, array<int, Closure>>
      */
-    protected static $bootedCallbacks = [];
+    protected static array $bootedCallbacks = [];
 
     /**
      * The array of trait initializers that will be called on each new instance.
      *
-     * @var array
+     * @var array<class-string<self>, array<int, string>>
      */
-    protected static $traitInitializers = [];
+    protected static array $traitInitializers = [];
 
     /**
      * The array of global scopes on the model.
      *
-     * @var array
+     * @var array<class-string<self>, array<string, Scope|Closure>>
      */
-    protected static $globalScopes = [];
+    protected static array $globalScopes = [];
 
     /**
      * The list of models classes that should not be affected with touch.
      *
-     * @var array
+     * @var array<int, class-string<self>>
      */
-    protected static $ignoreOnTouch = [];
+    protected static array $ignoreOnTouch = [];
 
     /**
      * Indicates whether lazy loading should be restricted on all models.
-     *
-     * @var bool
      */
-    protected static $modelsShouldPreventLazyLoading = false;
+    protected static bool $modelsShouldPreventLazyLoading = false;
 
     /**
      * Indicates whether relations should be automatically loaded on all models when they are accessed.
-     *
-     * @var bool
      */
-    protected static $modelsShouldAutomaticallyEagerLoadRelationships = false;
+    protected static bool $modelsShouldAutomaticallyEagerLoadRelationships = false;
 
     /**
      * The callback that is responsible for handling lazy loading violations.
@@ -205,10 +186,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Indicates if an exception should be thrown instead of silently discarding non-fillable attributes.
-     *
-     * @var bool
      */
-    protected static $modelsShouldPreventSilentlyDiscardingAttributes = false;
+    protected static bool $modelsShouldPreventSilentlyDiscardingAttributes = false;
 
     /**
      * The callback that is responsible for handling discarded attribute violations.
@@ -219,10 +198,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Indicates if an exception should be thrown when trying to access a missing attribute on a retrieved model.
-     *
-     * @var bool
      */
-    protected static $modelsShouldPreventAccessingMissingAttributes = false;
+    protected static bool $modelsShouldPreventAccessingMissingAttributes = false;
 
     /**
      * The callback that is responsible for handling missing attribute violations.
@@ -233,10 +210,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Indicates if broadcasting is currently enabled.
-     *
-     * @var bool
      */
-    protected static $isBroadcasting = true;
+    protected static bool $isBroadcasting = true;
 
     /**
      * The Eloquent query builder class to use for the model.
@@ -305,10 +280,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Check if the model needs to be booted and if so, do it.
-     *
-     * @return void
      */
-    protected function bootIfNotBooted()
+    protected function bootIfNotBooted(): void
     {
         if (! isset(static::$booted[static::class])) {
             static::$booted[static::class] = true;
@@ -331,30 +304,24 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Perform any actions required before the model boots.
-     *
-     * @return void
      */
-    protected static function booting()
+    protected static function booting(): void
     {
         //
     }
 
     /**
      * Bootstrap the model and its traits.
-     *
-     * @return void
      */
-    protected static function boot()
+    protected static function boot(): void
     {
         static::bootTraits();
     }
 
     /**
      * Boot all of the bootable traits on the model.
-     *
-     * @return void
      */
-    protected static function bootTraits()
+    protected static function bootTraits(): void
     {
         $class = static::class;
 
@@ -388,10 +355,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Initialize any initializable traits on the model.
-     *
-     * @return void
      */
-    protected function initializeTraits()
+    protected function initializeTraits(): void
     {
         foreach (static::$traitInitializers[static::class] as $method) {
             $this->{$method}();
@@ -400,21 +365,16 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Perform any actions required after the model boots.
-     *
-     * @return void
      */
-    protected static function booted()
+    protected static function booted(): void
     {
         //
     }
 
     /**
      * Register a closure to be executed after the model has booted.
-     *
-     * @param  \Closure  $callback
-     * @return void
      */
-    protected static function whenBooted(Closure $callback)
+    protected static function whenBooted(Closure $callback): void
     {
         static::$bootedCallbacks[static::class] ??= [];
 
@@ -423,10 +383,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Clear the list of booted models so they will be re-booted.
-     *
-     * @return void
      */
-    public static function clearBootedModels()
+    public static function clearBootedModels(): void
     {
         static::$booted = [];
         static::$bootedCallbacks = [];
@@ -436,11 +394,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Disables relationship model touching for the current class during given callback scope.
-     *
-     * @param  callable  $callback
-     * @return void
      */
-    public static function withoutTouching(callable $callback)
+    public static function withoutTouching(callable $callback): void
     {
         static::withoutTouchingOn([static::class], $callback);
     }
@@ -448,11 +403,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Disables relationship model touching for the given model classes during given callback scope.
      *
-     * @param  array  $models
-     * @param  callable  $callback
-     * @return void
+     * @param  array<int, class-string<self>>  $models
      */
-    public static function withoutTouchingOn(array $models, callable $callback)
+    public static function withoutTouchingOn(array $models, callable $callback): void
     {
         static::$ignoreOnTouch = array_values(array_merge(static::$ignoreOnTouch, $models));
 
@@ -466,10 +419,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Determine if the given model is ignoring touches.
      *
-     * @param  string|null  $class
-     * @return bool
+     * @param  class-string<self>|null  $class
      */
-    public static function isIgnoringTouch($class = null)
+    public static function isIgnoringTouch(?string $class = null): bool
     {
         $class = $class ?: static::class;
 
@@ -488,11 +440,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Indicate that models should prevent lazy loading, silently discarding attributes, and accessing missing attributes.
-     *
-     * @param  bool  $shouldBeStrict
-     * @return void
      */
-    public static function shouldBeStrict(bool $shouldBeStrict = true)
+    public static function shouldBeStrict(bool $shouldBeStrict = true): void
     {
         static::preventLazyLoading($shouldBeStrict);
         static::preventSilentlyDiscardingAttributes($shouldBeStrict);
@@ -501,22 +450,16 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Prevent model relationships from being lazy loaded.
-     *
-     * @param  bool  $value
-     * @return void
      */
-    public static function preventLazyLoading($value = true)
+    public static function preventLazyLoading(bool $value = true): void
     {
         static::$modelsShouldPreventLazyLoading = $value;
     }
 
     /**
      * Determine if model relationships should be automatically eager loaded when accessed.
-     *
-     * @param  bool  $value
-     * @return void
      */
-    public static function automaticallyEagerLoadRelationships($value = true)
+    public static function automaticallyEagerLoadRelationships(bool $value = true): void
     {
         static::$modelsShouldAutomaticallyEagerLoadRelationships = $value;
     }
@@ -533,11 +476,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Prevent non-fillable attributes from being silently discarded.
-     *
-     * @param  bool  $value
-     * @return void
      */
-    public static function preventSilentlyDiscardingAttributes($value = true)
+    public static function preventSilentlyDiscardingAttributes(bool $value = true): void
     {
         static::$modelsShouldPreventSilentlyDiscardingAttributes = $value;
     }
@@ -554,11 +494,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Prevent accessing missing attributes on retrieved models.
-     *
-     * @param  bool  $value
-     * @return void
      */
-    public static function preventAccessingMissingAttributes($value = true)
+    public static function preventAccessingMissingAttributes(bool $value = true): void
     {
         static::$modelsShouldPreventAccessingMissingAttributes = $value;
     }
@@ -575,11 +512,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Execute a callback without broadcasting any model events for all model types.
-     *
-     * @param  callable  $callback
-     * @return mixed
      */
-    public static function withoutBroadcasting(callable $callback)
+    public static function withoutBroadcasting(callable $callback): mixed
     {
         $isBroadcasting = static::$isBroadcasting;
 
@@ -596,11 +530,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Fill the model with an array of attributes.
      *
      * @param  array<string, mixed>  $attributes
-     * @return $this
      *
-     * @throws \Hypervel\Database\Eloquent\MassAssignmentException
+     * @throws MassAssignmentException
      */
-    public function fill(array $attributes)
+    public function fill(array $attributes): static
     {
         $totallyGuarded = $this->totallyGuarded();
 
@@ -646,20 +579,16 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Fill the model with an array of attributes. Force mass assignment.
      *
      * @param  array<string, mixed>  $attributes
-     * @return $this
      */
-    public function forceFill(array $attributes)
+    public function forceFill(array $attributes): static
     {
         return static::unguarded(fn () => $this->fill($attributes));
     }
 
     /**
      * Qualify the given column name by the model's table.
-     *
-     * @param  string  $column
-     * @return string
      */
-    public function qualifyColumn($column)
+    public function qualifyColumn(string $column): string
     {
         if (str_contains($column, '.')) {
             return $column;
@@ -671,10 +600,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Qualify the given columns with the model's table.
      *
-     * @param  array  $columns
-     * @return array
+     * @param  array<int, string>  $columns
+     * @return array<int, string>
      */
-    public function qualifyColumns($columns)
+    public function qualifyColumns(array $columns): array
     {
         return (new BaseCollection($columns))
             ->map(fn ($column) => $this->qualifyColumn($column))
@@ -685,10 +614,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Create a new instance of the given model.
      *
      * @param  array<string, mixed>  $attributes
-     * @param  bool  $exists
-     * @return static
      */
-    public function newInstance($attributes = [], $exists = false)
+    public function newInstance(array $attributes = [], bool $exists = false): static
     {
         // This method just provides a convenient way for us to generate fresh model
         // instances of this current model. It is particularly useful during the
@@ -714,10 +641,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Create a new model instance that is existing.
      *
      * @param  array<string, mixed>|object  $attributes
-     * @param  \UnitEnum|string|null  $connection
-     * @return static
      */
-    public function newFromBuilder($attributes = [], $connection = null)
+    public function newFromBuilder(array|object $attributes = [], UnitEnum|string|null $connection = null): static
     {
         $model = $this->newInstance([], true);
 
@@ -733,10 +658,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Begin querying the model on a given connection.
      *
-     * @param  \UnitEnum|string|null  $connection
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
-    public static function on($connection = null)
+    public static function on(UnitEnum|string|null $connection = null): Builder
     {
         // First we will just create a fresh instance of this model, and then we can set the
         // connection on the model so that it is used for the queries we execute, as well
@@ -747,9 +671,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Begin querying the model on the write connection.
      *
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
-    public static function onWriteConnection()
+    public static function onWriteConnection(): Builder
     {
         return static::query()->useWritePdo();
     }
@@ -757,10 +681,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Get all of the models from the database.
      *
-     * @param  array|string  $columns
-     * @return \Hypervel\Database\Eloquent\Collection<int, static>
+     * @param  array<int, string>|string  $columns
+     * @return Collection<int, static>
      */
-    public static function all($columns = ['*'])
+    public static function all(array|string $columns = ['*']): Collection
     {
         return static::query()->get(
             is_array($columns) ? $columns : func_get_args()
@@ -770,10 +694,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Begin querying a model with eager loading.
      *
-     * @param  array|string  $relations
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @param  array<int, string>|string  $relations
+     * @return Builder<static>
      */
-    public static function with($relations)
+    public static function with(array|string $relations): Builder
     {
         return static::query()->with(
             is_string($relations) ? func_get_args() : $relations
@@ -783,10 +707,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relations on the model.
      *
-     * @param  array|string  $relations
-     * @return $this
+     * @param  array<int, string>|string  $relations
      */
-    public function load($relations)
+    public function load(array|string $relations): static
     {
         $query = $this->newQueryWithoutRelationships()->with(
             is_string($relations) ? func_get_args() : $relations
@@ -800,11 +723,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relationships on the polymorphic relation of a model.
      *
-     * @param  string  $relation
-     * @param  array  $relations
-     * @return $this
+     * @param  array<class-string, array<int, string>>  $relations
      */
-    public function loadMorph($relation, $relations)
+    public function loadMorph(string $relation, array $relations): static
     {
         if (! $this->{$relation}) {
             return $this;
@@ -820,10 +741,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relations on the model if they are not already eager loaded.
      *
-     * @param  array|string  $relations
-     * @return $this
+     * @param  array<int, string>|string  $relations
      */
-    public function loadMissing($relations)
+    public function loadMissing(array|string $relations): static
     {
         $relations = is_string($relations) ? func_get_args() : $relations;
 
@@ -835,12 +755,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relation's column aggregations on the model.
      *
-     * @param  array|string  $relations
-     * @param  string  $column
-     * @param  string|null  $function
-     * @return $this
+     * @param  array<int, string>|string  $relations
      */
-    public function loadAggregate($relations, $column, $function = null)
+    public function loadAggregate(array|string $relations, string $column, ?string $function = null): static
     {
         $this->newCollection([$this])->loadAggregate($relations, $column, $function);
 
@@ -850,10 +767,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relation counts on the model.
      *
-     * @param  array|string  $relations
-     * @return $this
+     * @param  array<int, string>|string  $relations
      */
-    public function loadCount($relations)
+    public function loadCount(array|string $relations): static
     {
         $relations = is_string($relations) ? func_get_args() : $relations;
 
@@ -863,11 +779,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relation max column values on the model.
      *
-     * @param  array|string  $relations
-     * @param  string  $column
-     * @return $this
+     * @param  array<int, string>|string  $relations
      */
-    public function loadMax($relations, $column)
+    public function loadMax(array|string $relations, string $column): static
     {
         return $this->loadAggregate($relations, $column, 'max');
     }
@@ -875,11 +789,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relation min column values on the model.
      *
-     * @param  array|string  $relations
-     * @param  string  $column
-     * @return $this
+     * @param  array<int, string>|string  $relations
      */
-    public function loadMin($relations, $column)
+    public function loadMin(array|string $relations, string $column): static
     {
         return $this->loadAggregate($relations, $column, 'min');
     }
@@ -887,11 +799,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relation's column summations on the model.
      *
-     * @param  array|string  $relations
-     * @param  string  $column
-     * @return $this
+     * @param  array<int, string>|string  $relations
      */
-    public function loadSum($relations, $column)
+    public function loadSum(array|string $relations, string $column): static
     {
         return $this->loadAggregate($relations, $column, 'sum');
     }
@@ -899,11 +809,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relation average column values on the model.
      *
-     * @param  array|string  $relations
-     * @param  string  $column
-     * @return $this
+     * @param  array<int, string>|string  $relations
      */
-    public function loadAvg($relations, $column)
+    public function loadAvg(array|string $relations, string $column): static
     {
         return $this->loadAggregate($relations, $column, 'avg');
     }
@@ -911,10 +819,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load related model existence values on the model.
      *
-     * @param  array|string  $relations
-     * @return $this
+     * @param  array<int, string>|string  $relations
      */
-    public function loadExists($relations)
+    public function loadExists(array|string $relations): static
     {
         return $this->loadAggregate($relations, '*', 'exists');
     }
@@ -922,13 +829,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relationship column aggregation on the polymorphic relation of a model.
      *
-     * @param  string  $relation
-     * @param  array  $relations
-     * @param  string  $column
-     * @param  string|null  $function
-     * @return $this
+     * @param  array<class-string, array<int, string>>  $relations
      */
-    public function loadMorphAggregate($relation, $relations, $column, $function = null)
+    public function loadMorphAggregate(string $relation, array $relations, string $column, ?string $function = null): static
     {
         if (! $this->{$relation}) {
             return $this;
@@ -944,11 +847,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relationship counts on the polymorphic relation of a model.
      *
-     * @param  string  $relation
-     * @param  array  $relations
-     * @return $this
+     * @param  array<class-string, array<int, string>>  $relations
      */
-    public function loadMorphCount($relation, $relations)
+    public function loadMorphCount(string $relation, array $relations): static
     {
         return $this->loadMorphAggregate($relation, $relations, '*', 'count');
     }
@@ -956,12 +857,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relationship max column values on the polymorphic relation of a model.
      *
-     * @param  string  $relation
-     * @param  array  $relations
-     * @param  string  $column
-     * @return $this
+     * @param  array<class-string, array<int, string>>  $relations
      */
-    public function loadMorphMax($relation, $relations, $column)
+    public function loadMorphMax(string $relation, array $relations, string $column): static
     {
         return $this->loadMorphAggregate($relation, $relations, $column, 'max');
     }
@@ -969,12 +867,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relationship min column values on the polymorphic relation of a model.
      *
-     * @param  string  $relation
-     * @param  array  $relations
-     * @param  string  $column
-     * @return $this
+     * @param  array<class-string, array<int, string>>  $relations
      */
-    public function loadMorphMin($relation, $relations, $column)
+    public function loadMorphMin(string $relation, array $relations, string $column): static
     {
         return $this->loadMorphAggregate($relation, $relations, $column, 'min');
     }
@@ -982,12 +877,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relationship column summations on the polymorphic relation of a model.
      *
-     * @param  string  $relation
-     * @param  array  $relations
-     * @param  string  $column
-     * @return $this
+     * @param  array<class-string, array<int, string>>  $relations
      */
-    public function loadMorphSum($relation, $relations, $column)
+    public function loadMorphSum(string $relation, array $relations, string $column): static
     {
         return $this->loadMorphAggregate($relation, $relations, $column, 'sum');
     }
@@ -995,12 +887,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Eager load relationship average column values on the polymorphic relation of a model.
      *
-     * @param  string  $relation
-     * @param  array  $relations
-     * @param  string  $column
-     * @return $this
+     * @param  array<class-string, array<int, string>>  $relations
      */
-    public function loadMorphAvg($relation, $relations, $column)
+    public function loadMorphAvg(string $relation, array $relations, string $column): static
     {
         return $this->loadMorphAggregate($relation, $relations, $column, 'avg');
     }
@@ -1008,12 +897,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Increment a column's value by a given amount.
      *
-     * @param  string  $column
-     * @param  float|int  $amount
-     * @param  array  $extra
-     * @return int
+     * @param  array<string, mixed>  $extra
      */
-    protected function increment($column, $amount = 1, array $extra = [])
+    protected function increment(string $column, float|int $amount = 1, array $extra = []): int
     {
         return $this->incrementOrDecrement($column, $amount, $extra, 'increment');
     }
@@ -1021,12 +907,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Decrement a column's value by a given amount.
      *
-     * @param  string  $column
-     * @param  float|int  $amount
-     * @param  array  $extra
-     * @return int
+     * @param  array<string, mixed>  $extra
      */
-    protected function decrement($column, $amount = 1, array $extra = [])
+    protected function decrement(string $column, float|int $amount = 1, array $extra = []): int
     {
         return $this->incrementOrDecrement($column, $amount, $extra, 'decrement');
     }
@@ -1034,13 +917,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Run the increment or decrement method on the model.
      *
-     * @param  string  $column
-     * @param  float|int  $amount
-     * @param  array  $extra
-     * @param  string  $method
-     * @return int
+     * @param  array<string, mixed>  $extra
      */
-    protected function incrementOrDecrement($column, $amount, $extra, $method)
+    protected function incrementOrDecrement(string $column, float|int $amount, array $extra, string $method): int|false
     {
         if (! $this->exists) {
             return $this->newQueryWithoutRelationships()->{$method}($column, $amount, $extra);
@@ -1074,9 +953,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param  array<string, mixed>  $attributes
      * @param  array<string, mixed>  $options
-     * @return bool
      */
-    public function update(array $attributes = [], array $options = [])
+    public function update(array $attributes = [], array $options = []): bool
     {
         if (! $this->exists) {
             return false;
@@ -1090,11 +968,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param  array<string, mixed>  $attributes
      * @param  array<string, mixed>  $options
-     * @return bool
      *
      * @throws \Throwable
      */
-    public function updateOrFail(array $attributes = [], array $options = [])
+    public function updateOrFail(array $attributes = [], array $options = []): bool
     {
         if (! $this->exists) {
             return false;
@@ -1108,9 +985,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param  array<string, mixed>  $attributes
      * @param  array<string, mixed>  $options
-     * @return bool
      */
-    public function updateQuietly(array $attributes = [], array $options = [])
+    public function updateQuietly(array $attributes = [], array $options = []): bool
     {
         if (! $this->exists) {
             return false;
@@ -1122,12 +998,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Increment a column's value by a given amount without raising any events.
      *
-     * @param  string  $column
-     * @param  float|int  $amount
-     * @param  array  $extra
-     * @return int
+     * @param  array<string, mixed>  $extra
      */
-    protected function incrementQuietly($column, $amount = 1, array $extra = [])
+    protected function incrementQuietly(string $column, float|int $amount = 1, array $extra = []): int|false
     {
         return static::withoutEvents(
             fn () => $this->incrementOrDecrement($column, $amount, $extra, 'increment')
@@ -1137,12 +1010,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Decrement a column's value by a given amount without raising any events.
      *
-     * @param  string  $column
-     * @param  float|int  $amount
-     * @param  array  $extra
-     * @return int
+     * @param  array<string, mixed>  $extra
      */
-    protected function decrementQuietly($column, $amount = 1, array $extra = [])
+    protected function decrementQuietly(string $column, float|int $amount = 1, array $extra = []): int|false
     {
         return static::withoutEvents(
             fn () => $this->incrementOrDecrement($column, $amount, $extra, 'decrement')
@@ -1151,10 +1021,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Save the model and all of its relationships.
-     *
-     * @return bool
      */
-    public function push()
+    public function push(): bool
     {
         return $this->withoutRecursion(function () {
             if (! $this->save()) {
@@ -1182,10 +1050,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Save the model and all of its relationships without raising any events to the parent model.
-     *
-     * @return bool
      */
-    public function pushQuietly()
+    public function pushQuietly(): bool
     {
         return static::withoutEvents(fn () => $this->push());
     }
@@ -1193,10 +1059,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Save the model to the database without raising any events.
      *
-     * @param  array  $options
-     * @return bool
+     * @param  array<string, mixed>  $options
      */
-    public function saveQuietly(array $options = [])
+    public function saveQuietly(array $options = []): bool
     {
         return static::withoutEvents(fn () => $this->save($options));
     }
@@ -1204,10 +1069,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Save the model to the database.
      *
-     * @param  array  $options
-     * @return bool
+     * @param  array<string, mixed>  $options
      */
-    public function save(array $options = [])
+    public function save(array $options = []): bool
     {
         $this->mergeAttributesFromCachedCasts();
 
@@ -1253,12 +1117,11 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Save the model to the database within a transaction.
      *
-     * @param  array  $options
-     * @return bool
+     * @param  array<string, mixed>  $options
      *
      * @throws \Throwable
      */
-    public function saveOrFail(array $options = [])
+    public function saveOrFail(array $options = []): bool
     {
         return $this->getConnection()->transaction(fn () => $this->save($options));
     }
@@ -1266,10 +1129,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Perform any actions that are necessary after the model is saved.
      *
-     * @param  array  $options
-     * @return void
+     * @param  array<string, mixed>  $options
      */
-    protected function finishSave(array $options)
+    protected function finishSave(array $options): void
     {
         $this->fireModelEvent('saved', false);
 
@@ -1283,10 +1145,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Perform a model update operation.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<static>  $query
-     * @return bool
+     * @param  Builder<static>  $query
      */
-    protected function performUpdate(Builder $query)
+    protected function performUpdate(Builder $query): bool
     {
         // If the updating event returns false, we will cancel the update operation so
         // developers can hook Validation systems into their models and cancel this
@@ -1333,10 +1194,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Get the primary key value for a select query.
-     *
-     * @return mixed
      */
-    protected function getKeyForSelectQuery()
+    protected function getKeyForSelectQuery(): mixed
     {
         return $this->original[$this->getKeyName()] ?? $this->getKey();
     }
@@ -1356,10 +1215,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Get the primary key value for a save query.
-     *
-     * @return mixed
      */
-    protected function getKeyForSaveQuery()
+    protected function getKeyForSaveQuery(): mixed
     {
         return $this->original[$this->getKeyName()] ?? $this->getKey();
     }
@@ -1367,10 +1224,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Perform a model insert operation.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<static>  $query
-     * @return bool
+     * @param  Builder<static>  $query
      */
-    protected function performInsert(Builder $query)
+    protected function performInsert(Builder $query): bool
     {
         if ($this->usesUniqueIds()) {
             $this->setUniqueIds();
@@ -1422,11 +1278,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Insert the given attributes and set the ID on the model.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<static>  $query
+     * @param  Builder<static>  $query
      * @param  array<string, mixed>  $attributes
-     * @return void
      */
-    protected function insertAndSetId(Builder $query, $attributes)
+    protected function insertAndSetId(Builder $query, array $attributes): void
     {
         $id = $query->insertGetId($attributes, $keyName = $this->getKeyName());
 
@@ -1436,10 +1291,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Destroy the models for the given IDs.
      *
-     * @param  \Hypervel\Support\Collection|array|int|string  $ids
-     * @return int
+     * @param  Collection|BaseCollection|array<int, mixed>|int|string  $ids
      */
-    public static function destroy($ids)
+    public static function destroy(Collection|BaseCollection|array|int|string $ids): int
     {
         if ($ids instanceof EloquentCollection) {
             $ids = $ids->modelKeys();
@@ -1474,11 +1328,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Delete the model from the database.
      *
-     * @return bool|null
-     *
-     * @throws \LogicException
+     * @throws LogicException
      */
-    public function delete()
+    public function delete(): ?bool
     {
         $this->mergeAttributesFromCachedCasts();
 
@@ -1515,10 +1367,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Delete the model from the database without raising any events.
-     *
-     * @return bool
      */
-    public function deleteQuietly()
+    public function deleteQuietly(): ?bool
     {
         return static::withoutEvents(fn () => $this->delete());
     }
@@ -1526,11 +1376,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Delete the model from the database within a transaction.
      *
-     * @return bool|null
-     *
      * @throws \Throwable
      */
-    public function deleteOrFail()
+    public function deleteOrFail(): ?bool
     {
         if (! $this->exists) {
             return false;
@@ -1543,10 +1391,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * Force a hard delete on a soft deleted model.
      *
      * This method protects developers from running forceDelete when the trait is missing.
-     *
-     * @return bool|null
      */
-    public function forceDelete()
+    public function forceDelete(): ?bool
     {
         return $this->delete();
     }
@@ -1556,20 +1402,17 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * This method protects developers from running forceDestroy when the trait is missing.
      *
-     * @param  \Hypervel\Support\Collection|array|int|string  $ids
-     * @return bool|null
+     * @param  Collection|BaseCollection|array<int, mixed>|int|string  $ids
      */
-    public static function forceDestroy($ids)
+    public static function forceDestroy(Collection|BaseCollection|array|int|string $ids): int
     {
         return static::destroy($ids);
     }
 
     /**
      * Perform the actual delete query on this model instance.
-     *
-     * @return void
      */
-    protected function performDeleteOnModel()
+    protected function performDeleteOnModel(): void
     {
         $this->setKeysForSaveQuery($this->newModelQuery())->delete();
 
@@ -1579,9 +1422,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Begin querying the model.
      *
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
-    public static function query()
+    public static function query(): Builder
     {
         return (new static)->newQuery();
     }
@@ -1589,9 +1432,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Get a new query builder for the model's table.
      *
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
-    public function newQuery()
+    public function newQuery(): Builder
     {
         return $this->registerGlobalScopes($this->newQueryWithoutScopes());
     }
@@ -1599,9 +1442,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Get a new query builder that doesn't have any global scopes or eager loading.
      *
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
-    public function newModelQuery()
+    public function newModelQuery(): Builder
     {
         return $this->newEloquentBuilder(
             $this->newBaseQueryBuilder()
@@ -1611,9 +1454,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Get a new query builder with no relationships loaded.
      *
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
-    public function newQueryWithoutRelationships()
+    public function newQueryWithoutRelationships(): Builder
     {
         return $this->registerGlobalScopes($this->newModelQuery());
     }
@@ -1621,10 +1464,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Register the global scopes for this builder instance.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<static>  $builder
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @param  Builder<static>  $builder
+     * @return Builder<static>
      */
-    public function registerGlobalScopes($builder)
+    public function registerGlobalScopes(Builder $builder): Builder
     {
         foreach ($this->getGlobalScopes() as $identifier => $scope) {
             $builder->withGlobalScope($identifier, $scope);
@@ -1636,9 +1479,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Get a new query builder that doesn't have any global scopes.
      *
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
-    public function newQueryWithoutScopes()
+    public function newQueryWithoutScopes(): Builder
     {
         return $this->newModelQuery()
             ->with($this->with)
@@ -1648,10 +1491,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Get a new query instance without a given scope.
      *
-     * @param  \Hypervel\Database\Eloquent\Scope|string  $scope
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
-    public function newQueryWithoutScope($scope)
+    public function newQueryWithoutScope(Scope|string $scope): Builder
     {
         return $this->newQuery()->withoutGlobalScope($scope);
     }
@@ -1670,10 +1512,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Create a new Eloquent query builder for the model.
      *
-     * @param  \Hypervel\Database\Query\Builder  $query
-     * @return \Hypervel\Database\Eloquent\Builder<*>
+     * @return Builder<*>
      */
-    public function newEloquentBuilder($query)
+    public function newEloquentBuilder(QueryBuilder $query): Builder
     {
         $builderClass = $this->resolveCustomBuilderClass();
 
@@ -1688,9 +1529,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Resolve the custom Eloquent builder class from the model attributes.
      *
-     * @return class-string<\Hypervel\Database\Eloquent\Builder>|false
+     * @return class-string<Builder>|false
      */
-    protected function resolveCustomBuilderClass()
+    protected function resolveCustomBuilderClass(): string|false
     {
         $attributes = (new ReflectionClass($this))
             ->getAttributes(UseEloquentBuilder::class);
@@ -1702,10 +1543,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Get a new query builder instance for the connection.
-     *
-     * @return \Hypervel\Database\Query\Builder
      */
-    protected function newBaseQueryBuilder()
+    protected function newBaseQueryBuilder(): QueryBuilder
     {
         return $this->getConnection()->query();
     }
@@ -1713,14 +1552,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Create a new pivot model instance.
      *
-     * @param  \Hypervel\Database\Eloquent\Model  $parent
      * @param  array<string, mixed>  $attributes
-     * @param  string  $table
-     * @param  bool  $exists
-     * @param  string|null  $using
-     * @return \Hypervel\Database\Eloquent\Relations\Pivot
+     * @param  class-string<Pivot>|null  $using
      */
-    public function newPivot(self $parent, array $attributes, $table, $exists, $using = null)
+    public function newPivot(self $parent, array $attributes, string $table, bool $exists, ?string $using = null): Pivot
     {
         return $using ? $using::fromRawAttributes($parent, $attributes, $table, $exists)
             : Pivot::fromAttributes($parent, $attributes, $table, $exists);
@@ -1728,11 +1563,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Determine if the model has a given scope.
-     *
-     * @param  string  $scope
-     * @return bool
      */
-    public function hasNamedScope($scope)
+    public function hasNamedScope(string $scope): bool
     {
         return method_exists($this, 'scope'.ucfirst($scope)) ||
             static::isScopeMethodWithAttribute($scope);
@@ -1741,11 +1573,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Apply the given named scope if possible.
      *
-     * @param  string  $scope
-     * @param  array  $parameters
-     * @return mixed
+     * @param  array<int, mixed>  $parameters
      */
-    public function callNamedScope($scope, array $parameters = [])
+    public function callNamedScope(string $scope, array $parameters = []): mixed
     {
         if ($this->isScopeMethodWithAttribute($scope)) {
             return $this->{$scope}(...$parameters);
@@ -1756,11 +1586,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Determine if the given method has a scope attribute.
-     *
-     * @param  string  $method
-     * @return bool
      */
-    protected static function isScopeMethodWithAttribute(string $method)
+    protected static function isScopeMethodWithAttribute(string $method): bool
     {
         return method_exists(static::class, $method) &&
             (new ReflectionMethod(static::class, $method))
@@ -1817,10 +1644,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Reload a fresh model instance from the database.
      *
-     * @param  array|string  $with
-     * @return static|null
+     * @param  array<int, string>|string  $with
      */
-    public function fresh($with = [])
+    public function fresh(array|string $with = []): ?static
     {
         if (! $this->exists) {
             return null;
@@ -1834,10 +1660,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Reload the current model instance with fresh attributes from the database.
-     *
-     * @return $this
      */
-    public function refresh()
+    public function refresh(): static
     {
         if (! $this->exists) {
             return $this;
@@ -1863,10 +1687,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Clone the model into a new, non-existing instance.
      *
-     * @param  array|null  $except
-     * @return static
+     * @param  array<int, string>|null  $except
      */
-    public function replicate(?array $except = null)
+    public function replicate(?array $except = null): static
     {
         $defaults = array_values(array_filter([
             $this->getKeyName(),
@@ -1892,21 +1715,17 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Clone the model into a new, non-existing instance without raising any events.
      *
-     * @param  array|null  $except
-     * @return static
+     * @param  array<int, string>|null  $except
      */
-    public function replicateQuietly(?array $except = null)
+    public function replicateQuietly(?array $except = null): static
     {
         return static::withoutEvents(fn () => $this->replicate($except));
     }
 
     /**
      * Determine if two models have the same ID and belong to the same table.
-     *
-     * @param  \Hypervel\Database\Eloquent\Model|null  $model
-     * @return bool
      */
-    public function is($model)
+    public function is(?self $model): bool
     {
         return ! is_null($model) &&
             $this->getKey() === $model->getKey() &&
@@ -1916,42 +1735,32 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Determine if two models are not the same.
-     *
-     * @param  \Hypervel\Database\Eloquent\Model|null  $model
-     * @return bool
      */
-    public function isNot($model)
+    public function isNot(?self $model): bool
     {
         return ! $this->is($model);
     }
 
     /**
      * Get the database connection for the model.
-     *
-     * @return \Hypervel\Database\Connection
      */
-    public function getConnection()
+    public function getConnection(): Connection
     {
         return static::resolveConnection($this->getConnectionName());
     }
 
     /**
      * Get the current connection name for the model.
-     *
-     * @return string|null
      */
-    public function getConnectionName()
+    public function getConnectionName(): ?string
     {
         return enum_value($this->connection);
     }
 
     /**
      * Set the connection associated with the model.
-     *
-     * @param  \UnitEnum|string|null  $name
-     * @return $this
      */
-    public function setConnection($name)
+    public function setConnection(UnitEnum|string|null $name): static
     {
         $this->connection = $name;
 
@@ -1960,63 +1769,48 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Resolve a connection instance.
-     *
-     * @param  \UnitEnum|string|null  $connection
-     * @return \Hypervel\Database\Connection
      */
-    public static function resolveConnection($connection = null)
+    public static function resolveConnection(UnitEnum|string|null $connection = null): Connection
     {
         return static::$resolver->connection($connection);
     }
 
     /**
      * Get the connection resolver instance.
-     *
-     * @return \Hypervel\Database\ConnectionResolverInterface|null
      */
-    public static function getConnectionResolver()
+    public static function getConnectionResolver(): ?Resolver
     {
         return static::$resolver;
     }
 
     /**
      * Set the connection resolver instance.
-     *
-     * @param  \Hypervel\Database\ConnectionResolverInterface  $resolver
-     * @return void
      */
-    public static function setConnectionResolver(Resolver $resolver)
+    public static function setConnectionResolver(Resolver $resolver): void
     {
         static::$resolver = $resolver;
     }
 
     /**
      * Unset the connection resolver for models.
-     *
-     * @return void
      */
-    public static function unsetConnectionResolver()
+    public static function unsetConnectionResolver(): void
     {
         static::$resolver = null;
     }
 
     /**
      * Get the table associated with the model.
-     *
-     * @return string
      */
-    public function getTable()
+    public function getTable(): string
     {
         return $this->table ?? Str::snake(Str::pluralStudly(class_basename($this)));
     }
 
     /**
      * Set the table associated with the model.
-     *
-     * @param  string  $table
-     * @return $this
      */
-    public function setTable($table)
+    public function setTable(string $table): static
     {
         $this->table = $table;
 
@@ -2025,21 +1819,16 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Get the primary key for the model.
-     *
-     * @return string
      */
-    public function getKeyName()
+    public function getKeyName(): string
     {
         return $this->primaryKey;
     }
 
     /**
      * Set the primary key for the model.
-     *
-     * @param  string  $key
-     * @return $this
      */
-    public function setKeyName($key)
+    public function setKeyName(string $key): static
     {
         $this->primaryKey = $key;
 
@@ -2048,31 +1837,24 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Get the table qualified key name.
-     *
-     * @return string
      */
-    public function getQualifiedKeyName()
+    public function getQualifiedKeyName(): string
     {
         return $this->qualifyColumn($this->getKeyName());
     }
 
     /**
      * Get the auto-incrementing key type.
-     *
-     * @return string
      */
-    public function getKeyType()
+    public function getKeyType(): string
     {
         return $this->keyType;
     }
 
     /**
      * Set the data type for the primary key.
-     *
-     * @param  string  $type
-     * @return $this
      */
-    public function setKeyType($type)
+    public function setKeyType(string $type): static
     {
         $this->keyType = $type;
 
@@ -2081,21 +1863,16 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Get the value indicating whether the IDs are incrementing.
-     *
-     * @return bool
      */
-    public function getIncrementing()
+    public function getIncrementing(): bool
     {
         return $this->incrementing;
     }
 
     /**
      * Set whether IDs are incrementing.
-     *
-     * @param  bool  $value
-     * @return $this
      */
-    public function setIncrementing($value)
+    public function setIncrementing(bool $value): static
     {
         $this->incrementing = $value;
 
@@ -2104,10 +1881,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Get the value of the model's primary key.
-     *
-     * @return mixed
      */
-    public function getKey()
+    public function getKey(): mixed
     {
         return $this->getAttribute($this->getKeyName());
     }
@@ -2162,70 +1937,48 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Get the value of the model's route key.
-     *
-     * @return mixed
      */
-    public function getRouteKey()
+    public function getRouteKey(): mixed
     {
         return $this->getAttribute($this->getRouteKeyName());
     }
 
     /**
      * Get the route key for the model.
-     *
-     * @return string
      */
-    public function getRouteKeyName()
+    public function getRouteKeyName(): string
     {
         return $this->getKeyName();
     }
 
     /**
      * Retrieve the model for a bound value.
-     *
-     * @param  mixed  $value
-     * @param  string|null  $field
-     * @return \Hypervel\Database\Eloquent\Model|null
      */
-    public function resolveRouteBinding($value, $field = null)
+    public function resolveRouteBinding(mixed $value, ?string $field = null): ?self
     {
         return $this->resolveRouteBindingQuery($this, $value, $field)->first();
     }
 
     /**
      * Retrieve the model for a bound value.
-     *
-     * @param  mixed  $value
-     * @param  string|null  $field
-     * @return \Hypervel\Database\Eloquent\Model|null
      */
-    public function resolveSoftDeletableRouteBinding($value, $field = null)
+    public function resolveSoftDeletableRouteBinding(mixed $value, ?string $field = null): ?self
     {
         return $this->resolveRouteBindingQuery($this, $value, $field)->withTrashed()->first();
     }
 
     /**
      * Retrieve the child model for a bound value.
-     *
-     * @param  string  $childType
-     * @param  mixed  $value
-     * @param  string|null  $field
-     * @return \Hypervel\Database\Eloquent\Model|null
      */
-    public function resolveChildRouteBinding($childType, $value, $field)
+    public function resolveChildRouteBinding(string $childType, mixed $value, ?string $field): ?self
     {
         return $this->resolveChildRouteBindingQuery($childType, $value, $field)->first();
     }
 
     /**
      * Retrieve the child model for a bound value.
-     *
-     * @param  string  $childType
-     * @param  mixed  $value
-     * @param  string|null  $field
-     * @return \Hypervel\Database\Eloquent\Model|null
      */
-    public function resolveSoftDeletableChildRouteBinding($childType, $value, $field)
+    public function resolveSoftDeletableChildRouteBinding(string $childType, mixed $value, ?string $field): ?self
     {
         return $this->resolveChildRouteBindingQuery($childType, $value, $field)->withTrashed()->first();
     }
@@ -2233,12 +1986,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Retrieve the child model query for a bound value.
      *
-     * @param  string  $childType
-     * @param  mixed  $value
-     * @param  string|null  $field
-     * @return \Hypervel\Database\Eloquent\Relations\Relation<\Hypervel\Database\Eloquent\Model, $this, *>
+     * @return Relations\Relation<self, $this, *>
      */
-    protected function resolveChildRouteBindingQuery($childType, $value, $field)
+    protected function resolveChildRouteBindingQuery(string $childType, mixed $value, ?string $field): Relations\Relation
     {
         $relationship = $this->{$this->childRouteBindingRelationshipName($childType)}();
 
@@ -2256,11 +2006,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Retrieve the child route model binding relationship name for the given child type.
-     *
-     * @param  string  $childType
-     * @return string
      */
-    protected function childRouteBindingRelationshipName($childType)
+    protected function childRouteBindingRelationshipName(string $childType): string
     {
         return Str::plural(Str::camel($childType));
     }
@@ -2268,43 +2015,34 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Retrieve the model for a bound value.
      *
-     * @param  \Hypervel\Database\Eloquent\Model|\Hypervel\Database\Contracts\Eloquent\Builder|\Hypervel\Database\Eloquent\Relations\Relation  $query
-     * @param  mixed  $value
-     * @param  string|null  $field
-     * @return \Hypervel\Database\Contracts\Eloquent\Builder
+     * @param  self|Builder|Relations\Relation<*, *, *>  $query
+     * @return Builder<static>|Relations\Relation<*, *, *>
      */
-    public function resolveRouteBindingQuery($query, $value, $field = null)
+    public function resolveRouteBindingQuery(self|Builder|Relations\Relation $query, mixed $value, ?string $field = null): Builder|Relations\Relation
     {
         return $query->where($field ?? $this->getRouteKeyName(), $value);
     }
 
     /**
      * Get the default foreign key name for the model.
-     *
-     * @return string
      */
-    public function getForeignKey()
+    public function getForeignKey(): string
     {
         return Str::snake(class_basename($this)).'_'.$this->getKeyName();
     }
 
     /**
      * Get the number of models to return per page.
-     *
-     * @return int
      */
-    public function getPerPage()
+    public function getPerPage(): int
     {
         return $this->perPage;
     }
 
     /**
      * Set the number of models to return per page.
-     *
-     * @param  int  $perPage
-     * @return $this
      */
-    public function setPerPage($perPage)
+    public function setPerPage(int $perPage): static
     {
         $this->perPage = $perPage;
 
@@ -2337,40 +2075,32 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Determine if lazy loading is disabled.
-     *
-     * @return bool
      */
-    public static function preventsLazyLoading()
+    public static function preventsLazyLoading(): bool
     {
         return static::$modelsShouldPreventLazyLoading;
     }
 
     /**
      * Determine if relationships are being automatically eager loaded when accessed.
-     *
-     * @return bool
      */
-    public static function isAutomaticallyEagerLoadingRelationships()
+    public static function isAutomaticallyEagerLoadingRelationships(): bool
     {
         return static::$modelsShouldAutomaticallyEagerLoadRelationships;
     }
 
     /**
      * Determine if discarding guarded attribute fills is disabled.
-     *
-     * @return bool
      */
-    public static function preventsSilentlyDiscardingAttributes()
+    public static function preventsSilentlyDiscardingAttributes(): bool
     {
         return static::$modelsShouldPreventSilentlyDiscardingAttributes;
     }
 
     /**
      * Determine if accessing missing attributes is disabled.
-     *
-     * @return bool
      */
-    public static function preventsAccessingMissingAttributes()
+    public static function preventsAccessingMissingAttributes(): bool
     {
         return static::$modelsShouldPreventAccessingMissingAttributes;
     }
@@ -2393,23 +2123,16 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Dynamically retrieve attributes on the model.
-     *
-     * @param  string  $key
-     * @return mixed
      */
-    public function __get($key)
+    public function __get(string $key): mixed
     {
         return $this->getAttribute($key);
     }
 
     /**
      * Dynamically set attributes on the model.
-     *
-     * @param  string  $key
-     * @param  mixed  $value
-     * @return void
      */
-    public function __set($key, $value)
+    public function __set(string $key, mixed $value): void
     {
         $this->setAttribute($key, $value);
     }
@@ -2474,22 +2197,16 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Determine if an attribute or relation exists on the model.
-     *
-     * @param  string  $key
-     * @return bool
      */
-    public function __isset($key)
+    public function __isset(string $key): bool
     {
         return $this->offsetExists($key);
     }
 
     /**
      * Unset an attribute on the model.
-     *
-     * @param  string  $key
-     * @return void
      */
-    public function __unset($key)
+    public function __unset(string $key): void
     {
         $this->offsetUnset($key);
     }
@@ -2497,11 +2214,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Handle dynamic method calls into the model.
      *
-     * @param  string  $method
-     * @param  array  $parameters
-     * @return mixed
+     * @param  array<int, mixed>  $parameters
      */
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         if (in_array($method, ['increment', 'decrement', 'incrementQuietly', 'decrementQuietly'])) {
             return $this->$method(...$parameters);
@@ -2522,11 +2237,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Handle dynamic static method calls into the model.
      *
-     * @param  string  $method
-     * @param  array  $parameters
-     * @return mixed
+     * @param  array<int, mixed>  $parameters
      */
-    public static function __callStatic($method, $parameters)
+    public static function __callStatic(string $method, array $parameters): mixed
     {
         if (static::isScopeMethodWithAttribute($method)) {
             return static::query()->$method(...$parameters);
@@ -2537,10 +2250,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Convert the model to its string representation.
-     *
-     * @return string
      */
-    public function __toString()
+    public function __toString(): string
     {
         return $this->escapeWhenCastingToString
             ? e($this->toJson())
@@ -2549,11 +2260,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * Indicate that the object's string representation should be escaped when __toString is invoked.
-     *
-     * @param  bool  $escape
-     * @return $this
      */
-    public function escapeWhenCastingToString($escape = true)
+    public function escapeWhenCastingToString(bool $escape = true): static
     {
         $this->escapeWhenCastingToString = $escape;
 
@@ -2563,9 +2271,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Prepare the object for serialization.
      *
-     * @return array
+     * @return array<int, string>
      */
-    public function __sleep()
+    public function __sleep(): array
     {
         $this->mergeAttributesFromCachedCasts();
 
@@ -2589,10 +2297,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
     /**
      * When a model is being unserialized, check if it needs to be booted.
-     *
-     * @return void
      */
-    public function __wakeup()
+    public function __wakeup(): void
     {
         $this->bootIfNotBooted();
 
