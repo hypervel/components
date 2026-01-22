@@ -12,6 +12,7 @@ use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
 
 use function Hypervel\Coroutine\go;
@@ -235,6 +236,62 @@ class DatabaseCoroutineSafetyTest extends DatabaseIntegrationTestCase
 
         $this->assertSame($testConnection, $results[1], 'Coroutine 1 should see overridden connection');
         $this->assertSame($originalDefault, $results[2], 'Coroutine 2 should see original connection (isolated)');
+    }
+
+    /**
+     * Test that DB::connection() without explicit name respects usingConnection().
+     */
+    public function testUsingConnectionAffectsDbConnection(): void
+    {
+        /** @var DatabaseManager $manager */
+        $manager = $this->app->get(DatabaseManager::class);
+        $originalDefault = $manager->getDefaultConnection();
+
+        // Verify default connection before
+        $connectionBefore = DB::connection();
+        $this->assertSame($originalDefault, $connectionBefore->getName());
+
+        // Use a different connection
+        $testConnection = $originalDefault === 'pgsql' ? 'default' : 'pgsql';
+
+        $manager->usingConnection($testConnection, function () use ($testConnection) {
+            // DB::connection() without args should use the overridden connection
+            $connection = DB::connection();
+            $this->assertSame(
+                $testConnection,
+                $connection->getName(),
+                'DB::connection() should return the usingConnection override'
+            );
+        });
+
+        // Verify restored after
+        $connectionAfter = DB::connection();
+        $this->assertSame($originalDefault, $connectionAfter->getName());
+    }
+
+    /**
+     * Test that Schema::connection() without explicit name respects usingConnection().
+     */
+    public function testUsingConnectionAffectsSchemaConnection(): void
+    {
+        /** @var DatabaseManager $manager */
+        $manager = $this->app->get(DatabaseManager::class);
+        $originalDefault = $manager->getDefaultConnection();
+
+        // Use a different connection
+        $testConnection = $originalDefault === 'pgsql' ? 'default' : 'pgsql';
+
+        $manager->usingConnection($testConnection, function () use ($testConnection) {
+            // Schema::connection() without args should use the overridden connection
+            $schemaBuilder = Schema::connection();
+            $connectionName = $schemaBuilder->getConnection()->getName();
+
+            $this->assertSame(
+                $testConnection,
+                $connectionName,
+                'Schema::connection() should return schema builder for usingConnection override'
+            );
+        });
     }
 
     // =========================================================================
