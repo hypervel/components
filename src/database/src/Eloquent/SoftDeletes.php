@@ -105,15 +105,17 @@ trait SoftDeletes
     /**
      * Perform the actual delete query on this model instance.
      */
-    protected function performDeleteOnModel(): mixed
+    protected function performDeleteOnModel(): void
     {
         if ($this->forceDeleting) {
-            return tap($this->setKeysForSaveQuery($this->newModelQuery())->forceDelete(), function () {
+            tap($this->setKeysForSaveQuery($this->newModelQuery())->forceDelete(), function () {
                 $this->exists = false;
             });
+
+            return;
         }
 
-        return $this->runSoftDelete();
+        $this->runSoftDelete();
     }
 
     /**

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Closure;
+use DateTimeInterface;
 use Hypervel\Support\Traits\Macroable;
 use League\CommonMark\Environment\Environment;
 use League\CommonMark\Extension\GithubFlavoredMarkdownExtension;
@@ -17,6 +18,7 @@ use Ramsey\Uuid\Generator\CombGenerator;
 use Ramsey\Uuid\Rfc4122\FieldsInterface;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactory;
+use Ramsey\Uuid\UuidInterface;
 use Symfony\Component\Uid\Ulid;
 use Throwable;
 use Traversable;
@@ -34,7 +36,7 @@ class Str
     /**
      * The cache of snake-cased words.
      *
-     * @var array<string, string>
+     * @var array<string, array<string, string>>
      */
     protected static array $snakeCache = [];
 
@@ -55,23 +57,23 @@ class Str
     /**
      * The callback that should be used to generate UUIDs.
      *
-     * @var (callable(): \Ramsey\Uuid\UuidInterface)|null
+     * @var (Closure(): \Ramsey\Uuid\UuidInterface)|null
      */
-    protected static ?callable $uuidFactory = null;
+    protected static ?Closure $uuidFactory = null;
 
     /**
      * The callback that should be used to generate ULIDs.
      *
-     * @var (callable(): \Symfony\Component\Uid\Ulid)|null
+     * @var (Closure(): \Symfony\Component\Uid\Ulid)|null
      */
-    protected static ?callable $ulidFactory = null;
+    protected static ?Closure $ulidFactory = null;
 
     /**
      * The callback that should be used to generate random strings.
      *
-     * @var (callable(int): string)|null
+     * @var (Closure(int): string)|null
      */
-    protected static ?callable $randomStringFactory = null;
+    protected static ?Closure $randomStringFactory = null;
 
     /**
      * Get a new stringable object from the given string.
@@ -373,7 +375,7 @@ class Str
             fn ($endWithRadius) => $endWithRadius->append($omission),
         );
 
-        return $start->append($matches[2], $end)->toString();
+        return $start->append($matches[2], $end->toString())->toString();
     }
 
     /**
@@ -545,7 +547,7 @@ class Str
         }
 
         if ($version === 'max') {
-            return $fields->isMax();
+            return $fields->isMax(); // @phpstan-ignore method.notFound (method exists on concrete class, not interface)
         }
 
         return $fields->getVersion() === $version;
@@ -866,7 +868,7 @@ class Str
         $length = $length - $password->count();
 
         return $password->merge($options->pipe(
-            fn ($c) => Collection::times($length, fn () => $c[random_int(0, $c->count() - 1)])
+            fn ($c) => Collection::times($length, fn () => $c[random_int(0, $c->count() - 1)]) // @phpstan-ignore argument.type, return.type
         ))->shuffle()->implode('');
     }
 
@@ -988,7 +990,7 @@ class Str
     {
         try {
             return (string) $value;
-        } catch (Throwable) {
+        } catch (Throwable) { // @phpstan-ignore catch.neverThrown (__toString can throw)
             return $fallback;
         }
     }
@@ -1198,6 +1200,7 @@ class Str
                 $hyphenatedWords = explode('-', $lowercaseWord);
 
                 $hyphenatedWords = array_map(function ($part) use ($minorWords) {
+                    // @phpstan-ignore smallerOrEqual.alwaysTrue (defensive check)
                     return (in_array($part, $minorWords) && mb_strlen($part) <= 3)
                         ? $part
                         : mb_strtoupper(mb_substr($part, 0, 1)) . mb_substr($part, 1);
@@ -1206,7 +1209,7 @@ class Str
                 $words[$i] = implode('-', $hyphenatedWords);
             } else {
                 if (in_array($lowercaseWord, $minorWords) &&
-                    mb_strlen($lowercaseWord) <= 3 &&
+                    mb_strlen($lowercaseWord) <= 3 && // @phpstan-ignore smallerOrEqual.alwaysTrue
                     ! ($i === 0 || in_array(mb_substr($words[$i - 1], -1), $endPunctuation))) {
                     $words[$i] = $lowercaseWord;
                 } else {
