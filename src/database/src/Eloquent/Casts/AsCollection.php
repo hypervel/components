@@ -73,6 +73,7 @@ class AsCollection implements Castable
      */
     public static function of(array|string $map): string
     {
+        // @phpstan-ignore argument.type (using() expects class-string, but '' is valid for default collection)
         return static::using('', $map);
     }
 
@@ -88,6 +89,7 @@ class AsCollection implements Castable
             $map = $map[0] . '@' . $map[1];
         }
 
+        // @phpstan-ignore argument.type (implode handles null gracefully for serialization format)
         return static::class . ':' . implode(',', [$class, $map]);
     }
 }

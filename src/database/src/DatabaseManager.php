@@ -252,6 +252,7 @@ class DatabaseManager implements ConnectionResolverInterface
         $this->disconnect($name = enum_value($name) ?: $this->getDefaultConnection());
 
         if (! isset($this->connections[$name])) {
+            // @phpstan-ignore return.type (connection() returns ConnectionInterface but concrete Connection in practice)
             return $this->connection($name);
         }
 
