@@ -31,7 +31,10 @@
     "require": {
         "php": "^8.2",
         "hyperf/http-message": "~3.1.0",
-        "hyperf/context": "~3.1.0"
+        "hyperf/context": "~3.1.0",
+        "symfony/polyfill-php83": "^1.33",
+        "symfony/polyfill-php84": "^1.33",
+        "symfony/polyfill-php85": "^1.33"
     },
     "config": {
         "sort-packages": true
