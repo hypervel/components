@@ -85,6 +85,7 @@ class HasOneThrough extends HasOneOrManyThrough implements SupportsPartialRelati
 
         // We need to join subqueries that aren't the inner-most subquery which is joined in the CanBeOneOfMany::ofMany method...
         if ($this->getOneOfManySubQuery() !== null) {
+            // @phpstan-ignore argument.type (Builder param typed without template in inherited interface)
             $this->performJoin($query);
         }
     }

@@ -264,7 +264,7 @@ class BelongsToMany extends Relation
      * Build model dictionary keyed by the relation's foreign key.
      *
      * @param  \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>  $results
-     * @return array<array<string, TRelatedModel>>
+     * @return array<list<TRelatedModel>>
      */
     protected function buildDictionary(EloquentCollection $results): array
     {

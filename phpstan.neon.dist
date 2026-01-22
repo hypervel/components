@@ -78,9 +78,19 @@ parameters:
     - message: '#Method .* should return Hypervel\\Database\\Eloquent\\Builder<.*> but returns Hypervel\\Database\\Query\\Builder\.$#'
       path: src/database/*
 
+    # Relation @mixin forwarding - Relation methods returning $this forward to Builder methods
+    # PHPStan sees Builder return type but the actual return is $this (the Relation)
+    - message: '#should return \$this\(Hypervel\\Database\\Eloquent\\Relations\\.+\) but returns Hypervel\\Database\\(Query|Eloquent)\\Builder#'
+      path: src/database/*
+
     # Collection template covariance - specific array shapes are subtypes of array<string, mixed>
     # but Collection<TValue> is invariant, so PHPStan rejects the more specific return type
     - message: '#should return Hypervel\\Support\\Collection<.+, array<.+>> but returns Hypervel\\Support\\Collection<.+, array\{#'
+
+    # BelongsToMany pivot intersection type - PHPDoc uses object{pivot: ...}&TRelatedModel
+    # to document that models get a pivot property attached, but PHPStan can't track dynamic attachment
+    - message: '#object\{pivot:#'
+      path: src/database/*
 
     # call_user_func with void callbacks - intentional pattern in Eloquent
     - '#Result of function call_user_func \(void\) is used\.#'
