@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Pagination;
 
 use Closure;
-use Hypervel\Collection\Arr;
-use Hypervel\Collection\Collection;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Contracts\CanBeEscapedWhenCastToString;
 use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\Support\Traits\ForwardsCalls;
@@ -25,6 +25,18 @@ use Traversable;
 abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlable, Stringable
 {
     use ForwardsCalls, Tappable, TransformsToResourceCollection;
+
+    /**
+     * Render the paginator using the given view.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    abstract public function render(?string $view = null, array $data = []): Htmlable;
+
+    /**
+     * Determine if there are more items in the data source.
+     */
+    abstract public function hasMorePages(): bool;
 
     /**
      * All of the items being paginated.

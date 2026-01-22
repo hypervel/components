@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Pagination;
 
-use Hypervel\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Contracts\Arrayable;
 use UnexpectedValueException;
 

@@ -6,7 +6,7 @@ namespace Hypervel\Pagination;
 
 use ArrayAccess;
 use Countable;
-use Hypervel\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Contracts\Arrayable;
 use Hypervel\Support\Contracts\Jsonable;
 use Hypervel\Pagination\Contracts\CursorPaginator as PaginatorContract;
