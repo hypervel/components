@@ -37,10 +37,7 @@ abstract class BaseRelation extends Relation
 
     abstract protected function relationExistenceCondition(string $hash, string $table, string $lft, string $rgt): string;
 
-    /**
-     * @param array $columns
-     */
-    public function getRelationExistenceQuery(EloquentBuilder $query, EloquentBuilder $parent, $columns = ['*']): mixed
+    public function getRelationExistenceQuery(EloquentBuilder $query, EloquentBuilder $parentQuery, mixed $columns = ['*']): EloquentBuilder
     {
         /* @phpstan-ignore-next-line */
         $query = $this->getParent()->replicate()->newScopedQuery()->select($columns);
