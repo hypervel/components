@@ -1482,6 +1482,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     {
         $this->mergeAttributesFromCachedCasts();
 
+        // @phpstan-ignore function.impossibleType (defensive: users may set $primaryKey = null)
         if (is_null($this->getKeyName())) {
             throw new LogicException('No primary key defined on model.');
         }
@@ -1490,7 +1491,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         // immediately and not do anything else. Otherwise, we will continue with a
         // deletion process on the model, firing the proper events, and so forth.
         if (! $this->exists) {
-            return;
+            return null;
         }
 
         if ($this->fireModelEvent('deleting') === false) {
@@ -1676,6 +1677,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     {
         $builderClass = $this->resolveCustomBuilderClass();
 
+        // @phpstan-ignore function.alreadyNarrowedType (defensive: validates custom builder class at runtime)
         if ($builderClass && is_subclass_of($builderClass, Builder::class)) {
             return new $builderClass($query);
         }
@@ -1821,7 +1823,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     public function fresh($with = [])
     {
         if (! $this->exists) {
-            return;
+            return null;
         }
 
         return $this->setKeysForSelectQuery($this->newQueryWithoutScopes())

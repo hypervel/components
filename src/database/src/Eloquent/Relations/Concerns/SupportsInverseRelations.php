@@ -93,6 +93,7 @@ trait SupportsInverseRelations
         $parent ??= $this->getParent();
 
         foreach ($models as $model) {
+            // @phpstan-ignore instanceof.alwaysTrue (defensive: $models param is mixed at runtime)
             $model instanceof Model && $this->applyInverseRelationToModel($model, $parent);
         }
 

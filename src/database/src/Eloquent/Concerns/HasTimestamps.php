@@ -172,6 +172,7 @@ trait HasTimestamps
      */
     public static function withoutTimestampsOn(array $models, callable $callback): mixed
     {
+        // @phpstan-ignore arrayValues.list (unset() in finally block creates gaps, array_values re-indexes)
         static::$ignoreTimestampsOn = array_values(array_merge(static::$ignoreTimestampsOn, $models));
 
         try {

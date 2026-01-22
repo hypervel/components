@@ -6,6 +6,7 @@ namespace Hypervel\Database\Eloquent\Concerns;
 
 use Hypervel\Support\Str;
 
+/** @phpstan-ignore trait.unused (user-facing trait for models) */
 trait HasVersion4Uuids
 {
     use HasUuids;

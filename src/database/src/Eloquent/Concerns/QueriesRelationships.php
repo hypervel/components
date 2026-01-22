@@ -1001,6 +1001,7 @@ trait QueriesRelationships
      */
     public function mergeConstraintsFrom(Builder $from): static
     {
+        // @phpstan-ignore nullCoalesce.offset (defensive fallback)
         $whereBindings = $from->getQuery()->getRawBindings()['where'] ?? [];
 
         $wheres = $from->getQuery()->from !== $this->getQuery()->from
