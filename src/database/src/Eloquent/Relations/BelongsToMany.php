@@ -815,6 +815,7 @@ class BelongsToMany extends Relation
 
         $columns = $builder->getQuery()->columns ? [] : $columns;
 
+        // @phpstan-ignore method.notFound (addSelect returns Eloquent\Builder, not Query\Builder)
         $models = $builder->addSelect(
             $this->shouldSelect($columns)
         )->getModels();
