@@ -592,6 +592,7 @@ trait QueriesRelationships
         }
 
         if (is_null($model)) {
+            // @phpstan-ignore method.notFound (getMorphType exists on MorphTo, not base Relation)
             return $this->whereNull($relation->qualifyColumn($relation->getMorphType()), $boolean);
         }
 
@@ -602,6 +603,7 @@ trait QueriesRelationships
                 $model = array_search($model, $morphMap, true);
             }
 
+            // @phpstan-ignore method.notFound (getMorphType exists on MorphTo, not base Relation)
             return $this->where($relation->qualifyColumn($relation->getMorphType()), $model, null, $boolean);
         }
 
@@ -614,6 +616,7 @@ trait QueriesRelationships
         return $this->where(function ($query) use ($relation, $models) {
             $models->groupBy(fn ($model) => $model->getMorphClass())->each(function ($models) use ($query, $relation) {
                 $query->orWhere(function ($query) use ($relation, $models) {
+                    // @phpstan-ignore method.notFound, method.notFound (MorphTo methods, not base Relation)
                     $query->where($relation->qualifyColumn($relation->getMorphType()), $models->first()->getMorphClass())
                         ->whereIn($relation->qualifyColumn($relation->getForeignKeyName()), $models->map->getKey());
                 });
@@ -641,6 +644,7 @@ trait QueriesRelationships
                 $model = array_search($model, $morphMap, true);
             }
 
+            // @phpstan-ignore method.notFound (getMorphType exists on MorphTo, not base Relation)
             return $this->whereNot($relation->qualifyColumn($relation->getMorphType()), '<=>', $model, $boolean);
         }
 
@@ -653,6 +657,7 @@ trait QueriesRelationships
         return $this->whereNot(function ($query) use ($relation, $models) {
             $models->groupBy(fn ($model) => $model->getMorphClass())->each(function ($models) use ($query, $relation) {
                 $query->orWhere(function ($query) use ($relation, $models) {
+                    // @phpstan-ignore method.notFound, method.notFound (MorphTo methods, not base Relation)
                     $query->where($relation->qualifyColumn($relation->getMorphType()), '<=>', $models->first()->getMorphClass())
                         ->whereIn($relation->qualifyColumn($relation->getForeignKeyName()), $models->map->getKey());
                 });
