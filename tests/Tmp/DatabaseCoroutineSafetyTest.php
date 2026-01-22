@@ -113,7 +113,9 @@ class DatabaseCoroutineSafetyTest extends DatabaseIntegrationTestCase
      */
     public function testUnguardedIsCoroutineIsolated(): void
     {
-        run(function () {
+        $results = [];
+
+        run(function () use (&$results) {
             $channel = new Channel(2);
             $waiter = new WaitGroup();
 
@@ -138,14 +140,13 @@ class DatabaseCoroutineSafetyTest extends DatabaseIntegrationTestCase
             $waiter->wait();
             $channel->close();
 
-            $results = [];
             while (($result = $channel->pop()) !== false) {
                 $results[$result['coroutine']] = $result['unguarded'];
             }
-
-            $this->assertTrue($results[1], 'Coroutine 1 should be unguarded');
-            $this->assertFalse($results[2], 'Coroutine 2 should NOT be unguarded (isolated context)');
         });
+
+        $this->assertTrue($results[1], 'Coroutine 1 should be unguarded');
+        $this->assertFalse($results[2], 'Coroutine 2 should NOT be unguarded (isolated context)');
     }
 
     // =========================================================================
@@ -200,7 +201,9 @@ class DatabaseCoroutineSafetyTest extends DatabaseIntegrationTestCase
         $originalDefault = $manager->getDefaultConnection();
         $testConnection = $originalDefault === 'pgsql' ? 'default' : 'pgsql';
 
-        run(function () use ($manager, $originalDefault, $testConnection) {
+        $results = [];
+
+        run(function () use ($manager, $testConnection, &$results) {
             $channel = new Channel(2);
             $waiter = new WaitGroup();
 
@@ -225,14 +228,13 @@ class DatabaseCoroutineSafetyTest extends DatabaseIntegrationTestCase
             $waiter->wait();
             $channel->close();
 
-            $results = [];
             while (($result = $channel->pop()) !== false) {
                 $results[$result['coroutine']] = $result['connection'];
             }
-
-            $this->assertSame($testConnection, $results[1], 'Coroutine 1 should see overridden connection');
-            $this->assertSame($originalDefault, $results[2], 'Coroutine 2 should see original connection (isolated)');
         });
+
+        $this->assertSame($testConnection, $results[1], 'Coroutine 1 should see overridden connection');
+        $this->assertSame($originalDefault, $results[2], 'Coroutine 2 should see original connection (isolated)');
     }
 
     // =========================================================================

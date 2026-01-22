@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Concerns;
 
-// TODO: Support Coroutine, use Context instead of static property.
+use Hypervel\Context\Context;
 
 trait GuardsAttributes
 {
@@ -21,11 +21,6 @@ trait GuardsAttributes
      * @var array<string>
      */
     protected array $guarded = ['*'];
-
-    /**
-     * Indicates if all mass assignment is enabled.
-     */
-    protected static bool $unguarded = false;
 
     /**
      * The actual columns that exist on the database and can be guarded.
@@ -75,7 +70,7 @@ trait GuardsAttributes
      */
     public function getGuarded(): array
     {
-        return self::$unguarded === true
+        return static::isUnguarded()
             ? []
             : $this->guarded;
     }
@@ -106,10 +101,12 @@ trait GuardsAttributes
 
     /**
      * Disable all mass assignable restrictions.
+     *
+     * Uses Context for coroutine-safe state management.
      */
     public static function unguard(bool $state = true): void
     {
-        static::$unguarded = $state;
+        Context::set(self::UNGUARDED_CONTEXT_KEY, $state);
     }
 
     /**
@@ -117,7 +114,7 @@ trait GuardsAttributes
      */
     public static function reguard(): void
     {
-        static::$unguarded = false;
+        Context::set(self::UNGUARDED_CONTEXT_KEY, false);
     }
 
     /**
@@ -125,11 +122,14 @@ trait GuardsAttributes
      */
     public static function isUnguarded(): bool
     {
-        return static::$unguarded;
+        return (bool) Context::get(self::UNGUARDED_CONTEXT_KEY, false);
     }
 
     /**
      * Run the given callable while being unguarded.
+     *
+     * Uses Context for coroutine-safe state management, ensuring concurrent
+     * requests don't interfere with each other's guarding state.
      *
      * @template TReturn
      *
@@ -138,16 +138,17 @@ trait GuardsAttributes
      */
     public static function unguarded(callable $callback): mixed
     {
-        if (static::$unguarded) {
+        if (static::isUnguarded()) {
             return $callback();
         }
 
-        static::unguard();
+        $wasUnguarded = Context::get(self::UNGUARDED_CONTEXT_KEY, false);
+        Context::set(self::UNGUARDED_CONTEXT_KEY, true);
 
         try {
             return $callback();
         } finally {
-            static::reguard();
+            Context::set(self::UNGUARDED_CONTEXT_KEY, $wasUnguarded);
         }
     }
 
@@ -156,7 +157,7 @@ trait GuardsAttributes
      */
     public function isFillable(string $key): bool
     {
-        if (static::$unguarded) {
+        if (static::isUnguarded()) {
             return true;
         }
 
@@ -233,7 +234,7 @@ trait GuardsAttributes
      */
     protected function fillableFromArray(array $attributes): array
     {
-        if (count($this->getFillable()) > 0 && ! static::$unguarded) {
+        if (count($this->getFillable()) > 0 && ! static::isUnguarded()) {
             return array_intersect_key($attributes, array_flip($this->getFillable()));
         }
 

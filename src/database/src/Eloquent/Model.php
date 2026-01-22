@@ -76,6 +76,11 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     protected const EVENTS_DISABLED_CONTEXT_KEY = '__database.model.eventsDisabled';
 
     /**
+     * Context key for storing whether mass assignment is unguarded.
+     */
+    protected const UNGUARDED_CONTEXT_KEY = '__database.model.unguarded';
+
+    /**
      * The connection name for the model.
      */
     protected UnitEnum|string|null $connection = null;

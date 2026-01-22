@@ -10,6 +10,8 @@ use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Pool\Event\ReleaseConnection;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
+use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Event\Contracts\Dispatcher;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
@@ -23,6 +25,11 @@ use Throwable;
  */
 class PooledConnection implements PoolConnectionInterface
 {
+    /**
+     * Maximum allowed errors before marking connection as stale.
+     */
+    protected const MAX_ERROR_COUNT = 100;
+
     protected ?Connection $connection = null;
 
     protected ConnectionFactory $factory;
@@ -88,6 +95,16 @@ class PooledConnection implements PoolConnectionInterface
 
         $this->connection = $this->factory->make($this->config, $this->config['name'] ?? null);
 
+        // Configure event dispatcher for query events
+        if ($this->container->has(Dispatcher::class)) {
+            $this->connection->setEventDispatcher($this->container->get(Dispatcher::class));
+        }
+
+        // Configure transaction manager for after-commit callbacks
+        if ($this->container->has(DatabaseTransactionsManager::class)) {
+            $this->connection->setTransactionManager($this->container->get(DatabaseTransactionsManager::class));
+        }
+
         // Set up reconnector for the connection
         $this->connection->setReconnector(function ($connection) {
             $this->logger->warning('Database connection refreshing.');
@@ -143,6 +160,15 @@ class PooledConnection implements PoolConnectionInterface
             if ($this->connection instanceof Connection) {
                 // Reset modified state before releasing back to pool
                 $this->connection->forgetRecordModificationState();
+
+                // Clear any registered beforeExecuting callbacks to prevent leaks
+                $this->connection->clearBeforeExecutingCallbacks();
+
+                // Check error count and mark as stale if too high
+                if ($this->connection->getErrorCount() > self::MAX_ERROR_COUNT) {
+                    $this->logger->warning('Connection has too many errors, marking as stale.');
+                    $this->lastUseTime = 0.0;
+                }
 
                 // Roll back any uncommitted transactions
                 if ($this->connection->transactionLevel() > 0) {

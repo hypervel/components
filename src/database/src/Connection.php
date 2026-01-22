@@ -175,6 +175,13 @@ class Connection implements ConnectionInterface
     protected array $beforeExecutingCallbacks = [];
 
     /**
+     * The number of SQL execution errors on this connection.
+     *
+     * Used by connection pooling to detect and remove stale connections.
+     */
+    protected int $errorCount = 0;
+
+    /**
      * The connection resolvers.
      *
      * @var array<string, Closure>
@@ -708,6 +715,8 @@ class Connection implements ConnectionInterface
         // message to include the bindings with SQL, which will make this exception a
         // lot more helpful to the developer instead of just the database's errors.
         catch (Exception $e) {
+            ++$this->errorCount;
+
             $exceptionType = $this->isUniqueConstraintError($e)
                 ? UniqueConstraintViolationException::class
                 : QueryException::class;
@@ -896,6 +905,26 @@ class Connection implements ConnectionInterface
         $this->beforeExecutingCallbacks[] = $callback;
 
         return $this;
+    }
+
+    /**
+     * Clear all hooks registered to run before a database query.
+     *
+     * Used by connection pooling to prevent callback leaks between requests.
+     */
+    public function clearBeforeExecutingCallbacks(): void
+    {
+        $this->beforeExecutingCallbacks = [];
+    }
+
+    /**
+     * Get the number of SQL execution errors on this connection.
+     *
+     * Used by connection pooling to detect stale connections.
+     */
+    public function getErrorCount(): int
+    {
+        return $this->errorCount;
     }
 
     /**
@@ -1291,6 +1320,14 @@ class Connection implements ConnectionInterface
         $this->transactionsManager = $manager;
 
         return $this;
+    }
+
+    /**
+     * Get the transaction manager instance.
+     */
+    public function getTransactionManager(): ?DatabaseTransactionsManager
+    {
+        return $this->transactionsManager;
     }
 
     /**

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database;
 
 use Closure;
+use Hypervel\Context\Context;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Foundation\Contracts\Application;
@@ -27,6 +28,11 @@ class DatabaseManager implements ConnectionResolverInterface
     use Macroable {
         __call as macroCall;
     }
+
+    /**
+     * Context key for storing per-coroutine default connection override.
+     */
+    protected const DEFAULT_CONNECTION_CONTEXT_KEY = '__database.defaultConnection';
 
     /**
      * The active connection instances.
@@ -263,17 +269,24 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * Set the default database connection for the callback execution.
+     *
+     * Uses Context for coroutine-safe state management, ensuring concurrent
+     * requests don't interfere with each other's default connection.
      */
     public function usingConnection(UnitEnum|string $name, callable $callback): mixed
     {
-        $previousName = $this->getDefaultConnection();
+        $previous = Context::get(self::DEFAULT_CONNECTION_CONTEXT_KEY);
 
-        $this->setDefaultConnection($name = enum_value($name));
+        Context::set(self::DEFAULT_CONNECTION_CONTEXT_KEY, enum_value($name));
 
         try {
             return $callback();
         } finally {
-            $this->setDefaultConnection($previousName);
+            if ($previous === null) {
+                Context::destroy(self::DEFAULT_CONNECTION_CONTEXT_KEY);
+            } else {
+                Context::set(self::DEFAULT_CONNECTION_CONTEXT_KEY, $previous);
+            }
         }
     }
 
@@ -295,10 +308,14 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * Get the default connection name.
+     *
+     * Checks Context first for per-coroutine override (from usingConnection()),
+     * then falls back to the global config default.
      */
     public function getDefaultConnection(): string
     {
-        return $this->app['config']['database.default'];
+        return Context::get(self::DEFAULT_CONNECTION_CONTEXT_KEY)
+            ?? $this->app['config']['database.default'];
     }
 
     /**
