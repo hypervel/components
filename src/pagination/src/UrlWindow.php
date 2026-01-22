@@ -38,6 +38,7 @@ class UrlWindow
      */
     public function get(): array
     {
+        /** @phpstan-ignore property.notFound (onEachSide is a public property on the concrete class) */
         $onEachSide = $this->paginator->onEachSide;
 
         if ($this->paginator->lastPage() < ($onEachSide * 2) + 8) {
