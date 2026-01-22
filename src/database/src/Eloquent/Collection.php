@@ -766,9 +766,9 @@ class Collection extends BaseCollection implements QueueableCollection
      * {@inheritDoc}
      *
      * @return \Hypervel\Support\Collection<int<0, 1>, static<TKey, TModel>>
+     * @phpstan-ignore return.phpDocType, return.type (partition returns Collection of collections)
      */
     #[\Override]
-    // @phpstan-ignore return.type, return.phpDocType (partition returns Collection of collections)
     public function partition(mixed $key, mixed $operator = null, mixed $value = null): static
     {
         return parent::partition(...func_get_args())->toBase();

@@ -40,6 +40,7 @@ trait QueriesRelationships
     {
         if (is_string($relation)) {
             if (str_contains($relation, '.')) {
+                // @phpstan-ignore argument.type (callback template types don't narrow through forwarding)
                 return $this->hasNested($relation, $operator, $count, $boolean, $callback);
             }
 
@@ -47,6 +48,7 @@ trait QueriesRelationships
         }
 
         if ($relation instanceof MorphTo) {
+            // @phpstan-ignore argument.type (callback template types don't narrow through forwarding)
             return $this->hasMorph($relation, ['*'], $operator, $count, $boolean, $callback);
         }
 
