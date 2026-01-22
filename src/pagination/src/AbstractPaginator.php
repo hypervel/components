@@ -7,9 +7,11 @@ namespace Hypervel\Pagination;
 use Closure;
 use Hypervel\Collection\Arr;
 use Hypervel\Collection\Collection;
-use Hypervel\Contract\Htmlable;
+use Hypervel\Support\Contracts\CanBeEscapedWhenCastToString;
+use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\Tappable;
+use Hypervel\Support\Traits\TransformsToResourceCollection;
 use Stringable;
 use Traversable;
 
@@ -20,9 +22,9 @@ use Traversable;
  *
  * @mixin Collection<TKey, TValue>
  */
-abstract class AbstractPaginator implements Htmlable, Stringable
+abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlable, Stringable
 {
-    use ForwardsCalls, Tappable;
+    use ForwardsCalls, Tappable, TransformsToResourceCollection;
 
     /**
      * All of the items being paginated.
@@ -62,6 +64,11 @@ abstract class AbstractPaginator implements Htmlable, Stringable
      * The query string variable used to store the page.
      */
     protected string $pageName = 'page';
+
+    /**
+     * Indicates that the paginator's string representation should be escaped when __toString is invoked.
+     */
+    protected bool $escapeWhenCastingToString = false;
 
     /**
      * The number of links to display on each side of current page link.
@@ -622,8 +629,9 @@ abstract class AbstractPaginator implements Htmlable, Stringable
      * Determine if the given item exists.
      *
      * @param  TKey  $key
+     * @return bool
      */
-    public function offsetExists(mixed $key): bool
+    public function offsetExists($key): bool
     {
         return $this->items->has($key);
     }
@@ -634,7 +642,7 @@ abstract class AbstractPaginator implements Htmlable, Stringable
      * @param  TKey  $key
      * @return TValue|null
      */
-    public function offsetGet(mixed $key): mixed
+    public function offsetGet($key): mixed
     {
         return $this->items->get($key);
     }
@@ -644,8 +652,9 @@ abstract class AbstractPaginator implements Htmlable, Stringable
      *
      * @param  TKey|null  $key
      * @param  TValue  $value
+     * @return void
      */
-    public function offsetSet(mixed $key, mixed $value): void
+    public function offsetSet($key, $value): void
     {
         $this->items->put($key, $value);
     }
@@ -654,8 +663,9 @@ abstract class AbstractPaginator implements Htmlable, Stringable
      * Unset the item at the given key.
      *
      * @param  TKey  $key
+     * @return void
      */
-    public function offsetUnset(mixed $key): void
+    public function offsetUnset($key): void
     {
         $this->items->forget($key);
     }
@@ -670,8 +680,6 @@ abstract class AbstractPaginator implements Htmlable, Stringable
 
     /**
      * Make dynamic calls into the collection.
-     *
-     * @param  array<int, mixed>  $parameters
      */
     public function __call(string $method, array $parameters): mixed
     {
@@ -683,7 +691,20 @@ abstract class AbstractPaginator implements Htmlable, Stringable
      */
     public function __toString(): string
     {
-        return (string) $this->render();
+        return $this->escapeWhenCastingToString
+            ? e((string) $this->render())
+            : (string) $this->render();
     }
 
+    /**
+     * Indicate that the paginator's string representation should be escaped when __toString is invoked.
+     *
+     * @return $this
+     */
+    public function escapeWhenCastingToString(bool $escape = true): static
+    {
+        $this->escapeWhenCastingToString = $escape;
+
+        return $this;
+    }
 }

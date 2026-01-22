@@ -6,21 +6,19 @@ namespace Hypervel\Support\Traits;
 
 use Hypervel\Database\Eloquent\Attributes\UseResource;
 use Hypervel\Database\Eloquent\Attributes\UseResourceCollection;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\Resources\Json\ResourceCollection;
 use LogicException;
 use ReflectionClass;
-use Throwable;
 
-/**
- * Provides the ability to transform a collection to a resource collection.
- */
 trait TransformsToResourceCollection
 {
     /**
      * Create a new resource collection instance for the given resource.
      *
-     * @param null|class-string<\Hypervel\Http\Resources\Json\JsonResource> $resourceClass
-     * @throws Throwable
+     * @param  class-string<\Hypervel\Http\Resources\Json\JsonResource>|null  $resourceClass
+     *
+     * @throws \Throwable
      */
     public function toResourceCollection(?string $resourceClass = null): ResourceCollection
     {
@@ -34,7 +32,7 @@ trait TransformsToResourceCollection
     /**
      * Guess the resource collection for the items.
      *
-     * @throws Throwable
+     * @throws \Throwable
      */
     protected function guessResourceCollection(): ResourceCollection
     {
@@ -46,14 +44,10 @@ trait TransformsToResourceCollection
 
         throw_unless(is_object($model), LogicException::class, 'Resource collection guesser expects the collection to contain objects.');
 
-        /** @var class-string $className */
+        /** @var class-string<Model> $className */
         $className = get_class($model);
 
-        throw_unless(
-            method_exists($className, 'guessResourceName'),
-            LogicException::class,
-            sprintf('Expected class %s to implement guessResourceName method. Make sure the model uses the TransformsToResource trait.', $className)
-        );
+        throw_unless(method_exists($className, 'guessResourceName'), LogicException::class, sprintf('Expected class %s to implement guessResourceName method. Make sure the model uses the TransformsToResource trait.', $className));
 
         $useResourceCollection = $this->resolveResourceCollectionFromAttribute($className);
 
@@ -70,8 +64,9 @@ trait TransformsToResourceCollection
         $resourceClasses = $className::guessResourceName();
 
         foreach ($resourceClasses as $resourceClass) {
-            $resourceCollection = $resourceClass . 'Collection';
-            if (class_exists($resourceCollection)) {
+            $resourceCollection = $resourceClass.'Collection';
+
+            if (is_string($resourceCollection) && class_exists($resourceCollection)) {
                 return new $resourceCollection($this);
             }
         }
@@ -86,10 +81,10 @@ trait TransformsToResourceCollection
     }
 
     /**
-     * Get the resource class from the UseResource attribute.
+     * Get the resource class from the class attribute.
      *
-     * @param class-string $class
-     * @return null|class-string<\Hypervel\Http\Resources\Json\JsonResource>
+     * @param  class-string<\Hypervel\Http\Resources\Json\JsonResource>  $class
+     * @return class-string<*>|null
      */
     protected function resolveResourceFromAttribute(string $class): ?string
     {
@@ -105,10 +100,10 @@ trait TransformsToResourceCollection
     }
 
     /**
-     * Get the resource collection class from the UseResourceCollection attribute.
+     * Get the resource collection class from the class attribute.
      *
-     * @param class-string $class
-     * @return null|class-string<\Hypervel\Http\Resources\Json\ResourceCollection>
+     * @param  class-string<\Hypervel\Http\Resources\Json\ResourceCollection>  $class
+     * @return class-string<*>|null
      */
     protected function resolveResourceCollectionFromAttribute(string $class): ?string
     {
