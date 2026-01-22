@@ -60,9 +60,6 @@ parameters:
     - identifier: method.templateTypeNotInParameter
       path: src/database/*
 
-    # Relation subclass methods called on base Relation type - getMorphType(), getForeignKeyName() etc. only exist on specific subclasses
-    - '#Call to an undefined method Hypervel\\Database\\Eloquent\\Relations\\Relation<.*, .*, .*>::(getMorphType|getForeignKeyName|getQualifiedForeignKeyName|getQualifiedParentKeyName|getExistenceCompareKey)\(\)#'
-
     # Eloquent Model magic __call forwarding to Query Builder
     - '#Call to an undefined method Hypervel\\Database\\Eloquent\\Model::(where|whereIn|find|first|get|create|update|forceCreate)\(\)#'
     - '#Call to an undefined method Hypervel\\Database\\Query\\Builder::(with|load)\(\)#'

@@ -166,6 +166,7 @@ abstract class Seeder
         $uses = array_flip(class_uses_recursive(static::class));
 
         if (isset($uses[WithoutModelEvents::class])) {
+            // @phpstan-ignore method.notFound (method provided by WithoutModelEvents trait when used)
             $callback = $this->withoutModelEvents($callback);
         }
 

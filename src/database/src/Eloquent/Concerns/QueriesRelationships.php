@@ -250,6 +250,7 @@ trait QueriesRelationships
                 || ($operator === '!=' && $count >= 1));
 
         if ($types === ['*']) {
+            // @phpstan-ignore method.notFound (getMorphType exists on MorphTo, not base Relation)
             $types = $this->model->newModelQuery()->distinct()->pluck($relation->getMorphType())
                 ->filter()
                 ->map(fn ($item) => enum_value($item))
@@ -275,6 +276,7 @@ trait QueriesRelationships
                         };
                     }
 
+                    // @phpstan-ignore method.notFound (getMorphType exists on MorphTo, not base Relation)
                     $query->where($this->qualifyColumn($relation->getMorphType()), '=', (new $type)->getMorphClass())
                         ->whereHas($belongsTo, $callback, $operator, $count);
                 });

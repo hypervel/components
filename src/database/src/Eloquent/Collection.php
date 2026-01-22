@@ -563,6 +563,7 @@ class Collection extends BaseCollection implements QueueableCollection
      */
     public function makeHidden($attributes)
     {
+        // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
         return $this->each->makeHidden($attributes);
     }
 
@@ -574,6 +575,7 @@ class Collection extends BaseCollection implements QueueableCollection
      */
     public function mergeHidden($attributes)
     {
+        // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
         return $this->each->mergeHidden($attributes);
     }
 
@@ -585,6 +587,7 @@ class Collection extends BaseCollection implements QueueableCollection
      */
     public function setHidden($hidden)
     {
+        // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
         return $this->each->setHidden($hidden);
     }
 
@@ -596,6 +599,7 @@ class Collection extends BaseCollection implements QueueableCollection
      */
     public function makeVisible($attributes)
     {
+        // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
         return $this->each->makeVisible($attributes);
     }
 
@@ -607,6 +611,7 @@ class Collection extends BaseCollection implements QueueableCollection
      */
     public function mergeVisible($attributes)
     {
+        // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
         return $this->each->mergeVisible($attributes);
     }
 
@@ -618,6 +623,7 @@ class Collection extends BaseCollection implements QueueableCollection
      */
     public function setVisible($visible)
     {
+        // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
         return $this->each->setVisible($visible);
     }
 
@@ -629,6 +635,7 @@ class Collection extends BaseCollection implements QueueableCollection
      */
     public function append($attributes)
     {
+        // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
         return $this->each->append($attributes);
     }
 
@@ -640,6 +647,7 @@ class Collection extends BaseCollection implements QueueableCollection
      */
     public function setAppends(array $appends)
     {
+        // @phpstan-ignore return.type (HigherOrderProxy returns $this, not TModel)
         return $this->each->setAppends($appends);
     }
 
