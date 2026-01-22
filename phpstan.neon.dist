@@ -48,6 +48,21 @@ parameters:
     - '#Call to an undefined method TRelatedModel of Hypervel\\Database\\Eloquent\\Model::#'
     - '#Call to an undefined method TPivotModel of Hypervel\\Database\\Eloquent\\Relations\\Pivot::#'
 
+    # Container::getInstance() - PHPStan sees the interface as abstract but concrete implementation exists at runtime
+    - identifier: staticMethod.callToAbstract
+      path: src/database/*
+
+    # Deep generic template limitations - PHPStan can't fully resolve complex generic type relationships
+    - identifier: generics.lessTypes
+      path: src/database/*
+    - identifier: generics.notSubtype
+      path: src/database/*
+    - identifier: method.templateTypeNotInParameter
+      path: src/database/*
+
+    # Relation subclass methods called on base Relation type - getMorphType(), getForeignKeyName() etc. only exist on specific subclasses
+    - '#Call to an undefined method Hypervel\\Database\\Eloquent\\Relations\\Relation<.*, .*, .*>::(getMorphType|getForeignKeyName|getQualifiedForeignKeyName|getQualifiedParentKeyName|getExistenceCompareKey)\(\)#'
+
     # Eloquent Model magic __call forwarding to Query Builder
     - '#Call to an undefined method Hypervel\\Database\\Eloquent\\Model::(where|whereIn|find|first|get|create|update|forceCreate)\(\)#'
     - '#Call to an undefined method Hypervel\\Database\\Query\\Builder::(with|load)\(\)#'
