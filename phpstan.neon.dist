@@ -39,6 +39,7 @@ parameters:
     - '#Call to an undefined method Hypervel\\Database\\Schema\\IndexDefinition::#'
     - '#Call to an undefined method Hypervel\\Database\\Schema\\ForeignKeyDefinition::#'
     - '#Access to an undefined property Hypervel\\Database\\Schema\\ForeignIdColumnDefinition::\$#'
+    - '#Call to an undefined method Hypervel\\Database\\Schema\\ForeignIdColumnDefinition::#'
 
     # SoftDeletes trait methods - optionally mixed in, can't be statically verified
     - '#Call to an undefined method .*::(getDeletedAtColumn|getQualifiedDeletedAtColumn|withTrashed|withoutTrashed|onlyTrashed|forceDelete|restore|trashed|isForceDeleting)\(\)#'

@@ -3498,9 +3498,11 @@ class Builder implements BuilderContract
 
         $this->applyBeforeQueryCallbacks();
 
+        // @phpstan-ignore method.notFound (driver-specific method checked by method_exists above)
         $sql = $this->grammar->compileUpdateFrom($this, $values);
 
         return $this->connection->update($sql, $this->cleanBindings(
+            // @phpstan-ignore method.notFound (driver-specific method checked by method_exists above)
             $this->grammar->prepareBindingsForUpdateFrom($this->bindings, $values)
         ));
     }

@@ -557,7 +557,7 @@ class Grammar extends BaseGrammar
     /**
      * Prepare the binding for a "JSON contains" statement.
      */
-    public function prepareBindingForJsonContains(mixed $binding): string
+    public function prepareBindingForJsonContains(mixed $binding): mixed
     {
         return json_encode($binding, JSON_UNESCAPED_UNICODE);
     }

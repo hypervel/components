@@ -190,11 +190,13 @@ class BlueprintState
                 break;
 
             case 'primary':
+                // @phpstan-ignore assign.propertyType (Blueprint commands are Fluent, stored as IndexDefinition)
                 $this->primaryKey = $command;
                 break;
 
             case 'unique':
             case 'index':
+                // @phpstan-ignore assign.propertyType (Blueprint commands are Fluent, stored as IndexDefinition)
                 $this->indexes[] = $command;
                 break;
 
@@ -209,6 +211,7 @@ class BlueprintState
                 break;
 
             case 'foreign':
+                // @phpstan-ignore assign.propertyType (Blueprint commands are Fluent, stored as ForeignKeyDefinition)
                 $this->foreignKeys[] = $command;
                 break;
 

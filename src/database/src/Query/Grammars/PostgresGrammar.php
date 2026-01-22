@@ -625,6 +625,7 @@ class PostgresGrammar extends Grammar
             ->map(fn ($attribute) => $this->parseJsonPathArrayKeys($attribute))
             ->collapse()
             ->map(function ($attribute) use ($quote) {
+                // @phpstan-ignore notIdentical.alwaysFalse (PHPDoc type inference too narrow; runtime values can be numeric strings)
                 return filter_var($attribute, FILTER_VALIDATE_INT) !== false
                     ? $attribute
                     : $quote.$attribute.$quote;

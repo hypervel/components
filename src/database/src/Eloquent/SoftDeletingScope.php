@@ -121,6 +121,7 @@ class SoftDeletingScope implements Scope
                 return $builder->withoutTrashed();
             }
 
+            // @phpstan-ignore argument.type ($this is rebound to SoftDeletingScope when macro is called)
             return $builder->withoutGlobalScope($this);
         });
     }
@@ -135,6 +136,7 @@ class SoftDeletingScope implements Scope
         $builder->macro('withoutTrashed', function (Builder $builder) {
             $model = $builder->getModel();
 
+            // @phpstan-ignore argument.type ($this is rebound to SoftDeletingScope when macro is called)
             $builder->withoutGlobalScope($this)->whereNull(
                 $model->getQualifiedDeletedAtColumn()
             );
@@ -153,6 +155,7 @@ class SoftDeletingScope implements Scope
         $builder->macro('onlyTrashed', function (Builder $builder) {
             $model = $builder->getModel();
 
+            // @phpstan-ignore argument.type ($this is rebound to SoftDeletingScope when macro is called)
             $builder->withoutGlobalScope($this)->whereNotNull(
                 $model->getQualifiedDeletedAtColumn()
             );
