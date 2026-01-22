@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Sanctum;
 
 use BackedEnum;
-use Hypervel\Database\Eloquent\Events\Deleting;
-use Hypervel\Database\Eloquent\Events\Updating;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Auth\Contracts\Authenticatable;
 use Hypervel\Cache\CacheManager;
@@ -62,24 +60,21 @@ class PersonalAccessToken extends Model implements HasAbilities
         'token',
     ];
 
-    /**
-     * Handle the updating event.
-     */
-    public function updating(Updating $event): void
+    protected static function boot(): void
     {
-        if (config('sanctum.cache.enabled')) {
-            self::clearTokenCache($this->id);
-        }
-    }
+        parent::boot();
 
-    /**
-     * Handle the deleting event.
-     */
-    public function deleting(Deleting $event): void
-    {
-        if (config('sanctum.cache.enabled')) {
-            self::clearTokenCache($this->id);
-        }
+        static::registerCallback('updating', function ($model) {
+            if (config('sanctum.cache.enabled')) {
+                self::clearTokenCache($model->id);
+            }
+        });
+
+        static::registerCallback('deleting', function ($model) {
+            if (config('sanctum.cache.enabled')) {
+                self::clearTokenCache($model->id);
+            }
+        });
     }
 
     /**
