@@ -14,6 +14,13 @@ use Stringable;
 class Str extends BaseStr
 {
     /**
+     * The callback that should be used to generate random strings.
+     *
+     * @var callable|null
+     */
+    protected static $randomStringFactory;
+
+    /**
      * Get a string from a BackedEnum, Stringable, or scalar value.
      *
      * Useful for APIs that accept mixed identifier types, such as
@@ -127,5 +134,38 @@ class Str extends BaseStr
         }
 
         return $fields->getVersion() === $version;
+    }
+
+    /**
+     * Generate a more truly "random" alpha-numeric string.
+     */
+    public static function random(int $length = 16): string
+    {
+        if (is_callable(static::$randomStringFactory)) {
+            return call_user_func(static::$randomStringFactory, $length);
+        }
+
+        return parent::random($length);
+    }
+
+    /**
+     * Set the callable that will be used to generate random strings.
+     *
+     * @param  callable|null  $factory
+     * @return void
+     */
+    public static function createRandomStringsUsing(?callable $factory = null)
+    {
+        static::$randomStringFactory = $factory;
+    }
+
+    /**
+     * Indicate that random strings should be created normally and not using a custom factory.
+     *
+     * @return void
+     */
+    public static function createRandomStringsNormally()
+    {
+        static::$randomStringFactory = null;
     }
 }
