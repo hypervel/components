@@ -98,6 +98,7 @@ trait HasEvents
         $isEloquentGrandchild = is_subclass_of(static::class, Model::class)
             && get_parent_class(static::class) !== Model::class;
 
+        // @phpstan-ignore return.type (flatten() produces class-strings from getArguments(), PHPStan can't trace)
         return (new Collection($reflectionClass->getAttributes(ObservedBy::class)))
             ->map(fn ($attribute) => $attribute->getArguments())
             ->flatten()

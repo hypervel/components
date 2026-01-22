@@ -1387,6 +1387,7 @@ class Blueprint
         if ($this->after) {
             $definition->after($this->after);
 
+            // @phpstan-ignore property.notFound (name is a Fluent attribute set when column is created)
             $this->after = $definition->name;
         }
 

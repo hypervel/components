@@ -170,6 +170,7 @@ abstract class HasOneOrManyThrough extends Relation
         // relationship as this will allow us to quickly access all of the related
         // models without having to do nested looping which will be quite slow.
         foreach ($results as $result) {
+            // @phpstan-ignore property.notFound (laravel_through_key is a select alias added during query)
             $dictionary[$result->laravel_through_key][] = $result;
         }
 
