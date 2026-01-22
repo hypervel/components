@@ -118,6 +118,7 @@ class Collection extends BaseCollection implements QueueableCollection
             return $this;
         }
 
+        // @phpstan-ignore method.notFound (withAggregate is on Eloquent\Builder; PHPStan loses type through chain)
         $models = $this->first()->newModelQuery()
             ->whereKey($this->modelKeys())
             ->select($this->first()->getKeyName())
@@ -253,10 +254,9 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a relationship path for models of the given type if it is not already eager loaded.
      *
-     * @param  array<int, <string, class-string>>  $tuples
-     * @return void
+     * @param  array<int, array{string, class-string}>  $tuples
      */
-    public function loadMissingRelationshipChain(array $tuples)
+    public function loadMissingRelationshipChain(array $tuples): void
     {
         [$relation, $class] = array_shift($tuples);
 
