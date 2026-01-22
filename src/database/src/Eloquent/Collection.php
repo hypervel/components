@@ -455,6 +455,7 @@ class Collection extends BaseCollection implements QueueableCollection
 
         $model = $this->first();
 
+        // @phpstan-ignore method.notFound (getDictionary is on Eloquent\Collection; PHPStan loses type through chain)
         $freshModels = $model->newQueryWithoutScopes()
             ->with(is_string($with) ? func_get_args() : $with)
             ->whereIn($model->getKeyName(), $this->modelKeys())
@@ -478,6 +479,7 @@ class Collection extends BaseCollection implements QueueableCollection
 
         foreach ($this->items as $item) {
             if (! isset($dictionary[$this->getDictionaryKey($item->getKey())])) {
+                // @phpstan-ignore method.notFound (new static loses template types)
                 $diff->add($item);
             }
         }
@@ -503,6 +505,7 @@ class Collection extends BaseCollection implements QueueableCollection
 
         foreach ($this->items as $item) {
             if (isset($dictionary[$this->getDictionaryKey($item->getKey())])) {
+                // @phpstan-ignore method.notFound (new static loses template types)
                 $intersect->add($item);
             }
         }
