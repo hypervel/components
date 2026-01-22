@@ -261,6 +261,7 @@ class Collection extends BaseCollection implements QueueableCollection
         [$relation, $class] = array_shift($tuples);
 
         $this->filter(function ($model) use ($relation, $class) {
+            // @phpstan-ignore function.impossibleType (collection may contain nulls at runtime)
             return ! is_null($model) &&
                 ! $model->relationLoaded($relation) &&
                 $model::class === $class;
@@ -296,6 +297,7 @@ class Collection extends BaseCollection implements QueueableCollection
             $relation = reset($relation);
         }
 
+        // @phpstan-ignore function.impossibleType (collection may contain nulls at runtime)
         $models->filter(fn ($model) => ! is_null($model) && ! $model->relationLoaded($name))->load($relation);
 
         if (empty($path)) {
@@ -416,6 +418,7 @@ class Collection extends BaseCollection implements QueueableCollection
     {
         $result = parent::map($callback);
 
+        // @phpstan-ignore instanceof.alwaysTrue (callback may transform to non-Model types)
         return $result->contains(fn ($item) => ! $item instanceof Model) ? $result->toBase() : $result;
     }
 
@@ -434,6 +437,7 @@ class Collection extends BaseCollection implements QueueableCollection
     {
         $result = parent::mapWithKeys($callback);
 
+        // @phpstan-ignore instanceof.alwaysTrue (callback may transform to non-Model types)
         return $result->contains(fn ($item) => ! $item instanceof Model) ? $result->toBase() : $result;
     }
 
