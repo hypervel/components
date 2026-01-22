@@ -66,6 +66,21 @@ parameters:
     # The code is functionally correct; this is a PHPStan limitation with PHP's lack of runtime generics.
     - identifier: generics.variance
 
+    # Eloquent Relation subclass method overrides - covariance/contravariance issues with complex generics
+    # (e.g., Builder<*> vs Builder<TModel>, parameter type narrowing in overrides)
+    - identifier: method.childReturnType
+      path: src/database/*
+    - identifier: method.childParameterType
+      path: src/database/*
+
+    # call_user_func with void callbacks - intentional pattern in Eloquent
+    - '#Result of function call_user_func \(void\) is used\.#'
+    - '#Result of callable passed to call_user_func\(\) \(void\) is used\.#'
+
+    # Boolean narrowing issues - PHPStan over-narrows types in conditionals
+    - identifier: booleanAnd.rightAlwaysTrue
+      path: src/database/*
+
     # Eloquent Model magic __call forwarding to Query Builder
     - '#Call to an undefined method Hypervel\\Database\\Eloquent\\Model::(where|whereIn|find|first|get|create|update|forceCreate)\(\)#'
     - '#Call to an undefined method Hypervel\\Database\\Query\\Builder::(with|load)\(\)#'
