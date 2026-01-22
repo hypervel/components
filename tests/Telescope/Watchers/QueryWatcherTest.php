@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Database\Connection;
-use Hyperf\Database\Events\QueryExecuted;
+use Hypervel\Database\Connection;
+use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Telescope\EntryType;

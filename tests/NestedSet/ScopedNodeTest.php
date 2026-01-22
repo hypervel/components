@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\NestedSet;
 
-use Hyperf\Database\Model\ModelNotFoundException;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;

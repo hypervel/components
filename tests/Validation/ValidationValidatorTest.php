@@ -10,7 +10,7 @@ use Countable;
 use DateTime;
 use DateTimeImmutable;
 use Egulias\EmailValidator\Validation\NoRFCWarningsValidation;
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Model;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Auth\Contracts\Authenticatable;
 use Hypervel\Auth\Contracts\Guard;

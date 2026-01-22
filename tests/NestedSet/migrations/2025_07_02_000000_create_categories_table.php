@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Hyperf\Database\Schema\Blueprint;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Migrations\Migration;
 use Hypervel\NestedSet\NestedSet;
 use Hypervel\Support\Facades\Schema;

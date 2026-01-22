@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\NestedSet\Models;
 
-use Hyperf\Database\Model\SoftDeletes;
+use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\NestedSet\HasNode;
 

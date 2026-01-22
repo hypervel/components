@@ -10,7 +10,7 @@ use Hyperf\Context\RequestContext;
 use Hyperf\Context\ResponseContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\SessionInterface;
-use Hyperf\Database\Model\ModelNotFoundException;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hyperf\Di\MethodDefinitionCollector;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hyperf\HttpMessage\Exception\HttpException;

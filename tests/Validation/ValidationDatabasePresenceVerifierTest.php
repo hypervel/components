@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Closure;
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Query\Builder;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Validation\DatabasePresenceVerifier;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;

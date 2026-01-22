@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Notifications;
 
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Notifications\Channels\DatabaseChannel;
 use Hypervel\Notifications\Messages\DatabaseMessage;
 use Hypervel\Notifications\Notification;
