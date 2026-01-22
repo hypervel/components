@@ -99,6 +99,7 @@ trait InteractsWithPivotTable
         // all of the entities that exist in the "current" array but are not in the
         // array of the new IDs given to the method which will complete the sync.
         if ($detaching) {
+            // @phpstan-ignore argument.type ($current is array of IDs from pluck, PHPStan loses type through collection)
             $detach = array_diff($current, array_keys($records));
 
             if (count($detach) > 0) {
