@@ -33,26 +33,6 @@ class Str
      */
     public const INVISIBLE_CHARACTERS = '\x{0009}\x{0020}\x{00A0}\x{00AD}\x{034F}\x{061C}\x{115F}\x{1160}\x{17B4}\x{17B5}\x{180E}\x{2000}\x{2001}\x{2002}\x{2003}\x{2004}\x{2005}\x{2006}\x{2007}\x{2008}\x{2009}\x{200A}\x{200B}\x{200C}\x{200D}\x{200E}\x{200F}\x{202F}\x{205F}\x{2060}\x{2061}\x{2062}\x{2063}\x{2064}\x{2065}\x{206A}\x{206B}\x{206C}\x{206D}\x{206E}\x{206F}\x{3000}\x{2800}\x{3164}\x{FEFF}\x{FFA0}\x{1D159}\x{1D173}\x{1D174}\x{1D175}\x{1D176}\x{1D177}\x{1D178}\x{1D179}\x{1D17A}\x{E0020}';
 
-    /**
-     * The cache of snake-cased words.
-     *
-     * @var array<string, array<string, string>>
-     */
-    protected static array $snakeCache = [];
-
-    /**
-     * The cache of camel-cased words.
-     *
-     * @var array<string, string>
-     */
-    protected static array $camelCache = [];
-
-    /**
-     * The cache of studly-cased words.
-     *
-     * @var array<string, string>
-     */
-    protected static array $studlyCache = [];
 
     /**
      * The callback that should be used to generate UUIDs.
@@ -186,11 +166,7 @@ class Str
      */
     public static function camel(string $value): string
     {
-        if (isset(static::$camelCache[$value])) {
-            return static::$camelCache[$value];
-        }
-
-        return static::$camelCache[$value] = lcfirst(static::studly($value));
+        return lcfirst(static::studly($value));
     }
 
     /**
@@ -1264,19 +1240,13 @@ class Str
      */
     public static function snake(string $value, string $delimiter = '_'): string
     {
-        $key = $value;
-
-        if (isset(static::$snakeCache[$key][$delimiter])) {
-            return static::$snakeCache[$key][$delimiter];
-        }
-
         if (! ctype_lower($value)) {
             $value = preg_replace('/\s+/u', '', ucwords($value));
 
             $value = static::lower(preg_replace('/(.)(?=[A-Z])/u', '$1'.$delimiter, $value));
         }
 
-        return static::$snakeCache[$key][$delimiter] = $value;
+        return $value;
     }
 
     /**
@@ -1372,17 +1342,11 @@ class Str
      */
     public static function studly(string $value): string
     {
-        $key = $value;
-
-        if (isset(static::$studlyCache[$key])) {
-            return static::$studlyCache[$key];
-        }
-
         $words = mb_split('\s+', static::replace(['-', '_'], ' ', $value));
 
         $studlyWords = array_map(fn ($word) => static::ucfirst($word), $words);
 
-        return static::$studlyCache[$key] = implode($studlyWords);
+        return implode($studlyWords);
     }
 
     /**
@@ -1742,15 +1706,5 @@ class Str
         }
 
         return $ulid;
-    }
-
-    /**
-     * Remove all strings from the casing caches.
-     */
-    public static function flushCache(): void
-    {
-        static::$snakeCache = [];
-        static::$camelCache = [];
-        static::$studlyCache = [];
     }
 }
