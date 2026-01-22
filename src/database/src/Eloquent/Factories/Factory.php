@@ -242,6 +242,7 @@ abstract class Factory
             $records = array_fill(0, $records, []);
         }
 
+        // @phpstan-ignore return.type (TModel lost through Collection->map closure)
         return new EloquentCollection(
             (new Collection($records))->map(function ($record) {
                 return $this->state($record)->create();
@@ -743,6 +744,7 @@ abstract class Factory
      */
     protected function newInstance(array $arguments = []): static
     {
+        // @phpstan-ignore return.type (new static preserves TModel at runtime, PHPStan can't track)
         return new static(...array_values(array_merge([
             'count' => $this->count,
             'states' => $this->states,

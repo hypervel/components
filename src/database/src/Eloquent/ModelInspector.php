@@ -49,7 +49,7 @@ class ModelInspector
      * Extract model details for the given model.
      *
      * @param  class-string<Model>|string  $model
-     * @return array{class: class-string<Model>, database: string, table: string, policy: class-string|null, attributes: BaseCollection<int, array<string, mixed>>, relations: BaseCollection<int, array<string, mixed>>, events: BaseCollection<int, array<string, mixed>>, observers: BaseCollection<int, array<string, mixed>>, collection: class-string<Collection<array-key, Model>>, builder: class-string<Builder<Model>>, resource: class-string|null}
+     * @return array{class: class-string<Model>, database: string|null, table: string, policy: class-string|null, attributes: BaseCollection<int, array<string, mixed>>, relations: BaseCollection<int, array<string, mixed>>, events: BaseCollection<int, array<string, mixed>>, observers: BaseCollection<int, array<string, mixed>>, collection: class-string<Collection<array-key, Model>>, builder: class-string<Builder<Model>>, resource: class-string|null}
      *
      * @throws \Hypervel\Container\BindingResolutionException
      */

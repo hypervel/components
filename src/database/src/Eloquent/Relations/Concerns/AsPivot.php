@@ -110,8 +110,6 @@ trait AsPivot
      *
      * Returns affected row count (int) rather than bool|null because pivots
      * use query builder deletion with compound keys.
-     *
-     * @phpstan-ignore method.childReturnType
      */
     public function delete(): int
     {

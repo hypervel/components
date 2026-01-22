@@ -36,6 +36,7 @@ trait HasCollection
             $collection->withRelationshipAutoloading();
         }
 
+        // @phpstan-ignore return.type (dynamic class instantiation from static property loses generic type)
         return $collection;
     }
 

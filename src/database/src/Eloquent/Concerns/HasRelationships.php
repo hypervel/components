@@ -364,6 +364,7 @@ trait HasRelationships
      */
     protected function morphEagerTo(string $name, string $type, string $id, ?string $ownerKey): MorphTo
     {
+        // @phpstan-ignore return.type (MorphTo<Model, $this> vs MorphTo<static, $this> - template covariance)
         return $this->newMorphTo(
             $this->newQuery()->setEagerLoads([]), $this, $id, $ownerKey, $type, $name
         );
@@ -441,6 +442,7 @@ trait HasRelationships
             $relationship = $this->{$relationship}();
         }
 
+        // @phpstan-ignore return.type (template covariance with $this vs static in PendingHasThroughRelationship)
         return new PendingHasThroughRelationship($this, $relationship);
     }
 

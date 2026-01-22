@@ -73,6 +73,15 @@ parameters:
     - identifier: method.childParameterType
       path: src/database/*
 
+    # Eloquent @mixin forwarding loses Eloquent\Builder type - methods forwarded via __call return Query\Builder
+    # but actually return $this (Eloquent\Builder) at runtime
+    - message: '#Method .* should return Hypervel\\Database\\Eloquent\\Builder<.*> but returns Hypervel\\Database\\Query\\Builder\.$#'
+      path: src/database/*
+
+    # Collection template covariance - specific array shapes are subtypes of array<string, mixed>
+    # but Collection<TValue> is invariant, so PHPStan rejects the more specific return type
+    - message: '#should return Hypervel\\Support\\Collection<.+, array<.+>> but returns Hypervel\\Support\\Collection<.+, array\{#'
+
     # call_user_func with void callbacks - intentional pattern in Eloquent
     - '#Result of function call_user_func \(void\) is used\.#'
     - '#Result of callable passed to call_user_func\(\) \(void\) is used\.#'

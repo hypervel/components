@@ -2102,13 +2102,13 @@ class Builder implements BuilderContract
      * @param  TModelNew  $model
      * @return static<TModelNew>
      */
-    // @phpstan-ignore return.type (PHPDoc expresses type change that PHP can't verify at compile time)
     public function setModel(Model $model)
     {
         $this->model = $model;
 
         $this->query->from($model->getTable());
 
+        // @phpstan-ignore return.type (PHPDoc expresses type change that PHP can't verify at compile time)
         return $this;
     }
 

@@ -238,8 +238,10 @@ abstract class HasOneOrMany extends Relation
     public function createOrFirst(array $attributes = [], array $values = []): Model
     {
         try {
+            // @phpstan-ignore return.type (generic type lost through withSavepointIfNeeded callback)
             return $this->getQuery()->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, $values)));
         } catch (UniqueConstraintViolationException $e) {
+            // @phpstan-ignore return.type (generic type lost through where()->first() chain)
             return $this->useWritePdo()->where($attributes)->first() ?? throw $e;
         }
     }

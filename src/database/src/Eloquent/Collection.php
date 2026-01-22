@@ -536,15 +536,16 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param  array<array-key, mixed>|null  $keys
      * @return static
      */
-    // @phpstan-ignore return.type (new static preserves TModel at runtime)
     public function only($keys): static
     {
         if (is_null($keys)) {
+            // @phpstan-ignore return.type (new static preserves TModel at runtime)
             return new static($this->items);
         }
 
         $dictionary = Arr::only($this->getDictionary(), array_map($this->getDictionaryKey(...), (array) $keys));
 
+        // @phpstan-ignore return.type (new static preserves TModel at runtime)
         return new static(array_values($dictionary));
     }
 
@@ -553,15 +554,16 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @param  array<array-key, mixed>|null  $keys
      */
-    // @phpstan-ignore return.type (new static preserves TModel at runtime)
     public function except($keys): static
     {
         if (is_null($keys)) {
+            // @phpstan-ignore return.type (new static preserves TModel at runtime)
             return new static($this->items);
         }
 
         $dictionary = Arr::except($this->getDictionary(), array_map($this->getDictionaryKey(...), (array) $keys));
 
+        // @phpstan-ignore return.type (new static preserves TModel at runtime)
         return new static(array_values($dictionary));
     }
 
@@ -766,11 +768,12 @@ class Collection extends BaseCollection implements QueueableCollection
      * {@inheritDoc}
      *
      * @return \Hypervel\Support\Collection<int<0, 1>, static<TKey, TModel>>
-     * @phpstan-ignore return.phpDocType, return.type (partition returns Collection of collections)
+     * @phpstan-ignore return.phpDocType (partition returns Collection of collections)
      */
     #[\Override]
     public function partition(mixed $key, mixed $operator = null, mixed $value = null): static
     {
+        // @phpstan-ignore return.type (parent returns Hyperf Collection, we convert to Support Collection)
         return parent::partition(...func_get_args())->toBase();
     }
 

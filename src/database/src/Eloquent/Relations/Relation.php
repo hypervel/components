@@ -196,6 +196,7 @@ abstract class Relation implements BuilderContract
             throw new MultipleRecordsFoundException($count);
         }
 
+        // @phpstan-ignore return.type (Collection::first() generic type lost; count check above ensures non-null)
         return $result->first();
     }
 

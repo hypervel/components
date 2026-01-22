@@ -1330,9 +1330,11 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Delete the model from the database.
      *
+     * Returns bool|null for standard models, int (affected rows) for pivot models.
+     *
      * @throws LogicException
      */
-    public function delete(): ?bool
+    public function delete(): int|bool|null
     {
         $this->mergeAttributesFromCachedCasts();
 

@@ -310,6 +310,7 @@ trait QueriesRelationships
 
         $belongsTo->getQuery()->mergeConstraintsFrom($relation->getQuery());
 
+        // @phpstan-ignore return.type (TModel IS TDeclaringModel in this context)
         return $belongsTo;
     }
 
@@ -594,7 +595,7 @@ trait QueriesRelationships
         }
 
         if (is_null($model)) {
-            // @phpstan-ignore method.notFound (getMorphType exists on MorphTo, not base Relation)
+            // @phpstan-ignore method.notFound, return.type (getMorphType exists on MorphTo; mixin returns $this at runtime)
             return $this->whereNull($relation->qualifyColumn($relation->getMorphType()), $boolean);
         }
 
@@ -1022,6 +1023,7 @@ trait QueriesRelationships
         // Here we have some other query that we want to merge the where constraints from. We will
         // copy over any where constraints on the query as well as remove any global scopes the
         // query might have removed. Then we will return ourselves with the finished merging.
+        // @phpstan-ignore return.type (mixin method returns $this at runtime)
         return $this->withoutGlobalScopes(
             $from->removedScopes()
         )->mergeWheres(
