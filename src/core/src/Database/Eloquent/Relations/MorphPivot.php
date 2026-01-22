@@ -9,6 +9,7 @@ use Hypervel\Database\Eloquent\Concerns\HasAttributes;
 use Hypervel\Database\Eloquent\Concerns\HasCallbacks;
 use Hypervel\Database\Eloquent\Concerns\HasGlobalScopes;
 use Hypervel\Database\Eloquent\Concerns\HasObservers;
+use Hypervel\Database\Eloquent\Concerns\HasTimestamps;
 use Psr\EventDispatcher\StoppableEventInterface;
 
 class MorphPivot extends BaseMorphPivot
@@ -17,6 +18,7 @@ class MorphPivot extends BaseMorphPivot
     use HasCallbacks;
     use HasGlobalScopes;
     use HasObservers;
+    use HasTimestamps;
 
     /**
      * Delete the pivot model record from the database.
