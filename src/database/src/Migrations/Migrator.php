@@ -610,6 +610,7 @@ class Migrator
                 $connection ?: $this->connection
             );
         } else {
+            // @phpstan-ignore return.type (resolver returns ConnectionInterface but concrete Connection in practice)
             return $this->resolver->connection($connection ?: $this->connection);
         }
     }
@@ -690,7 +691,6 @@ class Migrator
      * Write to the console's output.
      *
      * @param  class-string  $component
-     * @param  array<int, string>|string  ...$arguments
      */
     protected function write(string $component, mixed ...$arguments): void
     {

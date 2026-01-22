@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Migrations;
 
-use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
 use Hypervel\Database\Query\Builder;
 
@@ -172,7 +172,7 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
     /**
      * Resolve the database connection instance.
      */
-    public function getConnection(): Connection
+    public function getConnection(): ConnectionInterface
     {
         return $this->resolver->connection($this->connection);
     }
