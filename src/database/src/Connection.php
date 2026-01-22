@@ -918,6 +918,36 @@ class Connection implements ConnectionInterface
     }
 
     /**
+     * Reset all per-request state for pool release.
+     *
+     * Called when a connection is returned to the pool to ensure the next
+     * coroutine/request gets a clean connection without leaked state.
+     */
+    public function resetForPool(): void
+    {
+        // Clear registered callbacks
+        $this->beforeExecutingCallbacks = [];
+        $this->beforeStartingTransaction = [];
+
+        // Reset query logging
+        $this->queryLog = [];
+        $this->loggingQueries = false;
+
+        // Reset query duration tracking
+        $this->totalQueryDuration = 0.0;
+        $this->queryDurationHandlers = [];
+
+        // Reset connection routing
+        $this->readOnWriteConnection = false;
+
+        // Reset pretend mode (defensive - normally reset by finally block)
+        $this->pretending = false;
+
+        // Reset record modification state
+        $this->recordsModified = false;
+    }
+
+    /**
      * Get the number of SQL execution errors on this connection.
      *
      * Used by connection pooling to detect stale connections.

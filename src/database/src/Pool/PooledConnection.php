@@ -158,11 +158,8 @@ class PooledConnection implements PoolConnectionInterface
     {
         try {
             if ($this->connection instanceof Connection) {
-                // Reset modified state before releasing back to pool
-                $this->connection->forgetRecordModificationState();
-
-                // Clear any registered beforeExecuting callbacks to prevent leaks
-                $this->connection->clearBeforeExecutingCallbacks();
+                // Reset all per-request state to prevent leaks between coroutines
+                $this->connection->resetForPool();
 
                 // Check error count and mark as stale if too high
                 if ($this->connection->getErrorCount() > self::MAX_ERROR_COUNT) {
