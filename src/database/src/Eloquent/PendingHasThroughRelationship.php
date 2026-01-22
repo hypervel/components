@@ -1,9 +1,12 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Database\Eloquent;
 
 use BadMethodCallException;
 use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Relations\HasOneOrMany;
 use Hypervel\Database\Eloquent\Relations\MorphOneOrMany;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
@@ -20,14 +23,14 @@ class PendingHasThroughRelationship
      *
      * @var TDeclaringModel
      */
-    protected $rootModel;
+    protected Model $rootModel;
 
     /**
      * The local relationship.
      *
      * @var TLocalRelationship
      */
-    protected $localRelationship;
+    protected HasOneOrMany $localRelationship;
 
     /**
      * Create a pending has-many-through or has-one-through relationship.
@@ -35,10 +38,9 @@ class PendingHasThroughRelationship
      * @param  TDeclaringModel  $rootModel
      * @param  TLocalRelationship  $localRelationship
      */
-    public function __construct($rootModel, $localRelationship)
+    public function __construct(Model $rootModel, HasOneOrMany $localRelationship)
     {
         $this->rootModel = $rootModel;
-
         $this->localRelationship = $localRelationship;
     }
 
@@ -62,7 +64,7 @@ class PendingHasThroughRelationship
      *     )
      * )
      */
-    public function has($callback)
+    public function has(callable|string $callback): mixed
     {
         if (is_string($callback)) {
             $callback = fn () => $this->localRelationship->getRelated()->{$callback}();
@@ -99,12 +101,8 @@ class PendingHasThroughRelationship
 
     /**
      * Handle dynamic method calls into the model.
-     *
-     * @param  string  $method
-     * @param  array  $parameters
-     * @return mixed
      */
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         if (Str::startsWith($method, 'has')) {
             return $this->has((new Stringable($method))->after('has')->lcfirst()->toString());

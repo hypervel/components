@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent;
 
+use Hypervel\Events\QueuedClosure;
 use Hypervel\Support\Collection as BaseCollection;
 
 /**
@@ -68,10 +69,8 @@ trait SoftDeletes
 
     /**
      * Destroy the models for the given IDs.
-     *
-     * @param  \Hypervel\Support\Collection|array|int|string  $ids
      */
-    public static function forceDestroy($ids): int
+    public static function forceDestroy(Collection|BaseCollection|array|int|string $ids): int
     {
         if ($ids instanceof Collection) {
             $ids = $ids->modelKeys();
@@ -187,50 +186,40 @@ trait SoftDeletes
 
     /**
      * Register a "softDeleted" model event callback with the dispatcher.
-     *
-     * @param  \Hypervel\Events\QueuedClosure|callable|class-string  $callback
      */
-    public static function softDeleted($callback): void
+    public static function softDeleted(QueuedClosure|callable|string $callback): void
     {
         static::registerModelEvent('trashed', $callback);
     }
 
     /**
      * Register a "restoring" model event callback with the dispatcher.
-     *
-     * @param  \Hypervel\Events\QueuedClosure|callable|class-string  $callback
      */
-    public static function restoring($callback): void
+    public static function restoring(QueuedClosure|callable|string $callback): void
     {
         static::registerModelEvent('restoring', $callback);
     }
 
     /**
      * Register a "restored" model event callback with the dispatcher.
-     *
-     * @param  \Hypervel\Events\QueuedClosure|callable|class-string  $callback
      */
-    public static function restored($callback): void
+    public static function restored(QueuedClosure|callable|string $callback): void
     {
         static::registerModelEvent('restored', $callback);
     }
 
     /**
      * Register a "forceDeleting" model event callback with the dispatcher.
-     *
-     * @param  \Hypervel\Events\QueuedClosure|callable|class-string  $callback
      */
-    public static function forceDeleting($callback): void
+    public static function forceDeleting(QueuedClosure|callable|string $callback): void
     {
         static::registerModelEvent('forceDeleting', $callback);
     }
 
     /**
      * Register a "forceDeleted" model event callback with the dispatcher.
-     *
-     * @param  \Hypervel\Events\QueuedClosure|callable|class-string  $callback
      */
-    public static function forceDeleted($callback): void
+    public static function forceDeleted(QueuedClosure|callable|string $callback): void
     {
         static::registerModelEvent('forceDeleted', $callback);
     }

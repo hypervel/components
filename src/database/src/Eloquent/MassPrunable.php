@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Database\Eloquent;
 
 use Hypervel\Database\Events\ModelsPruned;
@@ -9,11 +11,8 @@ trait MassPrunable
 {
     /**
      * Prune all prunable models in the database.
-     *
-     * @param  int  $chunkSize
-     * @return int
      */
-    public function pruneAll(int $chunkSize = 1000)
+    public function pruneAll(int $chunkSize = 1000): int
     {
         $query = tap($this->prunable(), function ($query) use ($chunkSize) {
             $query->when(! $query->getQuery()->limit, function ($query) use ($chunkSize) {
@@ -41,9 +40,9 @@ trait MassPrunable
     /**
      * Get the prunable model query.
      *
-     * @return \Hypervel\Database\Eloquent\Builder<static>
+     * @return Builder<static>
      */
-    public function prunable()
+    public function prunable(): Builder
     {
         throw new LogicException('Please implement the prunable method on your model.');
     }

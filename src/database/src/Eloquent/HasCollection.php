@@ -22,10 +22,10 @@ trait HasCollection
     /**
      * Create a new Eloquent Collection instance.
      *
-     * @param  array<array-key, \Hypervel\Database\Eloquent\Model>  $models
+     * @param  array<array-key, Model>  $models
      * @return TCollection
      */
-    public function newCollection(array $models = [])
+    public function newCollection(array $models = []): Collection
     {
         // @phpstan-ignore assign.propertyType (generic type narrowing loss with static property)
         static::$resolvedCollectionClasses[static::class] ??= ($this->resolveCollectionFromAttribute() ?? static::$collectionClass);
@@ -44,7 +44,7 @@ trait HasCollection
      *
      * @return class-string<TCollection>|null
      */
-    public function resolveCollectionFromAttribute()
+    public function resolveCollectionFromAttribute(): ?string
     {
         $reflectionClass = new ReflectionClass(static::class);
 

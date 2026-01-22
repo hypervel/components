@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent;
 
+use Hypervel\Broadcasting\Channel;
 use Hypervel\Broadcasting\Contracts\Factory as BroadcastFactory;
+use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
+use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Support\Arr;
 
 trait BroadcastsEvents
@@ -44,11 +47,8 @@ trait BroadcastsEvents
 
     /**
      * Broadcast that the model was created.
-     *
-     * @param  \Hypervel\Broadcasting\Channel|\Hypervel\Broadcasting\Contracts\HasBroadcastChannel|array|null  $channels
-     * @return \Hypervel\Broadcasting\PendingBroadcast|null
      */
-    public function broadcastCreated($channels = null)
+    public function broadcastCreated(Channel|HasBroadcastChannel|array|null $channels = null): ?PendingBroadcast
     {
         return $this->broadcastIfBroadcastChannelsExistForEvent(
             $this->newBroadcastableModelEvent('created'), 'created', $channels
@@ -57,11 +57,8 @@ trait BroadcastsEvents
 
     /**
      * Broadcast that the model was updated.
-     *
-     * @param  \Hypervel\Broadcasting\Channel|\Hypervel\Broadcasting\Contracts\HasBroadcastChannel|array|null  $channels
-     * @return \Hypervel\Broadcasting\PendingBroadcast|null
      */
-    public function broadcastUpdated($channels = null)
+    public function broadcastUpdated(Channel|HasBroadcastChannel|array|null $channels = null): ?PendingBroadcast
     {
         return $this->broadcastIfBroadcastChannelsExistForEvent(
             $this->newBroadcastableModelEvent('updated'), 'updated', $channels
@@ -70,11 +67,8 @@ trait BroadcastsEvents
 
     /**
      * Broadcast that the model was trashed.
-     *
-     * @param  \Hypervel\Broadcasting\Channel|\Hypervel\Broadcasting\Contracts\HasBroadcastChannel|array|null  $channels
-     * @return \Hypervel\Broadcasting\PendingBroadcast|null
      */
-    public function broadcastTrashed($channels = null)
+    public function broadcastTrashed(Channel|HasBroadcastChannel|array|null $channels = null): ?PendingBroadcast
     {
         return $this->broadcastIfBroadcastChannelsExistForEvent(
             $this->newBroadcastableModelEvent('trashed'), 'trashed', $channels
@@ -83,11 +77,8 @@ trait BroadcastsEvents
 
     /**
      * Broadcast that the model was restored.
-     *
-     * @param  \Hypervel\Broadcasting\Channel|\Hypervel\Broadcasting\Contracts\HasBroadcastChannel|array|null  $channels
-     * @return \Hypervel\Broadcasting\PendingBroadcast|null
      */
-    public function broadcastRestored($channels = null)
+    public function broadcastRestored(Channel|HasBroadcastChannel|array|null $channels = null): ?PendingBroadcast
     {
         return $this->broadcastIfBroadcastChannelsExistForEvent(
             $this->newBroadcastableModelEvent('restored'), 'restored', $channels
@@ -96,11 +87,8 @@ trait BroadcastsEvents
 
     /**
      * Broadcast that the model was deleted.
-     *
-     * @param  \Hypervel\Broadcasting\Channel|\Hypervel\Broadcasting\Contracts\HasBroadcastChannel|array|null  $channels
-     * @return \Hypervel\Broadcasting\PendingBroadcast|null
      */
-    public function broadcastDeleted($channels = null)
+    public function broadcastDeleted(Channel|HasBroadcastChannel|array|null $channels = null): ?PendingBroadcast
     {
         return $this->broadcastIfBroadcastChannelsExistForEvent(
             $this->newBroadcastableModelEvent('deleted'), 'deleted', $channels
@@ -109,10 +97,12 @@ trait BroadcastsEvents
 
     /**
      * Broadcast the given event instance if channels are configured for the model event.
-     *
-     * @return \Hypervel\Broadcasting\PendingBroadcast|null
      */
-    protected function broadcastIfBroadcastChannelsExistForEvent(mixed $instance, string $event, mixed $channels = null)
+    protected function broadcastIfBroadcastChannelsExistForEvent(
+        BroadcastableModelEventOccurred $instance,
+        string $event,
+        Channel|HasBroadcastChannel|array|null $channels = null,
+    ): ?PendingBroadcast
     {
         if (! static::$isBroadcasting) {
             return null;
@@ -128,7 +118,7 @@ trait BroadcastsEvents
     /**
      * Create a new broadcastable model event event.
      */
-    public function newBroadcastableModelEvent(string $event): mixed
+    public function newBroadcastableModelEvent(string $event): BroadcastableModelEventOccurred
     {
         return tap($this->newBroadcastableEvent($event), function ($event) {
             $event->connection = property_exists($this, 'broadcastConnection')
@@ -155,10 +145,8 @@ trait BroadcastsEvents
 
     /**
      * Get the channels that model events should broadcast on.
-     *
-     * @return \Hypervel\Broadcasting\Channel|array
      */
-    public function broadcastOn(string $event)
+    public function broadcastOn(string $event): Channel|array
     {
         return [$this];
     }
