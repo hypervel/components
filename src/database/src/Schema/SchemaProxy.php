@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Schema;
 
 use Hyperf\Context\ApplicationContext;
-use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\DatabaseManager;
 
 /**
  * @mixin Builder
@@ -20,16 +20,14 @@ class SchemaProxy
 
     /**
      * Get schema builder with specific connection.
+     *
+     * Routes through DatabaseManager to respect usingConnection() overrides.
      */
     public function connection(?string $name = null): Builder
     {
-        $resolver = ApplicationContext::getContainer()
-            ->get(ConnectionResolverInterface::class);
-
-        $connection = $resolver->connection(
-            $name ?: $resolver->getDefaultConnection()
-        );
-
-        return $connection->getSchemaBuilder();
+        return ApplicationContext::getContainer()
+            ->get(DatabaseManager::class)
+            ->connection($name)
+            ->getSchemaBuilder();
     }
 }
