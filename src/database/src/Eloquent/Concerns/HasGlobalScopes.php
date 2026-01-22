@@ -57,7 +57,7 @@ trait HasGlobalScopes
             return static::$globalScopes[static::class][spl_object_hash($scope)] = $scope;
         } elseif ($scope instanceof Scope) {
             return static::$globalScopes[static::class][get_class($scope)] = $scope;
-        } elseif (is_string($scope) && class_exists($scope) && is_subclass_of($scope, Scope::class)) {
+        } elseif (class_exists($scope) && is_subclass_of($scope, Scope::class)) {
             return static::$globalScopes[static::class][$scope] = new $scope;
         }
 

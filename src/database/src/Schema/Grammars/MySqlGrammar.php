@@ -767,8 +767,7 @@ class MySqlGrammar extends Grammar
         $isMaria = $this->connection->isMaria();
         $version = $this->connection->getServerVersion();
 
-        if ($isMaria ||
-            (! $isMaria && version_compare($version, '8.0.13', '>='))) {
+        if ($isMaria || version_compare($version, '8.0.13', '>=')) {
             if ($column->useCurrent) {
                 $column->default(new Expression('(CURDATE())'));
             }
@@ -853,8 +852,7 @@ class MySqlGrammar extends Grammar
         $isMaria = $this->connection->isMaria();
         $version = $this->connection->getServerVersion();
 
-        if ($isMaria ||
-            (! $isMaria && version_compare($version, '8.0.13', '>='))) {
+        if ($isMaria || version_compare($version, '8.0.13', '>=')) {
             if ($column->useCurrent) {
                 $column->default(new Expression('(YEAR(CURDATE()))'));
             }

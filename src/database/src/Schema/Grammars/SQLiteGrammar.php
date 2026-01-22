@@ -206,7 +206,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Get the foreign key syntax for a table creation statement.
      *
-     * @param  \Hypervel\Database\Schema\ForeignKeyDefinition[]  $foreignKeys
+     * @param  \Hypervel\Support\Fluent[]  $foreignKeys
      */
     protected function addForeignKeys(array $foreignKeys): string
     {

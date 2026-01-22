@@ -179,7 +179,7 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile a foreign key command.
      */
-    public function compileForeign(Blueprint $blueprint, Fluent $command): string
+    public function compileForeign(Blueprint $blueprint, Fluent $command): ?string
     {
         // We need to prepare several of the elements of the foreign key definition
         // before we can create the SQL, such as wrapping the tables and convert
@@ -215,7 +215,7 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile a drop foreign key command.
      */
-    public function compileDropForeign(Blueprint $blueprint, Fluent $command): string
+    public function compileDropForeign(Blueprint $blueprint, Fluent $command): array|string|null
     {
         throw new RuntimeException('This database driver does not support dropping foreign keys.');
     }

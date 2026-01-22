@@ -732,7 +732,7 @@ class Connection implements ConnectionInterface
         $this->event(new QueryExecuted($query, $bindings, $time, $this, $readWriteType));
 
         $query = $this->pretending === true
-            ? $this->queryGrammar?->substituteBindingsIntoRawSql($query, $bindings) ?? $query
+            ? $this->queryGrammar->substituteBindingsIntoRawSql($query, $bindings)
             : $query;
 
         if ($this->loggingQueries) {
@@ -940,8 +940,6 @@ class Connection implements ConnectionInterface
             return (string) $value;
         } elseif (is_bool($value)) {
             return $this->escapeBool($value);
-        } elseif (is_array($value)) {
-            throw new RuntimeException('The database connection does not support escaping arrays.');
         } else {
             if (str_contains($value, "\00")) {
                 throw new RuntimeException('Strings with null bytes cannot be escaped. Use the binary escape option.');

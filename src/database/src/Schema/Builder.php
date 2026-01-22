@@ -217,7 +217,7 @@ class Builder
     /**
      * Get the user-defined types that belong to the connection.
      *
-     * @return list<array{name: string, schema: string, type: string, type: string, category: string, implicit: bool}>
+     * @return list<array{name: string, schema: string, schema_qualified_name: string, type: string, category: string, implicit: bool}>
      */
     public function getTypes(array|string|null $schema = null): array
     {
@@ -323,7 +323,7 @@ class Builder
     /**
      * Get the columns for a given table.
      *
-     * @return list<array{name: string, type: string, type_name: string, nullable: bool, default: mixed, auto_increment: bool, comment: string|null, generation: array{type: string, expression: string|null}|null}>
+     * @return list<array{name: string, type: string, type_name: string, collation: string|null, nullable: bool, default: mixed, auto_increment: bool, comment: string|null, generation: array{type: string, expression: string|null}|null}>
      */
     public function getColumns(string $table): array
     {

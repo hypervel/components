@@ -86,7 +86,7 @@ class Builder implements BuilderContract
     /**
      * A replacement for the typical delete function.
      *
-     * @var \Closure
+     * @var \Closure|null
      */
     protected $onDelete;
 
@@ -1511,7 +1511,7 @@ class Builder implements BuilderContract
      */
     public function hasNamedScope($scope)
     {
-        return $this->model && $this->model->hasNamedScope($scope);
+        return $this->model->hasNamedScope($scope);
     }
 
     /**
@@ -1597,9 +1597,7 @@ class Builder implements BuilderContract
         // We will keep track of how many wheres are on the query before running the
         // scope so that we can properly group the added scope constraints in the
         // query as their own isolated nested where statement and avoid issues.
-        $originalWhereCount = is_null($query->wheres)
-            ? 0
-            : count($query->wheres);
+        $originalWhereCount = count($query->wheres);
 
         $result = $scope(...$parameters) ?? $this;
 
