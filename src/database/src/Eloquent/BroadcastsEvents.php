@@ -104,7 +104,7 @@ trait BroadcastsEvents
         Channel|HasBroadcastChannel|array|null $channels = null,
     ): ?PendingBroadcast
     {
-        if (! static::$isBroadcasting) {
+        if (! static::isBroadcasting()) {
             return null;
         }
 

@@ -7,6 +7,7 @@ namespace Hypervel\Database\Eloquent;
 use ArrayAccess;
 use Closure;
 use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
+use Hypervel\Context\Context;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
 use Hypervel\Event\Contracts\Dispatcher;
@@ -58,6 +59,16 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
         ForwardsCalls;
     /** @use HasCollection<\Hypervel\Database\Eloquent\Collection<array-key, static & self>> */
     use HasCollection;
+
+    /**
+     * Context key for storing models that should ignore touch.
+     */
+    protected const IGNORE_ON_TOUCH_CONTEXT_KEY = '__database.model.ignoreOnTouch';
+
+    /**
+     * Context key for storing whether broadcasting is enabled.
+     */
+    protected const BROADCASTING_CONTEXT_KEY = '__database.model.broadcasting';
 
     /**
      * The connection name for the model.
@@ -162,13 +173,6 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     protected static array $globalScopes = [];
 
     /**
-     * The list of models classes that should not be affected with touch.
-     *
-     * @var array<int, class-string<self>>
-     */
-    protected static array $ignoreOnTouch = [];
-
-    /**
      * Indicates whether lazy loading should be restricted on all models.
      */
     protected static bool $modelsShouldPreventLazyLoading = false;
@@ -208,11 +212,6 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * @var (callable(self, string): void)|null
      */
     protected static $missingAttributeViolationCallback;
-
-    /**
-     * Indicates if broadcasting is currently enabled.
-     */
-    protected static bool $isBroadcasting = true;
 
     /**
      * The Eloquent query builder class to use for the model.
@@ -408,13 +407,17 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public static function withoutTouchingOn(array $models, callable $callback): void
     {
+        /** @var array<int, class-string<self>> $previous */
+        $previous = Context::get(self::IGNORE_ON_TOUCH_CONTEXT_KEY, []);
         // @phpstan-ignore arrayValues.list (array_diff in finally creates gaps, array_values re-indexes)
-        static::$ignoreOnTouch = array_values(array_merge(static::$ignoreOnTouch, $models));
+        Context::set(self::IGNORE_ON_TOUCH_CONTEXT_KEY, array_values(array_merge($previous, $models)));
 
         try {
             $callback();
         } finally {
-            static::$ignoreOnTouch = array_values(array_diff(static::$ignoreOnTouch, $models));
+            /** @var array<int, class-string<self>> $current */
+            $current = Context::get(self::IGNORE_ON_TOUCH_CONTEXT_KEY, []);
+            Context::set(self::IGNORE_ON_TOUCH_CONTEXT_KEY, array_values(array_diff($current, $models)));
         }
     }
 
@@ -431,7 +434,10 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
             return true;
         }
 
-        foreach (static::$ignoreOnTouch as $ignoredClass) {
+        /** @var array<int, class-string<self>> $ignoreOnTouch */
+        $ignoreOnTouch = Context::get(self::IGNORE_ON_TOUCH_CONTEXT_KEY, []);
+
+        foreach ($ignoreOnTouch as $ignoredClass) {
             if ($class === $ignoredClass || is_subclass_of($class, $ignoredClass)) {
                 return true;
             }
@@ -517,15 +523,23 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public static function withoutBroadcasting(callable $callback): mixed
     {
-        $isBroadcasting = static::$isBroadcasting;
+        $wasBroadcasting = Context::get(self::BROADCASTING_CONTEXT_KEY, true);
 
-        static::$isBroadcasting = false;
+        Context::set(self::BROADCASTING_CONTEXT_KEY, false);
 
         try {
             return $callback();
         } finally {
-            static::$isBroadcasting = $isBroadcasting;
+            Context::set(self::BROADCASTING_CONTEXT_KEY, $wasBroadcasting);
         }
+    }
+
+    /**
+     * Determine if broadcasting is currently enabled.
+     */
+    public static function isBroadcasting(): bool
+    {
+        return (bool) Context::get(self::BROADCASTING_CONTEXT_KEY, true);
     }
 
     /**

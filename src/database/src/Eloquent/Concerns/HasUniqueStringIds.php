@@ -4,7 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Concerns;
 
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\Eloquent\Relations\Relation;
 
 trait HasUniqueStringIds
 {
@@ -39,12 +42,12 @@ trait HasUniqueStringIds
     /**
      * Retrieve the model for a bound value.
      *
-     * @param  \Hypervel\Database\Eloquent\Model|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>  $query
-     * @return \Hypervel\Database\Contracts\Eloquent\Builder
+     * @param  Model|Builder<static>|Relation<*, *, *>  $query
+     * @return Builder<static>|Relation<*, *, *>
      *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException
+     * @throws ModelNotFoundException
      */
-    public function resolveRouteBindingQuery(mixed $query, mixed $value, ?string $field = null)
+    public function resolveRouteBindingQuery(Model|Builder|Relation $query, mixed $value, ?string $field = null): Builder|Relation
     {
         if ($field && in_array($field, $this->uniqueIds()) && ! $this->isValidUniqueId($value)) {
             $this->handleInvalidUniqueId($value, $field);
