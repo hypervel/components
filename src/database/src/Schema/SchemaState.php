@@ -64,6 +64,14 @@ abstract class SchemaState
     abstract public function load(string $path): void;
 
     /**
+     * Get the base variables for a dump / load command.
+     *
+     * @param  array<string, mixed>  $config
+     * @return array<string, mixed>
+     */
+    abstract protected function baseVariables(array $config): array;
+
+    /**
      * Create a new process instance.
      */
     public function makeProcess(mixed ...$arguments): Process
