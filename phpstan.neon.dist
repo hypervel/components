@@ -60,6 +60,11 @@ parameters:
     - identifier: method.templateTypeNotInParameter
       path: src/database/*
 
+    # Covariant template types in invariant/contravariant positions - Laravel uses @template-covariant
+    # for semantic documentation on collection-like classes even though it violates strict variance rules.
+    # The code is functionally correct; this is a PHPStan limitation with PHP's lack of runtime generics.
+    - identifier: generics.variance
+
     # Eloquent Model magic __call forwarding to Query Builder
     - '#Call to an undefined method Hypervel\\Database\\Eloquent\\Model::(where|whereIn|find|first|get|create|update|forceCreate)\(\)#'
     - '#Call to an undefined method Hypervel\\Database\\Query\\Builder::(with|load)\(\)#'

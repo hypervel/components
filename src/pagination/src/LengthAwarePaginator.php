@@ -100,6 +100,7 @@ class LengthAwarePaginator extends AbstractPaginator implements Arrayable, Array
      */
     public function linkCollection(): Collection
     {
+        /** @var Collection<int, array<string, mixed>> */
         return (new Collection($this->elements()))->flatMap(function ($item) {
             if (! is_array($item)) {
                 return [['url' => null, 'label' => '...', 'active' => false]];
@@ -168,6 +169,8 @@ class LengthAwarePaginator extends AbstractPaginator implements Arrayable, Array
         if ($this->hasMorePages()) {
             return $this->url($this->currentPage() + 1);
         }
+
+        return null;
     }
 
     /**

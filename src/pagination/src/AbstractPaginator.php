@@ -129,7 +129,7 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
      */
     protected function isValidPageNumber(int $page): bool
     {
-        return $page >= 1 && filter_var($page, FILTER_VALIDATE_INT) !== false;
+        return $page >= 1;
     }
 
     /**

@@ -196,29 +196,29 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      */
     public function getParametersForItem(ArrayAccess|object $item): array
     {
-        return (new Collection($this->parameters))
-            ->filter()
-            ->flip()
-            ->map(function (mixed $_, string $parameterName) use ($item) {
-                if ($item instanceof JsonResource) {
-                    $item = $item->resource;
-                }
+        /** @var Collection<string, int> $flipped */
+        $flipped = (new Collection($this->parameters))->filter()->flip();
 
-                if ($item instanceof Model &&
-                    ! is_null($parameter = $this->getPivotParameterForItem($item, $parameterName))) {
-                    return $parameter;
-                } elseif ($item instanceof ArrayAccess || is_array($item)) {
-                    return $this->ensureParameterIsPrimitive(
-                        $item[$parameterName] ?? $item[Str::afterLast($parameterName, '.')]
-                    );
-                } elseif (is_object($item)) {
-                    return $this->ensureParameterIsPrimitive(
-                        $item->{$parameterName} ?? $item->{Str::afterLast($parameterName, '.')}
-                    );
-                }
+        return $flipped->map(function (int $_, string $parameterName) use ($item) {
+            if ($item instanceof JsonResource) {
+                $item = $item->resource;
+            }
 
-                throw new Exception('Only arrays and objects are supported when cursor paginating items.');
-            })->toArray();
+            if ($item instanceof Model &&
+                ! is_null($parameter = $this->getPivotParameterForItem($item, $parameterName))) {
+                return $parameter;
+            } elseif ($item instanceof ArrayAccess || is_array($item)) {
+                return $this->ensureParameterIsPrimitive(
+                    $item[$parameterName] ?? $item[Str::afterLast($parameterName, '.')]
+                );
+            } elseif (is_object($item)) {
+                return $this->ensureParameterIsPrimitive(
+                    $item->{$parameterName} ?? $item->{Str::afterLast($parameterName, '.')}
+                );
+            }
+
+            throw new Exception('Only arrays and objects are supported when cursor paginating items.');
+        })->toArray();
     }
 
     /**
@@ -542,6 +542,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      */
     public function setCollection(Collection $collection): static
     {
+        /** @phpstan-ignore assign.propertyType */
         $this->items = $collection;
 
         return $this;

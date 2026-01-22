@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Pagination\Contracts;
 
 use Hypervel\Pagination\Cursor;
+use Hypervel\Support\Contracts\Htmlable;
 
 /**
  * @template TKey of array-key
@@ -108,5 +109,5 @@ interface CursorPaginator
      *
      * @param  array<string, mixed>  $data
      */
-    public function render(?string $view = null, array $data = []): string;
+    public function render(?string $view = null, array $data = []): Htmlable;
 }
