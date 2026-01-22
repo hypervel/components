@@ -116,7 +116,7 @@ class Processor
      * Process the results of an indexes query.
      *
      * @param  list<array<string, mixed>>  $results
-     * @return list<array{name: string, columns: list<string>, type: string, unique: bool, primary: bool}>
+     * @return list<array{name: string, columns: list<string>, type: string|null, unique: bool, primary: bool}>
      */
     public function processIndexes(array $results): array
     {
@@ -127,7 +127,7 @@ class Processor
      * Process the results of a foreign keys query.
      *
      * @param  list<array<string, mixed>>  $results
-     * @return list<array{name: string, columns: list<string>, foreign_schema: string, foreign_table: string, foreign_columns: list<string>, on_update: string, on_delete: string}>
+     * @return list<array{name: string|null, columns: list<string>, foreign_schema: string, foreign_table: string, foreign_columns: list<string>, on_update: string, on_delete: string}>
      */
     public function processForeignKeys(array $results): array
     {

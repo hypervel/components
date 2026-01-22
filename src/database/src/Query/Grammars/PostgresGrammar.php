@@ -235,11 +235,11 @@ class PostgresGrammar extends Grammar
         $lastSegment = array_pop($segments);
 
         if (filter_var($lastSegment, FILTER_VALIDATE_INT) !== false) {
-            $i = $lastSegment;
+            $i = (int) $lastSegment;
         } elseif (preg_match('/\[(-?[0-9]+)\]$/', $lastSegment, $matches)) {
             $segments[] = Str::beforeLast($lastSegment, $matches[0]);
 
-            $i = $matches[1];
+            $i = (int) $matches[1];
         }
 
         $column = str_replace('->>', '->', $this->wrap(implode('->', $segments)));
@@ -644,7 +644,7 @@ class PostgresGrammar extends Grammar
 
             return (new Collection([$key]))
                 ->merge($keys[1])
-                ->diff('')
+                ->diff([''])
                 ->values()
                 ->all();
         }
