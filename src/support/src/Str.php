@@ -1229,13 +1229,9 @@ class Str
     /**
      * Generate a URL friendly "slug" from a given string.
      *
-     * @param  string  $title
-     * @param  string  $separator
-     * @param  string|null  $language
      * @param  array<string, string>  $dictionary
-     * @return string
      */
-    public static function slug($title, $separator = '-', $language = 'en', $dictionary = ['@' => 'at'])
+    public static function slug(string $title, string $separator = '-', ?string $language = 'en', array $dictionary = ['@' => 'at']): string
     {
         $title = $language ? static::ascii($title, $language) : $title;
 
@@ -1262,12 +1258,8 @@ class Str
 
     /**
      * Convert a string to snake case.
-     *
-     * @param  string  $value
-     * @param  string  $delimiter
-     * @return string
      */
-    public static function snake($value, $delimiter = '_')
+    public static function snake(string $value, string $delimiter = '_'): string
     {
         $key = $value;
 
@@ -1286,12 +1278,8 @@ class Str
 
     /**
      * Remove all whitespace from both ends of a string.
-     *
-     * @param  string  $value
-     * @param  string|null  $charlist
-     * @return string
      */
-    public static function trim($value, $charlist = null)
+    public static function trim(string $value, ?string $charlist = null): string
     {
         if ($charlist === null) {
             $trimDefaultCharacters = " \n\r\t\v\0";
@@ -1304,12 +1292,8 @@ class Str
 
     /**
      * Remove all whitespace from the beginning of a string.
-     *
-     * @param  string  $value
-     * @param  string|null  $charlist
-     * @return string
      */
-    public static function ltrim($value, $charlist = null)
+    public static function ltrim(string $value, ?string $charlist = null): string
     {
         if ($charlist === null) {
             $ltrimDefaultCharacters = " \n\r\t\v\0";
@@ -1322,12 +1306,8 @@ class Str
 
     /**
      * Remove all whitespace from the end of a string.
-     *
-     * @param  string  $value
-     * @param  string|null  $charlist
-     * @return string
      */
-    public static function rtrim($value, $charlist = null)
+    public static function rtrim(string $value, ?string $charlist = null): string
     {
         if ($charlist === null) {
             $rtrimDefaultCharacters = " \n\r\t\v\0";
@@ -1340,11 +1320,8 @@ class Str
 
     /**
      * Remove all "extra" blank space from the given string.
-     *
-     * @param  string  $value
-     * @return string
      */
-    public static function squish($value)
+    public static function squish(string $value): string
     {
         return preg_replace('~(\s|\x{3164}|\x{1160})+~u', ' ', static::trim($value));
     }
@@ -1352,18 +1329,13 @@ class Str
     /**
      * Determine if a given string starts with a given substring.
      *
-     * @param  string  $haystack
      * @param  string|iterable<string>  $needles
      * @return ($needles is array{} ? false : ($haystack is non-empty-string ? bool : false))
      *
      * @phpstan-assert-if-true =non-empty-string $haystack
      */
-    public static function startsWith($haystack, $needles)
+    public static function startsWith(string $haystack, string|iterable $needles): bool
     {
-        if (is_null($haystack)) {
-            return false;
-        }
-
         if (! is_iterable($needles)) {
             $needles = [$needles];
         }
@@ -1380,13 +1352,12 @@ class Str
     /**
      * Determine if a given string doesn't start with a given substring.
      *
-     * @param  string  $haystack
      * @param  string|iterable<string>  $needles
      * @return ($needles is array{} ? true : ($haystack is non-empty-string ? bool : true))
      *
      * @phpstan-assert-if-false =non-empty-string $haystack
      */
-    public static function doesntStartWith($haystack, $needles)
+    public static function doesntStartWith(string $haystack, string|iterable $needles): bool
     {
         return ! static::startsWith($haystack, $needles);
     }
@@ -1394,10 +1365,9 @@ class Str
     /**
      * Convert a value to studly caps case.
      *
-     * @param  string  $value
      * @return ($value is '' ? '' : string)
      */
-    public static function studly($value)
+    public static function studly(string $value): string
     {
         $key = $value;
 
@@ -1415,38 +1385,25 @@ class Str
     /**
      * Convert a value to Pascal case.
      *
-     * @param  string  $value
      * @return ($value is '' ? '' : string)
      */
-    public static function pascal($value)
+    public static function pascal(string $value): string
     {
         return static::studly($value);
     }
 
     /**
      * Returns the portion of the string specified by the start and length parameters.
-     *
-     * @param  string  $string
-     * @param  int  $start
-     * @param  int|null  $length
-     * @param  string  $encoding
-     * @return string
      */
-    public static function substr($string, $start, $length = null, $encoding = 'UTF-8')
+    public static function substr(string $string, int $start, ?int $length = null, string $encoding = 'UTF-8'): string
     {
         return mb_substr($string, $start, $length, $encoding);
     }
 
     /**
      * Returns the number of substring occurrences.
-     *
-     * @param  string  $haystack
-     * @param  string  $needle
-     * @param  int  $offset
-     * @param  int|null  $length
-     * @return int
      */
-    public static function substrCount($haystack, $needle, $offset = 0, $length = null)
+    public static function substrCount(string $haystack, string $needle, int $offset = 0, ?int $length = null): int
     {
         if (! is_null($length)) {
             return substr_count($haystack, $needle, $offset, $length);
@@ -1464,7 +1421,7 @@ class Str
      * @param  int|int[]|null  $length
      * @return string|string[]
      */
-    public static function substrReplace($string, $replace, $offset = 0, $length = null)
+    public static function substrReplace(string|array $string, string|array $replace, int|array $offset = 0, int|array|null $length = null): string|array
     {
         if ($length === null) {
             $length = static::length($string);
@@ -1479,22 +1436,16 @@ class Str
      * Swap multiple keywords in a string with other keywords.
      *
      * @param  array<string, string>  $map
-     * @param  string  $subject
-     * @return string
      */
-    public static function swap(array $map, $subject)
+    public static function swap(array $map, string $subject): string
     {
         return strtr($subject, $map);
     }
 
     /**
      * Take the first or last {$limit} characters of a string.
-     *
-     * @param  string  $string
-     * @param  int  $limit
-     * @return string
      */
-    public static function take($string, int $limit): string
+    public static function take(string $string, int $limit): string
     {
         if ($limit < 0) {
             return static::substr($string, $limit);
@@ -1506,10 +1457,9 @@ class Str
     /**
      * Convert the given string to Base64 encoding.
      *
-     * @param  string  $string
      * @return ($string is '' ? '' : string)
      */
-    public static function toBase64($string): string
+    public static function toBase64(string $string): string
     {
         return base64_encode($string);
     }
@@ -1517,11 +1467,9 @@ class Str
     /**
      * Decode the given Base64 encoded string.
      *
-     * @param  string  $string
-     * @param  bool  $strict
      * @return ($strict is true ? ($string is '' ? '' : string|false) : ($string is '' ? '' : string))
      */
-    public static function fromBase64($string, $strict = false)
+    public static function fromBase64(string $string, bool $strict = false): string|false
     {
         return base64_decode($string, $strict);
     }
@@ -1529,10 +1477,9 @@ class Str
     /**
      * Make a string's first character lowercase.
      *
-     * @param  string  $string
      * @return ($string is '' ? '' : non-empty-string)
      */
-    public static function lcfirst($string)
+    public static function lcfirst(string $string): string
     {
         return static::lower(static::substr($string, 0, 1)).static::substr($string, 1);
     }
@@ -1540,10 +1487,9 @@ class Str
     /**
      * Make a string's first character uppercase.
      *
-     * @param  string  $string
      * @return ($string is '' ? '' : non-empty-string)
      */
-    public static function ucfirst($string)
+    public static function ucfirst(string $string): string
     {
         return static::upper(static::substr($string, 0, 1)).static::substr($string, 1);
     }
@@ -1551,11 +1497,9 @@ class Str
     /**
      * Capitalize the first character of each word in a string.
      *
-     * @param  string  $string
-     * @param  string  $separators
      * @return ($string is '' ? '' : non-empty-string)
      */
-    public static function ucwords($string, $separators = " \t\r\n\f\v")
+    public static function ucwords(string $string, string $separators = " \t\r\n\f\v"): string
     {
         $pattern = '/(^|['.preg_quote($separators, '/').'])(\p{Ll})/u';
 
@@ -1567,10 +1511,9 @@ class Str
     /**
      * Split a string into pieces by uppercase characters.
      *
-     * @param  string  $string
      * @return ($string is '' ? array{} : string[])
      */
-    public static function ucsplit($string)
+    public static function ucsplit(string $string): array
     {
         return preg_split('/(?=\p{Lu})/u', $string, -1, PREG_SPLIT_NO_EMPTY);
     }
@@ -1578,35 +1521,25 @@ class Str
     /**
      * Get the number of words a string contains.
      *
-     * @param  string  $string
-     * @param  string|null  $characters
      * @return non-negative-int
      */
-    public static function wordCount($string, $characters = null)
+    public static function wordCount(string $string, ?string $characters = null): int
     {
         return str_word_count($string, 0, $characters);
     }
 
     /**
      * Wrap a string to a given number of characters.
-     *
-     * @param  string  $string
-     * @param  int  $characters
-     * @param  string  $break
-     * @param  bool  $cutLongWords
-     * @return string
      */
-    public static function wordWrap($string, $characters = 75, $break = "\n", $cutLongWords = false)
+    public static function wordWrap(string $string, int $characters = 75, string $break = "\n", bool $cutLongWords = false): string
     {
         return wordwrap($string, $characters, $break, $cutLongWords);
     }
 
     /**
      * Generate a UUID (version 4).
-     *
-     * @return \Ramsey\Uuid\UuidInterface
      */
-    public static function uuid()
+    public static function uuid(): UuidInterface
     {
         return static::$uuidFactory
             ? call_user_func(static::$uuidFactory)
@@ -1615,11 +1548,8 @@ class Str
 
     /**
      * Generate a UUID (version 7).
-     *
-     * @param  \DateTimeInterface|null  $time
-     * @return \Ramsey\Uuid\UuidInterface
      */
-    public static function uuid7($time = null)
+    public static function uuid7(?DateTimeInterface $time = null): UuidInterface
     {
         return static::$uuidFactory
             ? call_user_func(static::$uuidFactory)
@@ -1628,10 +1558,8 @@ class Str
 
     /**
      * Generate a time-ordered UUID.
-     *
-     * @return \Ramsey\Uuid\UuidInterface
      */
-    public static function orderedUuid()
+    public static function orderedUuid(): UuidInterface
     {
         if (static::$uuidFactory) {
             return call_user_func(static::$uuidFactory);
@@ -1654,10 +1582,9 @@ class Str
     /**
      * Set the callable that will be used to generate UUIDs.
      *
-     * @param  (callable(): \Ramsey\Uuid\UuidInterface)|null  $factory
-     * @return void
+     * @param  (callable(): UuidInterface)|null  $factory
      */
-    public static function createUuidsUsing(?callable $factory = null)
+    public static function createUuidsUsing(?callable $factory = null): void
     {
         static::$uuidFactory = $factory;
     }
@@ -1665,11 +1592,10 @@ class Str
     /**
      * Set the sequence that will be used to generate UUIDs.
      *
-     * @param  \Ramsey\Uuid\UuidInterface[]  $sequence
-     * @param  (callable(): \Ramsey\Uuid\UuidInterface)|null  $whenMissing
-     * @return void
+     * @param  UuidInterface[]  $sequence
+     * @param  (callable(): UuidInterface)|null  $whenMissing
      */
-    public static function createUuidsUsingSequence(array $sequence, $whenMissing = null)
+    public static function createUuidsUsingSequence(array $sequence, ?callable $whenMissing = null): void
     {
         $next = 0;
 
@@ -1699,10 +1625,9 @@ class Str
     /**
      * Always return the same UUID when generating new UUIDs.
      *
-     * @param  (\Closure(\Ramsey\Uuid\UuidInterface): mixed)|null  $callback
-     * @return \Ramsey\Uuid\UuidInterface
+     * @param  (Closure(UuidInterface): mixed)|null  $callback
      */
-    public static function freezeUuids(?Closure $callback = null)
+    public static function freezeUuids(?Closure $callback = null): UuidInterface
     {
         $uuid = Str::uuid();
 
@@ -1721,21 +1646,16 @@ class Str
 
     /**
      * Indicate that UUIDs should be created normally and not using a custom factory.
-     *
-     * @return void
      */
-    public static function createUuidsNormally()
+    public static function createUuidsNormally(): void
     {
         static::$uuidFactory = null;
     }
 
     /**
      * Generate a ULID.
-     *
-     * @param  \DateTimeInterface|null  $time
-     * @return \Symfony\Component\Uid\Ulid
      */
-    public static function ulid($time = null)
+    public static function ulid(?DateTimeInterface $time = null): Ulid
     {
         if (static::$ulidFactory) {
             return call_user_func(static::$ulidFactory);
@@ -1750,10 +1670,8 @@ class Str
 
     /**
      * Indicate that ULIDs should be created normally and not using a custom factory.
-     *
-     * @return void
      */
-    public static function createUlidsNormally()
+    public static function createUlidsNormally(): void
     {
         static::$ulidFactory = null;
     }
@@ -1761,10 +1679,9 @@ class Str
     /**
      * Set the callable that will be used to generate ULIDs.
      *
-     * @param  (callable(): \Symfony\Component\Uid\Ulid)|null  $factory
-     * @return void
+     * @param  (callable(): Ulid)|null  $factory
      */
-    public static function createUlidsUsing(?callable $factory = null)
+    public static function createUlidsUsing(?callable $factory = null): void
     {
         static::$ulidFactory = $factory;
     }
@@ -1772,11 +1689,10 @@ class Str
     /**
      * Set the sequence that will be used to generate ULIDs.
      *
-     * @param  \Symfony\Component\Uid\Ulid[]  $sequence
-     * @param  (callable(): \Symfony\Component\Uid\Ulid)|null  $whenMissing
-     * @return void
+     * @param  Ulid[]  $sequence
+     * @param  (callable(): Ulid)|null  $whenMissing
      */
-    public static function createUlidsUsingSequence(array $sequence, $whenMissing = null)
+    public static function createUlidsUsingSequence(array $sequence, ?callable $whenMissing = null): void
     {
         $next = 0;
 
@@ -1807,9 +1723,8 @@ class Str
      * Always return the same ULID when generating new ULIDs.
      *
      * @param  (Closure(Ulid): mixed)|null  $callback
-     * @return Ulid
      */
-    public static function freezeUlids(?Closure $callback = null)
+    public static function freezeUlids(?Closure $callback = null): Ulid
     {
         $ulid = Str::ulid();
 
@@ -1828,10 +1743,8 @@ class Str
 
     /**
      * Remove all strings from the casing caches.
-     *
-     * @return void
      */
-    public static function flushCache()
+    public static function flushCache(): void
     {
         static::$snakeCache = [];
         static::$camelCache = [];
