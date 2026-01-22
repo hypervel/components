@@ -87,6 +87,7 @@ class SQLiteConnection extends Connection
     /**
      * Get the schema state for the connection.
      */
+    #[\Override]
     public function getSchemaState(?Filesystem $files = null, ?callable $processFactory = null): SqliteSchemaState
     {
         return new SqliteSchemaState($this, $files, $processFactory);

@@ -137,6 +137,22 @@ abstract class Grammar extends BaseGrammar
     }
 
     /**
+     * Compile the command to enable foreign key constraints.
+     */
+    public function compileEnableForeignKeyConstraints(): string
+    {
+        throw new RuntimeException('This database driver does not support enabling foreign key constraints.');
+    }
+
+    /**
+     * Compile the command to disable foreign key constraints.
+     */
+    public function compileDisableForeignKeyConstraints(): string
+    {
+        throw new RuntimeException('This database driver does not support disabling foreign key constraints.');
+    }
+
+    /**
      * Compile a rename column command.
      *
      * @return list<string>|string

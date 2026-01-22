@@ -36,7 +36,7 @@ class MySqlProcessor extends Processor
     }
 
     #[\Override]
-    public function processColumns(array $results): array
+    public function processColumns(array $results, string $sql = ''): array
     {
         return array_map(function ($result) {
             $result = (object) $result;

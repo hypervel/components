@@ -79,6 +79,7 @@ class PostgresConnection extends Connection
     /**
      * Get the schema state for the connection.
      */
+    #[\Override]
     public function getSchemaState(?Filesystem $files = null, ?callable $processFactory = null): PostgresSchemaState
     {
         return new PostgresSchemaState($this, $files, $processFactory);

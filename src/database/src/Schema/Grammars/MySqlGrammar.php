@@ -568,6 +568,7 @@ class MySqlGrammar extends Grammar
     /**
      * Compile the command to enable foreign key constraints.
      */
+    #[\Override]
     public function compileEnableForeignKeyConstraints(): string
     {
         return 'SET FOREIGN_KEY_CHECKS=1;';
@@ -576,6 +577,7 @@ class MySqlGrammar extends Grammar
     /**
      * Compile the command to disable foreign key constraints.
      */
+    #[\Override]
     public function compileDisableForeignKeyConstraints(): string
     {
         return 'SET FOREIGN_KEY_CHECKS=0;';

@@ -556,6 +556,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile the command to enable foreign key constraints.
      */
+    #[\Override]
     public function compileEnableForeignKeyConstraints(): string
     {
         return $this->pragma('foreign_keys', 1);
@@ -564,6 +565,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Compile the command to disable foreign key constraints.
      */
+    #[\Override]
     public function compileDisableForeignKeyConstraints(): string
     {
         return $this->pragma('foreign_keys', 0);

@@ -6,6 +6,7 @@ namespace Hypervel\Database\Concerns;
 
 use Closure;
 use Hypervel\Database\DeadlockException;
+use LogicException;
 use RuntimeException;
 use Throwable;
 
@@ -74,6 +75,9 @@ trait ManagesTransactions
 
             return $callbackResult;
         }
+
+        // This should never be reached - exception handlers throw on final attempt
+        throw new LogicException('Transaction loop completed without returning or throwing.');
     }
 
     /**

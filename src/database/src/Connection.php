@@ -21,6 +21,7 @@ use Hypervel\Database\Query\Grammars\Grammar as QueryGrammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
 use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
@@ -269,6 +270,16 @@ class Connection implements ConnectionInterface
         }
 
         return new SchemaBuilder($this);
+    }
+
+    /**
+     * Get the schema state for the connection.
+     *
+     * @throws \RuntimeException
+     */
+    public function getSchemaState(?Filesystem $files = null, ?callable $processFactory = null): Schema\SchemaState
+    {
+        throw new RuntimeException('This database driver does not support schema state.');
     }
 
     /**

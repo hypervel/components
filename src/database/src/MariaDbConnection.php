@@ -69,6 +69,7 @@ class MariaDbConnection extends MySqlConnection
     /**
      * Get the schema state for the connection.
      */
+    #[\Override]
     public function getSchemaState(?Filesystem $files = null, ?callable $processFactory = null): MariaDbSchemaState
     {
         return new MariaDbSchemaState($this, $files, $processFactory);
