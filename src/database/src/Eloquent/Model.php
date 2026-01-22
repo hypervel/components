@@ -30,6 +30,7 @@ use Hypervel\Support\Contracts\Arrayable;
 use Hypervel\Support\Contracts\CanBeEscapedWhenCastToString;
 use Hypervel\Support\Contracts\Jsonable;
 use Hypervel\Support\Str;
+use Hypervel\Support\StrCache;
 use Hypervel\Support\Stringable as SupportStringable;
 use Hypervel\Support\Traits\ForwardsCalls;
 use JsonException;
@@ -1810,7 +1811,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function getTable(): string
     {
-        return $this->table ?? Str::snake(Str::pluralStudly(class_basename($this)));
+        return $this->table ?? StrCache::snake(Str::pluralStudly(class_basename($this)));
     }
 
     /**
@@ -2034,7 +2035,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function getForeignKey(): string
     {
-        return Str::snake(class_basename($this)).'_'.$this->getKeyName();
+        return StrCache::snake(class_basename($this)).'_'.$this->getKeyName();
     }
 
     /**

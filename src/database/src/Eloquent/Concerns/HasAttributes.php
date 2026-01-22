@@ -37,6 +37,7 @@ use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Facades\Hash;
 use Hypervel\Support\Str;
+use Hypervel\Support\StrCache;
 use InvalidArgumentException;
 use LogicException;
 use ReflectionClass;
@@ -376,7 +377,7 @@ trait HasAttributes
             // key so that the relation attribute is snake cased in this returned
             // array to the developers, making this consistent with attributes.
             if (static::$snakeAttributes) {
-                $key = Str::snake($key);
+                $key = StrCache::snake($key);
             }
 
             // If the relation value has been set, we will set it on this attributes
@@ -586,7 +587,7 @@ trait HasAttributes
      */
     public function hasGetMutator(string $key): bool
     {
-        return method_exists($this, 'get'.Str::studly($key).'Attribute');
+        return method_exists($this, 'get'.StrCache::studly($key).'Attribute');
     }
 
     /**
@@ -598,7 +599,7 @@ trait HasAttributes
             return static::$attributeMutatorCache[get_class($this)][$key];
         }
 
-        if (! method_exists($this, $method = Str::camel($key))) {
+        if (! method_exists($this, $method = StrCache::camel($key))) {
             return static::$attributeMutatorCache[get_class($this)][$key] = false;
         }
 
@@ -622,7 +623,7 @@ trait HasAttributes
             return static::$getAttributeMutatorCache[get_class($this)][$key] = false;
         }
 
-        return static::$getAttributeMutatorCache[get_class($this)][$key] = is_callable($this->{Str::camel($key)}()->get);
+        return static::$getAttributeMutatorCache[get_class($this)][$key] = is_callable($this->{StrCache::camel($key)}()->get);
     }
 
     /**
@@ -638,7 +639,7 @@ trait HasAttributes
      */
     protected function mutateAttribute(string $key, mixed $value): mixed
     {
-        return $this->{'get'.Str::studly($key).'Attribute'}($value);
+        return $this->{'get'.StrCache::studly($key).'Attribute'}($value);
     }
 
     /**
@@ -650,7 +651,7 @@ trait HasAttributes
             return $this->attributeCastCache[$key];
         }
 
-        $attribute = $this->{Str::camel($key)}();
+        $attribute = $this->{StrCache::camel($key)}();
 
         $value = call_user_func($attribute->get ?: function ($value) {
             return $value;
@@ -988,7 +989,7 @@ trait HasAttributes
      */
     public function hasSetMutator(string $key): bool
     {
-        return method_exists($this, 'set'.Str::studly($key).'Attribute');
+        return method_exists($this, 'set'.StrCache::studly($key).'Attribute');
     }
 
     /**
@@ -1002,7 +1003,7 @@ trait HasAttributes
             return static::$setAttributeMutatorCache[$class][$key];
         }
 
-        if (! method_exists($this, $method = Str::camel($key))) {
+        if (! method_exists($this, $method = StrCache::camel($key))) {
             return static::$setAttributeMutatorCache[$class][$key] = false;
         }
 
@@ -1019,7 +1020,7 @@ trait HasAttributes
      */
     protected function setMutatedAttributeValue(string $key, mixed $value): mixed
     {
-        return $this->{'set'.Str::studly($key).'Attribute'}($value);
+        return $this->{'set'.StrCache::studly($key).'Attribute'}($value);
     }
 
     /**
@@ -1027,7 +1028,7 @@ trait HasAttributes
      */
     protected function setAttributeMarkedMutatedAttributeValue(string $key, mixed $value): mixed
     {
-        $attribute = $this->{Str::camel($key)}();
+        $attribute = $this->{StrCache::camel($key)}();
 
         $callback = $attribute->set ?: function ($value) use ($key) {
             $this->attributes[$key] = $value;
@@ -1659,7 +1660,7 @@ trait HasAttributes
     protected function mergeAttributesFromAttributeCasts(): void
     {
         foreach ($this->attributeCastCache as $key => $value) {
-            $attribute = $this->{Str::camel($key)}();
+            $attribute = $this->{StrCache::camel($key)}();
 
             if ($attribute->get && ! $attribute->set) {
                 continue;
@@ -2133,12 +2134,12 @@ trait HasAttributes
         $class = $reflection->getName();
 
         static::$getAttributeMutatorCache[$class] = (new Collection($attributeMutatorMethods = static::getAttributeMarkedMutatorMethods($classOrInstance)))
-            ->mapWithKeys(fn ($match) => [lcfirst(static::$snakeAttributes ? Str::snake($match) : $match) => true])
+            ->mapWithKeys(fn ($match) => [lcfirst(static::$snakeAttributes ? StrCache::snake($match) : $match) => true])
             ->all();
 
         static::$mutatorCache[$class] = (new Collection(static::getMutatorMethods($class)))
             ->merge($attributeMutatorMethods)
-            ->map(fn ($match) => lcfirst(static::$snakeAttributes ? Str::snake($match) : $match))
+            ->map(fn ($match) => lcfirst(static::$snakeAttributes ? StrCache::snake($match) : $match))
             ->all();
     }
 

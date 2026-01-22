@@ -17,6 +17,7 @@ use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Contracts\Arrayable;
 use Hypervel\Support\Str;
+use Hypervel\Support\StrCache;
 use InvalidArgumentException;
 
 /**
@@ -1124,7 +1125,7 @@ class BelongsToMany extends Relation
      */
     protected function guessInverseRelation(): string
     {
-        return Str::camel(Str::pluralStudly(class_basename($this->getParent())));
+        return StrCache::camel(Str::pluralStudly(class_basename($this->getParent())));
     }
 
     /**

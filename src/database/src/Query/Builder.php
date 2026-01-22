@@ -30,6 +30,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Str;
+use Hypervel\Support\StrCache;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
@@ -2036,7 +2037,7 @@ class Builder implements BuilderContract
         // clause on the query. Then we'll increment the parameter index values.
         $bool = strtolower($connector);
 
-        $this->where(Str::snake($segment), '=', $parameters[$index], $bool);
+        $this->where(StrCache::snake($segment), '=', $parameters[$index], $bool);
     }
 
     /**

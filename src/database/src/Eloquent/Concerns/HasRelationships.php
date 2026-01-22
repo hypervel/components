@@ -24,6 +24,7 @@ use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
+use Hypervel\Support\StrCache;
 
 trait HasRelationships
 {
@@ -305,7 +306,7 @@ trait HasRelationships
         // foreign key name by using the name of the relationship function, which
         // when combined with an "_id" should conventionally match the columns.
         if (is_null($foreignKey)) {
-            $foreignKey = Str::snake($relation).'_'.$instance->getKeyName();
+            $foreignKey = StrCache::snake($relation).'_'.$instance->getKeyName();
         }
 
         // Once we have the foreign key names we'll just create a new Eloquent query
@@ -346,7 +347,7 @@ trait HasRelationships
         $name = $name ?: $this->guessBelongsToRelation();
 
         [$type, $id] = $this->getMorphs(
-            Str::snake($name), $type, $id
+            StrCache::snake($name), $type, $id
         );
 
         // If the type value is null it is probably safe to assume we're eager loading
@@ -797,7 +798,7 @@ trait HasRelationships
         $segments = [
             $instance
                 ? $instance->joiningTableSegment()
-                : Str::snake(class_basename($related)),
+                : StrCache::snake(class_basename($related)),
             $this->joiningTableSegment(),
         ];
 
@@ -814,7 +815,7 @@ trait HasRelationships
      */
     public function joiningTableSegment(): string
     {
-        return Str::snake(class_basename($this));
+        return StrCache::snake(class_basename($this));
     }
 
     /**

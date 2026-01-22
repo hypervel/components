@@ -7,6 +7,7 @@ namespace Hypervel\Database\Eloquent\Relations\Concerns;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Str;
+use Hypervel\Support\StrCache;
 
 trait AsPivot
 {
@@ -150,7 +151,7 @@ trait AsPivot
     {
         if (! isset($this->table)) {
             $this->setTable(str_replace(
-                '\\', '', Str::snake(Str::singular(class_basename($this)))
+                '\\', '', StrCache::snake(Str::singular(class_basename($this)))
             ));
         }
 
