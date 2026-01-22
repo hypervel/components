@@ -10,9 +10,9 @@ use Closure;
 use Hyperf\Collection\ItemNotFoundException;
 use Hyperf\Collection\MultipleItemsFoundException;
 use Hyperf\Macroable\Macroable;
+use Hyperf\Collection\Enumerable;
 use Hypervel\Support\Contracts\Arrayable;
 use Hypervel\Support\Contracts\Jsonable;
-use Hypervel\Support\Enumerable;
 use InvalidArgumentException;
 use JsonSerializable;
 use Random\Randomizer;
@@ -304,7 +304,7 @@ class Arr
             if (! is_array($item)) {
                 $result[] = $item;
             } else {
-                $values = $depth === 1
+                $values = $depth === 1.0
                     ? array_values($item)
                     : static::flatten($item, $depth - 1);
 
@@ -396,7 +396,7 @@ class Arr
             $items instanceof Traversable => iterator_to_array($items),
             $items instanceof Jsonable => json_decode($items->toJson(), true),
             $items instanceof JsonSerializable => (array) $items->jsonSerialize(),
-            is_object($items) => (array) $items,
+            is_object($items) => (array) $items, // @phpstan-ignore function.alreadyNarrowedType
             default => throw new InvalidArgumentException('Items cannot be represented by a scalar value.'),
         };
     }
