@@ -103,7 +103,7 @@ abstract class Factory
     /**
      * @deprecated use $modelNameResolvers
      *
-     * @var callable(self): class-string<TModel>
+     * @var (callable(self): class-string<TModel>)|null
      */
     protected static mixed $modelNameResolver = null;
 

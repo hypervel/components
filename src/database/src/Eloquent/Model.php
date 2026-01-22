@@ -136,7 +136,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * The connection resolver instance.
      *
-     * @var \Hypervel\Database\ConnectionResolverInterface
+     * @var \Hypervel\Database\ConnectionResolverInterface|null
      */
     protected static $resolver;
 
