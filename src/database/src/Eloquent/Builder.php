@@ -354,6 +354,7 @@ class Builder implements BuilderContract
     public function where($column, $operator = null, $value = null, $boolean = 'and')
     {
         if ($column instanceof Closure && is_null($operator)) {
+            // @phpstan-ignore argument.type (closure receives Builder instance, static type not required)
             $column($query = $this->model->newQueryWithoutRelationships());
 
             $this->eagerLoad = array_merge($this->eagerLoad, $query->getEagerLoads());
@@ -2099,6 +2100,7 @@ class Builder implements BuilderContract
      * @param  TModelNew  $model
      * @return static<TModelNew>
      */
+    // @phpstan-ignore return.type (PHPDoc expresses type change that PHP can't verify at compile time)
     public function setModel(Model $model)
     {
         $this->model = $model;
@@ -2259,7 +2261,9 @@ class Builder implements BuilderContract
         }
 
         if ($method === 'mixin') {
-            return static::registerMixin($parameters[0], $parameters[1] ?? true);
+            static::registerMixin($parameters[0], $parameters[1] ?? true);
+
+            return;
         }
 
         if (! static::hasGlobalMacro($method)) {
@@ -2278,11 +2282,10 @@ class Builder implements BuilderContract
     /**
      * Register the given mixin with the builder.
      *
-     * @param  string  $mixin
+     * @param  object  $mixin
      * @param  bool  $replace
-     * @return void
      */
-    protected static function registerMixin($mixin, $replace)
+    protected static function registerMixin(object $mixin, bool $replace): void
     {
         $methods = (new ReflectionClass($mixin))->getMethods(
             ReflectionMethod::IS_PUBLIC | ReflectionMethod::IS_PROTECTED

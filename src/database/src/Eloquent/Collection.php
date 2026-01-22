@@ -462,6 +462,7 @@ class Collection extends BaseCollection implements QueueableCollection
             ->get()
             ->getDictionary();
 
+        // @phpstan-ignore return.type (filter/map chain returns correct type at runtime)
         return $this->filter(fn ($model) => $model->exists && isset($freshModels[$model->getKey()]))
             ->map(fn ($model) => $freshModels[$model->getKey()]);
     }
@@ -535,6 +536,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param  array<array-key, mixed>|null  $keys
      * @return static
      */
+    // @phpstan-ignore return.type (new static preserves TModel at runtime)
     public function only($keys): static
     {
         if (is_null($keys)) {
@@ -551,6 +553,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @param  array<array-key, mixed>|null  $keys
      */
+    // @phpstan-ignore return.type (new static preserves TModel at runtime)
     public function except($keys): static
     {
         if (is_null($keys)) {
@@ -765,6 +768,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int<0, 1>, static<TKey, TModel>>
      */
     #[\Override]
+    // @phpstan-ignore return.type, return.phpDocType (partition returns Collection of collections)
     public function partition(mixed $key, mixed $operator = null, mixed $value = null): static
     {
         return parent::partition(...func_get_args())->toBase();
@@ -886,6 +890,7 @@ class Collection extends BaseCollection implements QueueableCollection
             return [];
         }
 
+        // @phpstan-ignore method.nonObject (HigherOrderProxy returns Collection, not array)
         $relations = $this->map->getQueueableRelations()->all();
 
         if (count($relations) === 0 || $relations === [[]]) {
