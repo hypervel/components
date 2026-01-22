@@ -140,6 +140,8 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
         if ($this->currentPage() > 1) {
             return $this->url($this->currentPage() - 1);
         }
+
+        return null;
     }
 
     /**
@@ -271,6 +273,7 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
      */
     public function loadMorph(string $relation, array $relations): static
     {
+        /** @phpstan-ignore method.notFound (loadMorph exists on Eloquent Collection, not base Collection) */
         $this->getCollection()->loadMorph($relation, $relations);
 
         return $this;
@@ -284,6 +287,7 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
      */
     public function loadMorphCount(string $relation, array $relations): static
     {
+        /** @phpstan-ignore method.notFound (loadMorphCount exists on Eloquent Collection, not base Collection) */
         $this->getCollection()->loadMorphCount($relation, $relations);
 
         return $this;

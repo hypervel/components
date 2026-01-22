@@ -4,8 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Contracts;
 
-use Hyperf\Contract\Arrayable as HyperfArrayable;
-
-interface Arrayable extends HyperfArrayable
+/**
+ * @template TKey of array-key
+ * @template TValue
+ */
+interface Arrayable
 {
+    /**
+     * Get the instance as an array.
+     *
+     * @return array<TKey, TValue>
+     */
+    public function toArray(): array;
 }

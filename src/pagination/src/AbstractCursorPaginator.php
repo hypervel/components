@@ -32,6 +32,18 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     use ForwardsCalls, Tappable, TransformsToResourceCollection;
 
     /**
+     * Render the paginator using the given view.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    abstract public function render(?string $view = null, array $data = []): Htmlable;
+
+    /**
+     * Indicates whether there are more items in the data source.
+     */
+    protected bool $hasMore;
+
+    /**
      * All of the items being paginated.
      *
      * @var Collection<TKey, TValue>
@@ -187,7 +199,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
         return (new Collection($this->parameters))
             ->filter()
             ->flip()
-            ->map(function ($_, $parameterName) use ($item) {
+            ->map(function (mixed $_, string $parameterName) use ($item) {
                 if ($item instanceof JsonResource) {
                     $item = $item->resource;
                 }
@@ -223,6 +235,8 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
                 );
             }
         }
+
+        return null;
     }
 
     /**
@@ -330,6 +344,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      */
     public function loadMorph(string $relation, array $relations): static
     {
+        /** @phpstan-ignore method.notFound (loadMorph exists on Eloquent Collection, not base Collection) */
         $this->getCollection()->loadMorph($relation, $relations);
 
         return $this;
@@ -343,6 +358,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      */
     public function loadMorphCount(string $relation, array $relations): static
     {
+        /** @phpstan-ignore method.notFound (loadMorphCount exists on Eloquent Collection, not base Collection) */
         $this->getCollection()->loadMorphCount($relation, $relations);
 
         return $this;

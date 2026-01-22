@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Contracts;
 
-use Hyperf\Contract\Jsonable as HyperfJsonable;
-
-interface Jsonable extends HyperfJsonable
+interface Jsonable
 {
+    /**
+     * Convert the object to its JSON representation.
+     */
+    public function toJson(int $options = 0): string;
 }
