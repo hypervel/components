@@ -23,7 +23,7 @@ class ModelInspector
      *
      * @var list<string>
      */
-    protected $relationMethods = [
+    protected array $relationMethods = [
         'hasMany',
         'hasManyThrough',
         'hasOneThrough',
@@ -39,23 +39,21 @@ class ModelInspector
 
     /**
      * Create a new model inspector instance.
-     *
-     * @param  \Hypervel\Foundation\Contracts\Application  $app  The application instance.
      */
-    public function __construct(protected Application $app)
-    {
+    public function __construct(
+        protected Application $app,
+    ) {
     }
 
     /**
      * Extract model details for the given model.
      *
-     * @param  class-string<\Hypervel\Database\Eloquent\Model>|string  $model
-     * @param  string|null  $connection
-     * @return array{"class": class-string<\Hypervel\Database\Eloquent\Model>, database: string, table: string, policy: class-string|null, attributes: \Hypervel\Support\Collection, relations: \Hypervel\Support\Collection, events: \Hypervel\Support\Collection, observers: \Hypervel\Support\Collection, collection: class-string<\Hypervel\Database\Eloquent\Collection<\Hypervel\Database\Eloquent\Model>>, builder: class-string<\Hypervel\Database\Eloquent\Builder<\Hypervel\Database\Eloquent\Model>>, "resource": class-string<\Hypervel\Http\Resources\Json\JsonResource>|null}
+     * @param  class-string<Model>|string  $model
+     * @return array{class: class-string<Model>, database: string, table: string, policy: class-string|null, attributes: BaseCollection<int, array<string, mixed>>, relations: BaseCollection<int, array<string, mixed>>, events: BaseCollection<int, array<string, mixed>>, observers: BaseCollection<int, array<string, mixed>>, collection: class-string<Collection<array-key, Model>>, builder: class-string<Builder<Model>>, resource: class-string|null}
      *
      * @throws \Hypervel\Container\BindingResolutionException
      */
-    public function inspect($model, $connection = null)
+    public function inspect(string $model, ?string $connection = null): array
     {
         $class = $this->qualifyModel($model);
 
@@ -84,10 +82,9 @@ class ModelInspector
     /**
      * Get the column attributes for the given model.
      *
-     * @param  \Hypervel\Database\Eloquent\Model  $model
-     * @return \Hypervel\Support\Collection<int, array<string, mixed>>
+     * @return BaseCollection<int, array<string, mixed>>
      */
-    protected function getAttributes($model)
+    protected function getAttributes(Model $model): BaseCollection
     {
         $connection = $model->getConnection();
         $schema = $connection->getSchemaBuilder();
@@ -114,11 +111,10 @@ class ModelInspector
     /**
      * Get the virtual (non-column) attributes for the given model.
      *
-     * @param  \Hypervel\Database\Eloquent\Model  $model
-     * @param  array  $columns
-     * @return \Hypervel\Support\Collection
+     * @param  array<int, array<string, mixed>>  $columns
+     * @return BaseCollection<int, array<string, mixed>>
      */
-    protected function getVirtualAttributes($model, $columns)
+    protected function getVirtualAttributes(Model $model, array $columns): BaseCollection
     {
         $class = new ReflectionClass($model);
 
@@ -156,10 +152,9 @@ class ModelInspector
     /**
      * Get the relations from the given model.
      *
-     * @param  \Hypervel\Database\Eloquent\Model  $model
-     * @return \Hypervel\Support\Collection
+     * @return BaseCollection<int, array<string, mixed>>
      */
-    protected function getRelations($model)
+    protected function getRelations(Model $model): BaseCollection
     {
         return (new BaseCollection(get_class_methods($model)))
             ->map(fn ($method) => new ReflectionMethod($model, $method))
@@ -206,10 +201,9 @@ class ModelInspector
     /**
      * Get the first policy associated with this model.
      *
-     * @param  \Hypervel\Database\Eloquent\Model  $model
-     * @return string|null
+     * @return class-string|null
      */
-    protected function getPolicy($model)
+    protected function getPolicy(Model $model): ?string
     {
         $policy = Gate::getPolicyFor($model::class);
 
@@ -219,10 +213,9 @@ class ModelInspector
     /**
      * Get the events that the model dispatches.
      *
-     * @param  \Hypervel\Database\Eloquent\Model  $model
-     * @return \Hypervel\Support\Collection
+     * @return BaseCollection<int, array{event: string, class: string}>
      */
-    protected function getEvents($model)
+    protected function getEvents(Model $model): BaseCollection
     {
         return (new BaseCollection($model->dispatchesEvents()))
             ->map(fn (string $class, string $event) => [
@@ -234,10 +227,9 @@ class ModelInspector
     /**
      * Get the observers watching this model.
      *
-     * @param  \Hypervel\Database\Eloquent\Model  $model
-     * @return \Hypervel\Support\Collection
+     * @return BaseCollection<int, array{event: string, observer: array<int, class-string>}>
      */
-    protected function getObservers($model)
+    protected function getObservers(Model $model): BaseCollection
     {
         $modelListener = $this->app->make(ModelListener::class);
         $observers = $modelListener->getObservers($model::class);
@@ -257,10 +249,9 @@ class ModelInspector
     /**
      * Get the collection class being used by the model.
      *
-     * @param  \Hypervel\Database\Eloquent\Model  $model
-     * @return class-string<\Hypervel\Database\Eloquent\Collection>
+     * @return class-string<Collection<array-key, Model>>
      */
-    protected function getCollectedBy($model)
+    protected function getCollectedBy(Model $model): string
     {
         return $model->newCollection()::class;
     }
@@ -268,12 +259,9 @@ class ModelInspector
     /**
      * Get the builder class being used by the model.
      *
-     * @template TModel of \Hypervel\Database\Eloquent\Model
-     *
-     * @param  TModel  $model
-     * @return class-string<\Hypervel\Database\Eloquent\Builder<TModel>>
+     * @return class-string<Builder<Model>>
      */
-    protected function getBuilder($model)
+    protected function getBuilder(Model $model): string
     {
         return $model->newQuery()::class;
     }
@@ -281,10 +269,9 @@ class ModelInspector
     /**
      * Get the class used for JSON response transforming.
      *
-     * @param  \Hypervel\Database\Eloquent\Model  $model
-     * @return \Hypervel\Http\Resources\Json\JsonResource|null
+     * @return class-string|null
      */
-    protected function getResource($model)
+    protected function getResource(Model $model): ?string
     {
         return rescue(static fn () => $model->toResource()::class, null, false);
     }
@@ -292,12 +279,11 @@ class ModelInspector
     /**
      * Qualify the given model class base name.
      *
-     * @param  string  $model
-     * @return class-string<\Hypervel\Database\Eloquent\Model>
+     * @return class-string<Model>
      *
      * @see \Hypervel\Console\GeneratorCommand
      */
-    protected function qualifyModel(string $model)
+    protected function qualifyModel(string $model): string
     {
         if (str_contains($model, '\\') && class_exists($model)) {
             return $model;
@@ -320,12 +306,8 @@ class ModelInspector
 
     /**
      * Get the cast type for the given column.
-     *
-     * @param  string  $column
-     * @param  \Hypervel\Database\Eloquent\Model  $model
-     * @return string|null
      */
-    protected function getCastType($column, $model)
+    protected function getCastType(string $column, Model $model): ?string
     {
         if ($model->hasGetMutator($column) || $model->hasSetMutator($column)) {
             return 'accessor';
@@ -341,10 +323,9 @@ class ModelInspector
     /**
      * Get the model casts, including any date casts.
      *
-     * @param  \Hypervel\Database\Eloquent\Model  $model
-     * @return \Hypervel\Support\Collection
+     * @return BaseCollection<string, string>
      */
-    protected function getCastsWithDates($model)
+    protected function getCastsWithDates(Model $model): BaseCollection
     {
         return (new BaseCollection($model->getDates()))
             ->filter()
@@ -355,12 +336,8 @@ class ModelInspector
 
     /**
      * Determine if the given attribute is hidden.
-     *
-     * @param  string  $attribute
-     * @param  \Hypervel\Database\Eloquent\Model  $model
-     * @return bool
      */
-    protected function attributeIsHidden($attribute, $model)
+    protected function attributeIsHidden(string $attribute, Model $model): bool
     {
         if (count($model->getHidden()) > 0) {
             return in_array($attribute, $model->getHidden());
@@ -375,12 +352,8 @@ class ModelInspector
 
     /**
      * Get the default value for the given column.
-     *
-     * @param  array<string, mixed>  $column
-     * @param  \Hypervel\Database\Eloquent\Model  $model
-     * @return mixed
      */
-    protected function getColumnDefault($column, $model)
+    protected function getColumnDefault(array $column, Model $model): mixed
     {
         $attributeDefault = $model->getAttributes()[$column['name']] ?? null;
 
@@ -389,12 +362,8 @@ class ModelInspector
 
     /**
      * Determine if the given attribute is unique.
-     *
-     * @param  string  $column
-     * @param  array  $indexes
-     * @return bool
      */
-    protected function columnIsUnique($column, $indexes)
+    protected function columnIsUnique(string $column, array $indexes): bool
     {
         return (new BaseCollection($indexes))->contains(
             fn ($index) => count($index['columns']) === 1 && $index['columns'][0] === $column && $index['unique']
