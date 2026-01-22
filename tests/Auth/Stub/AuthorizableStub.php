@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth\Stub;
 
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Auth\Access\Authorizable;
 use Hypervel\Auth\Authenticatable;
 use Hypervel\Auth\Contracts\Authenticatable as AuthenticatableContract;

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Eloquent;
 
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\Query\Builder as QueryBuilder;
-use Hyperf\Database\Query\Grammars\Grammar;
-use Hyperf\Database\Query\Processors\Processor;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Query\Builder as QueryBuilder;
+use Hypervel\Database\Query\Grammars\Grammar;
+use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Database\Eloquent\Relations\Pivot;

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
-use Hyperf\Database\Model\Builder;
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Auth\Authenticatable as AuthenticatableUser;
 use Hypervel\Auth\Contracts\Authenticatable;
 use Hypervel\Auth\Providers\EloquentUserProvider;

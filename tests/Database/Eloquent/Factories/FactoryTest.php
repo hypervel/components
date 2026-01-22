@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Database\Eloquent\Factories;
 
 use BadMethodCallException;
 use Carbon\Carbon;
-use Hyperf\Database\Model\SoftDeletes;
+use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Eloquent\Attributes\UseFactory;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Factories\CrossJoinSequence;

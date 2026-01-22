@@ -6,10 +6,10 @@ namespace Hypervel\Tests\Cache;
 
 use Carbon\Carbon;
 use Exception;
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Exception\QueryException;
-use Hyperf\Database\Query\Builder;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\QueryException;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Cache\Contracts\RefreshableLock;
 use Hypervel\Cache\DatabaseLock;
 use Hypervel\Tests\TestCase;

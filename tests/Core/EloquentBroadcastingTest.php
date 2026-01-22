@@ -6,9 +6,9 @@ namespace Hypervel\Tests\Core;
 
 use Closure;
 use Hyperf\Collection\Arr;
-use Hyperf\Database\Model\Events\Created;
-use Hyperf\Database\Model\SoftDeletes;
-use Hyperf\Database\Schema\Blueprint;
+use Hypervel\Database\Eloquent\Events\Created;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\Contracts\Broadcaster;
 use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactory;

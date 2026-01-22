@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Core;
 
-use Hyperf\Database\Model\Events\Created;
-use Hyperf\Database\Model\Events\Updated;
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Events\Created;
+use Hypervel\Database\Eloquent\Events\Updated;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelListener;
 use Hypervel\Database\Eloquent\ObserverManager;
 use Hypervel\Tests\TestCase;

@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Broadcasting;
 
 use Exception;
 use Hyperf\Context\RequestContext;
-use Hyperf\Database\Model\Booted;
+use Hypervel\Database\Eloquent\Events\Booted;
 use Hyperf\HttpMessage\Server\Request as ServerRequest;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Request;
@@ -445,7 +445,7 @@ class FakeBroadcaster extends Broadcaster
 
 class BroadcasterTestEloquentModelStub extends Model
 {
-    public function getRouteKeyName()
+    public function getRouteKeyName(): string
     {
         return 'id';
     }
@@ -465,7 +465,7 @@ class BroadcasterTestEloquentModelStub extends Model
 
 class BroadcasterTestEloquentModelNotFoundStub extends Model
 {
-    public function getRouteKeyName()
+    public function getRouteKeyName(): string
     {
         return 'id';
     }

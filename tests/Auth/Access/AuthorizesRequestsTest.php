@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Auth\Access;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ContainerInterface;
-use Hyperf\Database\Model\Model;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Auth\Access\Response;
 use Hypervel\Auth\Contracts\Gate;
 use Hypervel\Tests\Auth\Stub\AuthorizesRequestsStub;

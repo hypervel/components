@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\Query\Builder;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Auth\Contracts\Authenticatable;
 use Hypervel\Auth\GenericUser;
 use Hypervel\Auth\Providers\DatabaseUserProvider;

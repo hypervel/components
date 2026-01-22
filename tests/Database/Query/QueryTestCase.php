@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Query;
 
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\Query\Expression;
-use Hyperf\Database\Query\Processors\Processor;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Query\Expression;
+use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\Query\Grammars\PostgresGrammar;
