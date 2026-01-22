@@ -29,10 +29,6 @@ class DatabaseManager implements ConnectionResolverInterface
         __call as macroCall;
     }
 
-    /**
-     * Context key for storing per-coroutine default connection override.
-     */
-    protected const DEFAULT_CONNECTION_CONTEXT_KEY = '__database.defaultConnection';
 
     /**
      * The active connection instances.
@@ -277,17 +273,17 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public function usingConnection(UnitEnum|string $name, callable $callback): mixed
     {
-        $previous = Context::get(self::DEFAULT_CONNECTION_CONTEXT_KEY);
+        $previous = Context::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
 
-        Context::set(self::DEFAULT_CONNECTION_CONTEXT_KEY, enum_value($name));
+        Context::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, enum_value($name));
 
         try {
             return $callback();
         } finally {
             if ($previous === null) {
-                Context::destroy(self::DEFAULT_CONNECTION_CONTEXT_KEY);
+                Context::destroy(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY);
             } else {
-                Context::set(self::DEFAULT_CONNECTION_CONTEXT_KEY, $previous);
+                Context::set(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY, $previous);
             }
         }
     }
@@ -316,7 +312,7 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public function getDefaultConnection(): string
     {
-        return Context::get(self::DEFAULT_CONNECTION_CONTEXT_KEY)
+        return Context::get(ConnectionResolver::DEFAULT_CONNECTION_CONTEXT_KEY)
             ?? $this->app['config']['database.default'];
     }
 

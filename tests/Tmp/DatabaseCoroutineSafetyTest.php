@@ -8,6 +8,8 @@ use Hypervel\Context\Context;
 use Hypervel\Coroutine\Channel;
 use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionResolver;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -292,6 +294,47 @@ class DatabaseCoroutineSafetyTest extends DatabaseIntegrationTestCase
                 'Schema::connection() should return schema builder for usingConnection override'
             );
         });
+    }
+
+    /**
+     * Test that direct ConnectionResolver access respects usingConnection().
+     *
+     * Code that injects ConnectionResolverInterface directly should still
+     * get the usingConnection() override, not bypass it.
+     */
+    public function testUsingConnectionAffectsConnectionResolver(): void
+    {
+        /** @var DatabaseManager $manager */
+        $manager = $this->app->get(DatabaseManager::class);
+
+        /** @var ConnectionResolverInterface $resolver */
+        $resolver = $this->app->get(ConnectionResolverInterface::class);
+
+        $originalDefault = $manager->getDefaultConnection();
+        $testConnection = $originalDefault === 'pgsql' ? 'default' : 'pgsql';
+
+        // Verify resolver returns original default before
+        $this->assertSame($originalDefault, $resolver->getDefaultConnection());
+
+        $manager->usingConnection($testConnection, function () use ($resolver, $testConnection) {
+            // Direct resolver access should also respect the override
+            $this->assertSame(
+                $testConnection,
+                $resolver->getDefaultConnection(),
+                'ConnectionResolver::getDefaultConnection() should respect usingConnection override'
+            );
+
+            // And connection() without args should use it
+            $connection = $resolver->connection();
+            $this->assertSame(
+                $testConnection,
+                $connection->getName(),
+                'ConnectionResolver::connection() should return usingConnection override'
+            );
+        });
+
+        // Verify restored after
+        $this->assertSame($originalDefault, $resolver->getDefaultConnection());
     }
 
     // =========================================================================

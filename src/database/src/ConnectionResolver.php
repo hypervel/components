@@ -24,6 +24,14 @@ use function Hypervel\Support\enum_value;
 class ConnectionResolver implements ConnectionResolverInterface
 {
     /**
+     * Context key for per-coroutine default connection override.
+     *
+     * Shared with DatabaseManager::usingConnection() to ensure all access
+     * paths respect the override.
+     */
+    public const DEFAULT_CONNECTION_CONTEXT_KEY = '__database.defaultConnection';
+
+    /**
      * The default connection name.
      */
     protected string $default = 'default';
@@ -83,10 +91,13 @@ class ConnectionResolver implements ConnectionResolverInterface
 
     /**
      * Get the default connection name.
+     *
+     * Checks Context first for per-coroutine override (from usingConnection()),
+     * then falls back to the configured default.
      */
     public function getDefaultConnection(): string
     {
-        return $this->default;
+        return Context::get(self::DEFAULT_CONNECTION_CONTEXT_KEY) ?? $this->default;
     }
 
     /**
