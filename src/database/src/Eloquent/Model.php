@@ -27,7 +27,7 @@ use Hypervel\Router\Contracts\UrlRoutable;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Contracts\Arrayable;
-use Hyperf\Contract\CanBeEscapedWhenCastToString;
+use Hypervel\Support\Contracts\CanBeEscapedWhenCastToString;
 use Hypervel\Support\Contracts\Jsonable;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable as SupportStringable;
@@ -407,6 +407,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public static function withoutTouchingOn(array $models, callable $callback): void
     {
+        // @phpstan-ignore arrayValues.list (array_diff in finally creates gaps, array_values re-indexes)
         static::$ignoreOnTouch = array_values(array_merge(static::$ignoreOnTouch, $models));
 
         try {
@@ -675,6 +676,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public static function onWriteConnection(): Builder
     {
+        // @phpstan-ignore return.type (useWritePdo returns $this, mixin type inference loses Builder)
         return static::query()->useWritePdo();
     }
 
@@ -1446,6 +1448,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function newModelQuery(): Builder
     {
+        // @phpstan-ignore return.type (template covariance: $this vs static in setModel)
         return $this->newEloquentBuilder(
             $this->newBaseQueryBuilder()
         )->setModel($this);
@@ -1772,6 +1775,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public static function resolveConnection(UnitEnum|string|null $connection = null): Connection
     {
+        // @phpstan-ignore return.type (resolver interface returns ConnectionInterface, but concrete always returns Connection)
         return static::$resolver->connection($connection);
     }
 
