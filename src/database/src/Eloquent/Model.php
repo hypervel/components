@@ -71,6 +71,11 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     protected const BROADCASTING_CONTEXT_KEY = '__database.model.broadcasting';
 
     /**
+     * Context key for storing whether events are disabled.
+     */
+    protected const EVENTS_DISABLED_CONTEXT_KEY = '__database.model.eventsDisabled';
+
+    /**
      * The connection name for the model.
      */
     protected UnitEnum|string|null $connection = null;
@@ -407,17 +412,14 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public static function withoutTouchingOn(array $models, callable $callback): void
     {
-        /** @var array<int, class-string<self>> $previous */
+        /** @var list<class-string<self>> $previous */
         $previous = Context::get(self::IGNORE_ON_TOUCH_CONTEXT_KEY, []);
-        // @phpstan-ignore arrayValues.list (array_diff in finally creates gaps, array_values re-indexes)
-        Context::set(self::IGNORE_ON_TOUCH_CONTEXT_KEY, array_values(array_merge($previous, $models)));
+        Context::set(self::IGNORE_ON_TOUCH_CONTEXT_KEY, array_merge($previous, $models));
 
         try {
             $callback();
         } finally {
-            /** @var array<int, class-string<self>> $current */
-            $current = Context::get(self::IGNORE_ON_TOUCH_CONTEXT_KEY, []);
-            Context::set(self::IGNORE_ON_TOUCH_CONTEXT_KEY, array_values(array_diff($current, $models)));
+            Context::set(self::IGNORE_ON_TOUCH_CONTEXT_KEY, $previous);
         }
     }
 

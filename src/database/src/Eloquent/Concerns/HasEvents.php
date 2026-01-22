@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Concerns;
 
 use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\Context;
 use Hypervel\Database\Eloquent\Attributes\ObservedBy;
 use Hypervel\Database\Eloquent\Events\Booted;
 use Hypervel\Database\Eloquent\Events\Booting;
@@ -27,7 +28,6 @@ use Hypervel\Database\Eloquent\Events\Updating;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelListener;
 use Hypervel\Event\Contracts\Dispatcher;
-use Hypervel\Event\NullDispatcher;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use ReflectionClass;
@@ -217,7 +217,7 @@ trait HasEvents
      */
     protected function fireModelEvent(string $event, bool $halt = true): mixed
     {
-        if (! isset(static::$dispatcher)) {
+        if (! isset(static::$dispatcher) || static::eventsDisabled()) {
             return true;
         }
 
@@ -448,23 +448,27 @@ trait HasEvents
     /**
      * Execute a callback without firing any model events for any model type.
      *
-     * @return mixed
+     * Uses Context for coroutine-safe event disabling, ensuring concurrent
+     * requests don't interfere with each other's event handling.
      */
     public static function withoutEvents(callable $callback): mixed
     {
-        $dispatcher = static::getEventDispatcher();
-
-        if ($dispatcher) {
-            static::setEventDispatcher(new NullDispatcher($dispatcher));
-        }
+        $wasDisabled = Context::get(self::EVENTS_DISABLED_CONTEXT_KEY, false);
+        Context::set(self::EVENTS_DISABLED_CONTEXT_KEY, true);
 
         try {
             return $callback();
         } finally {
-            if ($dispatcher) {
-                static::setEventDispatcher($dispatcher);
-            }
+            Context::set(self::EVENTS_DISABLED_CONTEXT_KEY, $wasDisabled);
         }
+    }
+
+    /**
+     * Determine if model events are currently disabled for this coroutine.
+     */
+    public static function eventsDisabled(): bool
+    {
+        return (bool) Context::get(self::EVENTS_DISABLED_CONTEXT_KEY, false);
     }
 
     /**
