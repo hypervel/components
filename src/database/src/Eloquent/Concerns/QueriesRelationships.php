@@ -17,6 +17,7 @@ use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Str;
+use Hypervel\Support\StrCache;
 use InvalidArgumentException;
 
 use function Hypervel\Support\enum_value;
@@ -717,7 +718,7 @@ trait QueriesRelationships
         }
 
         if ($relationshipName === null) {
-            $relationshipName = Str::camel(class_basename($related));
+            $relationshipName = StrCache::camel(class_basename($related));
         }
 
         try {
@@ -770,7 +771,7 @@ trait QueriesRelationships
         }
 
         if ($relationshipName === null) {
-            $relationshipName = Str::plural(Str::camel(class_basename($related)));
+            $relationshipName = Str::plural(StrCache::camel(class_basename($related)));
         }
 
         try {
@@ -880,7 +881,7 @@ trait QueriesRelationships
             // Finally, we will make the proper column alias to the query and run this sub-select on
             // the query builder. Then, we will return the builder instance back to the developer
             // for further constraint chaining that needs to take place on the query as needed.
-            $alias ??= Str::snake(
+            $alias ??= StrCache::snake(
                 preg_replace(
                     '/[^[:alnum:][:space:]_]/u',
                     '',
