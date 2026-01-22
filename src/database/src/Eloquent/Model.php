@@ -713,7 +713,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Create a new model instance that is existing.
      *
-     * @param  array<string, mixed>  $attributes
+     * @param  array<string, mixed>|object  $attributes
      * @param  \UnitEnum|string|null  $connection
      * @return static
      */

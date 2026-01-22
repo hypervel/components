@@ -726,6 +726,7 @@ class Builder implements BuilderContract
         try {
             return $this->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, $values)));
         } catch (UniqueConstraintViolationException $e) {
+            // @phpstan-ignore return.type (first() returns hydrated TModel, not stdClass)
             return $this->useWritePdo()->where($attributes)->first() ?? throw $e;
         }
     }
