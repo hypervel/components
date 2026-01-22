@@ -1068,6 +1068,19 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     }
 
     /**
+     * Convert the string to a vector embedding using AI.
+     *
+     * @return array<int, float>
+     *
+     * @throws \RuntimeException
+     */
+    public function toEmbeddings(bool $cache = false): array
+    {
+        // TODO: Implement AI embedding conversion (requires AI service configuration)
+        throw new \RuntimeException('String to vector embedding conversion is not yet implemented.');
+    }
+
+    /**
      * Hash the string using the given algorithm.
      */
     public function hash(string $algorithm): static
