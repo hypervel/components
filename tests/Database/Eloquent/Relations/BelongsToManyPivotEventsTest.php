@@ -333,35 +333,35 @@ class PivotEventsTestCollaborator extends Pivot
     {
         parent::boot();
 
-        static::registerCallback('creating', function ($model) {
+        static::creating(function ($model) {
             static::$eventsCalled[] = 'creating';
         });
 
-        static::registerCallback('created', function ($model) {
+        static::created(function ($model) {
             static::$eventsCalled[] = 'created';
         });
 
-        static::registerCallback('updating', function ($model) {
+        static::updating(function ($model) {
             static::$eventsCalled[] = 'updating';
         });
 
-        static::registerCallback('updated', function ($model) {
+        static::updated(function ($model) {
             static::$eventsCalled[] = 'updated';
         });
 
-        static::registerCallback('saving', function ($model) {
+        static::saving(function ($model) {
             static::$eventsCalled[] = 'saving';
         });
 
-        static::registerCallback('saved', function ($model) {
+        static::saved(function ($model) {
             static::$eventsCalled[] = 'saved';
         });
 
-        static::registerCallback('deleting', function ($model) {
+        static::deleting(function ($model) {
             static::$eventsCalled[] = 'deleting';
         });
 
-        static::registerCallback('deleted', function ($model) {
+        static::deleted(function ($model) {
             static::$eventsCalled[] = 'deleted';
         });
     }

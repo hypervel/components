@@ -64,13 +64,13 @@ class PersonalAccessToken extends Model implements HasAbilities
     {
         parent::boot();
 
-        static::registerCallback('updating', function ($model) {
+        static::updating(function ($model) {
             if (config('sanctum.cache.enabled')) {
                 self::clearTokenCache($model->id);
             }
         });
 
-        static::registerCallback('deleting', function ($model) {
+        static::deleting(function ($model) {
             if (config('sanctum.cache.enabled')) {
                 self::clearTokenCache($model->id);
             }

@@ -45,29 +45,15 @@ trait HasNode
      */
     public static function bootHasNode(): void
     {
-        static::registerCallback(
-            'saving',
-            fn ($model) => $model->callPendingActions()
-        );
+        static::saving(fn ($model) => $model->callPendingActions());
 
-        static::registerCallback(
-            'deleting',
-            fn ($model) => $model->refreshNode()
-        );
+        static::deleting(fn ($model) => $model->refreshNode());
 
-        static::registerCallback(
-            'deleted',
-            fn ($model) => $model->deleteDescendants()
-        );
+        static::deleted(fn ($model) => $model->deleteDescendants());
 
         if (static::usesSoftDelete()) {
-            static::registerCallback(
-                'restoring',
-                fn ($model) => NodeContext::keepDeletedAt($model)
-            );
-            static::registerCallback(
-                'restored',
-                fn ($model) => $model->restoreDescendants(NodeContext::restoreDeletedAt($model))
+            static::restoring(fn ($model) => NodeContext::keepDeletedAt($model));
+            static::restored(fn ($model) => $model->restoreDescendants(NodeContext::restoreDeletedAt($model))
             );
         }
     }
