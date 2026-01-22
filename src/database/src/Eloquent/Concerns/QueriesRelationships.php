@@ -771,7 +771,7 @@ trait QueriesRelationships
         }
 
         if ($relationshipName === null) {
-            $relationshipName = Str::plural(StrCache::camel(class_basename($related)));
+            $relationshipName = StrCache::plural(StrCache::camel(class_basename($related)));
         }
 
         try {

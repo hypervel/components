@@ -1125,7 +1125,7 @@ class BelongsToMany extends Relation
      */
     protected function guessInverseRelation(): string
     {
-        return StrCache::camel(Str::pluralStudly(class_basename($this->getParent())));
+        return StrCache::camel(StrCache::pluralStudly(class_basename($this->getParent())));
     }
 
     /**

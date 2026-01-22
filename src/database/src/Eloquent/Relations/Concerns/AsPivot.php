@@ -151,7 +151,7 @@ trait AsPivot
     {
         if (! isset($this->table)) {
             $this->setTable(str_replace(
-                '\\', '', StrCache::snake(Str::singular(class_basename($this)))
+                '\\', '', StrCache::snake(StrCache::singular(class_basename($this)))
             ));
         }
 

@@ -681,7 +681,7 @@ trait HasRelationships
 
             $lastWord = array_pop($words);
 
-            $table = implode('', $words).Str::plural($lastWord);
+            $table = implode('', $words).StrCache::plural($lastWord);
         }
 
         return $this->newMorphToMany(

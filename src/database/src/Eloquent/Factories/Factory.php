@@ -14,6 +14,7 @@ use Hypervel\Foundation\Contracts\Application;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use Hypervel\Support\StrCache;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\Macroable;
@@ -594,9 +595,9 @@ abstract class Factory
      */
     protected function guessRelationship(string $related): string
     {
-        $guess = Str::camel(Str::plural(class_basename($related)));
+        $guess = StrCache::camel(StrCache::plural(class_basename($related)));
 
-        return method_exists($this->modelName(), $guess) ? $guess : Str::singular($guess);
+        return method_exists($this->modelName(), $guess) ? $guess : StrCache::singular($guess);
     }
 
     /**
@@ -610,7 +611,7 @@ abstract class Factory
             'has' => $this->has->concat([new BelongsToManyRelationship(
                 $factory,
                 $pivot,
-                $relationship ?? Str::camel(Str::plural(class_basename(
+                $relationship ?? StrCache::camel(StrCache::plural(class_basename(
                     $factory instanceof Factory
                         ? $factory->modelName()
                         : Collection::wrap($factory)->first()
@@ -626,7 +627,7 @@ abstract class Factory
     {
         return $this->newInstance(['for' => $this->for->concat([new BelongsToRelationship(
             $factory,
-            $relationship ?? Str::camel(class_basename(
+            $relationship ?? StrCache::camel(class_basename(
                 $factory instanceof Factory ? $factory->modelName() : $factory
             ))
         )])]);
@@ -939,7 +940,7 @@ abstract class Factory
             static::throwBadMethodCallException($method);
         }
 
-        $relationship = Str::camel(Str::substr($method, 3));
+        $relationship = StrCache::camel(Str::substr($method, 3));
 
         $relatedModel = get_class($this->newModel()->{$relationship}()->getRelated());
 
