@@ -8,7 +8,7 @@ use Hypervel\Database\Eloquent\Factories\Factory;
 
 class PriceFactory extends Factory
 {
-    public function definition()
+    public function definition(): array
     {
         return [
             'name' => $this->faker->name(),

@@ -360,7 +360,7 @@ class MorphPivotEventsTestTaggable extends MorphPivot
 
     public static array $eventsCalled = [];
 
-    protected function boot(): void
+    protected static function boot(): void
     {
         parent::boot();
 

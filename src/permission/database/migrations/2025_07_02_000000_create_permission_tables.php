@@ -12,7 +12,7 @@ return new class extends Migration {
     /**
      * Get the migration connection name.
      */
-    public function getConnection(): string
+    public function getConnection(): ?string
     {
         return config('permission.storage.database.connection')
             ?: parent::getConnection();

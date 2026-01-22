@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Eloquent;
 
-use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
@@ -27,12 +27,12 @@ class NewBaseQueryBuilderTest extends TestCase
     public function testModelUsesConnectionQueryMethod(): void
     {
         $customBuilder = new CustomQueryBuilder(
-            m::mock(ConnectionInterface::class),
+            m::mock(Connection::class),
             new Grammar(),
             new Processor()
         );
 
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $connection->shouldReceive('query')->once()->andReturn($customBuilder);
 
         $model = new NewBaseQueryBuilderTestModel();
@@ -47,12 +47,12 @@ class NewBaseQueryBuilderTest extends TestCase
     public function testPivotUsesConnectionQueryMethod(): void
     {
         $customBuilder = new CustomQueryBuilder(
-            m::mock(ConnectionInterface::class),
+            m::mock(Connection::class),
             new Grammar(),
             new Processor()
         );
 
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $connection->shouldReceive('query')->once()->andReturn($customBuilder);
 
         $pivot = new NewBaseQueryBuilderTestPivot();
@@ -67,12 +67,12 @@ class NewBaseQueryBuilderTest extends TestCase
     public function testMorphPivotUsesConnectionQueryMethod(): void
     {
         $customBuilder = new CustomQueryBuilder(
-            m::mock(ConnectionInterface::class),
+            m::mock(Connection::class),
             new Grammar(),
             new Processor()
         );
 
-        $connection = m::mock(ConnectionInterface::class);
+        $connection = m::mock(Connection::class);
         $connection->shouldReceive('query')->once()->andReturn($customBuilder);
 
         $morphPivot = new NewBaseQueryBuilderTestMorphPivot();
@@ -91,14 +91,14 @@ class NewBaseQueryBuilderTestModel extends Model
 {
     protected ?string $table = 'test_models';
 
-    protected ?ConnectionInterface $testConnection = null;
+    protected ?Connection $testConnection = null;
 
-    public function setTestConnection(ConnectionInterface $connection): void
+    public function setTestConnection(Connection $connection): void
     {
         $this->testConnection = $connection;
     }
 
-    public function getConnection(): ConnectionInterface
+    public function getConnection(): Connection
     {
         return $this->testConnection ?? parent::getConnection();
     }
@@ -113,14 +113,14 @@ class NewBaseQueryBuilderTestPivot extends Pivot
 {
     protected ?string $table = 'test_pivots';
 
-    protected ?ConnectionInterface $testConnection = null;
+    protected ?Connection $testConnection = null;
 
-    public function setTestConnection(ConnectionInterface $connection): void
+    public function setTestConnection(Connection $connection): void
     {
         $this->testConnection = $connection;
     }
 
-    public function getConnection(): ConnectionInterface
+    public function getConnection(): Connection
     {
         return $this->testConnection ?? parent::getConnection();
     }
@@ -135,14 +135,14 @@ class NewBaseQueryBuilderTestMorphPivot extends MorphPivot
 {
     protected ?string $table = 'test_morph_pivots';
 
-    protected ?ConnectionInterface $testConnection = null;
+    protected ?Connection $testConnection = null;
 
-    public function setTestConnection(ConnectionInterface $connection): void
+    public function setTestConnection(Connection $connection): void
     {
         $this->testConnection = $connection;
     }
 
-    public function getConnection(): ConnectionInterface
+    public function getConnection(): Connection
     {
         return $this->testConnection ?? parent::getConnection();
     }

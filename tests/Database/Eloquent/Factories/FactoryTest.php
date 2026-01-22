@@ -852,9 +852,9 @@ class DatabaseEloquentFactoryTest extends TestCase
 
 class FactoryTestUserFactory extends Factory
 {
-    protected $model = FactoryTestUser::class;
+    protected ?string $model = FactoryTestUser::class;
 
-    public function definition()
+    public function definition(): array
     {
         return [
             'name' => $this->faker->name(),
@@ -889,9 +889,9 @@ class FactoryTestUser extends Model
 
 class FactoryTestPostFactory extends Factory
 {
-    protected $model = FactoryTestPost::class;
+    protected ?string $model = FactoryTestPost::class;
 
-    public function definition()
+    public function definition(): array
     {
         return [
             'user_id' => FactoryTestUserFactory::new(),
@@ -929,9 +929,9 @@ class FactoryTestPost extends Model
 
 class FactoryTestCommentFactory extends Factory
 {
-    protected $model = FactoryTestComment::class;
+    protected ?string $model = FactoryTestComment::class;
 
-    public function definition()
+    public function definition(): array
     {
         return [
             'commentable_id' => FactoryTestPostFactory::new(),
@@ -963,9 +963,9 @@ class FactoryTestComment extends Model
 
 class FactoryTestRoleFactory extends Factory
 {
-    protected $model = FactoryTestRole::class;
+    protected ?string $model = FactoryTestRole::class;
 
-    public function definition()
+    public function definition(): array
     {
         return [
             'name' => $this->faker->name(),
@@ -991,7 +991,7 @@ class FactoryTestRole extends Model
 
 class FactoryTestModelWithUseFactoryFactory extends Factory
 {
-    public function definition()
+    public function definition(): array
     {
         return [
             'name' => $this->faker->name(),
@@ -1012,9 +1012,9 @@ class FactoryTestModelWithUseFactory extends Model
 // Factory for testing static $factory property precedence
 class FactoryTestModelWithStaticFactory extends Factory
 {
-    protected $model = FactoryTestModelWithStaticFactoryAndAttribute::class;
+    protected ?string $model = FactoryTestModelWithStaticFactoryAndAttribute::class;
 
-    public function definition()
+    public function definition(): array
     {
         return [
             'name' => $this->faker->name(),
@@ -1025,7 +1025,7 @@ class FactoryTestModelWithStaticFactory extends Factory
 // Alternative factory for the attribute (should NOT be used)
 class FactoryTestAlternativeFactory extends Factory
 {
-    public function definition()
+    public function definition(): array
     {
         return [
             'name' => 'alternative',
@@ -1048,7 +1048,7 @@ class FactoryTestModelWithStaticFactoryAndAttribute extends Model
 // Factory without explicit $model property for testing resolver isolation
 class FactoryTestFactoryWithoutModel extends Factory
 {
-    public function definition()
+    public function definition(): array
     {
         return [];
     }

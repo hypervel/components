@@ -308,7 +308,7 @@ class UserWithPrefixedTable extends Eloquent
 
 class UserWithConnection extends User
 {
-    protected ?string $connection = 'mysql';
+    protected \UnitEnum|string|null $connection = 'mysql';
 }
 
 class NoTableNameModel extends Eloquent

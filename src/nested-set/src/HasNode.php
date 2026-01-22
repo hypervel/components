@@ -973,7 +973,7 @@ trait HasNode
         return true;
     }
 
-    public function replicate(?array $except = null): Model
+    public function replicate(?array $except = null): static
     {
         $defaults = [
             $this->getParentIdName(),

@@ -47,6 +47,7 @@ use Psr\Container\ContainerInterface;
 use RuntimeException;
 use SplFileInfo;
 use stdClass;
+use UnitEnum;
 
 /**
  * @internal
@@ -9774,7 +9775,7 @@ class ExplicitTableAndConnectionModel extends Model
 {
     protected ?string $table = 'explicits';
 
-    protected ?string $connection = 'connection';
+    protected UnitEnum|string|null $connection = 'connection';
 
     protected array $guarded = [];
 

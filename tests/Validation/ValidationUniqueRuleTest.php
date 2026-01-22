@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Validation;
 
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Model;
+use UnitEnum;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Translation\ArrayLoader;
@@ -254,5 +255,5 @@ class ClassWithNonEmptyConstructor
 
 class EloquentModelWithConnection extends EloquentModelStub
 {
-    protected ?string $connection = 'mysql';
+    protected UnitEnum|string|null $connection = 'mysql';
 }
