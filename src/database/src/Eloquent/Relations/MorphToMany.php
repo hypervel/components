@@ -92,7 +92,7 @@ class MorphToMany extends BelongsToMany
     /**
      * Create a new pivot attachment record.
      */
-    protected function baseAttachRecord(int $id, bool $timed): array
+    protected function baseAttachRecord(mixed $id, bool $timed): array
     {
         return Arr::add(
             parent::baseAttachRecord($id, $timed), $this->morphType, $this->morphClass

@@ -759,7 +759,7 @@ trait HasAttributes
             case 'double':
                 return $this->fromFloat($value);
             case 'decimal':
-                return $this->asDecimal($value, explode(':', $this->getCasts()[$key], 2)[1]);
+                return $this->asDecimal($value, (int) explode(':', $this->getCasts()[$key], 2)[1]);
             case 'string':
                 return (string) $value;
             case 'bool':
@@ -1208,7 +1208,7 @@ trait HasAttributes
     /**
      * Encode the given value as JSON.
      */
-    protected function asJson(mixed $value, int $flags = 0): string
+    protected function asJson(mixed $value, int $flags = 0): string|false
     {
         return Json::encode($value, $flags);
     }
@@ -1362,6 +1362,7 @@ trait HasAttributes
         try {
             $date = Date::createFromFormat($format, $value);
         } catch (InvalidArgumentException) {
+            // @phpstan-ignore catch.neverThrown (defensive: some Carbon versions/configs may throw)
             $date = false;
         }
 
@@ -1524,7 +1525,7 @@ trait HasAttributes
             return true;
         }
 
-        throw new InvalidCastException($this->getModel(), $key, $castType);
+        throw new InvalidCastException($this, $key, $castType);
     }
 
     /**
@@ -2169,6 +2170,7 @@ trait HasAttributes
             }
 
             return false;
+        // @phpstan-ignore method.nonObject (HigherOrderProxy: ->map->name returns Collection, not string)
         })->map->name->values()->all();
     }
 }

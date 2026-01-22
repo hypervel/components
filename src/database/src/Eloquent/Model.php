@@ -1779,12 +1779,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Convert the model instance to JSON.
      *
-     * @param  int  $options
-     * @return string
-     *
      * @throws \Hypervel\Database\Eloquent\JsonEncodingException
      */
-    public function toJson($options = 0)
+    public function toJson(int $options = 0): string
     {
         try {
             $json = json_encode($this->jsonSerialize(), $options | JSON_THROW_ON_ERROR);
@@ -1798,12 +1795,9 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Convert the model instance to pretty print formatted JSON.
      *
-     * @param  int  $options
-     * @return string
-     *
      * @throws \Hypervel\Database\Eloquent\JsonEncodingException
      */
-    public function toPrettyJson(int $options = 0)
+    public function toPrettyJson(int $options = 0): string
     {
         return $this->toJson(JSON_PRETTY_PRINT | $options);
     }
