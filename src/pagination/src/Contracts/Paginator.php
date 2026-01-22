@@ -6,6 +6,7 @@ namespace Hypervel\Pagination\Contracts;
 
 /**
  * @template TKey of array-key
+ *
  * @template-covariant TValue
  *
  * @method $this through(callable(TValue): mixed $callback)
@@ -20,7 +21,6 @@ interface Paginator
     /**
      * Add a set of query string values to the paginator.
      *
-     * @param array<string, mixed>|string|null $key
      * @return $this
      */
     public function appends(array|string|null $key, ?string $value = null): static;
@@ -104,7 +104,7 @@ interface Paginator
     /**
      * Render the paginator using a given view.
      *
-     * @param array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      */
     public function render(?string $view = null, array $data = []): string;
 }
