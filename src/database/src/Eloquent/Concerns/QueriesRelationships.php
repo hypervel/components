@@ -30,7 +30,7 @@ trait QueriesRelationships
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      *
      * @param  \Hypervel\Database\Eloquent\Relations\Relation<TRelatedModel, *, *>|string  $relation
-     * @param  \Hypervel\Database\Contracts\Query\Expression|int  $count
+     * @param  \Hypervel\Database\Query\Expression|int  $count
      * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>): mixed)|null  $callback
      * @return $this
      *
@@ -78,7 +78,7 @@ trait QueriesRelationships
      *
      * Sets up recursive call to whereHas until we finish the nested relation.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|int  $count
+     * @param  \Hypervel\Database\Query\Expression|int  $count
      * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<*>): mixed)|null  $callback
      * @return $this
      */
@@ -118,7 +118,7 @@ trait QueriesRelationships
      * Add a relationship count / exists condition to the query with an "or".
      *
      * @param  \Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $relation
-     * @param  \Hypervel\Database\Contracts\Query\Expression|int  $count
+     * @param  \Hypervel\Database\Query\Expression|int  $count
      * @return $this
      */
     public function orHas(Relation|string $relation, string $operator = '>=', Expression|int $count = 1): static
@@ -158,7 +158,7 @@ trait QueriesRelationships
      *
      * @param  \Hypervel\Database\Eloquent\Relations\Relation<TRelatedModel, *, *>|string  $relation
      * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>): mixed)|null  $callback
-     * @param  \Hypervel\Database\Contracts\Query\Expression|int  $count
+     * @param  \Hypervel\Database\Query\Expression|int  $count
      * @return $this
      */
     public function whereHas(Relation|string $relation, ?Closure $callback = null, string $operator = '>=', Expression|int $count = 1): static
@@ -172,7 +172,7 @@ trait QueriesRelationships
      * Also load the relationship with the same condition.
      *
      * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|null  $callback
-     * @param  \Hypervel\Database\Contracts\Query\Expression|int  $count
+     * @param  \Hypervel\Database\Query\Expression|int  $count
      * @return $this
      */
     public function withWhereHas(string $relation, ?Closure $callback = null, string $operator = '>=', Expression|int $count = 1): static
@@ -188,7 +188,7 @@ trait QueriesRelationships
      *
      * @param  \Hypervel\Database\Eloquent\Relations\Relation<TRelatedModel, *, *>|string  $relation
      * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>): mixed)|null  $callback
-     * @param  \Hypervel\Database\Contracts\Query\Expression|int  $count
+     * @param  \Hypervel\Database\Query\Expression|int  $count
      * @return $this
      */
     public function orWhereHas(Relation|string $relation, ?Closure $callback = null, string $operator = '>=', Expression|int $count = 1): static
@@ -231,7 +231,7 @@ trait QueriesRelationships
      *
      * @param  \Hypervel\Database\Eloquent\Relations\MorphTo<TRelatedModel, *>|string  $relation
      * @param  string|array<int, string>  $types
-     * @param  \Hypervel\Database\Contracts\Query\Expression|int  $count
+     * @param  \Hypervel\Database\Query\Expression|int  $count
      * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>, string): mixed)|null  $callback
      * @return $this
      */
@@ -314,7 +314,7 @@ trait QueriesRelationships
      *
      * @param  \Hypervel\Database\Eloquent\Relations\MorphTo<*, *>|string  $relation
      * @param  string|array<int, string>  $types
-     * @param  \Hypervel\Database\Contracts\Query\Expression|int  $count
+     * @param  \Hypervel\Database\Query\Expression|int  $count
      * @return $this
      */
     public function orHasMorph(MorphTo|string $relation, string|array $types, string $operator = '>=', Expression|int $count = 1): static
@@ -357,7 +357,7 @@ trait QueriesRelationships
      * @param  \Hypervel\Database\Eloquent\Relations\MorphTo<TRelatedModel, *>|string  $relation
      * @param  string|array<int, string>  $types
      * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>, string): mixed)|null  $callback
-     * @param  \Hypervel\Database\Contracts\Query\Expression|int  $count
+     * @param  \Hypervel\Database\Query\Expression|int  $count
      * @return $this
      */
     public function whereHasMorph(MorphTo|string $relation, string|array $types, ?Closure $callback = null, string $operator = '>=', Expression|int $count = 1): static
@@ -373,7 +373,7 @@ trait QueriesRelationships
      * @param  \Hypervel\Database\Eloquent\Relations\MorphTo<TRelatedModel, *>|string  $relation
      * @param  string|array<int, string>  $types
      * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>, string): mixed)|null  $callback
-     * @param  \Hypervel\Database\Contracts\Query\Expression|int  $count
+     * @param  \Hypervel\Database\Query\Expression|int  $count
      * @return $this
      */
     public function orWhereHasMorph(MorphTo|string $relation, string|array $types, ?Closure $callback = null, string $operator = '>=', Expression|int $count = 1): static
@@ -417,7 +417,7 @@ trait QueriesRelationships
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      *
      * @param  \Hypervel\Database\Eloquent\Relations\Relation<TRelatedModel, *, *>|string  $relation
-     * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>): mixed)|string|array|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>): mixed)|string|array|\Hypervel\Database\Query\Expression  $column
      * @return $this
      */
     public function whereRelation(Relation|string $relation, Closure|string|array|Expression $column, mixed $operator = null, mixed $value = null): static
@@ -435,7 +435,7 @@ trait QueriesRelationships
      * Add a basic where clause to a relationship query and eager-load the relationship with the same conditions.
      *
      * @param  \Hypervel\Database\Eloquent\Relations\Relation<*, *, *>|string  $relation
-     * @param  \Closure|string|array|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  \Closure|string|array|\Hypervel\Database\Query\Expression  $column
      * @return $this
      */
     public function withWhereRelation(Relation|string $relation, Closure|string|array|Expression $column, mixed $operator = null, mixed $value = null): static
@@ -454,7 +454,7 @@ trait QueriesRelationships
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      *
      * @param  \Hypervel\Database\Eloquent\Relations\Relation<TRelatedModel, *, *>|string  $relation
-     * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>): mixed)|string|array|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>): mixed)|string|array|\Hypervel\Database\Query\Expression  $column
      * @return $this
      */
     public function orWhereRelation(Relation|string $relation, Closure|string|array|Expression $column, mixed $operator = null, mixed $value = null): static
@@ -474,7 +474,7 @@ trait QueriesRelationships
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      *
      * @param  \Hypervel\Database\Eloquent\Relations\Relation<TRelatedModel, *, *>|string  $relation
-     * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>): mixed)|string|array|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>): mixed)|string|array|\Hypervel\Database\Query\Expression  $column
      * @return $this
      */
     public function whereDoesntHaveRelation(Relation|string $relation, Closure|string|array|Expression $column, mixed $operator = null, mixed $value = null): static
@@ -494,7 +494,7 @@ trait QueriesRelationships
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      *
      * @param  \Hypervel\Database\Eloquent\Relations\Relation<TRelatedModel, *, *>|string  $relation
-     * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>): mixed)|string|array|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>): mixed)|string|array|\Hypervel\Database\Query\Expression  $column
      * @return $this
      */
     public function orWhereDoesntHaveRelation(Relation|string $relation, Closure|string|array|Expression $column, mixed $operator = null, mixed $value = null): static
@@ -515,7 +515,7 @@ trait QueriesRelationships
      *
      * @param  \Hypervel\Database\Eloquent\Relations\MorphTo<TRelatedModel, *>|string  $relation
      * @param  string|array<int, string>  $types
-     * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>): mixed)|string|array|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>): mixed)|string|array|\Hypervel\Database\Query\Expression  $column
      * @return $this
      */
     public function whereMorphRelation(MorphTo|string $relation, string|array $types, Closure|string|array|Expression $column, mixed $operator = null, mixed $value = null): static
@@ -532,7 +532,7 @@ trait QueriesRelationships
      *
      * @param  \Hypervel\Database\Eloquent\Relations\MorphTo<TRelatedModel, *>|string  $relation
      * @param  string|array<int, string>  $types
-     * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>): mixed)|string|array|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>): mixed)|string|array|\Hypervel\Database\Query\Expression  $column
      * @return $this
      */
     public function orWhereMorphRelation(MorphTo|string $relation, string|array $types, Closure|string|array|Expression $column, mixed $operator = null, mixed $value = null): static
@@ -549,7 +549,7 @@ trait QueriesRelationships
      *
      * @param  \Hypervel\Database\Eloquent\Relations\MorphTo<TRelatedModel, *>|string  $relation
      * @param  string|array<int, string>  $types
-     * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>): mixed)|string|array|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>): mixed)|string|array|\Hypervel\Database\Query\Expression  $column
      * @return $this
      */
     public function whereMorphDoesntHaveRelation(MorphTo|string $relation, string|array $types, Closure|string|array|Expression $column, mixed $operator = null, mixed $value = null): static
@@ -566,7 +566,7 @@ trait QueriesRelationships
      *
      * @param  \Hypervel\Database\Eloquent\Relations\MorphTo<TRelatedModel, *>|string  $relation
      * @param  string|array<int, string>  $types
-     * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>): mixed)|string|array|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  (\Closure(\Hypervel\Database\Eloquent\Builder<TRelatedModel>): mixed)|string|array|\Hypervel\Database\Query\Expression  $column
      * @return $this
      */
     public function orWhereMorphDoesntHaveRelation(MorphTo|string $relation, string|array $types, Closure|string|array|Expression $column, mixed $operator = null, mixed $value = null): static
@@ -795,7 +795,7 @@ trait QueriesRelationships
     /**
      * Add subselect queries to include an aggregate value for a relationship.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Database\Query\Expression|string  $column
      * @return $this
      */
     public function withAggregate(mixed $relations, Expression|string $column, ?string $function = null): static
@@ -918,7 +918,7 @@ trait QueriesRelationships
     /**
      * Add subselect queries to include the max of the relation's column.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Database\Query\Expression|string  $column
      * @return $this
      */
     public function withMax(string|array $relation, Expression|string $column): static
@@ -929,7 +929,7 @@ trait QueriesRelationships
     /**
      * Add subselect queries to include the min of the relation's column.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Database\Query\Expression|string  $column
      * @return $this
      */
     public function withMin(string|array $relation, Expression|string $column): static
@@ -940,7 +940,7 @@ trait QueriesRelationships
     /**
      * Add subselect queries to include the sum of the relation's column.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Database\Query\Expression|string  $column
      * @return $this
      */
     public function withSum(string|array $relation, Expression|string $column): static
@@ -951,7 +951,7 @@ trait QueriesRelationships
     /**
      * Add subselect queries to include the average of the relation's column.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Database\Query\Expression|string  $column
      * @return $this
      */
     public function withAvg(string|array $relation, Expression|string $column): static
@@ -974,7 +974,7 @@ trait QueriesRelationships
      *
      * @param  \Hypervel\Database\Eloquent\Builder<*>  $hasQuery
      * @param  \Hypervel\Database\Eloquent\Relations\Relation<*, *, *>  $relation
-     * @param  \Hypervel\Database\Contracts\Query\Expression|int  $count
+     * @param  \Hypervel\Database\Query\Expression|int  $count
      * @return $this
      */
     protected function addHasWhere(Builder $hasQuery, Relation $relation, string $operator, Expression|int $count, string $boolean): static
@@ -1035,7 +1035,7 @@ trait QueriesRelationships
     /**
      * Add a sub-query count clause to this query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|int  $count
+     * @param  \Hypervel\Database\Query\Expression|int  $count
      * @return $this
      */
     protected function addWhereCountQuery(QueryBuilder $query, string $operator = '>=', Expression|int $count = 1, string $boolean = 'and'): static
@@ -1065,7 +1065,7 @@ trait QueriesRelationships
     /**
      * Check if we can run an "exists" query to optimize performance.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|int  $count
+     * @param  \Hypervel\Database\Query\Expression|int  $count
      */
     protected function canUseExistsForExistenceCheck(string $operator, Expression|int $count): bool
     {

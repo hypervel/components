@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Schema;
 
+/**
+ * @property \Hypervel\Database\Schema\Grammars\MySqlGrammar $grammar
+ */
 class MySqlBuilder extends Builder
 {
     /**

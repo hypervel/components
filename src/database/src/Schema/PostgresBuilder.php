@@ -6,6 +6,9 @@ namespace Hypervel\Database\Schema;
 
 use Hypervel\Database\Concerns\ParsesSearchPath;
 
+/**
+ * @property \Hypervel\Database\Schema\Grammars\PostgresGrammar $grammar
+ */
 class PostgresBuilder extends Builder
 {
     use ParsesSearchPath;

@@ -8,6 +8,9 @@ use Hypervel\Database\QueryException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\File;
 
+/**
+ * @property \Hypervel\Database\Schema\Grammars\SQLiteGrammar $grammar
+ */
 class SQLiteBuilder extends Builder
 {
     /**
