@@ -445,12 +445,13 @@ abstract class Relation implements BuilderContract
     /**
      * Builds a table-keyed array from model class names.
      *
-     * @param  list<class-string<\Hypervel\Database\Eloquent\Model>>|null  $models
+     * @param  array<string, class-string<\Hypervel\Database\Eloquent\Model>>|list<class-string<\Hypervel\Database\Eloquent\Model>>|null  $models
      * @return array<string, class-string<\Hypervel\Database\Eloquent\Model>>|null
      */
     protected static function buildMorphMapFromModels(?array $models = null): ?array
     {
         if (is_null($models) || ! array_is_list($models)) {
+            // @phpstan-ignore return.type (returns the keyed array unchanged)
             return $models;
         }
 
