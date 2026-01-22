@@ -7,6 +7,8 @@ namespace Hypervel\Support;
 use ArgumentCountError;
 use ArrayAccess;
 use Closure;
+use Hyperf\Collection\ItemNotFoundException;
+use Hyperf\Collection\MultipleItemsFoundException;
 use Hyperf\Macroable\Macroable;
 use Hypervel\Support\Contracts\Arrayable;
 use Hypervel\Support\Contracts\Jsonable;
@@ -587,49 +589,32 @@ class Arr
 
     /**
      * Key an associative array by a field or using a callback.
-     *
-     * @param  iterable  $array
-     * @param  callable|array|string  $keyBy
-     * @return array
      */
-    public static function keyBy($array, $keyBy)
+    public static function keyBy(iterable $array, callable|array|string $keyBy): array
     {
         return (new Collection($array))->keyBy($keyBy)->all();
     }
 
     /**
      * Prepend the key names of an associative array.
-     *
-     * @param  array  $array
-     * @param  string  $prependWith
-     * @return array
      */
-    public static function prependKeysWith($array, $prependWith)
+    public static function prependKeysWith(array $array, string $prependWith): array
     {
         return static::mapWithKeys($array, fn ($item, $key) => [$prependWith.$key => $item]);
     }
 
     /**
      * Get a subset of the items from the given array.
-     *
-     * @param  array  $array
-     * @param  array|string  $keys
-     * @return array
      */
-    public static function only($array, $keys)
+    public static function only(array $array, array|string $keys): array
     {
         return array_intersect_key($array, array_flip((array) $keys));
     }
 
     /**
      * Get a subset of the items from the given array by value.
-     *
-     * @param  array  $array
-     * @param  mixed  $values
-     * @param  bool  $strict
-     * @return array
      */
-    public static function onlyValues($array, $values, $strict = false)
+    public static function onlyValues(array $array, mixed $values, bool $strict = false): array
     {
         $values = (array) $values;
 
@@ -640,12 +625,8 @@ class Arr
 
     /**
      * Select an array of values from an array.
-     *
-     * @param  array  $array
-     * @param  array|string  $keys
-     * @return array
      */
-    public static function select($array, $keys)
+    public static function select(array $array, array|string $keys): array
     {
         $keys = static::wrap($keys);
 
@@ -666,13 +647,8 @@ class Arr
 
     /**
      * Pluck an array of values from an array.
-     *
-     * @param  iterable  $array
-     * @param  string|array|int|Closure|null  $value
-     * @param  string|array|Closure|null  $key
-     * @return array
      */
-    public static function pluck($array, $value, $key = null)
+    public static function pluck(iterable $array, string|array|int|Closure|null $value, string|array|Closure|null $key = null): array
     {
         $results = [];
 
@@ -722,12 +698,8 @@ class Arr
 
     /**
      * Run a map over each of the items in the array.
-     *
-     * @param  array  $array
-     * @param  callable  $callback
-     * @return array
      */
-    public static function map(array $array, callable $callback)
+    public static function map(array $array, callable $callback): array
     {
         $keys = array_keys($array);
 
@@ -752,9 +724,8 @@ class Arr
      *
      * @param  array<TKey, TValue>  $array
      * @param  callable(TValue, TKey): array<TMapWithKeysKey, TMapWithKeysValue>  $callback
-     * @return array
      */
-    public static function mapWithKeys(array $array, callable $callback)
+    public static function mapWithKeys(array $array, callable $callback): array
     {
         $result = [];
 
@@ -779,7 +750,7 @@ class Arr
      * @param  callable(mixed...): TValue  $callback
      * @return array<TKey, TValue>
      */
-    public static function mapSpread(array $array, callable $callback)
+    public static function mapSpread(array $array, callable $callback): array
     {
         return static::map($array, function ($chunk, $key) use ($callback) {
             $chunk[] = $key;
@@ -790,13 +761,8 @@ class Arr
 
     /**
      * Push an item onto the beginning of an array.
-     *
-     * @param  array  $array
-     * @param  mixed  $value
-     * @param  mixed  $key
-     * @return array
      */
-    public static function prepend($array, $value, $key = null)
+    public static function prepend(array $array, mixed $value, mixed $key = null): array
     {
         if (func_num_args() == 2) {
             array_unshift($array, $value);
@@ -809,13 +775,8 @@ class Arr
 
     /**
      * Get a value from the array, and remove it.
-     *
-     * @param  array  $array
-     * @param  string|int  $key
-     * @param  mixed  $default
-     * @return mixed
      */
-    public static function pull(&$array, $key, $default = null)
+    public static function pull(array &$array, string|int $key, mixed $default = null): mixed
     {
         $value = static::get($array, $key, $default);
 
@@ -826,11 +787,8 @@ class Arr
 
     /**
      * Convert the array into a query string.
-     *
-     * @param  array  $array
-     * @return string
      */
-    public static function query($array)
+    public static function query(array $array): string
     {
         return http_build_query($array, '', '&', PHP_QUERY_RFC3986);
     }
@@ -838,14 +796,9 @@ class Arr
     /**
      * Get one or a specified number of random values from an array.
      *
-     * @param  array  $array
-     * @param  int|null  $number
-     * @param  bool  $preserveKeys
-     * @return mixed
-     *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
-    public static function random($array, $number = null, $preserveKeys = false)
+    public static function random(array $array, ?int $number = null, bool $preserveKeys = false): mixed
     {
         $requested = is_null($number) ? 1 : $number;
 
@@ -886,13 +839,8 @@ class Arr
      * Set an array item to a given value using "dot" notation.
      *
      * If no key is given to the method, the entire array will be replaced.
-     *
-     * @param  array  $array
-     * @param  string|int|null  $key
-     * @param  mixed  $value
-     * @return array
      */
-    public static function set(&$array, $key, $value)
+    public static function set(array &$array, string|int|null $key, mixed $value): array
     {
         if (is_null($key)) {
             return $array = $value;
@@ -941,11 +889,8 @@ class Arr
 
     /**
      * Shuffle the given array and return the result.
-     *
-     * @param  array  $array
-     * @return array
      */
-    public static function shuffle($array)
+    public static function shuffle(array $array): array
     {
         return (new Randomizer)->shuffleArray($array);
     }
@@ -953,13 +898,10 @@ class Arr
     /**
      * Get the first item in the array, but only if exactly one item exists. Otherwise, throw an exception.
      *
-     * @param  array  $array
-     * @param  (callable(mixed, array-key): array)|null  $callback
-     *
-     * @throws \Illuminate\Support\ItemNotFoundException
-     * @throws \Illuminate\Support\MultipleItemsFoundException
+     * @throws ItemNotFoundException
+     * @throws MultipleItemsFoundException
      */
-    public static function sole($array, ?callable $callback = null)
+    public static function sole(array $array, ?callable $callback = null): mixed
     {
         if ($callback) {
             $array = static::where($array, $callback);
@@ -980,37 +922,24 @@ class Arr
 
     /**
      * Sort the array using the given callback or "dot" notation.
-     *
-     * @param  iterable  $array
-     * @param  callable|array|string|null  $callback
-     * @return array
      */
-    public static function sort($array, $callback = null)
+    public static function sort(iterable $array, callable|array|string|null $callback = null): array
     {
         return (new Collection($array))->sortBy($callback)->all();
     }
 
     /**
      * Sort the array in descending order using the given callback or "dot" notation.
-     *
-     * @param  iterable  $array
-     * @param  callable|array|string|null  $callback
-     * @return array
      */
-    public static function sortDesc($array, $callback = null)
+    public static function sortDesc(iterable $array, callable|array|string|null $callback = null): array
     {
         return (new Collection($array))->sortByDesc($callback)->all();
     }
 
     /**
      * Recursively sort an array by keys and values.
-     *
-     * @param  array  $array
-     * @param  int  $options
-     * @param  bool  $descending
-     * @return array
      */
-    public static function sortRecursive($array, $options = SORT_REGULAR, $descending = false)
+    public static function sortRecursive(array $array, int $options = SORT_REGULAR, bool $descending = false): array
     {
         foreach ($array as &$value) {
             if (is_array($value)) {
@@ -1033,12 +962,8 @@ class Arr
 
     /**
      * Recursively sort an array by keys and values in descending order.
-     *
-     * @param  array  $array
-     * @param  int  $options
-     * @return array
      */
-    public static function sortRecursiveDesc($array, $options = SORT_REGULAR)
+    public static function sortRecursiveDesc(array $array, int $options = SORT_REGULAR): array
     {
         return static::sortRecursive($array, $options, true);
     }
@@ -1063,11 +988,8 @@ class Arr
 
     /**
      * Conditionally compile classes from an array into a CSS class list.
-     *
-     * @param  array|string  $array
-     * @return string
      */
-    public static function toCssClasses($array)
+    public static function toCssClasses(array|string $array): string
     {
         $classList = static::wrap($array);
 
@@ -1086,11 +1008,8 @@ class Arr
 
     /**
      * Conditionally compile styles from an array into a style list.
-     *
-     * @param  array|string  $array
-     * @return string
      */
-    public static function toCssStyles($array)
+    public static function toCssStyles(array|string $array): string
     {
         $styleList = static::wrap($array);
 
@@ -1109,24 +1028,16 @@ class Arr
 
     /**
      * Filter the array using the given callback.
-     *
-     * @param  array  $array
-     * @param  callable  $callback
-     * @return array
      */
-    public static function where($array, callable $callback)
+    public static function where(array $array, callable $callback): array
     {
         return array_filter($array, $callback, ARRAY_FILTER_USE_BOTH);
     }
 
     /**
      * Filter the array using the negation of the given callback.
-     *
-     * @param  array  $array
-     * @param  callable  $callback
-     * @return array
      */
-    public static function reject($array, callable $callback)
+    public static function reject(array $array, callable $callback): array
     {
         return static::where($array, fn ($value, $key) => ! $callback($value, $key));
     }
@@ -1141,7 +1052,7 @@ class Arr
      * @param  callable(TValue, TKey): bool  $callback
      * @return array<int<0, 1>, array<TKey, TValue>>
      */
-    public static function partition($array, callable $callback)
+    public static function partition(iterable $array, callable $callback): array
     {
         $passed = [];
         $failed = [];
@@ -1159,22 +1070,16 @@ class Arr
 
     /**
      * Filter items where the value is not null.
-     *
-     * @param  array  $array
-     * @return array
      */
-    public static function whereNotNull($array)
+    public static function whereNotNull(array $array): array
     {
         return static::where($array, fn ($value) => ! is_null($value));
     }
 
     /**
      * If the given value is not an array and not null, wrap it in one.
-     *
-     * @param  mixed  $value
-     * @return array
      */
-    public static function wrap($value)
+    public static function wrap(mixed $value): array
     {
         if (is_null($value)) {
             return [];
