@@ -597,13 +597,16 @@ abstract class HasOneOrManyThrough extends Relation
     public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         if ($parentQuery->getQuery()->from === $query->getQuery()->from) {
+            // @phpstan-ignore argument.type (template types don't narrow through self-relation detection)
             return $this->getRelationExistenceQueryForSelfRelation($query, $parentQuery, $columns);
         }
 
         if ($parentQuery->getQuery()->from === $this->throughParent->getTable()) {
+            // @phpstan-ignore argument.type (template types don't narrow through self-relation detection)
             return $this->getRelationExistenceQueryForThroughSelfRelation($query, $parentQuery, $columns);
         }
 
+        // @phpstan-ignore argument.type (Builder<*> vs Builder<TRelatedModel>)
         $this->performJoin($query);
 
         return $query->select($columns)->whereColumn(

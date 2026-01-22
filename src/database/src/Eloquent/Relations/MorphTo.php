@@ -79,6 +79,7 @@ class MorphTo extends BelongsTo
     #[\Override]
     public function addEagerConstraints(array $models): void
     {
+        // @phpstan-ignore argument.type (MorphTo eager loading uses declaring model, not related model)
         $this->buildDictionary($this->models = new EloquentCollection($models));
     }
 
