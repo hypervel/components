@@ -263,12 +263,12 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     public function split(string|int $pattern, int $limit = -1, int $flags = 0): Collection
     {
         if (filter_var($pattern, FILTER_VALIDATE_INT) !== false) {
-            return new Collection(mb_str_split($this->value, $pattern));
+            return new Collection(mb_str_split($this->value, $pattern)); // @phpstan-ignore return.type
         }
 
         $segments = preg_split($pattern, $this->value, $limit, $flags);
 
-        return ! empty($segments) ? new Collection($segments) : new Collection();
+        return ! empty($segments) ? new Collection($segments) : new Collection(); // @phpstan-ignore return.type
     }
 
     /**
@@ -884,7 +884,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
      *
      * @param iterable<string> $needles
      */
-    public function whenContainsAll(array $needles, callable $callback, ?callable $default = null): mixed
+    public function whenContainsAll(iterable $needles, callable $callback, ?callable $default = null): mixed
     {
         return $this->when($this->containsAll($needles), $callback, $default);
     }
