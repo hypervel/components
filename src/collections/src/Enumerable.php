@@ -374,7 +374,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  class-string<TWhereInstanceOf>|array<array-key, class-string<TWhereInstanceOf>>  $type
      * @return static<TKey, TWhereInstanceOf>
      */
-    public function whereInstanceOf($type);
+    public function whereInstanceOf(string|array $type): static;
 
     /**
      * Get the first item from the enumerable passing the given truth test.
@@ -385,32 +385,26 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  TFirstDefault|(\Closure(): TFirstDefault)  $default
      * @return TValue|TFirstDefault
      */
-    public function first(?callable $callback = null, $default = null);
+    public function first(?callable $callback = null, mixed $default = null): mixed;
 
     /**
      * Get the first item by the given key value pair.
      *
-     * @param  string  $key
-     * @param  mixed  $operator
-     * @param  mixed  $value
      * @return TValue|null
      */
-    public function firstWhere($key, $operator = null, $value = null);
+    public function firstWhere(string $key, mixed $operator = null, mixed $value = null): mixed;
 
     /**
      * Get a flattened array of the items in the collection.
-     *
-     * @param  int  $depth
-     * @return static
      */
-    public function flatten($depth = INF);
+    public function flatten(int|float $depth = INF): static;
 
     /**
      * Flip the values with their keys.
      *
      * @return static<TValue, TKey>
      */
-    public function flip();
+    public function flip(): static;
 
     /**
      * Get an item from the collection by key.
@@ -421,7 +415,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  TGetDefault|(\Closure(): TGetDefault)  $default
      * @return TValue|TGetDefault
      */
-    public function get($key, $default = null);
+    public function get(mixed $key, mixed $default = null): mixed;
 
     /**
      * Group an associative array by a field or using a callback.
@@ -429,10 +423,9 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TGroupKey of array-key
      *
      * @param  (callable(TValue, TKey): TGroupKey)|array|string  $groupBy
-     * @param  bool  $preserveKeys
      * @return static<($groupBy is string ? array-key : ($groupBy is array ? array-key : TGroupKey)), static<($preserveKeys is true ? TKey : int), ($groupBy is array ? mixed : TValue)>>
      */
-    public function groupBy($groupBy, $preserveKeys = false);
+    public function groupBy(callable|array|string $groupBy, bool $preserveKeys = false): static;
 
     /**
      * Key an associative array by a field or using a callback.
@@ -442,81 +435,68 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  (callable(TValue, TKey): TNewKey)|array|string  $keyBy
      * @return static<($keyBy is string ? array-key : ($keyBy is array ? array-key : TNewKey)), TValue>
      */
-    public function keyBy($keyBy);
+    public function keyBy(callable|array|string $keyBy): static;
 
     /**
      * Determine if an item exists in the collection by key.
      *
      * @param  TKey|array<array-key, TKey>  $key
-     * @return bool
      */
-    public function has($key);
+    public function has(mixed $key): bool;
 
     /**
      * Determine if any of the keys exist in the collection.
-     *
-     * @param  mixed  $key
-     * @return bool
      */
-    public function hasAny($key);
+    public function hasAny(mixed $key): bool;
 
     /**
      * Concatenate values of a given key as a string.
      *
      * @param  (callable(TValue, TKey): mixed)|string  $value
-     * @param  string|null  $glue
-     * @return string
      */
-    public function implode($value, $glue = null);
+    public function implode(callable|string $value, ?string $glue = null): string;
 
     /**
      * Intersect the collection with the given items.
      *
-     * @param  \Illuminate\Contracts\Support\Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
-     * @return static
+     * @param  Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
      */
-    public function intersect($items);
+    public function intersect(Arrayable|iterable $items): static;
 
     /**
      * Intersect the collection with the given items, using the callback.
      *
-     * @param  \Illuminate\Contracts\Support\Arrayable<array-key, TValue>|iterable<array-key, TValue>  $items
+     * @param  Arrayable<array-key, TValue>|iterable<array-key, TValue>  $items
      * @param  callable(TValue, TValue): int  $callback
-     * @return static
      */
-    public function intersectUsing($items, callable $callback);
+    public function intersectUsing(Arrayable|iterable $items, callable $callback): static;
 
     /**
      * Intersect the collection with the given items with additional index check.
      *
-     * @param  \Illuminate\Contracts\Support\Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
-     * @return static
+     * @param  Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
      */
-    public function intersectAssoc($items);
+    public function intersectAssoc(Arrayable|iterable $items): static;
 
     /**
      * Intersect the collection with the given items with additional index check, using the callback.
      *
-     * @param  \Illuminate\Contracts\Support\Arrayable<array-key, TValue>|iterable<array-key, TValue>  $items
+     * @param  Arrayable<array-key, TValue>|iterable<array-key, TValue>  $items
      * @param  callable(TValue, TValue): int  $callback
-     * @return static
      */
-    public function intersectAssocUsing($items, callable $callback);
+    public function intersectAssocUsing(Arrayable|iterable $items, callable $callback): static;
 
     /**
      * Intersect the collection with the given items by key.
      *
-     * @param  \Illuminate\Contracts\Support\Arrayable<TKey, mixed>|iterable<TKey, mixed>  $items
-     * @return static
+     * @param  Arrayable<TKey, mixed>|iterable<TKey, mixed>  $items
      */
-    public function intersectByKeys($items);
+    public function intersectByKeys(Arrayable|iterable $items): static;
 
     /**
      * Determine if the collection is empty or not.
-     *
-     * @return bool
      */
-    public function isEmpty();
+    public function isEmpty(): bool;
 
     /**
      * Determine if the collection is not empty.
