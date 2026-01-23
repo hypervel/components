@@ -625,7 +625,7 @@ class PendingRequest
      *
      * @throws ConnectionException
      */
-    public function get(string $url, array|JsonSerializable|string|null $query = null): PromiseInterface|Response
+    public function get(string $url, Arrayable|array|JsonSerializable|string|null $query = null): PromiseInterface|Response
     {
         return $this->send(
             'GET',
@@ -1008,6 +1008,8 @@ class PendingRequest
             $options[$key] = match (true) {
                 is_array($value) => $this->normalizeRequestOptions($value),
                 $value instanceof Stringable => $value->toString(),
+                $value instanceof JsonSerializable => $value,
+                $value instanceof Arrayable => $this->normalizeRequestOptions($value->toArray()),
                 default => $value,
             };
         }

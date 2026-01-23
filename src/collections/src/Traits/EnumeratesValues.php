@@ -583,7 +583,7 @@ trait EnumeratesValues
     /**
      * Filter items by the given key value pair.
      */
-    public function where(string $key, mixed $operator = null, mixed $value = null): static
+    public function where(callable|string $key, mixed $operator = null, mixed $value = null): static
     {
         return $this->filter($this->operatorForWhere(...func_get_args()));
     }
