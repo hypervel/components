@@ -56,27 +56,39 @@ class HasGlobalScopesTest extends TestCase
         $this->assertSame([ActiveScope::class, TenantScope::class], $result);
     }
 
-    public function testResolveGlobalScopeAttributesInheritsFromParentClass(): void
+    /**
+     * Laravel does NOT inherit ScopedBy attributes from parent classes.
+     * PHP attributes are not inherited by default, and Laravel does not
+     * implement custom inheritance logic for ScopedBy.
+     */
+    public function testResolveGlobalScopeAttributesDoesNotInheritFromParentClass(): void
     {
         $result = ChildModelWithOwnScope::resolveGlobalScopeAttributes();
 
-        // Parent's scope comes first, then child's
-        $this->assertSame([ParentScope::class, ChildScope::class], $result);
+        // Only child's scope, NOT parent's - Laravel does not inherit ScopedBy
+        $this->assertSame([ChildScope::class], $result);
     }
 
-    public function testResolveGlobalScopeAttributesInheritsFromParentWhenChildHasNoAttributes(): void
+    /**
+     * Laravel does NOT inherit ScopedBy attributes from parent classes.
+     */
+    public function testResolveGlobalScopeAttributesDoesNotInheritFromParentWhenChildHasNoAttributes(): void
     {
         $result = ChildModelWithoutOwnScope::resolveGlobalScopeAttributes();
 
-        $this->assertSame([ParentScope::class], $result);
+        // Empty - child has no ScopedBy, and parent's is not inherited
+        $this->assertSame([], $result);
     }
 
-    public function testResolveGlobalScopeAttributesInheritsFromGrandparent(): void
+    /**
+     * Laravel does NOT inherit ScopedBy attributes from parent/grandparent classes.
+     */
+    public function testResolveGlobalScopeAttributesDoesNotInheritFromGrandparent(): void
     {
         $result = GrandchildModelWithScope::resolveGlobalScopeAttributes();
 
-        // Should have grandparent's, parent's, and own scope
-        $this->assertSame([ParentScope::class, MiddleScope::class, GrandchildScope::class], $result);
+        // Only grandchild's own scope, NOT parent's or grandparent's
+        $this->assertSame([GrandchildScope::class], $result);
     }
 
     public function testResolveGlobalScopeAttributesDoesNotInheritFromModelBaseClass(): void
@@ -114,26 +126,32 @@ class HasGlobalScopesTest extends TestCase
     {
         $result = ModelWithTraitAndOwnScope::resolveGlobalScopeAttributes();
 
-        // Trait scopes come first, then class scopes
-        $this->assertSame([TraitScope::class, ActiveScope::class], $result);
+        // Class attributes come first, then trait attributes (reflection order)
+        $this->assertSame([ActiveScope::class, TraitScope::class], $result);
     }
 
-    public function testResolveGlobalScopeAttributesMergesParentTraitAndChildScopes(): void
+    /**
+     * Laravel does NOT inherit ScopedBy from parent classes or their traits.
+     */
+    public function testResolveGlobalScopeAttributesDoesNotInheritParentTraitScopes(): void
     {
         $result = ChildModelWithTraitParent::resolveGlobalScopeAttributes();
 
-        // Parent's trait scope -> child's class scope
-        $this->assertSame([TraitScope::class, ChildScope::class], $result);
+        // Only child's class scope - parent's trait scope is NOT inherited
+        $this->assertSame([ChildScope::class], $result);
     }
 
-    public function testResolveGlobalScopeAttributesCorrectOrderWithParentTraitsAndChild(): void
+    /**
+     * Laravel does NOT inherit ScopedBy from parent classes.
+     * Only the child's own attributes and traits are resolved.
+     */
+    public function testResolveGlobalScopeAttributesOnlyResolvesOwnScopesNotParent(): void
     {
         $result = ChildModelWithAllScopeSources::resolveGlobalScopeAttributes();
 
-        // Order: parent class -> parent trait -> child trait -> child class
-        // ParentModelWithScope has ParentScope
-        // ChildModelWithAllScopeSources uses TraitWithScope (TraitScope) and has ChildScope
-        $this->assertSame([ParentScope::class, TraitScope::class, ChildScope::class], $result);
+        // Only child's class scope and child's trait scope
+        // Parent's ParentScope is NOT inherited
+        $this->assertSame([ChildScope::class, TraitScope::class], $result);
     }
 
     public function testAddGlobalScopesRegistersMultipleScopes(): void
@@ -162,12 +180,15 @@ class HasGlobalScopesTest extends TestCase
         $this->assertSame([PivotScope::class], $result);
     }
 
-    public function testPivotModelInheritsScopesFromParent(): void
+    /**
+     * Laravel does NOT inherit ScopedBy from parent Pivot classes.
+     */
+    public function testPivotModelDoesNotInheritScopesFromParent(): void
     {
         $result = ChildPivotWithScope::resolveGlobalScopeAttributes();
 
-        // Parent's scope comes first, then child's
-        $this->assertSame([PivotScope::class, ChildPivotScope::class], $result);
+        // Only child's scope - parent's PivotScope is NOT inherited
+        $this->assertSame([ChildPivotScope::class], $result);
     }
 
     public function testMorphPivotModelSupportsScopedByAttribute(): void
