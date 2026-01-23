@@ -1272,7 +1272,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
             throw new InvalidArgumentException('Step value must be at least 1.');
         }
 
-        $chunks = floor(($this->count() - $size) / $step) + 1;
+        $chunks = (int) floor(($this->count() - $size) / $step) + 1;
 
         return static::times($chunks, fn ($number) => $this->slice(($number - 1) * $step, $size));
     }
@@ -1332,7 +1332,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
         $groups = new static;
 
-        $groupSize = floor($this->count() / $numberOfGroups);
+        $groupSize = (int) floor($this->count() / $numberOfGroups);
 
         $remain = $this->count() % $numberOfGroups;
 
