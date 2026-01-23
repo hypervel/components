@@ -869,7 +869,7 @@ abstract class Factory
             return null;
         }
 
-        return ApplicationContext::getContainer()->make(Generator::class);
+        return ApplicationContext::getContainer()->get(Generator::class);
     }
 
     /**

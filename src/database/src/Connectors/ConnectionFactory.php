@@ -185,7 +185,7 @@ class ConnectionFactory
         }
 
         if ($this->container->bound($key = "db.connector.{$config['driver']}")) {
-            return $this->container->make($key);
+            return $this->container->get($key);
         }
 
         return match ($config['driver']) {

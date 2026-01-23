@@ -233,7 +233,7 @@ class ModelInspector
      */
     protected function getObservers(Model $model): BaseCollection
     {
-        $modelListener = $this->app->make(ModelListener::class);
+        $modelListener = $this->app->get(ModelListener::class);
         $observers = $modelListener->getObservers($model::class);
 
         $formatted = [];
