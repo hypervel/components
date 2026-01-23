@@ -69,13 +69,13 @@ trait TransformsToResourceCollection
         foreach ($resourceClasses as $resourceClass) {
             $resourceCollection = $resourceClass.'Collection';
 
-            if (is_string($resourceCollection) && class_exists($resourceCollection)) {
+            if (class_exists($resourceCollection)) {
                 return new $resourceCollection($this);
             }
         }
 
         foreach ($resourceClasses as $resourceClass) {
-            if (is_string($resourceClass) && class_exists($resourceClass)) {
+            if (class_exists($resourceClass)) {
                 return $resourceClass::collection($this);
             }
         }
