@@ -7,6 +7,7 @@ namespace Hypervel\Support\Traits;
 use Hypervel\Database\Eloquent\Attributes\UseResource;
 use Hypervel\Database\Eloquent\Attributes\UseResourceCollection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Http\Resources\Json\ResourceCollection;
 use LogicException;
 use ReflectionClass;
@@ -86,8 +87,8 @@ trait TransformsToResourceCollection
     /**
      * Get the resource class from the class attribute.
      *
-     * @param  class-string<\Hypervel\Http\Resources\Json\JsonResource>  $class
-     * @return class-string<*>|null
+     * @param  class-string  $class
+     * @return class-string<JsonResource>|null
      */
     protected function resolveResourceFromAttribute(string $class): ?string
     {
@@ -105,8 +106,8 @@ trait TransformsToResourceCollection
     /**
      * Get the resource collection class from the class attribute.
      *
-     * @param  class-string<\Hypervel\Http\Resources\Json\ResourceCollection>  $class
-     * @return class-string<*>|null
+     * @param  class-string  $class
+     * @return class-string<ResourceCollection>|null
      */
     protected function resolveResourceCollectionFromAttribute(string $class): ?string
     {
