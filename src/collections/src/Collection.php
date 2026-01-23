@@ -6,6 +6,7 @@ namespace Hypervel\Support;
 
 use ArrayAccess;
 use ArrayIterator;
+use Closure;
 use Hyperf\Macroable\Macroable;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\CanBeEscapedWhenCastToString;
@@ -760,7 +761,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      *
      * @return static<int, TKey>
      */
-    public function keys()
+    public function keys(): static
     {
         return new static(array_keys($this->items));
     }
@@ -774,7 +775,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  TLastDefault|(\Closure(): TLastDefault)  $default
      * @return TValue|TLastDefault
      */
-    public function last(?callable $callback = null, $default = null)
+    public function last(?callable $callback = null, mixed $default = null): mixed
     {
         return Arr::last($this->items, $callback, $default);
     }
@@ -782,11 +783,11 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Get the values of a given key.
      *
-     * @param  \Closure|string|int|array<array-key, string>|null  $value
-     * @param  \Closure|string|null  $key
+     * @param  Closure|string|int|array<array-key, string>|null  $value
+     * @param  Closure|string|null  $key
      * @return static<array-key, mixed>
      */
-    public function pluck($value, $key = null)
+    public function pluck(Closure|string|int|array|null $value, Closure|string|null $key = null): static
     {
         return new static(Arr::pluck($this->items, $value, $key));
     }
@@ -799,7 +800,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  callable(TValue, TKey): TMapValue  $callback
      * @return static<TKey, TMapValue>
      */
-    public function map(callable $callback)
+    public function map(callable $callback): static
     {
         return new static(Arr::map($this->items, $callback));
     }
@@ -815,7 +816,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  callable(TValue, TKey): array<TMapToDictionaryKey, TMapToDictionaryValue>  $callback
      * @return static<TMapToDictionaryKey, array<int, TMapToDictionaryValue>>
      */
-    public function mapToDictionary(callable $callback)
+    public function mapToDictionary(callable $callback): static
     {
         $dictionary = [];
 
@@ -847,7 +848,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  callable(TValue, TKey): array<TMapWithKeysKey, TMapWithKeysValue>  $callback
      * @return static<TMapWithKeysKey, TMapWithKeysValue>
      */
-    public function mapWithKeys(callable $callback)
+    public function mapWithKeys(callable $callback): static
     {
         return new static(Arr::mapWithKeys($this->items, $callback));
     }
@@ -860,7 +861,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  Arrayable<TKey, TMergeValue>|iterable<TKey, TMergeValue>  $items
      * @return static<TKey, TValue|TMergeValue>
      */
-    public function merge($items)
+    public function merge(mixed $items): static
     {
         return new static(array_merge($this->items, $this->getArrayableItems($items)));
     }
@@ -873,18 +874,15 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  Arrayable<TKey, TMergeRecursiveValue>|iterable<TKey, TMergeRecursiveValue>  $items
      * @return static<TKey, TValue|TMergeRecursiveValue>
      */
-    public function mergeRecursive($items)
+    public function mergeRecursive(mixed $items): static
     {
         return new static(array_merge_recursive($this->items, $this->getArrayableItems($items)));
     }
 
     /**
      * Multiply the items in the collection by the multiplier.
-     *
-     * @param  int  $multiplier
-     * @return static
      */
-    public function multiply(int $multiplier)
+    public function multiply(int $multiplier): static
     {
         $new = new static;
 
@@ -903,7 +901,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  Arrayable<array-key, TCombineValue>|iterable<array-key, TCombineValue>  $values
      * @return static<TValue, TCombineValue>
      */
-    public function combine($values)
+    public function combine(mixed $values): static
     {
         return new static(array_combine($this->all(), $this->getArrayableItems($values)));
     }
@@ -912,9 +910,8 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Union the collection with the given items.
      *
      * @param  Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
-     * @return static
      */
-    public function union($items)
+    public function union(mixed $items): static
     {
         return new static($this->items + $this->getArrayableItems($items));
     }
@@ -922,13 +919,9 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Create a new collection consisting of every n-th element.
      *
-     * @param  int  $step
-     * @param  int  $offset
-     * @return static
-     *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
-    public function nth($step, $offset = 0)
+    public function nth(int $step, int $offset = 0): static
     {
         if ($step < 1) {
             throw new InvalidArgumentException('Step value must be at least 1.');
@@ -952,10 +945,9 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Get the items with the specified keys.
      *
-     * @param  \Hypervel\Support\Enumerable<array-key, TKey>|array<array-key, TKey>|string|null  $keys
-     * @return static
+     * @param  Enumerable<array-key, TKey>|array<array-key, TKey>|string|null  $keys
      */
-    public function only($keys)
+    public function only(mixed $keys): static
     {
         if (is_null($keys)) {
             return new static($this->items);
@@ -973,10 +965,9 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Select specific values from the items within the collection.
      *
-     * @param  \Hypervel\Support\Enumerable<array-key, TKey>|array<array-key, TKey>|string|null  $keys
-     * @return static
+     * @param  Enumerable<array-key, TKey>|array<array-key, TKey>|string|null  $keys
      */
-    public function select($keys)
+    public function select(mixed $keys): static
     {
         if (is_null($keys)) {
             return new static($this->items);
