@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation\fixtures;
 
-use Hypervel\Support\Contracts\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 
 class Values implements Arrayable
 {

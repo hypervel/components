@@ -31,7 +31,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Collection as BaseCollection;
-use Hypervel\Support\Contracts\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Facades\Crypt;
 use Hypervel\Support\Facades\Date;

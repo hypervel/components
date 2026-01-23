@@ -15,7 +15,7 @@ use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithPivotTable;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Support\Collection as BaseCollection;
-use Hypervel\Support\Contracts\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Str;
 use Hypervel\Support\StrCache;
 use InvalidArgumentException;
@@ -529,7 +529,7 @@ class BelongsToMany extends Relation
      * Find a related model by its primary key or return a new instance of the related model.
      *
      * @return (
-     *     $id is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>)
+     *     $id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>)
      *     ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel&object{pivot: TPivotModel}>
      *     : TRelatedModel&object{pivot: TPivotModel}
      * )
@@ -621,7 +621,7 @@ class BelongsToMany extends Relation
      * Find a related model by its primary key.
      *
      * @return (
-     *     $id is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>)
+     *     $id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>)
      *     ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel&object{pivot: TPivotModel}>
      *     : (TRelatedModel&object{pivot: TPivotModel})|null
      * )
@@ -655,7 +655,7 @@ class BelongsToMany extends Relation
     /**
      * Find multiple related models by their primary keys.
      *
-     * @param  \Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>  $ids
+     * @param  \Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>  $ids
      * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel&object{pivot: TPivotModel}>
      */
     public function findMany(Arrayable|array $ids, array $columns = ['*']): EloquentCollection
@@ -675,7 +675,7 @@ class BelongsToMany extends Relation
      * Find a related model by its primary key or throw an exception.
      *
      * @return (
-     *     $id is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>)
+     *     $id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>)
      *     ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel&object{pivot: TPivotModel}>
      *     : TRelatedModel&object{pivot: TPivotModel}
      * )
@@ -707,7 +707,7 @@ class BelongsToMany extends Relation
      * @param  (\Closure(): TValue)|list<string>|string  $columns
      * @param  (\Closure(): TValue)|null  $callback
      * @return (
-     *     $id is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>)
+     *     $id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>)
      *     ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel&object{pivot: TPivotModel}>|TValue
      *     : (TRelatedModel&object{pivot: TPivotModel})|TValue
      * )

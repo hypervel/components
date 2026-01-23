@@ -187,7 +187,7 @@ abstract class HasOneOrMany extends Relation
     /**
      * Find a model by its primary key or return a new instance of the related model.
      *
-     * @return ($id is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : TRelatedModel)
+     * @return ($id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : TRelatedModel)
      */
     public function findOrNew(mixed $id, array $columns = ['*']): EloquentCollection|Model
     {

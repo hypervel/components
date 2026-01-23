@@ -4,10 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
-use BackedEnum;
 use Closure;
 use Symfony\Component\Process\PhpExecutableFinder;
-use UnitEnum;
 
 /**
  * Return the default value of the given value.
@@ -20,28 +18,6 @@ use UnitEnum;
 function value(mixed $value, ...$args)
 {
     return $value instanceof Closure ? $value(...$args) : $value;
-}
-
-/**
- * Return a scalar value for the given value that might be an enum.
- *
- * @internal
- *
- * @template TValue
- * @template TDefault
- *
- * @param TValue $value
- * @param callable(TValue): TDefault|TDefault $default
- * @return ($value is empty ? TDefault : mixed)
- */
-function enum_value($value, $default = null)
-{
-    return transform($value, fn ($value) => match (true) {
-        $value instanceof BackedEnum => $value->value,
-        $value instanceof UnitEnum => $value->name,
-
-        default => $value,
-    }, $default ?? $value);
 }
 
 /**

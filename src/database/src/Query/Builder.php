@@ -11,7 +11,7 @@ use DateTimeInterface;
 use Hypervel\Database\Contracts\Query\Builder as BuilderContract;
 use Hypervel\Database\Contracts\Query\ConditionExpression;
 use Hypervel\Database\Contracts\Query\Expression as ExpressionContract;
-use Hypervel\Support\Contracts\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Concerns\BuildsQueries;
 use Hypervel\Database\Concerns\BuildsWhereDateClauses;
 use Hypervel\Database\Concerns\ExplainsQueries;
@@ -406,7 +406,7 @@ class Builder implements BuilderContract
      * Add a vector-similarity selection to the query.
      *
      * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
-     * @param  \Hypervel\Support\Collection<int, float>|\Hypervel\Support\Contracts\Arrayable|array<int, float>|string  $vector
+     * @param  \Hypervel\Support\Collection<int, float>|\Hypervel\Contracts\Support\Arrayable|array<int, float>|string  $vector
      */
     public function selectVectorDistance(ExpressionContract|string $column, Collection|Arrayable|array|string $vector, ?string $as = null): static
     {
@@ -981,7 +981,7 @@ class Builder implements BuilderContract
      * Add a vector similarity clause to the query, filtering by minimum similarity and ordering by similarity.
      *
      * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
-     * @param  \Hypervel\Support\Collection<int, float>|\Hypervel\Support\Contracts\Arrayable|array<int, float>|string  $vector
+     * @param  \Hypervel\Support\Collection<int, float>|\Hypervel\Contracts\Support\Arrayable|array<int, float>|string  $vector
      * @param  float  $minSimilarity  A value between 0.0 and 1.0, where 1.0 is identical.
      */
     public function whereVectorSimilarTo(ExpressionContract|string $column, Collection|Arrayable|array|string $vector, float $minSimilarity = 0.6, bool $order = true): static
@@ -1003,7 +1003,7 @@ class Builder implements BuilderContract
      * Add a vector distance "where" clause to the query.
      *
      * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
-     * @param  \Hypervel\Support\Collection<int, float>|\Hypervel\Support\Contracts\Arrayable|array<int, float>|string  $vector
+     * @param  \Hypervel\Support\Collection<int, float>|\Hypervel\Contracts\Support\Arrayable|array<int, float>|string  $vector
      */
     public function whereVectorDistanceLessThan(ExpressionContract|string $column, Collection|Arrayable|array|string $vector, float $maxDistance, string $boolean = 'and'): static
     {
@@ -1032,7 +1032,7 @@ class Builder implements BuilderContract
      * Add a vector distance "or where" clause to the query.
      *
      * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
-     * @param  \Hypervel\Support\Collection<int, float>|\Hypervel\Support\Contracts\Arrayable|array<int, float>|string  $vector
+     * @param  \Hypervel\Support\Collection<int, float>|\Hypervel\Contracts\Support\Arrayable|array<int, float>|string  $vector
      */
     public function orWhereVectorDistanceLessThan(ExpressionContract|string $column, Collection|Arrayable|array|string $vector, float $maxDistance): static
     {
@@ -1185,7 +1185,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where in raw" clause for integer values to the query.
      *
-     * @param  \Hypervel\Support\Contracts\Arrayable|array  $values
+     * @param  \Hypervel\Contracts\Support\Arrayable|array  $values
      */
     public function whereIntegerInRaw(string $column, Arrayable|array $values, string $boolean = 'and', bool $not = false): static
     {
@@ -1209,7 +1209,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where in raw" clause for integer values to the query.
      *
-     * @param  \Hypervel\Support\Contracts\Arrayable|array  $values
+     * @param  \Hypervel\Contracts\Support\Arrayable|array  $values
      */
     public function orWhereIntegerInRaw(string $column, Arrayable|array $values): static
     {
@@ -1219,7 +1219,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where not in raw" clause for integer values to the query.
      *
-     * @param  \Hypervel\Support\Contracts\Arrayable|array  $values
+     * @param  \Hypervel\Contracts\Support\Arrayable|array  $values
      */
     public function whereIntegerNotInRaw(string $column, Arrayable|array $values, string $boolean = 'and'): static
     {
@@ -1229,7 +1229,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not in raw" clause for integer values to the query.
      *
-     * @param  \Hypervel\Support\Contracts\Arrayable|array  $values
+     * @param  \Hypervel\Contracts\Support\Arrayable|array  $values
      */
     public function orWhereIntegerNotInRaw(string $column, Arrayable|array $values): static
     {

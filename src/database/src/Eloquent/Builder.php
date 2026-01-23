@@ -19,7 +19,7 @@ use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
-use Hypervel\Support\Contracts\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\ForwardsCalls;
 use ReflectionClass;
@@ -560,7 +560,7 @@ class Builder implements BuilderContract
      *
      * @param  mixed  $id
      * @param  array|string  $columns
-     * @return ($id is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TModel> : TModel|null)
+     * @return ($id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TModel> : TModel|null)
      */
     public function find($id, $columns = ['*'])
     {
@@ -589,7 +589,7 @@ class Builder implements BuilderContract
     /**
      * Find multiple models by their primary keys.
      *
-     * @param  \Hypervel\Support\Contracts\Arrayable|array  $ids
+     * @param  \Hypervel\Contracts\Support\Arrayable|array  $ids
      * @param  array|string  $columns
      * @return \Hypervel\Database\Eloquent\Collection<int, TModel>
      */
@@ -609,7 +609,7 @@ class Builder implements BuilderContract
      *
      * @param  mixed  $id
      * @param  array|string  $columns
-     * @return ($id is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TModel> : TModel)
+     * @return ($id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TModel> : TModel)
      *
      * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<TModel>
      */
@@ -643,7 +643,7 @@ class Builder implements BuilderContract
      *
      * @param  mixed  $id
      * @param  array|string  $columns
-     * @return ($id is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TModel> : TModel)
+     * @return ($id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TModel> : TModel)
      */
     public function findOrNew($id, $columns = ['*'])
     {
@@ -663,7 +663,7 @@ class Builder implements BuilderContract
      * @param  (\Closure(): TValue)|list<string>|string  $columns
      * @param  (\Closure(): TValue)|null  $callback
      * @return (
-     *     $id is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>)
+     *     $id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>)
      *     ? \Hypervel\Database\Eloquent\Collection<int, TModel>
      *     : TModel|TValue
      * )

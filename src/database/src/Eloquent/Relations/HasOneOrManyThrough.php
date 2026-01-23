@@ -12,7 +12,7 @@ use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\UniqueConstraintViolationException;
-use Hypervel\Support\Contracts\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 
 /**
  * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
@@ -300,7 +300,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Find a related model by its primary key.
      *
-     * @return ($id is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : TRelatedModel|null)
+     * @return ($id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : TRelatedModel|null)
      */
     public function find(mixed $id, array $columns = ['*']): EloquentCollection|Model|null
     {
@@ -331,7 +331,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Find multiple related models by their primary keys.
      *
-     * @param  \Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>  $ids
+     * @param  \Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>  $ids
      * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
      */
     public function findMany(Arrayable|array $ids, array $columns = ['*']): EloquentCollection
@@ -350,7 +350,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Find a related model by its primary key or throw an exception.
      *
-     * @return ($id is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : TRelatedModel)
+     * @return ($id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : TRelatedModel)
      *
      * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<TRelatedModel>
      */
@@ -379,7 +379,7 @@ abstract class HasOneOrManyThrough extends Relation
      * @param  (\Closure(): TValue)|list<string>|string  $columns
      * @param  (\Closure(): TValue)|null  $callback
      * @return (
-     *     $id is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>)
+     *     $id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>)
      *     ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>|TValue
      *     : TRelatedModel|TValue
      * )

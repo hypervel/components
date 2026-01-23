@@ -7,7 +7,7 @@ namespace Hypervel\Pagination;
 use Closure;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Contracts\CanBeEscapedWhenCastToString;
+use Hypervel\Contracts\Support\CanBeEscapedWhenCastToString;
 use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\Tappable;

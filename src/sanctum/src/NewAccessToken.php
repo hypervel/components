@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
-use Hypervel\Support\Contracts\Arrayable;
-use Hypervel\Support\Contracts\Jsonable;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
 use Stringable;
 
 class NewAccessToken implements Stringable, Arrayable, Jsonable

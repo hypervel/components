@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Pagination;
 
 use Hypervel\Support\Collection;
-use Hypervel\Support\Contracts\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use UnexpectedValueException;
 
 /** @implements Arrayable<array-key, mixed> */

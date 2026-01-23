@@ -9,7 +9,7 @@ use Hypervel\Queue\Contracts\QueueableCollection;
 use Hypervel\Queue\Contracts\QueueableEntity;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
-use Hypervel\Support\Contracts\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use LogicException;
 
 /**
@@ -29,7 +29,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @param  mixed  $key
      * @param  TFindDefault  $default
-     * @return ($key is (\Hypervel\Support\Contracts\Arrayable<array-key, mixed>|array<mixed>) ? static : TModel|TFindDefault)
+     * @return ($key is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>) ? static : TModel|TFindDefault)
      */
     public function find($key, $default = null)
     {
