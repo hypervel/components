@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hyperf\Context\Context;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\HttpServer\Event\RequestHandled;

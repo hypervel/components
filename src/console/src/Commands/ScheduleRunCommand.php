@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Console\Commands;
 
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hypervel\Cache\Contracts\Factory as CacheFactory;
 use Hypervel\Console\Command;
 use Hypervel\Console\Events\ScheduledTaskFailed;

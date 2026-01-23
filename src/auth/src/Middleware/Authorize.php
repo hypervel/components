@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Middleware;
 
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hyperf\HttpServer\Router\Dispatched;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Auth\Access\AuthorizationException;

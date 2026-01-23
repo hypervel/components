@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation;
 
 use Closure;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Di\Definition\DefinitionSourceInterface;
 use Hyperf\Macroable\Macroable;
 use Hypervel\Container\Container;
@@ -19,7 +19,6 @@ use Hypervel\Support\ServiceProvider;
 use Psr\Container\ContainerInterface;
 use RuntimeException;
 
-use function Hyperf\Collection\data_get;
 use function Hypervel\Filesystem\join_paths;
 
 class Application extends Container implements ApplicationContract

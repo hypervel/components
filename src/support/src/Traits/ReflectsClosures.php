@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support\Traits;
 
 use Closure;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Reflector;
 use ReflectionException;
 use ReflectionFunction;

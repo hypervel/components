@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Jobs;
 
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hypervel\Bus\Dispatchable;
 use Hypervel\Bus\Queueable;
 use Hypervel\Queue\Contracts\ShouldQueue;

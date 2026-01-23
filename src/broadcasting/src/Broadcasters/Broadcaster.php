@@ -6,7 +6,7 @@ namespace Hypervel\Broadcasting\Broadcasters;
 
 use Closure;
 use Exception;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Broadcasting\Contracts\Broadcaster as BroadcasterContract;

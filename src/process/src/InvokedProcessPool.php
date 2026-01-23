@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Process;
 
 use Countable;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hypervel\Process\Contracts\InvokedProcess;
 
 class InvokedProcessPool implements Countable

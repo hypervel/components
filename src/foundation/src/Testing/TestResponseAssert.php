@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Testing\Assert;
 use Hyperf\Testing\AssertableJsonString;
 use Hypervel\Foundation\Testing\Http\TestResponse;

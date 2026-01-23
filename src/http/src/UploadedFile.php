@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Http;
 
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\HttpMessage\Stream\StandardStream;
 use Hyperf\HttpMessage\Upload\UploadedFile as HyperfUploadedFile;

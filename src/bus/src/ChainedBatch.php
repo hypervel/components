@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hyperf\Context\ApplicationContext;
 use Hypervel\Bus\Contracts\Dispatcher;
 use Hypervel\Queue\Contracts\ShouldQueue;

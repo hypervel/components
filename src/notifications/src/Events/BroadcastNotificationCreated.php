@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications\Events;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
 use Hypervel\Broadcasting\PrivateChannel;
 use Hypervel\Bus\Queueable;

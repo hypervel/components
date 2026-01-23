@@ -65,7 +65,7 @@ use function Hyperf\Tappable\tap;
  * @method static void assertNotPushed(\Closure|string $job, callable|null $callback = null)
  * @method static void assertCount(int $expectedCount)
  * @method static void assertNothingPushed()
- * @method static \Hyperf\Collection\Collection pushed(string $job, callable|null $callback = null)
+ * @method static \Hypervel\Support\Collection pushed(string $job, callable|null $callback = null)
  * @method static bool hasPushed(string $job)
  * @method static bool shouldFakeJob(object $job)
  * @method static array pushedJobs()

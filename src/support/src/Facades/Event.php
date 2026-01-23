@@ -30,7 +30,7 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  * @method static void assertDispatchedTimes(string $event, int $times = 1)
  * @method static void assertNotDispatched(\Closure|string $event, callable|null $callback = null)
  * @method static void assertNothingDispatched()
- * @method static \Hyperf\Collection\Collection dispatched(string $event, callable|null $callback = null)
+ * @method static \Hypervel\Support\Collection dispatched(string $event, callable|null $callback = null)
  * @method static bool hasDispatched(string $event)
  * @method static array dispatchedEvents()
  *

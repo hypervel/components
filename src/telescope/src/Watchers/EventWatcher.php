@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hyperf\Stringable\Str;
 use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
 use Hypervel\Queue\Contracts\ShouldQueue;

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Storage;
 
 use DateTimeInterface;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hyperf\Context\Context;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;

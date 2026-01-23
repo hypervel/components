@@ -6,7 +6,7 @@ namespace Hypervel\Auth\Access;
 
 use Closure;
 use Exception;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Contract\ContainerInterface;
 use Hyperf\Di\Exception\NotFoundException;
 use Hyperf\Stringable\Str;

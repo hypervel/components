@@ -6,7 +6,7 @@ namespace Hypervel\Tests\NestedSet;
 
 use BadMethodCallException;
 use Carbon\Carbon;
-use Hyperf\Collection\Collection as HyperfCollection;
+use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -994,7 +994,7 @@ class NodeTest extends TestCase
         $this->assertEquals(1, $category->getParentId());
     }
 
-    protected function getAll(array|HyperfCollection $items): array
+    protected function getAll(array|BaseCollection $items): array
     {
         return is_array($items) ? $items : $items->all();
     }

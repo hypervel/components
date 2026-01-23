@@ -6,8 +6,8 @@ namespace Hypervel\Bus;
 
 use BackedEnum;
 use Closure;
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hyperf\Conditionable\Conditionable;
 use Hyperf\Coroutine\Coroutine;
 use Hypervel\Bus\Contracts\BatchRepository;

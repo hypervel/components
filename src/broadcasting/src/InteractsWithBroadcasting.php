@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting;
 
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 
 trait InteractsWithBroadcasting
 {

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\NestedSet\Eloquent;
 
-use Hyperf\Collection\Collection as HyperfCollection;
+use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
@@ -115,13 +115,13 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Get ancestors of specified node.
      */
-    public function ancestorsOf(mixed $id, array $columns = ['*']): HyperfCollection
+    public function ancestorsOf(mixed $id, array $columns = ['*']): BaseCollection
     {
         /* @phpstan-ignore-next-line */
         return $this->whereAncestorOf($id)->get($columns);
     }
 
-    public function ancestorsAndSelf(mixed $id, array $columns = ['*']): HyperfCollection
+    public function ancestorsAndSelf(mixed $id, array $columns = ['*']): BaseCollection
     {
         /* @phpstan-ignore-next-line */
         return $this->whereAncestorOf($id, true)->get($columns);
@@ -197,7 +197,7 @@ class QueryBuilder extends EloquentBuilder
     /**
      * Get descendants of specified node.
      */
-    public function descendantsOf(mixed $id, array $columns = ['*'], bool $andSelf = false): HyperfCollection
+    public function descendantsOf(mixed $id, array $columns = ['*'], bool $andSelf = false): BaseCollection
     {
         try {
             return $this->whereDescendantOf($id, 'and', false, $andSelf)->get($columns);
@@ -206,7 +206,7 @@ class QueryBuilder extends EloquentBuilder
         }
     }
 
-    public function descendantsAndSelf(mixed $id, array $columns = ['*']): HyperfCollection
+    public function descendantsAndSelf(mixed $id, array $columns = ['*']): BaseCollection
     {
         return $this->descendantsOf($id, $columns, true);
     }
@@ -260,7 +260,7 @@ class QueryBuilder extends EloquentBuilder
         return $this->whereRaw("{$lft} = {$rgt} - 1");
     }
 
-    public function leaves(array $columns = ['*']): HyperfCollection
+    public function leaves(array $columns = ['*']): BaseCollection
     {
         return $this->whereIsLeaf()->get($columns);
     }

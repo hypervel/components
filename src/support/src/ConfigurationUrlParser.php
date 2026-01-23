@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use InvalidArgumentException;
 
 class ConfigurationUrlParser

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Process;
 
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hypervel\Process\Contracts\ProcessResult;
 use Symfony\Component\Process\Process;
 

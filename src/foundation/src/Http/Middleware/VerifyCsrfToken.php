@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http\Middleware;
 
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\HttpServer\Request;
 use Hypervel\Cookie\Cookie;

@@ -7,7 +7,7 @@ namespace Hypervel\Filesystem;
 use BadMethodCallException;
 use Closure;
 use DateTimeInterface;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Conditionable\Conditionable;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\HttpMessage\Upload\UploadedFile;

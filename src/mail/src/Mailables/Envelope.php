@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Mail\Mailables;
 
 use Closure;
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hyperf\Conditionable\Conditionable;
 
 class Envelope

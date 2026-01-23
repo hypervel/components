@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hyperf\Stringable\Str;
 use Hypervel\Bus\Contracts\BatchRepository;

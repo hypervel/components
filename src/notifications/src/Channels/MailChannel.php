@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Notifications\Channels;
 
 use Closure;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Stringable\Str;

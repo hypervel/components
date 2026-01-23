@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Permission\Traits;
 
 use BackedEnum;
-use Hyperf\Collection\Collection as BaseCollection;
+use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Database\Eloquent\Collection;

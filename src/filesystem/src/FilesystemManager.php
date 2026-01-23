@@ -7,7 +7,7 @@ namespace Hypervel\Filesystem;
 use Aws\S3\S3Client;
 use Closure;
 use Google\Cloud\Storage\StorageClient as GcsClient;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Stringable\Str;
 use Hypervel\Filesystem\Contracts\Cloud;

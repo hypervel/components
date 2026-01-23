@@ -42,7 +42,7 @@ use function Hyperf\Tappable\tap;
  * @method static void assertNothingSentTo(mixed $notifiable)
  * @method static void assertSentTimes(string $notification, int $expectedCount)
  * @method static void assertCount(int $expectedCount)
- * @method static \Hyperf\Collection\Collection sent(mixed $notifiable, string $notification, callable|null $callback = null)
+ * @method static \Hypervel\Support\Collection sent(mixed $notifiable, string $notification, callable|null $callback = null)
  * @method static bool hasSent(mixed $notifiable, string $notification)
  * @method static array sentNotifications()
  * @method static void macro(string $name, callable|object $macro)

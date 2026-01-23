@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Http\Casts;
 
 use BackedEnum;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hypervel\Foundation\Http\Contracts\Castable;
 use Hypervel\Foundation\Http\Contracts\CastInputs;
 

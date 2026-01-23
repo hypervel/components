@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Exception;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hypervel\HttpClient\Factory as HttpClientFactory;
 use Hypervel\Support\Stringable;
 use Hypervel\Validation\Contracts\UncompromisedVerifier;

@@ -7,7 +7,7 @@ namespace Hypervel\JWT\Providers;
 use DateTimeImmutable;
 use DateTimeInterface;
 use Exception;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hypervel\JWT\Contracts\ProviderContract;
 use Hypervel\JWT\Exceptions\JWTException;
 use Hypervel\JWT\Exceptions\TokenInvalidException;

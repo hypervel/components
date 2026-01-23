@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting\Broadcasters;
 
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Pool\Exception\ConnectionException;
 use Hyperf\Redis\RedisFactory;

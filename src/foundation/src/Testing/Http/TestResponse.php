@@ -6,7 +6,7 @@ namespace Hypervel\Foundation\Testing\Http;
 
 use Carbon\Carbon;
 use Closure;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\MessageBag;
 use Hyperf\Testing\Http\TestResponse as HyperfTestResponse;

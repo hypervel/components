@@ -6,7 +6,7 @@ namespace Hypervel\Database\Eloquent\Factories;
 
 use Closure;
 use Faker\Generator;
-use Hyperf\Collection\Enumerable;
+use Hypervel\Support\Enumerable;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Context\ApplicationContext;

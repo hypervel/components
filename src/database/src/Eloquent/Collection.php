@@ -414,7 +414,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param  callable(TModel, TKey): TMapValue  $callback
      * @return \Hypervel\Support\Collection<TKey, TMapValue>|static<TKey, TMapValue>
      */
-    public function map(callable $callback): \Hyperf\Collection\Enumerable
+    public function map(callable $callback): \Hypervel\Support\Enumerable
     {
         $result = parent::map($callback);
 
@@ -433,7 +433,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param  callable(TModel, TKey): array<TMapWithKeysKey, TMapWithKeysValue>  $callback
      * @return \Hypervel\Support\Collection<TMapWithKeysKey, TMapWithKeysValue>|static<TMapWithKeysKey, TMapWithKeysValue>
      */
-    public function mapWithKeys(callable $callback): \Hyperf\Collection\Enumerable
+    public function mapWithKeys(callable $callback): \Hypervel\Support\Enumerable
     {
         $result = parent::mapWithKeys($callback);
 
@@ -713,7 +713,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, mixed>
      */
     #[\Override]
-    public function collapse(): \Hyperf\Collection\Enumerable
+    public function collapse(): \Hypervel\Support\Enumerable
     {
         return $this->toBase()->collapse();
     }
@@ -724,7 +724,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, mixed>
      */
     #[\Override]
-    public function flatten($depth = INF): \Hyperf\Collection\Enumerable
+    public function flatten($depth = INF): \Hypervel\Support\Enumerable
     {
         return $this->toBase()->flatten($depth);
     }
@@ -735,7 +735,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<TModel, TKey>
      */
     #[\Override]
-    public function flip(): \Hyperf\Collection\Enumerable
+    public function flip(): \Hypervel\Support\Enumerable
     {
         return $this->toBase()->flip();
     }
@@ -746,7 +746,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, TKey>
      */
     #[\Override]
-    public function keys(): \Hyperf\Collection\Enumerable
+    public function keys(): \Hypervel\Support\Enumerable
     {
         return $this->toBase()->keys();
     }
@@ -759,7 +759,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, TModel|TPadValue>
      */
     #[\Override]
-    public function pad(int $size, $value): \Hyperf\Collection\Enumerable
+    public function pad(int $size, $value): \Hypervel\Support\Enumerable
     {
         return $this->toBase()->pad($size, $value);
     }
@@ -783,7 +783,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<array-key, mixed>
      */
     #[\Override]
-    public function pluck(array|string $value, ?string $key = null): \Hyperf\Collection\Enumerable
+    public function pluck(array|string $value, ?string $key = null): \Hypervel\Support\Enumerable
     {
         return $this->toBase()->pluck($value, $key);
     }
@@ -796,7 +796,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, \Hypervel\Support\Collection<int, TModel|TZipValue>>
      */
     #[\Override]
-    public function zip($items): \Hyperf\Collection\Enumerable
+    public function zip($items): \Hypervel\Support\Enumerable
     {
         return $this->toBase()->zip(...func_get_args());
     }

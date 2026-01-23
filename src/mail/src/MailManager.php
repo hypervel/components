@@ -7,7 +7,7 @@ namespace Hypervel\Mail;
 use Aws\Ses\SesClient;
 use Aws\SesV2\SesV2Client;
 use Closure;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Stringable\Str;
 use Hyperf\ViewEngine\Contract\FactoryInterface;

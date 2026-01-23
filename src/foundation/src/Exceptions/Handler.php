@@ -6,7 +6,7 @@ namespace Hypervel\Foundation\Exceptions;
 
 use Closure;
 use Exception;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Context\Context;
 use Hyperf\Contract\MessageBag as MessageBagContract;
 use Hyperf\Contract\MessageProvider;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Bootstrap;
 
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Support\Composer;

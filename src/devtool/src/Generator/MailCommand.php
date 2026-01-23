@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hyperf\Devtool\Generator\GeneratorCommand;
 use Hyperf\Stringable\Str;
 use Symfony\Component\Console\Input\InputOption;

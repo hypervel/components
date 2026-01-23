@@ -6,7 +6,7 @@ namespace Hypervel\Config;
 
 use ArrayAccess;
 use Closure;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Macroable\Macroable;
 use Hypervel\Config\Contracts\Repository as ConfigContract;
 use InvalidArgumentException;

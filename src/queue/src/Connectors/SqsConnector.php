@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Connectors;
 
 use Aws\Sqs\SqsClient;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hypervel\Queue\Contracts\Queue;
 use Hypervel\Queue\SqsQueue;
 

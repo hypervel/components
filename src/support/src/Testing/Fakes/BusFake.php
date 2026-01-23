@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Support\Testing\Fakes;
 
 use Closure;
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\ChainedBatch;
 use Hypervel\Bus\Contracts\BatchRepository;

@@ -6,7 +6,7 @@ namespace Hypervel\Support\Testing\Fakes;
 
 use Closure;
 use Exception;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hyperf\Macroable\Macroable;
 use Hyperf\Stringable\Str;
 use Hypervel\Notifications\AnonymousNotifiable;

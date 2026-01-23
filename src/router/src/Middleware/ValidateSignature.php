@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Router\Middleware;
 
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hypervel\Http\Contracts\RequestContract;
 use Hypervel\Router\Exceptions\InvalidSignatureException;
 use Psr\Http\Message\ResponseInterface;

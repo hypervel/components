@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\HttpClient;
 
 use ArrayAccess;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Macroable\Macroable;
 use Hypervel\Support\Collection;
 use LogicException;

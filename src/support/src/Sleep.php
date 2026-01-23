@@ -7,7 +7,7 @@ namespace Hypervel\Support;
 use Carbon\CarbonInterval;
 use Closure;
 use DateInterval;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hyperf\Macroable\Macroable;
 use PHPUnit\Framework\Assert as PHPUnit;
 use RuntimeException;

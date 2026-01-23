@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Router;
 
 use Closure;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\HttpServer\MiddlewareManager;
 use Hyperf\HttpServer\Router\RouteCollector as BaseRouteCollector;
 use InvalidArgumentException;

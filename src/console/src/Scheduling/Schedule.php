@@ -8,7 +8,7 @@ use BadMethodCallException;
 use Closure;
 use DateTimeInterface;
 use DateTimeZone;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hyperf\Macroable\Macroable;
 use Hypervel\Bus\Contracts\Dispatcher;
 use Hypervel\Bus\UniqueLock;

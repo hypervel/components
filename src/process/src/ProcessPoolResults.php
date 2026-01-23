@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Process;
 
 use ArrayAccess;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 
 class ProcessPoolResults implements ArrayAccess
 {

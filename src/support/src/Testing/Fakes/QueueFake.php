@@ -8,7 +8,7 @@ use BadMethodCallException;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Queue\Contracts\Factory as FactoryContract;
 use Hypervel\Queue\Contracts\Job;

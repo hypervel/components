@@ -13,7 +13,7 @@ use GuzzleHttp\Client as HttpClient;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\ClientInterface as HttpClientInterface;
 use GuzzleHttp\Exception\TransferException;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Macroable\Macroable;
 use Hyperf\Stringable\Stringable;
 use Hyperf\Support\Filesystem\Filesystem;

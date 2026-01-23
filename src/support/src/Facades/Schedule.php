@@ -14,7 +14,7 @@ use Hypervel\Console\Scheduling\Schedule as ScheduleAccessor;
  * @method static void group(\Closure $events)
  * @method static string compileArrayInput(string|int $key, array $value)
  * @method static bool serverShouldRun(\Hypervel\Console\Scheduling\Event $event, \DateTimeInterface $time)
- * @method static \Hyperf\Collection\Collection dueEvents(\Hypervel\Foundation\Contracts\Application $app)
+ * @method static \Hypervel\Support\Collection dueEvents(\Hypervel\Foundation\Contracts\Application $app)
  * @method static array events()
  * @method static \Hypervel\Console\Scheduling\Schedule useCache(string|null $store)
  * @method static mixed macroCall(string $method, array $parameters)

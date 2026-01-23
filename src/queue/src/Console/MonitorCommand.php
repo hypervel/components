@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Console;
 
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hyperf\Command\Command;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Queue\Contracts\Factory;

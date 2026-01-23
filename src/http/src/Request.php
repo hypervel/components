@@ -7,7 +7,7 @@ namespace Hypervel\Http;
 use Carbon\Carbon;
 use Carbon\Exceptions\InvalidFormatException;
 use Closure;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\HttpServer\Request as HyperfRequest;
@@ -25,8 +25,6 @@ use RuntimeException;
 use stdClass;
 use Stringable;
 use TypeError;
-
-use function Hyperf\Collection\data_get;
 
 class Request extends HyperfRequest implements RequestContract
 {

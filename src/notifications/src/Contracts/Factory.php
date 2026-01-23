@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications\Contracts;
 
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 
 interface Factory
 {

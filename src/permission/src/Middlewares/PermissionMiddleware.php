@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Permission\Middlewares;
 
 use BackedEnum;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hyperf\Contract\ContainerInterface;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Permission\Exceptions\PermissionException;

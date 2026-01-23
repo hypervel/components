@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Core;
 
 use Closure;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hypervel\Database\Eloquent\Events\Created;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Schema\Blueprint;

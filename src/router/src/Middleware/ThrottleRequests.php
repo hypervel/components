@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Router\Middleware;
 
 use Closure;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Support\Traits\InteractsWithTime;
 use Hypervel\Auth\Contracts\Authenticatable;
 use Hypervel\Cache\Exceptions\InvalidArgumentException;

@@ -9,7 +9,7 @@ use Carbon\Carbon;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Context\Context;
 use Hyperf\Context\RequestContext;
 use Hyperf\Contract\ConfigInterface;

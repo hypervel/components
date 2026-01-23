@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Notifications;
 
 use DateTime;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Bus\Queueable;

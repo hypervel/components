@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Log;
 
 use Closure;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hyperf\Context\Context;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Stringable\Str;

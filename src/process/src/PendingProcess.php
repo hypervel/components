@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Process;
 
 use Closure;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hyperf\Conditionable\Conditionable;
 use Hypervel\Process\Contracts\InvokedProcess as InvokedProcessContract;
 use Hypervel\Process\Contracts\ProcessResult as ProcessResultContract;

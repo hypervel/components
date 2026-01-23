@@ -6,7 +6,7 @@ namespace Hypervel\Queue\Failed;
 
 use Closure;
 use DateTimeInterface;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Carbon;
 use Throwable;
 

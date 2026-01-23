@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum\Http\Middleware;
 
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hypervel\Auth\AuthenticationException;
 use Hypervel\Auth\Contracts\Factory as AuthFactory;
 use Hypervel\Auth\Guards\SessionGuard;

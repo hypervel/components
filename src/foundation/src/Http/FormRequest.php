@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http;
 
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Context\Context;
 use Hyperf\Context\ResponseContext;
 use Hypervel\Auth\Access\AuthorizationException;

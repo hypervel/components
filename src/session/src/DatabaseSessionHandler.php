@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Carbon\Carbon;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Context\Context;
 use Hyperf\Context\RequestContext;
 use Hypervel\Database\ConnectionInterface;

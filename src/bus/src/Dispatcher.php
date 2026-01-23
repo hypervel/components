@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Closure;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hyperf\Coroutine\Coroutine;
 use Hypervel\Bus\Contracts\BatchRepository;
 use Hypervel\Bus\Contracts\QueueingDispatcher;

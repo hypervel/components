@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hyperf\Command\Event\FailToHandle;
 use Hyperf\Conditionable\Conditionable;
 use Hyperf\Contract\Arrayable;

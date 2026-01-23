@@ -6,9 +6,9 @@ namespace Hypervel\Bus;
 
 use Carbon\CarbonInterface;
 use Closure;
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
-use Hyperf\Collection\Enumerable;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Enumerable;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\Arrayable;
 use Hypervel\Bus\Contracts\BatchRepository;

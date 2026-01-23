@@ -6,8 +6,8 @@ namespace Hypervel\Queue\Console;
 
 use __PHP_Incomplete_Class;
 use DateTimeInterface;
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hyperf\Command\Command;
 use Hypervel\Encryption\Contracts\Encrypter;
 use Hypervel\Queue\Contracts\Factory as QueueFactory;

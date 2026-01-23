@@ -4,11 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hypervel\Cache\Exceptions\ValueTooLargeForColumnException;
 use Swoole\Table;
-
-use function Hyperf\Collection\collect;
 
 class SwooleTable extends Table
 {

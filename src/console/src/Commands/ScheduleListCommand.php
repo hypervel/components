@@ -8,7 +8,7 @@ use Closure;
 use Cron\CronExpression;
 use DateTimeZone;
 use Exception;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Collection;
 use Hypervel\Console\Command;
 use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\Event;

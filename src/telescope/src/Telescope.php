@@ -6,8 +6,8 @@ namespace Hypervel\Telescope;
 
 use Closure;
 use Exception;
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Stringable\Str;
 use Hypervel\Context\Context;

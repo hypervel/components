@@ -6,7 +6,7 @@ namespace Hypervel\Event;
 
 use Closure;
 use Exception;
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\Stringable\Str;
