@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Foundation;
 
 use Exception;
 use Hyperf\Context\Context;
-use Hyperf\Context\RequestContext;
 use Hyperf\Context\ResponseContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\SessionInterface;
@@ -18,6 +17,7 @@ use Hyperf\HttpMessage\Server\Response as Psr7Response;
 use Hyperf\HttpMessage\Uri\Uri;
 use Hypervel\Config\Repository;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Context\RequestContext;
 use Hypervel\Foundation\Exceptions\Handler;
 use Hypervel\Http\Contracts\ResponseContract;
 use Hypervel\Http\Request;
