@@ -902,7 +902,7 @@ abstract class Factory
     {
         try {
             return ApplicationContext::getContainer()
-                ->make(Application::class)
+                ->get(Application::class)
                 ->getNamespace();
         } catch (Throwable) {
             return 'App\\';
