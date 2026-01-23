@@ -6,6 +6,7 @@ namespace Hypervel\Foundation\Testing;
 
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
+use Faker\Generator as FakerGenerator;
 use Hyperf\Coroutine\Coroutine;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
@@ -61,6 +62,8 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
             $this->refreshApplication();
         }
 
+        $this->setUpFaker();
+
         $this->runInCoroutine(
             fn () => $this->setUpTraits()
         );
@@ -112,6 +115,19 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         }
 
         return $uses;
+    }
+
+    /**
+     * Set up Faker for factory usage.
+     */
+    protected function setUpFaker(): void
+    {
+        if (! $this->app->bound(FakerGenerator::class)) {
+            $this->app->bind(
+                FakerGenerator::class,
+                fn () => \Faker\Factory::create($this->app->make('config')->get('app.faker_locale', 'en_US'))
+            );
+        }
     }
 
     protected function tearDown(): void

@@ -24,7 +24,7 @@ class BelongsToRelationship
     /**
      * The cached, resolved parent instance ID.
      */
-    protected mixed $resolved;
+    protected int|string|null $resolved = null;
 
     /**
      * Create a new "belongs to" relationship definition.

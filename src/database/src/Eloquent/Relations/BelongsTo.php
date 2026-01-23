@@ -308,7 +308,7 @@ class BelongsTo extends Relation
     /**
      * Get the associated key of the relationship.
      */
-    public function getOwnerKeyName(): string
+    public function getOwnerKeyName(): ?string
     {
         return $this->ownerKey;
     }

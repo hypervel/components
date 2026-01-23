@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Concerns;
 
-use Hypervel\Support\Carbon;
+use Carbon\CarbonInterface;
 use Hypervel\Support\Facades\Date;
 
 trait HasTimestamps
@@ -100,7 +100,7 @@ trait HasTimestamps
     /**
      * Get a fresh timestamp for the model.
      */
-    public function freshTimestamp(): Carbon
+    public function freshTimestamp(): CarbonInterface
     {
         return Date::now();
     }

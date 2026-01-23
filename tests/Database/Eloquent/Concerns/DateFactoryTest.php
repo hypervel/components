@@ -320,7 +320,7 @@ class DateFactoryTestModel extends Model
 {
     protected ?string $table = 'test_models';
 
-    protected array $dates = ['published_at'];
+    protected array $casts = ['published_at' => 'datetime'];
 }
 
 class DateFactoryDateCastModel extends Model
@@ -337,7 +337,7 @@ class DateFactoryMultipleDatesModel extends Model
 {
     protected ?string $table = 'test_models';
 
-    protected array $dates = ['published_at'];
+    protected array $casts = ['published_at' => 'datetime'];
 }
 
 class DateFactoryTestPivot extends Pivot

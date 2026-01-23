@@ -291,7 +291,7 @@ trait InteractsWithPivotTable
     /**
      * Create a full attachment record payload.
      */
-    protected function formatAttachRecord(int $key, mixed $value, array $attributes, bool $hasTimestamps): array
+    protected function formatAttachRecord(int|string $key, mixed $value, array $attributes, bool $hasTimestamps): array
     {
         [$id, $attributes] = $this->extractAttachIdAndAttributes($key, $value, $attributes);
 

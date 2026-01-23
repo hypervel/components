@@ -46,7 +46,7 @@ class Sequence implements Countable
      *
      * @param  array<string, mixed>  $attributes
      */
-    public function __invoke(array $attributes = [], ?Model $parent = null): mixed
+    public function __invoke(array|Model $attributes = [], ?Model $parent = null): mixed
     {
         return tap(value($this->sequence[$this->index % $this->count], $this, $attributes, $parent), function () {
             $this->index = $this->index + 1;
