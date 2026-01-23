@@ -280,11 +280,8 @@ trait EnumeratesValues
      * Determine if all items pass the given truth test.
      *
      * @param  (callable(TValue, TKey): bool)|TValue|string  $key
-     * @param  mixed  $operator
-     * @param  mixed  $value
-     * @return bool
      */
-    public function every($key, $operator = null, $value = null)
+    public function every(mixed $key, mixed $operator = null, mixed $value = null): bool
     {
         if (func_num_args() === 1) {
             $callback = $this->valueRetriever($key);
@@ -304,12 +301,9 @@ trait EnumeratesValues
     /**
      * Get the first item by the given key value pair.
      *
-     * @param  callable|string  $key
-     * @param  mixed  $operator
-     * @param  mixed  $value
      * @return TValue|null
      */
-    public function firstWhere($key, $operator = null, $value = null)
+    public function firstWhere(string $key, mixed $operator = null, mixed $value = null): mixed
     {
         return $this->first($this->operatorForWhere(...func_get_args()));
     }
@@ -319,11 +313,10 @@ trait EnumeratesValues
      *
      * @template TValueDefault
      *
-     * @param  string  $key
      * @param  TValueDefault|(\Closure(): TValueDefault)  $default
      * @return TValue|TValueDefault
      */
-    public function value($key, $default = null)
+    public function value(string $key, mixed $default = null): mixed
     {
         $value = $this->first(function ($target) use ($key) {
             return data_has($target, $key);
@@ -342,7 +335,7 @@ trait EnumeratesValues
      *
      * @throws \UnexpectedValueException
      */
-    public function ensure($type)
+    public function ensure(string|array $type): static
     {
         $allowedTypes = is_array($type) ? $type : [$type];
 
@@ -369,10 +362,8 @@ trait EnumeratesValues
      *
      * @phpstan-assert-if-false null $this->first()
      * @phpstan-assert-if-false null $this->last()
-     *
-     * @return bool
      */
-    public function isNotEmpty()
+    public function isNotEmpty(): bool
     {
         return ! $this->isEmpty();
     }
@@ -385,7 +376,7 @@ trait EnumeratesValues
      * @param  callable(mixed...): TMapSpreadValue  $callback
      * @return static<TKey, TMapSpreadValue>
      */
-    public function mapSpread(callable $callback)
+    public function mapSpread(callable $callback): static
     {
         return $this->map(function ($chunk, $key) use ($callback) {
             $chunk[] = $key;
@@ -405,7 +396,7 @@ trait EnumeratesValues
      * @param  callable(TValue, TKey): array<TMapToGroupsKey, TMapToGroupsValue>  $callback
      * @return static<TMapToGroupsKey, static<int, TMapToGroupsValue>>
      */
-    public function mapToGroups(callable $callback)
+    public function mapToGroups(callable $callback): static
     {
         $groups = $this->mapToDictionary($callback);
 
@@ -418,10 +409,10 @@ trait EnumeratesValues
      * @template TFlatMapKey of array-key
      * @template TFlatMapValue
      *
-     * @param  callable(TValue, TKey): (\Hypervel\Support\Collection<TFlatMapKey, TFlatMapValue>|array<TFlatMapKey, TFlatMapValue>)  $callback
+     * @param  callable(TValue, TKey): (Collection<TFlatMapKey, TFlatMapValue>|array<TFlatMapKey, TFlatMapValue>)  $callback
      * @return static<TFlatMapKey, TFlatMapValue>
      */
-    public function flatMap(callable $callback)
+    public function flatMap(callable $callback): static
     {
         return $this->map($callback)->collapse();
     }
@@ -434,7 +425,7 @@ trait EnumeratesValues
      * @param  class-string<TMapIntoValue>  $class
      * @return static<TKey, TMapIntoValue>
      */
-    public function mapInto($class)
+    public function mapInto(string $class): static
     {
         if (is_subclass_of($class, BackedEnum::class)) {
             return $this->map(fn ($value, $key) => $class::from($value));
@@ -447,9 +438,8 @@ trait EnumeratesValues
      * Get the min value of a given key.
      *
      * @param  (callable(TValue):mixed)|string|null  $callback
-     * @return mixed
      */
-    public function min($callback = null)
+    public function min(callable|string|null $callback = null): mixed
     {
         $callback = $this->valueRetriever($callback);
 
@@ -462,9 +452,8 @@ trait EnumeratesValues
      * Get the max value of a given key.
      *
      * @param  (callable(TValue):mixed)|string|null  $callback
-     * @return mixed
      */
-    public function max($callback = null)
+    public function max(callable|string|null $callback = null): mixed
     {
         $callback = $this->valueRetriever($callback);
 
@@ -477,12 +466,8 @@ trait EnumeratesValues
 
     /**
      * "Paginate" the collection by slicing it into a smaller collection.
-     *
-     * @param  int  $page
-     * @param  int  $perPage
-     * @return static
      */
-    public function forPage($page, $perPage)
+    public function forPage(int $page, int $perPage): static
     {
         $offset = max(0, ($page - 1) * $perPage);
 
@@ -493,11 +478,9 @@ trait EnumeratesValues
      * Partition the collection into two arrays using the given callback or key.
      *
      * @param  (callable(TValue, TKey): bool)|TValue|string  $key
-     * @param  mixed  $operator
-     * @param  mixed  $value
      * @return static<int<0, 1>, static<TKey, TValue>>
      */
-    public function partition($key, $operator = null, $value = null)
+    public function partition(mixed $key, mixed $operator = null, mixed $value = null): static
     {
         $callback = func_num_args() === 1
             ? $this->valueRetriever($key)
@@ -512,10 +495,8 @@ trait EnumeratesValues
      * Calculate the percentage of items that pass a given truth test.
      *
      * @param  (callable(TValue, TKey): bool)  $callback
-     * @param  int  $precision
-     * @return float|null
      */
-    public function percentage(callable $callback, int $precision = 2)
+    public function percentage(callable $callback, int $precision = 2): ?float
     {
         if ($this->isEmpty()) {
             return null;
@@ -535,7 +516,7 @@ trait EnumeratesValues
      * @param  (callable(TValue): TReturnType)|string|null  $callback
      * @return ($callback is callable ? TReturnType : mixed)
      */
-    public function sum($callback = null)
+    public function sum(callable|string|null $callback = null): mixed
     {
         $callback = is_null($callback)
             ? $this->identity()
@@ -553,7 +534,7 @@ trait EnumeratesValues
      * @param  (callable($this): TWhenEmptyReturnType)|null  $default
      * @return $this|TWhenEmptyReturnType
      */
-    public function whenEmpty(callable $callback, ?callable $default = null)
+    public function whenEmpty(callable $callback, ?callable $default = null): mixed
     {
         return $this->when($this->isEmpty(), $callback, $default);
     }
@@ -567,7 +548,7 @@ trait EnumeratesValues
      * @param  (callable($this): TWhenNotEmptyReturnType)|null  $default
      * @return $this|TWhenNotEmptyReturnType
      */
-    public function whenNotEmpty(callable $callback, ?callable $default = null)
+    public function whenNotEmpty(callable $callback, ?callable $default = null): mixed
     {
         return $this->when($this->isNotEmpty(), $callback, $default);
     }
