@@ -13,9 +13,7 @@ use Hypervel\Database\Eloquent\Casts\AsEncryptedArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsEncryptedCollection;
 use Hypervel\Database\Eloquent\Casts\AsStringable;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Collection;
-use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
 
 /**
  * @internal
@@ -23,24 +21,8 @@ use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
  * @group integration
  * @group pgsql-integration
  */
-class ModelCastsIntegrationTest extends DatabaseIntegrationTestCase
+class ModelCastsIntegrationTest extends TmpIntegrationTestCase
 {
-    use RefreshDatabase;
-
-    protected function getDatabaseDriver(): string
-    {
-        return 'pgsql';
-    }
-
-    protected function migrateFreshUsing(): array
-    {
-        return [
-            '--database' => $this->getRefreshConnection(),
-            '--realpath' => true,
-            '--path' => __DIR__ . '/migrations',
-        ];
-    }
-
     public function testIntegerCast(): void
     {
         $model = CastModel::create(['name' => 'Test', 'age' => '25']);

@@ -7,9 +7,7 @@ namespace Hypervel\Tests\Tmp;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolFactory;
-use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\DB;
-use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
 
 use function Hypervel\Coroutine\go;
 use function Hypervel\Coroutine\run;
@@ -25,24 +23,8 @@ use function Hypervel\Coroutine\run;
  * @group integration
  * @group pgsql-integration
  */
-class PooledConnectionStateLeakTest extends DatabaseIntegrationTestCase
+class PooledConnectionStateLeakTest extends TmpIntegrationTestCase
 {
-    use RefreshDatabase;
-
-    protected function getDatabaseDriver(): string
-    {
-        return 'pgsql';
-    }
-
-    protected function migrateFreshUsing(): array
-    {
-        return [
-            '--database' => $this->getRefreshConnection(),
-            '--realpath' => true,
-            '--path' => __DIR__ . '/migrations',
-        ];
-    }
-
     /**
      * Helper to get a PooledConnection directly from the pool.
      */

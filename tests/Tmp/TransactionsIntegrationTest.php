@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Tmp;
 
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\DB;
-use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
 use RuntimeException;
 
 /**
@@ -16,23 +14,10 @@ use RuntimeException;
  * @group integration
  * @group pgsql-integration
  */
-class TransactionsIntegrationTest extends DatabaseIntegrationTestCase
+class TransactionsIntegrationTest extends TmpIntegrationTestCase
 {
-    use RefreshDatabase;
 
-    protected function getDatabaseDriver(): string
-    {
-        return 'pgsql';
-    }
 
-    protected function migrateFreshUsing(): array
-    {
-        return [
-            '--database' => $this->getRefreshConnection(),
-            '--realpath' => true,
-            '--path' => __DIR__ . '/migrations',
-        ];
-    }
 
     protected function conn(): \Hypervel\Database\ConnectionInterface
     {

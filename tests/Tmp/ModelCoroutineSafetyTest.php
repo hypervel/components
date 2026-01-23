@@ -8,8 +8,6 @@ use Hypervel\Context\Context;
 use Hypervel\Coroutine\Channel;
 use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Foundation\Testing\RefreshDatabase;
-use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
 
 use function Hypervel\Coroutine\go;
 use function Hypervel\Coroutine\run;
@@ -27,24 +25,8 @@ use function Hypervel\Coroutine\run;
  * @group integration
  * @group pgsql-integration
  */
-class ModelCoroutineSafetyTest extends DatabaseIntegrationTestCase
+class ModelCoroutineSafetyTest extends TmpIntegrationTestCase
 {
-    use RefreshDatabase;
-
-    protected function getDatabaseDriver(): string
-    {
-        return 'pgsql';
-    }
-
-    protected function migrateFreshUsing(): array
-    {
-        return [
-            '--database' => $this->getRefreshConnection(),
-            '--realpath' => true,
-            '--path' => __DIR__ . '/migrations',
-        ];
-    }
-
     protected function setUp(): void
     {
         parent::setUp();

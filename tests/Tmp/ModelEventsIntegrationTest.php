@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Tmp;
 
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Foundation\Testing\RefreshDatabase;
-use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
 
 /**
  * @internal
@@ -14,24 +12,8 @@ use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
  * @group integration
  * @group pgsql-integration
  */
-class ModelEventsIntegrationTest extends DatabaseIntegrationTestCase
+class ModelEventsIntegrationTest extends TmpIntegrationTestCase
 {
-    use RefreshDatabase;
-
-    protected function getDatabaseDriver(): string
-    {
-        return 'pgsql';
-    }
-
-    protected function migrateFreshUsing(): array
-    {
-        return [
-            '--database' => $this->getRefreshConnection(),
-            '--realpath' => true,
-            '--path' => __DIR__ . '/migrations',
-        ];
-    }
-
     protected function setUp(): void
     {
         parent::setUp();

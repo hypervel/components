@@ -12,8 +12,6 @@ use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Database\Eloquent\Relations\MorphMany;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
-use Hypervel\Foundation\Testing\RefreshDatabase;
-use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
 
 /**
  * @internal
@@ -21,24 +19,8 @@ use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
  * @group integration
  * @group pgsql-integration
  */
-class EloquentRelationsIntegrationTest extends DatabaseIntegrationTestCase
+class EloquentRelationsIntegrationTest extends TmpIntegrationTestCase
 {
-    use RefreshDatabase;
-
-    protected function getDatabaseDriver(): string
-    {
-        return 'pgsql';
-    }
-
-    protected function migrateFreshUsing(): array
-    {
-        return [
-            '--database' => $this->getRefreshConnection(),
-            '--realpath' => true,
-            '--path' => __DIR__ . '/migrations',
-        ];
-    }
-
     public function testHasOneRelation(): void
     {
         $user = RelUser::create(['name' => 'John', 'email' => 'john@example.com']);
