@@ -895,67 +895,51 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * Sort the collection in descending order using the given callback.
      *
      * @param  array<array-key, (callable(TValue, TValue): mixed)|(callable(TValue, TKey): mixed)|string|array{string, string}>|(callable(TValue, TKey): mixed)|string  $callback
-     * @param  int  $options
-     * @return static
      */
-    public function sortByDesc($callback, $options = SORT_REGULAR);
+    public function sortByDesc(callable|array|string $callback, int $options = SORT_REGULAR): static;
 
     /**
      * Sort the collection keys.
-     *
-     * @param  int  $options
-     * @param  bool  $descending
-     * @return static
      */
-    public function sortKeys($options = SORT_REGULAR, $descending = false);
+    public function sortKeys(int $options = SORT_REGULAR, bool $descending = false): static;
 
     /**
      * Sort the collection keys in descending order.
-     *
-     * @param  int  $options
-     * @return static
      */
-    public function sortKeysDesc($options = SORT_REGULAR);
+    public function sortKeysDesc(int $options = SORT_REGULAR): static;
 
     /**
      * Sort the collection keys using a callback.
      *
      * @param  callable(TKey, TKey): int  $callback
-     * @return static
      */
-    public function sortKeysUsing(callable $callback);
+    public function sortKeysUsing(callable $callback): static;
 
     /**
      * Get the sum of the given values.
      *
      * @param  (callable(TValue): mixed)|string|null  $callback
-     * @return mixed
      */
-    public function sum($callback = null);
+    public function sum(callable|string|null $callback = null): mixed;
 
     /**
      * Take the first or last {$limit} items.
-     *
-     * @param  int  $limit
-     * @return static
      */
-    public function take($limit);
+    public function take(int $limit): static;
 
     /**
      * Take items in the collection until the given condition is met.
      *
      * @param  TValue|callable(TValue,TKey): bool  $value
-     * @return static
      */
-    public function takeUntil($value);
+    public function takeUntil(mixed $value): static;
 
     /**
      * Take items in the collection while the given condition is met.
      *
      * @param  TValue|callable(TValue,TKey): bool  $value
-     * @return static
      */
-    public function takeWhile($value);
+    public function takeWhile(mixed $value): static;
 
     /**
      * Pass the collection to the given callback and then return it.
@@ -963,7 +947,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  callable(TValue): mixed  $callback
      * @return $this
      */
-    public function tap(callable $callback);
+    public function tap(callable $callback): static;
 
     /**
      * Pass the enumerable to the given callback and return the result.
@@ -973,7 +957,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  callable($this): TPipeReturnType  $callback
      * @return TPipeReturnType
      */
-    public function pipe(callable $callback);
+    public function pipe(callable $callback): mixed;
 
     /**
      * Pass the collection into a new class.
@@ -983,86 +967,75 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  class-string<TPipeIntoValue>  $class
      * @return TPipeIntoValue
      */
-    public function pipeInto($class);
+    public function pipeInto(string $class): mixed;
 
     /**
      * Pass the collection through a series of callable pipes and return the result.
      *
      * @param  array<callable>  $pipes
-     * @return mixed
      */
-    public function pipeThrough($pipes);
+    public function pipeThrough(array $pipes): mixed;
 
     /**
      * Get the values of a given key.
      *
      * @param  string|array<array-key, string>  $value
-     * @param  string|null  $key
      * @return static<array-key, mixed>
      */
-    public function pluck($value, $key = null);
+    public function pluck(string|array $value, ?string $key = null): static;
 
     /**
      * Create a collection of all elements that do not pass a given truth test.
      *
      * @param  (callable(TValue, TKey): bool)|bool|TValue  $callback
-     * @return static
      */
-    public function reject($callback = true);
+    public function reject(mixed $callback = true): static;
 
     /**
      * Convert a flatten "dot" notation array into an expanded array.
-     *
-     * @return static
      */
-    public function undot();
+    public function undot(): static;
 
     /**
      * Return only unique items from the collection array.
      *
      * @param  (callable(TValue, TKey): mixed)|string|null  $key
-     * @param  bool  $strict
-     * @return static
      */
-    public function unique($key = null, $strict = false);
+    public function unique(callable|string|null $key = null, bool $strict = false): static;
 
     /**
      * Return only unique items from the collection array using strict comparison.
      *
      * @param  (callable(TValue, TKey): mixed)|string|null  $key
-     * @return static
      */
-    public function uniqueStrict($key = null);
+    public function uniqueStrict(callable|string|null $key = null): static;
 
     /**
      * Reset the keys on the underlying array.
      *
      * @return static<int, TValue>
      */
-    public function values();
+    public function values(): static;
 
     /**
      * Pad collection to the specified length with a value.
      *
      * @template TPadValue
      *
-     * @param  int  $size
      * @param  TPadValue  $value
      * @return static<int, TValue|TPadValue>
      */
-    public function pad($size, $value);
+    public function pad(int $size, mixed $value): static;
 
     /**
      * Get the values iterator.
      *
-     * @return \Traversable<TKey, TValue>
+     * @return Traversable<TKey, TValue>
      */
     public function getIterator(): Traversable;
 
     /**
      * Count the number of items in the collection.
-     *
-     * @return int
      */
     public function count(): int;
 
@@ -1072,7 +1045,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  (callable(TValue, TKey): array-key)|string|null  $countBy
      * @return static<array-key, int>
      */
-    public function countBy($countBy = null);
+    public function countBy(callable|string|null $countBy = null): static;
 
     /**
      * Zip the collection together with one or more arrays.
@@ -1082,87 +1055,66 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      *
      * @template TZipValue
      *
-     * @param  \Hypervel\Contracts\Support\Arrayable<array-key, TZipValue>|iterable<array-key, TZipValue>  ...$items
+     * @param  Arrayable<array-key, TZipValue>|iterable<array-key, TZipValue>  ...$items
      * @return static<int, static<int, TValue|TZipValue>>
      */
-    public function zip($items);
+    public function zip(mixed $items): static;
 
     /**
      * Collect the values into a collection.
      *
-     * @return \Hypervel\Support\Collection<TKey, TValue>
+     * @return Collection<TKey, TValue>
      */
-    public function collect();
+    public function collect(): Collection;
 
     /**
      * Get the collection of items as a plain array.
      *
      * @return array<TKey, mixed>
      */
-    public function toArray();
+    public function toArray(): array;
 
     /**
      * Convert the object into something JSON serializable.
-     *
-     * @return mixed
      */
     public function jsonSerialize(): mixed;
 
     /**
      * Get the collection of items as JSON.
-     *
-     * @param  int  $options
-     * @return string
      */
-    public function toJson($options = 0);
+    public function toJson(int $options = 0): string;
 
     /**
      * Get the collection of items as pretty print formatted JSON.
-     *
-     *
-     * @param  int  $options
-     * @return string
      */
-    public function toPrettyJson(int $options = 0);
+    public function toPrettyJson(int $options = 0): string;
 
     /**
      * Get a CachingIterator instance.
-     *
-     * @param  int  $flags
-     * @return \CachingIterator
      */
-    public function getCachingIterator($flags = CachingIterator::CALL_TOSTRING);
+    public function getCachingIterator(int $flags = CachingIterator::CALL_TOSTRING): CachingIterator;
 
     /**
      * Convert the collection to its string representation.
-     *
-     * @return string
      */
-    public function __toString();
+    public function __toString(): string;
 
     /**
      * Indicate that the model's string representation should be escaped when __toString is invoked.
      *
-     * @param  bool  $escape
      * @return $this
      */
-    public function escapeWhenCastingToString($escape = true);
+    public function escapeWhenCastingToString(bool $escape = true): static;
 
     /**
      * Add a method to the list of proxied methods.
-     *
-     * @param  string  $method
-     * @return void
      */
-    public static function proxy($method);
+    public static function proxy(string $method): void;
 
     /**
      * Dynamically access collection proxies.
      *
-     * @param  string  $key
-     * @return mixed
-     *
      * @throws \Exception
      */
-    public function __get($key);
+    public function __get(string $key): mixed;
 }
