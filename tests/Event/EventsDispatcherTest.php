@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Event;
 
 use Error;
 use Exception;
-use Hypervel\Database\TransactionManager;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Event\Contracts\ShouldDispatchAfterCommit;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
@@ -198,16 +198,19 @@ class EventsDispatcherTest extends TestCase
         $d = $this->getEventDispatcher();
         $d->listen('foo', function () {
             $this->assertTrue(true);
+
+            return 'halted';
         });
         $d->listen('foo', function () {
             throw new Exception('should not be called');
         });
 
+        // With halt=true, returns first non-null response
         $response = $d->dispatch('foo', ['bar'], true);
-        $this->assertEquals('foo', $response);
+        $this->assertEquals('halted', $response);
 
         $response = $d->until('foo', ['bar']);
-        $this->assertEquals('foo', $response);
+        $this->assertEquals('halted', $response);
     }
 
     public function testResponseWhenNoListenersAreSet()
@@ -817,7 +820,7 @@ class EventsDispatcherTest extends TestCase
 
     public function testDispatchWithAfterCommit()
     {
-        $transactionResolver = Mockery::mock(TransactionManager::class);
+        $transactionResolver = Mockery::mock(DatabaseTransactionsManager::class);
         $transactionResolver
             ->shouldReceive('addCallback')
             ->once();
