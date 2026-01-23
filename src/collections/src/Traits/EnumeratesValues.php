@@ -562,7 +562,7 @@ trait EnumeratesValues
      * @param  (callable($this): TUnlessEmptyReturnType)|null  $default
      * @return $this|TUnlessEmptyReturnType
      */
-    public function unlessEmpty(callable $callback, ?callable $default = null)
+    public function unlessEmpty(callable $callback, ?callable $default = null): mixed
     {
         return $this->whenNotEmpty($callback, $default);
     }
@@ -576,54 +576,39 @@ trait EnumeratesValues
      * @param  (callable($this): TUnlessNotEmptyReturnType)|null  $default
      * @return $this|TUnlessNotEmptyReturnType
      */
-    public function unlessNotEmpty(callable $callback, ?callable $default = null)
+    public function unlessNotEmpty(callable $callback, ?callable $default = null): mixed
     {
         return $this->whenEmpty($callback, $default);
     }
 
     /**
      * Filter items by the given key value pair.
-     *
-     * @param  callable|string  $key
-     * @param  mixed  $operator
-     * @param  mixed  $value
-     * @return static
      */
-    public function where($key, $operator = null, $value = null)
+    public function where(string $key, mixed $operator = null, mixed $value = null): static
     {
         return $this->filter($this->operatorForWhere(...func_get_args()));
     }
 
     /**
      * Filter items where the value for the given key is null.
-     *
-     * @param  string|null  $key
-     * @return static
      */
-    public function whereNull($key = null)
+    public function whereNull(?string $key = null): static
     {
         return $this->whereStrict($key, null);
     }
 
     /**
      * Filter items where the value for the given key is not null.
-     *
-     * @param  string|null  $key
-     * @return static
      */
-    public function whereNotNull($key = null)
+    public function whereNotNull(?string $key = null): static
     {
         return $this->where($key, '!==', null);
     }
 
     /**
      * Filter items by the given key value pair using strict comparison.
-     *
-     * @param  string  $key
-     * @param  mixed  $value
-     * @return static
      */
-    public function whereStrict($key, $value)
+    public function whereStrict(string $key, mixed $value): static
     {
         return $this->where($key, '===', $value);
     }
@@ -631,12 +616,9 @@ trait EnumeratesValues
     /**
      * Filter items by the given key value pair.
      *
-     * @param  string  $key
-     * @param  \Hypervel\Contracts\Support\Arrayable|iterable  $values
-     * @param  bool  $strict
-     * @return static
+     * @param  Arrayable|iterable  $values
      */
-    public function whereIn($key, $values, $strict = false)
+    public function whereIn(string $key, mixed $values, bool $strict = false): static
     {
         $values = $this->getArrayableItems($values);
 
@@ -646,11 +628,9 @@ trait EnumeratesValues
     /**
      * Filter items by the given key value pair using strict comparison.
      *
-     * @param  string  $key
-     * @param  \Hypervel\Contracts\Support\Arrayable|iterable  $values
-     * @return static
+     * @param  Arrayable|iterable  $values
      */
-    public function whereInStrict($key, $values)
+    public function whereInStrict(string $key, mixed $values): static
     {
         return $this->whereIn($key, $values, true);
     }
@@ -658,11 +638,9 @@ trait EnumeratesValues
     /**
      * Filter items such that the value of the given key is between the given values.
      *
-     * @param  string  $key
-     * @param  \Hypervel\Contracts\Support\Arrayable|iterable  $values
-     * @return static
+     * @param  Arrayable|iterable  $values
      */
-    public function whereBetween($key, $values)
+    public function whereBetween(string $key, mixed $values): static
     {
         return $this->where($key, '>=', reset($values))->where($key, '<=', end($values));
     }
@@ -670,11 +648,9 @@ trait EnumeratesValues
     /**
      * Filter items such that the value of the given key is not between the given values.
      *
-     * @param  string  $key
-     * @param  \Hypervel\Contracts\Support\Arrayable|iterable  $values
-     * @return static
+     * @param  Arrayable|iterable  $values
      */
-    public function whereNotBetween($key, $values)
+    public function whereNotBetween(string $key, mixed $values): static
     {
         return $this->filter(
             fn ($item) => data_get($item, $key) < reset($values) || data_get($item, $key) > end($values)
@@ -684,12 +660,9 @@ trait EnumeratesValues
     /**
      * Filter items by the given key value pair.
      *
-     * @param  string  $key
-     * @param  \Hypervel\Contracts\Support\Arrayable|iterable  $values
-     * @param  bool  $strict
-     * @return static
+     * @param  Arrayable|iterable  $values
      */
-    public function whereNotIn($key, $values, $strict = false)
+    public function whereNotIn(string $key, mixed $values, bool $strict = false): static
     {
         $values = $this->getArrayableItems($values);
 
@@ -699,9 +672,7 @@ trait EnumeratesValues
     /**
      * Filter items by the given key value pair using strict comparison.
      *
-     * @param  string  $key
-     * @param  \Hypervel\Contracts\Support\Arrayable|iterable  $values
-     * @return static
+     * @param  Arrayable|iterable  $values
      */
     public function whereNotInStrict($key, $values)
     {
