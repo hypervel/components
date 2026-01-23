@@ -478,7 +478,7 @@ trait EnumeratesValues
      * @param  (callable(TValue, TKey): bool)|TValue|string  $key
      * @return static<int<0, 1>, static<TKey, TValue>>
      */
-    public function partition(mixed $key, mixed $operator = null, mixed $value = null): static
+    public function partition(mixed $key, mixed $operator = null, mixed $value = null)
     {
         $callback = func_num_args() === 1
             ? $this->valueRetriever($key)

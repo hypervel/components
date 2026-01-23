@@ -139,7 +139,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      *
      * @return static<int, mixed>
      */
-    public function collapse(): static
+    public function collapse()
     {
         return new static(Arr::collapse($this->items));
     }
@@ -413,7 +413,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      *
      * @return static<int, mixed>
      */
-    public function flatten(int|float $depth = INF): static
+    public function flatten(int|float $depth = INF)
     {
         return new static(Arr::flatten($this->items, $depth));
     }
@@ -424,7 +424,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @return static<TValue, TKey>
      * @phpstan-ignore generics.notSubtype (TValue becomes key - only valid when TValue is array-key, but can't express this constraint)
      */
-    public function flip(): static
+    public function flip()
     {
         return new static(array_flip($this->items));
     }
@@ -764,7 +764,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      *
      * @return static<int, TKey>
      */
-    public function keys(): static
+    public function keys()
     {
         return new static(array_keys($this->items));
     }
@@ -790,7 +790,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  Closure|string|null  $key
      * @return static<array-key, mixed>
      */
-    public function pluck(Closure|string|int|array|null $value, Closure|string|null $key = null): static
+    public function pluck(Closure|string|int|array|null $value, Closure|string|null $key = null)
     {
         return new static(Arr::pluck($this->items, $value, $key));
     }
@@ -803,7 +803,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  callable(TValue, TKey): TMapValue  $callback
      * @return static<TKey, TMapValue>
      */
-    public function map(callable $callback): static
+    public function map(callable $callback)
     {
         return new static(Arr::map($this->items, $callback));
     }
@@ -851,7 +851,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  callable(TValue, TKey): array<TMapWithKeysKey, TMapWithKeysValue>  $callback
      * @return static<TMapWithKeysKey, TMapWithKeysValue>
      */
-    public function mapWithKeys(callable $callback): static
+    public function mapWithKeys(callable $callback)
     {
         return new static(Arr::mapWithKeys($this->items, $callback));
     }
@@ -1764,7 +1764,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  Arrayable<array-key, TZipValue>|iterable<array-key, TZipValue>  ...$items
      * @return static<int, static<int, TValue|TZipValue>>
      */
-    public function zip(Arrayable|iterable ...$items): static
+    public function zip(Arrayable|iterable ...$items)
     {
         $arrayableItems = array_map(fn ($items) => $this->getArrayableItems($items), $items);
 
@@ -1781,7 +1781,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  TPadValue  $value
      * @return static<int, TValue|TPadValue>
      */
-    public function pad(int $size, mixed $value): static
+    public function pad(int $size, mixed $value)
     {
         return new static(array_pad($this->items, $size, $value));
     }
@@ -1812,7 +1812,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  (callable(TValue, TKey): (array-key|\UnitEnum))|string|null  $countBy
      * @return static<array-key, int>
      */
-    public function countBy(callable|string|null $countBy = null): static
+    public function countBy(callable|string|null $countBy = null)
     {
         return new static($this->lazy()->countBy($countBy)->all());
     }

@@ -414,7 +414,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param  callable(TModel, TKey): TMapValue  $callback
      * @return \Hypervel\Support\Collection<TKey, TMapValue>|static<TKey, TMapValue>
      */
-    public function map(callable $callback): static
+    public function map(callable $callback)
     {
         $result = parent::map($callback);
 
@@ -433,7 +433,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param  callable(TModel, TKey): array<TMapWithKeysKey, TMapWithKeysValue>  $callback
      * @return \Hypervel\Support\Collection<TMapWithKeysKey, TMapWithKeysValue>|static<TMapWithKeysKey, TMapWithKeysValue>
      */
-    public function mapWithKeys(callable $callback): static
+    public function mapWithKeys(callable $callback)
     {
         $result = parent::mapWithKeys($callback);
 
@@ -702,7 +702,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<array-key, int>
      */
     #[\Override]
-    public function countBy(callable|string|null $countBy = null): static
+    public function countBy(callable|string|null $countBy = null)
     {
         return $this->toBase()->countBy($countBy);
     }
@@ -713,7 +713,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, mixed>
      */
     #[\Override]
-    public function collapse(): static
+    public function collapse()
     {
         return $this->toBase()->collapse();
     }
@@ -724,7 +724,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, mixed>
      */
     #[\Override]
-    public function flatten(int|float $depth = INF): static
+    public function flatten(int|float $depth = INF)
     {
         return $this->toBase()->flatten($depth);
     }
@@ -735,7 +735,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<TModel, TKey>
      */
     #[\Override]
-    public function flip(): static
+    public function flip()
     {
         return $this->toBase()->flip();
     }
@@ -746,7 +746,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, TKey>
      */
     #[\Override]
-    public function keys(): static
+    public function keys()
     {
         return $this->toBase()->keys();
     }
@@ -759,7 +759,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, TModel|TPadValue>
      */
     #[\Override]
-    public function pad(int $size, mixed $value): static
+    public function pad(int $size, mixed $value)
     {
         return $this->toBase()->pad($size, $value);
     }
@@ -771,7 +771,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @phpstan-ignore return.phpDocType (partition returns Collection of collections)
      */
     #[\Override]
-    public function partition(mixed $key, mixed $operator = null, mixed $value = null): static
+    public function partition(mixed $key, mixed $operator = null, mixed $value = null)
     {
         // @phpstan-ignore return.type (parent returns Hyperf Collection, we convert to Support Collection)
         return parent::partition(...func_get_args())->toBase();
@@ -783,7 +783,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<array-key, mixed>
      */
     #[\Override]
-    public function pluck(\Closure|string|int|array|null $value, \Closure|string|null $key = null): static
+    public function pluck(\Closure|string|int|array|null $value, \Closure|string|null $key = null)
     {
         return $this->toBase()->pluck($value, $key);
     }
@@ -796,7 +796,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, \Hypervel\Support\Collection<int, TModel|TZipValue>>
      */
     #[\Override]
-    public function zip(\Hypervel\Contracts\Support\Arrayable|iterable ...$items): static
+    public function zip(\Hypervel\Contracts\Support\Arrayable|iterable ...$items)
     {
         return $this->toBase()->zip(...$items);
     }

@@ -188,7 +188,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      *
      * @return static<int, mixed>
      */
-    public function collapse(): static
+    public function collapse()
     {
         return new static(function () {
             foreach ($this as $values) {
@@ -305,7 +305,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      * @param  (callable(TValue, TKey): (array-key|\UnitEnum))|string|null  $countBy
      * @return static<array-key, int>
      */
-    public function countBy(callable|string|null $countBy = null): static
+    public function countBy(callable|string|null $countBy = null)
     {
         $countBy = is_null($countBy)
             ? $this->identity()
@@ -464,7 +464,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      *
      * @return static<int, mixed>
      */
-    public function flatten(int|float $depth = INF): static
+    public function flatten(int|float $depth = INF)
     {
         $instance = new static(function () use ($depth) {
             foreach ($this as $item) {
@@ -487,7 +487,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      * @return static<TValue, TKey>
      * @phpstan-ignore generics.notSubtype (TValue becomes key - only valid when TValue is array-key, but can't express this constraint)
      */
-    public function flip(): static
+    public function flip()
     {
         return new static(function () {
             foreach ($this as $key => $value) {
@@ -692,7 +692,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      *
      * @return static<int, TKey>
      */
-    public function keys(): static
+    public function keys()
     {
         return new static(function () {
             foreach ($this as $key => $value) {
@@ -729,7 +729,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      * @param  string|array<array-key, string>  $value
      * @return static<array-key, mixed>
      */
-    public function pluck(string|array $value, ?string $key = null): static
+    public function pluck(string|array $value, ?string $key = null)
     {
         return new static(function () use ($value, $key) {
             [$value, $key] = $this->explodePluckParameters($value, $key);
@@ -760,7 +760,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      * @param  callable(TValue, TKey): TMapValue  $callback
      * @return static<TKey, TMapValue>
      */
-    public function map(callable $callback): static
+    public function map(callable $callback)
     {
         return new static(function () use ($callback) {
             foreach ($this as $key => $value) {
@@ -790,7 +790,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      * @param  callable(TValue, TKey): array<TMapWithKeysKey, TMapWithKeysValue>  $callback
      * @return static<TMapWithKeysKey, TMapWithKeysValue>
      */
-    public function mapWithKeys(callable $callback): static
+    public function mapWithKeys(callable $callback)
     {
         return new static(function () use ($callback) {
             foreach ($this as $key => $value) {
@@ -1713,7 +1713,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      * @param  Arrayable<array-key, TZipValue>|iterable<array-key, TZipValue>  ...$items
      * @return static<int, static<int, TValue|TZipValue>>
      */
-    public function zip(Arrayable|iterable ...$items): static
+    public function zip(Arrayable|iterable ...$items)
     {
         $iterables = func_get_args();
 
@@ -1734,7 +1734,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      * {@inheritDoc}
      */
     #[\Override]
-    public function pad(int $size, mixed $value): static
+    public function pad(int $size, mixed $value)
     {
         if ($size < 0) {
             return $this->passthru(__FUNCTION__, func_get_args());
