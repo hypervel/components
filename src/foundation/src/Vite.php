@@ -393,7 +393,7 @@ class Vite implements Htmlable
 
         $base = $preloads->join('') . $stylesheets->join('') . $scripts->join('');
 
-        /** @phpstan-ignore booleanOr.rightAlwaysFalse */
+        /* @phpstan-ignore booleanOr.rightAlwaysFalse */
         if ($this->prefetchStrategy === null || $this->isRunningHot()) {
             return new HtmlString($base);
         }
