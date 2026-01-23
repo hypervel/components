@@ -11,6 +11,22 @@ use Hypervel\Cache\RedisStore;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
+use TypeError;
+
+enum RedisTaggedCacheTestKeyStringEnum: string
+{
+    case Counter = 'counter';
+}
+
+enum RedisTaggedCacheTestKeyIntEnum: int
+{
+    case Key1 = 1;
+}
+
+enum RedisTaggedCacheTestKeyUnitEnum
+{
+    case hits;
+}
 
 /**
  * @internal
@@ -156,6 +172,35 @@ class CacheRedisTaggedCacheTest extends TestCase
             'name' => 'Sally',
             'age' => 30,
         ], 5);
+    }
+
+    public function testIncrementAcceptsStringBackedEnum(): void
+    {
+        $key = sha1('tag:votes:entries') . ':counter';
+        $this->redisProxy->shouldReceive('zadd')->once()->with('prefix:tag:votes:entries', 'NX', -1, $key)->andReturn('OK');
+        $this->redisProxy->shouldReceive('incrby')->once()->with("prefix:{$key}", 1)->andReturn(1);
+
+        $result = $this->redis->tags(['votes'])->increment(RedisTaggedCacheTestKeyStringEnum::Counter);
+
+        $this->assertSame(1, $result);
+    }
+
+    public function testIncrementAcceptsUnitEnum(): void
+    {
+        $key = sha1('tag:votes:entries') . ':hits';
+        $this->redisProxy->shouldReceive('zadd')->once()->with('prefix:tag:votes:entries', 'NX', -1, $key)->andReturn('OK');
+        $this->redisProxy->shouldReceive('incrby')->once()->with("prefix:{$key}", 1)->andReturn(1);
+
+        $result = $this->redis->tags(['votes'])->increment(RedisTaggedCacheTestKeyUnitEnum::hits);
+
+        $this->assertSame(1, $result);
+    }
+
+    public function testIncrementWithIntBackedEnumThrowsTypeError(): void
+    {
+        $this->expectException(TypeError::class);
+
+        $this->redis->tags(['votes'])->increment(RedisTaggedCacheTestKeyIntEnum::Key1);
     }
 
     private function mockRedis()

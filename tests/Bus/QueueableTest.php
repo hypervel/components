@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Bus;
 use Hypervel\Bus\Queueable;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use TypeError;
 
 /**
  * @internal
@@ -37,10 +38,26 @@ class QueueableTest extends TestCase
     {
         return [
             'uses string' => ['redis', 'redis'],
-            'uses BackedEnum #1' => [ConnectionEnum::SQS, 'sqs'],
-            'uses BackedEnum #2' => [ConnectionEnum::REDIS, 'redis'],
+            'uses string-backed enum' => [ConnectionEnum::SQS, 'sqs'],
+            'uses unit enum' => [UnitConnectionEnum::Sync, 'Sync'],
             'uses null' => [null, null],
         ];
+    }
+
+    public function testOnConnectionWithIntBackedEnumThrowsTypeError(): void
+    {
+        $job = new FakeJob();
+
+        $this->expectException(TypeError::class);
+        $job->onConnection(IntConnectionEnum::Redis);
+    }
+
+    public function testAllOnConnectionWithIntBackedEnumThrowsTypeError(): void
+    {
+        $job = new FakeJob();
+
+        $this->expectException(TypeError::class);
+        $job->allOnConnection(IntConnectionEnum::Redis);
     }
 
     #[DataProvider('queuesDataProvider')]
@@ -66,10 +83,26 @@ class QueueableTest extends TestCase
     {
         return [
             'uses string' => ['high', 'high'],
-            'uses BackedEnum #1' => [QueueEnum::DEFAULT, 'default'],
-            'uses BackedEnum #2' => [QueueEnum::HIGH, 'high'],
+            'uses string-backed enum' => [QueueEnum::HIGH, 'high'],
+            'uses unit enum' => [UnitQueueEnum::Low, 'Low'],
             'uses null' => [null, null],
         ];
+    }
+
+    public function testOnQueueWithIntBackedEnumThrowsTypeError(): void
+    {
+        $job = new FakeJob();
+
+        $this->expectException(TypeError::class);
+        $job->onQueue(IntQueueEnum::High);
+    }
+
+    public function testAllOnQueueWithIntBackedEnumThrowsTypeError(): void
+    {
+        $job = new FakeJob();
+
+        $this->expectException(TypeError::class);
+        $job->allOnQueue(IntQueueEnum::High);
     }
 }
 
@@ -84,8 +117,32 @@ enum ConnectionEnum: string
     case REDIS = 'redis';
 }
 
+enum IntConnectionEnum: int
+{
+    case Sqs = 1;
+    case Redis = 2;
+}
+
+enum UnitConnectionEnum
+{
+    case Sync;
+    case Database;
+}
+
 enum QueueEnum: string
 {
     case HIGH = 'high';
     case DEFAULT = 'default';
+}
+
+enum IntQueueEnum: int
+{
+    case Default = 1;
+    case High = 2;
+}
+
+enum UnitQueueEnum
+{
+    case Default;
+    case Low;
 }

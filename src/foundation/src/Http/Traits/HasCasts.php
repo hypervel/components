@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http\Traits;
 
-use BackedEnum;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use DateTimeInterface;
@@ -240,7 +239,7 @@ trait HasCasts
     /**
      * Get an enum case instance from a given class and value.
      */
-    protected function getEnumCaseFromValue(string $enumClass, int|string $value): BackedEnum|UnitEnum
+    protected function getEnumCaseFromValue(string $enumClass, int|string $value): UnitEnum
     {
         return EnumCollector::getEnumCaseFromValue($enumClass, $value);
     }
