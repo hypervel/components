@@ -28,29 +28,20 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TMakeKey of array-key
      * @template TMakeValue
      *
-     * @param  \Illuminate\Contracts\Support\Arrayable<TMakeKey, TMakeValue>|iterable<TMakeKey, TMakeValue>|null  $items
+     * @param  Arrayable<TMakeKey, TMakeValue>|iterable<TMakeKey, TMakeValue>|null  $items
      * @return static<TMakeKey, TMakeValue>
      */
-    public static function make($items = []);
+    public static function make(Arrayable|iterable|null $items = []): static;
 
     /**
      * Create a new instance by invoking the callback a given amount of times.
-     *
-     * @param  int  $number
-     * @param  callable|null  $callback
-     * @return static
      */
-    public static function times($number, ?callable $callback = null);
+    public static function times(int $number, ?callable $callback = null): static;
 
     /**
      * Create a collection with the given range.
-     *
-     * @param  int  $from
-     * @param  int  $to
-     * @param  int  $step
-     * @return static
      */
-    public static function range($from, $to, $step = 1);
+    public static function range(int $from, int $to, int $step = 1): static;
 
     /**
      * Wrap the given value in a collection if applicable.
@@ -60,7 +51,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  iterable<array-key, TWrapValue>|TWrapValue  $value
      * @return static<array-key, TWrapValue>
      */
-    public static function wrap($value);
+    public static function wrap(mixed $value): static;
 
     /**
      * Get the underlying items from the given collection if applicable.
@@ -71,37 +62,31 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  array<TUnwrapKey, TUnwrapValue>|static<TUnwrapKey, TUnwrapValue>  $value
      * @return array<TUnwrapKey, TUnwrapValue>
      */
-    public static function unwrap($value);
+    public static function unwrap(array|Enumerable $value): array;
 
     /**
      * Create a new instance with no items.
-     *
-     * @return static
      */
-    public static function empty();
+    public static function empty(): static;
 
     /**
      * Get all items in the enumerable.
-     *
-     * @return array
      */
-    public function all();
+    public function all(): array;
 
     /**
      * Alias for the "avg" method.
      *
      * @param  (callable(TValue): float|int)|string|null  $callback
-     * @return float|int|null
      */
-    public function average($callback = null);
+    public function average(callable|string|null $callback = null): float|int|null;
 
     /**
      * Get the median of a given key.
      *
      * @param  string|array<array-key, string>|null  $key
-     * @return float|int|null
      */
-    public function median($key = null);
+    public function median(string|array|null $key = null): float|int|null;
 
     /**
      * Get the mode of a given key.
@@ -109,61 +94,48 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  string|array<array-key, string>|null  $key
      * @return array<int, float|int>|null
      */
-    public function mode($key = null);
+    public function mode(string|array|null $key = null): ?array;
 
     /**
      * Collapse the items into a single enumerable.
      *
      * @return static<int, mixed>
      */
-    public function collapse();
+    public function collapse(): static;
 
     /**
      * Alias for the "contains" method.
      *
      * @param  (callable(TValue, TKey): bool)|TValue|string  $key
-     * @param  mixed  $operator
-     * @param  mixed  $value
-     * @return bool
      */
-    public function some($key, $operator = null, $value = null);
+    public function some(mixed $key, mixed $operator = null, mixed $value = null): bool;
 
     /**
      * Determine if an item exists, using strict comparison.
      *
      * @param  (callable(TValue): bool)|TValue|array-key  $key
      * @param  TValue|null  $value
-     * @return bool
      */
-    public function containsStrict($key, $value = null);
+    public function containsStrict(mixed $key, mixed $value = null): bool;
 
     /**
      * Get the average value of a given key.
      *
      * @param  (callable(TValue): float|int)|string|null  $callback
-     * @return float|int|null
      */
-    public function avg($callback = null);
+    public function avg(callable|string|null $callback = null): float|int|null;
 
     /**
      * Determine if an item exists in the enumerable.
      *
      * @param  (callable(TValue, TKey): bool)|TValue|string  $key
-     * @param  mixed  $operator
-     * @param  mixed  $value
-     * @return bool
      */
-    public function contains($key, $operator = null, $value = null);
+    public function contains(mixed $key, mixed $operator = null, mixed $value = null): bool;
 
     /**
      * Determine if an item is not contained in the collection.
-     *
-     * @param  mixed  $key
-     * @param  mixed  $operator
-     * @param  mixed  $value
-     * @return bool
      */
-    public function doesntContain($key, $operator = null, $value = null);
+    public function doesntContain(mixed $key, mixed $operator = null, mixed $value = null): bool;
 
     /**
      * Cross join with the given lists, returning all possible permutations.
@@ -171,148 +143,123 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TCrossJoinKey
      * @template TCrossJoinValue
      *
-     * @param  \Illuminate\Contracts\Support\Arrayable<TCrossJoinKey, TCrossJoinValue>|iterable<TCrossJoinKey, TCrossJoinValue>  ...$lists
+     * @param  Arrayable<TCrossJoinKey, TCrossJoinValue>|iterable<TCrossJoinKey, TCrossJoinValue>  ...$lists
      * @return static<int, array<int, TValue|TCrossJoinValue>>
      */
-    public function crossJoin(...$lists);
+    public function crossJoin(Arrayable|iterable ...$lists): static;
 
     /**
      * Dump the collection and end the script.
-     *
-     * @param  mixed  ...$args
-     * @return never
      */
-    public function dd(...$args);
+    public function dd(mixed ...$args): never;
 
     /**
      * Dump the collection.
-     *
-     * @param  mixed  ...$args
-     * @return $this
      */
-    public function dump(...$args);
+    public function dump(mixed ...$args): static;
 
     /**
      * Get the items that are not present in the given items.
      *
-     * @param  \Illuminate\Contracts\Support\Arrayable<array-key, TValue>|iterable<array-key, TValue>  $items
-     * @return static
+     * @param  Arrayable<array-key, TValue>|iterable<array-key, TValue>  $items
      */
-    public function diff($items);
+    public function diff(Arrayable|iterable $items): static;
 
     /**
      * Get the items that are not present in the given items, using the callback.
      *
-     * @param  \Illuminate\Contracts\Support\Arrayable<array-key, TValue>|iterable<array-key, TValue>  $items
+     * @param  Arrayable<array-key, TValue>|iterable<array-key, TValue>  $items
      * @param  callable(TValue, TValue): int  $callback
-     * @return static
      */
-    public function diffUsing($items, callable $callback);
+    public function diffUsing(Arrayable|iterable $items, callable $callback): static;
 
     /**
      * Get the items whose keys and values are not present in the given items.
      *
-     * @param  \Illuminate\Contracts\Support\Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
-     * @return static
+     * @param  Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
      */
-    public function diffAssoc($items);
+    public function diffAssoc(Arrayable|iterable $items): static;
 
     /**
      * Get the items whose keys and values are not present in the given items, using the callback.
      *
-     * @param  \Illuminate\Contracts\Support\Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
+     * @param  Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
      * @param  callable(TKey, TKey): int  $callback
-     * @return static
      */
-    public function diffAssocUsing($items, callable $callback);
+    public function diffAssocUsing(Arrayable|iterable $items, callable $callback): static;
 
     /**
      * Get the items whose keys are not present in the given items.
      *
-     * @param  \Illuminate\Contracts\Support\Arrayable<TKey, mixed>|iterable<TKey, mixed>  $items
-     * @return static
+     * @param  Arrayable<TKey, mixed>|iterable<TKey, mixed>  $items
      */
-    public function diffKeys($items);
+    public function diffKeys(Arrayable|iterable $items): static;
 
     /**
      * Get the items whose keys are not present in the given items, using the callback.
      *
-     * @param  \Illuminate\Contracts\Support\Arrayable<TKey, mixed>|iterable<TKey, mixed>  $items
+     * @param  Arrayable<TKey, mixed>|iterable<TKey, mixed>  $items
      * @param  callable(TKey, TKey): int  $callback
-     * @return static
      */
-    public function diffKeysUsing($items, callable $callback);
+    public function diffKeysUsing(Arrayable|iterable $items, callable $callback): static;
 
     /**
      * Retrieve duplicate items.
      *
      * @param  (callable(TValue): bool)|string|null  $callback
-     * @param  bool  $strict
-     * @return static
      */
-    public function duplicates($callback = null, $strict = false);
+    public function duplicates(callable|string|null $callback = null, bool $strict = false): static;
 
     /**
      * Retrieve duplicate items using strict comparison.
      *
      * @param  (callable(TValue): bool)|string|null  $callback
-     * @return static
      */
-    public function duplicatesStrict($callback = null);
+    public function duplicatesStrict(callable|string|null $callback = null): static;
 
     /**
      * Execute a callback over each item.
      *
      * @param  callable(TValue, TKey): mixed  $callback
-     * @return $this
      */
-    public function each(callable $callback);
+    public function each(callable $callback): static;
 
     /**
      * Execute a callback over each nested chunk of items.
-     *
-     * @param  callable  $callback
-     * @return static
      */
-    public function eachSpread(callable $callback);
+    public function eachSpread(callable $callback): static;
 
     /**
      * Determine if all items pass the given truth test.
      *
      * @param  (callable(TValue, TKey): bool)|TValue|string  $key
-     * @param  mixed  $operator
-     * @param  mixed  $value
-     * @return bool
      */
-    public function every($key, $operator = null, $value = null);
+    public function every(mixed $key, mixed $operator = null, mixed $value = null): bool;
 
     /**
      * Get all items except for those with the specified keys.
      *
-     * @param  \Illuminate\Support\Enumerable<array-key, TKey>|array<array-key, TKey>  $keys
-     * @return static
+     * @param  Enumerable<array-key, TKey>|array<array-key, TKey>  $keys
      */
-    public function except($keys);
+    public function except(Enumerable|array $keys): static;
 
     /**
      * Run a filter over each of the items.
      *
      * @param  (callable(TValue): bool)|null  $callback
-     * @return static
      */
-    public function filter(?callable $callback = null);
+    public function filter(?callable $callback = null): static;
 
     /**
      * Apply the callback if the given "value" is (or resolves to) truthy.
      *
      * @template TWhenReturnType as null
      *
-     * @param  bool  $value
      * @param  (callable($this): TWhenReturnType)|null  $callback
      * @param  (callable($this): TWhenReturnType)|null  $default
      * @return $this|TWhenReturnType
      */
-    public function when($value, ?callable $callback = null, ?callable $default = null);
+    public function when(mixed $value, ?callable $callback = null, ?callable $default = null): mixed;
 
     /**
      * Apply the callback if the collection is empty.
@@ -323,7 +270,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  (callable($this): TWhenEmptyReturnType)|null  $default
      * @return $this|TWhenEmptyReturnType
      */
-    public function whenEmpty(callable $callback, ?callable $default = null);
+    public function whenEmpty(callable $callback, ?callable $default = null): mixed;
 
     /**
      * Apply the callback if the collection is not empty.
@@ -334,19 +281,18 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  (callable($this): TWhenNotEmptyReturnType)|null  $default
      * @return $this|TWhenNotEmptyReturnType
      */
-    public function whenNotEmpty(callable $callback, ?callable $default = null);
+    public function whenNotEmpty(callable $callback, ?callable $default = null): mixed;
 
     /**
      * Apply the callback if the given "value" is (or resolves to) falsy.
      *
      * @template TUnlessReturnType
      *
-     * @param  bool  $value
      * @param  (callable($this): TUnlessReturnType)  $callback
      * @param  (callable($this): TUnlessReturnType)|null  $default
      * @return $this|TUnlessReturnType
      */
-    public function unless($value, callable $callback, ?callable $default = null);
+    public function unless(mixed $value, callable $callback, ?callable $default = null): mixed;
 
     /**
      * Apply the callback unless the collection is empty.
@@ -357,7 +303,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  (callable($this): TUnlessEmptyReturnType)|null  $default
      * @return $this|TUnlessEmptyReturnType
      */
-    public function unlessEmpty(callable $callback, ?callable $default = null);
+    public function unlessEmpty(callable $callback, ?callable $default = null): mixed;
 
     /**
      * Apply the callback unless the collection is not empty.
@@ -368,25 +314,17 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  (callable($this): TUnlessNotEmptyReturnType)|null  $default
      * @return $this|TUnlessNotEmptyReturnType
      */
-    public function unlessNotEmpty(callable $callback, ?callable $default = null);
+    public function unlessNotEmpty(callable $callback, ?callable $default = null): mixed;
 
     /**
      * Filter items by the given key value pair.
-     *
-     * @param  string  $key
-     * @param  mixed  $operator
-     * @param  mixed  $value
-     * @return static
      */
-    public function where($key, $operator = null, $value = null);
+    public function where(string $key, mixed $operator = null, mixed $value = null): static;
 
     /**
      * Filter items where the value for the given key is null.
-     *
-     * @param  string|null  $key
-     * @return static
      */
-    public function whereNull($key = null);
+    public function whereNull(?string $key = null): static;
 
     /**
      * Filter items where the value for the given key is not null.
