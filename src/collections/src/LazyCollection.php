@@ -15,7 +15,9 @@ use Hypervel\Contracts\Support\CanBeEscapedWhenCastToString;
 use Hypervel\Support\Traits\EnumeratesValues;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
+use Iterator;
 use IteratorAggregate;
+use IteratorIterator;
 use stdClass;
 use Traversable;
 
@@ -1309,8 +1311,8 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
         }
 
         $add = match ($preserveKeys) {
-            true => fn (array &$chunk, Traversable $iterator) => $chunk[$iterator->key()] = $iterator->current(),
-            false => fn (array &$chunk, Traversable $iterator) => $chunk[] = $iterator->current(),
+            true => fn (array &$chunk, Iterator $iterator) => $chunk[$iterator->key()] = $iterator->current(),
+            false => fn (array &$chunk, Iterator $iterator) => $chunk[] = $iterator->current(),
         };
 
         return new static(function () use ($size, $add) {
@@ -1752,9 +1754,9 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     /**
      * Get the values iterator.
      *
-     * @return \Traversable<TKey, TValue>
+     * @return Iterator<TKey, TValue>
      */
-    public function getIterator(): Traversable
+    public function getIterator(): Iterator
     {
         return $this->makeIterator($this->source);
     }
@@ -1777,13 +1779,15 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      * @template TIteratorKey of array-key
      * @template TIteratorValue
      *
-     * @param  \IteratorAggregate<TIteratorKey, TIteratorValue>|array<TIteratorKey, TIteratorValue>|(callable(): \Generator<TIteratorKey, TIteratorValue>)  $source
-     * @return \Traversable<TIteratorKey, TIteratorValue>
+     * @param  IteratorAggregate<TIteratorKey, TIteratorValue>|array<TIteratorKey, TIteratorValue>|(callable(): Generator<TIteratorKey, TIteratorValue>)  $source
+     * @return Iterator<TIteratorKey, TIteratorValue>
      */
-    protected function makeIterator(IteratorAggregate|array|callable $source): Traversable
+    protected function makeIterator(IteratorAggregate|array|callable $source): Iterator
     {
         if ($source instanceof IteratorAggregate) {
-            return $source->getIterator();
+            $iterator = $source->getIterator();
+
+            return $iterator instanceof Iterator ? $iterator : new IteratorIterator($iterator);
         }
 
         if (is_array($source)) {
@@ -1793,9 +1797,15 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
         if (is_callable($source)) {
             $maybeTraversable = $source();
 
-            return $maybeTraversable instanceof Traversable
-                ? $maybeTraversable
-                : new ArrayIterator(Arr::wrap($maybeTraversable));
+            if ($maybeTraversable instanceof Iterator) {
+                return $maybeTraversable;
+            }
+
+            if ($maybeTraversable instanceof Traversable) {
+                return new IteratorIterator($maybeTraversable);
+            }
+
+            return new ArrayIterator(Arr::wrap($maybeTraversable));
         }
 
         return new ArrayIterator((array) $source);
