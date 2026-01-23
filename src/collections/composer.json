@@ -1,0 +1,49 @@
+{
+    "name": "hypervel/collections",
+    "type": "library",
+    "description": "The collections package for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "hyperf",
+        "collections",
+        "swoole",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Support\\": "src/"
+        },
+        "files": [
+            "src/functions.php",
+            "src/helpers.php"
+        ]
+    },
+    "require": {
+        "php": "^8.2",
+        "hyperf/conditionable": "~3.1.0",
+        "hyperf/macroable": "~3.1.0",
+        "hypervel/contracts": "~0.3.0"
+    },
+    "suggest": {
+        "hypervel/http": "Required to convert collections to API resources (~0.3.0)."
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.3-dev"
+        }
+    }
+}
