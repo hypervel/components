@@ -146,7 +146,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Collapse the collection of items into a single array while preserving its keys.
      *
-     * @return static<mixed, mixed>
+     * @return static<array-key, mixed>
      */
     public function collapseWithKeys(): static
     {
@@ -229,7 +229,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Cross join with the given lists, returning all possible permutations.
      *
-     * @template TCrossJoinKey
+     * @template TCrossJoinKey of array-key
      * @template TCrossJoinValue
      *
      * @param  Arrayable<TCrossJoinKey, TCrossJoinValue>|iterable<TCrossJoinKey, TCrossJoinValue>  ...$lists

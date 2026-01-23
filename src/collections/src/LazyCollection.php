@@ -204,7 +204,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     /**
      * Collapse the collection of items into a single array while preserving its keys.
      *
-     * @return static<mixed, mixed>
+     * @return static<array-key, mixed>
      */
     public function collapseWithKeys(): static
     {
