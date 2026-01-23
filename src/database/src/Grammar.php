@@ -182,7 +182,7 @@ abstract class Grammar
     /**
      * Get the appropriate query parameter place-holder for a value.
      */
-    public function parameter(mixed $value): string
+    public function parameter(mixed $value): string|int|float
     {
         return $this->isExpression($value) ? $this->getValue($value) : '?';
     }

@@ -42,6 +42,11 @@ class NodeTest extends TestCase
 
         DB::table('categories')
             ->insert($this->getMockCategories());
+
+        // Reset Postgres sequence after inserting with explicit IDs
+        if (DB::connection()->getDriverName() === 'pgsql') {
+            DB::statement("SELECT setval('categories_id_seq', (SELECT MAX(id) FROM categories))");
+        }
     }
 
     protected function getMockCategories(): array
@@ -474,7 +479,7 @@ class NodeTest extends TestCase
     public function testToTreeBuildsWithCustomOrder(): void
     {
         $tree = Category::whereBetween('_lft', [8, 17])
-            ->orderBy('title')
+            ->orderBy('name')
             ->get()
             ->toTree();
 

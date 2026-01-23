@@ -160,7 +160,7 @@ class Grammar extends BaseGrammar
     /**
      * Compile the "from" portion of the query.
      */
-    protected function compileFrom(Builder $query, string $table): string
+    protected function compileFrom(Builder $query, Expression|string $table): string
     {
         return 'from '.$this->wrapTable($table);
     }

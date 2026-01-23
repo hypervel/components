@@ -41,6 +41,14 @@ trait HasNode
     protected static ?bool $hasSoftDelete = null;
 
     /**
+     * Create a new Eloquent query builder for the model.
+     */
+    public function newEloquentBuilder(HyperfQueryBuilder $query): QueryBuilder
+    {
+        return new QueryBuilder($query);
+    }
+
+    /**
      * Bootstrap node events.
      */
     public static function bootHasNode(): void
