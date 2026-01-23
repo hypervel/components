@@ -26,9 +26,10 @@ class NewBaseQueryBuilderTest extends TestCase
 {
     public function testModelUsesConnectionQueryMethod(): void
     {
+        $mockConnection = m::mock(Connection::class);
         $customBuilder = new CustomQueryBuilder(
-            m::mock(Connection::class),
-            new Grammar(),
+            $mockConnection,
+            new Grammar($mockConnection),
             new Processor()
         );
 
@@ -46,9 +47,10 @@ class NewBaseQueryBuilderTest extends TestCase
 
     public function testPivotUsesConnectionQueryMethod(): void
     {
+        $mockConnection = m::mock(Connection::class);
         $customBuilder = new CustomQueryBuilder(
-            m::mock(Connection::class),
-            new Grammar(),
+            $mockConnection,
+            new Grammar($mockConnection),
             new Processor()
         );
 
@@ -66,9 +68,10 @@ class NewBaseQueryBuilderTest extends TestCase
 
     public function testMorphPivotUsesConnectionQueryMethod(): void
     {
+        $mockConnection = m::mock(Connection::class);
         $customBuilder = new CustomQueryBuilder(
-            m::mock(Connection::class),
-            new Grammar(),
+            $mockConnection,
+            new Grammar($mockConnection),
             new Processor()
         );
 
