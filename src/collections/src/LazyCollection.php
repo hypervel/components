@@ -1656,7 +1656,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      *
      * @return static<int, TValue>
      */
-    public function values()
+    public function values(): static
     {
         return new static(function () {
             foreach ($this as $item) {
@@ -1670,7 +1670,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      *
      * @return static<TKey, TValue>
      */
-    public function withHeartbeat(DateInterval|int $interval, callable $callback)
+    public function withHeartbeat(DateInterval|int $interval, callable $callback): static
     {
         $seconds = is_int($interval) ? $interval : $this->intervalSeconds($interval);
 
@@ -1709,10 +1709,10 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      *
      * @template TZipValue
      *
-     * @param  \Hypervel\Contracts\Support\Arrayable<array-key, TZipValue>|iterable<array-key, TZipValue>  ...$items
+     * @param  Arrayable<array-key, TZipValue>|iterable<array-key, TZipValue>  ...$items
      * @return static<int, static<int, TValue|TZipValue>>
      */
-    public function zip($items)
+    public function zip(mixed $items): static
     {
         $iterables = func_get_args();
 
@@ -1733,7 +1733,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      * {@inheritDoc}
      */
     #[\Override]
-    public function pad($size, $value)
+    public function pad(int $size, mixed $value): static
     {
         if ($size < 0) {
             return $this->passthru(__FUNCTION__, func_get_args());
@@ -1785,9 +1785,9 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      * @template TIteratorValue
      *
      * @param  \IteratorAggregate<TIteratorKey, TIteratorValue>|array<TIteratorKey, TIteratorValue>|(callable(): \Generator<TIteratorKey, TIteratorValue>)  $source
-     * @return \Traversable<TIteratorKey, TIteratorValue>
+     * @return Traversable<TIteratorKey, TIteratorValue>
      */
-    protected function makeIterator($source)
+    protected function makeIterator(mixed $source): Traversable
     {
         if ($source instanceof IteratorAggregate) {
             return $source->getIterator();
@@ -1813,9 +1813,9 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      *
      * @param  string|string[]  $value
      * @param  string|string[]|null  $key
-     * @return array{string[],string[]|null}
+     * @return array{string[], string[]|null}
      */
-    protected function explodePluckParameters($value, $key)
+    protected function explodePluckParameters(string|array $value, string|array|null $key): array
     {
         $value = is_string($value) ? explode('.', $value) : $value;
 
@@ -1827,11 +1827,9 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     /**
      * Pass this lazy collection through a method on the collection class.
      *
-     * @param  string  $method
      * @param  array<mixed>  $params
-     * @return static
      */
-    protected function passthru($method, array $params)
+    protected function passthru(string $method, array $params): static
     {
         return new static(function () use ($method, $params) {
             yield from $this->collect()->$method(...$params);
@@ -1840,10 +1838,8 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
 
     /**
      * Get the current time.
-     *
-     * @return int
      */
-    protected function now()
+    protected function now(): int
     {
         return class_exists(Carbon::class)
             ? Carbon::now()->timestamp
@@ -1852,10 +1848,8 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
 
     /**
      * Get the precise current time.
-     *
-     * @return float
      */
-    protected function preciseNow()
+    protected function preciseNow(): float
     {
         return class_exists(Carbon::class)
             ? Carbon::now()->getPreciseTimestamp()
@@ -1864,10 +1858,8 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
 
     /**
      * Sleep for the given amount of microseconds.
-     *
-     * @return void
      */
-    protected function usleep(int $microseconds)
+    protected function usleep(int $microseconds): void
     {
         if ($microseconds <= 0) {
             return;
