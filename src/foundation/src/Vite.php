@@ -1,15 +1,18 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Foundation;
 
 use Exception;
 use Hypervel\Context\Context;
-use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Js;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
+use RuntimeException;
 
 class Vite implements Htmlable
 {
@@ -53,7 +56,7 @@ class Vite implements Htmlable
     /**
      * The custom asset path resolver.
      */
-    protected $assetPathResolver = null;
+    protected $assetPathResolver;
 
     /**
      * The script tag attributes resolvers.
@@ -78,7 +81,7 @@ class Vite implements Htmlable
     /**
      * The prefetching strategy (waterfall or aggressive) to use.
      */
-    protected null|string $prefetchStrategy = null;
+    protected ?string $prefetchStrategy = null;
 
     /**
      * The number of assets to load concurrently when using the "waterfall" strategy.
@@ -206,7 +209,7 @@ class Vite implements Htmlable
     /**
      * Use the given callback to resolve attributes for script tags.
      *
-     * @param  (callable(string, string, ?array, ?array): array)|array  $attributes
+     * @param array|(callable(string, string, ?array, ?array): array) $attributes
      */
     public function useScriptTagAttributes(callable|array $attributes): static
     {
@@ -222,7 +225,7 @@ class Vite implements Htmlable
     /**
      * Use the given callback to resolve attributes for style tags.
      *
-     * @param  (callable(string, string, ?array, ?array): array)|array  $attributes
+     * @param array|(callable(string, string, ?array, ?array): array) $attributes
      */
     public function useStyleTagAttributes(callable|array $attributes): static
     {
@@ -238,7 +241,7 @@ class Vite implements Htmlable
     /**
      * Use the given callback to resolve attributes for preload tags.
      *
-     * @param  (callable(string, string, ?array, ?array): (array|false))|array|false  $attributes
+     * @param array|(callable(string, string, ?array, ?array): (array|false))|false $attributes
      */
     public function usePreloadTagAttributes(callable|array|false $attributes): static
     {
@@ -316,8 +319,8 @@ class Vite implements Htmlable
 
         $manifest = $this->manifest($buildDirectory);
 
-        $tags = new Collection;
-        $preloads = new Collection;
+        $tags = new Collection();
+        $preloads = new Collection();
 
         foreach ($entrypoints as $entrypoint) {
             $chunk = $this->chunk($manifest, $entrypoint);
@@ -388,8 +391,9 @@ class Vite implements Htmlable
             ->sortByDesc(fn ($args) => $this->isCssPath($args[1]))
             ->map(fn ($args) => $this->makePreloadTagForChunk(...$args));
 
-        $base = $preloads->join('').$stylesheets->join('').$scripts->join('');
+        $base = $preloads->join('') . $stylesheets->join('') . $scripts->join('');
 
+        /** @phpstan-ignore booleanOr.rightAlwaysFalse */
         if ($this->prefetchStrategy === null || $this->isRunningHot()) {
             return new HtmlString($base);
         }
@@ -407,12 +411,16 @@ class Vite implements Htmlable
                                 return true;
                             }
 
-                            return ! $discoveredImports[$import] = true;
+                            $discoveredImports[$import] = true;
+
+                            return false;
                         })
                         ->reduce(
                             fn ($chunks, $import) => $chunks->merge(
                                 $f($manifest[$import])
-                            ), new Collection([$chunk]))
+                            ),
+                            new Collection([$chunk])
+                        )
                         ->merge((new Collection($chunk['css'] ?? []))->map(
                             fn ($css) => (new Collection($manifest))->first(fn ($chunk) => $chunk['file'] === $css) ?? [
                                 'file' => $css,
@@ -443,7 +451,7 @@ class Vite implements Htmlable
             ->unique('href')
             ->values()
             ->pipe(fn ($assets) => with(Js::from($assets), fn ($assets) => match ($this->prefetchStrategy) {
-                'waterfall' => new HtmlString($base.<<<HTML
+                'waterfall' => new HtmlString($base . <<<HTML
 
                     <script{$this->nonceAttribute()}>
                          window.addEventListener('{$this->prefetchEvent}', () => window.setTimeout(() => {
@@ -486,7 +494,7 @@ class Vite implements Htmlable
                         }))
                     </script>
                     HTML),
-                'aggressive' => new HtmlString($base.<<<HTML
+                'aggressive' => new HtmlString($base . <<<HTML
 
                     <script{$this->nonceAttribute()}>
                          window.addEventListener('{$this->prefetchEvent}', () => window.setTimeout(() => {
@@ -506,6 +514,7 @@ class Vite implements Htmlable
                          }))
                     </script>
                     HTML),
+                default => throw new RuntimeException('Unknown prefetch strategy: ' . $this->prefetchStrategy),
             }));
     }
 
@@ -553,7 +562,7 @@ class Vite implements Htmlable
         );
         $this->setPreloadedAssets($preloadedAssets);
 
-        return '<link '.implode(' ', $this->parseAttributes($attributes)).' />';
+        return '<link ' . implode(' ', $this->parseAttributes($attributes)) . ' />';
     }
 
     /**
@@ -624,7 +633,7 @@ class Vite implements Htmlable
     /**
      * Generate an appropriate tag for the given URL in HMR mode.
      *
-     * @deprecated Will be removed in a future Laravel version.
+     * @deprecated will be removed in a future Laravel version
      */
     protected function makeTag(string $url): string
     {
@@ -638,7 +647,7 @@ class Vite implements Htmlable
     /**
      * Generate a script tag for the given URL.
      *
-     * @deprecated Will be removed in a future Laravel version.
+     * @deprecated will be removed in a future Laravel version
      */
     protected function makeScriptTag(string $url): string
     {
@@ -648,7 +657,7 @@ class Vite implements Htmlable
     /**
      * Generate a stylesheet tag for the given URL in HMR mode.
      *
-     * @deprecated Will be removed in a future Laravel version.
+     * @deprecated will be removed in a future Laravel version
      */
     protected function makeStylesheetTag(string $url): string
     {
@@ -666,7 +675,7 @@ class Vite implements Htmlable
             'nonce' => $this->cspNonce() ?? false,
         ], $attributes));
 
-        return '<script '.implode(' ', $attributes).'></script>';
+        return '<script ' . implode(' ', $attributes) . '></script>';
     }
 
     /**
@@ -680,7 +689,7 @@ class Vite implements Htmlable
             'nonce' => $this->cspNonce() ?? false,
         ], $attributes));
 
-        return '<link '.implode(' ', $attributes).' />';
+        return '<link ' . implode(' ', $attributes) . ' />';
     }
 
     /**
@@ -699,7 +708,7 @@ class Vite implements Htmlable
         return (new Collection($attributes))
             ->reject(fn ($value, $key) => in_array($value, [false, null], true))
             ->flatMap(fn ($value, $key) => $value === true ? [$key] : [$key => $value])
-            ->map(fn ($value, $key) => is_int($key) ? $value : $key.'="'.$value.'"')
+            ->map(fn ($value, $key) => is_int($key) ? $value : $key . '="' . $value . '"')
             ->values()
             ->all();
     }
@@ -739,7 +748,7 @@ class Vite implements Htmlable
      */
     protected function hotAsset(string $asset): string
     {
-        return rtrim(file_get_contents($this->hotFile())).'/'.$asset;
+        return rtrim(file_get_contents($this->hotFile())) . '/' . $asset;
     }
 
     /**
@@ -755,7 +764,7 @@ class Vite implements Htmlable
 
         $chunk = $this->chunk($this->manifest($buildDirectory), $asset);
 
-        return $this->assetPath($buildDirectory.'/'.$chunk['file']);
+        return $this->assetPath($buildDirectory . '/' . $chunk['file']);
     }
 
     /**
@@ -769,7 +778,7 @@ class Vite implements Htmlable
 
         $chunk = $this->chunk($this->manifest($buildDirectory), $asset);
 
-        $path = public_path($buildDirectory.'/'.$chunk['file']);
+        $path = public_path($buildDirectory . '/' . $chunk['file']);
 
         if (! is_file($path) || ! file_exists($path)) {
             throw new ViteException("Unable to locate file from Vite manifest: {$path}.");
@@ -797,7 +806,7 @@ class Vite implements Htmlable
 
         if (! isset(static::$manifests[$path])) {
             if (! is_file($path)) {
-                throw new ViteException("Vite manifest not found at: $path");
+                throw new ViteException("Vite manifest not found at: {$path}");
             }
 
             static::$manifests[$path] = json_decode(file_get_contents($path), true);
@@ -811,7 +820,7 @@ class Vite implements Htmlable
      */
     protected function manifestPath(string $buildDirectory): string
     {
-        return public_path($buildDirectory.'/'.$this->manifestFilename);
+        return public_path($buildDirectory . '/' . $this->manifestFilename);
     }
 
     /**
@@ -855,7 +864,7 @@ class Vite implements Htmlable
             return new HtmlString('');
         }
 
-        return new HtmlString(' nonce="'.$this->cspNonce().'"');
+        return new HtmlString(' nonce="' . $this->cspNonce() . '"');
     }
 
     /**

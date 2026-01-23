@@ -16,7 +16,7 @@ class Str extends BaseStr
     /**
      * The callback that should be used to generate random strings.
      *
-     * @var callable|null
+     * @param ?callable $randomStringFactory
      */
     protected static $randomStringFactory;
 
@@ -150,21 +150,16 @@ class Str extends BaseStr
 
     /**
      * Set the callable that will be used to generate random strings.
-     *
-     * @param  callable|null  $factory
-     * @return void
      */
-    public static function createRandomStringsUsing(?callable $factory = null)
+    public static function createRandomStringsUsing(?callable $factory = null): void
     {
         static::$randomStringFactory = $factory;
     }
 
     /**
      * Indicate that random strings should be created normally and not using a custom factory.
-     *
-     * @return void
      */
-    public static function createRandomStringsNormally()
+    public static function createRandomStringsNormally(): void
     {
         static::$randomStringFactory = null;
     }
