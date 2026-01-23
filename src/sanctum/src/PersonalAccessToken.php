@@ -4,15 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
-use BackedEnum;
-use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Auth\Contracts\Authenticatable;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\Contracts\Repository as CacheRepository;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Sanctum\Contracts\HasAbilities;
-use Hypervel\Support\Str;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @property int|string $id
@@ -149,9 +150,9 @@ class PersonalAccessToken extends Model implements HasAbilities
     /**
      * Determine if the token has a given ability.
      */
-    public function can(BackedEnum|string $ability): bool
+    public function can(UnitEnum|string $ability): bool
     {
-        $ability = Str::from($ability);
+        $ability = enum_value($ability);
 
         return in_array('*', $this->abilities)
                || array_key_exists($ability, array_flip($this->abilities));
@@ -160,7 +161,7 @@ class PersonalAccessToken extends Model implements HasAbilities
     /**
      * Determine if the token is missing a given ability.
      */
-    public function cant(BackedEnum|string $ability): bool
+    public function cant(UnitEnum|string $ability): bool
     {
         return ! $this->can($ability);
     }

@@ -46,7 +46,6 @@ class AuthenticateRequestsTest extends TestCase
                 ],
                 'auth.providers.users.model' => TestUser::class,
                 'auth.providers.users.driver' => 'eloquent',
-                'database.default' => 'testing',
                 'sanctum.stateful' => ['localhost', '127.0.0.1'],
                 'sanctum.guard' => ['web'],
             ]);

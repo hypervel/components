@@ -48,7 +48,6 @@ class GuardTest extends TestCase
                 ],
                 'auth.providers.users.model' => TestUser::class,
                 'auth.providers.users.driver' => 'eloquent',
-                'database.default' => 'testing',
                 'sanctum.guard' => ['web'],
             ]);
 

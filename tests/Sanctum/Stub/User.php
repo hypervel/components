@@ -5,21 +5,26 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum\Stub;
 
 use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Database\Eloquent\Factories\Factory;
+use Hypervel\Database\Eloquent\Factories\HasFactory;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Sanctum\HasApiTokens;
 
-class User implements Authenticatable
+class User extends Model implements Authenticatable
 {
     use HasApiTokens;
+    use HasFactory;
 
-    public int $id = 1;
+    protected ?string $table = 'sanctum_test_users';
 
-    public bool $wasRecentlyCreated = false;
+    protected array $fillable = ['name', 'email', 'password'];
 
-    public string $email = 'test@example.com';
+    protected array $hidden = ['password'];
 
-    public string $password = '';
-
-    public string $name = 'Test User';
+    protected static function newFactory(): UserFactory
+    {
+        return UserFactory::new();
+    }
 
     public function getAuthIdentifierName(): string
     {
@@ -33,6 +38,20 @@ class User implements Authenticatable
 
     public function getAuthPassword(): string
     {
-        return $this->password ?: 'password';
+        return $this->password;
+    }
+}
+
+class UserFactory extends Factory
+{
+    protected ?string $model = User::class;
+
+    public function definition(): array
+    {
+        return [
+            'name' => $this->faker->name(),
+            'email' => $this->faker->unique()->safeEmail(),
+            'password' => bcrypt('password'),
+        ];
     }
 }
