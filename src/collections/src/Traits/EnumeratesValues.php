@@ -187,7 +187,7 @@ trait EnumeratesValues
     /**
      * Get the average value of a given key.
      *
-     * @param  (callable(TValue): float|int)|string|null  $callback
+     * @param  (callable(TValue): (float|int))|string|null  $callback
      */
     public function avg(callable|string|null $callback = null): float|int|null
     {
@@ -208,7 +208,7 @@ trait EnumeratesValues
     /**
      * Alias for the "avg" method.
      *
-     * @param  (callable(TValue): float|int)|string|null  $callback
+     * @param  (callable(TValue): (float|int))|string|null  $callback
      */
     public function average(callable|string|null $callback = null): float|int|null
     {

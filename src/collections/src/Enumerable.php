@@ -77,7 +77,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Alias for the "avg" method.
      *
-     * @param  (callable(TValue): float|int)|string|null  $callback
+     * @param  (callable(TValue): (float|int))|string|null  $callback
      */
     public function average(callable|string|null $callback = null): float|int|null;
 
@@ -121,7 +121,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Get the average value of a given key.
      *
-     * @param  (callable(TValue): float|int)|string|null  $callback
+     * @param  (callable(TValue): (float|int))|string|null  $callback
      */
     public function avg(callable|string|null $callback = null): float|int|null;
 
