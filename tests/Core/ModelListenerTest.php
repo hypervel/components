@@ -7,10 +7,11 @@ namespace Hypervel\Tests\Core;
 use Hypervel\Database\Eloquent\Events\Created;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelListener;
+use Hypervel\Event\Contracts\Dispatcher;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Psr\Container\ContainerInterface;
 
 /**
  * @internal
@@ -18,85 +19,140 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  */
 class ModelListenerTest extends TestCase
 {
-    public function testRegisterWithInvalidModel()
+    public function testRegisterWithInvalidModelClass()
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unable to find model class: model');
+        $this->expectExceptionMessage('Unable to find model class: NonExistentModel');
 
         $this->getModelListener()
-            ->register('model', 'event', fn () => true);
+            ->register('NonExistentModel', 'created', fn () => true);
+    }
+
+    public function testRegisterWithNonModelClass()
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Class [stdClass] must extend Model.');
+
+        $this->getModelListener()
+            ->register(\stdClass::class, 'created', fn () => true);
     }
 
     public function testRegisterWithInvalidEvent()
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Event [event] is not a valid Eloquent event.');
+        $this->expectExceptionMessage('Event [invalid_event] is not a valid Eloquent event.');
 
         $this->getModelListener()
-            ->register(new ModelUser(), 'event', fn () => true);
+            ->register(ModelListenerTestUser::class, 'invalid_event', fn () => true);
     }
 
     public function testRegister()
     {
-        $dispatcher = m::mock(EventDispatcherInterface::class);
+        $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('listen')
             ->once()
-            ->with(Created::class, m::type('callable'));
+            ->with(Created::class, m::type('array'));
 
-        $manager = $this->getModelListener($dispatcher);
-        $manager->register($user = new ModelUser(), 'created', $callback = fn () => true);
+        $listener = $this->getModelListener($dispatcher);
+        $listener->register(ModelListenerTestUser::class, 'created', $callback = fn () => true);
 
         $this->assertSame(
             [$callback],
-            $manager->getCallbacks($user, 'created')
+            $listener->getCallbacks(ModelListenerTestUser::class, 'created')
         );
 
         $this->assertSame(
             ['created' => [$callback]],
-            $manager->getCallbacks($user)
+            $listener->getCallbacks(ModelListenerTestUser::class)
         );
     }
 
     public function testClear()
     {
-        $dispatcher = m::mock(EventDispatcherInterface::class);
+        $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('listen')
             ->once()
-            ->with(Created::class, m::type('callable'));
+            ->with(Created::class, m::type('array'));
 
-        $manager = $this->getModelListener($dispatcher);
-        $manager->register($user = new ModelUser(), 'created', fn () => true);
+        $listener = $this->getModelListener($dispatcher);
+        $listener->register(ModelListenerTestUser::class, 'created', fn () => true);
 
-        $manager->clear($user);
+        $listener->clear(ModelListenerTestUser::class);
 
-        $this->assertSame([], $manager->getCallbacks(new ModelUser()));
+        $this->assertSame([], $listener->getCallbacks(ModelListenerTestUser::class));
     }
 
-    public function testHandleEvents()
+    public function testClearSpecificEvent()
     {
-        $dispatcher = m::mock(EventDispatcherInterface::class);
+        $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('listen')
             ->once()
-            ->with(Created::class, m::type('callable'));
+            ->with(Created::class, m::type('array'));
 
-        $callbackUser = null;
-        $manager = $this->getModelListener($dispatcher);
-        $manager->register($user = new ModelUser(), 'created', function ($user) use (&$callbackUser) {
-            $callbackUser = $user;
-        });
-        $manager->handleEvent(new Created($user));
+        $listener = $this->getModelListener($dispatcher);
+        $listener->register(ModelListenerTestUser::class, 'created', $callback = fn () => true);
 
-        $this->assertSame($user, $callbackUser);
+        $listener->clear(ModelListenerTestUser::class, 'created');
+
+        $this->assertSame([], $listener->getCallbacks(ModelListenerTestUser::class, 'created'));
     }
 
-    protected function getModelListener(?EventDispatcherInterface $dispatcher = null): ModelListener
+    public function testHandleEvent()
+    {
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('listen')
+            ->once()
+            ->with(Created::class, m::type('array'));
+
+        $callbackModel = null;
+        $listener = $this->getModelListener($dispatcher);
+        $user = new ModelListenerTestUser();
+
+        $listener->register(ModelListenerTestUser::class, 'created', function ($model) use (&$callbackModel) {
+            $callbackModel = $model;
+        });
+
+        $listener->handleEvent(new Created($user));
+
+        $this->assertSame($user, $callbackModel);
+    }
+
+    public function testHandleEventReturnsFalseWhenCallbackReturnsFalse()
+    {
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('listen')
+            ->once()
+            ->with(Created::class, m::type('array'));
+
+        $listener = $this->getModelListener($dispatcher);
+        $user = new ModelListenerTestUser();
+
+        $listener->register(ModelListenerTestUser::class, 'created', fn () => false);
+
+        $result = $listener->handleEvent(new Created($user));
+
+        $this->assertFalse($result);
+    }
+
+    public function testRegisterObserverWithInvalidClass()
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Unable to find observer: NonExistentObserver');
+
+        $this->getModelListener()
+            ->registerObserver(ModelListenerTestUser::class, 'NonExistentObserver');
+    }
+
+    protected function getModelListener(?Dispatcher $dispatcher = null): ModelListener
     {
         return new ModelListener(
-            $dispatcher ?? m::mock(EventDispatcherInterface::class)
+            m::mock(ContainerInterface::class),
+            $dispatcher ?? m::mock(Dispatcher::class)
         );
     }
 }
 
-class ModelUser extends Model
+class ModelListenerTestUser extends Model
 {
+    protected ?string $table = 'users';
 }

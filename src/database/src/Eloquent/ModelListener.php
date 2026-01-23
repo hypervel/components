@@ -110,6 +110,8 @@ class ModelListener
      */
     public function register(string $modelClass, string $event, callable $callback): void
     {
+        $this->validateModelClass($modelClass);
+
         $eventClass = static::MODEL_EVENTS[$event] ?? null;
 
         if ($eventClass === null) {
@@ -119,6 +121,23 @@ class ModelListener
         $this->bootstrapEvent($eventClass);
 
         $this->callbacks[$modelClass][$event][] = $callback;
+    }
+
+    /**
+     * Validate that the given class is a valid model class.
+     *
+     * @param class-string $modelClass
+     * @throws InvalidArgumentException
+     */
+    protected function validateModelClass(string $modelClass): void
+    {
+        if (! class_exists($modelClass)) {
+            throw new InvalidArgumentException("Unable to find model class: {$modelClass}");
+        }
+
+        if (! is_subclass_of($modelClass, Model::class)) {
+            throw new InvalidArgumentException("Class [{$modelClass}] must extend Model.");
+        }
     }
 
     /**
