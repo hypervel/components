@@ -29,7 +29,6 @@
     "require": {
         "php": "^8.2",
         "hyperf/database": "~3.1.0",
-        "hyperf/database-sqlite": "~3.1.0",
         "hyperf/db-connection": "~3.1.0"
     },
     "require-dev": {
