@@ -985,10 +985,9 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Get and remove the last N items from the collection.
      *
-     * @param  int  $count
      * @return ($count is 1 ? TValue|null : static<int, TValue>)
      */
-    public function pop($count = 1)
+    public function pop(int $count = 1): mixed
     {
         if ($count < 1) {
             return new static;
@@ -1020,7 +1019,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  TKey  $key
      * @return $this
      */
-    public function prepend($value, $key = null)
+    public function prepend(mixed $value, mixed $key = null): static
     {
         $this->items = Arr::prepend($this->items, ...(func_num_args() > 1 ? func_get_args() : [$value]));
 
@@ -1033,7 +1032,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  TValue  ...$values
      * @return $this
      */
-    public function push(...$values)
+    public function push(mixed ...$values): static
     {
         foreach ($values as $value) {
             $this->items[] = $value;
@@ -1048,7 +1047,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  TValue  ...$values
      * @return $this
      */
-    public function unshift(...$values)
+    public function unshift(mixed ...$values): static
     {
         array_unshift($this->items, ...$values);
 
@@ -1064,7 +1063,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  iterable<TConcatKey, TConcatValue>  $source
      * @return static<TKey|TConcatKey, TValue|TConcatValue>
      */
-    public function concat($source)
+    public function concat(iterable $source): static
     {
         $result = new static($this);
 
@@ -1084,7 +1083,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  TPullDefault|(\Closure(): TPullDefault)  $default
      * @return TValue|TPullDefault
      */
-    public function pull($key, $default = null)
+    public function pull(mixed $key, mixed $default = null): mixed
     {
         return Arr::pull($this->items, $key, $default);
     }
@@ -1096,7 +1095,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  TValue  $value
      * @return $this
      */
-    public function put($key, $value)
+    public function put(mixed $key, mixed $value): static
     {
         $this->offsetSet($key, $value);
 
@@ -1107,12 +1106,11 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Get one or a specified number of items randomly from the collection.
      *
      * @param  (callable(self<TKey, TValue>): int)|int|null  $number
-     * @param  bool  $preserveKeys
      * @return ($number is null ? TValue : static<int, TValue>)
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
-    public function random($number = null, $preserveKeys = false)
+    public function random(callable|int|null $number = null, bool $preserveKeys = false): mixed
     {
         if (is_null($number)) {
             return Arr::random($this->items);
@@ -1129,9 +1127,8 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Replace the collection items with the given items.
      *
      * @param  Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
-     * @return static
      */
-    public function replace($items)
+    public function replace(mixed $items): static
     {
         return new static(array_replace($this->items, $this->getArrayableItems($items)));
     }
@@ -1140,19 +1137,16 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Recursively replace the collection items with the given items.
      *
      * @param  Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
-     * @return static
      */
-    public function replaceRecursive($items)
+    public function replaceRecursive(mixed $items): static
     {
         return new static(array_replace_recursive($this->items, $this->getArrayableItems($items)));
     }
 
     /**
      * Reverse items order.
-     *
-     * @return static
      */
-    public function reverse()
+    public function reverse(): static
     {
         return new static(array_reverse($this->items, true));
     }
@@ -1161,10 +1155,9 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Search the collection for a given value and return the corresponding key if successful.
      *
      * @param  TValue|(callable(TValue,TKey): bool)  $value
-     * @param  bool  $strict
      * @return TKey|false
      */
-    public function search($value, $strict = false)
+    public function search(mixed $value, bool $strict = false): mixed
     {
         if (! $this->useAsCallable($value)) {
             return array_search($value, $this->items, $strict);
@@ -1177,10 +1170,9 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Get the item before the given item.
      *
      * @param  TValue|(callable(TValue,TKey): bool)  $value
-     * @param  bool  $strict
      * @return TValue|null
      */
-    public function before($value, $strict = false)
+    public function before(mixed $value, bool $strict = false): mixed
     {
         $key = $this->search($value, $strict);
 
@@ -1201,10 +1193,9 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Get the item after the given item.
      *
      * @param  TValue|(callable(TValue,TKey): bool)  $value
-     * @param  bool  $strict
      * @return TValue|null
      */
-    public function after($value, $strict = false)
+    public function after(mixed $value, bool $strict = false): mixed
     {
         $key = $this->search($value, $strict);
 
@@ -1227,9 +1218,9 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  int<0, max>  $count
      * @return ($count is 1 ? TValue|null : static<int, TValue>)
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
-    public function shift($count = 1)
+    public function shift(int $count = 1): mixed
     {
         if ($count < 0) {
             throw new InvalidArgumentException('Number of shifted items may not be less than zero.');
@@ -1260,10 +1251,8 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
     /**
      * Shuffle the items in the collection.
-     *
-     * @return static
      */
-    public function shuffle()
+    public function shuffle(): static
     {
         return new static(Arr::shuffle($this->items));
     }
