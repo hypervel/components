@@ -11,6 +11,7 @@ use DateTimeImmutable;
 use DateTimeInterface;
 use Generator;
 use Hyperf\Macroable\Macroable;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\CanBeEscapedWhenCastToString;
 use Hypervel\Support\Traits\EnumeratesValues;
 use InvalidArgumentException;
@@ -76,14 +77,11 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     /**
      * Create a collection with the given range.
      *
-     * @param  int  $from
-     * @param  int  $to
-     * @param  int  $step
      * @return static<int, int>
      */
-    public static function range($from, $to, $step = 1)
+    public static function range(int $from, int $to, int $step = 1): static
     {
-        if ($step == 0) {
+        if ($step === 0) {
             throw new InvalidArgumentException('Step value cannot be zero.');
         }
 
@@ -105,7 +103,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      *
      * @return array<TKey, TValue>
      */
-    public function all()
+    public function all(): array
     {
         if (is_array($this->source)) {
             return $this->source;
@@ -119,7 +117,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      *
      * @return static<TKey, TValue>
      */
-    public function eager()
+    public function eager(): static
     {
         return new static($this->all());
     }
@@ -129,7 +127,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      *
      * @return static<TKey, TValue>
      */
-    public function remember()
+    public function remember(): static
     {
         $iterator = $this->getIterator();
 
@@ -166,9 +164,8 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      * Get the median of a given key.
      *
      * @param  string|array<array-key, string>|null  $key
-     * @return float|int|null
      */
-    public function median($key = null)
+    public function median(string|array|null $key = null): float|int|null
     {
         return $this->collect()->median($key);
     }
@@ -179,7 +176,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      * @param  string|array<string>|null  $key
      * @return array<int, float|int>|null
      */
-    public function mode($key = null)
+    public function mode(string|array|null $key = null): ?array
     {
         return $this->collect()->mode($key);
     }
@@ -189,7 +186,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      *
      * @return static<int, mixed>
      */
-    public function collapse()
+    public function collapse(): static
     {
         return new static(function () {
             foreach ($this as $values) {
@@ -207,7 +204,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      *
      * @return static<mixed, mixed>
      */
-    public function collapseWithKeys()
+    public function collapseWithKeys(): static
     {
         return new static(function () {
             foreach ($this as $values) {
@@ -224,11 +221,8 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      * Determine if an item exists in the enumerable.
      *
      * @param  (callable(TValue, TKey): bool)|TValue|string  $key
-     * @param  mixed  $operator
-     * @param  mixed  $value
-     * @return bool
      */
-    public function contains($key, $operator = null, $value = null)
+    public function contains(mixed $key, mixed $operator = null, mixed $value = null): bool
     {
         if (func_num_args() === 1 && $this->useAsCallable($key)) {
             $placeholder = new stdClass;
