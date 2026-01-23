@@ -394,7 +394,7 @@ class DatabaseEloquentFactoryTest extends TestCase
             })
             ->create();
         FactoryTestUserFactory::times(3)
-            ->hasAttached($roles->toArray(), ['admin' => 'Y'], 'roles')
+            ->hasAttached($roles->modelKeys(), ['admin' => 'Y'], 'roles')
             ->create();
 
         $this->assertCount(3, FactoryTestRole::all());
