@@ -362,7 +362,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Get all items except for those with the specified keys.
      *
-     * @param  Enumerable<array-key, TKey>|array<array-key, TKey>|string  $keys
+     * @param  Enumerable<array-key, TKey>|array<array-key, TKey>|string|null  $keys
      */
     public function except(mixed $keys): static
     {

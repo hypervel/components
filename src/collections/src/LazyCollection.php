@@ -730,16 +730,12 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
             [$value, $key] = $this->explodePluckParameters($value, $key);
 
             foreach ($this as $item) {
-                $itemValue = $value instanceof Closure
-                    ? $value($item)
-                    : data_get($item, $value);
+                $itemValue = data_get($item, $value);
 
                 if (is_null($key)) {
                     yield $itemValue;
                 } else {
-                    $itemKey = $key instanceof Closure
-                        ? $key($item)
-                        : data_get($item, $key);
+                    $itemKey = data_get($item, $key);
 
                     if (is_object($itemKey) && method_exists($itemKey, '__toString')) {
                         $itemKey = (string) $itemKey;
@@ -902,25 +898,21 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     {
         if ($keys instanceof Enumerable) {
             $keys = $keys->all();
-        } elseif (! is_null($keys)) {
-            $keys = is_array($keys) ? $keys : func_get_args();
+        } elseif (! is_array($keys)) {
+            $keys = func_get_args();
         }
 
         return new static(function () use ($keys) {
-            if (is_null($keys)) {
-                yield from $this;
-            } else {
-                $keys = array_flip($keys);
+            $keys = array_flip($keys);
 
-                foreach ($this as $key => $value) {
-                    if (array_key_exists($key, $keys)) {
-                        yield $key => $value;
+            foreach ($this as $key => $value) {
+                if (array_key_exists($key, $keys)) {
+                    yield $key => $value;
 
-                        unset($keys[$key]);
+                    unset($keys[$key]);
 
-                        if (empty($keys)) {
-                            break;
-                        }
+                    if (empty($keys)) {
+                        break;
                     }
                 }
             }
@@ -936,27 +928,23 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     {
         if ($keys instanceof Enumerable) {
             $keys = $keys->all();
-        } elseif (! is_null($keys)) {
-            $keys = is_array($keys) ? $keys : func_get_args();
+        } elseif (! is_array($keys)) {
+            $keys = func_get_args();
         }
 
         return new static(function () use ($keys) {
-            if (is_null($keys)) {
-                yield from $this;
-            } else {
-                foreach ($this as $item) {
-                    $result = [];
+            foreach ($this as $item) {
+                $result = [];
 
-                    foreach ($keys as $key) {
-                        if (Arr::accessible($item) && Arr::exists($item, $key)) {
-                            $result[$key] = $item[$key];
-                        } elseif (is_object($item) && isset($item->{$key})) {
-                            $result[$key] = $item->{$key};
-                        }
+                foreach ($keys as $key) {
+                    if (Arr::accessible($item) && Arr::exists($item, $key)) {
+                        $result[$key] = $item[$key];
+                    } elseif (is_object($item) && isset($item->{$key})) {
+                        $result[$key] = $item->{$key};
                     }
-
-                    yield $result;
                 }
+
+                yield $result;
             }
         });
     }
