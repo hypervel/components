@@ -1264,9 +1264,9 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  positive-int  $step
      * @return static<int, static>
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
-    public function sliding($size = 2, $step = 1)
+    public function sliding(int $size = 2, int $step = 1): static
     {
         if ($size < 1) {
             throw new InvalidArgumentException('Size value must be at least 1.');
@@ -1281,11 +1281,8 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
     /**
      * Skip the first {$count} items.
-     *
-     * @param  int  $count
-     * @return static
      */
-    public function skip($count)
+    public function skip(int $count): static
     {
         return $this->slice($count);
     }
@@ -1294,9 +1291,8 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Skip items in the collection until the given condition is met.
      *
      * @param  TValue|callable(TValue,TKey): bool  $value
-     * @return static
      */
-    public function skipUntil($value)
+    public function skipUntil(mixed $value): static
     {
         return new static($this->lazy()->skipUntil($value)->all());
     }
@@ -1305,21 +1301,16 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Skip items in the collection while the given condition is met.
      *
      * @param  TValue|callable(TValue,TKey): bool  $value
-     * @return static
      */
-    public function skipWhile($value)
+    public function skipWhile(mixed $value): static
     {
         return new static($this->lazy()->skipWhile($value)->all());
     }
 
     /**
      * Slice the underlying collection array.
-     *
-     * @param  int  $offset
-     * @param  int|null  $length
-     * @return static
      */
-    public function slice($offset, $length = null)
+    public function slice(int $offset, ?int $length = null): static
     {
         return new static(array_slice($this->items, $offset, $length, true));
     }
@@ -1327,12 +1318,11 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Split a collection into a certain number of groups.
      *
-     * @param  int  $numberOfGroups
      * @return static<int, static>
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
-    public function split($numberOfGroups)
+    public function split(int $numberOfGroups): static
     {
         if ($numberOfGroups < 1) {
             throw new InvalidArgumentException('Number of groups must be at least 1.');
@@ -1370,12 +1360,11 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Split a collection into a certain number of groups, and fill the first groups completely.
      *
-     * @param  int  $numberOfGroups
      * @return static<int, static>
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
-    public function splitIn($numberOfGroups)
+    public function splitIn(int $numberOfGroups): static
     {
         if ($numberOfGroups < 1) {
             throw new InvalidArgumentException('Number of groups must be at least 1.');
@@ -1388,14 +1377,12 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Get the first item in the collection, but only if exactly one item exists. Otherwise, throw an exception.
      *
      * @param  (callable(TValue, TKey): bool)|string|null  $key
-     * @param  mixed  $operator
-     * @param  mixed  $value
      * @return TValue
      *
-     * @throws \Hypervel\Support\ItemNotFoundException
-     * @throws \Hypervel\Support\MultipleItemsFoundException
+     * @throws ItemNotFoundException
+     * @throws MultipleItemsFoundException
      */
-    public function sole($key = null, $operator = null, $value = null)
+    public function sole(callable|string|null $key = null, mixed $operator = null, mixed $value = null): mixed
     {
         $filter = func_num_args() > 1
             ? $this->operatorForWhere(...func_get_args())
@@ -1420,13 +1407,11 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Get the first item in the collection but throw an exception if no matching items exist.
      *
      * @param  (callable(TValue, TKey): bool)|string  $key
-     * @param  mixed  $operator
-     * @param  mixed  $value
      * @return TValue
      *
-     * @throws \Hypervel\Support\ItemNotFoundException
+     * @throws ItemNotFoundException
      */
-    public function firstOrFail($key = null, $operator = null, $value = null)
+    public function firstOrFail(callable|string|null $key = null, mixed $operator = null, mixed $value = null): mixed
     {
         $filter = func_num_args() > 1
             ? $this->operatorForWhere(...func_get_args())
@@ -1446,11 +1431,9 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Chunk the collection into chunks of the given size.
      *
-     * @param  int  $size
-     * @param  bool  $preserveKeys
      * @return ($preserveKeys is true ? static<int, static> : static<int, static<int, TValue>>)
      */
-    public function chunk($size, $preserveKeys = true)
+    public function chunk(int $size, bool $preserveKeys = true): static
     {
         if ($size <= 0) {
             return new static;
@@ -1471,7 +1454,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  callable(TValue, TKey, static<TKey, TValue>): bool  $callback
      * @return static<int, static<TKey, TValue>>
      */
-    public function chunkWhile(callable $callback)
+    public function chunkWhile(callable $callback): static
     {
         return new static(
             $this->lazy()->chunkWhile($callback)->mapInto(static::class)
@@ -1482,9 +1465,8 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Sort through each item with a callback.
      *
      * @param  (callable(TValue, TValue): int)|null|int  $callback
-     * @return static
      */
-    public function sort($callback = null)
+    public function sort(callable|int|null $callback = null): static
     {
         $items = $this->items;
 
@@ -1497,11 +1479,8 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
     /**
      * Sort items in descending order.
-     *
-     * @param  int  $options
-     * @return static
      */
-    public function sortDesc($options = SORT_REGULAR)
+    public function sortDesc(int $options = SORT_REGULAR): static
     {
         $items = $this->items;
 
@@ -1514,11 +1493,8 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Sort the collection using the given callback.
      *
      * @param  array<array-key, (callable(TValue, TValue): mixed)|(callable(TValue, TKey): mixed)|string|array{string, string}>|(callable(TValue, TKey): mixed)|string  $callback
-     * @param  int  $options
-     * @param  bool  $descending
-     * @return static
      */
-    public function sortBy($callback, $options = SORT_REGULAR, $descending = false)
+    public function sortBy(callable|array|string $callback, int $options = SORT_REGULAR, bool $descending = false): static
     {
         if (is_array($callback) && ! is_callable($callback)) {
             return $this->sortByMany($callback, $options);
@@ -1552,10 +1528,8 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Sort the collection using multiple comparisons.
      *
      * @param  array<array-key, (callable(TValue, TValue): mixed)|(callable(TValue, TKey): mixed)|string|array{string, string}>  $comparisons
-     * @param  int  $options
-     * @return static
      */
-    protected function sortByMany(array $comparisons = [], int $options = SORT_REGULAR)
+    protected function sortByMany(array $comparisons = [], int $options = SORT_REGULAR): static
     {
         $items = $this->items;
 
