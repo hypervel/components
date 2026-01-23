@@ -476,88 +476,71 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Intersect the collection with the given items.
      *
-     * @param  \Hypervel\Contracts\Support\Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
-     * @return static
+     * @param  Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
      */
-    public function intersect($items);
+    public function intersect(mixed $items): static;
 
     /**
      * Intersect the collection with the given items, using the callback.
      *
-     * @param  \Hypervel\Contracts\Support\Arrayable<array-key, TValue>|iterable<array-key, TValue>  $items
+     * @param  Arrayable<array-key, TValue>|iterable<array-key, TValue>  $items
      * @param  callable(TValue, TValue): int  $callback
-     * @return static
      */
-    public function intersectUsing($items, callable $callback);
+    public function intersectUsing(mixed $items, callable $callback): static;
 
     /**
      * Intersect the collection with the given items with additional index check.
      *
-     * @param  \Hypervel\Contracts\Support\Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
-     * @return static
+     * @param  Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
      */
-    public function intersectAssoc($items);
+    public function intersectAssoc(mixed $items): static;
 
     /**
      * Intersect the collection with the given items with additional index check, using the callback.
      *
-     * @param  \Hypervel\Contracts\Support\Arrayable<array-key, TValue>|iterable<array-key, TValue>  $items
+     * @param  Arrayable<array-key, TValue>|iterable<array-key, TValue>  $items
      * @param  callable(TValue, TValue): int  $callback
-     * @return static
      */
-    public function intersectAssocUsing($items, callable $callback);
+    public function intersectAssocUsing(mixed $items, callable $callback): static;
 
     /**
      * Intersect the collection with the given items by key.
      *
-     * @param  \Hypervel\Contracts\Support\Arrayable<TKey, mixed>|iterable<TKey, mixed>  $items
-     * @return static
+     * @param  Arrayable<TKey, mixed>|iterable<TKey, mixed>  $items
      */
-    public function intersectByKeys($items);
+    public function intersectByKeys(mixed $items): static;
 
     /**
      * Determine if the collection is empty or not.
-     *
-     * @return bool
      */
-    public function isEmpty();
+    public function isEmpty(): bool;
 
     /**
      * Determine if the collection is not empty.
-     *
-     * @return bool
      */
-    public function isNotEmpty();
+    public function isNotEmpty(): bool;
 
     /**
      * Determine if the collection contains a single item.
-     *
-     * @return bool
      */
-    public function containsOneItem();
+    public function containsOneItem(): bool;
 
     /**
      * Determine if the collection contains multiple items.
-     *
-     * @return bool
      */
-    public function containsManyItems();
+    public function containsManyItems(): bool;
 
     /**
      * Join all items from the collection using a string. The final items can use a separate glue string.
-     *
-     * @param  string  $glue
-     * @param  string  $finalGlue
-     * @return string
      */
-    public function join($glue, $finalGlue = '');
+    public function join(string $glue, string $finalGlue = ''): string;
 
     /**
      * Get the keys of the collection items.
      *
      * @return static<int, TKey>
      */
-    public function keys();
+    public function keys(): static;
 
     /**
      * Get the last item from the collection.
@@ -568,7 +551,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  TLastDefault|(\Closure(): TLastDefault)  $default
      * @return TValue|TLastDefault
      */
-    public function last(?callable $callback = null, $default = null);
+    public function last(?callable $callback = null, mixed $default = null): mixed;
 
     /**
      * Run a map over each of the items.
@@ -578,15 +561,12 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  callable(TValue, TKey): TMapValue  $callback
      * @return static<TKey, TMapValue>
      */
-    public function map(callable $callback);
+    public function map(callable $callback): static;
 
     /**
      * Run a map over each nested chunk of items.
-     *
-     * @param  callable  $callback
-     * @return static
      */
-    public function mapSpread(callable $callback);
+    public function mapSpread(callable $callback): static;
 
     /**
      * Run a dictionary map over the items.
@@ -599,7 +579,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  callable(TValue, TKey): array<TMapToDictionaryKey, TMapToDictionaryValue>  $callback
      * @return static<TMapToDictionaryKey, array<int, TMapToDictionaryValue>>
      */
-    public function mapToDictionary(callable $callback);
+    public function mapToDictionary(callable $callback): static;
 
     /**
      * Run a grouping map over the items.
@@ -612,7 +592,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  callable(TValue, TKey): array<TMapToGroupsKey, TMapToGroupsValue>  $callback
      * @return static<TMapToGroupsKey, static<int, TMapToGroupsValue>>
      */
-    public function mapToGroups(callable $callback);
+    public function mapToGroups(callable $callback): static;
 
     /**
      * Run an associative map over each of the items.
@@ -625,7 +605,7 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  callable(TValue, TKey): array<TMapWithKeysKey, TMapWithKeysValue>  $callback
      * @return static<TMapWithKeysKey, TMapWithKeysValue>
      */
-    public function mapWithKeys(callable $callback);
+    public function mapWithKeys(callable $callback): static;
 
     /**
      * Map a collection and flatten the result by a single level.
@@ -633,10 +613,10 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @template TFlatMapKey of array-key
      * @template TFlatMapValue
      *
-     * @param  callable(TValue, TKey): (\Hypervel\Support\Collection<TFlatMapKey, TFlatMapValue>|array<TFlatMapKey, TFlatMapValue>)  $callback
+     * @param  callable(TValue, TKey): (Collection<TFlatMapKey, TFlatMapValue>|array<TFlatMapKey, TFlatMapValue>)  $callback
      * @return static<TFlatMapKey, TFlatMapValue>
      */
-    public function flatMap(callable $callback);
+    public function flatMap(callable $callback): static;
 
     /**
      * Map the values into a new class.
@@ -646,97 +626,83 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  class-string<TMapIntoValue>  $class
      * @return static<TKey, TMapIntoValue>
      */
-    public function mapInto($class);
+    public function mapInto(string $class): static;
 
     /**
      * Merge the collection with the given items.
      *
      * @template TMergeValue
      *
-     * @param  \Hypervel\Contracts\Support\Arrayable<TKey, TMergeValue>|iterable<TKey, TMergeValue>  $items
+     * @param  Arrayable<TKey, TMergeValue>|iterable<TKey, TMergeValue>  $items
      * @return static<TKey, TValue|TMergeValue>
      */
-    public function merge($items);
+    public function merge(mixed $items): static;
 
     /**
      * Recursively merge the collection with the given items.
      *
      * @template TMergeRecursiveValue
      *
-     * @param  \Hypervel\Contracts\Support\Arrayable<TKey, TMergeRecursiveValue>|iterable<TKey, TMergeRecursiveValue>  $items
+     * @param  Arrayable<TKey, TMergeRecursiveValue>|iterable<TKey, TMergeRecursiveValue>  $items
      * @return static<TKey, TValue|TMergeRecursiveValue>
      */
-    public function mergeRecursive($items);
+    public function mergeRecursive(mixed $items): static;
 
     /**
      * Create a collection by using this collection for keys and another for its values.
      *
      * @template TCombineValue
      *
-     * @param  \Hypervel\Contracts\Support\Arrayable<array-key, TCombineValue>|iterable<array-key, TCombineValue>  $values
+     * @param  Arrayable<array-key, TCombineValue>|iterable<array-key, TCombineValue>  $values
      * @return static<TValue, TCombineValue>
      */
-    public function combine($values);
+    public function combine(mixed $values): static;
 
     /**
      * Union the collection with the given items.
      *
-     * @param  \Hypervel\Contracts\Support\Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
-     * @return static
+     * @param  Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
      */
-    public function union($items);
+    public function union(mixed $items): static;
 
     /**
      * Get the min value of a given key.
      *
      * @param  (callable(TValue):mixed)|string|null  $callback
-     * @return mixed
      */
-    public function min($callback = null);
+    public function min(callable|string|null $callback = null): mixed;
 
     /**
      * Get the max value of a given key.
      *
      * @param  (callable(TValue):mixed)|string|null  $callback
-     * @return mixed
      */
-    public function max($callback = null);
+    public function max(callable|string|null $callback = null): mixed;
 
     /**
      * Create a new collection consisting of every n-th element.
-     *
-     * @param  int  $step
-     * @param  int  $offset
-     * @return static
      */
-    public function nth($step, $offset = 0);
+    public function nth(int $step, int $offset = 0): static;
 
     /**
      * Get the items with the specified keys.
      *
-     * @param  \Hypervel\Support\Enumerable<array-key, TKey>|array<array-key, TKey>|string  $keys
-     * @return static
+     * @param  Enumerable<array-key, TKey>|array<array-key, TKey>|string  $keys
      */
-    public function only($keys);
+    public function only(mixed $keys): static;
 
     /**
      * "Paginate" the collection by slicing it into a smaller collection.
-     *
-     * @param  int  $page
-     * @param  int  $perPage
-     * @return static
      */
-    public function forPage($page, $perPage);
+    public function forPage(int $page, int $perPage): static;
 
     /**
      * Partition the collection into two arrays using the given callback or key.
      *
      * @param  (callable(TValue, TKey): bool)|TValue|string  $key
-     * @param  mixed  $operator
-     * @param  mixed  $value
      * @return static<int<0, 1>, static<TKey, TValue>>
      */
-    public function partition($key, $operator = null, $value = null);
+    public function partition(mixed $key, mixed $operator = null, mixed $value = null): static;
 
     /**
      * Push all of the given items onto the collection.
@@ -747,17 +713,16 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  iterable<TConcatKey, TConcatValue>  $source
      * @return static<TKey|TConcatKey, TValue|TConcatValue>
      */
-    public function concat($source);
+    public function concat(iterable $source): static;
 
     /**
      * Get one or a specified number of items randomly from the collection.
      *
-     * @param  int|null  $number
      * @return static<int, TValue>|TValue
      *
      * @throws \InvalidArgumentException
      */
-    public function random($number = null);
+    public function random(?int $number = null): mixed;
 
     /**
      * Reduce the collection to a single value.
@@ -769,158 +734,128 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  TReduceInitial  $initial
      * @return TReduceInitial|TReduceReturnType
      */
-    public function reduce(callable $callback, $initial = null);
+    public function reduce(callable $callback, mixed $initial = null): mixed;
 
     /**
      * Reduce the collection to multiple aggregate values.
      *
-     * @param  callable  $callback
-     * @param  mixed  ...$initial
-     * @return array
-     *
      * @throws \UnexpectedValueException
      */
-    public function reduceSpread(callable $callback, ...$initial);
+    public function reduceSpread(callable $callback, mixed ...$initial): array;
 
     /**
      * Replace the collection items with the given items.
      *
-     * @param  \Hypervel\Contracts\Support\Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
-     * @return static
+     * @param  Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
      */
-    public function replace($items);
+    public function replace(mixed $items): static;
 
     /**
      * Recursively replace the collection items with the given items.
      *
-     * @param  \Hypervel\Contracts\Support\Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
-     * @return static
+     * @param  Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
      */
-    public function replaceRecursive($items);
+    public function replaceRecursive(mixed $items): static;
 
     /**
      * Reverse items order.
-     *
-     * @return static
      */
-    public function reverse();
+    public function reverse(): static;
 
     /**
      * Search the collection for a given value and return the corresponding key if successful.
      *
      * @param  TValue|callable(TValue,TKey): bool  $value
-     * @param  bool  $strict
      * @return TKey|bool
      */
-    public function search($value, $strict = false);
+    public function search(mixed $value, bool $strict = false): mixed;
 
     /**
      * Get the item before the given item.
      *
      * @param  TValue|(callable(TValue,TKey): bool)  $value
-     * @param  bool  $strict
      * @return TValue|null
      */
-    public function before($value, $strict = false);
+    public function before(mixed $value, bool $strict = false): mixed;
 
     /**
      * Get the item after the given item.
      *
      * @param  TValue|(callable(TValue,TKey): bool)  $value
-     * @param  bool  $strict
      * @return TValue|null
      */
-    public function after($value, $strict = false);
+    public function after(mixed $value, bool $strict = false): mixed;
 
     /**
      * Shuffle the items in the collection.
-     *
-     * @return static
      */
-    public function shuffle();
+    public function shuffle(): static;
 
     /**
      * Create chunks representing a "sliding window" view of the items in the collection.
      *
-     * @param  int  $size
-     * @param  int  $step
      * @return static<int, static>
      */
-    public function sliding($size = 2, $step = 1);
+    public function sliding(int $size = 2, int $step = 1): static;
 
     /**
      * Skip the first {$count} items.
-     *
-     * @param  int  $count
-     * @return static
      */
-    public function skip($count);
+    public function skip(int $count): static;
 
     /**
      * Skip items in the collection until the given condition is met.
      *
      * @param  TValue|callable(TValue,TKey): bool  $value
-     * @return static
      */
-    public function skipUntil($value);
+    public function skipUntil(mixed $value): static;
 
     /**
      * Skip items in the collection while the given condition is met.
      *
      * @param  TValue|callable(TValue,TKey): bool  $value
-     * @return static
      */
-    public function skipWhile($value);
+    public function skipWhile(mixed $value): static;
 
     /**
      * Get a slice of items from the enumerable.
-     *
-     * @param  int  $offset
-     * @param  int|null  $length
-     * @return static
      */
-    public function slice($offset, $length = null);
+    public function slice(int $offset, ?int $length = null): static;
 
     /**
      * Split a collection into a certain number of groups.
      *
-     * @param  int  $numberOfGroups
      * @return static<int, static>
      */
-    public function split($numberOfGroups);
+    public function split(int $numberOfGroups): static;
 
     /**
      * Get the first item in the collection, but only if exactly one item exists. Otherwise, throw an exception.
      *
      * @param  (callable(TValue, TKey): bool)|string  $key
-     * @param  mixed  $operator
-     * @param  mixed  $value
      * @return TValue
      *
      * @throws \Hypervel\Support\ItemNotFoundException
      * @throws \Hypervel\Support\MultipleItemsFoundException
      */
-    public function sole($key = null, $operator = null, $value = null);
+    public function sole(mixed $key = null, mixed $operator = null, mixed $value = null): mixed;
 
     /**
      * Get the first item in the collection but throw an exception if no matching items exist.
      *
      * @param  (callable(TValue, TKey): bool)|string|null  $key
-     * @param  mixed  $operator
-     * @param  mixed  $value
      * @return TValue
      *
      * @throws \Hypervel\Support\ItemNotFoundException
      */
-    public function firstOrFail($key = null, $operator = null, $value = null);
+    public function firstOrFail(mixed $key = null, mixed $operator = null, mixed $value = null): mixed;
 
     /**
      * Chunk the collection into chunks of the given size.
      *
-     * @param  int  $size
      * @return static<int, static>
      */
-    public function chunk($size);
+    public function chunk(int $size): static;
 
     /**
      * Chunk the collection into chunks with a callback.
@@ -928,41 +863,33 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
      * @param  callable(TValue, TKey, static<int, TValue>): bool  $callback
      * @return static<int, static<int, TValue>>
      */
-    public function chunkWhile(callable $callback);
+    public function chunkWhile(callable $callback): static;
 
     /**
      * Split a collection into a certain number of groups, and fill the first groups completely.
      *
-     * @param  int  $numberOfGroups
      * @return static<int, static>
      */
-    public function splitIn($numberOfGroups);
+    public function splitIn(int $numberOfGroups): static;
 
     /**
      * Sort through each item with a callback.
      *
      * @param  (callable(TValue, TValue): int)|null|int  $callback
-     * @return static
      */
-    public function sort($callback = null);
+    public function sort(callable|int|null $callback = null): static;
 
     /**
      * Sort items in descending order.
-     *
-     * @param  int  $options
-     * @return static
      */
-    public function sortDesc($options = SORT_REGULAR);
+    public function sortDesc(int $options = SORT_REGULAR): static;
 
     /**
      * Sort the collection using the given callback.
      *
      * @param  array<array-key, (callable(TValue, TValue): mixed)|(callable(TValue, TKey): mixed)|string|array{string, string}>|(callable(TValue, TKey): mixed)|string  $callback
-     * @param  int  $options
-     * @param  bool  $descending
-     * @return static
      */
-    public function sortBy($callback, $options = SORT_REGULAR, $descending = false);
+    public function sortBy(callable|array|string $callback, int $options = SORT_REGULAR, bool $descending = false): static;
 
     /**
      * Sort the collection in descending order using the given callback.
