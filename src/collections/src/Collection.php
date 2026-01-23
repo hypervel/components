@@ -1757,9 +1757,9 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @param  Arrayable<array-key, TZipValue>|iterable<array-key, TZipValue>  ...$items
      * @return static<int, static<int, TValue|TZipValue>>
      */
-    public function zip(mixed $items): static
+    public function zip(Arrayable|iterable ...$items): static
     {
-        $arrayableItems = array_map(fn ($items) => $this->getArrayableItems($items), func_get_args());
+        $arrayableItems = array_map(fn ($items) => $this->getArrayableItems($items), $items);
 
         $params = array_merge([fn () => new static(func_get_args()), $this->items], $arrayableItems);
 
