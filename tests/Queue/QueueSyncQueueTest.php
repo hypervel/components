@@ -8,7 +8,7 @@ use Exception;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Bus\Contracts\Dispatcher;
-use Hypervel\Database\TransactionManager;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\Contracts\QueueableEntity;
 use Hypervel\Queue\Contracts\ShouldQueue;
 use Hypervel\Queue\Contracts\ShouldQueueAfterCommit;
@@ -26,6 +26,11 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  */
 class QueueSyncQueueTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        m::close();
+    }
+
     public function testPushShouldFireJobInstantly()
     {
         unset($_SERVER['__sync.test']);
@@ -90,10 +95,11 @@ class QueueSyncQueueTest extends TestCase
     public function testItAddsATransactionCallbackForAfterCommitJobs()
     {
         $sync = new SyncQueue();
+        $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $transactionManager = m::mock(TransactionManager::class);
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set(TransactionManager::class, $transactionManager);
+        $container->set(DatabaseTransactionsManager::class, $transactionManager);
 
         $sync->setContainer($container);
         $sync->push(new SyncQueueAfterCommitJob());
@@ -102,10 +108,11 @@ class QueueSyncQueueTest extends TestCase
     public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitJobs()
     {
         $sync = new SyncQueue();
+        $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $transactionManager = m::mock(TransactionManager::class);
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set(TransactionManager::class, $transactionManager);
+        $container->set(DatabaseTransactionsManager::class, $transactionManager);
 
         $sync->setContainer($container);
         $sync->push(new SyncQueueAfterCommitInterfaceJob());

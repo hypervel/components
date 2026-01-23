@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Queue;
 use Exception;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Database\TransactionManager;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\Contracts\QueueableEntity;
 use Hypervel\Queue\Contracts\ShouldQueueAfterCommit;
 use Hypervel\Queue\DeferQueue;
@@ -25,6 +25,11 @@ use function Hyperf\Coroutine\run;
  */
 class QueueDeferQueueTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        m::close();
+    }
+
     public function testPushShouldDefer()
     {
         unset($_SERVER['__defer.test']);
@@ -69,10 +74,11 @@ class QueueDeferQueueTest extends TestCase
     public function testItAddsATransactionCallbackForAfterCommitJobs()
     {
         $defer = new DeferQueue();
+        $defer->setConnectionName('defer');
         $container = $this->getContainer();
-        $transactionManager = m::mock(TransactionManager::class);
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set(TransactionManager::class, $transactionManager);
+        $container->set(DatabaseTransactionsManager::class, $transactionManager);
 
         $defer->setContainer($container);
         run(fn () => $defer->push(new DeferQueueAfterCommitJob()));
@@ -81,10 +87,11 @@ class QueueDeferQueueTest extends TestCase
     public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitJobs()
     {
         $defer = new DeferQueue();
+        $defer->setConnectionName('defer');
         $container = $this->getContainer();
-        $transactionManager = m::mock(TransactionManager::class);
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set(TransactionManager::class, $transactionManager);
+        $container->set(DatabaseTransactionsManager::class, $transactionManager);
 
         $defer->setContainer($container);
         run(fn () => $defer->push(new DeferQueueAfterCommitInterfaceJob()));

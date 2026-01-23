@@ -56,6 +56,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
             $this->assertEquals(0, $array['attempts']);
             $this->assertNull($array['reserved_at']);
             $this->assertIsInt($array['available_at']);
+
+            return 1;
         });
 
         $queue->push($job, ['data']);
@@ -98,6 +100,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
             $this->assertEquals(0, $array['attempts']);
             $this->assertNull($array['reserved_at']);
             $this->assertIsInt($array['available_at']);
+
+            return 1;
         });
 
         $queue->later(10, 'foo', ['data']);
@@ -167,6 +171,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
                 'available_at' => 1732502704,
                 'created_at' => 1732502704,
             ]], $records);
+
+            return true;
         });
 
         $queue->bulk(['foo', 'bar'], ['data'], 'queue');

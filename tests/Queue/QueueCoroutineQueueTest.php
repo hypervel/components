@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Queue;
 use Exception;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Database\TransactionManager;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Queue\Contracts\QueueableEntity;
 use Hypervel\Queue\Contracts\ShouldQueueAfterCommit;
 use Hypervel\Queue\CoroutineQueue;
@@ -25,6 +25,11 @@ use function Hyperf\Coroutine\run;
  */
 class QueueCoroutineQueueTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        m::close();
+    }
+
     public function testPushShouldCoroutine()
     {
         unset($_SERVER['__coroutine.test']);
@@ -69,10 +74,11 @@ class QueueCoroutineQueueTest extends TestCase
     public function testItAddsATransactionCallbackForAfterCommitJobs()
     {
         $coroutine = new CoroutineQueue();
+        $coroutine->setConnectionName('coroutine');
         $container = $this->getContainer();
-        $transactionManager = m::mock(TransactionManager::class);
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set(TransactionManager::class, $transactionManager);
+        $container->set(DatabaseTransactionsManager::class, $transactionManager);
 
         $coroutine->setContainer($container);
         run(fn () => $coroutine->push(new CoroutineQueueAfterCommitJob()));
@@ -81,10 +87,11 @@ class QueueCoroutineQueueTest extends TestCase
     public function testItAddsATransactionCallbackForInterfaceBasedAfterCommitJobs()
     {
         $coroutine = new CoroutineQueue();
+        $coroutine->setConnectionName('coroutine');
         $container = $this->getContainer();
-        $transactionManager = m::mock(TransactionManager::class);
+        $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set(TransactionManager::class, $transactionManager);
+        $container->set(DatabaseTransactionsManager::class, $transactionManager);
 
         $coroutine->setContainer($container);
         run(fn () => $coroutine->push(new CoroutineQueueAfterCommitInterfaceJob()));
