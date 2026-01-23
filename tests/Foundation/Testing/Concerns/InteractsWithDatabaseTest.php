@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Foundation\Stubs\User;
 use ReflectionClass;
-use Workbench\App\Models\User;
 
 /**
  * @internal
@@ -22,34 +21,43 @@ class InteractsWithDatabaseTest extends TestCase
 
     protected bool $migrateRefresh = true;
 
+    protected function migrateFreshUsing(): array
+    {
+        return [
+            '--database' => $this->getRefreshConnection(),
+            '--realpath' => true,
+            '--path' => dirname(__DIR__, 2) . '/migrations',
+        ];
+    }
+
     public function testAssertDatabaseHas()
     {
         $user = User::factory()->create();
 
-        $this->assertDatabaseHas('users', [
+        $this->assertDatabaseHas('foundation_test_users', [
             'id' => $user->id,
         ]);
     }
 
     public function testAssertDatabaseMissing()
     {
-        $this->assertDatabaseMissing('users', [
+        $this->assertDatabaseMissing('foundation_test_users', [
             'id' => 1,
         ]);
     }
 
     public function testAssertDatabaseCount()
     {
-        $this->assertDatabaseCount('users', 0);
+        $this->assertDatabaseCount('foundation_test_users', 0);
 
         User::factory()->create();
 
-        $this->assertDatabaseCount('users', 1);
+        $this->assertDatabaseCount('foundation_test_users', 1);
     }
 
     public function testAssertDatabaseEmpty()
     {
-        $this->assertDatabaseEmpty('users');
+        $this->assertDatabaseEmpty('foundation_test_users');
     }
 
     public function testAssertModelExists()
@@ -62,7 +70,7 @@ class InteractsWithDatabaseTest extends TestCase
     public function testAssertModelMissing()
     {
         $user = User::factory()->create();
-        $user->id = 2;
+        $user->id = 999;
 
         $this->assertModelMissing($user);
     }
@@ -80,19 +88,16 @@ class InteractsWithDatabaseTest extends TestCase
         $fakerProperty = $reflectedClass->getProperty('faker');
         $fakerProperty->setAccessible(true);
 
-        // Faker is lazy-loaded, so we need to trigger it by calling definition
-        // or accessing it through a state callback
-        $factory->state(function (array $attributes) use ($fakerProperty, $factory, $locale) {
-            /** @var \Faker\Generator $faker */
-            $faker = $fakerProperty->getValue($factory);
-            $providerClasses = array_map(fn ($provider) => get_class($provider), $faker->getProviders());
+        // Trigger faker initialization by calling make()
+        $factory->make();
 
-            $this->assertTrue(
-                Collection::make($providerClasses)->contains(fn ($class) => str_contains($class, $locale)),
-                "Expected one of the Faker providers to contain the locale '{$locale}', but none did."
-            );
+        /** @var \Faker\Generator $faker */
+        $faker = $fakerProperty->getValue($factory);
+        $providerClasses = array_map(fn ($provider) => get_class($provider), $faker->getProviders());
 
-            return [];
-        })->make();
+        $this->assertTrue(
+            Collection::make($providerClasses)->contains(fn ($class) => str_contains($class, $locale)),
+            "Expected one of the Faker providers to contain the locale '{$locale}', but none did."
+        );
     }
 }
