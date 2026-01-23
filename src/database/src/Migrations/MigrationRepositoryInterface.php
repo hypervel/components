@@ -64,5 +64,5 @@ interface MigrationRepositoryInterface
     /**
      * Set the information source to gather data.
      */
-    public function setSource(string $name): void;
+    public function setSource(?string $name): void;
 }

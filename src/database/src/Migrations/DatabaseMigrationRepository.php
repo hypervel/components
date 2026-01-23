@@ -180,7 +180,7 @@ class DatabaseMigrationRepository implements MigrationRepositoryInterface
     /**
      * Set the information source to gather data.
      */
-    public function setSource(string $name): void
+    public function setSource(?string $name): void
     {
         $this->connection = $name;
     }
