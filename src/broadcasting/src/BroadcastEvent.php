@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Broadcasting;
 
 use Hypervel\Support\Arr;
-use Hyperf\Contract\Arrayable;
 use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactory;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Bus\Queueable;
 use Hypervel\Queue\Contracts\ShouldQueue;
 use ReflectionClass;
