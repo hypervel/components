@@ -967,7 +967,7 @@ trait EnumeratesValues
     /**
      * Get an operator checker callback.
      */
-    protected function operatorForWhere(callable|string $key, ?string $operator = null, mixed $value = null): callable
+    protected function operatorForWhere(callable|string $key, mixed $operator = null, mixed $value = null): callable
     {
         if ($this->useAsCallable($key)) {
             return $key;
