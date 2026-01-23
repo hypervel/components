@@ -7,7 +7,6 @@ use Hypervel\Contracts\Support\DeferringDisplayableValue;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Env;
 use Hypervel\Support\Environment;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\HigherOrderTapProxy;
@@ -145,14 +144,10 @@ if (! function_exists('e')) {
 if (! function_exists('env')) {
     /**
      * Gets the value of an environment variable.
-     *
-     * @param  string  $key
-     * @param  mixed  $default
-     * @return mixed
      */
-    function env($key, $default = null)
+    function env(string $key, mixed $default = null): mixed
     {
-        return Env::get($key, $default);
+        return \Hypervel\Support\env($key, $default);
     }
 }
 

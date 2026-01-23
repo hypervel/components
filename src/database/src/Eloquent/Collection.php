@@ -414,7 +414,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param  callable(TModel, TKey): TMapValue  $callback
      * @return \Hypervel\Support\Collection<TKey, TMapValue>|static<TKey, TMapValue>
      */
-    public function map(callable $callback): \Hypervel\Support\Enumerable
+    public function map(callable $callback): static
     {
         $result = parent::map($callback);
 
@@ -433,7 +433,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @param  callable(TModel, TKey): array<TMapWithKeysKey, TMapWithKeysValue>  $callback
      * @return \Hypervel\Support\Collection<TMapWithKeysKey, TMapWithKeysValue>|static<TMapWithKeysKey, TMapWithKeysValue>
      */
-    public function mapWithKeys(callable $callback): \Hypervel\Support\Enumerable
+    public function mapWithKeys(callable $callback): static
     {
         $result = parent::mapWithKeys($callback);
 
@@ -702,7 +702,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<array-key, int>
      */
     #[\Override]
-    public function countBy($countBy = null)
+    public function countBy(callable|string|null $countBy = null): static
     {
         return $this->toBase()->countBy($countBy);
     }
@@ -713,7 +713,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, mixed>
      */
     #[\Override]
-    public function collapse(): \Hypervel\Support\Enumerable
+    public function collapse(): static
     {
         return $this->toBase()->collapse();
     }
@@ -724,7 +724,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, mixed>
      */
     #[\Override]
-    public function flatten($depth = INF): \Hypervel\Support\Enumerable
+    public function flatten(int|float $depth = INF): static
     {
         return $this->toBase()->flatten($depth);
     }
@@ -735,7 +735,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<TModel, TKey>
      */
     #[\Override]
-    public function flip(): \Hypervel\Support\Enumerable
+    public function flip(): static
     {
         return $this->toBase()->flip();
     }
@@ -746,7 +746,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, TKey>
      */
     #[\Override]
-    public function keys(): \Hypervel\Support\Enumerable
+    public function keys(): static
     {
         return $this->toBase()->keys();
     }
@@ -759,7 +759,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, TModel|TPadValue>
      */
     #[\Override]
-    public function pad(int $size, $value): \Hypervel\Support\Enumerable
+    public function pad(int $size, mixed $value): static
     {
         return $this->toBase()->pad($size, $value);
     }
@@ -783,7 +783,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<array-key, mixed>
      */
     #[\Override]
-    public function pluck(array|string $value, ?string $key = null): \Hypervel\Support\Enumerable
+    public function pluck(\Closure|string|int|array|null $value, \Closure|string|null $key = null): static
     {
         return $this->toBase()->pluck($value, $key);
     }
@@ -796,9 +796,9 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<int, \Hypervel\Support\Collection<int, TModel|TZipValue>>
      */
     #[\Override]
-    public function zip($items): \Hypervel\Support\Enumerable
+    public function zip(\Hypervel\Contracts\Support\Arrayable|iterable ...$items): static
     {
-        return $this->toBase()->zip(...func_get_args());
+        return $this->toBase()->zip(...$items);
     }
 
     /**
@@ -806,7 +806,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @return callable(TModel, TModel): bool
      */
-    protected function duplicateComparator($strict)
+    protected function duplicateComparator(bool $strict): callable
     {
         return fn ($a, $b) => $a->is($b);
     }
