@@ -238,6 +238,13 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     protected static string $collectionClass = Collection::class;
 
     /**
+     * Cache of resolved custom builder classes per model.
+     *
+     * @var array<class-string<static>, class-string<Builder<static>>|false>
+     */
+    protected static array $resolvedBuilderClasses = [];
+
+    /**
      * Cache of soft deletable models.
      *
      * @var array<class-string<self>, bool>
@@ -1543,7 +1550,8 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      */
     public function newEloquentBuilder(QueryBuilder $query): Builder
     {
-        $builderClass = $this->resolveCustomBuilderClass();
+        $builderClass = static::$resolvedBuilderClasses[static::class]
+            ??= $this->resolveCustomBuilderClass();
 
         // @phpstan-ignore function.alreadyNarrowedType (defensive: validates custom builder class at runtime)
         if ($builderClass && is_subclass_of($builderClass, Builder::class)) {

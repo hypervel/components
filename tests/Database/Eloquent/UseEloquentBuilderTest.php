@@ -32,7 +32,7 @@ class UseEloquentBuilderTest extends TestCase
         $model = new UseEloquentBuilderTestModel();
         $query = m::mock(\Hypervel\Database\Query\Builder::class);
 
-        $builder = $model->newModelBuilder($query);
+        $builder = $model->newEloquentBuilder($query);
 
         $this->assertInstanceOf(Builder::class, $builder);
         $this->assertNotInstanceOf(CustomTestBuilder::class, $builder);
@@ -43,7 +43,7 @@ class UseEloquentBuilderTest extends TestCase
         $model = new UseEloquentBuilderTestModelWithAttribute();
         $query = m::mock(\Hypervel\Database\Query\Builder::class);
 
-        $builder = $model->newModelBuilder($query);
+        $builder = $model->newEloquentBuilder($query);
 
         $this->assertInstanceOf(CustomTestBuilder::class, $builder);
     }
@@ -55,10 +55,10 @@ class UseEloquentBuilderTest extends TestCase
         $query = m::mock(\Hypervel\Database\Query\Builder::class);
 
         // First call should resolve and cache
-        $builder1 = $model1->newModelBuilder($query);
+        $builder1 = $model1->newEloquentBuilder($query);
 
         // Second call should use cache
-        $builder2 = $model2->newModelBuilder($query);
+        $builder2 = $model2->newEloquentBuilder($query);
 
         // Both should be CustomTestBuilder
         $this->assertInstanceOf(CustomTestBuilder::class, $builder1);
@@ -89,8 +89,8 @@ class UseEloquentBuilderTest extends TestCase
         $modelWithAttribute = new UseEloquentBuilderTestModelWithAttribute();
         $query = m::mock(\Hypervel\Database\Query\Builder::class);
 
-        $builder1 = $modelWithoutAttribute->newModelBuilder($query);
-        $builder2 = $modelWithAttribute->newModelBuilder($query);
+        $builder1 = $modelWithoutAttribute->newEloquentBuilder($query);
+        $builder2 = $modelWithAttribute->newEloquentBuilder($query);
 
         $this->assertInstanceOf(Builder::class, $builder1);
         $this->assertNotInstanceOf(CustomTestBuilder::class, $builder1);
@@ -102,7 +102,7 @@ class UseEloquentBuilderTest extends TestCase
         $model = new UseEloquentBuilderTestChildModel();
         $query = m::mock(\Hypervel\Database\Query\Builder::class);
 
-        $builder = $model->newModelBuilder($query);
+        $builder = $model->newEloquentBuilder($query);
 
         // PHP attributes are not inherited - child needs its own attribute
         $this->assertInstanceOf(Builder::class, $builder);
@@ -114,7 +114,7 @@ class UseEloquentBuilderTest extends TestCase
         $model = new UseEloquentBuilderTestChildModelWithOwnAttribute();
         $query = m::mock(\Hypervel\Database\Query\Builder::class);
 
-        $builder = $model->newModelBuilder($query);
+        $builder = $model->newEloquentBuilder($query);
 
         $this->assertInstanceOf(AnotherCustomTestBuilder::class, $builder);
     }
