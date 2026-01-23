@@ -63,17 +63,15 @@ trait EnumeratesValues
 
     /**
      * Indicates that the object's string representation should be escaped when __toString is invoked.
-     *
-     * @var bool
      */
-    protected $escapeWhenCastingToString = false;
+    protected bool $escapeWhenCastingToString = false;
 
     /**
      * The methods that can be proxied.
      *
      * @var array<int, string>
      */
-    protected static $proxies = [
+    protected static array $proxies = [
         'average',
         'avg',
         'contains',
@@ -112,10 +110,10 @@ trait EnumeratesValues
      * @template TMakeKey of array-key
      * @template TMakeValue
      *
-     * @param  \Hypervel\Contracts\Support\Arrayable<TMakeKey, TMakeValue>|iterable<TMakeKey, TMakeValue>|null  $items
+     * @param  Arrayable<TMakeKey, TMakeValue>|iterable<TMakeKey, TMakeValue>|null  $items
      * @return static<TMakeKey, TMakeValue>
      */
-    public static function make($items = [])
+    public static function make(mixed $items = []): static
     {
         return new static($items);
     }
@@ -128,7 +126,7 @@ trait EnumeratesValues
      * @param  iterable<array-key, TWrapValue>|TWrapValue  $value
      * @return static<array-key, TWrapValue>
      */
-    public static function wrap($value)
+    public static function wrap(mixed $value): static
     {
         return $value instanceof Enumerable
             ? new static($value)
@@ -144,17 +142,15 @@ trait EnumeratesValues
      * @param  array<TUnwrapKey, TUnwrapValue>|static<TUnwrapKey, TUnwrapValue>  $value
      * @return array<TUnwrapKey, TUnwrapValue>
      */
-    public static function unwrap($value)
+    public static function unwrap(mixed $value): array
     {
         return $value instanceof Enumerable ? $value->all() : $value;
     }
 
     /**
      * Create a new instance with no items.
-     *
-     * @return static
      */
-    public static function empty()
+    public static function empty(): static
     {
         return new static([]);
     }
@@ -164,11 +160,10 @@ trait EnumeratesValues
      *
      * @template TTimesValue
      *
-     * @param  int  $number
      * @param  (callable(int): TTimesValue)|null  $callback
      * @return static<int, TTimesValue>
      */
-    public static function times($number, ?callable $callback = null)
+    public static function times(int $number, ?callable $callback = null): static
     {
         if ($number < 1) {
             return new static;
@@ -182,12 +177,9 @@ trait EnumeratesValues
     /**
      * Create a new collection by decoding a JSON string.
      *
-     * @param  string  $json
-     * @param  int  $depth
-     * @param  int  $flags
      * @return static<TKey, TValue>
      */
-    public static function fromJson($json, $depth = 512, $flags = 0)
+    public static function fromJson(string $json, int $depth = 512, int $flags = 0): static
     {
         return new static(json_decode($json, true, $depth, $flags));
     }
@@ -196,9 +188,8 @@ trait EnumeratesValues
      * Get the average value of a given key.
      *
      * @param  (callable(TValue): float|int)|string|null  $callback
-     * @return float|int|null
      */
-    public function avg($callback = null)
+    public function avg(callable|string|null $callback = null): float|int|null
     {
         $callback = $this->valueRetriever($callback);
 
@@ -218,9 +209,8 @@ trait EnumeratesValues
      * Alias for the "avg" method.
      *
      * @param  (callable(TValue): float|int)|string|null  $callback
-     * @return float|int|null
      */
-    public function average($callback = null)
+    public function average(callable|string|null $callback = null): float|int|null
     {
         return $this->avg($callback);
     }
@@ -229,22 +219,16 @@ trait EnumeratesValues
      * Alias for the "contains" method.
      *
      * @param  (callable(TValue, TKey): bool)|TValue|string  $key
-     * @param  mixed  $operator
-     * @param  mixed  $value
-     * @return bool
      */
-    public function some($key, $operator = null, $value = null)
+    public function some(mixed $key, mixed $operator = null, mixed $value = null): bool
     {
         return $this->contains(...func_get_args());
     }
 
     /**
      * Dump the given arguments and terminate execution.
-     *
-     * @param  mixed  ...$args
-     * @return never
      */
-    public function dd(...$args)
+    public function dd(mixed ...$args): never
     {
         dd($this->all(), ...$args);
     }
@@ -252,10 +236,9 @@ trait EnumeratesValues
     /**
      * Dump the items.
      *
-     * @param  mixed  ...$args
      * @return $this
      */
-    public function dump(...$args)
+    public function dump(mixed ...$args): static
     {
         dump($this->all(), ...$args);
 
@@ -268,7 +251,7 @@ trait EnumeratesValues
      * @param  callable(TValue, TKey): mixed  $callback
      * @return $this
      */
-    public function each(callable $callback)
+    public function each(callable $callback): static
     {
         foreach ($this as $key => $item) {
             if ($callback($item, $key) === false) {
@@ -283,9 +266,8 @@ trait EnumeratesValues
      * Execute a callback over each nested chunk of items.
      *
      * @param  callable(...mixed): mixed  $callback
-     * @return static
      */
-    public function eachSpread(callable $callback)
+    public function eachSpread(callable $callback): static
     {
         return $this->each(function ($chunk, $key) use ($callback) {
             $chunk[] = $key;
