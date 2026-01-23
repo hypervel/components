@@ -828,12 +828,16 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      *
      * @template TCombineValue
      *
-     * @param  \IteratorAggregate<array-key, TCombineValue>|array<array-key, TCombineValue>|(callable(): \Generator<array-key, TCombineValue>)  $values
+     * @param  Arrayable<array-key, TCombineValue>|iterable<array-key, TCombineValue>|(callable(): Generator<array-key, TCombineValue>)  $values
      * @return static<TValue, TCombineValue>
      */
-    public function combine(iterable|callable $values): static
+    public function combine(Arrayable|iterable|callable $values): static
     {
         return new static(function () use ($values) {
+            if ($values instanceof Arrayable) {
+                $values = $values->toArray();
+            }
+
             $values = $this->makeIterator($values);
 
             $errorMessage = 'Both parameters should have an equal number of elements';
