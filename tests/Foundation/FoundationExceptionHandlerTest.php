@@ -366,6 +366,8 @@ class FoundationExceptionHandlerTest extends TestCase
 
         $this->assertSame(302, $response->getStatusCode());
         $this->assertSame($redirectTo, $response->getHeaderLine('Location'));
+
+        RequestContext::destroy();
     }
 
     public function testModelNotFoundReturns404WithoutReporting()

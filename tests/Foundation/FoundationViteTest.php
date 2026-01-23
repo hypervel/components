@@ -29,9 +29,9 @@ class FoundationViteTest extends TestCase
     {
         $this->cleanViteManifest();
         $this->cleanViteHotFile();
-        Context::set('__request.root.uri', null);
         Context::set('hypervel.vite.nonce', null);
         Context::set('hypervel.vite.preloaded_assets', []);
+        Context::destroy('__request.root.uri');
 
         parent::tearDown();
     }
@@ -187,7 +187,7 @@ class FoundationViteTest extends TestCase
     {
         $this->makeViteHotFile();
 
-        $result = app(Vite::class)->reactRefresh();
+        $result = (string) app(Vite::class)->reactRefresh();
 
         $this->assertStringNotContainsString('nonce', $result);
     }
@@ -197,7 +197,7 @@ class FoundationViteTest extends TestCase
         $this->makeViteHotFile();
 
         $nonce = ViteFacade::useCspNonce('expected-nonce');
-        $result = app(Vite::class)->reactRefresh();
+        $result = (string) app(Vite::class)->reactRefresh();
 
         $this->assertStringContainsString(sprintf('nonce="%s"', $nonce), $result);
     }
@@ -1264,56 +1264,6 @@ class FoundationViteTest extends TestCase
         ViteFacade::content('resources/js/app.js');
     }
 
-    protected function makeViteManifest($contents = null, $path = 'build')
-    {
-        app()->setBasePath(__DIR__);
-
-        if (! file_exists(public_path($path))) {
-            mkdir(public_path($path), 0777, true);
-        }
-
-        $manifest = json_encode($contents ?? [
-            'resources/js/app.js' => [
-                'src' => 'resources/js/app.js',
-                'file' => 'assets/app.versioned.js',
-            ],
-            'resources/js/app-with-css-import.js' => [
-                'src' => 'resources/js/app-with-css-import.js',
-                'file' => 'assets/app-with-css-import.versioned.js',
-                'css' => [
-                    'assets/imported-css.versioned.css',
-                ],
-            ],
-            'resources/css/imported-css.css' => [
-                // 'src' => 'resources/css/imported-css.css',
-                'file' => 'assets/imported-css.versioned.css',
-            ],
-            'resources/js/app-with-shared-css.js' => [
-                'src' => 'resources/js/app-with-shared-css.js',
-                'file' => 'assets/app-with-shared-css.versioned.js',
-                'imports' => [
-                    '_someFile.js',
-                ],
-            ],
-            'resources/css/app.css' => [
-                'src' => 'resources/css/app.css',
-                'file' => 'assets/app.versioned.css',
-            ],
-            '_someFile.js' => [
-                'file' => 'assets/someFile.versioned.js',
-                'css' => [
-                    'assets/shared-css.versioned.css',
-                ],
-            ],
-            'resources/css/shared-css' => [
-                'src' => 'resources/css/shared-css',
-                'file' => 'assets/shared-css.versioned.css',
-            ],
-        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
-
-        file_put_contents(public_path("{$path}/manifest.json"), $manifest);
-    }
-
     public function testItCanPrefetchEntrypoint()
     {
         $manifest = json_decode(file_get_contents(__DIR__ . '/fixtures/prefetching-manifest.json'));
@@ -1698,6 +1648,56 @@ class FoundationViteTest extends TestCase
         $this->assertStringContainsString("window.addEventListener('vite:prefetch', ", $html);
 
         $this->cleanViteManifest($buildDir);
+    }
+
+    protected function makeViteManifest($contents = null, $path = 'build')
+    {
+        app()->setBasePath(__DIR__);
+
+        if (! file_exists(public_path($path))) {
+            mkdir(public_path($path), 0777, true);
+        }
+
+        $manifest = json_encode($contents ?? [
+            'resources/js/app.js' => [
+                'src' => 'resources/js/app.js',
+                'file' => 'assets/app.versioned.js',
+            ],
+            'resources/js/app-with-css-import.js' => [
+                'src' => 'resources/js/app-with-css-import.js',
+                'file' => 'assets/app-with-css-import.versioned.js',
+                'css' => [
+                    'assets/imported-css.versioned.css',
+                ],
+            ],
+            'resources/css/imported-css.css' => [
+                // 'src' => 'resources/css/imported-css.css',
+                'file' => 'assets/imported-css.versioned.css',
+            ],
+            'resources/js/app-with-shared-css.js' => [
+                'src' => 'resources/js/app-with-shared-css.js',
+                'file' => 'assets/app-with-shared-css.versioned.js',
+                'imports' => [
+                    '_someFile.js',
+                ],
+            ],
+            'resources/css/app.css' => [
+                'src' => 'resources/css/app.css',
+                'file' => 'assets/app.versioned.css',
+            ],
+            '_someFile.js' => [
+                'file' => 'assets/someFile.versioned.js',
+                'css' => [
+                    'assets/shared-css.versioned.css',
+                ],
+            ],
+            'resources/css/shared-css' => [
+                'src' => 'resources/css/shared-css',
+                'file' => 'assets/shared-css.versioned.css',
+            ],
+        ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+
+        file_put_contents(public_path("{$path}/manifest.json"), $manifest);
     }
 
     protected function cleanViteManifest($path = 'build')
