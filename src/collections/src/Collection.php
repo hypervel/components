@@ -730,10 +730,8 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
     /**
      * Join all items from the collection using a string. The final items can use a separate glue string.
-     *
-     * @return TValue|string
      */
-    public function join(string $glue, string $finalGlue = ''): mixed
+    public function join(string $glue, string $finalGlue = ''): string
     {
         if ($finalGlue === '') {
             return $this->implode($glue);
@@ -746,7 +744,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
         }
 
         if ($count === 1) {
-            return $this->last();
+            return (string) $this->last();
         }
 
         $collection = new static($this->items);
