@@ -123,6 +123,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
         $counts = new static;
 
+        // @phpstan-ignore offsetAssign.valueType (PHPStan infers empty collection as Collection<*NEVER*, *NEVER*>)
         $collection->each(fn ($value) => $counts[$value] = isset($counts[$value]) ? $counts[$value] + 1 : 1);
 
         $sorted = $counts->sort();
@@ -421,6 +422,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Flip the items in the collection.
      *
      * @return static<TValue, TKey>
+     * @phpstan-ignore generics.notSubtype (TValue becomes key - only valid when TValue is array-key, but can't express this constraint)
      */
     public function flip(): static
     {
@@ -493,6 +495,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      *      : (TGroupKey is \UnitEnum ? array-key : (TGroupKey is \Stringable ? string : TGroupKey))),
      *  static<($preserveKeys is true ? TKey : int), ($groupBy is array ? mixed : TValue)>
      * >
+     * @phpstan-ignore method.childReturnType, generics.notSubtype, return.type (complex conditional types PHPStan can't match)
      */
     public function groupBy(callable|array|string $groupBy, bool $preserveKeys = false): static
     {
@@ -533,6 +536,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
         $result = new static($results);
 
         if (! empty($nextGroups)) {
+            // @phpstan-ignore return.type (recursive groupBy returns Enumerable, PHPStan can't verify it matches static)
             return $result->map->groupBy($nextGroups, $preserveKeys);
         }
 
@@ -546,6 +550,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      *
      * @param  (callable(TValue, TKey): TNewKey)|array|string  $keyBy
      * @return static<($keyBy is (array|string) ? array-key : (TNewKey is \UnitEnum ? array-key : TNewKey)), TValue>
+     * @phpstan-ignore method.childReturnType (complex conditional types PHPStan can't match)
      */
     public function keyBy(callable|array|string $keyBy): static
     {
@@ -898,6 +903,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      *
      * @param  Arrayable<array-key, TCombineValue>|iterable<array-key, TCombineValue>  $values
      * @return static<TValue, TCombineValue>
+     * @phpstan-ignore generics.notSubtype (TValue becomes key - only valid when TValue is array-key, but can't express this constraint)
      */
     public function combine(mixed $values): static
     {
@@ -1220,6 +1226,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      */
     public function shift(int $count = 1): mixed
     {
+        // @phpstan-ignore smaller.alwaysFalse (defensive validation - native int type allows negative values)
         if ($count < 0) {
             throw new InvalidArgumentException('Number of shifted items may not be less than zero.');
         }
@@ -1266,9 +1273,10 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      */
     public function sliding(int $size = 2, int $step = 1): static
     {
+        // @phpstan-ignore smaller.alwaysFalse (defensive validation - native int type allows non-positive values)
         if ($size < 1) {
             throw new InvalidArgumentException('Size value must be at least 1.');
-        } elseif ($step < 1) {
+        } elseif ($step < 1) { // @phpstan-ignore smaller.alwaysFalse
             throw new InvalidArgumentException('Step value must be at least 1.');
         }
 
@@ -1449,12 +1457,13 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Chunk the collection into chunks with a callback.
      *
-     * @param  callable(TValue, TKey, static<TKey, TValue>): bool  $callback
-     * @return static<int, static<TKey, TValue>>
+     * @param  callable(TValue, TKey, static<int, TValue>): bool  $callback
+     * @return static<int, static<int, TValue>>
      */
     public function chunkWhile(callable $callback): static
     {
         return new static(
+            // @phpstan-ignore argument.type (callback typed for Collection but passed to LazyCollection)
             $this->lazy()->chunkWhile($callback)->mapInto(static::class)
         );
     }

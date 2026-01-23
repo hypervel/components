@@ -336,6 +336,7 @@ trait EnumeratesValues
     {
         $allowedTypes = is_array($type) ? $type : [$type];
 
+        // @phpstan-ignore return.type (type narrowing: throws if items don't match, but PHPStan can't track this)
         return $this->each(function ($item, $index) use ($allowedTypes) {
             $itemType = get_debug_type($item);
 
@@ -485,6 +486,7 @@ trait EnumeratesValues
 
         [$passed, $failed] = Arr::partition($this->getIterator(), $callback);
 
+        // @phpstan-ignore return.type (returns exactly 2 elements with keys 0,1 but PHPStan infers int)
         return new static([new static($passed), new static($failed)]);
     }
 
@@ -674,6 +676,7 @@ trait EnumeratesValues
      */
     public function whereInstanceOf(string|array $type): static
     {
+        // @phpstan-ignore return.type (type narrowing: filter only keeps matching instances, but PHPStan can't track this)
         return $this->filter(function ($value) use ($type) {
             if (is_array($type)) {
                 foreach ($type as $classType) {
@@ -903,6 +906,7 @@ trait EnumeratesValues
      */
     public function getCachingIterator(int $flags = CachingIterator::CALL_TOSTRING): CachingIterator
     {
+        // @phpstan-ignore argument.type (PHP accepts any int for flags and masks it)
         return new CachingIterator($this->getIterator(), $flags);
     }
 

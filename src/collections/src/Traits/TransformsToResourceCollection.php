@@ -51,6 +51,7 @@ trait TransformsToResourceCollection
         /** @var class-string<Model> $className */
         $className = get_class($model);
 
+        // @phpstan-ignore function.alreadyNarrowedType (defensive: validates model uses TransformsToResource trait)
         throw_unless(method_exists($className, 'guessResourceName'), LogicException::class, sprintf('Expected class %s to implement guessResourceName method. Make sure the model uses the TransformsToResource trait.', $className));
 
         $useResourceCollection = $this->resolveResourceCollectionFromAttribute($className);

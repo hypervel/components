@@ -295,6 +295,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     #[\Override]
     public function crossJoin(Arrayable|iterable ...$arrays): static
     {
+        // @phpstan-ignore return.type (passthru loses generic type info)
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 
@@ -484,6 +485,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      * Flip the items in the collection.
      *
      * @return static<TValue, TKey>
+     * @phpstan-ignore generics.notSubtype (TValue becomes key - only valid when TValue is array-key, but can't express this constraint)
      */
     public function flip(): static
     {
@@ -530,10 +532,12 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      *      : (TGroupKey is \UnitEnum ? array-key : (TGroupKey is \Stringable ? string : TGroupKey))),
      *  static<($preserveKeys is true ? TKey : int), ($groupBy is array ? mixed : TValue)>
      * >
+     * @phpstan-ignore method.childReturnType, generics.notSubtype (complex conditional types PHPStan can't match)
      */
     #[\Override]
     public function groupBy(callable|array|string $groupBy, bool $preserveKeys = false): static
     {
+        // @phpstan-ignore return.type (passthru loses generic type info)
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 
@@ -544,6 +548,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      *
      * @param  (callable(TValue, TKey): TNewKey)|array|string  $keyBy
      * @return static<($keyBy is (array|string) ? array-key : (TNewKey is \UnitEnum ? array-key : TNewKey)), TValue>
+     * @phpstan-ignore method.childReturnType (complex conditional return type PHPStan can't verify)
      */
     public function keyBy(callable|array|string $keyBy): static
     {
@@ -770,6 +775,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     #[\Override]
     public function mapToDictionary(callable $callback): static
     {
+        // @phpstan-ignore return.type (passthru loses generic type info)
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 
@@ -799,6 +805,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     #[\Override]
     public function merge(Arrayable|iterable $items): static
     {
+        // @phpstan-ignore return.type (passthru loses generic type info)
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 
@@ -808,6 +815,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     #[\Override]
     public function mergeRecursive(Arrayable|iterable $items): static
     {
+        // @phpstan-ignore return.type (passthru loses generic type info)
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 
@@ -826,6 +834,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      *
      * @param  Arrayable<array-key, TCombineValue>|iterable<array-key, TCombineValue>|(callable(): Generator<array-key, TCombineValue>)  $values
      * @return static<TValue, TCombineValue>
+     * @phpstan-ignore generics.notSubtype (TValue becomes key - only valid when TValue is array-key, but can't express this constraint)
      */
     public function combine(Arrayable|iterable|callable $values): static
     {
@@ -1243,6 +1252,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
             throw new InvalidArgumentException('Number of groups must be at least 1.');
         }
 
+        // @phpstan-ignore return.type (passthru loses generic type info)
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 
@@ -1370,6 +1380,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
             }
 
             while ($iterator->valid()) {
+                // @phpstan-ignore argument.type (callback typed for static but receives Collection chunk)
                 if (! $callback($iterator->current(), $iterator->key(), $chunk)) {
                     yield new static($chunk);
 
@@ -1381,6 +1392,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
                 $iterator->next();
             }
 
+            // @phpstan-ignore method.impossibleType (PHPStan infers Collection<*NEVER*, *NEVER*>)
             if ($chunk->isNotEmpty()) {
                 yield new static($chunk);
             }
@@ -1789,10 +1801,12 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
         // Only callable remains at this point
         $maybeTraversable = $source();
 
+        // @phpstan-ignore instanceof.alwaysTrue (PHPDoc says Generator but runtime callable could return anything)
         if ($maybeTraversable instanceof Iterator) {
             return $maybeTraversable;
         }
 
+        // @phpstan-ignore deadCode.unreachable (defensive - handles non-Iterator Traversables)
         if ($maybeTraversable instanceof Traversable) {
             return new IteratorIterator($maybeTraversable);
         }
