@@ -17,6 +17,7 @@ trait TransformsToResourceCollection
      * Create a new resource collection instance for the given resource.
      *
      * @param  class-string<\Hypervel\Http\Resources\Json\JsonResource>|null  $resourceClass
+     * @return \Hypervel\Http\Resources\Json\ResourceCollection
      *
      * @throws \Throwable
      */
@@ -31,6 +32,8 @@ trait TransformsToResourceCollection
 
     /**
      * Guess the resource collection for the items.
+     *
+     * @return \Hypervel\Http\Resources\Json\ResourceCollection
      *
      * @throws \Throwable
      */
