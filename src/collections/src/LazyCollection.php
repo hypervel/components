@@ -1786,21 +1786,18 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
             return new ArrayIterator($source);
         }
 
-        if (is_callable($source)) {
-            $maybeTraversable = $source();
+        // Only callable remains at this point
+        $maybeTraversable = $source();
 
-            if ($maybeTraversable instanceof Iterator) {
-                return $maybeTraversable;
-            }
-
-            if ($maybeTraversable instanceof Traversable) {
-                return new IteratorIterator($maybeTraversable);
-            }
-
-            return new ArrayIterator(Arr::wrap($maybeTraversable));
+        if ($maybeTraversable instanceof Iterator) {
+            return $maybeTraversable;
         }
 
-        return new ArrayIterator((array) $source);
+        if ($maybeTraversable instanceof Traversable) {
+            return new IteratorIterator($maybeTraversable);
+        }
+
+        return new ArrayIterator(Arr::wrap($maybeTraversable));
     }
 
     /**
