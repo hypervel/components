@@ -262,7 +262,7 @@ trait EnumeratesValues
     /**
      * Execute a callback over each nested chunk of items.
      *
-     * @param  callable(...mixed): mixed  $callback
+     * @param  callable(mixed...): mixed  $callback
      */
     public function eachSpread(callable $callback): static
     {
