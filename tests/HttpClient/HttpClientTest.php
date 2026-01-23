@@ -13,7 +13,7 @@ use GuzzleHttp\Psr7\Utils;
 use GuzzleHttp\TransferStats;
 use Hyperf\Config\Config;
 use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\ContainerInterface;
 use Hyperf\Stringable\Str;

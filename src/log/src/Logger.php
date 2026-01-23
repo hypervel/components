@@ -6,8 +6,8 @@ namespace Hypervel\Log;
 
 use Closure;
 use Hyperf\Context\Context;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\Jsonable;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Log\Events\MessageLogged;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;

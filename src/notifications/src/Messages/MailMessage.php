@@ -7,7 +7,7 @@ namespace Hypervel\Notifications\Messages;
 use Hypervel\Support\Collection;
 use Hyperf\Conditionable\Conditionable;
 use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Mail\Attachment;
 use Hypervel\Mail\Contracts\Attachable;
 use Hypervel\Mail\Markdown;

@@ -6,8 +6,8 @@ namespace Hypervel\ApiClient;
 
 use ArrayAccess;
 use BadMethodCallException;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\Jsonable;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
 use Hyperf\Support\Traits\ForwardsCalls;
 use JsonSerializable;
 use Stringable;

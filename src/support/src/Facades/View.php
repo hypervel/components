@@ -7,11 +7,11 @@ namespace Hypervel\Support\Facades;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
 
 /**
- * @method static \Hyperf\ViewEngine\Contract\ViewInterface file(string $path, array|\Hyperf\Contract\Arrayable $data = [], array $mergeData = [])
- * @method static \Hyperf\ViewEngine\Contract\ViewInterface make(string $view, array|\Hyperf\Contract\Arrayable $data = [], array $mergeData = [])
- * @method static \Hyperf\ViewEngine\Contract\ViewInterface first(array $views, \Hyperf\Contract\Arrayable|array $data = [], array $mergeData = [])
- * @method static string renderWhen(bool $condition, string $view, \Hyperf\Contract\Arrayable|array $data = [], array $mergeData = [])
- * @method static string renderUnless(bool $condition, string $view, \Hyperf\Contract\Arrayable|array $data = [], array $mergeData = [])
+ * @method static \Hyperf\ViewEngine\Contract\ViewInterface file(string $path, array|\Hypervel\Contracts\Support\Arrayable $data = [], array $mergeData = [])
+ * @method static \Hyperf\ViewEngine\Contract\ViewInterface make(string $view, array|\Hypervel\Contracts\Support\Arrayable $data = [], array $mergeData = [])
+ * @method static \Hyperf\ViewEngine\Contract\ViewInterface first(array $views, \Hypervel\Contracts\Support\Arrayable|array $data = [], array $mergeData = [])
+ * @method static string renderWhen(bool $condition, string $view, \Hypervel\Contracts\Support\Arrayable|array $data = [], array $mergeData = [])
+ * @method static string renderUnless(bool $condition, string $view, \Hypervel\Contracts\Support\Arrayable|array $data = [], array $mergeData = [])
  * @method static string renderEach(string $view, array $data, string $iterator, string $empty = 'raw|')
  * @method static bool exists(string $view)
  * @method static \Hyperf\ViewEngine\Contract\EngineInterface getEngineFromPath(string $path)

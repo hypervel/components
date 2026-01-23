@@ -7,7 +7,7 @@ namespace Hypervel\Foundation\Testing;
 use Hypervel\Support\Collection;
 use Hyperf\Command\Event\FailToHandle;
 use Hyperf\Conditionable\Conditionable;
-use Hyperf\Contract\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use Hyperf\Macroable\Macroable;
 use Hyperf\Tappable\Tappable;
 use Hypervel\Container\Contracts\Container as ContainerContract;

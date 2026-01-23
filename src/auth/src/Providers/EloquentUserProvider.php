@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Auth\Providers;
 
 use Closure;
-use Hyperf\Contract\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Auth\Contracts\Authenticatable;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;

@@ -6,7 +6,7 @@ namespace Hypervel\Validation;
 
 use BackedEnum;
 use Closure;
-use Hyperf\Contract\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Validation\Contracts\InvokableRule;

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Broadcasting;
 
 use Hypervel\Support\Arr;
-use Hyperf\Contract\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
 use Hypervel\Foundation\Events\Dispatchable;
 

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use Hypervel\Support\Arr;
-use Hyperf\Contract\Jsonable;
+use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Events\QueryExecuted;

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Casts;
 
 use ArrayObject as BaseArrayObject;
-use Hyperf\Contract\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Collection;
 use JsonSerializable;
 

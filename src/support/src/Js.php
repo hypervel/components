@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use BackedEnum;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\Jsonable;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
 use Hyperf\Stringable\Str;
 use Hyperf\ViewEngine\Contract\Htmlable;
 use JsonException;

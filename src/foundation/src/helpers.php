@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use Carbon\Carbon;
 use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use Hyperf\HttpMessage\Cookie\Cookie;
 use Hyperf\Stringable\Stringable;
 use Hyperf\ViewEngine\Contract\FactoryInterface;

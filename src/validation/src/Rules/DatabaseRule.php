@@ -6,7 +6,7 @@ namespace Hypervel\Validation\Rules;
 
 use BackedEnum;
 use Closure;
-use Hyperf\Contract\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
 

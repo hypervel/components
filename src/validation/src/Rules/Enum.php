@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
-use Hyperf\Contract\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Validation\Contracts\Rule;
