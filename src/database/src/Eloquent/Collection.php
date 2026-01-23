@@ -877,9 +877,7 @@ class Collection extends BaseCollection implements QueueableCollection
             return [];
         }
 
-        return $this->first() instanceof QueueableEntity
-            ? $this->map->getQueueableId()->all()
-            : $this->modelKeys();
+        return $this->map->getQueueableId()->all();
     }
 
     /**

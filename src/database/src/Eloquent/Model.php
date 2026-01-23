@@ -923,7 +923,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param  array<string, mixed>  $extra
      */
-    protected function increment(string $column, float|int $amount = 1, array $extra = []): int
+    public function increment(string $column, float|int $amount = 1, array $extra = []): int
     {
         return $this->incrementOrDecrement($column, $amount, $extra, 'increment');
     }
@@ -933,7 +933,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param  array<string, mixed>  $extra
      */
-    protected function decrement(string $column, float|int $amount = 1, array $extra = []): int
+    public function decrement(string $column, float|int $amount = 1, array $extra = []): int
     {
         return $this->incrementOrDecrement($column, $amount, $extra, 'decrement');
     }
