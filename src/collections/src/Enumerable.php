@@ -328,76 +328,43 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
 
     /**
      * Filter items where the value for the given key is not null.
-     *
-     * @param  string|null  $key
-     * @return static
      */
-    public function whereNotNull($key = null);
+    public function whereNotNull(?string $key = null): static;
 
     /**
      * Filter items by the given key value pair using strict comparison.
-     *
-     * @param  string  $key
-     * @param  mixed  $value
-     * @return static
      */
-    public function whereStrict($key, $value);
+    public function whereStrict(string $key, mixed $value): static;
 
     /**
      * Filter items by the given key value pair.
-     *
-     * @param  string  $key
-     * @param  \Illuminate\Contracts\Support\Arrayable|iterable  $values
-     * @param  bool  $strict
-     * @return static
      */
-    public function whereIn($key, $values, $strict = false);
+    public function whereIn(string $key, Arrayable|iterable $values, bool $strict = false): static;
 
     /**
      * Filter items by the given key value pair using strict comparison.
-     *
-     * @param  string  $key
-     * @param  \Illuminate\Contracts\Support\Arrayable|iterable  $values
-     * @return static
      */
-    public function whereInStrict($key, $values);
+    public function whereInStrict(string $key, Arrayable|iterable $values): static;
 
     /**
      * Filter items such that the value of the given key is between the given values.
-     *
-     * @param  string  $key
-     * @param  \Illuminate\Contracts\Support\Arrayable|iterable  $values
-     * @return static
      */
-    public function whereBetween($key, $values);
+    public function whereBetween(string $key, Arrayable|iterable $values): static;
 
     /**
      * Filter items such that the value of the given key is not between the given values.
-     *
-     * @param  string  $key
-     * @param  \Illuminate\Contracts\Support\Arrayable|iterable  $values
-     * @return static
      */
-    public function whereNotBetween($key, $values);
+    public function whereNotBetween(string $key, Arrayable|iterable $values): static;
 
     /**
      * Filter items by the given key value pair.
-     *
-     * @param  string  $key
-     * @param  \Illuminate\Contracts\Support\Arrayable|iterable  $values
-     * @param  bool  $strict
-     * @return static
      */
-    public function whereNotIn($key, $values, $strict = false);
+    public function whereNotIn(string $key, Arrayable|iterable $values, bool $strict = false): static;
 
     /**
      * Filter items by the given key value pair using strict comparison.
-     *
-     * @param  string  $key
-     * @param  \Illuminate\Contracts\Support\Arrayable|iterable  $values
-     * @return static
      */
-    public function whereNotInStrict($key, $values);
+    public function whereNotInStrict(string $key, Arrayable|iterable $values): static;
 
     /**
      * Filter the items, removing any items that don't match the given type(s).
