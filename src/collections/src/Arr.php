@@ -404,7 +404,7 @@ class Arr
     /**
      * Get an item from an array using "dot" notation.
      */
-    public static function get(ArrayAccess|array $array, string|int|null $key, mixed $default = null): mixed
+    public static function get(ArrayAccess|array|null $array, string|int|null $key, mixed $default = null): mixed
     {
         if (! static::accessible($array)) {
             return value($default);
