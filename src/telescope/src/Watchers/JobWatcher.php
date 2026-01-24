@@ -7,7 +7,7 @@ namespace Hypervel\Telescope\Watchers;
 use Hypervel\Support\Arr;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hyperf\Stringable\Str;
-use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Encryption\Contracts\Encrypter;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;

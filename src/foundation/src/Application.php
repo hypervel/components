@@ -640,8 +640,8 @@ class Application extends Container implements ApplicationContract
             \Hypervel\Notifications\Contracts\Dispatcher::class => [
                 \Hypervel\Notifications\Contracts\Factory::class,
             ],
-            \Hypervel\Bus\Contracts\Dispatcher::class => [
-                \Hypervel\Bus\Contracts\QueueingDispatcher::class,
+            \Hypervel\Contracts\Bus\Dispatcher::class => [
+                \Hypervel\Contracts\Bus\QueueingDispatcher::class,
                 \Hypervel\Bus\Dispatcher::class,
             ],
             \Hypervel\Contracts\Queue\Factory::class => [

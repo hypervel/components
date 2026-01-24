@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Telescope\Watchers;
 use Exception;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Bus\Batch;
-use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Bus\Dispatchable;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Events\JobFailed;

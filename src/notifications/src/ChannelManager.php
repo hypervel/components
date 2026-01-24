@@ -7,7 +7,7 @@ namespace Hypervel\Notifications;
 use Closure;
 use Hyperf\Context\Context;
 use Hyperf\Stringable\Str;
-use Hypervel\Bus\Contracts\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Notifications\Channels\BroadcastChannel;
 use Hypervel\Notifications\Channels\DatabaseChannel;
 use Hypervel\Notifications\Channels\MailChannel;

@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Queue;
 use Exception;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Contracts\Queue\QueueableEntity;
 use Hypervel\Contracts\Queue\ShouldQueue;

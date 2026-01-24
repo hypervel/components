@@ -10,7 +10,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hyperf\Conditionable\Conditionable;
 use Hyperf\Coroutine\Coroutine;
-use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Bus\Events\BatchDispatched;
 use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
 use Laravel\SerializableClosure\SerializableClosure;

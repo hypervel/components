@@ -20,7 +20,7 @@ use Hypervel\Contracts\Broadcasting\Broadcaster;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactoryContract;
 use Hypervel\Contracts\Broadcasting\ShouldBeUnique;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcastNow;
-use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Cache\Contracts\Factory as Cache;
 use Hypervel\Foundation\Http\Kernel;

@@ -8,7 +8,7 @@ use BackedEnum;
 use DateInterval;
 use DateTimeInterface;
 use Hyperf\Context\ApplicationContext;
-use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Cache\Contracts\Factory as CacheFactory;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 

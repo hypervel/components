@@ -8,7 +8,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Database\Eloquent\Collection as ModelCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hyperf\Stringable\Str;
-use Hypervel\Bus\Contracts\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Notifications\Events\NotificationSending;
 use Hypervel\Notifications\Events\NotificationSent;
 use Hypervel\Contracts\Queue\ShouldQueue;

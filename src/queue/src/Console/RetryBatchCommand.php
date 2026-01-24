@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
-use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
 
 class RetryBatchCommand extends Command

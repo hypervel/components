@@ -11,7 +11,7 @@ use Hyperf\Stringable\Str;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Expression;
-use Hypervel\Bus\Contracts\PrunableBatchRepository;
+use Hypervel\Contracts\Bus\PrunableBatchRepository;
 use Throwable;
 
 class DatabaseBatchRepository implements PrunableBatchRepository

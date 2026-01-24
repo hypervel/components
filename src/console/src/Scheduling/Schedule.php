@@ -10,7 +10,7 @@ use DateTimeInterface;
 use DateTimeZone;
 use Hypervel\Support\Collection;
 use Hyperf\Macroable\Macroable;
-use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Cache\Contracts\Factory as CacheFactory;
 use Hypervel\Console\Contracts\CacheAware;

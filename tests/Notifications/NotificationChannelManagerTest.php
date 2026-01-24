@@ -8,7 +8,7 @@ use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Bus\Contracts\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Bus\Queueable;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Notifications\ChannelManager;

@@ -9,7 +9,7 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Container\Container;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;

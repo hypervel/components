@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Bus\DatabaseBatchRepository;
 use Hypervel\Queue\Console\PruneBatchesCommand;
 use Hypervel\Testbench\TestCase;

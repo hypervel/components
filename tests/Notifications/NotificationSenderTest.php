@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Notifications;
 
-use Hypervel\Bus\Contracts\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Bus\Queueable;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\ChannelManager;

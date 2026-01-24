@@ -10,7 +10,7 @@ use DateInterval;
 use DateTimeInterface;
 use Hyperf\Conditionable\Conditionable;
 use Hyperf\Context\ApplicationContext;
-use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Queue\CallQueuedClosure;
 use Laravel\SerializableClosure\SerializableClosure;
 

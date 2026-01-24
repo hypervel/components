@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Bus\Contracts\BatchRepository;
-use Hypervel\Bus\Contracts\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Bus\BatchRepository;
+use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Bus\PendingChain;
 use Hypervel\Bus\PendingDispatch;
 use Hypervel\Support\Testing\Fakes\BusFake;

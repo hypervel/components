@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use Hypervel\Bus\Contracts\BatchRepository;
-use Hypervel\Bus\Contracts\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\Bus\BatchRepository;
+use Hypervel\Contracts\Bus\Dispatcher as DispatcherContract;
 use Psr\Container\ContainerInterface;
 
 class ConfigProvider

@@ -8,7 +8,7 @@ use __PHP_Incomplete_Class;
 use Exception;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Bus\Batchable;
-use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Cache\Contracts\Factory as CacheFactory;
 use Hypervel\Encryption\Contracts\Encrypter;

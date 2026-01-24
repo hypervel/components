@@ -6,7 +6,7 @@ namespace Hypervel\Bus;
 
 use Closure;
 use Hyperf\Context\ApplicationContext;
-use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Queue\CallQueuedClosure;
 
 /**

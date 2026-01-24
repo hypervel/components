@@ -8,7 +8,7 @@ use Carbon\CarbonImmutable;
 use Closure;
 use Hyperf\Stringable\Str;
 use Hypervel\Bus\Batch;
-use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Bus\PendingBatch;
 use Hypervel\Bus\UpdatedBatchJobCounts;
 use Hypervel\Support\Carbon;

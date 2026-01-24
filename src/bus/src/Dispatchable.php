@@ -7,7 +7,7 @@ namespace Hypervel\Bus;
 use Closure;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Support\Fluent;
-use Hypervel\Bus\Contracts\Dispatcher;
+use Hypervel\Contracts\Bus\Dispatcher;
 
 use function Hyperf\Support\value;
 
