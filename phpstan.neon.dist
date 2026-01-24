@@ -123,7 +123,7 @@ parameters:
     - '#Access to an undefined property Hypervel\\Queue\\Contracts\\Job::\$.*#'
     - '#Call to an undefined method Hyperf\\Database\\Query\\Builder::where[a-zA-Z0-9\\\\_]+#'
     - '#Call to an undefined method Hyperf\\Database\\Query\\Builder::firstOrFail\(\)#'
-    - '#Access to an undefined property Hyperf\\Collection\\HigherOrderCollectionProxy#'
+    - '#Access to an undefined property (Hyperf\\Collection|Hypervel\\Support)\\HigherOrderCollectionProxy#'
     - '#Call to an undefined method (Hyperf\\Tappable|Hypervel\\Support)\\HigherOrderTapProxy#'
 
     # Optional class uses magic __get to proxy property access to wrapped value

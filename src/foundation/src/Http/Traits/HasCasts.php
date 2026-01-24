@@ -223,7 +223,7 @@ trait HasCasts
         $castType = $this->getCasts()[$key];
 
         if (! is_array($value)) {
-            throw new InvalidCastException(static::class, $key, $castType);
+            throw new InvalidCastException($this, $key, $castType);
         }
 
         // Check if the class has make static method (provided by DataObject)
@@ -303,7 +303,7 @@ trait HasCasts
             return true;
         }
 
-        throw new InvalidCastException(static::class, $key, $castType);
+        throw new InvalidCastException($this, $key, $castType);
     }
 
     /**

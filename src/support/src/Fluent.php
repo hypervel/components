@@ -61,7 +61,6 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
      *
      * @template TGetDefault
      *
-     * @param  TKey  $key
      * @param  TGetDefault|(\Closure(): TGetDefault)  $default
      * @return TValue|TGetDefault
      */
@@ -72,9 +71,6 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
 
     /**
      * Set an attribute on the fluent instance using "dot" notation.
-     *
-     * @param  TKey  $key
-     * @param  TValue  $value
      */
     public function set(string $key, mixed $value): static
     {
@@ -268,8 +264,7 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     /**
      * Handle dynamic calls to the fluent instance to set attributes.
      *
-     * @param  TKey  $method
-     * @param  array{0: ?TValue}  $parameters
+     * @param  array<int, TValue>  $parameters
      */
     public function __call(string $method, array $parameters): mixed
     {
@@ -285,7 +280,6 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     /**
      * Dynamically retrieve the value of an attribute.
      *
-     * @param  TKey  $key
      * @return TValue|null
      */
     public function __get(string $key): mixed
@@ -295,9 +289,6 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
 
     /**
      * Dynamically set the value of an attribute.
-     *
-     * @param  TKey  $key
-     * @param  TValue  $value
      */
     public function __set(string $key, mixed $value): void
     {
@@ -306,8 +297,6 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
 
     /**
      * Dynamically check if an attribute is set.
-     *
-     * @param  TKey  $key
      */
     public function __isset(string $key): bool
     {
@@ -316,8 +305,6 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
 
     /**
      * Dynamically unset an attribute.
-     *
-     * @param  TKey  $key
      */
     public function __unset(string $key): void
     {

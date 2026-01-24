@@ -90,7 +90,7 @@ class MonitorCommand extends Command
      */
     protected function displaySizes(Collection $queues): void
     {
-        $this->table($this->headers, $queues);
+        $this->table($this->headers, $queues->toArray());
     }
 
     /**

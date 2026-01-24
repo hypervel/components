@@ -362,6 +362,7 @@ class Sleep
 
         (new Collection($sequence))
             ->zip(static::$sequence)
+            /** @phpstan-ignore argument.type (eachSpread signature can't express fixed-param callbacks) */
             ->eachSpread(function (?Sleep $expected, CarbonInterval $actual) {
                 if ($expected === null) {
                     return;
