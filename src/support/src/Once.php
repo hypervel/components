@@ -22,11 +22,10 @@ class Once
     /**
      * Create a new once instance.
      *
-     * @param  \WeakMap<object, array<string, mixed>>  $values
+     * @param WeakMap<object, array<string, mixed>> $values
      */
     protected function __construct(protected WeakMap $values)
     {
-        //
     }
 
     /**
