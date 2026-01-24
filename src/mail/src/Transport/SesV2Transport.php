@@ -44,6 +44,7 @@ class SesV2Transport extends AbstractTransport implements Stringable
                     [
                         'Source' => $message->getEnvelope()->getSender()->toString(),
                         'Destination' => [
+                            // @phpstan-ignore method.nonObject (Higher Order Message: ->map->toString() returns Collection, not string)
                             'ToAddresses' => collect($message->getEnvelope()->getRecipients())
                                 ->map
                                 ->toString()

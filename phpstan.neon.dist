@@ -124,4 +124,10 @@ parameters:
     - '#Call to an undefined method Hyperf\\Database\\Query\\Builder::where[a-zA-Z0-9\\\\_]+#'
     - '#Call to an undefined method Hyperf\\Database\\Query\\Builder::firstOrFail\(\)#'
     - '#Access to an undefined property Hyperf\\Collection\\HigherOrderCollectionProxy#'
-    - '#Call to an undefined method Hyperf\\Tappable\\HigherOrderTapProxy#'
+    - '#Call to an undefined method (Hyperf\\Tappable|Hypervel\\Support)\\HigherOrderTapProxy#'
+
+    # Optional class uses magic __get to proxy property access to wrapped value
+    - '#Access to an undefined property Hypervel\\Support\\Optional::\$#'
+
+    # Generic type loss through Builder chain - firstOrFail() returns TModel but phpstan loses it
+    - '#Cannot call method load\(\) on stdClass#'
