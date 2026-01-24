@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Closure;
-use Hypervel\Contracts\Support\HasOnceHash;
+use Hypervel\Support\Contracts\HasOnceHash;
 use Laravel\SerializableClosure\Support\ReflectionClosure;
 
 class Onceable
