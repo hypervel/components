@@ -7861,15 +7861,15 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, [], []);
 
         $implicit_no_connection = $v->parseTable(ImplicitTableModel::class);
-        $this->assertSame('default', $implicit_no_connection[0]);
+        $this->assertNull($implicit_no_connection[0]);
         $this->assertSame('implicit_table_models', $implicit_no_connection[1]);
 
         $explicit_no_connection = $v->parseTable(ExplicitTableModel::class);
-        $this->assertSame('default', $explicit_no_connection[0]);
+        $this->assertNull($explicit_no_connection[0]);
         $this->assertSame('explicits', $explicit_no_connection[1]);
 
         $explicit_model_with_prefix = $v->parseTable(ExplicitPrefixedTableModel::class);
-        $this->assertSame('default', $explicit_model_with_prefix[0]);
+        $this->assertNull($explicit_model_with_prefix[0]);
         $this->assertSame('prefix.explicits', $explicit_model_with_prefix[1]);
 
         $explicit_table_with_connection_prefix = $v->parseTable('connection.table');

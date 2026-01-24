@@ -27,7 +27,7 @@ class ReloadDotenvAndConfig implements ListenerInterface
 
             static::$stopCallback = true;
             foreach (static::$modifiedItems as $key => $value) {
-                $config->set($key, $value);
+                $config->set((string) $key, $value);
             }
             static::$stopCallback = false;
         });
