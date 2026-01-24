@@ -11,6 +11,7 @@ use Hypervel\Database\Eloquent\Concerns\HasCallbacks;
 use Hypervel\Database\Eloquent\Concerns\HasCollection;
 use Hypervel\Database\Eloquent\Concerns\HasGlobalScopes;
 use Hypervel\Database\Eloquent\Concerns\HasObservers;
+use Hypervel\Database\Eloquent\Concerns\HasTimestamps;
 use Psr\EventDispatcher\StoppableEventInterface;
 
 class Pivot extends BasePivot
@@ -20,6 +21,7 @@ class Pivot extends BasePivot
     use HasCollection;
     use HasGlobalScopes;
     use HasObservers;
+    use HasTimestamps;
 
     /**
      * The default collection class for this model.

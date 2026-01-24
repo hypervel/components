@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Carbon\Carbon;
+use Hypervel\Cache\Contracts\RefreshableLock;
+use InvalidArgumentException;
 
-class ArrayLock extends Lock
+class ArrayLock extends Lock implements RefreshableLock
 {
     /**
      * The parent array cache store.
@@ -82,5 +84,60 @@ class ArrayLock extends Lock
     protected function getCurrentOwner(): string
     {
         return $this->store->locks[$this->name]['owner'];
+    }
+
+    /**
+     * Refresh the lock's TTL if still owned by this process.
+     *
+     * @throws InvalidArgumentException If an explicit non-positive TTL is provided
+     */
+    public function refresh(?int $seconds = null): bool
+    {
+        // Permanent lock with no explicit TTL requested - nothing to refresh
+        if ($seconds === null && $this->seconds <= 0) {
+            return true;
+        }
+
+        $seconds ??= $this->seconds;
+
+        if ($seconds <= 0) {
+            throw new InvalidArgumentException(
+                'Refresh requires a positive TTL. For a permanent lock, acquire it with seconds=0.'
+            );
+        }
+
+        if (! $this->exists()) {
+            return false;
+        }
+
+        if (! $this->isOwnedByCurrentProcess()) {
+            return false;
+        }
+
+        $this->store->locks[$this->name]['expiresAt'] = Carbon::now()->addSeconds($seconds);
+
+        return true;
+    }
+
+    /**
+     * Get the number of seconds until the lock expires.
+     */
+    public function getRemainingLifetime(): ?float
+    {
+        if (! $this->exists()) {
+            return null;
+        }
+
+        $expiresAt = $this->store->locks[$this->name]['expiresAt'];
+
+        if ($expiresAt === null) {
+            return null;
+        }
+
+        if ($expiresAt->isPast()) {
+            return null;
+        }
+
+        return (float) Carbon::now()->diffInSeconds($expiresAt);
     }
 }
