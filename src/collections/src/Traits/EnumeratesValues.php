@@ -423,7 +423,7 @@ trait EnumeratesValues
      * @param  class-string<TMapIntoValue>  $class
      * @return static<TKey, TMapIntoValue>
      */
-    public function mapInto(string $class): static
+    public function mapInto(string $class)
     {
         if (is_subclass_of($class, BackedEnum::class)) {
             return $this->map(fn ($value, $key) => $class::from($value));

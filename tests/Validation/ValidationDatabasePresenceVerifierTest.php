@@ -61,6 +61,8 @@ class ValidationDatabasePresenceVerifierTest extends TestCase
         $builder->shouldReceive('where')->with('not', '!=', 'admin');
         $builder->shouldReceive('where')->with(m::type(Closure::class))->andReturnUsing(function () use ($builder, $closure) {
             $closure($builder);
+
+            return $builder;
         });
         $builder->shouldReceive('where')->with('closure', 1);
         $builder->shouldReceive('count')->once()->andReturn(100);

@@ -418,7 +418,7 @@ class Arr
             return $array[$key];
         }
 
-        if (! str_contains($key, '.')) {
+        if (! str_contains((string) $key, '.')) {
             return value($default);
         }
 
