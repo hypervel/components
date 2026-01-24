@@ -18,7 +18,7 @@ use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Mail\Mailables\Address;
 use Hypervel\Queue\Contracts\Factory as QueueFactory;
 use Hypervel\Queue\Contracts\ShouldQueue;
-use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Support\HtmlString;
 use InvalidArgumentException;
 use Psr\EventDispatcher\EventDispatcherInterface;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Support\Contracts;
+namespace Hypervel\Contracts\Support;
 
 use Hypervel\Http\Request;
 use Psr\Http\Message\ResponseInterface;

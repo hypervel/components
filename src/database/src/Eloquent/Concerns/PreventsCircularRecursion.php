@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Concerns;
 
+use Hypervel\Context\Context;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Onceable;
 use WeakMap;
@@ -11,11 +12,9 @@ use WeakMap;
 trait PreventsCircularRecursion
 {
     /**
-     * The cache of objects processed to prevent infinite recursion.
-     *
-     * @var WeakMap<static, array<string, mixed>>|null
+     * The context key for the recursion cache.
      */
-    protected static ?WeakMap $recursionCache = null;
+    protected const RECURSION_CACHE_CONTEXT_KEY = '__database.model.recursionCache';
 
     /**
      * Prevent a method from being called multiple times on the same object within the same call stack.
@@ -78,7 +77,7 @@ trait PreventsCircularRecursion
      */
     protected static function getRecursionCache(): WeakMap
     {
-        return static::$recursionCache ??= new WeakMap();
+        return Context::getOrSet(self::RECURSION_CACHE_CONTEXT_KEY, fn () => new WeakMap());
     }
 
     /**

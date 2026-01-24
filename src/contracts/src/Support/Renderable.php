@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Support\Contracts;
+namespace Hypervel\Contracts\Support;
 
 use Hyperf\ViewEngine\Contract\Renderable as BaseRenderable;
 

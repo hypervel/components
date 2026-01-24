@@ -12,7 +12,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Http\Resources\Json\JsonResource;
-use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\Tappable;
@@ -182,7 +182,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Get a cursor instance for the given item.
      */
-    public function getCursorForItem(ArrayAccess|object $item, bool $isNext = true): Cursor
+    public function getCursorForItem(object $item, bool $isNext = true): Cursor
     {
         return new Cursor($this->getParametersForItem($item), $isNext);
     }
@@ -194,7 +194,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      *
      * @throws Exception
      */
-    public function getParametersForItem(ArrayAccess|object $item): array
+    public function getParametersForItem(object $item): array
     {
         /** @var Collection<string, int> $flipped */
         $flipped = (new Collection($this->parameters))->filter()->flip();

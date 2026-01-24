@@ -8,7 +8,7 @@ use Closure;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Contracts\Support\CanBeEscapedWhenCastToString;
-use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\Tappable;
 use Hypervel\Support\Traits\TransformsToResourceCollection;

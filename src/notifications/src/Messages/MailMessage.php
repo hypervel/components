@@ -11,7 +11,7 @@ use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Mail\Attachment;
 use Hypervel\Mail\Contracts\Attachable;
 use Hypervel\Mail\Markdown;
-use Hypervel\Support\Contracts\Renderable;
+use Hypervel\Contracts\Support\Renderable;
 
 class MailMessage extends SimpleMessage implements Renderable
 {

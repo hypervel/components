@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Contracts;
 
-use Hypervel\Support\Contracts\MessageProvider;
+use Hypervel\Contracts\Support\MessageProvider;
 use Hypervel\Support\MessageBag;
 use Hypervel\Translation\Contracts\Translator;
 use Hypervel\Validation\ValidationException;

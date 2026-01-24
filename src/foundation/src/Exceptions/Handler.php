@@ -33,7 +33,7 @@ use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
 use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Session\Contracts\Session as SessionContract;
 use Hypervel\Session\TokenMismatchException;
-use Hypervel\Support\Contracts\Responsable;
+use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Reflector;
 use Hypervel\Support\Traits\ReflectsClosures;

@@ -7,7 +7,6 @@ namespace Hypervel\Console;
 use Carbon\CarbonInterval;
 use Hypervel\Cache\Contracts\Factory as Cache;
 use Hypervel\Cache\Contracts\LockProvider;
-use Hypervel\Cache\Contracts\Store;
 use Hypervel\Console\Contracts\CommandMutex;
 use Hypervel\Support\Traits\InteractsWithTime;
 
@@ -36,8 +35,10 @@ class CacheCommandMutex implements CommandMutex
             ? $command->isolationLockExpiresAt()
             : CarbonInterval::hour();
 
-        if ($this->shouldUseLocks($store->getStore())) {
-            return $store->getStore()->lock(
+        $cacheStore = $store->getStore();
+
+        if ($cacheStore instanceof LockProvider) {
+            return $cacheStore->lock(
                 $this->commandMutexName($command),
                 $this->secondsUntil($expiresAt)
             )->get();
@@ -53,8 +54,10 @@ class CacheCommandMutex implements CommandMutex
     {
         $store = $this->cache->store($this->store);
 
-        if ($this->shouldUseLocks($store->getStore())) {
-            $lock = $store->getStore()->lock($this->commandMutexName($command));
+        $cacheStore = $store->getStore();
+
+        if ($cacheStore instanceof LockProvider) {
+            $lock = $cacheStore->lock($this->commandMutexName($command));
 
             return tap(! $lock->get(), function ($exists) use ($lock) {
                 if ($exists) {
@@ -73,8 +76,10 @@ class CacheCommandMutex implements CommandMutex
     {
         $store = $this->cache->store($this->store);
 
-        if ($this->shouldUseLocks($store->getStore())) {
-            return $store->getStore()->lock($this->commandMutexName($command))->forceRelease();
+        $cacheStore = $store->getStore();
+
+        if ($cacheStore instanceof LockProvider) {
+            return $cacheStore->lock($this->commandMutexName($command))->forceRelease();
         }
 
         return $this->cache->store($this->store)->forget($this->commandMutexName($command));
@@ -102,11 +107,4 @@ class CacheCommandMutex implements CommandMutex
         return $this;
     }
 
-    /**
-     * Determine if the given store should use locks for command mutexes.
-     */
-    protected function shouldUseLocks(Store $store): bool
-    {
-        return $store instanceof LockProvider;
-    }
 }

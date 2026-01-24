@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Concerns;
 
-use Hypervel\Container\Contracts\Container;
+use Hypervel\Container\Container;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\MultipleRecordsFoundException;
 use Hypervel\Database\Query\Expression;

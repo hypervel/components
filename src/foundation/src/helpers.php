@@ -27,7 +27,7 @@ use Hypervel\HttpMessage\Exceptions\HttpResponseException;
 use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
 use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Session\Contracts\Session as SessionContract;
-use Hypervel\Support\Contracts\Responsable;
+use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Mix;
 use Hypervel\Translation\Contracts\Translator as TranslatorContract;

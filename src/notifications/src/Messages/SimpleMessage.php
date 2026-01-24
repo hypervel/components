@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Notifications\Messages;
 
 use Hypervel\Notifications\Action;
-use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Contracts\Support\Htmlable;
 
 class SimpleMessage
 {

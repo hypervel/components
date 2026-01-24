@@ -335,6 +335,58 @@ class ModelCoroutineSafetyTest extends TmpIntegrationTestCase
     }
 
     // =========================================================================
+    // withoutRecursion() Tests
+    // =========================================================================
+
+    public function testWithoutRecursionIsCoroutineIsolated(): void
+    {
+        $model = new RecursionTestModel();
+        $counter = $this->newRecursionCounter();
+        $results = [];
+
+        run(function () use ($model, $counter, &$results): void {
+            $channel = new Channel(2);
+            $waiter = new WaitGroup();
+
+            $callback = function () use ($counter): int {
+                usleep(50000);
+                return ++$counter->value;
+            };
+
+            $waiter->add(1);
+            go(function () use ($model, $callback, $channel, $waiter): void {
+                $channel->push([
+                    'coroutine' => 1,
+                    'result' => $model->runRecursionGuard($callback, -1),
+                ]);
+                $waiter->done();
+            });
+
+            $waiter->add(1);
+            go(function () use ($model, $callback, $channel, $waiter): void {
+                usleep(10000);
+                $channel->push([
+                    'coroutine' => 2,
+                    'result' => $model->runRecursionGuard($callback, -1),
+                ]);
+                $waiter->done();
+            });
+
+            $waiter->wait();
+            $channel->close();
+
+            while (($result = $channel->pop()) !== false) {
+                $results[$result['coroutine']] = $result['result'];
+            }
+        });
+
+        sort($results);
+
+        $this->assertSame([1, 2], $results);
+        $this->assertSame(2, $counter->value);
+    }
+
+    // =========================================================================
     // Combined Coroutine Isolation Test
     // =========================================================================
 
@@ -395,6 +447,13 @@ class ModelCoroutineSafetyTest extends TmpIntegrationTestCase
             $this->assertFalse($results[2]['ignoringTouch'], 'Coroutine 2: should NOT be ignoring touch');
         });
     }
+
+    private function newRecursionCounter(): object
+    {
+        return new class {
+            public int $value = 0;
+        };
+    }
 }
 
 class CoroutineTestUser extends Model
@@ -404,4 +463,12 @@ class CoroutineTestUser extends Model
     protected array $fillable = ['name', 'email'];
 
     public static array $eventLog = [];
+}
+
+class RecursionTestModel extends Model
+{
+    public function runRecursionGuard(callable $callback, mixed $default = null): mixed
+    {
+        return $this->withoutRecursion($callback, $default);
+    }
 }

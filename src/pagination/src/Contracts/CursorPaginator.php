@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Pagination\Contracts;
 
 use Hypervel\Pagination\Cursor;
-use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Contracts\Support\Htmlable;
 
 /**
  * @template TKey of array-key

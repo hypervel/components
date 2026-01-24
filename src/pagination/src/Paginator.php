@@ -10,7 +10,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Pagination\Contracts\Paginator as PaginatorContract;
-use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Contracts\Support\Htmlable;
 use IteratorAggregate;
 use JsonSerializable;
 

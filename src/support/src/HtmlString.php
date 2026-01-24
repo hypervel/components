@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
-use Hypervel\Support\Contracts\Htmlable;
+use Hypervel\Contracts\Support\Htmlable;
 use Stringable;
 
 class HtmlString implements Htmlable, Stringable
