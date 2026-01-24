@@ -6,7 +6,7 @@ namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Support\Collection;
 use Hyperf\Context\Context;
-use Hypervel\Database\Eloquent\Events\Event;
+use Hypervel\Database\Eloquent\Events\ModelEvent;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Telescope\FormatModel;
 use Hypervel\Telescope\IncomingEntry;
@@ -49,26 +49,24 @@ class ModelWatcher extends Watcher
     /**
      * Record an action.
      */
-    public function recordAction(Event $event): void
+    public function recordAction(ModelEvent $event): void
     {
-        $eventMethod = $event->getMethod();
         if (! Telescope::isRecording() || ! $this->shouldRecord($event)) {
             return;
         }
 
-        $model = $event->getModel();
-        if ($eventMethod === 'retrieved') {
-            $this->recordHydrations($model);
+        if ($event->method === 'retrieved') {
+            $this->recordHydrations($event->model);
 
             return;
         }
 
-        $modelClass = FormatModel::given($event->getModel());
+        $modelClass = FormatModel::given($event->model);
 
-        $changes = $event->getModel()->getChanges();
+        $changes = $event->model->getChanges();
 
         Telescope::recordModelEvent(IncomingEntry::make(array_filter([
-            'action' => $eventMethod,
+            'action' => $event->method,
             'model' => $modelClass,
             'changes' => empty($changes) ? null : $changes,
         ]))->tags([$modelClass]));
@@ -137,7 +135,7 @@ class ModelWatcher extends Watcher
     /**
      * Determine if the Eloquent event should be recorded.
      */
-    private function shouldRecord(Event $event): bool
+    private function shouldRecord(ModelEvent $event): bool
     {
         return in_array(get_class($event), static::MODEL_EVENTS);
     }

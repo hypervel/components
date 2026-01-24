@@ -221,7 +221,7 @@ class Logger implements LoggerInterface
             return var_export($message, true);
         }
         if ($message instanceof Jsonable) {
-            return (string) $message;
+            return $message->toJson();
         }
         if ($message instanceof Arrayable) {
             return var_export($message->toArray(), true);

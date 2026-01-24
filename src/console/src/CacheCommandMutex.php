@@ -79,7 +79,9 @@ class CacheCommandMutex implements CommandMutex
         $cacheStore = $store->getStore();
 
         if ($cacheStore instanceof LockProvider) {
-            return $cacheStore->lock($this->commandMutexName($command))->forceRelease();
+            $cacheStore->lock($this->commandMutexName($command))->forceRelease();
+
+            return true;
         }
 
         return $this->cache->store($this->store)->forget($this->commandMutexName($command));

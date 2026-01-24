@@ -165,14 +165,18 @@ class Response extends HyperfResponse implements ResponseContract
         foreach ($headers as $name => $value) {
             $response->addHeader($name, $value);
         }
-        if (is_array($content) || $content instanceof Arrayable) {
+        if ($content instanceof Arrayable) {
+            $content = $content->toArray();
+        }
+
+        if (is_array($content)) {
             return $response->addHeader('Content-Type', 'application/json')
                 ->setBody(new SwooleStream(Json::encode($content)));
         }
 
         if ($content instanceof Jsonable) {
             return $response->addHeader('Content-Type', 'application/json')
-                ->setBody(new SwooleStream((string) $content));
+                ->setBody(new SwooleStream($content->toJson()));
         }
 
         if ($response->hasHeader('Content-Type')) {

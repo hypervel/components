@@ -75,8 +75,8 @@ class ResponseTest extends TestCase
         $this->assertEquals('application/json', $result->getHeaderLine('content-type'));
 
         // Test with Jsonable content
-        $jsonable = new class implements Stringable, Jsonable {
-            public function __toString(): string
+        $jsonable = new class implements Jsonable {
+            public function toJson(int $options = 0): string
             {
                 return '{"baz":"qux"}';
             }

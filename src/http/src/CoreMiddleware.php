@@ -73,7 +73,11 @@ class CoreMiddleware implements CoreMiddlewareInterface
             return new ResponsePlusProxy($response);
         }
 
-        if (is_array($response) || $response instanceof Arrayable) {
+        if ($response instanceof Arrayable) {
+            $response = $response->toArray();
+        }
+
+        if (is_array($response)) {
             return $this->response()
                 ->addHeader('content-type', 'application/json')
                 ->setBody(new SwooleStream(Json::encode($response)));
@@ -82,7 +86,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
         if ($response instanceof Jsonable) {
             return $this->response()
                 ->addHeader('content-type', 'application/json')
-                ->setBody(new SwooleStream((string) $response));
+                ->setBody(new SwooleStream($response->toJson()));
         }
 
         if ($this->response()->hasHeader('content-type')) {

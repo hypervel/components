@@ -280,9 +280,13 @@ if (! function_exists('optional')) {
     {
         if (is_null($callback)) {
             return new Optional($value);
-        } elseif (! is_null($value)) {
+        }
+
+        if (! is_null($value)) {
             return $callback($value);
         }
+
+        return null;
     }
 }
 
@@ -330,24 +334,23 @@ if (! function_exists('retry')) {
             $times = count($times) + 1;
         }
 
-        beginning:
-        $attempts++;
-        $times--;
+        while (true) {
+            $attempts++;
+            $times--;
 
-        try {
-            return $callback($attempts);
-        } catch (Throwable $e) {
-            if ($times < 1 || ($when && ! $when($e))) {
-                throw $e;
+            try {
+                return $callback($attempts);
+            } catch (Throwable $e) {
+                if ($times < 1 || ($when && ! $when($e))) {
+                    throw $e;
+                }
+
+                $sleepMilliseconds = $backoff[$attempts - 1] ?? $sleepMilliseconds;
+
+                if ($sleepMilliseconds) {
+                    Sleep::usleep(value($sleepMilliseconds, $attempts, $e) * 1000);
+                }
             }
-
-            $sleepMilliseconds = $backoff[$attempts - 1] ?? $sleepMilliseconds;
-
-            if ($sleepMilliseconds) {
-                Sleep::usleep(value($sleepMilliseconds, $attempts, $e) * 1000);
-            }
-
-            goto beginning;
         }
     }
 }
