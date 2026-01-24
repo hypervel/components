@@ -8,6 +8,8 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\Support\Environment;
 use Hypervel\Support\HigherOrderTapProxy;
+use Hypervel\Support\Once;
+use Hypervel\Support\Onceable;
 use Hypervel\Support\Sleep;
 
 if (! function_exists('value')) {
@@ -216,6 +218,26 @@ if (! function_exists('object_get')) {
         }
 
         return $object;
+    }
+}
+
+if (! function_exists('once')) {
+    /**
+     * Ensures a callable is only called once, and returns the result on subsequent calls.
+     *
+     * @template  TReturnType
+     *
+     * @param  callable(): TReturnType  $callback
+     * @return TReturnType
+     */
+    function once(callable $callback)
+    {
+        $onceable = Onceable::tryFromTrace(
+            debug_backtrace(DEBUG_BACKTRACE_PROVIDE_OBJECT, 2),
+            $callback,
+        );
+
+        return $onceable ? Once::instance()->value($onceable) : call_user_func($callback);
     }
 }
 
