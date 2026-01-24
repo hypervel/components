@@ -27,7 +27,7 @@ class ReloadDotenvAndConfig implements ListenerInterface
 
             static::$stopCallback = true;
             foreach (static::$modifiedItems as $key => $value) {
-                $config->set((string) $key, $value);
+                $config->set($key, $value);
             }
             static::$stopCallback = false;
         });
@@ -65,7 +65,7 @@ class ReloadDotenvAndConfig implements ListenerInterface
     {
         $this->container->get(ConfigInterface::class)
             ->afterSettingCallback(function (array $values) {
-                static::$modifiedItems = array_merge(
+                static::$modifiedItems = array_replace(
                     static::$modifiedItems,
                     $values
                 );
