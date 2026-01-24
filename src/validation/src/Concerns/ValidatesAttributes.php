@@ -962,7 +962,7 @@ trait ValidatesAttributes
             $table = $model->getTable();
             $connection ??= $model->getConnectionName();
 
-            if (str_contains($table, '.') && Str::startsWith($table, $connection)) {
+            if ($connection !== null && str_contains($table, '.') && Str::startsWith($table, $connection)) {
                 $connection = null;
             }
 
