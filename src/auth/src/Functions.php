@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Auth;
 
 use Hyperf\Context\ApplicationContext;
-use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
-use Hypervel\Auth\Contracts\Guard;
+use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
+use Hypervel\Contracts\Auth\Guard;
 
 /**
  * Get auth guard or auth manager.

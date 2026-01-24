@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
+use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Context\Context;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;

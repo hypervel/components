@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Auth\Access;
 
 use Hyperf\Context\ApplicationContext;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\Gate;
+use Hypervel\Contracts\Auth\Access\Gate;
+use Hypervel\Contracts\Auth\Authenticatable;
 
 trait AuthorizesRequests
 {

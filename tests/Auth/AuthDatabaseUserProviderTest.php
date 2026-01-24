@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Auth;
 
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Query\Builder;
-use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Auth\GenericUser;
 use Hypervel\Auth\Providers\DatabaseUserProvider;
 use Hypervel\Hashing\Contracts\Hasher;

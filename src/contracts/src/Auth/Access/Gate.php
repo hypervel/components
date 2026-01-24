@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Auth\Contracts;
+namespace Hypervel\Contracts\Auth\Access;
 
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\Access\Response;
+use Hypervel\Contracts\Auth\Authenticatable;
 use InvalidArgumentException;
 
 interface Gate

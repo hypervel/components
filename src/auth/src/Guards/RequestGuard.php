@@ -8,9 +8,9 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Macroable\Macroable;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\Guard;
-use Hypervel\Auth\Contracts\UserProvider;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Auth\UserProvider;
 use Throwable;
 
 class RequestGuard implements Guard

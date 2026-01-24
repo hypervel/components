@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth;
 
-use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Contracts\Auth\Authenticatable;
 
 class GenericUser implements Authenticatable
 {

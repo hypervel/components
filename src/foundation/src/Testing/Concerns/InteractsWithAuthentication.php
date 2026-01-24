@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hypervel\Auth\Contracts\Authenticatable as UserContract;
-use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
+use Hypervel\Contracts\Auth\Authenticatable as UserContract;
+use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 
 trait InteractsWithAuthentication
 {

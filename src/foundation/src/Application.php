@@ -606,11 +606,11 @@ class Application extends Container implements ApplicationContract
             ],
             \Hypervel\Database\DatabaseManager::class => ['db'],
             \Hypervel\Database\Schema\SchemaProxy::class => ['db.schema'],
-            \Hypervel\Auth\Contracts\Factory::class => [
+            \Hypervel\Contracts\Auth\Factory::class => [
                 'auth',
                 \Hypervel\Auth\AuthManager::class,
             ],
-            \Hypervel\Auth\Contracts\Guard::class => [
+            \Hypervel\Contracts\Auth\Guard::class => [
                 'auth.driver',
             ],
             \Hypervel\Hashing\Contracts\Hasher::class => ['hash'],

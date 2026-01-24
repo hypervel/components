@@ -6,7 +6,7 @@ namespace Hypervel\Sanctum\Http\Middleware;
 
 use Hypervel\Support\Collection;
 use Hypervel\Auth\AuthenticationException;
-use Hypervel\Auth\Contracts\Factory as AuthFactory;
+use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Auth\Guards\SessionGuard;
 use Hypervel\Session\Contracts\Session;
 use Hypervel\Support\Arr;

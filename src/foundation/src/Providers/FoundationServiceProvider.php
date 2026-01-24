@@ -11,7 +11,7 @@ use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Grammar;
 use Hyperf\HttpServer\MiddlewareManager;
-use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
+use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Container\Contracts\Container;
 use Hypervel\Event\Contracts\Dispatcher;
 use Hypervel\Foundation\Console\CliDumper;

@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Auth;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Auth\Authenticatable as AuthenticatableUser;
-use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Auth\Providers\EloquentUserProvider;
 use Hypervel\Hashing\Contracts\Hasher;
 use Hypervel\Tests\TestCase;

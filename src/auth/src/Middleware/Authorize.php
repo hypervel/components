@@ -8,7 +8,7 @@ use Hypervel\Support\Collection;
 use Hyperf\HttpServer\Router\Dispatched;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Auth\Access\AuthorizationException;
-use Hypervel\Auth\Contracts\Gate;
+use Hypervel\Contracts\Auth\Access\Gate;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;

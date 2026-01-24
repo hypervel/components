@@ -7,7 +7,7 @@ namespace Hypervel\Telescope;
 use DateTimeInterface;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Stringable\Str;
-use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 
 class IncomingEntry

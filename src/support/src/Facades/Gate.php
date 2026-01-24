@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Auth\Contracts\Gate as GateContract;
+use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 
 /**
  * @method static bool has(array|string $ability)
@@ -25,7 +25,7 @@ use Hypervel\Auth\Contracts\Gate as GateContract;
  * @method static mixed raw(string $ability, mixed $arguments = [])
  * @method static mixed|void getPolicyFor(object|string $class)
  * @method static mixed resolvePolicy(string $class)
- * @method static \Hypervel\Auth\Access\Gate forUser(\Hypervel\Auth\Contracts\Authenticatable|null $user)
+ * @method static \Hypervel\Auth\Access\Gate forUser(\Hypervel\Contracts\Auth\Authenticatable|null $user)
  * @method static array abilities()
  * @method static array policies()
  * @method static \Hypervel\Auth\Access\Gate defaultDenialResponse(\Hypervel\Auth\Access\Response $response)

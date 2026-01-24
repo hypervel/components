@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Http;
 
 use Hypervel\Auth\Access\Gate;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\Gate as GateContract;
+use Hypervel\Contracts\Auth\Access\Gate as GateContract;
+use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Http\Contracts\RequestContract;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Tests\Telescope\FeatureTestCase;

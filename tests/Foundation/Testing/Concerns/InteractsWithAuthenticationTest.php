@@ -6,9 +6,9 @@ namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Hyperf\Context\Context;
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Auth\Contracts\Authenticatable as UserContract;
-use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
-use Hypervel\Auth\Contracts\Guard;
+use Hypervel\Contracts\Auth\Authenticatable as UserContract;
+use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
+use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
 use Hypervel\Testbench\TestCase;
 use Mockery;

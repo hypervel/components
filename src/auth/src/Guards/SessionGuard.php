@@ -6,9 +6,9 @@ namespace Hypervel\Auth\Guards;
 
 use Hyperf\Context\Context;
 use Hyperf\Macroable\Macroable;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\StatefulGuard;
-use Hypervel\Auth\Contracts\UserProvider;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\StatefulGuard;
+use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Session\Contracts\Session as SessionContract;
 use Throwable;
 

@@ -13,7 +13,7 @@ use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Query\Builder;
 use Hyperf\HttpServer\Request;
-use Hypervel\Auth\Contracts\Guard;
+use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Support\Traits\InteractsWithTime;
 use Psr\Container\ContainerInterface;
 use SessionHandlerInterface;

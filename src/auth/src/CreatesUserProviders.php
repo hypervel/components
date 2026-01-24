@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Auth;
 
 use Hypervel\Database\ConnectionResolverInterface;
-use Hypervel\Auth\Contracts\UserProvider;
+use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Auth\Providers\DatabaseUserProvider;
 use Hypervel\Auth\Providers\EloquentUserProvider;
 use Hypervel\Hashing\Contracts\Hasher as HashContract;

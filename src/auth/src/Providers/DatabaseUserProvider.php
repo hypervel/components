@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Auth\Providers;
 
 use Closure;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Support\Arrayable;
-use Hypervel\Auth\Contracts\Authenticatable;
 use Hypervel\Database\ConnectionInterface;
-use Hypervel\Auth\Contracts\UserProvider;
 use Hypervel\Auth\GenericUser;
 use Hypervel\Hashing\Contracts\Hasher as HashContract;
 

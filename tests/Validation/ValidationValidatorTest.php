@@ -12,8 +12,8 @@ use DateTimeImmutable;
 use Egulias\EmailValidator\Validation\NoRFCWarningsValidation;
 use Hypervel\Database\Eloquent\Model;
 use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\Guard;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Hashing\Contracts\Hasher;
@@ -1139,7 +1139,7 @@ class ValidationValidatorTest extends TestCase
         $hasher = m::mock(Hasher::class);
 
         $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')->with(\Hypervel\Auth\Contracts\Factory::class)->andReturn($auth);
+        $container->shouldReceive('get')->with(\Hypervel\Contracts\Auth\Factory::class)->andReturn($auth);
         $container->shouldReceive('get')->with(\Hypervel\Hashing\Contracts\Hasher::class)->andReturn($hasher);
 
         $trans = $this->getTranslator();
@@ -1163,7 +1163,7 @@ class ValidationValidatorTest extends TestCase
         $hasher->shouldReceive('check')->andReturn(false);
 
         $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')->with(\Hypervel\Auth\Contracts\Factory::class)->andReturn($auth);
+        $container->shouldReceive('get')->with(\Hypervel\Contracts\Auth\Factory::class)->andReturn($auth);
         $container->shouldReceive('get')->with(\Hypervel\Hashing\Contracts\Hasher::class)->andReturn($hasher);
 
         $trans = $this->getTranslator();
@@ -1187,7 +1187,7 @@ class ValidationValidatorTest extends TestCase
         $hasher->shouldReceive('check')->andReturn(true);
 
         $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')->with(\Hypervel\Auth\Contracts\Factory::class)->andReturn($auth);
+        $container->shouldReceive('get')->with(\Hypervel\Contracts\Auth\Factory::class)->andReturn($auth);
         $container->shouldReceive('get')->with(\Hypervel\Hashing\Contracts\Hasher::class)->andReturn($hasher);
 
         $trans = $this->getTranslator();
@@ -1211,7 +1211,7 @@ class ValidationValidatorTest extends TestCase
         $hasher->shouldReceive('check')->andReturn(true);
 
         $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')->with(\Hypervel\Auth\Contracts\Factory::class)->andReturn($auth);
+        $container->shouldReceive('get')->with(\Hypervel\Contracts\Auth\Factory::class)->andReturn($auth);
         $container->shouldReceive('get')->with(\Hypervel\Hashing\Contracts\Hasher::class)->andReturn($hasher);
 
         $trans = $this->getTranslator();

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
-use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\Contracts\Repository as CacheRepository;
 use Hypervel\Context\ApplicationContext;

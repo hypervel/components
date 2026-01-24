@@ -7,7 +7,7 @@ namespace Hypervel\Router\Middleware;
 use Closure;
 use Hypervel\Support\Arr;
 use Hyperf\Support\Traits\InteractsWithTime;
-use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Cache\Exceptions\InvalidArgumentException;
 use Hypervel\Cache\RateLimiter;
 use Hypervel\Cache\RateLimiting\Unlimited;

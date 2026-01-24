@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Hypervel\Auth\Access\Gate;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\Gate as GateContract;
+use Hypervel\Contracts\Auth\Access\Gate as GateContract;
+use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Translation\ArrayLoader;
 use Hypervel\Translation\Contracts\Translator as TranslatorContract;

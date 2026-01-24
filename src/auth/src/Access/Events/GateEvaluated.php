@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Auth\Access\Events;
 
 use Hypervel\Auth\Access\Response;
-use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Contracts\Auth\Authenticatable;
 
 class GateEvaluated
 {

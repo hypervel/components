@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Auth\Contracts;
+namespace Hypervel\Contracts\Auth;
 
 interface Authenticatable
 {

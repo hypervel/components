@@ -10,9 +10,9 @@ use Hyperf\Context\RequestContext;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Macroable\Macroable;
 use Hyperf\Stringable\Str;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\Guard;
-use Hypervel\Auth\Contracts\UserProvider;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\JWT\Contracts\ManagerContract;
 use Throwable;
 

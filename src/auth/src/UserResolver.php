@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth;
 
-use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
+use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Psr\Container\ContainerInterface;
 
 class UserResolver
