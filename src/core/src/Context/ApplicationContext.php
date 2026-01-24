@@ -15,7 +15,12 @@ class ApplicationContext extends HyperfApplicationContext
      */
     public static function getContainer(): ContainerContract
     {
-        /* @phpstan-ignore-next-line */
-        return self::$container;
+        $container = parent::getContainer();
+
+        if (! $container instanceof ContainerContract) {
+            throw new TypeError('The application container must implement ' . ContainerContract::class . '.');
+        }
+
+        return $container;
     }
 }
