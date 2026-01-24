@@ -13,7 +13,7 @@ use Hypervel\Horizon\Events\JobPushed;
 use Hypervel\Horizon\Events\JobReleased;
 use Hypervel\Horizon\Events\JobReserved;
 use Hypervel\Horizon\Events\JobsMigrated;
-use Hypervel\Queue\Contracts\Job;
+use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\RedisQueue as BaseQueue;
 use Hypervel\Support\Str;

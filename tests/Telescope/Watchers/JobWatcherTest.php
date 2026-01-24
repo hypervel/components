@@ -9,7 +9,7 @@ use Hyperf\Contract\ConfigInterface;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Contracts\BatchRepository;
 use Hypervel\Bus\Dispatchable;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Jobs\FakeJob;

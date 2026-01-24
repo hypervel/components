@@ -11,8 +11,8 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\ModelIdentifier;
-use Hypervel\Queue\Contracts\QueueableCollection;
-use Hypervel\Queue\Contracts\QueueableEntity;
+use Hypervel\Contracts\Queue\QueueableCollection;
+use Hypervel\Contracts\Queue\QueueableEntity;
 
 trait SerializesAndRestoresModelIdentifiers
 {

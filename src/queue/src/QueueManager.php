@@ -19,15 +19,15 @@ use Hypervel\Queue\Connectors\NullConnector;
 use Hypervel\Queue\Connectors\RedisConnector;
 use Hypervel\Queue\Connectors\SqsConnector;
 use Hypervel\Queue\Connectors\SyncConnector;
-use Hypervel\Queue\Contracts\Factory as FactoryContract;
-use Hypervel\Queue\Contracts\Monitor as MonitorContract;
-use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Contracts\Queue\Factory as FactoryContract;
+use Hypervel\Contracts\Queue\Monitor as MonitorContract;
+use Hypervel\Contracts\Queue\Queue;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
- * @mixin \Hypervel\Queue\Contracts\Queue
+ * @mixin \Hypervel\Contracts\Queue\Queue
  */
 class QueueManager implements FactoryContract, MonitorContract
 {

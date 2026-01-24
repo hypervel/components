@@ -7,7 +7,7 @@ namespace Hypervel\Mail\Contracts;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Mail\SentMessage;
-use Hypervel\Queue\Contracts\Factory as QueueFactory;
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
 
 interface Mailable
 {

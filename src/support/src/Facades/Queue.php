@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 use Hypervel\Context\ApplicationContext;
-use Hypervel\Queue\Contracts\Factory as FactoryContract;
+use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Queue\Worker;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 
@@ -19,7 +19,7 @@ use function Hyperf\Tappable\tap;
  * @method static void failing(mixed $callback)
  * @method static void stopping(mixed $callback)
  * @method static bool connected(string|null $name = null)
- * @method static \Hypervel\Queue\Contracts\Queue connection(string|null $name = null)
+ * @method static \Hypervel\Contracts\Queue\Queue connection(string|null $name = null)
  * @method static void extend(string $driver, \Closure $resolver)
  * @method static void addConnector(string $driver, \Closure $resolver)
  * @method static string getDefaultDriver()
@@ -44,9 +44,9 @@ use function Hyperf\Tappable\tap;
  * @method static mixed later(\DateInterval|\DateTimeInterface|int $delay, object|string $job, mixed $data = '', string|null $queue = null)
  * @method static mixed laterOn(string|null $queue, \DateInterval|\DateTimeInterface|int $delay, object|string $job, mixed $data = '')
  * @method static mixed bulk(array $jobs, mixed $data = '', string|null $queue = null)
- * @method static \Hypervel\Queue\Contracts\Job|null pop(string|null $queue = null)
+ * @method static \Hypervel\Contracts\Queue\Job|null pop(string|null $queue = null)
  * @method static string getConnectionName()
- * @method static \Hypervel\Queue\Contracts\Queue setConnectionName(string $name)
+ * @method static \Hypervel\Contracts\Queue\Queue setConnectionName(string $name)
  * @method static mixed getJobTries(mixed $job)
  * @method static mixed getJobBackoff(mixed $job)
  * @method static mixed getJobExpiration(mixed $job)

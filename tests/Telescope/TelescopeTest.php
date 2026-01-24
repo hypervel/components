@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Telescope;
 
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Bus\Contracts\Dispatcher;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Storage\EntryModel;

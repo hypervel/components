@@ -6,7 +6,7 @@ namespace Hypervel\Horizon;
 
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
-use Hypervel\Queue\Contracts\Factory as QueueFactory;
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 

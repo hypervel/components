@@ -19,7 +19,7 @@ use Hypervel\Mail\Transport\LogTransport;
 use Hypervel\Mail\Transport\SesTransport;
 use Hypervel\Mail\Transport\SesV2Transport;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
-use Hypervel\Queue\Contracts\Factory as QueueFactory;
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Support\ConfigurationUrlParser;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;

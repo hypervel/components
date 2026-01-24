@@ -22,7 +22,7 @@ use Hypervel\Context\ApplicationContext;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Http\Kernel;
 use Hypervel\Foundation\Http\Middleware\VerifyCsrfToken;
-use Hypervel\Queue\Contracts\Factory as QueueFactoryContract;
+use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Facade;

@@ -7,8 +7,8 @@ namespace Hypervel\Tests\Horizon\Feature;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\WaitTimeCalculator;
-use Hypervel\Queue\Contracts\Factory as QueueFactory;
-use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
+use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Mockery;
 

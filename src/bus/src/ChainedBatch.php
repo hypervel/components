@@ -7,7 +7,7 @@ namespace Hypervel\Bus;
 use Hypervel\Support\Collection;
 use Hyperf\Context\ApplicationContext;
 use Hypervel\Bus\Contracts\Dispatcher;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Throwable;
 

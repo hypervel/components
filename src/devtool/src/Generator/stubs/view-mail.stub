@@ -8,7 +8,7 @@ use Hypervel\Bus\Queueable;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\Mailables\Content;
 use Hypervel\Mail\Mailables\Envelope;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\SerializesModels;
 
 class %CLASS% extends Mailable

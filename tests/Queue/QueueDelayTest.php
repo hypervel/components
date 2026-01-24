@@ -10,7 +10,7 @@ use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Bus\Contracts\Dispatcher;
 use Hypervel\Bus\PendingDispatch;
 use Hypervel\Bus\Queueable;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Mockery;
 use PHPUnit\Framework\TestCase;
 

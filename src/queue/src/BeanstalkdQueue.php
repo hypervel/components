@@ -6,8 +6,8 @@ namespace Hypervel\Queue;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Queue\Contracts\Job as JobContract;
-use Hypervel\Queue\Contracts\Queue as QueueContract;
+use Hypervel\Contracts\Queue\Job as JobContract;
+use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;

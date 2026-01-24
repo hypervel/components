@@ -17,7 +17,7 @@ use Hypervel\Mail\Contracts\MailQueue;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\PendingMail;
 use Hypervel\Mail\SentMessage;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
 

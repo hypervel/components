@@ -11,7 +11,7 @@ use Hyperf\Stringable\Str;
 use Hypervel\Bus\Contracts\Dispatcher as BusDispatcherContract;
 use Hypervel\Notifications\Events\NotificationSending;
 use Hypervel\Notifications\Events\NotificationSent;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Support\Traits\Localizable;
 use Hypervel\Translation\Contracts\HasLocalePreference;
 use Psr\EventDispatcher\EventDispatcherInterface;

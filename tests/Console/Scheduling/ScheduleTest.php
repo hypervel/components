@@ -8,7 +8,7 @@ use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Console\Contracts\SchedulingMutex;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Container\Container;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 use Mockery\MockInterface;

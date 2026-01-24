@@ -6,7 +6,7 @@ namespace Hypervel\Queue\Connectors;
 
 use Aws\Sqs\SqsClient;
 use Hypervel\Support\Arr;
-use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\SqsQueue;
 
 class SqsConnector implements ConnectorInterface

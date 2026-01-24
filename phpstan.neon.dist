@@ -120,7 +120,7 @@ parameters:
       path: src/foundation/src/Testing/TestCase.php
     - '#Method Redis::eval\(\) invoked with [0-9] parameters, 1-3 required.#'
     - '#Access to an undefined property Hypervel\\Queue\\Jobs\\DatabaseJobRecord::\$.*#'
-    - '#Access to an undefined property Hypervel\\Queue\\Contracts\\Job::\$.*#'
+    - '#Access to an undefined property Hypervel\\Contracts\\Queue\\Job::\$.*#'
     - '#Call to an undefined method Hyperf\\Database\\Query\\Builder::where[a-zA-Z0-9\\\\_]+#'
     - '#Call to an undefined method Hyperf\\Database\\Query\\Builder::firstOrFail\(\)#'
     - '#Access to an undefined property (Hyperf\\Collection|Hypervel\\Support)\\HigherOrderCollectionProxy#'

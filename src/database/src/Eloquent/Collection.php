@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent;
 
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
-use Hypervel\Queue\Contracts\QueueableCollection;
-use Hypervel\Queue\Contracts\QueueableEntity;
+use Hypervel\Contracts\Queue\QueueableCollection;
+use Hypervel\Contracts\Queue\QueueableEntity;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Contracts\Support\Arrayable;

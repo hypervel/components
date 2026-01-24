@@ -7,7 +7,7 @@ namespace Hypervel\Queue\Console;
 use Hypervel\Support\Collection;
 use Hyperf\Command\Command;
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Queue\Contracts\Factory;
+use Hypervel\Contracts\Queue\Factory;
 use Hypervel\Queue\Events\QueueBusy;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
 use Psr\EventDispatcher\EventDispatcherInterface;

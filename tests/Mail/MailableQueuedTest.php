@@ -17,7 +17,7 @@ use Hypervel\Mail\Contracts\Mailable as MailableContract;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\Mailer;
 use Hypervel\Mail\SendQueuedMailable;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;

@@ -6,7 +6,7 @@ namespace Hypervel\Event;
 
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
-use Hypervel\Queue\Contracts\Factory as QueueFactoryContract;
+use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\ListenerProviderInterface;
 

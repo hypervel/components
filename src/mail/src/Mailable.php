@@ -22,7 +22,7 @@ use Hypervel\Mail\Contracts\Factory;
 use Hypervel\Mail\Contracts\Factory as MailFactory;
 use Hypervel\Mail\Contracts\Mailable as MailableContract;
 use Hypervel\Mail\Contracts\Mailer;
-use Hypervel\Queue\Contracts\Factory as QueueFactory;
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\Support\Renderable;
 use Hypervel\Support\HtmlString;

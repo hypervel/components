@@ -7,7 +7,7 @@ namespace Hypervel\Horizon\Repositories;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\Contracts\WorkloadRepository;
 use Hypervel\Horizon\WaitTimeCalculator;
-use Hypervel\Queue\Contracts\Factory as QueueFactory;
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Support\Str;
 
 class RedisWorkloadRepository implements WorkloadRepository

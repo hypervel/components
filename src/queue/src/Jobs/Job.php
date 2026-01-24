@@ -7,7 +7,7 @@ namespace Hypervel\Queue\Jobs;
 use Hyperf\Support\Traits\InteractsWithTime;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\Contracts\BatchRepository;
-use Hypervel\Queue\Contracts\Job as JobContract;
+use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Exceptions\ManuallyFailedException;
 use Hypervel\Queue\Exceptions\TimeoutExceededException;

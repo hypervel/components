@@ -8,7 +8,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Bus\Queueable;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use ReflectionClass;
 use ReflectionProperty;
 

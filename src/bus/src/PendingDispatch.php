@@ -10,7 +10,7 @@ use DateTimeInterface;
 use Hyperf\Context\ApplicationContext;
 use Hypervel\Bus\Contracts\Dispatcher;
 use Hypervel\Cache\Contracts\Factory as CacheFactory;
-use Hypervel\Queue\Contracts\ShouldBeUnique;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
 
 class PendingDispatch
 {

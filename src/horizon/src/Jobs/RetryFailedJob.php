@@ -6,7 +6,7 @@ namespace Hypervel\Horizon\Jobs;
 
 use Carbon\CarbonImmutable;
 use Hypervel\Horizon\Contracts\JobRepository;
-use Hypervel\Queue\Contracts\Factory as Queue;
+use Hypervel\Contracts\Queue\Factory as Queue;
 use Hypervel\Support\Str;
 
 class RetryFailedJob

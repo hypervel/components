@@ -7,7 +7,7 @@ namespace Hypervel\Telescope\Jobs;
 use Hypervel\Support\Collection;
 use Hypervel\Bus\Dispatchable;
 use Hypervel\Bus\Queueable;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\SerializesModels;
 use Hypervel\Telescope\Contracts\EntriesRepository;

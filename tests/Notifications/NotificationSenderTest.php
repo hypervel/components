@@ -11,7 +11,7 @@ use Hypervel\Notifications\ChannelManager;
 use Hypervel\Notifications\Notifiable;
 use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\NotificationSender;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface as EventDispatcher;

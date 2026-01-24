@@ -16,7 +16,7 @@ use Hypervel\Mail\Message;
 use Hypervel\Mail\SentMessage;
 use Hypervel\Notifications\Messages\MailMessage;
 use Hypervel\Notifications\Notification;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use RuntimeException;
 use Symfony\Component\Mailer\Header\MetadataHeader;
 use Symfony\Component\Mailer\Header\TagHeader;

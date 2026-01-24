@@ -13,7 +13,7 @@ use Hypervel\Encryption\Contracts\Encrypter;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Queue\Connectors\ConnectorInterface;
-use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\QueuePoolProxy;
 use Mockery as m;

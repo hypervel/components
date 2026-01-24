@@ -8,7 +8,7 @@ use Hyperf\Command\Command;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Stringable\Str;
 use Hypervel\Cache\Contracts\Factory as CacheFactory;
-use Hypervel\Queue\Contracts\Job;
+use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;

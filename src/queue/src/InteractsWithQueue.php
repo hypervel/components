@@ -7,7 +7,7 @@ namespace Hypervel\Queue;
 use DateInterval;
 use DateTimeInterface;
 use Hyperf\Support\Traits\InteractsWithTime;
-use Hypervel\Queue\Contracts\Job as JobContract;
+use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Queue\Exceptions\ManuallyFailedException;
 use Hypervel\Queue\Jobs\FakeJob;
 use PHPUnit\Framework\Assert as PHPUnit;

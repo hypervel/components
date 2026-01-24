@@ -644,12 +644,12 @@ class Application extends Container implements ApplicationContract
                 \Hypervel\Bus\Contracts\QueueingDispatcher::class,
                 \Hypervel\Bus\Dispatcher::class,
             ],
-            \Hypervel\Queue\Contracts\Factory::class => [
+            \Hypervel\Contracts\Queue\Factory::class => [
                 'queue',
-                \Hypervel\Queue\Contracts\Monitor::class,
+                \Hypervel\Contracts\Queue\Monitor::class,
                 \Hypervel\Queue\QueueManager::class,
             ],
-            \Hypervel\Queue\Contracts\Queue::class => ['queue.connection'],
+            \Hypervel\Contracts\Queue\Queue::class => ['queue.connection'],
             \Hypervel\Queue\Worker::class => ['queue.worker'],
             \Hypervel\Queue\Listener::class => ['queue.listener'],
             \Hypervel\Queue\Failed\FailedJobProviderInterface::class => ['queue.failer'],

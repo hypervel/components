@@ -26,7 +26,7 @@ use Hypervel\Cache\Contracts\Factory as Cache;
 use Hypervel\Foundation\Http\Kernel;
 use Hypervel\Foundation\Http\Middleware\VerifyCsrfToken;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
-use Hypervel\Queue\Contracts\Factory as Queue;
+use Hypervel\Contracts\Queue\Factory as Queue;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;

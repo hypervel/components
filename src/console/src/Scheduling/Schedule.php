@@ -21,8 +21,8 @@ use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Foundation\Contracts\Application;
 use Hypervel\Queue\CallQueuedClosure;
-use Hypervel\Queue\Contracts\ShouldBeUnique;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldBeUnique;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Support\ProcessUtils;
 use RuntimeException;
 

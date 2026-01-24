@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Exceptions;
 
-use Hypervel\Queue\Contracts\Job;
+use Hypervel\Contracts\Queue\Job;
 use RuntimeException;
 
 use function Hyperf\Tappable\tap;

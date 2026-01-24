@@ -10,7 +10,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hyperf\Command\Command;
 use Hypervel\Encryption\Contracts\Encrypter;
-use Hypervel\Queue\Contracts\Factory as QueueFactory;
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Queue\Events\JobRetryRequested;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Queue\Contracts;
+namespace Hypervel\Contracts\Queue;
 
 interface Monitor
 {

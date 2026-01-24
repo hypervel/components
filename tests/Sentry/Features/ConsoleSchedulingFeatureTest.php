@@ -9,7 +9,7 @@ use Hypervel\Bus\Queueable;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Sentry\Features\ConsoleSchedulingFeature;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use RuntimeException;

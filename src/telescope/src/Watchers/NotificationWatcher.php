@@ -7,7 +7,7 @@ namespace Hypervel\Telescope\Watchers;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\Events\NotificationSent;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\FormatModel;
 use Hypervel\Telescope\IncomingEntry;

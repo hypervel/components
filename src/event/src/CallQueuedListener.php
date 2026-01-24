@@ -8,8 +8,8 @@ use DateInterval;
 use DateTimeInterface;
 use Hyperf\Context\ApplicationContext;
 use Hypervel\Bus\Queueable;
-use Hypervel\Queue\Contracts\Job;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\Job;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Throwable;
 

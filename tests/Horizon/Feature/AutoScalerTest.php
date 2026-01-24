@@ -10,7 +10,7 @@ use Hypervel\Horizon\RedisQueue;
 use Hypervel\Horizon\Supervisor;
 use Hypervel\Horizon\SupervisorOptions;
 use Hypervel\Horizon\SystemProcessCounter;
-use Hypervel\Queue\Contracts\Factory as QueueFactory;
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Mockery;
 

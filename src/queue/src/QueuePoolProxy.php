@@ -7,8 +7,8 @@ namespace Hypervel\Queue;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\ObjectPool\PoolProxy;
-use Hypervel\Queue\Contracts\Job;
-use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Contracts\Queue\Job;
+use Hypervel\Contracts\Queue\Queue;
 
 class QueuePoolProxy extends PoolProxy implements Queue
 {
