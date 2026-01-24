@@ -27,7 +27,7 @@ use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\Exceptions\MaxAttemptsExceededException;
 use Hypervel\Queue\Exceptions\TimeoutExceededException;
 use Hypervel\Support\Carbon;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Event\Contracts\Dispatcher as EventDispatcher;
 use Throwable;
 
 class Worker
@@ -112,14 +112,14 @@ class Worker
      * Create a new queue worker.
      *
      * @param QueueManager $manager the queue manager instance
-     * @param EventDispatcherInterface $events the event dispatcher instance
+     * @param EventDispatcher $events the event dispatcher instance
      * @param ExceptionHandlerContract $exceptions the exception handler instance
      * @param callable $isDownForMaintenance the callback used to determine if the application is in maintenance mode
      * @param int $monitorInterval the monitor interval
      */
     public function __construct(
         protected QueueManager $manager,
-        protected EventDispatcherInterface $events,
+        protected EventDispatcher $events,
         protected ExceptionHandlerContract $exceptions,
         callable $isDownForMaintenance,
         ?callable $monitorTimeoutJobs = null,
@@ -312,7 +312,7 @@ class Worker
     {
         return ! ((($this->isDownForMaintenance)() && ! $options->force)
             || $this->paused
-            || ! tap($this->events->dispatch(new Looping($connectionName, $queue)), fn ($event) => $event->shouldRun()));
+            || $this->events->until(new Looping($connectionName, $queue)) === false);
     }
 
     /**

@@ -119,8 +119,8 @@ class DatabaseUuidFailedJobProvider implements CountableFailedJobProvider, Faile
     public function count(?string $connection = null, ?string $queue = null): int
     {
         return $this->getTable()
-            ->when($connection, fn ($builder) => $builder->whereConnection($connection))
-            ->when($queue, fn ($builder) => $builder->whereQueue($queue))
+            ->when($connection, fn ($builder) => $builder->where('connection', $connection))
+            ->when($queue, fn ($builder) => $builder->where('queue', $queue))
             ->count();
     }
 

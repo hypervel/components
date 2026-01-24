@@ -27,9 +27,9 @@ class ModelWatcherTest extends FeatureTestCase
                 ModelWatcher::class => [
                     'enabled' => true,
                     'events' => [
-                        \Hyperf\Database\Model\Events\Created::class,
-                        \Hyperf\Database\Model\Events\Updated::class,
-                        \Hyperf\Database\Model\Events\Retrieved::class,
+                        \Hypervel\Database\Eloquent\Events\Created::class,
+                        \Hypervel\Database\Eloquent\Events\Updated::class,
+                        \Hypervel\Database\Eloquent\Events\Retrieved::class,
                     ],
                     'hydrations' => true,
                 ],

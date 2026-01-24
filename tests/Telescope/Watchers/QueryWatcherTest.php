@@ -121,7 +121,19 @@ Data: {
 SQL,
             ['kp_id' => '=ABC001'],
             500,
-            new Connection('filemaker'),
+            new class (fn () => null, '', '', ['name' => 'filemaker']) extends Connection {
+                public function getName(): string
+                {
+                    return $this->config['name'];
+                }
+
+                public function getPdo(): \PDO
+                {
+                    $e = new \PDOException('Driver does not support this function');
+                    (new \ReflectionProperty(\Exception::class, 'code'))->setValue($e, 'IM001');
+                    throw $e;
+                }
+            },
         );
 
         $sql = $this->app->get(QueryWatcher::class)->replaceBindings($event);

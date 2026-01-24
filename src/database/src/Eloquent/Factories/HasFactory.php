@@ -35,7 +35,7 @@ trait HasFactory
      */
     protected static function newFactory(): ?Factory
     {
-        if (isset(static::$factory)) {
+        if (isset(static::$factory)) { // @phpstan-ignore staticProperty.notFound (optional property for legacy factory pattern)
             return static::$factory::new();
         }
 

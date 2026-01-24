@@ -81,6 +81,7 @@ class AutoScaler
      */
     protected function numberOfWorkersPerQueue(Supervisor $supervisor, Collection $queues): Collection
     {
+        /** @var float $timeToClearAll */
         $timeToClearAll = $queues->sum('time');
         $totalJobs = $queues->sum('size');
 
