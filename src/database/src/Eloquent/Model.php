@@ -6,7 +6,7 @@ namespace Hypervel\Database\Eloquent;
 
 use ArrayAccess;
 use Closure;
-use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
+use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
 use Hypervel\Context\Context;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;

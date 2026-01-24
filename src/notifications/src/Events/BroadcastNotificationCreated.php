@@ -6,7 +6,7 @@ namespace Hypervel\Notifications\Events;
 
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
-use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
+use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Broadcasting\PrivateChannel;
 use Hypervel\Bus\Queueable;
 use Hypervel\Notifications\AnonymousNotifiable;

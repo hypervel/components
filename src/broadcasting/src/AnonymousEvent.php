@@ -6,7 +6,7 @@ namespace Hypervel\Broadcasting;
 
 use Hypervel\Support\Arr;
 use Hypervel\Contracts\Support\Arrayable;
-use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
+use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Foundation\Events\Dispatchable;
 
 class AnonymousEvent implements ShouldBroadcast

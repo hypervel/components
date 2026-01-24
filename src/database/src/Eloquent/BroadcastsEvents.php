@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent;
 
 use Hypervel\Broadcasting\Channel;
-use Hypervel\Broadcasting\Contracts\Factory as BroadcastFactory;
-use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
+use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
+use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
 use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Support\Arr;
 

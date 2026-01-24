@@ -6,7 +6,7 @@ namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Support\Collection;
 use Hyperf\Stringable\Str;
-use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
+use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Queue\Contracts\ShouldQueue;
 use Hypervel\Telescope\ExtractProperties;
 use Hypervel\Telescope\ExtractTags;

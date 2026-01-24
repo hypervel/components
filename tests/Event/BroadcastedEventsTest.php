@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Event;
 
-use Hypervel\Broadcasting\Contracts\Factory as BroadcastFactory;
-use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
+use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
+use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
 use Mockery as m;

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent;
 
 use Hypervel\Support\Collection;
-use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
+use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Broadcasting\InteractsWithSockets;
 use Hypervel\Broadcasting\PrivateChannel;
 use Hypervel\Queue\SerializesModels;

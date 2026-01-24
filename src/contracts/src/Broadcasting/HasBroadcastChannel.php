@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Broadcasting\Contracts;
+namespace Hypervel\Contracts\Broadcasting;
 
 interface HasBroadcastChannel
 {

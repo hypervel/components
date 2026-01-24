@@ -12,7 +12,7 @@ use Hyperf\ViewEngine\Contract\ViewInterface;
 use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
 use Hypervel\Auth\Contracts\Gate;
 use Hypervel\Auth\Contracts\Guard;
-use Hypervel\Broadcasting\Contracts\Factory as BroadcastFactory;
+use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
 use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Bus\PendingClosureDispatch;
 use Hypervel\Bus\PendingDispatch;
