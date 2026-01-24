@@ -28,7 +28,7 @@ use Hypervel\Support\Carbon;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Event\Contracts\Dispatcher as EventDispatcher;
 use RuntimeException;
 use Throwable;
 
@@ -40,7 +40,7 @@ class QueueWorkerTest extends TestCase
 {
     use RunTestsInCoroutine;
 
-    protected EventDispatcherInterface $events;
+    protected EventDispatcher $events;
 
     protected ExceptionHandlerContract $exceptionHandler;
 
@@ -48,11 +48,11 @@ class QueueWorkerTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->events = m::spy(EventDispatcherInterface::class);
+        $this->events = m::spy(EventDispatcher::class);
         $this->exceptionHandler = m::spy(ExceptionHandlerContract::class);
         $this->container = new Container(
             new DefinitionSource([
-                EventDispatcherInterface::class => fn () => $this->events,
+                EventDispatcher::class => fn () => $this->events,
                 ExceptionHandlerContract::class => fn () => $this->exceptionHandler,
             ])
         );
