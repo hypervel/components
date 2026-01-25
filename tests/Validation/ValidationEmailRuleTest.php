@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Validation;
 use Hypervel\Support\Arr;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Translation\ArrayLoader;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rule;
 use Hypervel\Validation\Rules\Email;

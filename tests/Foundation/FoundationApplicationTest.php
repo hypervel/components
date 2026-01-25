@@ -14,7 +14,7 @@ use Hypervel\Support\Environment;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use stdClass;

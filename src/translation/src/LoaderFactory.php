@@ -6,7 +6,7 @@ namespace Hypervel\Translation;
 
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Contracts\Application as ApplicationContract;
-use Hypervel\Translation\Contracts\Loader as LoaderContract;
+use Hypervel\Contracts\Translation\Loader as LoaderContract;
 use Psr\Container\ContainerInterface;
 
 class LoaderFactory

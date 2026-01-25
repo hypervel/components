@@ -6,7 +6,7 @@ namespace Hypervel\Translation;
 
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
-use Hypervel\Translation\Contracts\Loader;
+use Hypervel\Contracts\Translation\Loader;
 use RuntimeException;
 
 class FileLoader implements Loader

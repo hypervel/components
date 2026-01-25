@@ -6,7 +6,7 @@ namespace Hypervel\Validation\Contracts;
 
 use Hypervel\Contracts\Support\MessageProvider;
 use Hypervel\Support\MessageBag;
-use Hypervel\Translation\Contracts\Translator;
+use Hypervel\Contracts\Translation\Translator;
 use Hypervel\Validation\ValidationException;
 
 interface Validator extends MessageProvider

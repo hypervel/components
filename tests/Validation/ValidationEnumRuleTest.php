@@ -8,7 +8,7 @@ use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Translation\ArrayLoader;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rules\Enum;
 use Hypervel\Validation\Validator;

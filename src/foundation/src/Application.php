@@ -585,11 +585,11 @@ class Application extends Container implements ApplicationContract
                 'filesystem',
                 \Hypervel\Filesystem\FilesystemManager::class,
             ],
-            \Hypervel\Translation\Contracts\Loader::class => [
+            \Hypervel\Contracts\Translation\Loader::class => [
                 'translator.loader',
                 \Hyperf\Contract\TranslatorLoaderInterface::class,
             ],
-            \Hypervel\Translation\Contracts\Translator::class => [
+            \Hypervel\Contracts\Translation\Translator::class => [
                 'translator',
                 \Hyperf\Contract\TranslatorInterface::class,
             ],

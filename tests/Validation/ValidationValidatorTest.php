@@ -22,7 +22,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Stringable;
 use Hypervel\Translation\ArrayLoader;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Contracts\DataAwareRule;
 use Hypervel\Validation\Contracts\ImplicitRule;

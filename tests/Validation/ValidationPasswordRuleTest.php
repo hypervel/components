@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Validation;
 
 use Hypervel\Testbench\TestCase;
 use Hypervel\Translation\ArrayLoader;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Contracts\Rule as RuleContract;
 use Hypervel\Validation\Contracts\UncompromisedVerifier;

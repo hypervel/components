@@ -13,7 +13,7 @@ use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\Contracts\Dispatcher as NotificationDispatcher;
 use Hypervel\Notifications\Contracts\Factory as NotificationFactory;
 use Hypervel\Support\Traits\ReflectsClosures;
-use Hypervel\Translation\Contracts\HasLocalePreference;
+use Hypervel\Contracts\Translation\HasLocalePreference;
 use PHPUnit\Framework\Assert as PHPUnit;
 
 class NotificationFake implements Fake, NotificationDispatcher, NotificationFactory

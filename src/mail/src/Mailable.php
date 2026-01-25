@@ -27,7 +27,7 @@ use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Contracts\Support\Renderable;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Traits\Localizable;
-use Hypervel\Translation\Contracts\HasLocalePreference;
+use Hypervel\Contracts\Translation\HasLocalePreference;
 use PHPUnit\Framework\Assert as PHPUnit;
 use ReflectionClass;
 use ReflectionException;

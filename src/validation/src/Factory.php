@@ -6,7 +6,7 @@ namespace Hypervel\Validation;
 
 use Closure;
 use Hypervel\Support\Str;
-use Hypervel\Translation\Contracts\Translator;
+use Hypervel\Contracts\Translation\Translator;
 use Hypervel\Validation\Contracts\Factory as FactoryContract;
 use Psr\Container\ContainerInterface;
 

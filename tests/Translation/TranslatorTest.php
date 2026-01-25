@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Translation;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
-use Hypervel\Translation\Contracts\Loader;
+use Hypervel\Contracts\Translation\Loader;
 use Hypervel\Translation\MessageSelector;
 use Hypervel\Translation\Translator;
 use Mockery as m;

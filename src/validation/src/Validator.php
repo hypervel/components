@@ -14,7 +14,7 @@ use Hypervel\Support\MessageBag;
 use Hypervel\Support\Str;
 use Hypervel\Support\StrCache;
 use Hypervel\Support\ValidatedInput;
-use Hypervel\Translation\Contracts\Translator;
+use Hypervel\Contracts\Translation\Translator;
 use Hypervel\Validation\Contracts\DataAwareRule;
 use Hypervel\Validation\Contracts\ImplicitRule;
 use Hypervel\Validation\Contracts\Rule;

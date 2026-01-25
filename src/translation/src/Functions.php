@@ -6,7 +6,7 @@ namespace Hypervel\Translation;
 
 use Countable;
 use Hyperf\Context\ApplicationContext;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 
 /**
  * Translate the given message.

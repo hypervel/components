@@ -13,7 +13,7 @@ use Hypervel\Notifications\Events\NotificationSending;
 use Hypervel\Notifications\Events\NotificationSent;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Support\Traits\Localizable;
-use Hypervel\Translation\Contracts\HasLocalePreference;
+use Hypervel\Contracts\Translation\HasLocalePreference;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 use function Hyperf\Support\value;

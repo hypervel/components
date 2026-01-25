@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Translation\Contracts;
+namespace Hypervel\Contracts\Translation;
 
 interface HasLocalePreference
 {
