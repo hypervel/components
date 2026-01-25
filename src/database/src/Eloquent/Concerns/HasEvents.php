@@ -27,7 +27,7 @@ use Hypervel\Database\Eloquent\Events\Updated;
 use Hypervel\Database\Eloquent\Events\Updating;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelListener;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use ReflectionClass;

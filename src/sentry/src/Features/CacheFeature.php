@@ -18,7 +18,7 @@ use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Sentry\Integrations\Integration;
 use Hypervel\Sentry\Traits\ResolvesEventOrigin;
 use Hypervel\Sentry\Traits\TracksPushedScopesAndSpans;

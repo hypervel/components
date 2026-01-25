@@ -9,7 +9,7 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Redis\Event\CommandExecuted;
 use Hyperf\Redis\Pool\PoolFactory;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Sentry\Traits\ResolvesEventOrigin;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Support\Str;

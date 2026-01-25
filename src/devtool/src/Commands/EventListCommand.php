@@ -6,7 +6,7 @@ namespace Hypervel\Devtool\Commands;
 
 use Closure;
 use Hyperf\Command\Command as HyperfCommand;
-use Hypervel\Event\Contracts\Dispatcher as EventDispatcherContract;
+use Hypervel\Contracts\Event\Dispatcher as EventDispatcherContract;
 use Hypervel\Event\ListenerData;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;

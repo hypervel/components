@@ -28,7 +28,7 @@ use Hypervel\Support\Carbon;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
-use Hypervel\Event\Contracts\Dispatcher as EventDispatcher;
+use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
 use RuntimeException;
 use Throwable;
 

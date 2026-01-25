@@ -22,7 +22,7 @@ use Hypervel\Database\Eloquent\Events\Saving;
 use Hypervel\Database\Eloquent\Events\Trashed;
 use Hypervel\Database\Eloquent\Events\Updated;
 use Hypervel\Database\Eloquent\Events\Updating;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;
 

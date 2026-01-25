@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Event\Contracts;
+namespace Hypervel\Contracts\Event;
 
 use Closure;
 use Hypervel\Event\ListenerData;

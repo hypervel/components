@@ -27,7 +27,7 @@ use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\Exceptions\MaxAttemptsExceededException;
 use Hypervel\Queue\Exceptions\TimeoutExceededException;
 use Hypervel\Support\Carbon;
-use Hypervel\Event\Contracts\Dispatcher as EventDispatcher;
+use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
 use Throwable;
 
 class Worker

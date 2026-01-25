@@ -6,7 +6,7 @@ namespace Hypervel\Event;
 
 use Closure;
 use Hyperf\Support\Traits\ForwardsCalls;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
 
 class NullDispatcher implements Dispatcher
 {

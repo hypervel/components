@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Core;
 use Hypervel\Database\Eloquent\Events\Created;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelListener;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Horizon\Feature\Listeners;
 
 use Exception;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Horizon\Events\JobFailed;
 use Hypervel\Queue\Jobs\Job;

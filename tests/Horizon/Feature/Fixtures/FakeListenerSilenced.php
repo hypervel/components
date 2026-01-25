@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Horizon\Feature\Fixtures;
 
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Horizon\Contracts\Silenced;
 
 class FakeListenerSilenced implements Silenced

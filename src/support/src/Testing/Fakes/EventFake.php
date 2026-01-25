@@ -9,7 +9,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hyperf\Stringable\Str;
 use Hyperf\Support\Traits\ForwardsCalls;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Event\ListenerData;
 use Hypervel\Event\QueuedClosure;
 use Hypervel\Support\Traits\ReflectsClosures;

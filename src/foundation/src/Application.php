@@ -561,7 +561,7 @@ class Application extends Container implements ApplicationContract
             ],
             \Psr\EventDispatcher\EventDispatcherInterface::class => [
                 'events',
-                \Hypervel\Event\Contracts\Dispatcher::class,
+                \Hypervel\Contracts\Event\Dispatcher::class,
             ],
             \Hyperf\HttpServer\Router\DispatcherFactory::class => ['router'],
             \Psr\Log\LoggerInterface::class => [
