@@ -33,9 +33,6 @@
         "sort-packages": true
     },
     "extra": {
-        "hyperf": {
-            "config": "Hypervel\\Pagination\\ConfigProvider"
-        },
         "hypervel": {
             "providers": [
                 "Hypervel\\Pagination\\PaginationServiceProvider"

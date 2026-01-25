@@ -269,7 +269,6 @@
                 "Hypervel\\Log\\ConfigProvider",
                 "Hypervel\\Mail\\ConfigProvider",
                 "Hypervel\\Notifications\\ConfigProvider",
-                "Hypervel\\Pagination\\ConfigProvider",
                 "Hypervel\\Queue\\ConfigProvider",
                 "Hypervel\\Redis\\ConfigProvider",
                 "Hypervel\\Router\\ConfigProvider",
