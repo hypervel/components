@@ -7,7 +7,7 @@ namespace Hypervel\Mail;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Macroable\Macroable;
+use Hypervel\Support\Traits\Macroable;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
 use Hypervel\Contracts\Mail\Mailable;
 use Hypervel\Contracts\Mail\Mailable as MailableContract;

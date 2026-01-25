@@ -7,7 +7,7 @@ namespace Hypervel\Support;
 use ArgumentCountError;
 use ArrayAccess;
 use Closure;
-use Hyperf\Macroable\Macroable;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Enumerable;
 use Hypervel\Support\ItemNotFoundException;
 use Hypervel\Support\MultipleItemsFoundException;

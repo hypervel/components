@@ -7,7 +7,7 @@ namespace Hypervel\Support\Testing\Fakes;
 use Closure;
 use Exception;
 use Hypervel\Support\Collection;
-use Hyperf\Macroable\Macroable;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Str;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Contracts\Notifications\Dispatcher as NotificationDispatcher;

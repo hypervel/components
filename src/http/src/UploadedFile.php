@@ -8,7 +8,7 @@ use Hypervel\Support\Arr;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\HttpMessage\Stream\StandardStream;
 use Hyperf\HttpMessage\Upload\UploadedFile as HyperfUploadedFile;
-use Hyperf\Macroable\Macroable;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Str;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Http\Exceptions\CannotWriteFileException;

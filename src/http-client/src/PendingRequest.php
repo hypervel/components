@@ -18,7 +18,7 @@ use GuzzleHttp\TransferStats;
 use GuzzleHttp\UriTemplate\UriTemplate;
 use Hyperf\Conditionable\Conditionable;
 use Hypervel\Contracts\Support\Arrayable;
-use Hyperf\Macroable\Macroable;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Str;
 use Hypervel\Support\Stringable;
 use Hypervel\HttpClient\Events\ConnectionFailed;

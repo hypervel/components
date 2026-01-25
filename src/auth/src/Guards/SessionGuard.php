@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Auth\Guards;
 
 use Hyperf\Context\Context;
-use Hyperf\Macroable\Macroable;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Auth\UserProvider;

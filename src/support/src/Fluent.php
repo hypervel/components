@@ -7,7 +7,7 @@ namespace Hypervel\Support;
 use ArrayAccess;
 use ArrayIterator;
 use Hyperf\Conditionable\Conditionable;
-use Hyperf\Macroable\Macroable;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Support\Arr;

@@ -7,7 +7,7 @@ namespace Hypervel\Foundation;
 use Closure;
 use Hypervel\Support\Arr;
 use Hyperf\Di\Definition\DefinitionSourceInterface;
-use Hyperf\Macroable\Macroable;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\Container\Container;
 use Hypervel\Container\DefinitionSourceFactory;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;

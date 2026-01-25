@@ -8,7 +8,7 @@ use Carbon\CarbonInterval;
 use Closure;
 use DateInterval;
 use Hypervel\Support\Collection;
-use Hyperf\Macroable\Macroable;
+use Hypervel\Support\Traits\Macroable;
 use PHPUnit\Framework\Assert as PHPUnit;
 use RuntimeException;
 

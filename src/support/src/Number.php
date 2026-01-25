@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Hyperf\Context\Context;
-use Hyperf\Macroable\Macroable;
+use Hypervel\Support\Traits\Macroable;
 use NumberFormatter;
 use RuntimeException;
 

@@ -12,7 +12,7 @@ use Hypervel\Support\Collection;
 use Hyperf\Conditionable\Conditionable;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Macroable\Macroable;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Str;
 use Hyperf\Support\Traits\ForwardsCalls;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;

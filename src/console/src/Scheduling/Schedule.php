@@ -9,7 +9,7 @@ use Closure;
 use DateTimeInterface;
 use DateTimeZone;
 use Hypervel\Support\Collection;
-use Hyperf\Macroable\Macroable;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;

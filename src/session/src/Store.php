@@ -8,7 +8,7 @@ use Closure;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hyperf\Context\Context;
-use Hyperf\Macroable\Macroable;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Str;
 use Hyperf\Support\MessageBag;
 use Hyperf\ViewEngine\ViewErrorBag;

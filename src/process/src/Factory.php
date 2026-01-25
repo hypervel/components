@@ -6,7 +6,7 @@ namespace Hypervel\Process;
 
 use Closure;
 use Hypervel\Support\Collection;
-use Hyperf\Macroable\Macroable;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\Process\Contracts\ProcessResult as ProcessResultContract;
 use PHPUnit\Framework\Assert as PHPUnit;
 

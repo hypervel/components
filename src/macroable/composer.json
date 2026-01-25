@@ -1,13 +1,11 @@
 {
-    "name": "hypervel/http-client",
+    "name": "hypervel/macroable",
     "type": "library",
-    "description": "The http client package for Hypervel.",
+    "description": "The Hypervel Macroable package.",
     "license": "MIT",
     "keywords": [
         "php",
-        "hyperf",
-        "swoole",
-        "http-client",
+        "macroable",
         "hypervel"
     ],
     "authors": [
@@ -22,15 +20,11 @@
     },
     "autoload": {
         "psr-4": {
-            "Hypervel\\HttpClient\\": "src/"
+            "Hypervel\\Support\\": "src/"
         }
     },
     "require": {
-        "php": "^8.2",
-        "hypervel/macroable": "~0.3.0",
-        "guzzlehttp/guzzle": "^7.8.2",
-        "guzzlehttp/uri-template": "^1.0",
-        "hypervel/support": "^0.3"
+        "php": "^8.2"
     },
     "config": {
         "sort-packages": true

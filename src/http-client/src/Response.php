@@ -9,7 +9,7 @@ use Closure;
 use GuzzleHttp\Cookie\CookieJar;
 use GuzzleHttp\Psr7\StreamWrapper;
 use GuzzleHttp\TransferStats;
-use Hyperf\Macroable\Macroable;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\HttpClient\Concerns\DeterminesStatusCode;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
