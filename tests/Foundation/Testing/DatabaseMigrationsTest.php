@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Foundation\Testing;
 
 use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Testbench\TestCase;

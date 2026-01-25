@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Console\Command;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\CommandWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;

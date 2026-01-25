@@ -8,7 +8,7 @@ use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\DatabaseManager;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Foundation\Testing\RefreshDatabaseState;

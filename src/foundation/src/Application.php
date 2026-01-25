@@ -554,7 +554,7 @@ class Application extends Container implements ApplicationContract
                 \Hypervel\Contracts\Foundation\Application::class,
                 \Hypervel\Foundation\Application::class,
             ],
-            \Hypervel\Foundation\Console\Contracts\Kernel::class => ['artisan'],
+            \Hypervel\Contracts\Console\Kernel::class => ['artisan'],
             \Hyperf\Contract\ConfigInterface::class => [
                 'config',
                 \Hypervel\Contracts\Config\Repository::class,

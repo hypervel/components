@@ -11,7 +11,7 @@ use Hyperf\Support\Filesystem\Filesystem;
 use Hypervel\Contracts\Console\EventMutex;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;

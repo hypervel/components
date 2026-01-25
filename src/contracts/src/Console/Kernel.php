@@ -2,11 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Console\Contracts;
+namespace Hypervel\Contracts\Console;
 
 use Closure;
 use Hypervel\Console\ClosureCommand;
-use Hypervel\Contracts\Console\Application as ApplicationContract;
 use Hypervel\Console\Scheduling\Schedule;
 use Symfony\Component\Console\Output\OutputInterface;
 
@@ -88,10 +87,10 @@ interface Kernel
     /**
      * Set the Artisan application instance.
      */
-    public function setArtisan(ApplicationContract $artisan): void;
+    public function setArtisan(Application $artisan): void;
 
     /**
      * Get the Artisan application instance.
      */
-    public function getArtisan(): ApplicationContract;
+    public function getArtisan(): Application;
 }

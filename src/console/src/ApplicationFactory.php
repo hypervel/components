@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Console;
 
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Psr\Container\ContainerInterface;
 use Throwable;
 

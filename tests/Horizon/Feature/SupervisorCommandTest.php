@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Horizon\Feature;
 
-use Hypervel\Foundation\Console\Contracts\Kernel;
+use Hypervel\Contracts\Console\Kernel;
 use Hypervel\Horizon\Console\SupervisorCommand;
 use Hypervel\Horizon\SupervisorFactory;
 use Hypervel\Tests\Horizon\Feature\Fixtures\FakeSupervisorFactory;

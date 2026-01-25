@@ -21,7 +21,7 @@ use Hyperf\Tappable\Tappable;
 use Hypervel\Contracts\Console\EventMutex;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Context\Context;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Mail\Mailer;

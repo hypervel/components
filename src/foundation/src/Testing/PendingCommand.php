@@ -11,7 +11,7 @@ use Hypervel\Contracts\Support\Arrayable;
 use Hyperf\Macroable\Macroable;
 use Hyperf\Tappable\Tappable;
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Prompts\Note as PromptsNote;
 use Hypervel\Prompts\Prompt as BasePrompt;
 use Hypervel\Prompts\Table as PromptsTable;
