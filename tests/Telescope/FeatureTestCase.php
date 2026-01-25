@@ -10,7 +10,7 @@ use Hyperf\Contract\ConfigInterface;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\Queue;

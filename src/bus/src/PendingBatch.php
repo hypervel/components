@@ -12,7 +12,7 @@ use Hyperf\Conditionable\Conditionable;
 use Hyperf\Coroutine\Coroutine;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Bus\Events\BatchDispatched;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Laravel\SerializableClosure\SerializableClosure;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;

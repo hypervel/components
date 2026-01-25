@@ -15,7 +15,7 @@ use Hyperf\HttpServer\Event\RequestReceived;
 use Hyperf\HttpServer\Event\RequestTerminated;
 use Hyperf\HttpServer\Server as HyperfServer;
 use Hyperf\Support\SafeCaller;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Foundation\Exceptions\Handler as ExceptionHandler;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Foundation\Http\Traits\HasMiddleware;

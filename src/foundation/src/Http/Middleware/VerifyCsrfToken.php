@@ -8,7 +8,7 @@ use Hypervel\Support\Arr;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\HttpServer\Request;
 use Hypervel\Cookie\Cookie;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Http\Middleware\Concerns\ExcludesPaths;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Session\TokenMismatchException;

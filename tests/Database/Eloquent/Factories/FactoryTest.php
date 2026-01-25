@@ -14,7 +14,7 @@ use Hypervel\Database\Eloquent\Factories\Factory;
 use Hypervel\Database\Eloquent\Factories\HasFactory;
 use Hypervel\Database\Eloquent\Factories\Sequence;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Foundation\Contracts\Application;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Database\Fixtures\Models\Price;

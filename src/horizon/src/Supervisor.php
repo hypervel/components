@@ -8,7 +8,7 @@ use Carbon\CarbonImmutable;
 use Closure;
 use Exception;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Horizon\Contracts\HorizonCommandQueue;
 use Hypervel\Horizon\Contracts\Pausable;
 use Hypervel\Horizon\Contracts\Restartable;

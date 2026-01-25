@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\HttpClient;
 
-use Hypervel\Foundation\Contracts\Application;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Sentry\Version;
 
 class HttpClientFactory

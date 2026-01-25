@@ -8,7 +8,7 @@ use Closure;
 use Hypervel\Context\Context;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
-use Hypervel\Foundation\Contracts\Application;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;

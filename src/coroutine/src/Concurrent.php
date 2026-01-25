@@ -8,7 +8,7 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Coroutine\Concurrent as BaseConcurrent;
 use Hyperf\ExceptionHandler\Formatter\FormatterInterface;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Throwable;
 
 class Concurrent extends BaseConcurrent

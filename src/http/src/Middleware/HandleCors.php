@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Http\Middleware;
 
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Http\Contracts\RequestContract;
 use Hypervel\Http\Cors;
 use Hypervel\Support\Str;

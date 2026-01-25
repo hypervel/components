@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sentry;
 
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Sentry\SentryServiceProvider;
 use Hypervel\Testbench\ConfigProviderRegister;
 use ReflectionException;

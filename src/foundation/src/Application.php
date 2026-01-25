@@ -10,7 +10,7 @@ use Hyperf\Di\Definition\DefinitionSourceInterface;
 use Hyperf\Macroable\Macroable;
 use Hypervel\Container\Container;
 use Hypervel\Container\DefinitionSourceFactory;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Events\LocaleUpdated;
 use Hypervel\HttpMessage\Exceptions\HttpException;
 use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
@@ -551,7 +551,7 @@ class Application extends Container implements ApplicationContract
                 \Hyperf\Contract\ContainerInterface::class,
                 \Hypervel\Container\Contracts\Container::class,
                 \Hypervel\Container\Container::class,
-                \Hypervel\Foundation\Contracts\Application::class,
+                \Hypervel\Contracts\Foundation\Application::class,
                 \Hypervel\Foundation\Application::class,
             ],
             \Hypervel\Foundation\Console\Contracts\Kernel::class => ['artisan'],

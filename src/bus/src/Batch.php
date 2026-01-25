@@ -12,7 +12,7 @@ use Hypervel\Support\Enumerable;
 use Hyperf\Context\ApplicationContext;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Bus\BatchRepository;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use JsonSerializable;

@@ -19,7 +19,7 @@ use Hypervel\Contracts\Console\SchedulingMutex;
 use Hypervel\Container\BindingResolutionException;
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
-use Hypervel\Foundation\Contracts\Application;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 use Hypervel\Contracts\Queue\ShouldQueue;

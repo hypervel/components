@@ -22,8 +22,8 @@ use Hypervel\Contracts\Console\EventMutex;
 use Hypervel\Container\Contracts\Container;
 use Hypervel\Context\Context;
 use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Mail\Contracts\Mailer;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Traits\ReflectsClosures;
@@ -184,7 +184,7 @@ class Event
      */
     protected function runProcess(Container $container): int
     {
-        /** @var \Hypervel\Foundation\Contracts\Application $container */
+        /** @var \Hypervel\Contracts\Foundation\Application $container */
         $process = Process::fromShellCommandline(
             $this->command,
             $container->basePath()

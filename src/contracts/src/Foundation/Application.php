@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Contracts;
+namespace Hypervel\Contracts\Foundation;
 
 use Hypervel\Container\Contracts\Container;
 use Hypervel\HttpMessage\Exceptions\HttpException;

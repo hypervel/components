@@ -6,7 +6,7 @@ namespace Hypervel\Console;
 
 use Closure;
 use Hypervel\Context\ApplicationContext;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 
 use function Hyperf\Support\value;
 

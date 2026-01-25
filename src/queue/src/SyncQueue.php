@@ -7,7 +7,7 @@ namespace Hypervel\Queue;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Database\DatabaseTransactionsManager;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Queue\Events\JobExceptionOccurred;

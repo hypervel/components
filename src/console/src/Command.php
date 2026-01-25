@@ -16,7 +16,7 @@ use Hypervel\Contracts\Console\Isolatable;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Swoole\ExitException;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;

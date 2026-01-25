@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Permission;
 
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Testbench\TestCase;
 

@@ -10,7 +10,7 @@ use Hyperf\Contract\TranslatorLoaderInterface;
 use Hypervel\Database\Migrations\Migrator;
 use Hyperf\ViewEngine\Compiler\BladeCompiler;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactoryContract;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Router\RouteFileCollector;
 use Hypervel\Support\Facades\Artisan;
 

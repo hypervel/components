@@ -19,7 +19,7 @@ use Hypervel\Bus\PendingDispatch;
 use Hypervel\Container\Contracts\Container;
 use Hypervel\Contracts\Cookie\Cookie as CookieContract;
 use Hypervel\Foundation\Application;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Http\Contracts\RequestContract;
 use Hypervel\Http\Contracts\ResponseContract;
 use Hypervel\HttpMessage\Exceptions\HttpException;

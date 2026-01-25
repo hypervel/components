@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Factory;
 
-use Hypervel\Foundation\Contracts\Application;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Sentry\Hub;
 use Sentry\State\HubInterface;
 

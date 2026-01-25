@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent;
 
 use Hypervel\Database\Events\ModelsPruned;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use LogicException;
 use Throwable;
 

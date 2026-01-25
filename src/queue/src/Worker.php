@@ -10,7 +10,7 @@ use Hypervel\Database\DetectsLostConnections;
 use Hyperf\Stringable\Str;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Coroutine\Waiter;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Queue\Factory as QueueManager;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;

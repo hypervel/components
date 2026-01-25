@@ -18,7 +18,7 @@ use Hyperf\WebSocketServer\CoreMiddleware;
 use Hyperf\WebSocketServer\Exception\WebSocketHandShakeException;
 use Hyperf\WebSocketServer\Security;
 use Hyperf\WebSocketServer\Server as WebSocketServer;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Foundation\Exceptions\Handler as ExceptionHandler;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Foundation\Http\Traits\HasMiddleware;

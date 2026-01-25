@@ -16,7 +16,7 @@ use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Coroutine\Concurrent;
 use Hypervel\Coroutine\Waiter;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Sleep;

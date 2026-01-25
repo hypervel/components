@@ -16,7 +16,7 @@ use Hypervel\Container\Contracts\Container;
 use Hypervel\Event\Contracts\Dispatcher;
 use Hypervel\Foundation\Console\CliDumper;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Foundation\Http\HtmlDumper;
 use Hypervel\Http\Contracts\RequestContract;

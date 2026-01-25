@@ -8,7 +8,7 @@ use Closure;
 use Hyperf\Contract\ApplicationInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hyperf\Dispatcher\HttpDispatcher;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Foundation\Testing\Dispatcher\HttpDispatcher as TestingHttpDispatcher;
 use Mockery;

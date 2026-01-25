@@ -20,7 +20,7 @@ use Hypervel\Contracts\Console\Application as ApplicationContract;
 use Hypervel\Console\HasPendingCommand;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
-use Hypervel\Foundation\Contracts\Application as ContainerContract;
+use Hypervel\Contracts\Foundation\Application as ContainerContract;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\InputInterface;

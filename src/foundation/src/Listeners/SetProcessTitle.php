@@ -6,7 +6,7 @@ namespace Hypervel\Foundation\Listeners;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Server\Listener\InitProcessTitleListener;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 
 class SetProcessTitle extends InitProcessTitleListener
 {

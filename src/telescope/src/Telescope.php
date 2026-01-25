@@ -11,7 +11,7 @@ use Hypervel\Support\Collection;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Stringable\Str;
 use Hypervel\Context\Context;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Http\Contracts\RequestContract;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Support\Facades\Auth;

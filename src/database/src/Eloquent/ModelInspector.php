@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent;
 
 use Hypervel\Database\Eloquent\Relations\Relation;
-use Hypervel\Foundation\Contracts\Application;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Facades\Gate;
 use Hypervel\Support\Str;

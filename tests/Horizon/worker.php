@@ -12,7 +12,7 @@ use Hyperf\Coordinator\CoordinatorManager;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Horizon\HorizonServiceProvider;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
