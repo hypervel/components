@@ -13,7 +13,6 @@ use RuntimeException;
  * @internal
  * @coversNothing
  * @group integration
- * @group pgsql-integration
  */
 class TransactionsTest extends IntegrationTestCase
 {

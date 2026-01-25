@@ -32,15 +32,30 @@ abstract class DatabaseIntegrationTestCase extends TestCase
 
     protected function setUp(): void
     {
-        if (! env('RUN_DATABASE_INTEGRATION_TESTS', false)) {
+        $driver = $this->getDatabaseDriver();
+
+        if ($this->shouldSkipForDriver($driver)) {
             $this->markTestSkipped(
-                'Database integration tests are disabled. Set RUN_DATABASE_INTEGRATION_TESTS=true to enable.'
+                "Integration tests for {$driver} are disabled. Set the appropriate RUN_*_INTEGRATION_TESTS=true to enable."
             );
         }
 
         parent::setUp();
 
         $this->configureDatabase();
+    }
+
+    /**
+     * Determine if tests should be skipped for the given driver.
+     */
+    protected function shouldSkipForDriver(string $driver): bool
+    {
+        return match ($driver) {
+            'pgsql' => ! env('RUN_PGSQL_INTEGRATION_TESTS', false),
+            'mysql' => ! env('RUN_MYSQL_INTEGRATION_TESTS', false),
+            'sqlite' => false, // SQLite tests always run
+            default => true,
+        };
     }
 
     /**
@@ -63,8 +78,13 @@ abstract class DatabaseIntegrationTestCase extends TestCase
             default => throw new InvalidArgumentException("Unsupported driver: {$driver}"),
         };
 
+        // Set Hyperf-style config (used by DbPool/ConnectionResolver)
         $config->set("databases.{$driver}", $connectionConfig);
         $config->set('databases.default', $connectionConfig);
+
+        // Set Laravel-style config (used by RefreshDatabase trait)
+        $config->set("database.connections.{$driver}", $connectionConfig);
+        $config->set('database.default', $driver);
     }
 
     /**
@@ -140,7 +160,11 @@ abstract class DatabaseIntegrationTestCase extends TestCase
     }
 
     /**
-     * Get SQLite connection configuration (in-memory).
+     * Get SQLite connection configuration.
+     *
+     * Uses :memory: for fast in-memory testing. The RegisterSQLiteConnectionListener
+     * ensures all pooled connections share the same in-memory database by storing
+     * a persistent PDO in the container.
      *
      * @return array<string, mixed>
      */
@@ -180,5 +204,17 @@ abstract class DatabaseIntegrationTestCase extends TestCase
     protected function getRefreshConnection(): string
     {
         return $this->getDatabaseDriver();
+    }
+
+    /**
+     * The database connections that should have transactions.
+     *
+     * Override to use the test's driver instead of the default connection.
+     *
+     * @return array<int, string>
+     */
+    protected function connectionsToTransact(): array
+    {
+        return [$this->getDatabaseDriver()];
     }
 }

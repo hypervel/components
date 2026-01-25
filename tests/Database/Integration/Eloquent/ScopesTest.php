@@ -13,7 +13,6 @@ use Hypervel\Tests\Database\Integration\IntegrationTestCase;
  * @internal
  * @coversNothing
  * @group integration
- * @group pgsql-integration
  */
 class ScopesTest extends IntegrationTestCase
 {
@@ -210,6 +209,8 @@ class ScopeArticle extends Model
     protected ?string $table = 'scope_articles';
 
     protected array $fillable = ['title', 'status', 'category', 'views', 'is_featured', 'author_id'];
+
+    protected array $casts = ['is_featured' => 'boolean'];
 
     public function scopePublished(Builder $query): Builder
     {

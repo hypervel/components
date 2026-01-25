@@ -5,7 +5,7 @@ declare(strict_types=1);
 use Hypervel\Support\Str;
 
 return [
-    'default' => env('DB_CONNECTION', 'pgsql'),
+    'default' => env('DB_CONNECTION', 'sqlite'),
     'connections' => [
         'sqlite' => [
             'driver' => 'sqlite',

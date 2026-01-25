@@ -12,7 +12,6 @@ use Hypervel\Tests\Database\Integration\IntegrationTestCase;
  * @internal
  * @coversNothing
  * @group integration
- * @group pgsql-integration
  */
 class QueryBuilderTest extends IntegrationTestCase
 {

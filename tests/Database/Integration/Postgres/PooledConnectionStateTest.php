@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Integration;
+namespace Hypervel\Tests\Database\Integration\Postgres;
 
 use Hypervel\Database\Connection;
 use Hypervel\Database\Pool\PooledConnection;
@@ -23,7 +23,7 @@ use function Hypervel\Coroutine\run;
  * @group integration
  * @group pgsql-integration
  */
-class PooledConnectionStateTest extends IntegrationTestCase
+class PooledConnectionStateTest extends PostgresIntegrationTestCase
 {
     /**
      * Helper to get a PooledConnection directly from the pool.

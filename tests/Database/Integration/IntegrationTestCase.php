@@ -23,7 +23,7 @@ abstract class IntegrationTestCase extends DatabaseIntegrationTestCase
 
     protected function getDatabaseDriver(): string
     {
-        return 'pgsql';
+        return 'sqlite';
     }
 
     protected function migrateFreshUsing(): array

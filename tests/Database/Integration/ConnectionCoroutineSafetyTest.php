@@ -26,7 +26,6 @@ use function Hypervel\Coroutine\run;
  * @internal
  * @coversNothing
  * @group integration
- * @group pgsql-integration
  */
 class ConnectionCoroutineSafetyTest extends IntegrationTestCase
 {
