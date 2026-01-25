@@ -8,7 +8,7 @@ use Closure;
 use Hypervel\Support\Arr;
 use Hyperf\Support\Traits\InteractsWithTime;
 use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Cache\Exceptions\InvalidArgumentException;
+use Hypervel\Contracts\Cache\InvalidArgumentException;
 use Hypervel\Cache\RateLimiter;
 use Hypervel\Cache\RateLimiting\Unlimited;
 use Hypervel\HttpMessage\Exceptions\HttpResponseException;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Cache\Exceptions;
+namespace Hypervel\Contracts\Cache;
 
 class InvalidArgumentException extends \InvalidArgumentException
 {
