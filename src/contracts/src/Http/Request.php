@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Http\Contracts;
+namespace Hypervel\Contracts\Http;
 
 use Carbon\Carbon;
 use Carbon\Exceptions\InvalidFormatException;
@@ -15,7 +15,7 @@ use Hypervel\Support\Uri;
 use Psr\Http\Message\ServerRequestInterface;
 use Stringable;
 
-interface RequestContract extends RequestInterface
+interface Request extends RequestInterface
 {
     /**
      * Retrieve normalized file upload data.

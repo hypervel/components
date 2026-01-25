@@ -6,7 +6,7 @@ namespace Hypervel\Telescope;
 
 use Closure;
 use Hyperf\Context\ApplicationContext;
-use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Support\Environment;
 
 trait AuthorizesRequests

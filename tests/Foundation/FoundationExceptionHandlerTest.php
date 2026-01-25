@@ -22,7 +22,7 @@ use Hyperf\ViewEngine\ViewErrorBag;
 use Hypervel\Config\Repository;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Foundation\Exceptions\Handler;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;

@@ -9,7 +9,7 @@ use Hyperf\Command\Event\AfterExecute as AfterExecuteCommand;
 use Hyperf\Command\Event\BeforeHandle as BeforeHandleCommand;
 use Hyperf\Context\Context;
 use Hyperf\HttpServer\Event\RequestReceived;
-use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;

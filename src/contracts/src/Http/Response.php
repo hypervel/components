@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Http\Contracts;
+namespace Hypervel\Contracts\Http;
 
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hyperf\HttpServer\Contract\ResponseInterface as HyperfResponseInterface;
 use Psr\Http\Message\ResponseInterface;
 
-interface ResponseContract extends HyperfResponseInterface
+interface Response extends HyperfResponseInterface
 {
     /**
      * Create a new response instance.

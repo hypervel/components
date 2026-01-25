@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Socialite;
 
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Socialite\One\MissingTemporaryCredentialsException;
 use Hypervel\Socialite\One\MissingVerifierException;

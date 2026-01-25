@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
 
 /**
  * @method static \Psr\Http\Message\ResponseInterface make(mixed $content = '', int $status = 200, array $headers = [])

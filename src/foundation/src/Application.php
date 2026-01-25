@@ -597,9 +597,9 @@ class Application extends Container implements ApplicationContract
                 'request',
                 \Hyperf\HttpServer\Contract\RequestInterface::class,
                 \Hyperf\HttpServer\Request::class,
-                \Hypervel\Http\Contracts\RequestContract::class,
+                \Hypervel\Contracts\Http\Request::class,
             ],
-            \Hypervel\Http\Contracts\ResponseContract::class => [
+            \Hypervel\Contracts\Http\Response::class => [
                 'response',
                 \Hyperf\HttpServer\Contract\ResponseInterface::class,
                 \Hyperf\HttpServer\Response::class,

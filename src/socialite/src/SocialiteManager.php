@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Socialite;
 
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
 use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Socialite\Exceptions\DriverMissingConfigurationException;
 use Hypervel\Socialite\Two\BitbucketProvider;

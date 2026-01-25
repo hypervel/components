@@ -19,7 +19,7 @@ use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Foundation\Http\HtmlDumper;
-use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Uri;

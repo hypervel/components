@@ -12,7 +12,7 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Stringable\Str;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Debug\ExceptionHandler;
-use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Telescope\Contracts\EntriesRepository;

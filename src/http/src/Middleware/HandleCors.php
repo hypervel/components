@@ -6,7 +6,7 @@ namespace Hypervel\Http\Middleware;
 
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Http\Cors;
 use Hypervel\Support\Str;
 use Psr\Container\ContainerInterface;

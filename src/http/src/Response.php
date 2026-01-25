@@ -16,7 +16,7 @@ use Hyperf\HttpMessage\Stream\SwooleStream;
 use Hyperf\HttpServer\Response as HyperfResponse;
 use Hyperf\Support\Filesystem\Filesystem;
 use Hyperf\View\RenderInterface;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
 use Hypervel\Http\Exceptions\FileNotFoundException;
 use Hypervel\Support\Collection;
 use Hypervel\Support\MimeTypeExtensionGuesser;

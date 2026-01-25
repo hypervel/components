@@ -24,7 +24,7 @@ use Hypervel\Contracts\Foundation\Application as Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Foundation\ExceptionRenderer;
 use Hypervel\Contracts\Debug\ShouldntReport;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
 use Hypervel\Http\Request;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Hypervel\HttpMessage\Exceptions\HttpException;

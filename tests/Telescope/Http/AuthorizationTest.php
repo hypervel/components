@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Telescope\Http;
 use Hypervel\Auth\Access\Gate;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 
