@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Database\Contracts;
+namespace Hypervel\Contracts\Database;
 
 use Throwable;
 

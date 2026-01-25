@@ -6,7 +6,7 @@ namespace Hypervel\Database\Query;
 
 use Closure;
 use Hypervel\Database\ConnectionInterface;
-use Hypervel\Database\Contracts\Query\Expression as ExpressionContract;
+use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
 

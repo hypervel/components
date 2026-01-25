@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Casts;
 
 use BackedEnum;
-use Hypervel\Database\Contracts\Eloquent\Castable;
-use Hypervel\Database\Contracts\Eloquent\CastsAttributes;
+use Hypervel\Contracts\Database\Eloquent\Castable;
+use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Support\Collection;
 
 use function Hypervel\Support\enum_value;

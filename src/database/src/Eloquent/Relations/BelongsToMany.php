@@ -67,7 +67,7 @@ class BelongsToMany extends Relation
     /**
      * The pivot table columns to retrieve.
      *
-     * @var array<string|\Hypervel\Database\Contracts\Query\Expression>
+     * @var array<string|\Hypervel\Contracts\Database\Query\Expression>
      */
     protected array $pivotColumns = [];
 
@@ -330,7 +330,7 @@ class BelongsToMany extends Relation
     /**
      * Set a where clause for a pivot table column.
      *
-     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  string|\Hypervel\Contracts\Database\Query\Expression  $column
      * @return $this
      */
     public function wherePivot(mixed $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
@@ -343,7 +343,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "where between" clause for a pivot table column.
      *
-     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  string|\Hypervel\Contracts\Database\Query\Expression  $column
      * @return $this
      */
     public function wherePivotBetween(mixed $column, array $values, string $boolean = 'and', bool $not = false): static
@@ -354,7 +354,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "or where between" clause for a pivot table column.
      *
-     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  string|\Hypervel\Contracts\Database\Query\Expression  $column
      * @return $this
      */
     public function orWherePivotBetween(mixed $column, array $values): static
@@ -365,7 +365,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "where pivot not between" clause for a pivot table column.
      *
-     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  string|\Hypervel\Contracts\Database\Query\Expression  $column
      * @return $this
      */
     public function wherePivotNotBetween(mixed $column, array $values, string $boolean = 'and'): static
@@ -376,7 +376,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "or where not between" clause for a pivot table column.
      *
-     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  string|\Hypervel\Contracts\Database\Query\Expression  $column
      * @return $this
      */
     public function orWherePivotNotBetween(mixed $column, array $values): static
@@ -387,7 +387,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "where in" clause for a pivot table column.
      *
-     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  string|\Hypervel\Contracts\Database\Query\Expression  $column
      * @return $this
      */
     public function wherePivotIn(mixed $column, mixed $values, string $boolean = 'and', bool $not = false): static
@@ -400,7 +400,7 @@ class BelongsToMany extends Relation
     /**
      * Set an "or where" clause for a pivot table column.
      *
-     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  string|\Hypervel\Contracts\Database\Query\Expression  $column
      * @return $this
      */
     public function orWherePivot(mixed $column, mixed $operator = null, mixed $value = null): static
@@ -413,7 +413,7 @@ class BelongsToMany extends Relation
      *
      * In addition, new pivot records will receive this value.
      *
-     * @param  string|\Hypervel\Database\Contracts\Query\Expression|array<string, string>  $column
+     * @param  string|\Hypervel\Contracts\Database\Query\Expression|array<string, string>  $column
      * @return $this
      *
      * @throws \InvalidArgumentException
@@ -450,7 +450,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "where not in" clause for a pivot table column.
      *
-     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  string|\Hypervel\Contracts\Database\Query\Expression  $column
      * @return $this
      */
     public function wherePivotNotIn(mixed $column, mixed $values, string $boolean = 'and'): static
@@ -471,7 +471,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "where null" clause for a pivot table column.
      *
-     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  string|\Hypervel\Contracts\Database\Query\Expression  $column
      * @return $this
      */
     public function wherePivotNull(mixed $column, string $boolean = 'and', bool $not = false): static
@@ -484,7 +484,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "where not null" clause for a pivot table column.
      *
-     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  string|\Hypervel\Contracts\Database\Query\Expression  $column
      * @return $this
      */
     public function wherePivotNotNull(mixed $column, string $boolean = 'and'): static
@@ -495,7 +495,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "or where null" clause for a pivot table column.
      *
-     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  string|\Hypervel\Contracts\Database\Query\Expression  $column
      * @return $this
      */
     public function orWherePivotNull(mixed $column, bool $not = false): static
@@ -506,7 +506,7 @@ class BelongsToMany extends Relation
     /**
      * Set a "or where not null" clause for a pivot table column.
      *
-     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  string|\Hypervel\Contracts\Database\Query\Expression  $column
      * @return $this
      */
     public function orWherePivotNotNull(mixed $column): static
@@ -517,7 +517,7 @@ class BelongsToMany extends Relation
     /**
      * Add an "order by" clause for a pivot table column.
      *
-     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  string|\Hypervel\Contracts\Database\Query\Expression  $column
      * @return $this
      */
     public function orderByPivot(mixed $column, string $direction = 'asc'): static
@@ -1473,8 +1473,8 @@ class BelongsToMany extends Relation
     /**
      * Qualify the given column name by the pivot table.
      *
-     * @param  string|\Hypervel\Database\Contracts\Query\Expression  $column
-     * @return string|\Hypervel\Database\Contracts\Query\Expression
+     * @param  string|\Hypervel\Contracts\Database\Query\Expression  $column
+     * @return string|\Hypervel\Contracts\Database\Query\Expression
      */
     public function qualifyPivotColumn(mixed $column): mixed
     {

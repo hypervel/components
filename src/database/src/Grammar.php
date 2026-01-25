@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
-use Hypervel\Database\Contracts\Query\Expression;
+use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\Macroable;
 use RuntimeException;

@@ -6,7 +6,7 @@ namespace Hypervel\Database;
 
 use Hyperf\Context\ApplicationContext;
 use Hypervel\Database\ConcurrencyErrorDetector;
-use Hypervel\Database\Contracts\ConcurrencyErrorDetector as ConcurrencyErrorDetectorContract;
+use Hypervel\Contracts\Database\ConcurrencyErrorDetector as ConcurrencyErrorDetectorContract;
 use Throwable;
 
 trait DetectsConcurrencyErrors

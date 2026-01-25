@@ -8,9 +8,9 @@ use BackedEnum;
 use Carbon\CarbonPeriod;
 use Closure;
 use DateTimeInterface;
-use Hypervel\Database\Contracts\Query\Builder as BuilderContract;
-use Hypervel\Database\Contracts\Query\ConditionExpression;
-use Hypervel\Database\Contracts\Query\Expression as ExpressionContract;
+use Hypervel\Contracts\Database\Query\Builder as BuilderContract;
+use Hypervel\Contracts\Database\Query\ConditionExpression;
+use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Concerns\BuildsQueries;
 use Hypervel\Database\Concerns\BuildsWhereDateClauses;
@@ -94,7 +94,7 @@ class Builder implements BuilderContract
      *
      * @var array{
      *     function: string,
-     *     columns: array<\Hypervel\Database\Contracts\Query\Expression|string>
+     *     columns: array<\Hypervel\Contracts\Database\Query\Expression|string>
      * }|null
      */
     public ?array $aggregate = null;
@@ -102,7 +102,7 @@ class Builder implements BuilderContract
     /**
      * The columns that should be returned.
      *
-     * @var array<string|\Hypervel\Database\Contracts\Query\Expression>|null
+     * @var array<string|\Hypervel\Contracts\Database\Query\Expression>|null
      */
     public ?array $columns = null;
 
@@ -405,7 +405,7 @@ class Builder implements BuilderContract
     /**
      * Add a vector-similarity selection to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      * @param  \Hypervel\Support\Collection<int, float>|\Hypervel\Contracts\Support\Arrayable|array<int, float>|string  $vector
      */
     public function selectVectorDistance(ExpressionContract|string $column, Collection|Arrayable|array|string $vector, ?string $as = null): static
@@ -452,7 +452,7 @@ class Builder implements BuilderContract
     /**
      * Set the table which the query is targeting.
      *
-     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Contracts\Query\Expression|string  $table
+     * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Contracts\Database\Query\Expression|string  $table
      */
     public function from(Closure|self|EloquentBuilder|ExpressionContract|string $table, ?string $as = null): static
     {
@@ -498,9 +498,9 @@ class Builder implements BuilderContract
     /**
      * Add a "join" clause to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $table
-     * @param  \Closure|\Hypervel\Database\Contracts\Query\Expression|string  $first
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string|null  $second
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $table
+     * @param  \Closure|\Hypervel\Contracts\Database\Query\Expression|string  $first
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string|null  $second
      */
     public function join(ExpressionContract|string $table, Closure|ExpressionContract|string $first, ?string $operator = null, ExpressionContract|string|null $second = null, string $type = 'inner', bool $where = false): static
     {
@@ -534,9 +534,9 @@ class Builder implements BuilderContract
     /**
      * Add a "join where" clause to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $table
-     * @param  \Closure|\Hypervel\Database\Contracts\Query\Expression|string  $first
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $second
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $table
+     * @param  \Closure|\Hypervel\Contracts\Database\Query\Expression|string  $first
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $second
      */
     public function joinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, ExpressionContract|string $second, string $type = 'inner'): static
     {
@@ -547,8 +547,8 @@ class Builder implements BuilderContract
      * Add a "subquery join" clause to the query.
      *
      * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|string  $query
-     * @param  \Closure|\Hypervel\Database\Contracts\Query\Expression|string  $first
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string|null  $second
+     * @param  \Closure|\Hypervel\Contracts\Database\Query\Expression|string  $first
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string|null  $second
      *
      * @throws \InvalidArgumentException
      */
@@ -594,9 +594,9 @@ class Builder implements BuilderContract
     /**
      * Add a left join to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $table
-     * @param  \Closure|\Hypervel\Database\Contracts\Query\Expression|string  $first
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string|null  $second
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $table
+     * @param  \Closure|\Hypervel\Contracts\Database\Query\Expression|string  $first
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string|null  $second
      */
     public function leftJoin(ExpressionContract|string $table, Closure|ExpressionContract|string $first, ?string $operator = null, ExpressionContract|string|null $second = null): static
     {
@@ -606,9 +606,9 @@ class Builder implements BuilderContract
     /**
      * Add a "join where" clause to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $table
-     * @param  \Closure|\Hypervel\Database\Contracts\Query\Expression|string  $first
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string|null  $second
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $table
+     * @param  \Closure|\Hypervel\Contracts\Database\Query\Expression|string  $first
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string|null  $second
      */
     public function leftJoinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, ExpressionContract|string|null $second): static
     {
@@ -619,8 +619,8 @@ class Builder implements BuilderContract
      * Add a subquery left join to the query.
      *
      * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|string  $query
-     * @param  \Closure|\Hypervel\Database\Contracts\Query\Expression|string  $first
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string|null  $second
+     * @param  \Closure|\Hypervel\Contracts\Database\Query\Expression|string  $first
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string|null  $second
      */
     public function leftJoinSub(Closure|self|EloquentBuilder|string $query, string $as, Closure|ExpressionContract|string $first, ?string $operator = null, ExpressionContract|string|null $second = null): static
     {
@@ -630,9 +630,9 @@ class Builder implements BuilderContract
     /**
      * Add a right join to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $table
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $table
      * @param  \Closure|string  $first
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string|null  $second
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string|null  $second
      */
     public function rightJoin(ExpressionContract|string $table, Closure|string $first, ?string $operator = null, ExpressionContract|string|null $second = null): static
     {
@@ -642,9 +642,9 @@ class Builder implements BuilderContract
     /**
      * Add a "right join where" clause to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $table
-     * @param  \Closure|\Hypervel\Database\Contracts\Query\Expression|string  $first
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $second
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $table
+     * @param  \Closure|\Hypervel\Contracts\Database\Query\Expression|string  $first
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $second
      */
     public function rightJoinWhere(ExpressionContract|string $table, Closure|ExpressionContract|string $first, string $operator, ExpressionContract|string $second): static
     {
@@ -655,8 +655,8 @@ class Builder implements BuilderContract
      * Add a subquery right join to the query.
      *
      * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|string  $query
-     * @param  \Closure|\Hypervel\Database\Contracts\Query\Expression|string  $first
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string|null  $second
+     * @param  \Closure|\Hypervel\Contracts\Database\Query\Expression|string  $first
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string|null  $second
      */
     public function rightJoinSub(Closure|self|EloquentBuilder|string $query, string $as, Closure|ExpressionContract|string $first, ?string $operator = null, ExpressionContract|string|null $second = null): static
     {
@@ -666,9 +666,9 @@ class Builder implements BuilderContract
     /**
      * Add a "cross join" clause to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $table
-     * @param  \Closure|\Hypervel\Database\Contracts\Query\Expression|string|null  $first
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string|null  $second
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $table
+     * @param  \Closure|\Hypervel\Contracts\Database\Query\Expression|string|null  $first
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string|null  $second
      */
     public function crossJoin(ExpressionContract|string $table, Closure|ExpressionContract|string|null $first = null, ?string $operator = null, ExpressionContract|string|null $second = null): static
     {
@@ -700,7 +700,7 @@ class Builder implements BuilderContract
     /**
      * Get a new "join" clause.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $table
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $table
      */
     protected function newJoinClause(self $parentQuery, string $type, ExpressionContract|string $table): JoinClause
     {
@@ -710,7 +710,7 @@ class Builder implements BuilderContract
     /**
      * Get a new "join lateral" clause.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $table
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $table
      */
     protected function newJoinLateralClause(self $parentQuery, string $type, ExpressionContract|string $table): JoinLateralClause
     {
@@ -734,7 +734,7 @@ class Builder implements BuilderContract
     /**
      * Add a basic "where" clause to the query.
      *
-     * @param  \Closure|string|array|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  \Closure|string|array|\Hypervel\Contracts\Database\Query\Expression  $column
      */
     public function where(Closure|string|array|ExpressionContract $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
@@ -897,7 +897,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where" clause to the query.
      *
-     * @param  \Closure|string|array|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  \Closure|string|array|\Hypervel\Contracts\Database\Query\Expression  $column
      */
     public function orWhere(Closure|string|array|ExpressionContract $column, mixed $operator = null, mixed $value = null): static
     {
@@ -911,7 +911,7 @@ class Builder implements BuilderContract
     /**
      * Add a basic "where not" clause to the query.
      *
-     * @param  \Closure|string|array|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  \Closure|string|array|\Hypervel\Contracts\Database\Query\Expression  $column
      */
     public function whereNot(Closure|string|array|ExpressionContract $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
@@ -927,7 +927,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not" clause to the query.
      *
-     * @param  \Closure|string|array|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  \Closure|string|array|\Hypervel\Contracts\Database\Query\Expression  $column
      */
     public function orWhereNot(Closure|string|array|ExpressionContract $column, mixed $operator = null, mixed $value = null): static
     {
@@ -937,7 +937,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where" clause comparing two columns to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string|array  $first
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string|array  $first
      */
     public function whereColumn(ExpressionContract|string|array $first, ?string $operator = null, ?string $second = null, string $boolean = 'and'): static
     {
@@ -970,7 +970,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where" clause comparing two columns to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string|array  $first
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string|array  $first
      */
     public function orWhereColumn(ExpressionContract|string|array $first, ?string $operator = null, ?string $second = null): static
     {
@@ -980,7 +980,7 @@ class Builder implements BuilderContract
     /**
      * Add a vector similarity clause to the query, filtering by minimum similarity and ordering by similarity.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      * @param  \Hypervel\Support\Collection<int, float>|\Hypervel\Contracts\Support\Arrayable|array<int, float>|string  $vector
      * @param  float  $minSimilarity  A value between 0.0 and 1.0, where 1.0 is identical.
      */
@@ -1002,7 +1002,7 @@ class Builder implements BuilderContract
     /**
      * Add a vector distance "where" clause to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      * @param  \Hypervel\Support\Collection<int, float>|\Hypervel\Contracts\Support\Arrayable|array<int, float>|string  $vector
      */
     public function whereVectorDistanceLessThan(ExpressionContract|string $column, Collection|Arrayable|array|string $vector, float $maxDistance, string $boolean = 'and'): static
@@ -1031,7 +1031,7 @@ class Builder implements BuilderContract
     /**
      * Add a vector distance "or where" clause to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      * @param  \Hypervel\Support\Collection<int, float>|\Hypervel\Contracts\Support\Arrayable|array<int, float>|string  $vector
      */
     public function orWhereVectorDistanceLessThan(ExpressionContract|string $column, Collection|Arrayable|array|string $vector, float $maxDistance): static
@@ -1042,7 +1042,7 @@ class Builder implements BuilderContract
     /**
      * Add a raw "where" clause to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $sql
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $sql
      */
     public function whereRaw(ExpressionContract|string $sql, mixed $bindings = [], string $boolean = 'and'): static
     {
@@ -1064,7 +1064,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where like" clause to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      */
     public function whereLike(ExpressionContract|string $column, string $value, bool $caseSensitive = false, string $boolean = 'and', bool $not = false): static
     {
@@ -1084,7 +1084,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where like" clause to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      */
     public function orWhereLike(ExpressionContract|string $column, string $value, bool $caseSensitive = false): static
     {
@@ -1094,7 +1094,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where not like" clause to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      */
     public function whereNotLike(ExpressionContract|string $column, string $value, bool $caseSensitive = false, string $boolean = 'and'): static
     {
@@ -1104,7 +1104,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not like" clause to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      */
     public function orWhereNotLike(ExpressionContract|string $column, string $value, bool $caseSensitive = false): static
     {
@@ -1114,7 +1114,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where in" clause to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      */
     public function whereIn(ExpressionContract|string $column, mixed $values, string $boolean = 'and', bool $not = false): static
     {
@@ -1155,7 +1155,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where in" clause to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      */
     public function orWhereIn(ExpressionContract|string $column, mixed $values): static
     {
@@ -1165,7 +1165,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where not in" clause to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      */
     public function whereNotIn(ExpressionContract|string $column, mixed $values, string $boolean = 'and'): static
     {
@@ -1175,7 +1175,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not in" clause to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      */
     public function orWhereNotIn(ExpressionContract|string $column, mixed $values): static
     {
@@ -1239,7 +1239,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where null" clause to the query.
      *
-     * @param  string|array|\Hypervel\Database\Contracts\Query\Expression  $columns
+     * @param  string|array|\Hypervel\Contracts\Database\Query\Expression  $columns
      */
     public function whereNull(string|array|ExpressionContract $columns, string $boolean = 'and', bool $not = false): static
     {
@@ -1255,7 +1255,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where null" clause to the query.
      *
-     * @param  string|array|\Hypervel\Database\Contracts\Query\Expression  $column
+     * @param  string|array|\Hypervel\Contracts\Database\Query\Expression  $column
      */
     public function orWhereNull(string|array|ExpressionContract $column): static
     {
@@ -1265,7 +1265,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where not null" clause to the query.
      *
-     * @param  string|array|\Hypervel\Database\Contracts\Query\Expression  $columns
+     * @param  string|array|\Hypervel\Contracts\Database\Query\Expression  $columns
      */
     public function whereNotNull(string|array|ExpressionContract $columns, string $boolean = 'and'): static
     {
@@ -1275,7 +1275,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where between" statement to the query.
      *
-     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Contracts\Database\Query\Expression|string  $column
      */
     public function whereBetween(self|EloquentBuilder|ExpressionContract|string $column, iterable $values, string $boolean = 'and', bool $not = false): static
     {
@@ -1302,7 +1302,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where between" statement using columns to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      */
     public function whereBetweenColumns(ExpressionContract|string $column, array $values, string $boolean = 'and', bool $not = false): static
     {
@@ -1316,7 +1316,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where between" statement to the query.
      *
-     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Contracts\Database\Query\Expression|string  $column
      */
     public function orWhereBetween(self|EloquentBuilder|ExpressionContract|string $column, iterable $values): static
     {
@@ -1326,7 +1326,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where between" statement using columns to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      */
     public function orWhereBetweenColumns(ExpressionContract|string $column, array $values): static
     {
@@ -1336,7 +1336,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where not between" statement to the query.
      *
-     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Contracts\Database\Query\Expression|string  $column
      */
     public function whereNotBetween(self|EloquentBuilder|ExpressionContract|string $column, iterable $values, string $boolean = 'and'): static
     {
@@ -1346,7 +1346,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where not between" statement using columns to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      */
     public function whereNotBetweenColumns(ExpressionContract|string $column, array $values, string $boolean = 'and'): static
     {
@@ -1356,7 +1356,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not between" statement to the query.
      *
-     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Contracts\Database\Query\Expression|string  $column
      */
     public function orWhereNotBetween(self|EloquentBuilder|ExpressionContract|string $column, iterable $values): static
     {
@@ -1366,7 +1366,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not between" statement using columns to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      */
     public function orWhereNotBetweenColumns(ExpressionContract|string $column, array $values): static
     {
@@ -1376,7 +1376,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where between columns" statement using a value to the query.
      *
-     * @param  array{\Hypervel\Database\Contracts\Query\Expression|string, \Hypervel\Database\Contracts\Query\Expression|string}  $columns
+     * @param  array{\Hypervel\Contracts\Database\Query\Expression|string, \Hypervel\Contracts\Database\Query\Expression|string}  $columns
      */
     public function whereValueBetween(mixed $value, array $columns, string $boolean = 'and', bool $not = false): static
     {
@@ -1392,7 +1392,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where between columns" statement using a value to the query.
      *
-     * @param  array{\Hypervel\Database\Contracts\Query\Expression|string, \Hypervel\Database\Contracts\Query\Expression|string}  $columns
+     * @param  array{\Hypervel\Contracts\Database\Query\Expression|string, \Hypervel\Contracts\Database\Query\Expression|string}  $columns
      */
     public function orWhereValueBetween(mixed $value, array $columns): static
     {
@@ -1402,7 +1402,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where not between columns" statement using a value to the query.
      *
-     * @param  array{\Hypervel\Database\Contracts\Query\Expression|string, \Hypervel\Database\Contracts\Query\Expression|string}  $columns
+     * @param  array{\Hypervel\Contracts\Database\Query\Expression|string, \Hypervel\Contracts\Database\Query\Expression|string}  $columns
      */
     public function whereValueNotBetween(mixed $value, array $columns, string $boolean = 'and'): static
     {
@@ -1412,7 +1412,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not between columns" statement using a value to the query.
      *
-     * @param  array{\Hypervel\Database\Contracts\Query\Expression|string, \Hypervel\Database\Contracts\Query\Expression|string}  $columns
+     * @param  array{\Hypervel\Contracts\Database\Query\Expression|string, \Hypervel\Contracts\Database\Query\Expression|string}  $columns
      */
     public function orWhereValueNotBetween(mixed $value, array $columns): static
     {
@@ -1422,7 +1422,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not null" clause to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      */
     public function orWhereNotNull(ExpressionContract|string $column): static
     {
@@ -1432,7 +1432,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where date" statement to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      * @param  \DateTimeInterface|string|null  $operator
      * @param  \DateTimeInterface|string|null  $value
      */
@@ -1461,7 +1461,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where date" statement to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      * @param  \DateTimeInterface|string|null  $operator
      * @param  \DateTimeInterface|string|null  $value
      */
@@ -1477,7 +1477,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where time" statement to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      * @param  \DateTimeInterface|string|null  $operator
      * @param  \DateTimeInterface|string|null  $value
      */
@@ -1506,7 +1506,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where time" statement to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      * @param  \DateTimeInterface|string|null  $operator
      * @param  \DateTimeInterface|string|null  $value
      */
@@ -1522,7 +1522,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where day" statement to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      * @param  \DateTimeInterface|string|int|null  $operator
      * @param  \DateTimeInterface|string|int|null  $value
      */
@@ -1555,7 +1555,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where day" statement to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      * @param  \DateTimeInterface|string|int|null  $operator
      * @param  \DateTimeInterface|string|int|null  $value
      */
@@ -1571,7 +1571,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where month" statement to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      * @param  \DateTimeInterface|string|int|null  $operator
      * @param  \DateTimeInterface|string|int|null  $value
      */
@@ -1604,7 +1604,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where month" statement to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      * @param  \DateTimeInterface|string|int|null  $operator
      * @param  \DateTimeInterface|string|int|null  $value
      */
@@ -1620,7 +1620,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where year" statement to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      * @param  \DateTimeInterface|string|int|null  $operator
      * @param  \DateTimeInterface|string|int|null  $value
      */
@@ -1649,7 +1649,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where year" statement to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      * @param  \DateTimeInterface|string|int|null  $operator
      * @param  \DateTimeInterface|string|int|null  $value
      */
@@ -1665,7 +1665,7 @@ class Builder implements BuilderContract
     /**
      * Add a date based (year, month, day, time) statement to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      */
     protected function addDateBasedWhere(string $type, ExpressionContract|string $column, string $operator, mixed $value, string $boolean = 'and'): static
     {
@@ -1715,7 +1715,7 @@ class Builder implements BuilderContract
     /**
      * Add a full sub-select to the query.
      *
-     * @param  \Hypervel\Database\Contracts\Query\Expression|string  $column
+     * @param  \Hypervel\Contracts\Database\Query\Expression|string  $column
      * @param  \Closure|\Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>  $callback
      */
     protected function whereSub(ExpressionContract|string $column, string $operator, Closure|self|EloquentBuilder $callback, string $boolean): static

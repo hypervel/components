@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database;
 
 use Hyperf\Stringable\Str;
-use Hypervel\Database\Contracts\LostConnectionDetector as LostConnectionDetectorContract;
+use Hypervel\Contracts\Database\LostConnectionDetector as LostConnectionDetectorContract;
 use Throwable;
 
 class LostConnectionDetector implements LostConnectionDetectorContract

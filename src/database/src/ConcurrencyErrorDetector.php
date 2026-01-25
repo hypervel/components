@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database;
 
 use Hyperf\Stringable\Str;
-use Hypervel\Database\Contracts\ConcurrencyErrorDetector as ConcurrencyErrorDetectorContract;
+use Hypervel\Contracts\Database\ConcurrencyErrorDetector as ConcurrencyErrorDetectorContract;
 use PDOException;
 use Throwable;
 

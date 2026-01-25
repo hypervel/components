@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Database\Contracts\Eloquent;
+namespace Hypervel\Contracts\Database\Eloquent;
 
-use Hypervel\Database\Contracts\Query\Builder as BaseContract;
+use Hypervel\Contracts\Database\Query\Builder as BaseContract;
 
 /**
  * This interface is intentionally empty and exists to improve IDE support.

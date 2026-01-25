@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Query;
 
-use Hypervel\Database\Contracts\Query\Expression as ExpressionContract;
+use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
 use Hypervel\Database\Grammar;
 
 /**

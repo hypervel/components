@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Relations;
 
-use Hypervel\Database\Contracts\Eloquent\SupportsPartialRelations;
+use Hypervel\Contracts\Database\Eloquent\SupportsPartialRelations;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;

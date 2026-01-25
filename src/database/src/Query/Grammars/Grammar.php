@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Query\Grammars;
 
 use Hypervel\Database\Concerns\CompilesJsonPaths;
-use Hypervel\Database\Contracts\Query\Expression;
+use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Grammar as BaseGrammar;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\Query\JoinClause;

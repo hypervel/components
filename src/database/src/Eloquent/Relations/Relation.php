@@ -6,7 +6,7 @@ namespace Hypervel\Database\Eloquent\Relations;
 
 use Closure;
 use Hypervel\Context\Context;
-use Hypervel\Database\Contracts\Eloquent\Builder as BuilderContract;
+use Hypervel\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;

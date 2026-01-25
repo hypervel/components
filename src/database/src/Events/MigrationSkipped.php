@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Events;
 
-use Hypervel\Database\Contracts\Events\MigrationEvent;
+use Hypervel\Contracts\Database\Events\MigrationEvent;
 
 class MigrationSkipped implements MigrationEvent
 {

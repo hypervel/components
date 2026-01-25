@@ -11,7 +11,7 @@ use FriendsOfHyperf\PrettyConsole\View\Components\Task;
 use FriendsOfHyperf\PrettyConsole\View\Components\TwoColumnDetail;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
-use Hypervel\Database\Contracts\Events\MigrationEvent as MigrationEventContract;
+use Hypervel\Contracts\Database\Events\MigrationEvent as MigrationEventContract;
 use Hypervel\Database\Events\MigrationEnded;
 use Hypervel\Database\Events\MigrationsEnded;
 use Hypervel\Database\Events\MigrationSkipped;

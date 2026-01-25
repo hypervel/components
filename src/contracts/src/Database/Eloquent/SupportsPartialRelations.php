@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Database\Contracts\Eloquent;
+namespace Hypervel\Contracts\Database\Eloquent;
 
 use Closure;
 use Hypervel\Database\Eloquent\Builder;
