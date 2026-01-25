@@ -13,11 +13,32 @@ use Hypervel\Context\Context;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Redis\Redis;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\RedisFactory;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use Mockery;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Redis as PhpRedis;
 use Throwable;
+use TypeError;
+
+enum RedisTestStringBackedConnection: string
+{
+    case Default = 'default';
+    case Cache = 'cache';
+}
+
+enum RedisTestIntBackedConnection: int
+{
+    case Primary = 1;
+    case Replica = 2;
+}
+
+enum RedisTestUnitConnection
+{
+    case default;
+    case cache;
+}
 
 /**
  * @internal
@@ -215,6 +236,72 @@ class RedisTest extends TestCase
         $redis->get('key');
 
         $this->assertNull(Context::get('redis.connection.default'));
+    }
+
+    public function testConnectionAcceptsStringBackedEnum(): void
+    {
+        $mockRedisProxy = Mockery::mock(RedisProxy::class);
+
+        $mockRedisFactory = Mockery::mock(RedisFactory::class);
+        $mockRedisFactory->shouldReceive('get')
+            ->with('default')
+            ->once()
+            ->andReturn($mockRedisProxy);
+
+        $mockContainer = Mockery::mock(\Hypervel\Contracts\Container\Container::class);
+        $mockContainer->shouldReceive('get')
+            ->with(RedisFactory::class)
+            ->andReturn($mockRedisFactory);
+
+        \Hypervel\Context\ApplicationContext::setContainer($mockContainer);
+
+        $redis = new Redis(Mockery::mock(PoolFactory::class));
+
+        $result = $redis->connection(RedisTestStringBackedConnection::Default);
+
+        $this->assertSame($mockRedisProxy, $result);
+    }
+
+    public function testConnectionAcceptsUnitEnum(): void
+    {
+        $mockRedisProxy = Mockery::mock(RedisProxy::class);
+
+        $mockRedisFactory = Mockery::mock(RedisFactory::class);
+        $mockRedisFactory->shouldReceive('get')
+            ->with('default')
+            ->once()
+            ->andReturn($mockRedisProxy);
+
+        $mockContainer = Mockery::mock(\Hypervel\Contracts\Container\Container::class);
+        $mockContainer->shouldReceive('get')
+            ->with(RedisFactory::class)
+            ->andReturn($mockRedisFactory);
+
+        \Hypervel\Context\ApplicationContext::setContainer($mockContainer);
+
+        $redis = new Redis(Mockery::mock(PoolFactory::class));
+
+        $result = $redis->connection(RedisTestUnitConnection::default);
+
+        $this->assertSame($mockRedisProxy, $result);
+    }
+
+    public function testConnectionWithIntBackedEnumThrowsTypeError(): void
+    {
+        $mockRedisFactory = Mockery::mock(RedisFactory::class);
+
+        $mockContainer = Mockery::mock(\Hypervel\Contracts\Container\Container::class);
+        $mockContainer->shouldReceive('get')
+            ->with(RedisFactory::class)
+            ->andReturn($mockRedisFactory);
+
+        \Hypervel\Context\ApplicationContext::setContainer($mockContainer);
+
+        $redis = new Redis(Mockery::mock(PoolFactory::class));
+
+        // Int-backed enum causes TypeError because RedisFactory::get() expects string
+        $this->expectException(TypeError::class);
+        $redis->connection(RedisTestIntBackedConnection::Primary);
     }
 
     /**
