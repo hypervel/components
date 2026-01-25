@@ -6,7 +6,7 @@ namespace Hypervel\Broadcasting\Broadcasters;
 
 use Hypervel\Support\Arr;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use Hyperf\Pool\Exception\ConnectionException;
+use Hypervel\Pool\Exception\ConnectionException;
 use Hyperf\Redis\RedisFactory;
 use Hypervel\Broadcasting\BroadcastException;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;

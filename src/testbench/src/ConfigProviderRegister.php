@@ -22,7 +22,6 @@ class ConfigProviderRegister
         \Hyperf\Memory\ConfigProvider::class,
         \Hyperf\ModelListener\ConfigProvider::class,
         \Hyperf\Paginator\ConfigProvider::class,
-        \Hyperf\Pool\ConfigProvider::class,
         \Hyperf\Process\ConfigProvider::class,
         \Hyperf\Redis\ConfigProvider::class,
         \Hyperf\Serializer\ConfigProvider::class,
