@@ -7,7 +7,7 @@ namespace Hypervel\Database\Pool;
 use Hyperf\Contract\ConnectionInterface as PoolConnectionInterface;
 use Hyperf\Contract\PoolInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hyperf\Pool\Event\ReleaseConnection;
+use Hypervel\Pool\Event\ReleaseConnection;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\DatabaseTransactionsManager;

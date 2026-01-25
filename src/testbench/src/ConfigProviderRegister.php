@@ -48,6 +48,7 @@ class ConfigProviderRegister
         \Hypervel\Mail\ConfigProvider::class,
         \Hypervel\Notifications\ConfigProvider::class,
         \Hypervel\ObjectPool\ConfigProvider::class,
+        \Hypervel\Pool\ConfigProvider::class,
         \Hypervel\Queue\ConfigProvider::class,
         \Hypervel\Redis\ConfigProvider::class,
         \Hypervel\Router\ConfigProvider::class,

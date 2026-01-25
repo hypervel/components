@@ -6,8 +6,8 @@ namespace Hypervel\Database\Pool;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\ConnectionInterface;
-use Hyperf\Pool\Frequency;
-use Hyperf\Pool\Pool;
+use Hypervel\Pool\Frequency;
+use Hypervel\Pool\Pool;
 use Hypervel\Support\Arr;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;
@@ -15,7 +15,7 @@ use Psr\Container\ContainerInterface;
 /**
  * Database connection pool.
  *
- * Extends Hyperf's Pool to create PooledConnection instances that wrap
+ * Extends the base Pool to create PooledConnection instances that wrap
  * our Laravel-ported Connection class.
  */
 class DbPool extends Pool
