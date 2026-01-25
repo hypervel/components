@@ -7,7 +7,7 @@ namespace Hypervel\Validation;
 use Exception;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Validator;
-use Hypervel\Validation\Contracts\Validator as ValidatorContract;
+use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Psr\Http\Message\ResponseInterface;
 
 class ValidationException extends Exception

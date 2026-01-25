@@ -8,7 +8,7 @@ use Closure;
 use Hyperf\HttpMessage\Upload\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
-use Hypervel\Validation\Contracts\Validator;
+use Hypervel\Contracts\Validation\Validator;
 
 trait FormatsMessages
 {

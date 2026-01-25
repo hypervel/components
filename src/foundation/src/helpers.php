@@ -31,8 +31,8 @@ use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Mix;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
-use Hypervel\Validation\Contracts\Factory as ValidatorFactoryContract;
-use Hypervel\Validation\Contracts\Validator as ValidatorContract;
+use Hypervel\Contracts\Validation\Factory as ValidatorFactoryContract;
+use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
 

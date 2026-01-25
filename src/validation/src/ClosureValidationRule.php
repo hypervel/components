@@ -6,9 +6,9 @@ namespace Hypervel\Validation;
 
 use Closure;
 use Hypervel\Translation\CreatesPotentiallyTranslatedStrings;
-use Hypervel\Validation\Contracts\Rule as RuleContract;
-use Hypervel\Validation\Contracts\Validator;
-use Hypervel\Validation\Contracts\ValidatorAwareRule;
+use Hypervel\Contracts\Validation\Rule as RuleContract;
+use Hypervel\Contracts\Validation\Validator;
+use Hypervel\Contracts\Validation\ValidatorAwareRule;
 
 class ClosureValidationRule implements RuleContract, ValidatorAwareRule
 {

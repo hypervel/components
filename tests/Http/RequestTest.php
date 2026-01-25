@@ -19,7 +19,7 @@ use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Router\RouteHandler;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Support\Uri;
-use Hypervel\Validation\Contracts\Factory as ValidatorFactoryContract;
+use Hypervel\Contracts\Validation\Factory as ValidatorFactoryContract;
 use Mockery;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;

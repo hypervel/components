@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Hypervel\Translation\CreatesPotentiallyTranslatedStrings;
-use Hypervel\Validation\Contracts\DataAwareRule;
-use Hypervel\Validation\Contracts\ImplicitRule;
-use Hypervel\Validation\Contracts\InvokableRule;
-use Hypervel\Validation\Contracts\Rule;
-use Hypervel\Validation\Contracts\ValidationRule;
-use Hypervel\Validation\Contracts\Validator;
-use Hypervel\Validation\Contracts\ValidatorAwareRule;
+use Hypervel\Contracts\Validation\DataAwareRule;
+use Hypervel\Contracts\Validation\ImplicitRule;
+use Hypervel\Contracts\Validation\InvokableRule;
+use Hypervel\Contracts\Validation\Rule;
+use Hypervel\Contracts\Validation\ValidationRule;
+use Hypervel\Contracts\Validation\Validator;
+use Hypervel\Contracts\Validation\ValidatorAwareRule;
 
 class InvokableValidationRule implements Rule, ValidatorAwareRule
 {

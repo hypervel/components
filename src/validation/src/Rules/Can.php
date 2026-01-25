@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Validation\Rules;
 
 use Hypervel\Support\Facades\Gate;
-use Hypervel\Validation\Contracts\Rule;
-use Hypervel\Validation\Contracts\Validator;
-use Hypervel\Validation\Contracts\ValidatorAwareRule;
+use Hypervel\Contracts\Validation\Rule;
+use Hypervel\Contracts\Validation\Validator;
+use Hypervel\Contracts\Validation\ValidatorAwareRule;
 
 class Can implements Rule, ValidatorAwareRule
 {

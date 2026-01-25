@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
-use Hypervel\Validation\Contracts\Validator;
+use Hypervel\Contracts\Validation\Validator;
 
 /**
  * Provides default implementation of ValidatesWhenResolved contract.

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
-use Hypervel\Validation\Contracts\Factory as FactoryContract;
-use Hypervel\Validation\Contracts\UncompromisedVerifier;
+use Hypervel\Contracts\Validation\Factory as FactoryContract;
+use Hypervel\Contracts\Validation\UncompromisedVerifier;
 
 class ConfigProvider
 {

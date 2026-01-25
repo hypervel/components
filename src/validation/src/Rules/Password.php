@@ -9,11 +9,11 @@ use Hypervel\Context\ApplicationContext;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Validator;
 use Hypervel\Support\Traits\Conditionable;
-use Hypervel\Validation\Contracts\DataAwareRule;
-use Hypervel\Validation\Contracts\Rule;
-use Hypervel\Validation\Contracts\UncompromisedVerifier;
-use Hypervel\Validation\Contracts\Validator as ValidatorContract;
-use Hypervel\Validation\Contracts\ValidatorAwareRule;
+use Hypervel\Contracts\Validation\DataAwareRule;
+use Hypervel\Contracts\Validation\Rule;
+use Hypervel\Contracts\Validation\UncompromisedVerifier;
+use Hypervel\Contracts\Validation\Validator as ValidatorContract;
+use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use InvalidArgumentException;
 
 class Password implements Rule, DataAwareRule, ValidatorAwareRule

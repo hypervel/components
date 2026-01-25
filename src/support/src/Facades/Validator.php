@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Validation\Contracts\Factory as FactoryContract;
+use Hypervel\Contracts\Validation\Factory as FactoryContract;
 
 /**
  * @method static \Hypervel\Validation\Validator make(array $data, array $rules, array $messages = [], array $attributes = [])

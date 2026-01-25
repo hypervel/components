@@ -7,9 +7,9 @@ namespace Hypervel\Validation\Rules;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Conditionable;
-use Hypervel\Validation\Contracts\Rule;
-use Hypervel\Validation\Contracts\Validator;
-use Hypervel\Validation\Contracts\ValidatorAwareRule;
+use Hypervel\Contracts\Validation\Rule;
+use Hypervel\Contracts\Validation\Validator;
+use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use TypeError;
 use UnitEnum;
 

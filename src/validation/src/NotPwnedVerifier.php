@@ -8,7 +8,7 @@ use Exception;
 use Hypervel\Support\Collection;
 use Hypervel\HttpClient\Factory as HttpClientFactory;
 use Hypervel\Support\Stringable;
-use Hypervel\Validation\Contracts\UncompromisedVerifier;
+use Hypervel\Contracts\Validation\UncompromisedVerifier;
 
 class NotPwnedVerifier implements UncompromisedVerifier
 {

@@ -6,7 +6,7 @@ namespace Hypervel\Foundation\Providers;
 
 use Hypervel\Http\RouteDependency;
 use Hypervel\Support\ServiceProvider;
-use Hypervel\Validation\Contracts\ValidatesWhenResolved;
+use Hypervel\Contracts\Validation\ValidatesWhenResolved;
 
 class FormRequestServiceProvider extends ServiceProvider
 {

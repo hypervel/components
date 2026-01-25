@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Validation\Contracts;
+namespace Hypervel\Contracts\Validation;
 
 use Hypervel\Contracts\Support\MessageProvider;
 use Hypervel\Support\MessageBag;
