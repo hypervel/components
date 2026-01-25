@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Broadcasting;
 
 use Psr\EventDispatcher\EventDispatcherInterface;
+use UnitEnum;
 
 class PendingBroadcast
 {
@@ -20,7 +21,7 @@ class PendingBroadcast
     /**
      * Broadcast the event using a specific broadcaster.
      */
-    public function via(?string $connection = null): static
+    public function via(UnitEnum|string|null $connection = null): static
     {
         if (method_exists($this->event, 'broadcastVia')) {
             $this->event->broadcastVia($connection);
