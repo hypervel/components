@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Hypervel\Support\LazyCollection;
-use Hypervel\Cache\Contracts\Store;
+use Hypervel\Contracts\Cache\Store;
 
 class RedisTagSet extends TagSet
 {

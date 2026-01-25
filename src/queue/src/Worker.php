@@ -8,7 +8,7 @@ use Hyperf\Coordinator\Timer;
 use Hyperf\Coroutine\Concurrent;
 use Hypervel\Database\DetectsLostConnections;
 use Hyperf\Stringable\Str;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Queue\Factory as QueueManager;

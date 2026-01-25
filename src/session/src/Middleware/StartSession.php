@@ -10,7 +10,7 @@ use Hyperf\Context\Context;
 use Hyperf\Contract\SessionInterface;
 use Hyperf\HttpServer\Request;
 use Hyperf\HttpServer\Router\Dispatched;
-use Hypervel\Cache\Contracts\Factory as CacheFactoryContract;
+use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
 use Hypervel\Cookie\Cookie;
 use Hypervel\Session\Contracts\Session;
 use Hypervel\Session\SessionManager;

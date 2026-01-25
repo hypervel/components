@@ -6,7 +6,7 @@ namespace Hypervel\Sanctum;
 
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Cache\CacheManager;
-use Hypervel\Cache\Contracts\Repository as CacheRepository;
+use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphTo;

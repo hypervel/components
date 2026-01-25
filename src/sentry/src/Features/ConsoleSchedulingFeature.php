@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Features;
 
 use DateTimeZone;
-use Hypervel\Cache\Contracts\Factory as Cache;
-use Hypervel\Cache\Contracts\Repository;
+use Hypervel\Contracts\Cache\Factory as Cache;
+use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\Events\ScheduledTaskFailed;
 use Hypervel\Console\Events\ScheduledTaskFinished;

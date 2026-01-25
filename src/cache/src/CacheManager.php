@@ -7,9 +7,9 @@ namespace Hypervel\Cache;
 use Closure;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Redis\RedisFactory;
-use Hypervel\Cache\Contracts\Factory as FactoryContract;
-use Hypervel\Cache\Contracts\Repository as RepositoryContract;
-use Hypervel\Cache\Contracts\Store;
+use Hypervel\Contracts\Cache\Factory as FactoryContract;
+use Hypervel\Contracts\Cache\Repository as RepositoryContract;
+use Hypervel\Contracts\Cache\Store;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface as DispatcherContract;
@@ -18,8 +18,8 @@ use function Hyperf\Support\make;
 use function Hyperf\Tappable\tap;
 
 /**
- * @mixin \Hypervel\Cache\Contracts\Repository
- * @mixin \Hypervel\Cache\Contracts\LockProvider
+ * @mixin \Hypervel\Contracts\Cache\Repository
+ * @mixin \Hypervel\Contracts\Cache\LockProvider
  * @mixin \Hypervel\Cache\TaggableStore
  */
 class CacheManager implements FactoryContract

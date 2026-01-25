@@ -6,7 +6,7 @@ namespace Hypervel\Cache;
 
 use Hyperf\Stringable\Str;
 use Hyperf\Support\Traits\InteractsWithTime;
-use Hypervel\Cache\Contracts\Lock as LockContract;
+use Hypervel\Contracts\Cache\Lock as LockContract;
 use Hypervel\Cache\Exceptions\LockTimeoutException;
 
 abstract class Lock implements LockContract

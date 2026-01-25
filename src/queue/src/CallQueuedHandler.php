@@ -10,7 +10,7 @@ use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Bus\Batchable;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Bus\UniqueLock;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Encryption\Contracts\Encrypter;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 use Hypervel\Contracts\Queue\Job;

@@ -9,7 +9,7 @@ use Faker\Generator;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Schema\Blueprint;
-use Hypervel\Cache\Contracts\Factory as CacheFactoryContract;
+use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
 use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;

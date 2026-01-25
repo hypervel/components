@@ -7,7 +7,7 @@ namespace Hypervel\Session;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hyperf\HttpServer\Request;
 use Hyperf\Support\Filesystem\Filesystem;
-use Hypervel\Cache\Contracts\Factory as CacheContract;
+use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Cookie\Contracts\Cookie as CookieContract;
 use Hypervel\Encryption\Contracts\Encrypter;
 use Hypervel\Session\Contracts\Factory;

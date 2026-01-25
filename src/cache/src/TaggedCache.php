@@ -6,7 +6,7 @@ namespace Hypervel\Cache;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Cache\Contracts\Store;
+use Hypervel\Contracts\Cache\Store;
 use Hypervel\Cache\Events\CacheFlushed;
 use Hypervel\Cache\Events\CacheFlushing;
 

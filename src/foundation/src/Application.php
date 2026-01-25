@@ -572,11 +572,11 @@ class Application extends Container implements ApplicationContract
                 'encrypter',
                 \Hypervel\Encryption\Encrypter::class,
             ],
-            \Hypervel\Cache\Contracts\Factory::class => [
+            \Hypervel\Contracts\Cache\Factory::class => [
                 'cache',
                 \Hypervel\Cache\CacheManager::class,
             ],
-            \Hypervel\Cache\Contracts\Store::class => [
+            \Hypervel\Contracts\Cache\Store::class => [
                 'cache.store',
                 \Hypervel\Cache\Repository::class,
             ],

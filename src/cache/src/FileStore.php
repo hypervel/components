@@ -7,8 +7,8 @@ namespace Hypervel\Cache;
 use Exception;
 use Hyperf\Support\Filesystem\Filesystem;
 use Hyperf\Support\Traits\InteractsWithTime;
-use Hypervel\Cache\Contracts\LockProvider;
-use Hypervel\Cache\Contracts\Store;
+use Hypervel\Contracts\Cache\LockProvider;
+use Hypervel\Contracts\Cache\Store;
 use Hypervel\Cache\Exceptions\LockTimeoutException;
 use Hypervel\Filesystem\LockableFile;
 

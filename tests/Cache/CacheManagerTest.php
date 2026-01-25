@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Cache;
 use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Cache\CacheManager;
-use Hypervel\Cache\Contracts\Repository;
+use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Cache\NullStore;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;

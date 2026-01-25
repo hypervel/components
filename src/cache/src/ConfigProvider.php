@@ -6,8 +6,8 @@ namespace Hypervel\Cache;
 
 use Hypervel\Cache\Console\ClearCommand;
 use Hypervel\Cache\Console\PruneDbExpiredCommand;
-use Hypervel\Cache\Contracts\Factory;
-use Hypervel\Cache\Contracts\Store;
+use Hypervel\Contracts\Cache\Factory;
+use Hypervel\Contracts\Cache\Store;
 use Hypervel\Cache\Listeners\CreateSwooleTable;
 use Hypervel\Cache\Listeners\CreateTimer;
 

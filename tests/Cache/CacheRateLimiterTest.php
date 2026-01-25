@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
-use Hypervel\Cache\Contracts\Factory as Cache;
+use Hypervel\Contracts\Cache\Factory as Cache;
 use Hypervel\Cache\RateLimiter;
 use Hypervel\Tests\TestCase;
 use Mockery as m;

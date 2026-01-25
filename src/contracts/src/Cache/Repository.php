@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Cache\Contracts;
+namespace Hypervel\Contracts\Cache;
 
 use Closure;
 use DateInterval;

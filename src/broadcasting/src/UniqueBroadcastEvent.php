@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Broadcasting;
 
 use Hyperf\Context\ApplicationContext;
-use Hypervel\Cache\Contracts\Factory as Cache;
+use Hypervel\Contracts\Cache\Factory as Cache;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 
 class UniqueBroadcastEvent extends BroadcastEvent implements ShouldBeUnique

@@ -7,7 +7,7 @@ namespace Hypervel\Queue\Middleware;
 use DateInterval;
 use DateTimeInterface;
 use Hyperf\Context\ApplicationContext;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Support\Traits\InteractsWithTime;
 
 class WithoutOverlapping

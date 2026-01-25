@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Watchers;
 
 use Exception;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Telescope\IncomingDumpEntry;
 use Hypervel\Telescope\Telescope;
 use Psr\Container\ContainerInterface;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
-use Hypervel\Cache\Contracts\RefreshableLock;
+use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Cache\NoLock;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;

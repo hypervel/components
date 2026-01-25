@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Console\Commands;
 
 use Hypervel\Support\Collection;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Console\Command;
 use Hypervel\Console\Events\ScheduledTaskFailed;
 use Hypervel\Console\Events\ScheduledTaskFinished;

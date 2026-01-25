@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\JWT\Storage;
 
-use Hypervel\Cache\Contracts\Repository as CacheRepository;
+use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\JWT\Storage\TaggedCache;
 use Hypervel\Tests\TestCase;
 use Mockery;

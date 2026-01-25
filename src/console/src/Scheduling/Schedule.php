@@ -12,7 +12,7 @@ use Hypervel\Support\Collection;
 use Hyperf\Macroable\Macroable;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Bus\UniqueLock;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Console\Contracts\CacheAware;
 use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Console\Contracts\SchedulingMutex;

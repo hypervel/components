@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Console;
 
 use Carbon\CarbonInterval;
-use Hypervel\Cache\Contracts\Factory as Cache;
-use Hypervel\Cache\Contracts\LockProvider;
+use Hypervel\Contracts\Cache\Factory as Cache;
+use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Console\Contracts\CommandMutex;
 use Hypervel\Support\Traits\InteractsWithTime;
 

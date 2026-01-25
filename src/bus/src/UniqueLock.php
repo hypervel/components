@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
 
 class UniqueLock
 {

@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Cache;
 
 use Carbon\Carbon;
 use Hypervel\Cache\ArrayStore;
-use Hypervel\Cache\Contracts\RefreshableLock;
+use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use stdClass;

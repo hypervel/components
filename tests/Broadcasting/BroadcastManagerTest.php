@@ -16,7 +16,7 @@ use Hypervel\Contracts\Broadcasting\ShouldBroadcastNow;
 use Hypervel\Broadcasting\UniqueBroadcastEvent;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Contracts\Bus\QueueingDispatcher;
-use Hypervel\Cache\Contracts\Factory as Cache;
+use Hypervel\Contracts\Cache\Factory as Cache;
 use Hypervel\Container\DefinitionSource;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Foundation\Application;

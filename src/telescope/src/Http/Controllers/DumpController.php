@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Http\Controllers;
 
 use Hypervel\Cache\ArrayStore;
-use Hypervel\Cache\Contracts\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Http\Request;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\EntryType;

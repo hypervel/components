@@ -10,7 +10,7 @@ use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Query\Builder;
-use Hypervel\Cache\Contracts\RefreshableLock;
+use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Cache\DatabaseLock;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
