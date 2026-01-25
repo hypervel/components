@@ -77,7 +77,7 @@ class PermissionMiddleware implements MiddlewareInterface
     /**
      * Generate a unique identifier for the middleware based on the permissions.
      */
-    public static function using(array|BackedEnum|int|string|UnitEnum ...$permissions): string
+    public static function using(array|UnitEnum|int|string ...$permissions): string
     {
         return static::class . ':' . self::parsePermissionsToString($permissions);
     }

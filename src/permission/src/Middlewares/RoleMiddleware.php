@@ -77,7 +77,7 @@ class RoleMiddleware implements MiddlewareInterface
     /**
      * Generate a unique identifier for the middleware based on the roles.
      */
-    public static function using(array|BackedEnum|int|string|UnitEnum ...$roles): string
+    public static function using(array|UnitEnum|int|string ...$roles): string
     {
         return static::class . ':' . self::parseRolesToString($roles);
     }
