@@ -24,7 +24,7 @@ use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Contracts\Queue\QueueableCollection;
 use Hypervel\Contracts\Queue\QueueableEntity;
-use Hypervel\Router\Contracts\UrlRoutable;
+use Hypervel\Contracts\Router\UrlRoutable;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Contracts\Support\Arrayable;

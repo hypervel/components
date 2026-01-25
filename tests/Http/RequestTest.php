@@ -15,7 +15,7 @@ use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\Stringable\Stringable;
 use Hypervel\Http\DispatchedRoute;
 use Hypervel\Http\Request;
-use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Router\RouteHandler;
 use Hypervel\Session\Contracts\Session as SessionContract;
 use Hypervel\Support\Uri;

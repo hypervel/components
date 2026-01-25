@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Http\Resources\Json;
 
 use Hyperf\Resource\Json\JsonResource as BaseJsonResource;
-use Hypervel\Router\Contracts\UrlRoutable;
+use Hypervel\Contracts\Router\UrlRoutable;
 
 use function Hyperf\Tappable\tap;
 

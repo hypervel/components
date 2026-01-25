@@ -21,8 +21,8 @@ use Hyperf\HttpServer\Router\DispatcherFactory;
 use Hyperf\Macroable\Macroable;
 use Hyperf\Stringable\Str;
 use Hyperf\Support\Traits\InteractsWithTime;
-use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
-use Hypervel\Router\Contracts\UrlRoutable;
+use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Contracts\Router\UrlRoutable;
 use InvalidArgumentException;
 
 class UrlGenerator implements UrlGeneratorContract

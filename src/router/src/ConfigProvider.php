@@ -10,7 +10,7 @@ use FastRoute\RouteParser as RouteParserContract;
 use FastRoute\RouteParser\Std as RouterParser;
 use Hyperf\HttpServer\Router\DispatcherFactory as HyperfDispatcherFactory;
 use Hyperf\HttpServer\Router\RouteCollector as HyperfRouteCollector;
-use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 
 class ConfigProvider
 {

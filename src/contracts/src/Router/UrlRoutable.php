@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Router\Contracts;
+namespace Hypervel\Contracts\Router;
 
 use Hypervel\Database\Eloquent\Model;
 

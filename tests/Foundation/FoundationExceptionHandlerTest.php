@@ -26,7 +26,7 @@ use Hypervel\Http\Contracts\ResponseContract;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
-use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Session\Contracts\Session as SessionContract;
 use Hypervel\Contracts\Support\Responsable;
 use Hypervel\Support\Facades\View;

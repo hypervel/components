@@ -20,7 +20,7 @@ use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Foundation\Http\HtmlDumper;
 use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Uri;
 use Psr\EventDispatcher\EventDispatcherInterface;

@@ -11,7 +11,7 @@ use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hyperf\Di\ReflectionType;
 use Hyperf\HttpServer\Router\Dispatched;
 use Hypervel\Http\RouteDependency;
-use Hypervel\Router\Contracts\UrlRoutable;
+use Hypervel\Contracts\Router\UrlRoutable;
 use Hypervel\Router\Exceptions\BackedEnumCaseNotFoundException;
 use Hypervel\Router\Exceptions\UrlRoutableNotFoundException;
 use Hypervel\Router\Router;

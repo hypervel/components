@@ -621,7 +621,7 @@ class Application extends Container implements ApplicationContract
             ],
             \Hyperf\Redis\Redis::class => ['redis'],
             \Hypervel\Router\Router::class => ['router'],
-            \Hypervel\Router\Contracts\UrlGenerator::class => [
+            \Hypervel\Contracts\Router\UrlGenerator::class => [
                 'url',
                 \Hypervel\Router\UrlGenerator::class,
             ],
