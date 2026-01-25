@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use DateTimeImmutable;
-use Hyperf\Codec\Json;
+use Hypervel\Support\Json;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\Context\RequestContext;

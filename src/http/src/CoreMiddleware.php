@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use FastRoute\Dispatcher;
-use Hyperf\Codec\Json;
+use Hypervel\Support\Json;
 use Hyperf\Context\RequestContext;
 use Hypervel\Contracts\Support\Arrayable;
 use Hyperf\Contract\ConfigInterface;
