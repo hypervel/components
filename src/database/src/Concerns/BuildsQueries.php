@@ -370,7 +370,7 @@ trait BuildsQueries
     /**
      * Paginate the given query using a cursor paginator.
      *
-     * @return \Hypervel\Pagination\Contracts\CursorPaginator
+     * @return \Hypervel\Contracts\Pagination\CursorPaginator
      */
     protected function paginateUsingCursor(int $perPage, array|string $columns = ['*'], string $cursorName = 'cursor', Cursor|string|null $cursor = null)
     {

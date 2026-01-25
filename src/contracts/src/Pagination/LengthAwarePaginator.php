@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Pagination\Contracts;
+namespace Hypervel\Contracts\Pagination;
 
 /**
  * @template TKey of array-key

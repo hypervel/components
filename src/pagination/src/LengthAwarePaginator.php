@@ -9,7 +9,7 @@ use Countable;
 use Hypervel\Support\Collection;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
-use Hypervel\Pagination\Contracts\LengthAwarePaginator as LengthAwarePaginatorContract;
+use Hypervel\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
 use Hypervel\Contracts\Support\Htmlable;
 use IteratorAggregate;
 use JsonSerializable;

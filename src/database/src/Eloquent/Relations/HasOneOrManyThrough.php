@@ -441,7 +441,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Paginate the given query into a simple paginator.
      *
-     * @return \Hypervel\Pagination\Contracts\Paginator
+     * @return \Hypervel\Contracts\Pagination\Paginator
      */
     public function simplePaginate(?int $perPage = null, array $columns = ['*'], string $pageName = 'page', ?int $page = null): mixed
     {
@@ -453,7 +453,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Paginate the given query into a cursor paginator.
      *
-     * @return \Hypervel\Pagination\Contracts\CursorPaginator
+     * @return \Hypervel\Contracts\Pagination\CursorPaginator
      */
     public function cursorPaginate(?int $perPage = null, array $columns = ['*'], string $cursorName = 'cursor', ?string $cursor = null): mixed
     {

@@ -1142,7 +1142,7 @@ class Builder implements BuilderContract
      * @param  array|string  $columns
      * @param  string  $pageName
      * @param  int|null  $page
-     * @return \Hypervel\Pagination\Contracts\Paginator
+     * @return \Hypervel\Contracts\Pagination\Paginator
      */
     public function simplePaginate($perPage = null, $columns = ['*'], $pageName = 'page', $page = null)
     {
@@ -1168,7 +1168,7 @@ class Builder implements BuilderContract
      * @param  array|string  $columns
      * @param  string  $cursorName
      * @param  \Hypervel\Pagination\Cursor|string|null  $cursor
-     * @return \Hypervel\Pagination\Contracts\CursorPaginator
+     * @return \Hypervel\Contracts\Pagination\CursorPaginator
      */
     public function cursorPaginate($perPage = null, $columns = ['*'], $cursorName = 'cursor', $cursor = null)
     {

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Pagination;
 
-use Hypervel\Pagination\Contracts\LengthAwarePaginator as PaginatorContract;
+use Hypervel\Contracts\Pagination\LengthAwarePaginator as PaginatorContract;
 
 class UrlWindow
 {

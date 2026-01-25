@@ -881,7 +881,7 @@ class BelongsToMany extends Relation
     /**
      * Paginate the given query into a simple paginator.
      *
-     * @return \Hypervel\Pagination\Contracts\Paginator<int, TRelatedModel&object{pivot: TPivotModel}>
+     * @return \Hypervel\Contracts\Pagination\Paginator<int, TRelatedModel&object{pivot: TPivotModel}>
      */
     public function simplePaginate(?int $perPage = null, array $columns = ['*'], string $pageName = 'page', ?int $page = null): mixed
     {
@@ -895,7 +895,7 @@ class BelongsToMany extends Relation
     /**
      * Paginate the given query into a cursor paginator.
      *
-     * @return \Hypervel\Pagination\Contracts\CursorPaginator<int, TRelatedModel&object{pivot: TPivotModel}>
+     * @return \Hypervel\Contracts\Pagination\CursorPaginator<int, TRelatedModel&object{pivot: TPivotModel}>
      */
     public function cursorPaginate(?int $perPage = null, array $columns = ['*'], string $cursorName = 'cursor', ?string $cursor = null): mixed
     {
