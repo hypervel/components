@@ -6,7 +6,7 @@ namespace Hypervel\Database\Eloquent\Casts;
 
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
-use Hyperf\Support\Fluent;
+use Hypervel\Support\Fluent;
 
 class AsFluent implements Castable
 {

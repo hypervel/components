@@ -6,7 +6,7 @@ namespace Hypervel\Database\Eloquent\Casts;
 
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
-use Hyperf\ViewEngine\HtmlString;
+use Hypervel\Support\HtmlString;
 
 class AsHtmlString implements Castable
 {

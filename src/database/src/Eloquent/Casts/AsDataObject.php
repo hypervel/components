@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Casts;
 
-use Hyperf\Contract\CastsAttributes;
+use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\DataObject;
 use InvalidArgumentException;
 
@@ -28,7 +29,7 @@ class AsDataObject implements CastsAttributes
      * @param array<string, mixed> $attributes
      */
     public function get(
-        mixed $model,
+        Model $model,
         string $key,
         mixed $value,
         array $attributes,
@@ -49,7 +50,7 @@ class AsDataObject implements CastsAttributes
      * @param array<string, mixed> $attributes
      */
     public function set(
-        mixed $model,
+        Model $model,
         string $key,
         mixed $value,
         array $attributes,
