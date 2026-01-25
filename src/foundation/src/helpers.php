@@ -37,6 +37,7 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
 
 use function Hypervel\Filesystem\join_paths;
+use function Hypervel\Support\enum_value;
 
 if (! function_exists('abort')) {
     /**
@@ -488,9 +489,9 @@ if (! function_exists('now')) {
     /**
      * Create a new Carbon instance for the current time.
      */
-    function now(\DateTimeZone|string|null $tz = null): Carbon
+    function now(\UnitEnum|\DateTimeZone|string|null $tz = null): Carbon
     {
-        return Carbon::now($tz);
+        return Carbon::now(enum_value($tz));
     }
 }
 
@@ -650,12 +651,10 @@ if (! function_exists('session')) {
 if (! function_exists('today')) {
     /**
      * Create a new Carbon instance for the current date.
-     *
-     * @param null|\DateTimeZone|string $tz
      */
-    function today($tz = null): Carbon
+    function today(\UnitEnum|\DateTimeZone|string|null $tz = null): Carbon
     {
-        return Carbon::today($tz);
+        return Carbon::today(enum_value($tz));
     }
 }
 
