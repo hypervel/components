@@ -19,6 +19,9 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use RuntimeException;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 class ThrottleRequests implements MiddlewareInterface
 {
@@ -45,9 +48,9 @@ class ThrottleRequests implements MiddlewareInterface
     /**
      * Specify the named rate limiter to use for the middleware.
      */
-    public static function using(string $name): string
+    public static function using(UnitEnum|string $name): string
     {
-        return static::class . ':' . $name;
+        return static::class . ':' . enum_value($name);
     }
 
     /**
