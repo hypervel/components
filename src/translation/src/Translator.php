@@ -16,6 +16,8 @@ use Hypervel\Contracts\Translation\Loader;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use InvalidArgumentException;
 
+use function Hypervel\Support\enum_value;
+
 class Translator extends NamespacedItemResolver implements TranslatorContract
 {
     use Macroable;
@@ -243,8 +245,10 @@ class Translator extends NamespacedItemResolver implements TranslatorContract
                 continue;
             }
 
-            if (is_object($value) && isset($this->stringableHandlers[get_class($value)])) {
-                $value = call_user_func($this->stringableHandlers[get_class($value)], $value);
+            if (is_object($value)) {
+                $value = isset($this->stringableHandlers[get_class($value)])
+                    ? call_user_func($this->stringableHandlers[get_class($value)], $value)
+                    : enum_value($value);
             }
 
             $key = (string) $key;
