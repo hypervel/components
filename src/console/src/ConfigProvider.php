@@ -9,7 +9,7 @@ use Hypervel\Console\Commands\ScheduleListCommand;
 use Hypervel\Console\Commands\ScheduleRunCommand;
 use Hypervel\Console\Commands\ScheduleStopCommand;
 use Hypervel\Console\Commands\ScheduleTestCommand;
-use Hypervel\Contracts\Console\CommandMutex;
+use Hypervel\Console\Contracts\CommandMutex;
 
 class ConfigProvider
 {

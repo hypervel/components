@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console\Scheduling;
 
-use Hypervel\Contracts\Console\EventMutex;
+use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Support\Carbon;
 use Mockery as m;

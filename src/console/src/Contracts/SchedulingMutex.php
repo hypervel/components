@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Contracts\Console;
+namespace Hypervel\Console\Contracts;
 
 use DateTimeInterface;
 use Hypervel\Console\Scheduling\Event;

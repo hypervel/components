@@ -11,7 +11,7 @@ use Hyperf\Command\Event\AfterExecute;
 use Hyperf\Command\Event\AfterHandle;
 use Hyperf\Command\Event\BeforeHandle;
 use Hyperf\Command\Event\FailToHandle;
-use Hypervel\Contracts\Console\CommandMutex;
+use Hypervel\Console\Contracts\CommandMutex;
 use Hypervel\Contracts\Console\Isolatable;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Coroutine\Coroutine;

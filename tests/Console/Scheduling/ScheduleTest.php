@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console\Scheduling;
 
-use Hypervel\Contracts\Console\EventMutex;
-use Hypervel\Contracts\Console\SchedulingMutex;
+use Hypervel\Console\Contracts\EventMutex;
+use Hypervel\Console\Contracts\SchedulingMutex;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Queue\ShouldQueue;

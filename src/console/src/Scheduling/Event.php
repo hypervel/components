@@ -18,7 +18,7 @@ use Hyperf\Macroable\Macroable;
 use Hyperf\Stringable\Stringable;
 use Hyperf\Support\Filesystem\Filesystem;
 use Hyperf\Tappable\Tappable;
-use Hypervel\Contracts\Console\EventMutex;
+use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
