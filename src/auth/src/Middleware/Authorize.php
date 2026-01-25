@@ -13,6 +13,9 @@ use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 class Authorize implements MiddlewareInterface
 {
@@ -28,9 +31,9 @@ class Authorize implements MiddlewareInterface
     /**
      * Specify the ability and models for the middleware.
      */
-    public static function using(string $ability, string ...$models): string
+    public static function using(UnitEnum|string $ability, string ...$models): string
     {
-        return static::class . ':' . implode(',', [$ability, ...$models]);
+        return static::class . ':' . implode(',', [enum_value($ability), ...$models]);
     }
 
     /**

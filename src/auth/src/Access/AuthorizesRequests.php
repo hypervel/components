@@ -8,6 +8,8 @@ use Hyperf\Context\ApplicationContext;
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Contracts\Auth\Authenticatable;
 
+use function Hypervel\Support\enum_value;
+
 trait AuthorizesRequests
 {
     /**
@@ -39,6 +41,8 @@ trait AuthorizesRequests
      */
     protected function parseAbilityAndArguments(mixed $ability, mixed $arguments = []): array
     {
+        $ability = enum_value($ability);
+
         if (is_string($ability) && ! str_contains($ability, '\\')) {
             return [$ability, $arguments];
         }
