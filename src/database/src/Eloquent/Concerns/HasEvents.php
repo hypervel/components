@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Concerns;
 
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
 use Hypervel\Database\Eloquent\Attributes\ObservedBy;
+use Hypervel\Event\NullDispatcher;
 use Hypervel\Database\Eloquent\Events\Booted;
 use Hypervel\Database\Eloquent\Events\Booting;
 use Hypervel\Database\Eloquent\Events\Created;
@@ -429,9 +430,16 @@ trait HasEvents
 
     /**
      * Get the event dispatcher instance.
+     *
+     * Returns a NullDispatcher when events are disabled (inside withoutEvents())
+     * to ensure manual dispatch() calls are also suppressed, matching Laravel behavior.
      */
     public static function getEventDispatcher(): ?Dispatcher
     {
+        if (static::eventsDisabled() && static::$dispatcher !== null) {
+            return new NullDispatcher(static::$dispatcher);
+        }
+
         return static::$dispatcher;
     }
 

@@ -5,9 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\Eloquent;
 
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\Tests\TestCase;
+use Hypervel\Event\NullDispatcher;
+use Hypervel\Testbench\TestCase;
 use RuntimeException;
 
 /**
@@ -18,12 +19,11 @@ use RuntimeException;
  */
 class EloquentModelWithoutEventsTest extends TestCase
 {
-    use RunTestsInCoroutine;
-
     protected function tearDown(): void
     {
         // Ensure context is clean after each test
         Context::destroy('__database.model.eventsDisabled');
+        TestModel::unsetEventDispatcher();
         parent::tearDown();
     }
 
@@ -135,6 +135,56 @@ class EloquentModelWithoutEventsTest extends TestCase
 
         $result = TestModel::withoutEvents(fn () => null);
         $this->assertNull($result);
+    }
+
+    public function testGetEventDispatcherReturnsNullDispatcherWhenEventsDisabled(): void
+    {
+        $realDispatcher = $this->app->get(Dispatcher::class);
+        TestModel::setEventDispatcher($realDispatcher);
+
+        // Outside withoutEvents, should return the real dispatcher
+        $dispatcher = TestModel::getEventDispatcher();
+        $this->assertSame($realDispatcher, $dispatcher);
+        $this->assertNotInstanceOf(NullDispatcher::class, $dispatcher);
+
+        TestModel::withoutEvents(function () use ($realDispatcher) {
+            // Inside withoutEvents, should return a NullDispatcher
+            $dispatcher = TestModel::getEventDispatcher();
+            $this->assertInstanceOf(NullDispatcher::class, $dispatcher);
+            $this->assertNotSame($realDispatcher, $dispatcher);
+        });
+
+        // After withoutEvents, should return the real dispatcher again
+        $dispatcher = TestModel::getEventDispatcher();
+        $this->assertSame($realDispatcher, $dispatcher);
+        $this->assertNotInstanceOf(NullDispatcher::class, $dispatcher);
+    }
+
+    public function testManualDispatchViaNullDispatcherIsSuppressed(): void
+    {
+        $realDispatcher = $this->app->get(Dispatcher::class);
+        TestModel::setEventDispatcher($realDispatcher);
+
+        $eventFired = false;
+        $realDispatcher->listen('test.event', function () use (&$eventFired) {
+            $eventFired = true;
+        });
+
+        // Manual dispatch outside withoutEvents should fire
+        TestModel::getEventDispatcher()->dispatch('test.event');
+        $this->assertTrue($eventFired, 'Event should fire outside withoutEvents');
+
+        $eventFired = false;
+
+        // Manual dispatch inside withoutEvents should be suppressed
+        TestModel::withoutEvents(function () {
+            TestModel::getEventDispatcher()->dispatch('test.event');
+        });
+        $this->assertFalse($eventFired, 'Event should be suppressed inside withoutEvents');
+
+        // Manual dispatch after withoutEvents should fire again
+        TestModel::getEventDispatcher()->dispatch('test.event');
+        $this->assertTrue($eventFired, 'Event should fire after withoutEvents');
     }
 }
 
