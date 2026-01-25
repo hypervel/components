@@ -557,7 +557,7 @@ class Application extends Container implements ApplicationContract
             \Hypervel\Foundation\Console\Contracts\Kernel::class => ['artisan'],
             \Hyperf\Contract\ConfigInterface::class => [
                 'config',
-                \Hypervel\Config\Contracts\Repository::class,
+                \Hypervel\Contracts\Config\Repository::class,
             ],
             \Psr\EventDispatcher\EventDispatcherInterface::class => [
                 'events',

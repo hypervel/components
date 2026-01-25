@@ -8,7 +8,7 @@ use ArrayAccess;
 use Closure;
 use Hypervel\Support\Arr;
 use Hyperf\Macroable\Macroable;
-use Hypervel\Config\Contracts\Repository as ConfigContract;
+use Hypervel\Contracts\Config\Repository as ConfigContract;
 use InvalidArgumentException;
 
 class Repository implements ArrayAccess, ConfigContract

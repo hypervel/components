@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Config\Contracts\Repository as ConfigContract;
+use Hypervel\Contracts\Config\Repository as ConfigContract;
 
 /**
  * @method static bool has(string $key)

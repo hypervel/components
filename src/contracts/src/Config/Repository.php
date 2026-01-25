@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Config\Contracts;
+namespace Hypervel\Contracts\Config;
 
 use Closure;
 use Hyperf\Contract\ConfigInterface;
