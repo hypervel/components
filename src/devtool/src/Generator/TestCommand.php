@@ -43,7 +43,6 @@ class TestCommand extends GeneratorCommand
     {
         return array_merge(parent::getOptions(), [
             ['unit', 'u', InputOption::VALUE_NONE, 'Whether create a unit test.'],
-            ['path', 'p', InputOption::VALUE_OPTIONAL, 'The path of the test class.'],
         ]);
     }
 

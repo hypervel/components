@@ -80,9 +80,7 @@ class CacheLocksTableCommand extends GeneratorCommand
 
     protected function getOptions(): array
     {
-        return array_merge(parent::getOptions(), [
-            ['path', 'p', InputOption::VALUE_OPTIONAL, 'The path of the cache locks table migration.'],
-        ]);
+        return parent::getOptions();
     }
 
     protected function getDefaultNamespace(): string

@@ -80,9 +80,7 @@ class CacheTableCommand extends GeneratorCommand
 
     protected function getOptions(): array
     {
-        return array_merge(parent::getOptions(), [
-            ['path', 'p', InputOption::VALUE_OPTIONAL, 'The path of the cache table migration.'],
-        ]);
+        return parent::getOptions();
     }
 
     protected function getDefaultNamespace(): string
