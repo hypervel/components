@@ -10,7 +10,7 @@ use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Hashing\Contracts\Hasher as HashContract;
+use Hypervel\Contracts\Hashing\Hasher as HashContract;
 
 use function Hyperf\Support\with;
 

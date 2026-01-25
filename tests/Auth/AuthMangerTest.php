@@ -21,7 +21,7 @@ use Hypervel\Auth\Guards\RequestGuard;
 use Hypervel\Auth\Providers\DatabaseUserProvider;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
-use Hypervel\Hashing\Contracts\Hasher as HashContract;
+use Hypervel\Contracts\Hashing\Hasher as HashContract;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 

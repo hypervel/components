@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Hashing;
 
-use Hypervel\Hashing\Contracts\Hasher;
+use Hypervel\Contracts\Hashing\Hasher;
 
 class ConfigProvider
 {

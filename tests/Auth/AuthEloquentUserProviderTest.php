@@ -9,7 +9,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Auth\Authenticatable as AuthenticatableUser;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Auth\Providers\EloquentUserProvider;
-use Hypervel\Hashing\Contracts\Hasher;
+use Hypervel\Contracts\Hashing\Hasher;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 

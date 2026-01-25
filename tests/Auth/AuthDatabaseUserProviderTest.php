@@ -9,7 +9,7 @@ use Hypervel\Database\Query\Builder;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Auth\GenericUser;
 use Hypervel\Auth\Providers\DatabaseUserProvider;
-use Hypervel\Hashing\Contracts\Hasher;
+use Hypervel\Contracts\Hashing\Hasher;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 

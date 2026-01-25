@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Hashing;
 
-use Hypervel\Hashing\Contracts\Hasher as HasherContract;
+use Hypervel\Contracts\Hashing\Hasher as HasherContract;
 use RuntimeException;
 
 class ArgonHasher extends AbstractHasher implements HasherContract

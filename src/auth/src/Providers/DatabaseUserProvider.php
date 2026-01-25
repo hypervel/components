@@ -10,7 +10,7 @@ use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Auth\GenericUser;
-use Hypervel\Hashing\Contracts\Hasher as HashContract;
+use Hypervel\Contracts\Hashing\Hasher as HashContract;
 
 class DatabaseUserProvider implements UserProvider
 {

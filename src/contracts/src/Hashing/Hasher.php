@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Hashing\Contracts;
+namespace Hypervel\Contracts\Hashing;
 
 interface Hasher
 {

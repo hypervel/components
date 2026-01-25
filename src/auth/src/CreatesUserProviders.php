@@ -8,7 +8,7 @@ use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Auth\Providers\DatabaseUserProvider;
 use Hypervel\Auth\Providers\EloquentUserProvider;
-use Hypervel\Hashing\Contracts\Hasher as HashContract;
+use Hypervel\Contracts\Hashing\Hasher as HashContract;
 use InvalidArgumentException;
 
 trait CreatesUserProviders

@@ -613,7 +613,7 @@ class Application extends Container implements ApplicationContract
             \Hypervel\Contracts\Auth\Guard::class => [
                 'auth.driver',
             ],
-            \Hypervel\Hashing\Contracts\Hasher::class => ['hash'],
+            \Hypervel\Contracts\Hashing\Hasher::class => ['hash'],
             \Hypervel\Cookie\CookieManager::class => ['cookie'],
             \Hypervel\JWT\Contracts\ManagerContract::class => [
                 'jwt',
