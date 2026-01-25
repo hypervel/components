@@ -18,8 +18,6 @@ use Hypervel\Support\Traits\InteractsWithTime;
 use Psr\Container\ContainerInterface;
 use SessionHandlerInterface;
 
-use function Hyperf\Tappable\tap;
-
 class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerInterface
 {
     use InteractsWithTime;

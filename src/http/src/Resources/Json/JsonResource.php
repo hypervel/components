@@ -7,8 +7,6 @@ namespace Hypervel\Http\Resources\Json;
 use Hyperf\Resource\Json\JsonResource as BaseJsonResource;
 use Hypervel\Contracts\Router\UrlRoutable;
 
-use function Hyperf\Tappable\tap;
-
 class JsonResource extends BaseJsonResource implements UrlRoutable
 {
     /**

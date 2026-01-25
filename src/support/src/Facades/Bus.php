@@ -10,8 +10,6 @@ use Hypervel\Bus\PendingChain;
 use Hypervel\Bus\PendingDispatch;
 use Hypervel\Support\Testing\Fakes\BusFake;
 
-use function Hyperf\Tappable\tap;
-
 /**
  * @method static mixed dispatch(mixed $command)
  * @method static mixed dispatchSync(mixed $command, mixed $handler = null)

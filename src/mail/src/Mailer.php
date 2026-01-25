@@ -28,7 +28,6 @@ use Symfony\Component\Mailer\Transport\TransportInterface;
 use Symfony\Component\Mime\Email;
 
 use function Hyperf\Support\value;
-use function Hyperf\Tappable\tap;
 
 class Mailer implements MailerContract, MailQueueContract
 {

@@ -15,7 +15,6 @@ use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface as DispatcherContract;
 
 use function Hyperf\Support\make;
-use function Hyperf\Tappable\tap;
 
 /**
  * @mixin \Hypervel\Contracts\Cache\Repository

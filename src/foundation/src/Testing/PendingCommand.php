@@ -9,7 +9,7 @@ use Hyperf\Command\Event\FailToHandle;
 use Hyperf\Conditionable\Conditionable;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Support\Traits\Macroable;
-use Hyperf\Tappable\Tappable;
+use Hypervel\Support\Traits\Tappable;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Prompts\Note as PromptsNote;

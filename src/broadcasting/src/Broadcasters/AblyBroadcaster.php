@@ -13,8 +13,6 @@ use Hypervel\Broadcasting\BroadcastException;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Psr\Container\ContainerInterface;
 
-use function Hyperf\Tappable\tap;
-
 class AblyBroadcaster extends Broadcaster
 {
     /**

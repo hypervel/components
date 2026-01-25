@@ -18,7 +18,6 @@ use Sentry\HttpClient\HttpClientInterface;
 use Sentry\Integration as SdkIntegration;
 
 use function Hyperf\Support\make;
-use function Hyperf\Tappable\tap;
 
 class ClientBuilderFactory
 {

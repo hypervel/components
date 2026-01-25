@@ -10,8 +10,6 @@ use Hyperf\Conditionable\Conditionable;
 use Hypervel\Contracts\Mail\Mailable as MailableContract;
 use Hypervel\Contracts\Mail\Mailer as MailerContract;
 
-use function Hyperf\Tappable\tap;
-
 class PendingMail
 {
     use Conditionable;

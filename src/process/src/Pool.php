@@ -8,8 +8,6 @@ use Closure;
 use Hypervel\Support\Collection;
 use InvalidArgumentException;
 
-use function Hyperf\Tappable\tap;
-
 /**
  * @mixin \Hypervel\Process\Factory
  * @mixin \Hypervel\Process\PendingProcess

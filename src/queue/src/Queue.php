@@ -21,8 +21,6 @@ use Hypervel\Queue\Exceptions\InvalidPayloadException;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
-use function Hyperf\Tappable\tap;
-
 use const JSON_UNESCAPED_UNICODE;
 
 abstract class Queue

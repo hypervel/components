@@ -9,8 +9,6 @@ use Hypervel\Support\Collection;
 use Hypervel\Process\Contracts\ProcessResult as ProcessResultContract;
 use InvalidArgumentException;
 
-use function Hyperf\Tappable\tap;
-
 /**
  * @mixin \Hypervel\Process\Factory
  * @mixin \Hypervel\Process\PendingProcess

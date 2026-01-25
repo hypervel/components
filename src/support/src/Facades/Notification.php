@@ -8,8 +8,6 @@ use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Contracts\Notifications\Dispatcher as NotificationDispatcher;
 use Hypervel\Support\Testing\Fakes\NotificationFake;
 
-use function Hyperf\Tappable\tap;
-
 /**
  * @method static void send(mixed $notifiables, mixed $notification)
  * @method static void sendNow(mixed $notifiables, mixed $notification, array|null $channels = null)

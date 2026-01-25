@@ -12,9 +12,6 @@ use Hypervel\Support\Traits\Macroable;
 use PHPUnit\Framework\Assert as PHPUnit;
 use RuntimeException;
 
-use function Hyperf\Support\value;
-use function Hyperf\Tappable\tap;
-
 class Sleep
 {
     use Macroable;

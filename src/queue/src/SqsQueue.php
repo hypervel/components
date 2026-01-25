@@ -13,8 +13,6 @@ use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Queue\Jobs\SqsJob;
 
-use function Hyperf\Tappable\tap;
-
 class SqsQueue extends Queue implements QueueContract, ClearableQueue
 {
     /**

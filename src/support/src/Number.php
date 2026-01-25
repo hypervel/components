@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hypervel\Support\Traits\Macroable;
 use NumberFormatter;
 use RuntimeException;
@@ -217,7 +217,7 @@ class Number
      */
     public static function withLocale(string $locale, callable $callback): mixed
     {
-        $previousLocale = static::$locale;
+        $previousLocale = static::defaultLocale();
 
         static::useLocale($locale);
 
@@ -229,7 +229,7 @@ class Number
      */
     public static function withCurrency(string $currency, callable $callback): mixed
     {
-        $previousCurrency = static::$currency;
+        $previousCurrency = static::defaultCurrency();
 
         static::useCurrency($currency);
 
@@ -249,7 +249,7 @@ class Number
      */
     public static function useCurrency(string $currency): void
     {
-        Context::get('__support.number.currency', $currency);
+        Context::set('__support.number.currency', $currency);
     }
 
     /**

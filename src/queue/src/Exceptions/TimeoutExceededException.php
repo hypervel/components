@@ -6,8 +6,6 @@ namespace Hypervel\Queue\Exceptions;
 
 use Hypervel\Contracts\Queue\Job;
 
-use function Hyperf\Tappable\tap;
-
 class TimeoutExceededException extends MaxAttemptsExceededException
 {
     /**

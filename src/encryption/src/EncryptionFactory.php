@@ -10,8 +10,6 @@ use Hypervel\Encryption\Exceptions\MissingAppKeyException;
 use Laravel\SerializableClosure\SerializableClosure;
 use Psr\Container\ContainerInterface;
 
-use function Hyperf\Tappable\tap;
-
 class EncryptionFactory
 {
     public function __invoke(ContainerInterface $container): Encrypter

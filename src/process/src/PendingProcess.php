@@ -18,8 +18,6 @@ use Symfony\Component\Process\Process;
 use Throwable;
 use Traversable;
 
-use function Hyperf\Tappable\tap;
-
 class PendingProcess
 {
     use Conditionable;

@@ -7,8 +7,6 @@ namespace Hypervel\Queue\Exceptions;
 use Hypervel\Contracts\Queue\Job;
 use RuntimeException;
 
-use function Hyperf\Tappable\tap;
-
 class MaxAttemptsExceededException extends RuntimeException
 {
     /**

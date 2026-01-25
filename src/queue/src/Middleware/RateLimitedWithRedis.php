@@ -10,8 +10,6 @@ use Hyperf\Redis\RedisFactory;
 use Hypervel\Redis\Limiters\DurationLimiter;
 use Hypervel\Support\Traits\InteractsWithTime;
 
-use function Hyperf\Tappable\tap;
-
 class RateLimitedWithRedis extends RateLimited
 {
     use InteractsWithTime;

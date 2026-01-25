@@ -17,7 +17,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Stringable;
 use Hyperf\Support\Filesystem\Filesystem;
-use Hyperf\Tappable\Tappable;
+use Hypervel\Support\Traits\Tappable;
 use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Context\Context;

@@ -8,8 +8,6 @@ use BadMethodCallException;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Str;
 
-use function Hyperf\Support\env;
-
 /**
  * @method bool isTesting()
  * @method bool isLocal()

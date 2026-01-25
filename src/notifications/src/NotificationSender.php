@@ -17,7 +17,6 @@ use Hypervel\Contracts\Translation\HasLocalePreference;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 use function Hyperf\Support\value;
-use function Hyperf\Tappable\tap;
 
 class NotificationSender
 {

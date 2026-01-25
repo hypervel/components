@@ -23,8 +23,6 @@ use PHPUnit\Framework\Assert as PHPUnit;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 
-use function Hyperf\Tappable\tap;
-
 /**
  * @mixin \Hypervel\HttpClient\PendingRequest
  */

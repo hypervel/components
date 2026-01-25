@@ -9,8 +9,6 @@ use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Queue\Worker;
 use Hypervel\Support\Testing\Fakes\QueueFake;
 
-use function Hyperf\Tappable\tap;
-
 /**
  * @method static void before(mixed $callback)
  * @method static void after(mixed $callback)

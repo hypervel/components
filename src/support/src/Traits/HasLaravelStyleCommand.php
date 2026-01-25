@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Traits;
 
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Psr\Container\ContainerInterface;
 
