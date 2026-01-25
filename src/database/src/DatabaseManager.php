@@ -277,7 +277,7 @@ class DatabaseManager implements ConnectionResolverInterface
 
         // Only act if this coroutine already has a connection
         $connection = Context::get($contextKey);
-        if ($connection instanceof ConnectionInterface) {
+        if ($connection instanceof Connection) {
             $connection->disconnect();
         }
     }
