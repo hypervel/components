@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console\Scheduling;
 
+use DateTimeZone;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hypervel\Support\Str;
@@ -16,6 +17,25 @@ use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Process\Process;
+use TypeError;
+
+enum EventTestTimezoneStringEnum: string
+{
+    case NewYork = 'America/New_York';
+    case London = 'Europe/London';
+}
+
+enum EventTestTimezoneIntEnum: int
+{
+    case Zone1 = 1;
+    case Zone2 = 2;
+}
+
+enum EventTestTimezoneUnitEnum
+{
+    case UTC;
+    case EST;
+}
 
 /**
  * @internal
@@ -155,5 +175,45 @@ class EventTest extends TestCase
         });
 
         $this->assertSame('fancy-command-description', $event->mutexName());
+    }
+
+    public function testTimezoneAcceptsStringBackedEnum(): void
+    {
+        $event = new Event(m::mock(EventMutex::class), 'php -i');
+
+        $event->timezone(EventTestTimezoneStringEnum::NewYork);
+
+        // String-backed enum value should be used
+        $this->assertSame('America/New_York', $event->timezone);
+    }
+
+    public function testTimezoneAcceptsUnitEnum(): void
+    {
+        $event = new Event(m::mock(EventMutex::class), 'php -i');
+
+        $event->timezone(EventTestTimezoneUnitEnum::UTC);
+
+        // Unit enum name should be used
+        $this->assertSame('UTC', $event->timezone);
+    }
+
+    public function testTimezoneWithIntBackedEnumThrowsTypeError(): void
+    {
+        $event = new Event(m::mock(EventMutex::class), 'php -i');
+
+        // Int-backed enum causes TypeError because $timezone property is DateTimeZone|string|null
+        $this->expectException(TypeError::class);
+        $event->timezone(EventTestTimezoneIntEnum::Zone1);
+    }
+
+    public function testTimezoneAcceptsDateTimeZoneObject(): void
+    {
+        $event = new Event(m::mock(EventMutex::class), 'php -i');
+
+        $tz = new DateTimeZone('UTC');
+        $event->timezone($tz);
+
+        // DateTimeZone object should be preserved
+        $this->assertSame($tz, $event->timezone);
     }
 }

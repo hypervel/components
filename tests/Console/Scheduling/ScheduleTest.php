@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console\Scheduling;
 
+use Hypervel\Console\Contracts\CacheAware;
 use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Console\Contracts\SchedulingMutex;
 use Hypervel\Console\Scheduling\Schedule;
@@ -14,6 +15,37 @@ use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
+use TypeError;
+
+enum ScheduleTestQueueStringEnum: string
+{
+    case High = 'high-priority';
+    case Low = 'low-priority';
+}
+
+enum ScheduleTestQueueIntEnum: int
+{
+    case Priority1 = 1;
+    case Priority2 = 2;
+}
+
+enum ScheduleTestQueueUnitEnum
+{
+    case default;
+    case emails;
+}
+
+enum ScheduleTestCacheStoreEnum: string
+{
+    case Redis = 'redis';
+    case File = 'file';
+}
+
+enum ScheduleTestCacheStoreIntEnum: int
+{
+    case Store1 = 1;
+    case Store2 = 2;
+}
 
 /**
  * @internal
@@ -71,6 +103,78 @@ class ScheduleTest extends TestCase
         $scheduledJob = $schedule->job(JobToTestWithSchedule::class);
         self::assertSame(JobToTestWithSchedule::class, $scheduledJob->description);
         self::assertFalse($this->container->resolved(JobToTestWithSchedule::class));
+    }
+
+    public function testJobAcceptsStringBackedEnumForQueueAndConnection(): void
+    {
+        $schedule = new Schedule();
+
+        // Should not throw - enums are accepted
+        $scheduledJob = $schedule->job(
+            JobToTestWithSchedule::class,
+            ScheduleTestQueueStringEnum::High,
+            ScheduleTestQueueStringEnum::Low
+        );
+
+        self::assertSame(JobToTestWithSchedule::class, $scheduledJob->description);
+    }
+
+    public function testJobAcceptsUnitEnumForQueueAndConnection(): void
+    {
+        $schedule = new Schedule();
+
+        $scheduledJob = $schedule->job(
+            JobToTestWithSchedule::class,
+            ScheduleTestQueueUnitEnum::default,
+            ScheduleTestQueueUnitEnum::emails
+        );
+
+        self::assertSame(JobToTestWithSchedule::class, $scheduledJob->description);
+    }
+
+    public function testJobWithIntBackedEnumStoresIntValue(): void
+    {
+        $schedule = new Schedule();
+
+        // Int-backed enum values are stored as-is (no cast to string)
+        // TypeError will occur when the job is dispatched and dispatchToQueue() receives int
+        $scheduledJob = $schedule->job(
+            JobToTestWithSchedule::class,
+            ScheduleTestQueueIntEnum::Priority1,
+            ScheduleTestQueueIntEnum::Priority2
+        );
+
+        self::assertSame(JobToTestWithSchedule::class, $scheduledJob->description);
+    }
+
+    public function testUseCacheAcceptsStringBackedEnum(): void
+    {
+        $eventMutex = m::mock(EventMutex::class, CacheAware::class);
+        $eventMutex->shouldReceive('useStore')->once()->with('redis');
+
+        $schedulingMutex = m::mock(SchedulingMutex::class, CacheAware::class);
+        $schedulingMutex->shouldReceive('useStore')->once()->with('redis');
+
+        $this->container->instance(EventMutex::class, $eventMutex);
+        $this->container->instance(SchedulingMutex::class, $schedulingMutex);
+
+        $schedule = new Schedule();
+        $schedule->useCache(ScheduleTestCacheStoreEnum::Redis);
+    }
+
+    public function testUseCacheWithIntBackedEnumThrowsTypeError(): void
+    {
+        $eventMutex = m::mock(EventMutex::class, CacheAware::class);
+        $schedulingMutex = m::mock(SchedulingMutex::class, CacheAware::class);
+
+        $this->container->instance(EventMutex::class, $eventMutex);
+        $this->container->instance(SchedulingMutex::class, $schedulingMutex);
+
+        $schedule = new Schedule();
+
+        // TypeError is thrown when useStore() receives int instead of string
+        $this->expectException(TypeError::class);
+        $schedule->useCache(ScheduleTestCacheStoreIntEnum::Store1);
     }
 }
 
