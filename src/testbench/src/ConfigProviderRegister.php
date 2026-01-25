@@ -21,7 +21,7 @@ class ConfigProviderRegister
         \Hyperf\HttpServer\ConfigProvider::class,
         \Hyperf\Memory\ConfigProvider::class,
         \Hyperf\ModelListener\ConfigProvider::class,
-        \Hyperf\Paginator\ConfigProvider::class,
+        \Hypervel\Pagination\ConfigProvider::class,
         \Hyperf\Process\ConfigProvider::class,
         \Hyperf\Redis\ConfigProvider::class,
         \Hyperf\Serializer\ConfigProvider::class,
