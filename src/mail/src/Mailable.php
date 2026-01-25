@@ -15,7 +15,7 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Macroable\Macroable;
 use Hyperf\Stringable\Str;
 use Hyperf\Support\Traits\ForwardsCalls;
-use Hypervel\Filesystem\Contracts\Factory as FilesystemFactory;
+use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Foundation\Testing\Constraints\SeeInOrder;
 use Hypervel\Mail\Contracts\Attachable;
 use Hypervel\Mail\Contracts\Factory;

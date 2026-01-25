@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Filesystem\Contracts;
+namespace Hypervel\Contracts\Filesystem;
 
 use Hyperf\HttpMessage\Upload\UploadedFile;
 use Psr\Http\Message\StreamInterface;

@@ -10,16 +10,16 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\FilesystemManager;
 
 /**
- * @method static \Hypervel\Filesystem\Contracts\Filesystem drive(string|null $name = null)
- * @method static \Hypervel\Filesystem\Contracts\Filesystem disk(string|null $name = null)
- * @method static \Hypervel\Filesystem\Contracts\Cloud cloud()
- * @method static \Hypervel\Filesystem\Contracts\Filesystem build(array|string $config)
- * @method static \Hypervel\Filesystem\Contracts\Filesystem createLocalDriver(array $config, string $name = 'local')
- * @method static \Hypervel\Filesystem\Contracts\Filesystem createFtpDriver(array $config)
- * @method static \Hypervel\Filesystem\Contracts\Filesystem createSftpDriver(array $config)
- * @method static \Hypervel\Filesystem\Contracts\Cloud createS3Driver(array $config)
- * @method static \Hypervel\Filesystem\Contracts\Cloud createGcsDriver(array $config)
- * @method static \Hypervel\Filesystem\Contracts\Filesystem createScopedDriver(array $config)
+ * @method static \Hypervel\Contracts\Filesystem\Filesystem drive(string|null $name = null)
+ * @method static \Hypervel\Contracts\Filesystem\Filesystem disk(string|null $name = null)
+ * @method static \Hypervel\Contracts\Filesystem\Cloud cloud()
+ * @method static \Hypervel\Contracts\Filesystem\Filesystem build(array|string $config)
+ * @method static \Hypervel\Contracts\Filesystem\Filesystem createLocalDriver(array $config, string $name = 'local')
+ * @method static \Hypervel\Contracts\Filesystem\Filesystem createFtpDriver(array $config)
+ * @method static \Hypervel\Contracts\Filesystem\Filesystem createSftpDriver(array $config)
+ * @method static \Hypervel\Contracts\Filesystem\Cloud createS3Driver(array $config)
+ * @method static \Hypervel\Contracts\Filesystem\Cloud createGcsDriver(array $config)
+ * @method static \Hypervel\Contracts\Filesystem\Filesystem createScopedDriver(array $config)
  * @method static \Hypervel\Filesystem\FilesystemManager set(string $name, mixed $disk)
  * @method static string getDefaultDriver()
  * @method static string getDefaultCloudDriver()
@@ -123,7 +123,7 @@ class Storage extends Facade
     /**
      * Replace the given disk with a local testing disk.
      *
-     * @return \Hypervel\Filesystem\Contracts\Filesystem
+     * @return \Hypervel\Contracts\Filesystem\Filesystem
      */
     public static function fake(?string $disk = null, array $config = [])
     {
@@ -147,7 +147,7 @@ class Storage extends Facade
     /**
      * Replace the given disk with a persistent local testing disk.
      *
-     * @return \Hypervel\Filesystem\Contracts\Filesystem
+     * @return \Hypervel\Contracts\Filesystem\Filesystem
      */
     public static function persistentFake(?string $disk = null, array $config = [])
     {

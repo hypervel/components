@@ -581,7 +581,7 @@ class Application extends Container implements ApplicationContract
                 \Hypervel\Cache\Repository::class,
             ],
             \Hypervel\Filesystem\Filesystem::class => ['files'],
-            \Hypervel\Filesystem\Contracts\Factory::class => [
+            \Hypervel\Contracts\Filesystem\Factory::class => [
                 'filesystem',
                 \Hypervel\Filesystem\FilesystemManager::class,
             ],

@@ -7,8 +7,8 @@ namespace Hypervel\Mail;
 use Closure;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Macroable\Macroable;
-use Hypervel\Filesystem\Contracts\Factory as FilesystemFactory;
-use Hypervel\Filesystem\Contracts\Filesystem;
+use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
+use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Notifications\Messages\MailMessage;
 use RuntimeException;
 
