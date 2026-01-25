@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Broadcasting;
 
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\Channel;
-use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactory;
+use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Hypervel\Broadcasting\InteractsWithBroadcasting;
 use Hypervel\Broadcasting\PendingBroadcast;
 use Mockery as m;
