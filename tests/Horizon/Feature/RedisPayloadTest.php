@@ -8,7 +8,7 @@ use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Horizon\Contracts\Silenced;
 use Hypervel\Horizon\JobPayload;
-use Hypervel\Mail\Contracts\Mailable;
+use Hypervel\Contracts\Mail\Mailable;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Notifications\SendQueuedNotifications;
 use Hypervel\Tests\Horizon\Feature\Fixtures\FakeEvent;

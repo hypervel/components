@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support\Facades;
 
 use Hypervel\Notifications\AnonymousNotifiable;
-use Hypervel\Notifications\Contracts\Dispatcher as NotificationDispatcher;
+use Hypervel\Contracts\Notifications\Dispatcher as NotificationDispatcher;
 use Hypervel\Support\Testing\Fakes\NotificationFake;
 
 use function Hyperf\Tappable\tap;

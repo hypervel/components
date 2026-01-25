@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Mail\Contracts;
+namespace Hypervel\Contracts\Mail;
 
 use DateInterval;
 use DateTimeInterface;

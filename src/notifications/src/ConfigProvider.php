@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications;
 
-use Hypervel\Notifications\Contracts\Dispatcher as NotificationDispatcher;
+use Hypervel\Contracts\Notifications\Dispatcher as NotificationDispatcher;
 
 class ConfigProvider
 {

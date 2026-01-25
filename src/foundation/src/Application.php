@@ -549,7 +549,7 @@ class Application extends Container implements ApplicationContract
                 'app',
                 \Hyperf\Di\Container::class,
                 \Hyperf\Contract\ContainerInterface::class,
-                \Hypervel\Container\Contracts\Container::class,
+                \Hypervel\Contracts\Container\Container::class,
                 \Hypervel\Container\Container::class,
                 \Hypervel\Contracts\Foundation\Application::class,
                 \Hypervel\Foundation\Application::class,
@@ -632,13 +632,13 @@ class Application extends Container implements ApplicationContract
                 \Hypervel\Session\SessionManager::class,
             ],
             \Hypervel\Contracts\Session\Session::class => ['session.store'],
-            \Hypervel\Mail\Contracts\Factory::class => [
+            \Hypervel\Contracts\Mail\Factory::class => [
                 'mail.manager',
                 \Hypervel\Mail\MailManager::class,
             ],
-            \Hypervel\Mail\Contracts\Mailer::class => ['mailer'],
-            \Hypervel\Notifications\Contracts\Dispatcher::class => [
-                \Hypervel\Notifications\Contracts\Factory::class,
+            \Hypervel\Contracts\Mail\Mailer::class => ['mailer'],
+            \Hypervel\Contracts\Notifications\Dispatcher::class => [
+                \Hypervel\Contracts\Notifications\Factory::class,
             ],
             \Hypervel\Contracts\Bus\Dispatcher::class => [
                 \Hypervel\Contracts\Bus\QueueingDispatcher::class,

@@ -10,7 +10,7 @@ use Hyperf\Conditionable\Conditionable;
 use Hypervel\Contracts\Support\Arrayable;
 use Hyperf\Macroable\Macroable;
 use Hyperf\Tappable\Tappable;
-use Hypervel\Container\Contracts\Container as ContainerContract;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
 use Hypervel\Prompts\Note as PromptsNote;
 use Hypervel\Prompts\Prompt as BasePrompt;

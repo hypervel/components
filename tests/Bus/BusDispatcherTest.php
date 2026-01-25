@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Bus;
 
 use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Queueable;
-use Hypervel\Container\Contracts\Container;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\InteractsWithQueue;

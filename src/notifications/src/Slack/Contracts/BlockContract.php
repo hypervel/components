@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Notifications\Contracts\Slack;
+namespace Hypervel\Notifications\Slack\Contracts;
 
 use Hypervel\Contracts\Support\Arrayable;
 

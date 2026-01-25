@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Notifications\Slack\BlockKit\Blocks;
 
 use Hypervel\Contracts\Support\Arrayable;
-use Hypervel\Notifications\Contracts\Slack\BlockContract;
-use Hypervel\Notifications\Contracts\Slack\ElementContract;
+use Hypervel\Notifications\Slack\Contracts\BlockContract;
+use Hypervel\Notifications\Slack\Contracts\ElementContract;
 use Hypervel\Notifications\Slack\BlockKit\Composites\TextObject;
 use Hypervel\Notifications\Slack\BlockKit\Elements\ImageElement;
 use InvalidArgumentException;

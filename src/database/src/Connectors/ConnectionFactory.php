@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Connectors;
 
-use Hypervel\Container\Contracts\Container;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Connection;
 use Hypervel\Database\MariaDbConnection;
 use Hypervel\Database\MySqlConnection;

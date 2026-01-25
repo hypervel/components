@@ -9,7 +9,7 @@ use Hyperf\Conditionable\Conditionable;
 use Hyperf\Context\ApplicationContext;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Mail\Attachment;
-use Hypervel\Mail\Contracts\Attachable;
+use Hypervel\Contracts\Mail\Attachable;
 use Hypervel\Mail\Markdown;
 use Hypervel\Contracts\Support\Renderable;
 

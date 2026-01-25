@@ -8,7 +8,7 @@ use Closure;
 use Hyperf\Contract\NormalizerInterface;
 use Hyperf\Di\ClosureDefinitionCollectorInterface;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
-use Hypervel\Container\Contracts\Container as ContainerContract;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use InvalidArgumentException;
 use ReflectionException;
 

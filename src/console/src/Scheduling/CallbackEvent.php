@@ -6,7 +6,7 @@ namespace Hypervel\Console\Scheduling;
 
 use DateTimeZone;
 use Hypervel\Contracts\Console\EventMutex;
-use Hypervel\Container\Contracts\Container;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Support\Reflector;
 use InvalidArgumentException;
 use LogicException;

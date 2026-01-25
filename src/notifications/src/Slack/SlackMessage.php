@@ -8,7 +8,7 @@ use Closure;
 use Hypervel\Support\Arr;
 use Hyperf\Conditionable\Conditionable;
 use Hypervel\Contracts\Support\Arrayable;
-use Hypervel\Notifications\Contracts\Slack\BlockContract;
+use Hypervel\Notifications\Slack\Contracts\BlockContract;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ActionsBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ContextBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\DividerBlock;

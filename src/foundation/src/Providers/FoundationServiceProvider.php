@@ -12,7 +12,7 @@ use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Grammar;
 use Hyperf\HttpServer\MiddlewareManager;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
-use Hypervel\Container\Contracts\Container;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Event\Contracts\Dispatcher;
 use Hypervel\Foundation\Console\CliDumper;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;

@@ -12,8 +12,8 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Stringable\Str;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
 use Hypervel\Log\LogManager;
-use Hypervel\Mail\Contracts\Factory as FactoryContract;
-use Hypervel\Mail\Contracts\Mailer as MailerContract;
+use Hypervel\Contracts\Mail\Factory as FactoryContract;
+use Hypervel\Contracts\Mail\Mailer as MailerContract;
 use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Mail\Transport\LogTransport;
 use Hypervel\Mail\Transport\SesTransport;
@@ -39,7 +39,7 @@ use Symfony\Component\Mailer\Transport\TransportInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 /**
- * @mixin \Hypervel\Mail\Contracts\Mailer
+ * @mixin \Hypervel\Contracts\Mail\Mailer
  */
 class MailManager implements FactoryContract
 {

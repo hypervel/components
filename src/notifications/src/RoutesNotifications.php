@@ -6,7 +6,7 @@ namespace Hypervel\Notifications;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Stringable\Str;
-use Hypervel\Notifications\Contracts\Dispatcher;
+use Hypervel\Contracts\Notifications\Dispatcher;
 
 trait RoutesNotifications
 {

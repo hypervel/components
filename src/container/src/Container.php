@@ -9,7 +9,7 @@ use Closure;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Di\Container as HyperfContainer;
 use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Container\Contracts\Container as ContainerContract;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use InvalidArgumentException;
 use LogicException;
 use TypeError;

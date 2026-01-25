@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Container\Contracts;
+namespace Hypervel\Contracts\Container;
 
 use Closure;
 use Hyperf\Contract\ContainerInterface as HyperfContainerInterface;

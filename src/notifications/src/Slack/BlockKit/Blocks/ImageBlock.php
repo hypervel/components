@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications\Slack\BlockKit\Blocks;
 
-use Hypervel\Notifications\Contracts\Slack\BlockContract;
+use Hypervel\Notifications\Slack\Contracts\BlockContract;
 use Hypervel\Notifications\Slack\BlockKit\Composites\PlainTextOnlyTextObject;
 use InvalidArgumentException;
 use LogicException;

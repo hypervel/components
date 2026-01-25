@@ -7,7 +7,7 @@ namespace Hypervel\Console;
 use Closure;
 use Hyperf\Command\Command;
 use Hypervel\Contracts\Console\Application as ApplicationContract;
-use Hypervel\Container\Contracts\Container as ContainerContract;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Context\Context;
 use Hypervel\Support\ProcessUtils;
 use Override;

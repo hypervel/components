@@ -6,7 +6,7 @@ namespace Hypervel\Contracts\Console;
 
 use Closure;
 use Hyperf\Command\Command;
-use Hypervel\Container\Contracts\Container as ContainerContract;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;

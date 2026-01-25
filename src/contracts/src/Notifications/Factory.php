@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Notifications\Contracts;
+namespace Hypervel\Contracts\Notifications;
 
 use Hypervel\Support\Collection;
 

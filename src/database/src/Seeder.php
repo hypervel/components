@@ -6,7 +6,7 @@ namespace Hypervel\Database;
 
 use Hypervel\Console\Command;
 use FriendsOfHyperf\PrettyConsole\View\Components\TwoColumnDetail;
-use Hypervel\Container\Contracts\Container;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Console\Seeds\WithoutModelEvents;
 use Hypervel\Support\Arr;
 use InvalidArgumentException;

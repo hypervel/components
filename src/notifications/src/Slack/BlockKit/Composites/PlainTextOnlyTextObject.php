@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications\Slack\BlockKit\Composites;
 
-use Hypervel\Notifications\Contracts\Slack\ObjectContract;
+use Hypervel\Notifications\Slack\Contracts\ObjectContract;
 use InvalidArgumentException;
 
 class PlainTextOnlyTextObject implements ObjectContract

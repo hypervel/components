@@ -10,7 +10,7 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewInterface;
-use Hypervel\Mail\Contracts\Factory as FactoryContract;
+use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Mail\MailManager;
 use Mockery;
 use PHPUnit\Framework\TestCase;

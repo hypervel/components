@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Foundation;
 
-use Hypervel\Container\Contracts\Container;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\HttpMessage\Exceptions\HttpException;
 use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
 use Hypervel\Support\ServiceProvider;

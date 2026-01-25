@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Mail\Contracts\Factory as MailFactoryContract;
+use Hypervel\Contracts\Mail\Factory as MailFactoryContract;
 use Hypervel\Support\Testing\Fakes\MailFake;
 
 /**
- * @method static \Hypervel\Mail\Contracts\Mailer mailer(string|null $name = null)
- * @method static \Hypervel\Mail\Contracts\Mailer driver(string|null $driver = null)
+ * @method static \Hypervel\Contracts\Mail\Mailer mailer(string|null $name = null)
+ * @method static \Hypervel\Contracts\Mail\Mailer driver(string|null $driver = null)
  * @method static \Symfony\Component\Mailer\Transport\TransportInterface createSymfonyTransport(array $config, string|null $poolName = null)
  * @method static string getDefaultDriver()
  * @method static void setDefaultDriver(string $name)
@@ -27,8 +27,8 @@ use Hypervel\Support\Testing\Fakes\MailFake;
  * @method static \Hypervel\Mail\PendingMail to(mixed $users)
  * @method static \Hypervel\Mail\PendingMail bcc(mixed $users)
  * @method static \Hypervel\Mail\SentMessage|null raw(string $text, mixed $callback)
- * @method static \Hypervel\Mail\SentMessage|null send(\Hypervel\Mail\Contracts\Mailable|array|string $view, array $data = [], \Closure|string|null $callback = null)
- * @method static \Hypervel\Mail\SentMessage|null sendNow(\Hypervel\Mail\Contracts\Mailable|array|string $mailable, array $data = [], \Closure|string|null $callback = null)
+ * @method static \Hypervel\Mail\SentMessage|null send(\Hypervel\Contracts\Mail\Mailable|array|string $view, array $data = [], \Closure|string|null $callback = null)
+ * @method static \Hypervel\Mail\SentMessage|null sendNow(\Hypervel\Contracts\Mail\Mailable|array|string $mailable, array $data = [], \Closure|string|null $callback = null)
  * @method static void assertSent(\Closure|string $mailable, callable|array|string|int|null $callback = null)
  * @method static void assertNotOutgoing(\Closure|string $mailable, callable|null $callback = null)
  * @method static void assertNotSent(\Closure|string $mailable, callable|array|string|null $callback = null)
@@ -45,8 +45,8 @@ use Hypervel\Support\Testing\Fakes\MailFake;
  * @method static \Hypervel\Support\Collection queued(\Closure|string $mailable, callable|null $callback = null)
  * @method static bool hasQueued(string $mailable)
  * @method static \Hypervel\Mail\PendingMail cc(mixed $users)
- * @method static mixed queue(\Hypervel\Mail\Contracts\Mailable|array|string $view, string|null $queue = null)
- * @method static mixed later(\DateInterval|\DateTimeInterface|int $delay, \Hypervel\Mail\Contracts\Mailable|array|string $view, string|null $queue = null)
+ * @method static mixed queue(\Hypervel\Contracts\Mail\Mailable|array|string $view, string|null $queue = null)
+ * @method static mixed later(\DateInterval|\DateTimeInterface|int $delay, \Hypervel\Contracts\Mail\Mailable|array|string $view, string|null $queue = null)
  *
  * @see \Hypervel\Mail\MailManager
  * @see \Hypervel\Support\Testing\Fakes\MailFake

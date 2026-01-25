@@ -8,7 +8,7 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Notifications\AnonymousNotifiable;
-use Hypervel\Notifications\Contracts\Dispatcher;
+use Hypervel\Contracts\Notifications\Dispatcher;
 use Hypervel\Notifications\RoutesNotifications;
 use InvalidArgumentException;
 use Mockery as m;

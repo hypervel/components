@@ -13,7 +13,7 @@ use Hyperf\ViewEngine\Factory;
 use Hypervel\Bus\Queueable;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\FilesystemManager;
-use Hypervel\Mail\Contracts\Mailable as MailableContract;
+use Hypervel\Contracts\Mail\Mailable as MailableContract;
 use Hypervel\Mail\Mailable;
 use Hypervel\Mail\Mailer;
 use Hypervel\Mail\SendQueuedMailable;

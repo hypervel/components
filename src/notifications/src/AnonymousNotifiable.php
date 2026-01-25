@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Notifications;
 
 use Hyperf\Context\ApplicationContext;
-use Hypervel\Notifications\Contracts\Dispatcher;
+use Hypervel\Contracts\Notifications\Dispatcher;
 use InvalidArgumentException;
 
 class AnonymousNotifiable

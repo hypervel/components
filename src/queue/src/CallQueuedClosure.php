@@ -58,7 +58,7 @@ class CallQueuedClosure implements ShouldQueue
             return;
         }
 
-        /** @var \Hypervel\Container\Contracts\Container $container */
+        /** @var \Hypervel\Contracts\Container\Container $container */
         $container->call($this->closure->getClosure(), ['job' => $this]);
     }
 

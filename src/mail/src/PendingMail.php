@@ -7,8 +7,8 @@ namespace Hypervel\Mail;
 use DateInterval;
 use DateTimeInterface;
 use Hyperf\Conditionable\Conditionable;
-use Hypervel\Mail\Contracts\Mailable as MailableContract;
-use Hypervel\Mail\Contracts\Mailer as MailerContract;
+use Hypervel\Contracts\Mail\Mailable as MailableContract;
+use Hypervel\Contracts\Mail\Mailer as MailerContract;
 
 use function Hyperf\Tappable\tap;
 
