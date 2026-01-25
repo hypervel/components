@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Encryption;
 
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Encryption\Exceptions\MissingAppKeyException;
 use Laravel\SerializableClosure\SerializableClosure;
 use Psr\Container\ContainerInterface;

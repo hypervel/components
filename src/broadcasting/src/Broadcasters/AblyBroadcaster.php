@@ -8,7 +8,7 @@ use Ably\AblyRest;
 use Ably\Exceptions\AblyException;
 use Ably\Models\Message as AblyMessage;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Broadcasting\BroadcastException;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Psr\Container\ContainerInterface;

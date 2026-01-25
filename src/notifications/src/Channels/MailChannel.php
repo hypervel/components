@@ -8,7 +8,7 @@ use Closure;
 use Hypervel\Support\Arr;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Contracts\Mail\Factory as MailFactory;
 use Hypervel\Contracts\Mail\Mailable;
 use Hypervel\Mail\Markdown;

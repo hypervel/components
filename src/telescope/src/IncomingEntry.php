@@ -6,7 +6,7 @@ namespace Hypervel\Telescope;
 
 use DateTimeInterface;
 use Hyperf\Context\ApplicationContext;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 

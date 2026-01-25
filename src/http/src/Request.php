@@ -12,7 +12,7 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\HttpServer\Request as HyperfRequest;
 use Hyperf\HttpServer\Router\Dispatched;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope;
 
 use Hypervel\Support\Collection;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Throwable;
 
 class ExceptionContext

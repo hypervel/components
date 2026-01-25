@@ -8,7 +8,7 @@ use Closure;
 use Hypervel\Support\Collection;
 use Hyperf\Context\Context;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Support\Environment;
 use InvalidArgumentException;
 use Monolog\Formatter\LineFormatter;

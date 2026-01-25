@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Queue;
 use Hyperf\Di\Container;
 use Hyperf\Redis\RedisFactory;
 use Hyperf\Redis\RedisProxy;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Queue\LuaScripts;
 use Hypervel\Queue\Queue;
 use Hypervel\Queue\RedisQueue;

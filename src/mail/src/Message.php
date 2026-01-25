@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail;
 
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hyperf\Support\Traits\ForwardsCalls;
 use Hypervel\Contracts\Mail\Attachable;
 use Symfony\Component\Mime\Address;

@@ -6,7 +6,7 @@ namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Queue\Listener;
 use Hypervel\Queue\ListenerOptions;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;

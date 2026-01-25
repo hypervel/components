@@ -12,7 +12,7 @@ use Hyperf\Conditionable\Conditionable;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\HttpMessage\Upload\UploadedFile;
 use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Contracts\Filesystem\Cloud as CloudFilesystemContract;
 use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
 use Hypervel\Contracts\Http\Request as RequestContract;

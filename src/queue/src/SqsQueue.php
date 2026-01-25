@@ -7,7 +7,7 @@ namespace Hypervel\Queue;
 use Aws\Sqs\SqsClient;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;

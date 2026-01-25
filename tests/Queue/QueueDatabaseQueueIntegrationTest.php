@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Queue;
 
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\DatabaseQueue;
 use Hypervel\Queue\Events\JobQueued;

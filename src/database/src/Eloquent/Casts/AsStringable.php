@@ -6,7 +6,7 @@ namespace Hypervel\Database\Eloquent\Casts;
 
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
-use Hyperf\Stringable\Stringable;
+use Hypervel\Support\Stringable;
 
 class AsStringable implements Castable
 {

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Watchers\Traits;
 
 use Hypervel\Support\Collection;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 
 trait FetchesStackTrace
 {

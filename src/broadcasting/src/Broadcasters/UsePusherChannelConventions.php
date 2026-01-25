@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting\Broadcasters;
 
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 
 trait UsePusherChannelConventions
 {

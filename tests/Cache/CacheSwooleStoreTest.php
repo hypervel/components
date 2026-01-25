@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache;
 
 use Carbon\Carbon;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Cache\SwooleStore;
 use Hypervel\Cache\SwooleTableManager;
 use Hypervel\Tests\TestCase;

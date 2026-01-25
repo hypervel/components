@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\JWT;
 
 use Hypervel\Support\Collection;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\JWT\Contracts\BlacklistContract;
 use Hypervel\JWT\Contracts\ManagerContract;
 use Hypervel\JWT\Contracts\ValidationContract;

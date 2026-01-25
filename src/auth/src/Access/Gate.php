@@ -9,7 +9,7 @@ use Exception;
 use Hypervel\Support\Arr;
 use Hyperf\Contract\ContainerInterface;
 use Hyperf\Di\Exception\NotFoundException;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Auth\Access\Events\GateEvaluated;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Auth\Authenticatable;

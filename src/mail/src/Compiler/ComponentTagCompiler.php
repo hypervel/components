@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail\Compiler;
 
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hyperf\ViewEngine\Blade;
 use Hyperf\ViewEngine\Compiler\ComponentTagCompiler as HyperfComponentTagCompiler;
 use Hyperf\ViewEngine\Contract\FactoryInterface;

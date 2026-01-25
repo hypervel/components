@@ -15,7 +15,7 @@ use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\TransferStats;
 use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Support\Collection;
 use InvalidArgumentException;

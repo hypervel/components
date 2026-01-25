@@ -6,7 +6,7 @@ use Carbon\Carbon;
 use Hyperf\Context\ApplicationContext;
 use Hypervel\Contracts\Support\Arrayable;
 use Hyperf\HttpMessage\Cookie\Cookie;
-use Hyperf\Stringable\Stringable;
+use Hypervel\Support\Stringable;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
 use Hyperf\ViewEngine\Contract\ViewInterface;
 use Hypervel\Contracts\Auth\Access\Gate;

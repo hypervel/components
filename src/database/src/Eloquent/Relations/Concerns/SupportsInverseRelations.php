@@ -6,7 +6,7 @@ namespace Hypervel\Database\Eloquent\Relations\Concerns;
 
 use Hypervel\Support\Arr;
 use Hypervel\Database\Eloquent\Model;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Database\Eloquent\RelationNotFoundException;
 
 trait SupportsInverseRelations

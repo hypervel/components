@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Console\Scheduling;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hyperf\Support\Filesystem\Filesystem;
 use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Console\Scheduling\Event;

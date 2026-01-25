@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications\Channels;
 
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Notifications\Notification;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;

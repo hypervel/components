@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Queue;
 
 use Exception;
 use Hypervel\Database\ConnectionResolverInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\Failed\DatabaseFailedJobProvider;
 use Hypervel\Support\Carbon;

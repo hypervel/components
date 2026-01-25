@@ -6,7 +6,7 @@ namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Support\Collection;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hyperf\ViewEngine\Contract\ViewInterface;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;

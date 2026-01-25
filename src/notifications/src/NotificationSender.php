@@ -7,7 +7,7 @@ namespace Hypervel\Notifications;
 use Hypervel\Support\Collection;
 use Hypervel\Database\Eloquent\Collection as ModelCollection;
 use Hypervel\Database\Eloquent\Model;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Notifications\Events\NotificationSending;
 use Hypervel\Notifications\Events\NotificationSent;

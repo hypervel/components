@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Telescope;
 
 use Closure;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 
 class Avatar
 {

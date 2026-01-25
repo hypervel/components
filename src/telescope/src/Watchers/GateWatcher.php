@@ -6,7 +6,7 @@ namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Support\Collection;
 use Hypervel\Database\Eloquent\Model;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Auth\Access\Events\GateEvaluated;
 use Hypervel\Auth\Access\Response;
 use Hypervel\Telescope\FormatModel;

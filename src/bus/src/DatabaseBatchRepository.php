@@ -7,7 +7,7 @@ namespace Hypervel\Bus;
 use Carbon\CarbonImmutable;
 use Closure;
 use DateTimeInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Expression;

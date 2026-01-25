@@ -12,7 +12,7 @@ use Hyperf\HttpServer\Event\RequestHandled;
 use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\HttpServer\Server as HttpServer;
 use Hyperf\Server\Event;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\IncomingEntry;

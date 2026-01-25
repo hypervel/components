@@ -12,7 +12,7 @@ use Hyperf\HttpMessage\Upload\UploadedFile;
 use Hyperf\HttpMessage\Uri\Uri as HyperfUri;
 use Hyperf\HttpServer\Request as HyperfRequest;
 use Hyperf\HttpServer\Router\Dispatched;
-use Hyperf\Stringable\Stringable;
+use Hypervel\Support\Stringable;
 use Hypervel\Http\DispatchedRoute;
 use Hypervel\Http\Request;
 use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;

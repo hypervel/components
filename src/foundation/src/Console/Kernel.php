@@ -13,7 +13,7 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Annotation\AnnotationCollector;
 use Hyperf\Di\ReflectionManager;
 use Hyperf\Framework\Event\BootApplication;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\ClosureCommand;
 use Hypervel\Contracts\Console\Application as ApplicationContract;

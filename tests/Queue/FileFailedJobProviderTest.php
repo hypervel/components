@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Exception;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Queue\Failed\FileFailedJobProvider;
 use PHPUnit\Framework\TestCase;
 

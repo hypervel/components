@@ -6,7 +6,7 @@ namespace Hypervel\Event;
 
 use Hypervel\Support\Collection;
 use Hyperf\Stdlib\SplPriorityQueue;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
 
 class ListenerProvider implements ListenerProviderContract

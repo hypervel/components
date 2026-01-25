@@ -7,7 +7,7 @@ namespace Hypervel\Support\Testing\Fakes;
 use Closure;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hyperf\Support\Traits\ForwardsCalls;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Event\ListenerData;

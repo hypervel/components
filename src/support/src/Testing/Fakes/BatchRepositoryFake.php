@@ -6,7 +6,7 @@ namespace Hypervel\Support\Testing\Fakes;
 
 use Carbon\CarbonImmutable;
 use Closure;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Bus\Batch;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Bus\PendingBatch;

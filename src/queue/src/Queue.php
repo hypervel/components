@@ -9,7 +9,7 @@ use DateInterval;
 use DateTimeInterface;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hyperf\Support\Traits\InteractsWithTime;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Contracts\Encryption\Encrypter;

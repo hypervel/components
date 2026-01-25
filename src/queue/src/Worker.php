@@ -7,7 +7,7 @@ namespace Hypervel\Queue;
 use Hyperf\Coordinator\Timer;
 use Hyperf\Coroutine\Concurrent;
 use Hypervel\Database\DetectsLostConnections;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;

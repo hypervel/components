@@ -8,7 +8,7 @@ use Closure;
 use Exception;
 use Hypervel\Support\Collection;
 use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Contracts\Notifications\Dispatcher as NotificationDispatcher;
 use Hypervel\Contracts\Notifications\Factory as NotificationFactory;

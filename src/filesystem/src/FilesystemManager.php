@@ -9,7 +9,7 @@ use Closure;
 use Google\Cloud\Storage\StorageClient as GcsClient;
 use Hypervel\Support\Arr;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Contracts\Filesystem\Cloud;
 use Hypervel\Contracts\Filesystem\Factory as FactoryContract;
 use Hypervel\Contracts\Filesystem\Filesystem;

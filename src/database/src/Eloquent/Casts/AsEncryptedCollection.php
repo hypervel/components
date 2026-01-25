@@ -6,7 +6,7 @@ namespace Hypervel\Database\Eloquent\Casts;
 
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Crypt;
 use InvalidArgumentException;

@@ -7,7 +7,7 @@ namespace Hypervel\Foundation\Console\Commands;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hyperf\Contract\ContainerInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hyperf\Support\Composer;
 use Hyperf\Support\Filesystem\Filesystem;
 use Hypervel\Console\Command;

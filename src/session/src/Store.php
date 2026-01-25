@@ -9,7 +9,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hyperf\Context\Context;
 use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hyperf\Support\MessageBag;
 use Hyperf\ViewEngine\ViewErrorBag;
 use Hypervel\Contracts\Session\Session;

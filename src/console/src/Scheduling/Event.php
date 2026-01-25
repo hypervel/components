@@ -15,7 +15,7 @@ use GuzzleHttp\ClientInterface as HttpClientInterface;
 use GuzzleHttp\Exception\TransferException;
 use Hypervel\Support\Arr;
 use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Stringable;
+use Hypervel\Support\Stringable;
 use Hyperf\Support\Filesystem\Filesystem;
 use Hyperf\Tappable\Tappable;
 use Hypervel\Console\Contracts\EventMutex;

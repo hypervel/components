@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail;
 
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
 use Hypervel\Support\HtmlString;
 use League\CommonMark\Environment\Environment;

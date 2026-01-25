@@ -6,7 +6,7 @@ namespace Hypervel\Devtool\Generator;
 
 use Hypervel\Support\Collection;
 use Hyperf\Devtool\Generator\GeneratorCommand;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Symfony\Component\Console\Input\InputOption;
 
 class MailCommand extends GeneratorCommand

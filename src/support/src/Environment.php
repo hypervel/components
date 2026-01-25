@@ -6,7 +6,7 @@ namespace Hypervel\Support;
 
 use BadMethodCallException;
 use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 
 use function Hyperf\Support\env;
 

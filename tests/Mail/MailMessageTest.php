@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Mail\Attachment;
 use Hypervel\Contracts\Mail\Attachable;
 use Hypervel\Mail\Message;

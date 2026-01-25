@@ -13,7 +13,7 @@ use Hyperf\Conditionable\Conditionable;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hyperf\Support\Traits\ForwardsCalls;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Foundation\Testing\Constraints\SeeInOrder;

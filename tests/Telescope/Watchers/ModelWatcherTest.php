@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Telescope;

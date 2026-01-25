@@ -9,7 +9,7 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\HttpMessage\Stream\StandardStream;
 use Hyperf\HttpMessage\Upload\UploadedFile as HyperfUploadedFile;
 use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Http\Exceptions\CannotWriteFileException;
 use Hypervel\Http\Exceptions\ExtensionFileException;

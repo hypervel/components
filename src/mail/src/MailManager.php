@@ -9,7 +9,7 @@ use Aws\SesV2\SesV2Client;
 use Closure;
 use Hypervel\Support\Arr;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
 use Hypervel\Log\LogManager;
 use Hypervel\Contracts\Mail\Factory as FactoryContract;

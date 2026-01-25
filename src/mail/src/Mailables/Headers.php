@@ -6,7 +6,7 @@ namespace Hypervel\Mail\Mailables;
 
 use Hypervel\Support\Collection;
 use Hyperf\Conditionable\Conditionable;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 
 class Headers
 {

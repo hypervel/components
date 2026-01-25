@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Schema;
 
-use Hyperf\Stringable\Stringable;
+use Hypervel\Support\Stringable;
 
 class ForeignIdColumnDefinition extends ColumnDefinition
 {
