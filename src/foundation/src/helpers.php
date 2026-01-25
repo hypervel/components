@@ -17,7 +17,7 @@ use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Bus\PendingClosureDispatch;
 use Hypervel\Bus\PendingDispatch;
 use Hypervel\Container\Contracts\Container;
-use Hypervel\Cookie\Contracts\Cookie as CookieContract;
+use Hypervel\Contracts\Cookie\Cookie as CookieContract;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Http\Contracts\RequestContract;

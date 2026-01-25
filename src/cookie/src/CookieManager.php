@@ -8,7 +8,7 @@ use Hyperf\Context\Context;
 use Hyperf\Context\RequestContext;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Support\Traits\InteractsWithTime;
-use Hypervel\Cookie\Contracts\Cookie as CookieContract;
+use Hypervel\Contracts\Cookie\Cookie as CookieContract;
 
 class CookieManager implements CookieContract
 {

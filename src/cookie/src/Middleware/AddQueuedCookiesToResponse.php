@@ -6,7 +6,7 @@ namespace Hypervel\Cookie\Middleware;
 
 use Hypervel\Support\Arr;
 use Hyperf\Context\Context;
-use Hypervel\Cookie\Contracts\Cookie as CookieContract;
+use Hypervel\Contracts\Cookie\Cookie as CookieContract;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;

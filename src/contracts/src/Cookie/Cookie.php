@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Cookie\Contracts;
+namespace Hypervel\Contracts\Cookie;
 
 use Hyperf\HttpMessage\Cookie\Cookie as HyperfCookie;
 
