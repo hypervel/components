@@ -25,7 +25,7 @@
             "Hypervel\\Support\\": "src/"
         },
         "files": [
-            "src/functions.php",
+            "src/Functions.php",
             "src/helpers.php"
         ]
     },

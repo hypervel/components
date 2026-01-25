@@ -83,7 +83,7 @@
             "src/prompts/src/helpers.php",
             "src/router/src/Functions.php",
             "src/session/src/Functions.php",
-            "src/collections/src/functions.php",
+            "src/collections/src/Functions.php",
             "src/collections/src/helpers.php",
             "src/support/src/Functions.php",
             "src/support/src/helpers.php",
