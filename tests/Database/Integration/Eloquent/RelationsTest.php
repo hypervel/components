@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Tmp;
+namespace Hypervel\Tests\Database\Integration\Eloquent;
 
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Database\Eloquent\Relations\MorphMany;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Tests\Database\Integration\IntegrationTestCase;
 
 /**
  * @internal
@@ -19,7 +20,7 @@ use Hypervel\Database\Eloquent\Relations\MorphTo;
  * @group integration
  * @group pgsql-integration
  */
-class EloquentRelationsIntegrationTest extends TmpIntegrationTestCase
+class RelationsTest extends IntegrationTestCase
 {
     public function testHasOneRelation(): void
     {
@@ -29,7 +30,6 @@ class EloquentRelationsIntegrationTest extends TmpIntegrationTestCase
         $this->assertInstanceOf(RelProfile::class, $profile);
         $this->assertSame($user->id, $profile->user_id);
 
-        // Retrieve via relation
         $retrieved = RelUser::find($user->id);
         $this->assertInstanceOf(RelProfile::class, $retrieved->profile);
         $this->assertSame('Hello world', $retrieved->profile->bio);
@@ -101,7 +101,6 @@ class EloquentRelationsIntegrationTest extends TmpIntegrationTestCase
         $post->tags()->attach([$tag1->id, $tag2->id]);
         $this->assertCount(2, $post->fresh()->tags);
 
-        // Sync to different set
         $post->tags()->sync([$tag2->id, $tag3->id]);
 
         $retrieved = $post->fresh();
@@ -201,7 +200,6 @@ class EloquentRelationsIntegrationTest extends TmpIntegrationTestCase
         $user2 = RelUser::create(['name' => 'Liam', 'email' => 'liam@example.com']);
 
         $user1->posts()->create(['title' => 'Kate Post', 'body' => 'Body']);
-        // user2 has no posts
 
         $usersWithPosts = RelUser::has('posts')->get();
 
@@ -215,7 +213,6 @@ class EloquentRelationsIntegrationTest extends TmpIntegrationTestCase
         $user2 = RelUser::create(['name' => 'Nancy', 'email' => 'nancy@example.com']);
 
         $user1->posts()->create(['title' => 'Mike Post', 'body' => 'Body']);
-        // user2 has no posts
 
         $usersWithoutPosts = RelUser::doesntHave('posts')->get();
 
@@ -304,6 +301,7 @@ class EloquentRelationsIntegrationTest extends TmpIntegrationTestCase
 class RelUser extends Model
 {
     protected ?string $table = 'rel_users';
+
     protected array $fillable = ['name', 'email'];
 
     public function profile(): HasOne
@@ -320,6 +318,7 @@ class RelUser extends Model
 class RelProfile extends Model
 {
     protected ?string $table = 'rel_profiles';
+
     protected array $fillable = ['user_id', 'bio', 'avatar'];
 
     public function user(): BelongsTo
@@ -331,6 +330,7 @@ class RelProfile extends Model
 class RelPost extends Model
 {
     protected ?string $table = 'rel_posts';
+
     protected array $fillable = ['user_id', 'title', 'body'];
 
     public function user(): BelongsTo
@@ -352,6 +352,7 @@ class RelPost extends Model
 class RelTag extends Model
 {
     protected ?string $table = 'rel_tags';
+
     protected array $fillable = ['name'];
 
     public function posts(): BelongsToMany
@@ -363,6 +364,7 @@ class RelTag extends Model
 class RelComment extends Model
 {
     protected ?string $table = 'rel_comments';
+
     protected array $fillable = ['user_id', 'body'];
 
     public function commentable(): MorphTo

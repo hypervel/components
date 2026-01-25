@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Tmp;
+namespace Hypervel\Tests\Database\Integration\Eloquent;
 
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Scope;
+use Hypervel\Tests\Database\Integration\IntegrationTestCase;
 
 /**
  * @internal
@@ -14,16 +15,12 @@ use Hypervel\Database\Eloquent\Scope;
  * @group integration
  * @group pgsql-integration
  */
-class ScopesIntegrationTest extends TmpIntegrationTestCase
+class ScopesTest extends IntegrationTestCase
 {
-
-
-
     protected function setUp(): void
     {
         parent::setUp();
 
-        // Seed test data
         ScopeArticle::create(['title' => 'Published Article 1', 'status' => 'published', 'category' => 'tech', 'views' => 100, 'is_featured' => true]);
         ScopeArticle::create(['title' => 'Published Article 2', 'status' => 'published', 'category' => 'tech', 'views' => 50]);
         ScopeArticle::create(['title' => 'Draft Article', 'status' => 'draft', 'category' => 'news', 'views' => 0]);
@@ -98,10 +95,8 @@ class ScopesIntegrationTest extends TmpIntegrationTestCase
 
     public function testGlobalScope(): void
     {
-        // Clear existing data for this test
         ScopeArticle::query()->delete();
 
-        // GlobalScopeArticle has a global scope that only shows published
         GlobalScopeArticle::create(['title' => 'Global Published', 'status' => 'published']);
         GlobalScopeArticle::create(['title' => 'Global Draft', 'status' => 'draft']);
 
@@ -113,7 +108,6 @@ class ScopesIntegrationTest extends TmpIntegrationTestCase
 
     public function testWithoutGlobalScope(): void
     {
-        // Clear existing data for this test
         ScopeArticle::query()->delete();
 
         GlobalScopeArticle::create(['title' => 'Without Scope Published', 'status' => 'published']);
@@ -126,7 +120,6 @@ class ScopesIntegrationTest extends TmpIntegrationTestCase
 
     public function testWithoutGlobalScopes(): void
     {
-        // Clear existing data for this test
         ScopeArticle::query()->delete();
 
         GlobalScopeArticle::create(['title' => 'Test Published', 'status' => 'published']);
@@ -204,7 +197,6 @@ class ScopesIntegrationTest extends TmpIntegrationTestCase
 
     public function testOrScope(): void
     {
-        // Articles that are either featured OR have more than 100 views
         $articles = ScopeArticle::where(function ($query) {
             $query->featured()->orWhere('views', '>', 100);
         })->get();
@@ -216,6 +208,7 @@ class ScopesIntegrationTest extends TmpIntegrationTestCase
 class ScopeArticle extends Model
 {
     protected ?string $table = 'scope_articles';
+
     protected array $fillable = ['title', 'status', 'category', 'views', 'is_featured', 'author_id'];
 
     public function scopePublished(Builder $query): Builder
@@ -257,6 +250,7 @@ class ScopeArticle extends Model
 class ScopeAuthor extends Model
 {
     protected ?string $table = 'scope_authors';
+
     protected array $fillable = ['name'];
 
     public function articles()
@@ -276,6 +270,7 @@ class PublishedScope implements Scope
 class GlobalScopeArticle extends Model
 {
     protected ?string $table = 'scope_articles';
+
     protected array $fillable = ['title', 'status', 'category', 'views', 'is_featured'];
 
     protected static function booted(): void

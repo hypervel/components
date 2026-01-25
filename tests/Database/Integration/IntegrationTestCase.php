@@ -2,23 +2,22 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Tmp;
+namespace Hypervel\Tests\Database\Integration;
 
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Tests\Support\DatabaseIntegrationTestCase;
 
 /**
- * Base test case for Tmp integration tests with custom migrations.
+ * Base test case for database integration tests with custom migrations.
  *
  * @internal
  */
-abstract class TmpIntegrationTestCase extends DatabaseIntegrationTestCase
+abstract class IntegrationTestCase extends DatabaseIntegrationTestCase
 {
     use RefreshDatabase;
 
     /**
-     * Force fresh migration since Tmp tests have custom migrations
-     * that differ from the default application migrations.
+     * Force fresh migration since these tests have custom migrations.
      */
     protected bool $migrateRefresh = true;
 

@@ -2,9 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Tmp;
+namespace Hypervel\Tests\Database\Integration\Query;
 
+use Hypervel\Database\Query\Builder;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Tests\Database\Integration\IntegrationTestCase;
 
 /**
  * @internal
@@ -12,13 +14,12 @@ use Hypervel\Support\Facades\DB;
  * @group integration
  * @group pgsql-integration
  */
-class QueryBuilderIntegrationTest extends TmpIntegrationTestCase
+class QueryBuilderTest extends IntegrationTestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
 
-        // Seed test data
         DB::connection($this->getDatabaseDriver())->table('qb_products')->insert([
             ['name' => 'Widget A', 'category' => 'widgets', 'price' => 19.99, 'stock' => 100, 'active' => true, 'created_at' => now(), 'updated_at' => now()],
             ['name' => 'Widget B', 'category' => 'widgets', 'price' => 29.99, 'stock' => 50, 'active' => true, 'created_at' => now(), 'updated_at' => now()],
@@ -28,7 +29,7 @@ class QueryBuilderIntegrationTest extends TmpIntegrationTestCase
         ]);
     }
 
-    protected function table(): \Hypervel\Database\Query\Builder
+    protected function table(): Builder
     {
         return DB::connection($this->getDatabaseDriver())->table('qb_products');
     }
@@ -79,7 +80,6 @@ class QueryBuilderIntegrationTest extends TmpIntegrationTestCase
 
     public function testWhereNull(): void
     {
-        // First set one to null
         $this->table()->where('name', 'Tool Z')->update(['category' => null]);
 
         $products = $this->table()->whereNull('category')->get();
@@ -378,7 +378,6 @@ class QueryBuilderIntegrationTest extends TmpIntegrationTestCase
 
         $this->assertCount(2, $products);
 
-        // When condition is false
         $products = $this->table()
             ->when(null, function ($query, $category) {
                 return $query->where('category', $category);

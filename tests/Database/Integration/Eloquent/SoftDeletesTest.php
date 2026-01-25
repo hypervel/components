@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Tmp;
+namespace Hypervel\Tests\Database\Integration\Eloquent;
 
 use Carbon\CarbonInterface;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Tests\Database\Integration\IntegrationTestCase;
 
 /**
  * @internal
@@ -14,7 +15,7 @@ use Hypervel\Database\Eloquent\SoftDeletes;
  * @group integration
  * @group pgsql-integration
  */
-class SoftDeletesIntegrationTest extends TmpIntegrationTestCase
+class SoftDeletesTest extends IntegrationTestCase
 {
     public function testSoftDeleteSetsDeletedAt(): void
     {
@@ -257,6 +258,7 @@ class SoftPost extends Model
     use SoftDeletes;
 
     protected ?string $table = 'soft_posts';
+
     protected array $fillable = ['title', 'body'];
 
     public static array $eventLog = [];

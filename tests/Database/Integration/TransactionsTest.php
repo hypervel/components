@@ -2,8 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Tmp;
+namespace Hypervel\Tests\Database\Integration;
 
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Facades\DB;
 use RuntimeException;
@@ -14,12 +15,9 @@ use RuntimeException;
  * @group integration
  * @group pgsql-integration
  */
-class TransactionsIntegrationTest extends TmpIntegrationTestCase
+class TransactionsTest extends IntegrationTestCase
 {
-
-
-
-    protected function conn(): \Hypervel\Database\ConnectionInterface
+    protected function conn(): ConnectionInterface
     {
         return DB::connection($this->getDatabaseDriver());
     }
@@ -114,13 +112,11 @@ class TransactionsIntegrationTest extends TmpIntegrationTestCase
             // Expected
         }
 
-        // Both should be rolled back
         $this->assertSame(0, TxAccount::count());
     }
 
     public function testTransactionLevel(): void
     {
-        // RefreshDatabase wraps tests in a transaction, so we track relative levels
         $baseLevel = $this->conn()->transactionLevel();
 
         $this->conn()->beginTransaction();
@@ -166,7 +162,7 @@ class TransactionsIntegrationTest extends TmpIntegrationTestCase
 
         try {
             $this->conn()->transaction(function () use ($account1, $account2) {
-                $amount = 500; // More than account1 has
+                $amount = 500;
 
                 if ($account1->balance < $amount) {
                     throw new RuntimeException('Insufficient funds');
@@ -179,7 +175,6 @@ class TransactionsIntegrationTest extends TmpIntegrationTestCase
             // Expected
         }
 
-        // Balances should be unchanged
         $this->assertEquals(100, $account1->fresh()->balance);
         $this->assertEquals(5000, $account2->fresh()->balance);
     }
@@ -199,7 +194,6 @@ class TransactionsIntegrationTest extends TmpIntegrationTestCase
 
     public function testTransactionCallbackReceivesAttemptNumber(): void
     {
-        // This tests that transactions work correctly even with multiple calls
         $results = [];
 
         for ($i = 1; $i <= 3; $i++) {
@@ -238,7 +232,7 @@ class TransactionsIntegrationTest extends TmpIntegrationTestCase
         });
 
         $this->assertSame(100, TxAccount::count());
-        $this->assertEquals(5050, TxAccount::sum('balance')); // Sum of 1 to 100
+        $this->assertEquals(5050, TxAccount::sum('balance'));
     }
 
     public function testUpdateInTransaction(): void
@@ -270,11 +264,13 @@ class TransactionsIntegrationTest extends TmpIntegrationTestCase
 class TxAccount extends Model
 {
     protected ?string $table = 'tx_accounts';
+
     protected array $fillable = ['name', 'balance'];
 }
 
 class TxTransfer extends Model
 {
     protected ?string $table = 'tx_transfers';
+
     protected array $fillable = ['from_account_id', 'to_account_id', 'amount'];
 }

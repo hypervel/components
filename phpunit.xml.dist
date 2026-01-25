@@ -16,7 +16,6 @@
             <exclude>./tests/Prompts</exclude>
             <exclude>./tests/Sentry</exclude>
             <exclude>./tests/Horizon</exclude>
-            <exclude>./tests/Tmp</exclude>
         </testsuite>
     </testsuites>
     <php>

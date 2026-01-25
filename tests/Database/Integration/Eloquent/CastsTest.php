@@ -2,18 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Tmp;
+namespace Hypervel\Tests\Database\Integration\Eloquent;
 
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
-use DateTimeImmutable;
 use Hypervel\Database\Eloquent\Casts\AsArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsCollection;
-use Hypervel\Database\Eloquent\Casts\AsEncryptedArrayObject;
-use Hypervel\Database\Eloquent\Casts\AsEncryptedCollection;
-use Hypervel\Database\Eloquent\Casts\AsStringable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
+use Hypervel\Tests\Database\Integration\IntegrationTestCase;
 
 /**
  * @internal
@@ -21,7 +18,7 @@ use Hypervel\Support\Collection;
  * @group integration
  * @group pgsql-integration
  */
-class ModelCastsIntegrationTest extends TmpIntegrationTestCase
+class CastsTest extends IntegrationTestCase
 {
     public function testIntegerCast(): void
     {
@@ -188,7 +185,6 @@ class ModelCastsIntegrationTest extends TmpIntegrationTestCase
         $this->assertInstanceOf(\ArrayObject::class, $model->settings);
         $this->assertSame('dark', $model->settings['theme']);
 
-        // Modify and save
         $model->settings['theme'] = 'light';
         $model->save();
 
