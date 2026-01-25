@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
-use BackedEnum;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Support\Str;
@@ -12,6 +11,9 @@ use Hyperf\ViewEngine\Contract\Htmlable;
 use JsonException;
 use JsonSerializable;
 use Stringable;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 class Js implements Htmlable, Stringable
 {
@@ -58,8 +60,8 @@ class Js implements Htmlable, Stringable
             return $data->toHtml();
         }
 
-        if ($data instanceof BackedEnum) {
-            $data = $data->value;
+        if ($data instanceof UnitEnum) {
+            $data = enum_value($data);
         }
 
         $json = static::encode($data, $flags, $depth);
