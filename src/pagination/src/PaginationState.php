@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Pagination;
 
+use Hypervel\Context\Context;
 use Psr\Container\ContainerInterface;
+use Psr\Http\Message\ServerRequestInterface;
 
 class PaginationState
 {
@@ -15,9 +17,19 @@ class PaginationState
     {
         Paginator::viewFactoryResolver(fn () => $app->get('view'));
 
-        Paginator::currentPathResolver(fn () => $app->get('request')->url());
+        Paginator::currentPathResolver(function () use ($app): string {
+            if (! Context::has(ServerRequestInterface::class)) {
+                return '/';
+            }
+
+            return $app->get('request')->url();
+        });
 
         Paginator::currentPageResolver(function (string $pageName = 'page') use ($app): int {
+            if (! Context::has(ServerRequestInterface::class)) {
+                return 1;
+            }
+
             $page = $app->get('request')->input($pageName);
 
             if (filter_var($page, FILTER_VALIDATE_INT) !== false && (int) $page >= 1) {
@@ -27,9 +39,19 @@ class PaginationState
             return 1;
         });
 
-        Paginator::queryStringResolver(fn () => $app->get('request')->query());
+        Paginator::queryStringResolver(function () use ($app): array {
+            if (! Context::has(ServerRequestInterface::class)) {
+                return [];
+            }
+
+            return $app->get('request')->query();
+        });
 
         CursorPaginator::currentCursorResolver(function (string $cursorName = 'cursor') use ($app): ?Cursor {
+            if (! Context::has(ServerRequestInterface::class)) {
+                return null;
+            }
+
             return Cursor::fromEncoded($app->get('request')->input($cursorName));
         });
     }

@@ -36,6 +36,11 @@
         "hyperf": {
             "config": "Hypervel\\Pagination\\ConfigProvider"
         },
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Pagination\\PaginationServiceProvider"
+            ]
+        },
         "branch-alias": {
             "dev-main": "0.3-dev"
         }
