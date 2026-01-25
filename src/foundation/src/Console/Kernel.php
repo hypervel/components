@@ -27,7 +27,6 @@ use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
 use function Hyperf\Tappable\tap;
-use function Hypervel\Support\env;
 
 class Kernel implements KernelContract
 {

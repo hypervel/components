@@ -7,6 +7,7 @@ use Hypervel\Contracts\Support\DeferringDisplayableValue;
 use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Env;
 use Hypervel\Support\Environment;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\HigherOrderTapProxy;
@@ -147,7 +148,7 @@ if (! function_exists('env')) {
      */
     function env(string $key, mixed $default = null): mixed
     {
-        return \Hypervel\Support\env($key, $default);
+        return Env::get($key, $default);
     }
 }
 

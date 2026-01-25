@@ -19,7 +19,6 @@ use Sentry\Integration as SdkIntegration;
 
 use function Hyperf\Support\make;
 use function Hyperf\Tappable\tap;
-use function Hypervel\Support\env;
 
 class ClientBuilderFactory
 {
