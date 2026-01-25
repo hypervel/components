@@ -7,7 +7,7 @@ namespace Hypervel\Foundation\Exceptions;
 use Hyperf\Context\RequestContext;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Foundation\Exceptions\Contracts\ExceptionRenderer;
-use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Contracts\Session\Session as SessionContract;
 use Throwable;
 use Whoops\Handler\PrettyPageHandler;
 use Whoops\Run;

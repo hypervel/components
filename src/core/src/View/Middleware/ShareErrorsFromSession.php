@@ -6,7 +6,7 @@ namespace Hypervel\View\Middleware;
 
 use Hyperf\ViewEngine\Contract\FactoryInterface;
 use Hyperf\ViewEngine\ViewErrorBag;
-use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Contracts\Session\Session as SessionContract;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;

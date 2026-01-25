@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Socialite;
 
 use Hypervel\Http\Contracts\RequestContract;
 use Hypervel\Http\Contracts\ResponseContract;
-use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Socialite\One\MissingTemporaryCredentialsException;
 use Hypervel\Socialite\One\MissingVerifierException;
 use Hypervel\Socialite\One\User as SocialiteUser;

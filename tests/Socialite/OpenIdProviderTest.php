@@ -9,7 +9,7 @@ use GuzzleHttp\Psr7\Response;
 use Hypervel\Context\Context;
 use Hypervel\Http\Contracts\RequestContract;
 use Hypervel\Http\Contracts\ResponseContract;
-use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Socialite\Two\User;
 use Hypervel\Tests\Socialite\Fixtures\OpenIdTestProviderStub;
 use Hypervel\Tests\TestCase;

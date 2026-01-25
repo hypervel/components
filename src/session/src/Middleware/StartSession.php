@@ -12,7 +12,7 @@ use Hyperf\HttpServer\Request;
 use Hyperf\HttpServer\Router\Dispatched;
 use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
 use Hypervel\Cookie\Cookie;
-use Hypervel\Session\Contracts\Session;
+use Hypervel\Contracts\Session\Session;
 use Hypervel\Session\SessionManager;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;

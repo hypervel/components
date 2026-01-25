@@ -10,8 +10,8 @@ use Hyperf\Support\Filesystem\Filesystem;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Contracts\Cookie\Cookie as CookieContract;
 use Hypervel\Contracts\Encryption\Encrypter;
-use Hypervel\Session\Contracts\Factory;
-use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Contracts\Session\Factory;
+use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Support\Manager;
 use SessionHandlerInterface;
 

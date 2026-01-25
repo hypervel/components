@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Session\Contracts\Middleware;
+namespace Hypervel\Contracts\Session\Middleware;
 
 interface AuthenticatesSessions
 {

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Session\Contracts\Session;
+use Hypervel\Contracts\Session\Session;
 use Hypervel\Testbench\TestCase;
 
 /**

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Session\Contracts;
+namespace Hypervel\Contracts\Session;
 
 use SessionHandlerInterface;
 

@@ -627,11 +627,11 @@ class Application extends Container implements ApplicationContract
             ],
             \Hyperf\ViewEngine\Contract\FactoryInterface::class => ['view'],
             \Hyperf\ViewEngine\Compiler\CompilerInterface::class => ['blade.compiler'],
-            \Hypervel\Session\Contracts\Factory::class => [
+            \Hypervel\Contracts\Session\Factory::class => [
                 'session',
                 \Hypervel\Session\SessionManager::class,
             ],
-            \Hypervel\Session\Contracts\Session::class => ['session.store'],
+            \Hypervel\Contracts\Session\Session::class => ['session.store'],
             \Hypervel\Mail\Contracts\Factory::class => [
                 'mail.manager',
                 \Hypervel\Mail\MailManager::class,

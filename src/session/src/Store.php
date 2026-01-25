@@ -12,7 +12,7 @@ use Hyperf\Macroable\Macroable;
 use Hyperf\Stringable\Str;
 use Hyperf\Support\MessageBag;
 use Hyperf\ViewEngine\ViewErrorBag;
-use Hypervel\Session\Contracts\Session;
+use Hypervel\Contracts\Session\Session;
 use SessionHandlerInterface;
 use stdClass;
 

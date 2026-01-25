@@ -11,7 +11,7 @@ use Hyperf\Redis\Pool\PoolFactory;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Event\Contracts\Dispatcher;
 use Hypervel\Sentry\Traits\ResolvesEventOrigin;
-use Hypervel\Session\Contracts\Session;
+use Hypervel\Contracts\Session\Session;
 use Hypervel\Support\Str;
 use Sentry\SentrySdk;
 use Sentry\Tracing\SpanContext;

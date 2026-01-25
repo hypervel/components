@@ -16,7 +16,7 @@ use Hyperf\Stringable\Str;
 use Hypervel\Context\RequestContext;
 use Hypervel\Http\Contracts\RequestContract;
 use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
-use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Uri;
 use Hypervel\Validation\Contracts\Factory as ValidatorFactoryContract;

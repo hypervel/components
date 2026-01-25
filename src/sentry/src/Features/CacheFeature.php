@@ -23,7 +23,7 @@ use Hypervel\Sentry\Integrations\Integration;
 use Hypervel\Sentry\Traits\ResolvesEventOrigin;
 use Hypervel\Sentry\Traits\TracksPushedScopesAndSpans;
 use Hypervel\Sentry\Traits\WorksWithSpans;
-use Hypervel\Session\Contracts\Session;
+use Hypervel\Contracts\Session\Session;
 use Sentry\Breadcrumb;
 use Sentry\Tracing\Span;
 use Sentry\Tracing\SpanContext;

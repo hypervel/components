@@ -10,7 +10,7 @@ use Hyperf\HttpServer\Request;
 use Hypervel\Cookie\Cookie;
 use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Http\Middleware\Concerns\ExcludesPaths;
-use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Session\TokenMismatchException;
 use Hypervel\Support\Traits\InteractsWithTime;
 use Psr\Container\ContainerInterface;

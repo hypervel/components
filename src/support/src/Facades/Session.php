@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Session\Contracts\Factory as SessionManagerContract;
+use Hypervel\Contracts\Session\Factory as SessionManagerContract;
 
 /**
- * @method static \Hypervel\Session\Contracts\Session store(string|null $name = null)
+ * @method static \Hypervel\Contracts\Session\Session store(string|null $name = null)
  * @method static bool shouldBlock()
  * @method static string|null blockDriver()
  * @method static int defaultRouteBlockLockSeconds()

@@ -15,7 +15,7 @@ use Hypervel\Auth\Guards\JwtGuard;
 use Hypervel\Auth\Guards\RequestGuard;
 use Hypervel\Auth\Guards\SessionGuard;
 use Hypervel\JWT\JWTManager;
-use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Contracts\Session\Session as SessionContract;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;
 

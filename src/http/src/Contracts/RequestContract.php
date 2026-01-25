@@ -9,7 +9,7 @@ use Carbon\Exceptions\InvalidFormatException;
 use Closure;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Router\Dispatched;
-use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Uri;
 use Psr\Http\Message\ServerRequestInterface;

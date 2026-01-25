@@ -8,7 +8,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Auth\AuthenticationException;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Auth\Guards\SessionGuard;
-use Hypervel\Session\Contracts\Session;
+use Hypervel\Contracts\Session\Session;
 use Hypervel\Support\Arr;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
