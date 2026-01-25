@@ -568,7 +568,7 @@ class Application extends Container implements ApplicationContract
                 'log',
                 \Hypervel\Log\LogManager::class,
             ],
-            \Hypervel\Encryption\Contracts\Encrypter::class => [
+            \Hypervel\Contracts\Encryption\Encrypter::class => [
                 'encrypter',
                 \Hypervel\Encryption\Encrypter::class,
             ],

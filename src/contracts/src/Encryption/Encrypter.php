@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Encryption\Contracts;
+namespace Hypervel\Contracts\Encryption;
 
 interface Encrypter
 {

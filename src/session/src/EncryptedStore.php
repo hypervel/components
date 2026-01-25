@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Session;
 
-use Hypervel\Encryption\Contracts\Encrypter as EncrypterContract;
+use Hypervel\Contracts\Encryption\Encrypter as EncrypterContract;
 use Hypervel\Encryption\Exceptions\DecryptException;
 use SessionHandlerInterface;
 

@@ -8,7 +8,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hyperf\Stringable\Str;
 use Hypervel\Contracts\Bus\BatchRepository;
-use Hypervel\Encryption\Contracts\Encrypter;
+use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Queue;

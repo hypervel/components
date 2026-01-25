@@ -11,7 +11,7 @@ use Hypervel\Bus\Batchable;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Bus\UniqueLock;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
-use Hypervel\Encryption\Contracts\Encrypter;
+use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\ShouldBeUnique;

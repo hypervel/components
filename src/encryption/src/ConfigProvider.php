@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Encryption;
 
 use Hypervel\Encryption\Commands\KeyGenerateCommand;
-use Hypervel\Encryption\Contracts\Encrypter;
+use Hypervel\Contracts\Encryption\Encrypter;
 
 class ConfigProvider
 {

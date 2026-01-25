@@ -9,7 +9,7 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Encryption\Contracts\Encrypter;
+use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Queue\Connectors\ConnectorInterface;

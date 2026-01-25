@@ -174,7 +174,7 @@ trait HasAttributes
     /**
      * The encrypter instance that is used to encrypt attributes.
      *
-     * @var \Hypervel\Encryption\Contracts\Encrypter|null
+     * @var \Hypervel\Contracts\Encryption\Encrypter|null
      */
     public static mixed $encrypter = null;
 
@@ -1245,7 +1245,7 @@ trait HasAttributes
     /**
      * Set the encrypter instance that will be used to encrypt attributes.
      *
-     * @param  \Hypervel\Encryption\Contracts\Encrypter|null  $encrypter
+     * @param  \Hypervel\Contracts\Encryption\Encrypter|null  $encrypter
      */
     public static function encryptUsing(mixed $encrypter): void
     {
@@ -1255,7 +1255,7 @@ trait HasAttributes
     /**
      * Get the current encrypter being used by the model.
      *
-     * @return \Hypervel\Encryption\Contracts\Encrypter
+     * @return \Hypervel\Contracts\Encryption\Encrypter
      */
     public static function currentEncrypter(): mixed
     {

@@ -9,7 +9,7 @@ use DateTimeInterface;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hyperf\Command\Command;
-use Hypervel\Encryption\Contracts\Encrypter;
+use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Queue\Events\JobRetryRequested;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;

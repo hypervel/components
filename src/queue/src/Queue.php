@@ -12,7 +12,7 @@ use Hypervel\Support\Collection;
 use Hyperf\Stringable\Str;
 use Hyperf\Support\Traits\InteractsWithTime;
 use Hypervel\Database\DatabaseTransactionsManager;
-use Hypervel\Encryption\Contracts\Encrypter;
+use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Queue\ShouldBeEncrypted;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Queue\Events\JobQueued;
