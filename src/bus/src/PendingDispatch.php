@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use BackedEnum;
 use DateInterval;
 use DateTimeInterface;
 use Hyperf\Context\ApplicationContext;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
+use UnitEnum;
 
 class PendingDispatch
 {
@@ -30,7 +30,7 @@ class PendingDispatch
     /**
      * Set the desired connection for the job.
      */
-    public function onConnection(BackedEnum|string|null $connection): static
+    public function onConnection(UnitEnum|string|null $connection): static
     {
         $this->job->onConnection($connection);
 
@@ -40,7 +40,7 @@ class PendingDispatch
     /**
      * Set the desired queue for the job.
      */
-    public function onQueue(BackedEnum|string|null $queue): static
+    public function onQueue(UnitEnum|string|null $queue): static
     {
         $this->job->onQueue($queue);
 
@@ -50,7 +50,7 @@ class PendingDispatch
     /**
      * Set the desired connection for the chain.
      */
-    public function allOnConnection(BackedEnum|string|null $connection): static
+    public function allOnConnection(UnitEnum|string|null $connection): static
     {
         $this->job->allOnConnection($connection);
 
@@ -60,7 +60,7 @@ class PendingDispatch
     /**
      * Set the desired queue for the chain.
      */
-    public function allOnQueue(BackedEnum|string|null $queue): static
+    public function allOnQueue(UnitEnum|string|null $queue): static
     {
         $this->job->allOnQueue($queue);
 

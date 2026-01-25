@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use BackedEnum;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
@@ -13,6 +12,7 @@ use Hyperf\Context\ApplicationContext;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Queue\CallQueuedClosure;
 use Laravel\SerializableClosure\SerializableClosure;
+use UnitEnum;
 
 use function Hyperf\Support\value;
 use function Hypervel\Support\enum_value;
@@ -56,9 +56,9 @@ class PendingChain
     /**
      * Set the desired connection for the job.
      */
-    public function onConnection(?string $connection): static
+    public function onConnection(UnitEnum|string|null $connection): static
     {
-        $this->connection = $connection;
+        $this->connection = enum_value($connection);
 
         return $this;
     }
@@ -66,7 +66,7 @@ class PendingChain
     /**
      * Set the desired queue for the job.
      */
-    public function onQueue(BackedEnum|string|null $queue): static
+    public function onQueue(UnitEnum|string|null $queue): static
     {
         $this->queue = enum_value($queue);
 
