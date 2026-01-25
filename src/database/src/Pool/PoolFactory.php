@@ -51,23 +51,23 @@ class PoolFactory
     }
 
     /**
-     * Flush a specific pool.
+     * Flush a specific pool, closing all connections.
      */
     public function flushPool(string $name): void
     {
         if (isset($this->pools[$name])) {
-            $this->pools[$name]->flush();
+            $this->pools[$name]->flushAll();
             unset($this->pools[$name]);
         }
     }
 
     /**
-     * Flush all pools.
+     * Flush all pools, closing all connections.
      */
     public function flushAll(): void
     {
         foreach ($this->pools as $pool) {
-            $pool->flush();
+            $pool->flushAll();
         }
 
         $this->pools = [];

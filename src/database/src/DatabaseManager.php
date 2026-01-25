@@ -8,6 +8,7 @@ use Closure;
 use Hypervel\Context\Context;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
+use Hypervel\Database\Pool\PoolFactory;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -32,6 +33,11 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * The active connection instances.
+     *
+     * Note: In Hypervel's pooled connection mode, connections are stored
+     * per-coroutine in Context, not in this array. This property exists
+     * for Laravel API compatibility but is not populated during normal
+     * pooled operation.
      *
      * @var array<string, \Hypervel\Database\Connection>
      */
@@ -229,40 +235,76 @@ class DatabaseManager implements ConnectionResolverInterface
     }
 
     /**
-     * Disconnect from the given database and remove from local cache.
+     * Disconnect from the given database and flush its pool.
+     *
+     * In pooled mode, this disconnects the current coroutine's connection,
+     * clears its context key (so the next connection() call gets a fresh
+     * pooled connection), and flushes the pool. Use this when connection
+     * configuration has changed and you need to fully reset.
+     *
+     * Note: The current coroutine may briefly hold two pooled connections
+     * (the old one releases via defer at coroutine end). This is acceptable
+     * for purge's intended rare usage.
      */
     public function purge(UnitEnum|string|null $name = null): void
     {
-        $this->disconnect($name = enum_value($name) ?: $this->getDefaultConnection());
+        $name = enum_value($name) ?: $this->getDefaultConnection();
 
-        unset($this->connections[$name]);
+        // Disconnect current connection if any
+        $this->disconnect($name);
+
+        // Clear context so next connection() gets a fresh pooled connection
+        $contextKey = $this->getConnectionContextKey($name);
+        Context::destroy($contextKey);
+
+        // Flush the pool to honor config changes
+        if ($this->app->has(PoolFactory::class)) {
+            $this->app->get(PoolFactory::class)->flushPool($name);
+        }
     }
 
     /**
      * Disconnect from the given database.
+     *
+     * In pooled mode, this nulls the PDOs on the current coroutine's connection
+     * (if one exists), forcing a reconnect on the next query. Does not clear
+     * context or affect the pool - the connection is still released at coroutine end.
      */
     public function disconnect(UnitEnum|string|null $name = null): void
     {
-        if (isset($this->connections[$name = enum_value($name) ?: $this->getDefaultConnection()])) {
-            $this->connections[$name]->disconnect();
+        $name = enum_value($name) ?: $this->getDefaultConnection();
+        $contextKey = $this->getConnectionContextKey($name);
+
+        // Only act if this coroutine already has a connection
+        $connection = Context::get($contextKey);
+        if ($connection instanceof ConnectionInterface) {
+            $connection->disconnect();
         }
     }
 
     /**
      * Reconnect to the given database.
+     *
+     * In pooled mode, if this coroutine already has a connection, reconnects
+     * its PDOs and returns it. Otherwise gets a fresh connection from the pool.
      */
     public function reconnect(UnitEnum|string|null $name = null): Connection
     {
-        $this->disconnect($name = enum_value($name) ?: $this->getDefaultConnection());
+        $name = enum_value($name) ?: $this->getDefaultConnection();
+        $contextKey = $this->getConnectionContextKey($name);
 
-        if (! isset($this->connections[$name])) {
-            // @phpstan-ignore return.type (connection() returns ConnectionInterface but concrete Connection in practice)
-            return $this->connection($name);
+        // If we already have a connection in this coroutine, reconnect it
+        $connection = Context::get($contextKey);
+        if ($connection instanceof Connection) {
+            $connection->reconnect();
+            $this->dispatchConnectionEstablishedEvent($connection);
+
+            return $connection;
         }
 
-        return tap($this->refreshPdoConnections($name), function ($connection) {
-            $this->dispatchConnectionEstablishedEvent($connection);
-        });
+        // Otherwise get a fresh one from the pool
+        // @phpstan-ignore return.type (connection() returns ConnectionInterface but concrete Connection in practice)
+        return $this->connection($name);
     }
 
     /**
@@ -325,6 +367,16 @@ class DatabaseManager implements ConnectionResolverInterface
     }
 
     /**
+     * Get the context key for storing a connection.
+     *
+     * Uses the same format as ConnectionResolver for consistency.
+     */
+    protected function getConnectionContextKey(string $name): string
+    {
+        return sprintf('database.connection.%s', $name);
+    }
+
+    /**
      * Get all of the supported drivers.
      *
      * @return string[]
@@ -365,6 +417,11 @@ class DatabaseManager implements ConnectionResolverInterface
 
     /**
      * Return all of the created connections.
+     *
+     * Note: In Hypervel's pooled connection mode, connections are stored
+     * per-coroutine in Context rather than in this array. This method
+     * returns an empty array in normal pooled operation. Use the pool
+     * infrastructure to inspect active connections if needed.
      *
      * @return array<string, Connection>
      */

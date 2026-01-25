@@ -11,6 +11,7 @@ use Hyperf\Pool\Event\ReleaseConnection;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Contracts\Event\Dispatcher;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -111,6 +112,13 @@ class PooledConnection implements PoolConnectionInterface
             $this->refresh($connection);
         });
 
+        // Dispatch connection established event
+        if ($this->container->has(Dispatcher::class)) {
+            $this->container->get(Dispatcher::class)->dispatch(
+                new ConnectionEstablished($this->connection)
+            );
+        }
+
         $this->lastUseTime = microtime(true);
 
         return true;
@@ -167,9 +175,9 @@ class PooledConnection implements PoolConnectionInterface
                     $this->lastUseTime = 0.0;
                 }
 
-                // Roll back any uncommitted transactions
+                // Roll back any uncommitted transactions (including nested savepoints)
                 if ($this->connection->transactionLevel() > 0) {
-                    $this->connection->rollBack();
+                    $this->connection->rollBack(0);
                     $this->logger->error('Database transaction was not committed or rolled back before release.');
                 }
             }
