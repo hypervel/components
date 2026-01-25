@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Console\Contracts;
+namespace Hypervel\Contracts\Console;
 
 use Closure;
 use Hyperf\Command\Command;

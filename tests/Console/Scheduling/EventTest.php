@@ -8,7 +8,7 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\Stringable\Str;
 use Hyperf\Support\Filesystem\Filesystem;
-use Hypervel\Console\Contracts\EventMutex;
+use Hypervel\Contracts\Console\EventMutex;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Container\Contracts\Container;
 use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;

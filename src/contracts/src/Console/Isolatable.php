@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Console\Contracts;
+namespace Hypervel\Contracts\Console;
 
 /**
  * Marker interface for commands that should only run one instance at a time.

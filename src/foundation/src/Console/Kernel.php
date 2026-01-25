@@ -16,7 +16,7 @@ use Hyperf\Framework\Event\BootApplication;
 use Hyperf\Stringable\Str;
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\ClosureCommand;
-use Hypervel\Console\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Console\Application as ApplicationContract;
 use Hypervel\Console\HasPendingCommand;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;

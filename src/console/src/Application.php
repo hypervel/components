@@ -6,7 +6,7 @@ namespace Hypervel\Console;
 
 use Closure;
 use Hyperf\Command\Command;
-use Hypervel\Console\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Console\Application as ApplicationContract;
 use Hypervel\Container\Contracts\Container as ContainerContract;
 use Hypervel\Context\Context;
 use Hypervel\Support\ProcessUtils;

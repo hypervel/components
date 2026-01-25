@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Console\Migrations;
 
 use Hypervel\Console\ConfirmableTrait;
-use Hypervel\Console\Contracts\Isolatable;
+use Hypervel\Contracts\Console\Isolatable;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Events\SchemaLoaded;
 use Hypervel\Database\Migrations\Migrator;

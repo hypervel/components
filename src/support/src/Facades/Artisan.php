@@ -20,8 +20,8 @@ use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
  * @method static void call(string $command, array $parameters = [], \Symfony\Component\Console\Output\OutputInterface|null $outputBuffer = null)
  * @method static array all()
  * @method static string output()
- * @method static void setArtisan(\Hypervel\Console\Contracts\Application $artisan)
- * @method static \Hypervel\Console\Contracts\Application getArtisan()
+ * @method static void setArtisan(\Hypervel\Contracts\Console\Application $artisan)
+ * @method static \Hypervel\Contracts\Console\Application getArtisan()
  *
  * @see \Hypervel\Foundation\Console\Contracts\Kernel
  */
