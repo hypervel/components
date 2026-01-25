@@ -9,14 +9,14 @@ interface Encrypter
     /**
      * Encrypt the given value.
      *
-     * @throws \Hypervel\Encryption\Exceptions\EncryptException
+     * @throws \Hypervel\Contracts\Encryption\EncryptException
      */
     public function encrypt(mixed $value, bool $serialize = true): string;
 
     /**
      * Decrypt the given value.
      *
-     * @throws \Hypervel\Encryption\Exceptions\DecryptException
+     * @throws \Hypervel\Contracts\Encryption\DecryptException
      */
     public function decrypt(string $payload, bool $unserialize = true): mixed;
 

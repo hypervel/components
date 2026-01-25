@@ -6,8 +6,8 @@ namespace Hypervel\Encryption;
 
 use Hypervel\Contracts\Encryption\Encrypter as EncrypterContract;
 use Hypervel\Contracts\Encryption\StringEncrypter;
-use Hypervel\Encryption\Exceptions\DecryptException;
-use Hypervel\Encryption\Exceptions\EncryptException;
+use Hypervel\Contracts\Encryption\DecryptException;
+use Hypervel\Contracts\Encryption\EncryptException;
 use RuntimeException;
 
 class Encrypter implements EncrypterContract, StringEncrypter
@@ -81,7 +81,7 @@ class Encrypter implements EncrypterContract, StringEncrypter
     /**
      * Encrypt the given value.
      *
-     * @throws \Hypervel\Encryption\Exceptions\EncryptException
+     * @throws \Hypervel\Contracts\Encryption\EncryptException
      */
     public function encrypt(mixed $value, bool $serialize = true): string
     {
@@ -119,7 +119,7 @@ class Encrypter implements EncrypterContract, StringEncrypter
     /**
      * Encrypt a string without serialization.
      *
-     * @throws \Hypervel\Encryption\Exceptions\EncryptException
+     * @throws \Hypervel\Contracts\Encryption\EncryptException
      */
     public function encryptString(string $value): string
     {
@@ -129,7 +129,7 @@ class Encrypter implements EncrypterContract, StringEncrypter
     /**
      * Decrypt the given value.
      *
-     * @throws \Hypervel\Encryption\Exceptions\DecryptException
+     * @throws \Hypervel\Contracts\Encryption\DecryptException
      */
     public function decrypt(string $payload, bool $unserialize = true): mixed
     {
@@ -180,7 +180,7 @@ class Encrypter implements EncrypterContract, StringEncrypter
     /**
      * Decrypt the given string without unserialization.
      *
-     * @throws \Hypervel\Encryption\Exceptions\DecryptException
+     * @throws \Hypervel\Contracts\Encryption\DecryptException
      */
     public function decryptString(string $payload): string
     {
@@ -198,7 +198,7 @@ class Encrypter implements EncrypterContract, StringEncrypter
     /**
      * Get the JSON array from the given payload.
      *
-     * @throws \Hypervel\Encryption\Exceptions\DecryptException
+     * @throws \Hypervel\Contracts\Encryption\DecryptException
      */
     protected function getJsonPayload(string $payload): array
     {

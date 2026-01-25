@@ -8,7 +8,7 @@ use Closure;
 use Exception;
 use Hyperf\Coroutine\Coroutine;
 use Hyperf\Coroutine\Locker;
-use Hypervel\Filesystem\Exceptions\LockTimeoutException;
+use Hypervel\Contracts\Filesystem\LockTimeoutException;
 
 class LockableFile
 {

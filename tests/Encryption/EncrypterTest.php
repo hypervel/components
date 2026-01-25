@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Encryption;
 
 use Hypervel\Encryption\Encrypter;
-use Hypervel\Encryption\Exceptions\DecryptException;
+use Hypervel\Contracts\Encryption\DecryptException;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 

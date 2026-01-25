@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Filesystem\Exceptions;
+namespace Hypervel\Contracts\Cache;
 
 use Exception;
 
