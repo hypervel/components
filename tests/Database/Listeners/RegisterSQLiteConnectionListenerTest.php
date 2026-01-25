@@ -24,9 +24,6 @@ class RegisterSQLiteConnectionListenerTest extends TestCase
         // Clear any registered resolvers to avoid test pollution
         $this->clearSQLiteResolver();
 
-        // Clear any persistent PDOs stored in container
-        $this->clearPersistentPdos();
-
         parent::tearDown();
     }
 
@@ -168,16 +165,4 @@ class RegisterSQLiteConnectionListenerTest extends TestCase
         $property->setValue(null, $resolvers);
     }
 
-    protected function clearPersistentPdos(): void
-    {
-        $container = ApplicationContext::getContainer();
-
-        // Clear any test PDOs we may have created
-        foreach (['test_memory', 'memory_one', 'memory_two', 'test_file', 'test', 'default'] as $name) {
-            $key = "sqlite.persistent.pdo.{$name}";
-            if ($container->has($key)) {
-                // Can't actually unset from container, but it will be garbage collected
-            }
-        }
-    }
 }
