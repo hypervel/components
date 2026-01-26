@@ -15,6 +15,9 @@ use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\TaggedCache;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 class AllTaggedCache extends TaggedCache
 {
@@ -35,8 +38,10 @@ class AllTaggedCache extends TaggedCache
     /**
      * Store an item in the cache if the key does not exist.
      */
-    public function add(string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    public function add(UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
+        $key = enum_value($key);
+
         if ($ttl !== null) {
             $seconds = $this->getSeconds($ttl);
 
@@ -73,11 +78,13 @@ class AllTaggedCache extends TaggedCache
     /**
      * Store an item in the cache.
      */
-    public function put(array|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    public function put(array|UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         if (is_array($key)) {
             return $this->putMany($key, $value);
         }
+
+        $key = enum_value($key);
 
         if ($ttl === null) {
             return $this->forever($key, $value);
@@ -137,10 +144,10 @@ class AllTaggedCache extends TaggedCache
     /**
      * Increment the value of an item in the cache.
      */
-    public function increment(string $key, int $value = 1): bool|int
+    public function increment(UnitEnum|string $key, int $value = 1): bool|int
     {
         return $this->store->allTagOps()->increment()->execute(
-            $this->itemKey($key),
+            $this->itemKey(enum_value($key)),
             $value,
             $this->tags->tagIds()
         );
@@ -149,10 +156,10 @@ class AllTaggedCache extends TaggedCache
     /**
      * Decrement the value of an item in the cache.
      */
-    public function decrement(string $key, int $value = 1): bool|int
+    public function decrement(UnitEnum|string $key, int $value = 1): bool|int
     {
         return $this->store->allTagOps()->decrement()->execute(
-            $this->itemKey($key),
+            $this->itemKey(enum_value($key)),
             $value,
             $this->tags->tagIds()
         );
@@ -161,8 +168,10 @@ class AllTaggedCache extends TaggedCache
     /**
      * Store an item in the cache indefinitely.
      */
-    public function forever(string $key, mixed $value): bool
+    public function forever(UnitEnum|string $key, mixed $value): bool
     {
+        $key = enum_value($key);
+
         $result = $this->store->allTagOps()->forever()->execute(
             $this->itemKey($key),
             $value,
@@ -212,7 +221,7 @@ class AllTaggedCache extends TaggedCache
      * @param Closure(): TCacheValue $callback
      * @return TCacheValue
      */
-    public function remember(string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed
+    public function remember(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed
     {
         if ($ttl === null) {
             return $this->rememberForever($key, $callback);
@@ -253,7 +262,7 @@ class AllTaggedCache extends TaggedCache
      * @param Closure(): TCacheValue $callback
      * @return TCacheValue
      */
-    public function rememberForever(string $key, Closure $callback): mixed
+    public function rememberForever(UnitEnum|string $key, Closure $callback): mixed
     {
         [$value, $wasHit] = $this->store->allTagOps()->rememberForever()->execute(
             $this->itemKey($key),

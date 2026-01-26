@@ -17,6 +17,9 @@ use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\TaggedCache;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * Any-mode tagged cache for Redis 8.0+ enhanced tagging.
@@ -58,7 +61,7 @@ class AnyTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException Always - tags are for writing/flushing only
      */
-    public function get(array|string $key, mixed $default = null): mixed
+    public function get(array|UnitEnum|string $key, mixed $default = null): mixed
     {
         throw new BadMethodCallException(
             'Cannot get items via tags in any mode. Tags are for writing and flushing only. '
@@ -84,7 +87,7 @@ class AnyTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException Always - tags are for writing/flushing only
      */
-    public function has(array|string $key): bool
+    public function has(array|UnitEnum|string $key): bool
     {
         throw new BadMethodCallException(
             'Cannot check existence via tags in any mode. Tags are for writing and flushing only. '
@@ -97,7 +100,7 @@ class AnyTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException Always - tags are for writing/flushing only
      */
-    public function pull(string $key, mixed $default = null): mixed
+    public function pull(UnitEnum|string $key, mixed $default = null): mixed
     {
         throw new BadMethodCallException(
             'Cannot pull items via tags in any mode. Tags are for writing and flushing only. '
@@ -110,7 +113,7 @@ class AnyTaggedCache extends TaggedCache
      *
      * @throws BadMethodCallException Always - tags are for writing/flushing only
      */
-    public function forget(string $key): bool
+    public function forget(UnitEnum|string $key): bool
     {
         throw new BadMethodCallException(
             'Cannot forget items via tags in any mode. Tags are for writing and flushing only. '
@@ -121,11 +124,13 @@ class AnyTaggedCache extends TaggedCache
     /**
      * Store an item in the cache.
      */
-    public function put(array|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    public function put(array|UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         if (is_array($key)) {
             return $this->putMany($key, $value);
         }
+
+        $key = enum_value($key);
 
         if ($ttl === null) {
             return $this->forever($key, $value);
@@ -176,8 +181,10 @@ class AnyTaggedCache extends TaggedCache
     /**
      * Store an item in the cache if the key does not exist.
      */
-    public function add(string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    public function add(UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
+        $key = enum_value($key);
+
         if ($ttl === null) {
             // Default to 1 year for "null" TTL on add
             $seconds = 31536000;
@@ -195,8 +202,10 @@ class AnyTaggedCache extends TaggedCache
     /**
      * Store an item in the cache indefinitely.
      */
-    public function forever(string $key, mixed $value): bool
+    public function forever(UnitEnum|string $key, mixed $value): bool
     {
+        $key = enum_value($key);
+
         $result = $this->store->anyTagOps()->forever()->execute($key, $value, $this->tags->getNames());
 
         if ($result) {
@@ -209,17 +218,17 @@ class AnyTaggedCache extends TaggedCache
     /**
      * Increment the value of an item in the cache.
      */
-    public function increment(string $key, int $value = 1): bool|int
+    public function increment(UnitEnum|string $key, int $value = 1): bool|int
     {
-        return $this->store->anyTagOps()->increment()->execute($key, $value, $this->tags->getNames());
+        return $this->store->anyTagOps()->increment()->execute(enum_value($key), $value, $this->tags->getNames());
     }
 
     /**
      * Decrement the value of an item in the cache.
      */
-    public function decrement(string $key, int $value = 1): bool|int
+    public function decrement(UnitEnum|string $key, int $value = 1): bool|int
     {
-        return $this->store->anyTagOps()->decrement()->execute($key, $value, $this->tags->getNames());
+        return $this->store->anyTagOps()->decrement()->execute(enum_value($key), $value, $this->tags->getNames());
     }
 
     /**
@@ -259,7 +268,7 @@ class AnyTaggedCache extends TaggedCache
      * @param Closure(): TCacheValue $callback
      * @return TCacheValue
      */
-    public function remember(string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed
+    public function remember(UnitEnum|string $key, DateInterval|DateTimeInterface|int|null $ttl, Closure $callback): mixed
     {
         if ($ttl === null) {
             return $this->rememberForever($key, $callback);
@@ -300,7 +309,7 @@ class AnyTaggedCache extends TaggedCache
      * @param Closure(): TCacheValue $callback
      * @return TCacheValue
      */
-    public function rememberForever(string $key, Closure $callback): mixed
+    public function rememberForever(UnitEnum|string $key, Closure $callback): mixed
     {
         [$value, $wasHit] = $this->store->anyTagOps()->rememberForever()->execute(
             $key,
