@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
-use BackedEnum;
+use UnitEnum;
 use Hypervel\Sanctum\Contracts\HasAbilities;
 
 class TransientToken implements HasAbilities
@@ -12,7 +12,7 @@ class TransientToken implements HasAbilities
     /**
      * Determine if the token has a given ability.
      */
-    public function can(BackedEnum|string $ability): bool
+    public function can(UnitEnum|string $ability): bool
     {
         return true;
     }
@@ -20,7 +20,7 @@ class TransientToken implements HasAbilities
     /**
      * Determine if the token is missing a given ability.
      */
-    public function cant(BackedEnum|string $ability): bool
+    public function cant(UnitEnum|string $ability): bool
     {
         return false;
     }
