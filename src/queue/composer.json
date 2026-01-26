@@ -26,7 +26,7 @@
         "hyperf/contract": "~3.1.0",
         "hyperf/support": "~3.1.0",
         "hypervel/collections": "~0.3.0",
-        "hyperf/db-connection": "~3.1.0",
+        "hypervel/database": "^0.3",
         "laravel/serializable-closure": "^1.2.2",
         "ramsey/uuid": "^4.7",
         "symfony/process": "^7.0",

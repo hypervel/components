@@ -22,9 +22,6 @@ class HasGlobalScopesTest extends TestCase
 {
     protected function tearDown(): void
     {
-        // Clear global scopes between tests
-        \Hyperf\Database\Model\GlobalScope::$container = [];
-
         parent::tearDown();
     }
 
