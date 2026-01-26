@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use BackedEnum;
 use Closure;
 use Hyperf\Collection\Arr;
 use Hyperf\Collection\Collection;
@@ -17,6 +16,7 @@ use Laravel\SerializableClosure\SerializableClosure;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
+use UnitEnum;
 
 use function Hyperf\Support\value;
 use function Hypervel\Support\enum_value;
@@ -194,9 +194,9 @@ class PendingBatch
     /**
      * Specify the queue connection that the batched jobs should run on.
      */
-    public function onConnection(string $connection): static
+    public function onConnection(UnitEnum|string $connection): static
     {
-        $this->options['connection'] = $connection;
+        $this->options['connection'] = enum_value($connection);
 
         return $this;
     }
@@ -212,7 +212,7 @@ class PendingBatch
     /**
      * Specify the queue that the batched jobs should run on.
      */
-    public function onQueue(BackedEnum|string|null $queue): static
+    public function onQueue(UnitEnum|string|null $queue): static
     {
         $this->options['queue'] = enum_value($queue);
 
