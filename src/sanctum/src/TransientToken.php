@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
-use UnitEnum;
 use Hypervel\Sanctum\Contracts\HasAbilities;
+use UnitEnum;
 
 class TransientToken implements HasAbilities
 {

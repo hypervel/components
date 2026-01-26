@@ -53,7 +53,7 @@ trait HasApiTokens
     /**
      * Create a new personal access token for the user.
      *
-     * @param array<UnitEnum|string> $abilities
+     * @param array<string|UnitEnum> $abilities
      */
     public function createToken(string $name, array $abilities = ['*'], ?DateTimeInterface $expiresAt = null): NewAccessToken
     {
