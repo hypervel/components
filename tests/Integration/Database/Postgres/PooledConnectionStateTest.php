@@ -10,7 +10,6 @@ use Hypervel\Database\Pool\PoolFactory;
 use ReflectionProperty;
 
 use function Hypervel\Coroutine\go;
-use function Hypervel\Coroutine\run;
 
 /**
  * Tests that connection state is properly reset when released back to the pool.
@@ -39,28 +38,26 @@ class PooledConnectionStateTest extends PostgresTestCase
         $coroutine2LoggingState = null;
         $coroutine2QueryLog = null;
 
-        run(function () use (&$coroutine2LoggingState, &$coroutine2QueryLog) {
-            $pooled1 = $this->getPooledConnection();
-            $connection1 = $pooled1->getConnection();
+        $pooled1 = $this->getPooledConnection();
+        $connection1 = $pooled1->getConnection();
 
-            $connection1->enableQueryLog();
-            $connection1->select('SELECT 1');
+        $connection1->enableQueryLog();
+        $connection1->select('SELECT 1');
 
-            $this->assertTrue($connection1->logging());
-            $this->assertNotEmpty($connection1->getQueryLog());
+        $this->assertTrue($connection1->logging());
+        $this->assertNotEmpty($connection1->getQueryLog());
 
-            $pooled1->release();
-            usleep(1000);
+        $pooled1->release();
+        usleep(1000);
 
-            go(function () use (&$coroutine2LoggingState, &$coroutine2QueryLog) {
-                $pooled2 = $this->getPooledConnection();
-                $connection2 = $pooled2->getConnection();
+        go(function () use (&$coroutine2LoggingState, &$coroutine2QueryLog) {
+            $pooled2 = $this->getPooledConnection();
+            $connection2 = $pooled2->getConnection();
 
-                $coroutine2LoggingState = $connection2->logging();
-                $coroutine2QueryLog = $connection2->getQueryLog();
+            $coroutine2LoggingState = $connection2->logging();
+            $coroutine2QueryLog = $connection2->getQueryLog();
 
-                $pooled2->release();
-            });
+            $pooled2->release();
         });
 
         $this->assertFalse(
@@ -77,29 +74,27 @@ class PooledConnectionStateTest extends PostgresTestCase
     {
         $coroutine2HandlerCount = null;
 
-        run(function () use (&$coroutine2HandlerCount) {
-            $pooled1 = $this->getPooledConnection();
-            $connection1 = $pooled1->getConnection();
+        $pooled1 = $this->getPooledConnection();
+        $connection1 = $pooled1->getConnection();
 
-            $connection1->whenQueryingForLongerThan(1000, function () {
-                // Handler that would fire after 1 second of queries
-            });
+        $connection1->whenQueryingForLongerThan(1000, function () {
+            // Handler that would fire after 1 second of queries
+        });
+
+        $reflection = new ReflectionProperty(Connection::class, 'queryDurationHandlers');
+        $this->assertCount(1, $reflection->getValue($connection1));
+
+        $pooled1->release();
+        usleep(1000);
+
+        go(function () use (&$coroutine2HandlerCount) {
+            $pooled2 = $this->getPooledConnection();
+            $connection2 = $pooled2->getConnection();
 
             $reflection = new ReflectionProperty(Connection::class, 'queryDurationHandlers');
-            $this->assertCount(1, $reflection->getValue($connection1));
+            $coroutine2HandlerCount = count($reflection->getValue($connection2));
 
-            $pooled1->release();
-            usleep(1000);
-
-            go(function () use (&$coroutine2HandlerCount) {
-                $pooled2 = $this->getPooledConnection();
-                $connection2 = $pooled2->getConnection();
-
-                $reflection = new ReflectionProperty(Connection::class, 'queryDurationHandlers');
-                $coroutine2HandlerCount = count($reflection->getValue($connection2));
-
-                $pooled2->release();
-            });
+            $pooled2->release();
         });
 
         $this->assertEquals(
@@ -113,28 +108,26 @@ class PooledConnectionStateTest extends PostgresTestCase
     {
         $coroutine2Duration = null;
 
-        run(function () use (&$coroutine2Duration) {
-            $pooled1 = $this->getPooledConnection();
-            $connection1 = $pooled1->getConnection();
+        $pooled1 = $this->getPooledConnection();
+        $connection1 = $pooled1->getConnection();
 
-            for ($i = 0; $i < 10; ++$i) {
-                $connection1->select('SELECT pg_sleep(0.001)');
-            }
+        for ($i = 0; $i < 10; ++$i) {
+            $connection1->select('SELECT pg_sleep(0.001)');
+        }
 
-            $duration1 = $connection1->totalQueryDuration();
-            $this->assertGreaterThan(0, $duration1);
+        $duration1 = $connection1->totalQueryDuration();
+        $this->assertGreaterThan(0, $duration1);
 
-            $pooled1->release();
-            usleep(1000);
+        $pooled1->release();
+        usleep(1000);
 
-            go(function () use (&$coroutine2Duration) {
-                $pooled2 = $this->getPooledConnection();
-                $connection2 = $pooled2->getConnection();
+        go(function () use (&$coroutine2Duration) {
+            $pooled2 = $this->getPooledConnection();
+            $connection2 = $pooled2->getConnection();
 
-                $coroutine2Duration = $connection2->totalQueryDuration();
+            $coroutine2Duration = $connection2->totalQueryDuration();
 
-                $pooled2->release();
-            });
+            $pooled2->release();
         });
 
         $this->assertEquals(
@@ -148,28 +141,26 @@ class PooledConnectionStateTest extends PostgresTestCase
     {
         $callbackCalledInCoroutine2 = false;
 
-        run(function () use (&$callbackCalledInCoroutine2) {
-            $pooled1 = $this->getPooledConnection();
-            $connection1 = $pooled1->getConnection();
+        $pooled1 = $this->getPooledConnection();
+        $connection1 = $pooled1->getConnection();
 
-            $connection1->beforeStartingTransaction(function () use (&$callbackCalledInCoroutine2) {
-                $callbackCalledInCoroutine2 = true;
-            });
+        $connection1->beforeStartingTransaction(function () use (&$callbackCalledInCoroutine2) {
+            $callbackCalledInCoroutine2 = true;
+        });
 
-            $pooled1->release();
-            usleep(1000);
+        $pooled1->release();
+        usleep(1000);
 
-            go(function () use (&$callbackCalledInCoroutine2) {
-                $callbackCalledInCoroutine2 = false;
+        go(function () use (&$callbackCalledInCoroutine2) {
+            $callbackCalledInCoroutine2 = false;
 
-                $pooled2 = $this->getPooledConnection();
-                $connection2 = $pooled2->getConnection();
+            $pooled2 = $this->getPooledConnection();
+            $connection2 = $pooled2->getConnection();
 
-                $connection2->beginTransaction();
-                $connection2->rollBack();
+            $connection2->beginTransaction();
+            $connection2->rollBack();
 
-                $pooled2->release();
-            });
+            $pooled2->release();
         });
 
         $this->assertFalse(
@@ -182,24 +173,22 @@ class PooledConnectionStateTest extends PostgresTestCase
     {
         $coroutine2UsesWriteForReads = null;
 
-        run(function () use (&$coroutine2UsesWriteForReads) {
-            $pooled1 = $this->getPooledConnection();
-            $connection1 = $pooled1->getConnection();
+        $pooled1 = $this->getPooledConnection();
+        $connection1 = $pooled1->getConnection();
 
-            $connection1->useWriteConnectionWhenReading(true);
+        $connection1->useWriteConnectionWhenReading(true);
 
-            $pooled1->release();
-            usleep(1000);
+        $pooled1->release();
+        usleep(1000);
 
-            go(function () use (&$coroutine2UsesWriteForReads) {
-                $pooled2 = $this->getPooledConnection();
-                $connection2 = $pooled2->getConnection();
+        go(function () use (&$coroutine2UsesWriteForReads) {
+            $pooled2 = $this->getPooledConnection();
+            $connection2 = $pooled2->getConnection();
 
-                $reflection = new ReflectionProperty(Connection::class, 'readOnWriteConnection');
-                $coroutine2UsesWriteForReads = $reflection->getValue($connection2);
+            $reflection = new ReflectionProperty(Connection::class, 'readOnWriteConnection');
+            $coroutine2UsesWriteForReads = $reflection->getValue($connection2);
 
-                $pooled2->release();
-            });
+            $pooled2->release();
         });
 
         $this->assertFalse(
@@ -212,24 +201,22 @@ class PooledConnectionStateTest extends PostgresTestCase
     {
         $coroutine2Pretending = null;
 
-        run(function () use (&$coroutine2Pretending) {
-            $pooled1 = $this->getPooledConnection();
-            $connection1 = $pooled1->getConnection();
+        $pooled1 = $this->getPooledConnection();
+        $connection1 = $pooled1->getConnection();
 
-            $reflection = new ReflectionProperty(Connection::class, 'pretending');
-            $reflection->setValue($connection1, true);
+        $reflection = new ReflectionProperty(Connection::class, 'pretending');
+        $reflection->setValue($connection1, true);
 
-            $pooled1->release();
-            usleep(1000);
+        $pooled1->release();
+        usleep(1000);
 
-            go(function () use (&$coroutine2Pretending) {
-                $pooled2 = $this->getPooledConnection();
-                $connection2 = $pooled2->getConnection();
+        go(function () use (&$coroutine2Pretending) {
+            $pooled2 = $this->getPooledConnection();
+            $connection2 = $pooled2->getConnection();
 
-                $coroutine2Pretending = $connection2->pretending();
+            $coroutine2Pretending = $connection2->pretending();
 
-                $pooled2->release();
-            });
+            $pooled2->release();
         });
 
         $this->assertFalse(
