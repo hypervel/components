@@ -28,6 +28,8 @@ use Psr\EventDispatcher\StoppableEventInterface;
 use Psr\Log\LoggerInterface;
 use ReflectionClass;
 
+use function Hypervel\Support\enum_value;
+
 class EventDispatcher implements EventDispatcherContract
 {
     use ReflectsClosures;
@@ -467,6 +469,8 @@ class EventDispatcher implements EventDispatcherContract
         $queue = method_exists($listener, 'viaQueue')
             ? (isset($arguments[1]) ? $listener->viaQueue($arguments[1]) : $listener->viaQueue())
             : $listener->queue ?? null;
+
+        $queue = is_null($queue) ? null : enum_value($queue);
 
         $delay = method_exists($listener, 'withDelay')
             ? (isset($arguments[1]) ? $listener->withDelay($arguments[1]) : $listener->withDelay())
