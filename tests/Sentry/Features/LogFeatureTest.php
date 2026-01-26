@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sentry\Features;
 
 use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Sentry\Features\LogFeature;
 use Hypervel\Support\Facades\Log;
@@ -26,7 +27,7 @@ class LogFeatureTest extends SentryTestCase
         ],
     ];
 
-    protected function defineEnvironment($app): void
+    protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
 
