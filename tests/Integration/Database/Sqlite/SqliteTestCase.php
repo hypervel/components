@@ -10,5 +10,4 @@ use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 #[RequiresDatabase('sqlite')]
 abstract class SqliteTestCase extends DatabaseTestCase
 {
-    //
 }

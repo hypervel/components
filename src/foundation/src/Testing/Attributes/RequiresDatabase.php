@@ -26,9 +26,9 @@ final class RequiresDatabase implements Actionable
 
     /**
      * @param array<string>|string $driver The required database driver(s)
-     * @param string|null $versionRequirement Optional version requirement (e.g., ">=8.0")
-     * @param string|null $connection Optional connection name to check
-     * @param bool|null $default Whether to check the default connection
+     * @param null|string $versionRequirement Optional version requirement (e.g., ">=8.0")
+     * @param null|string $connection Optional connection name to check
+     * @param null|bool $default Whether to check the default connection
      */
     public function __construct(
         public readonly array|string $driver,

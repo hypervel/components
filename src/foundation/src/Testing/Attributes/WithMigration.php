@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Attributes;
 
 use Attribute;
-use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Foundation\Testing\Contracts\Attributes\Invokable;
 
 /**

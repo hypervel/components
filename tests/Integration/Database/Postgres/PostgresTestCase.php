@@ -10,5 +10,4 @@ use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 #[RequiresDatabase('pgsql')]
 abstract class PostgresTestCase extends DatabaseTestCase
 {
-    //
 }
