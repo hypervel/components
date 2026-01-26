@@ -8,17 +8,22 @@ use Hyperf\DbConnection\Model\Model as BaseModel;
 use Hyperf\Stringable\Str;
 use Hypervel\Broadcasting\Contracts\HasBroadcastChannel;
 use Hypervel\Context\Context;
+use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Hypervel\Database\Eloquent\Concerns\HasAttributes;
+use Hypervel\Database\Eloquent\Concerns\HasBootableTraits;
 use Hypervel\Database\Eloquent\Concerns\HasCallbacks;
+use Hypervel\Database\Eloquent\Concerns\HasCollection;
 use Hypervel\Database\Eloquent\Concerns\HasGlobalScopes;
 use Hypervel\Database\Eloquent\Concerns\HasLocalScopes;
 use Hypervel\Database\Eloquent\Concerns\HasObservers;
 use Hypervel\Database\Eloquent\Concerns\HasRelations;
 use Hypervel\Database\Eloquent\Concerns\HasRelationships;
+use Hypervel\Database\Eloquent\Concerns\HasTimestamps;
 use Hypervel\Database\Eloquent\Concerns\TransformsToResource;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Router\Contracts\UrlRoutable;
 use Psr\EventDispatcher\EventDispatcherInterface;
+use ReflectionClass;
 
 /**
  * @method static \Hypervel\Database\Eloquent\Collection<int, static> all(array|string $columns = ['*'])
@@ -70,13 +75,33 @@ use Psr\EventDispatcher\EventDispatcherInterface;
 abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChannel
 {
     use HasAttributes;
+    use HasBootableTraits;
     use HasCallbacks;
+    use HasCollection;
     use HasGlobalScopes;
     use HasLocalScopes;
     use HasObservers;
     use HasRelations;
     use HasRelationships;
+    use HasTimestamps;
     use TransformsToResource;
+
+    /**
+     * The default collection class for this model.
+     *
+     * Override this property to use a custom collection class. Alternatively,
+     * use the #[CollectedBy] attribute for a more declarative approach.
+     *
+     * @var class-string<Collection<int, static>>
+     */
+    protected static string $collectionClass = Collection::class;
+
+    /**
+     * The resolved builder class names by model.
+     *
+     * @var array<class-string<static>, class-string<Builder<static>>|false>
+     */
+    protected static array $resolvedBuilderClasses = [];
 
     protected ?string $connection = null;
 
@@ -86,22 +111,41 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
     }
 
     /**
+     * Create a new Eloquent query builder for the model.
+     *
      * @param \Hypervel\Database\Query\Builder $query
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
     public function newModelBuilder($query)
     {
-        // @phpstan-ignore-next-line
+        $builderClass = static::$resolvedBuilderClasses[static::class]
+            ??= $this->resolveCustomBuilderClass();
+
+        if ($builderClass !== false && is_subclass_of($builderClass, Builder::class)) { // @phpstan-ignore function.alreadyNarrowedType (validates attribute returns valid Builder subclass)
+            // @phpstan-ignore new.static
+            return new $builderClass($query);
+        }
+
+        // @phpstan-ignore return.type
         return new Builder($query);
     }
 
     /**
-     * @param array<array-key, static> $models
-     * @return \Hypervel\Database\Eloquent\Collection<array-key, static>
+     * Resolve the custom Eloquent builder class from the model attributes.
+     *
+     * @return class-string<\Hypervel\Database\Eloquent\Builder<static>>|false
      */
-    public function newCollection(array $models = [])
+    protected function resolveCustomBuilderClass(): string|false
     {
-        return new Collection($models);
+        $attributes = (new ReflectionClass(static::class))
+            ->getAttributes(UseEloquentBuilder::class);
+
+        if ($attributes === []) {
+            return false;
+        }
+
+        // @phpstan-ignore return.type (attribute stores generic Model type, but we know it's compatible with static)
+        return $attributes[0]->newInstance()->builderClass;
     }
 
     public function broadcastChannelRoute(): string
