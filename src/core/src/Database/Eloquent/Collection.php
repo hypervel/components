@@ -11,7 +11,7 @@ use Hypervel\Support\Traits\TransformsToResourceCollection;
 
 /**
  * @template TKey of array-key
- * @template TModel of \Hypervel\Database\Eloquent\Model
+ * @template TModel of \Hyperf\Database\Model\Model
  *
  * @extends \Hyperf\Database\Model\Collection<TKey, TModel>
  *
