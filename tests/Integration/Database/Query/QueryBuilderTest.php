@@ -29,10 +29,8 @@ class QueryBuilderTest extends DatabaseTestCase
         });
     }
 
-    protected function setUp(): void
+    protected function seedProducts(): void
     {
-        parent::setUp();
-
         DB::table('qb_products')->insert([
             ['name' => 'Widget A', 'category' => 'widgets', 'price' => 19.99, 'stock' => 100, 'active' => true, 'created_at' => now(), 'updated_at' => now()],
             ['name' => 'Widget B', 'category' => 'widgets', 'price' => 29.99, 'stock' => 50, 'active' => true, 'created_at' => now(), 'updated_at' => now()],
@@ -49,6 +47,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testSelectAll(): void
     {
+        $this->seedProducts();
+
         $products = $this->table()->get();
 
         $this->assertCount(5, $products);
@@ -56,6 +56,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testSelectSpecificColumns(): void
     {
+        $this->seedProducts();
+
         $product = $this->table()->select('name', 'price')->first();
 
         $this->assertSame('Widget A', $product->name);
@@ -65,6 +67,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testWhereEquals(): void
     {
+        $this->seedProducts();
+
         $products = $this->table()->where('category', 'widgets')->get();
 
         $this->assertCount(2, $products);
@@ -72,6 +76,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testWhereWithOperator(): void
     {
+        $this->seedProducts();
+
         $products = $this->table()->where('price', '>', 50)->get();
 
         $this->assertCount(2, $products);
@@ -79,6 +85,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testWhereIn(): void
     {
+        $this->seedProducts();
+
         $products = $this->table()->whereIn('category', ['widgets', 'tools'])->get();
 
         $this->assertCount(3, $products);
@@ -86,6 +94,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testWhereNotIn(): void
     {
+        $this->seedProducts();
+
         $products = $this->table()->whereNotIn('category', ['widgets'])->get();
 
         $this->assertCount(3, $products);
@@ -93,6 +103,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testWhereNull(): void
     {
+        $this->seedProducts();
+
         $this->table()->where('name', 'Tool Z')->update(['category' => null]);
 
         $products = $this->table()->whereNull('category')->get();
@@ -103,6 +115,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testWhereNotNull(): void
     {
+        $this->seedProducts();
+
         $this->table()->where('name', 'Tool Z')->update(['category' => null]);
 
         $products = $this->table()->whereNotNull('category')->get();
@@ -112,6 +126,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testWhereBetween(): void
     {
+        $this->seedProducts();
+
         $products = $this->table()->whereBetween('price', [20, 100])->get();
 
         $this->assertCount(3, $products);
@@ -119,6 +135,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testOrWhere(): void
     {
+        $this->seedProducts();
+
         $products = $this->table()
             ->where('category', 'widgets')
             ->orWhere('category', 'tools')
@@ -129,6 +147,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testWhereNested(): void
     {
+        $this->seedProducts();
+
         $products = $this->table()
             ->where('active', true)
             ->where(function ($query) {
@@ -142,6 +162,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testOrderBy(): void
     {
+        $this->seedProducts();
+
         $products = $this->table()->orderBy('price', 'desc')->get();
 
         $this->assertSame('Gadget Y', $products->first()->name);
@@ -150,6 +172,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testOrderByMultiple(): void
     {
+        $this->seedProducts();
+
         $products = $this->table()
             ->orderBy('category')
             ->orderBy('price', 'desc')
@@ -162,6 +186,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testLimit(): void
     {
+        $this->seedProducts();
+
         $products = $this->table()->limit(2)->get();
 
         $this->assertCount(2, $products);
@@ -169,6 +195,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testOffset(): void
     {
+        $this->seedProducts();
+
         $products = $this->table()->orderBy('id')->offset(2)->limit(2)->get();
 
         $this->assertCount(2, $products);
@@ -177,6 +205,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testFirst(): void
     {
+        $this->seedProducts();
+
         $product = $this->table()->where('category', 'gadgets')->first();
 
         $this->assertSame('Gadget X', $product->name);
@@ -184,6 +214,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testFind(): void
     {
+        $this->seedProducts();
+
         $first = $this->table()->first();
         $product = $this->table()->find($first->id);
 
@@ -192,6 +224,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testValue(): void
     {
+        $this->seedProducts();
+
         $name = $this->table()->where('category', 'tools')->value('name');
 
         $this->assertSame('Tool Z', $name);
@@ -199,6 +233,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testPluck(): void
     {
+        $this->seedProducts();
+
         $names = $this->table()->where('category', 'widgets')->pluck('name');
 
         $this->assertCount(2, $names);
@@ -208,6 +244,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testPluckWithKey(): void
     {
+        $this->seedProducts();
+
         $products = $this->table()->where('category', 'widgets')->pluck('name', 'id');
 
         $this->assertCount(2, $products);
@@ -219,6 +257,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testCount(): void
     {
+        $this->seedProducts();
+
         $count = $this->table()->where('active', true)->count();
 
         $this->assertSame(4, $count);
@@ -226,6 +266,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testMax(): void
     {
+        $this->seedProducts();
+
         $max = $this->table()->max('price');
 
         $this->assertEquals(149.99, $max);
@@ -233,6 +275,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testMin(): void
     {
+        $this->seedProducts();
+
         $min = $this->table()->min('price');
 
         $this->assertEquals(19.99, $min);
@@ -240,6 +284,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testSum(): void
     {
+        $this->seedProducts();
+
         $sum = $this->table()->where('category', 'widgets')->sum('stock');
 
         $this->assertEquals(150, $sum);
@@ -247,6 +293,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testAvg(): void
     {
+        $this->seedProducts();
+
         $avg = $this->table()->where('category', 'widgets')->avg('price');
 
         $this->assertEquals(24.99, $avg);
@@ -254,18 +302,24 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testExists(): void
     {
+        $this->seedProducts();
+
         $this->assertTrue($this->table()->where('category', 'widgets')->exists());
         $this->assertFalse($this->table()->where('category', 'nonexistent')->exists());
     }
 
     public function testDoesntExist(): void
     {
+        $this->seedProducts();
+
         $this->assertTrue($this->table()->where('category', 'nonexistent')->doesntExist());
         $this->assertFalse($this->table()->where('category', 'widgets')->doesntExist());
     }
 
     public function testInsert(): void
     {
+        $this->seedProducts();
+
         $result = $this->table()->insert([
             'name' => 'New Product',
             'category' => 'new',
@@ -282,6 +336,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testInsertGetId(): void
     {
+        $this->seedProducts();
+
         $id = $this->table()->insertGetId([
             'name' => 'Another Product',
             'category' => 'another',
@@ -298,6 +354,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testUpdate(): void
     {
+        $this->seedProducts();
+
         $affected = $this->table()->where('category', 'widgets')->update(['stock' => 200]);
 
         $this->assertSame(2, $affected);
@@ -310,6 +368,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testIncrement(): void
     {
+        $this->seedProducts();
+
         $this->table()->where('name', 'Widget A')->increment('stock', 10);
 
         $product = $this->table()->where('name', 'Widget A')->first();
@@ -318,6 +378,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testDecrement(): void
     {
+        $this->seedProducts();
+
         $this->table()->where('name', 'Widget A')->decrement('stock', 10);
 
         $product = $this->table()->where('name', 'Widget A')->first();
@@ -326,6 +388,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testDelete(): void
     {
+        $this->seedProducts();
+
         $affected = $this->table()->where('active', false)->delete();
 
         $this->assertSame(1, $affected);
@@ -334,6 +398,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testTruncate(): void
     {
+        $this->seedProducts();
+
         $this->table()->truncate();
 
         $this->assertSame(0, $this->table()->count());
@@ -341,6 +407,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testChunk(): void
     {
+        $this->seedProducts();
+
         $processed = 0;
 
         $this->table()->orderBy('id')->chunk(2, function ($products) use (&$processed) {
@@ -352,6 +420,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testGroupBy(): void
     {
+        $this->seedProducts();
+
         $categories = $this->table()
             ->select('category', DB::connection($this->driver)->raw('COUNT(*) as count'))
             ->groupBy('category')
@@ -362,6 +432,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testHaving(): void
     {
+        $this->seedProducts();
+
         $categories = $this->table()
             ->select('category', DB::connection($this->driver)->raw('SUM(stock) as total_stock'))
             ->groupBy('category')
@@ -374,6 +446,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testDistinct(): void
     {
+        $this->seedProducts();
+
         $categories = $this->table()->distinct()->pluck('category');
 
         $this->assertCount(3, $categories);
@@ -381,6 +455,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testWhen(): void
     {
+        $this->seedProducts();
+
         $filterCategory = 'widgets';
 
         $products = $this->table()
@@ -402,6 +478,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testUnless(): void
     {
+        $this->seedProducts();
+
         $showAll = false;
 
         $products = $this->table()
@@ -415,6 +493,8 @@ class QueryBuilderTest extends DatabaseTestCase
 
     public function testToSql(): void
     {
+        $this->seedProducts();
+
         $sql = $this->table()->where('category', 'widgets')->toSql();
 
         $this->assertStringContainsString('select', strtolower($sql));
