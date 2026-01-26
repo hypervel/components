@@ -37,8 +37,6 @@ class MailMailerTest extends TestCase
     protected function tearDown(): void
     {
         unset($_SERVER['__mailer.test']);
-
-        m::close();
     }
 
     public function testMailerSendSendsMessageWithProperViewContent()

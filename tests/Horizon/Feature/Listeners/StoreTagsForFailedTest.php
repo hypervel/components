@@ -21,8 +21,6 @@ class StoreTagsForFailedTest extends IntegrationTestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-
-        m::close();
     }
 
     public function testTemporaryFailedJobShouldBeDeletedWhenTheMainJobIsDeleted(): void

@@ -40,8 +40,6 @@ class RedisBroadcasterTest extends TestCase
     {
         parent::tearDown();
 
-        m::close();
-
         Facade::clearResolvedInstances();
     }
 

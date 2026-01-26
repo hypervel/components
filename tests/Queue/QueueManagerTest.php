@@ -25,11 +25,6 @@ use PHPUnit\Framework\TestCase;
  */
 class QueueManagerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testDefaultConnectionCanBeResolved()
     {
         $container = $this->getContainer();

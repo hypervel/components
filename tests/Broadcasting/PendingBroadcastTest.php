@@ -38,11 +38,6 @@ enum PendingBroadcastTestConnectionUnitEnum
  */
 class PendingBroadcastTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testViaAcceptsStringBackedEnum(): void
     {
         $dispatcher = m::mock(EventDispatcherInterface::class);

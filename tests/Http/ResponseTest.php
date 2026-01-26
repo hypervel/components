@@ -32,7 +32,6 @@ class ResponseTest extends TestCase
 {
     protected function tearDown(): void
     {
-        Mockery::close();
         Context::destroy(ResponseInterface::class);
         Context::destroy(Response::RANGE_HEADERS_CONTEXT);
         Context::destroy(ServerRequestInterface::class);

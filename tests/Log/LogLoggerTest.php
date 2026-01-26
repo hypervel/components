@@ -20,7 +20,6 @@ class LogLoggerTest extends TestCase
 {
     protected function tearDown(): void
     {
-        m::close();
         Context::destroy('__logger.context');
     }
 

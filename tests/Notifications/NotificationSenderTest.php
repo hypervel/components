@@ -22,11 +22,6 @@ use Psr\EventDispatcher\EventDispatcherInterface as EventDispatcher;
  */
 class NotificationSenderTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testItCanSendNotificationsWithAStringVia()
     {
         $notifiable = m::mock(Notifiable::class);

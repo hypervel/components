@@ -61,8 +61,6 @@ class BroadcastManagerTest extends TestCase
     {
         parent::tearDown();
 
-        m::close();
-
         Facade::clearResolvedInstances();
     }
 

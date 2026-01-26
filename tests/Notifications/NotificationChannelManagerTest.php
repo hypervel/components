@@ -32,11 +32,6 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  */
 class NotificationChannelManagerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testGetDefaultChannel()
     {
         $container = $this->getContainer();

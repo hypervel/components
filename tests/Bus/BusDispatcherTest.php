@@ -21,11 +21,6 @@ use RuntimeException;
  */
 class BusDispatcherTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testCommandsThatShouldQueueIsQueued()
     {
         $container = m::mock(ContainerInterface::class);

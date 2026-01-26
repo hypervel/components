@@ -48,8 +48,6 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
     {
         parent::tearDown();
 
-        m::close();
-
         Uuid::setFactory(new UuidFactory());
     }
 

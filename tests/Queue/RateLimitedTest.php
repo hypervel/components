@@ -35,12 +35,6 @@ enum RateLimitedTestUnitEnum
  */
 class RateLimitedTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-        Mockery::close();
-    }
-
     public function testConstructorAcceptsString(): void
     {
         $this->mockRateLimiter();

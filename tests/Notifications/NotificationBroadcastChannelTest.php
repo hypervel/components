@@ -19,11 +19,6 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  */
 class NotificationBroadcastChannelTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testDatabaseChannelCreatesDatabaseRecordWithProperData()
     {
         $notification = new NotificationBroadcastChannelTestNotification();

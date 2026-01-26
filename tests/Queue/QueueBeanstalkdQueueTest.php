@@ -41,8 +41,6 @@ class QueueBeanstalkdQueueTest extends TestCase
 
     protected function tearDown(): void
     {
-        m::close();
-
         Uuid::setFactory(new UuidFactory());
     }
 

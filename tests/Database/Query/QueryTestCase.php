@@ -25,7 +25,6 @@ abstract class QueryTestCase extends TestCase
 {
     protected function tearDown(): void
     {
-        m::close();
         parent::tearDown();
     }
 

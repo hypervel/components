@@ -18,13 +18,6 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 class CheckAbilitiesTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        Mockery::close();
-    }
-
     public function testRequestIsPassedAlongIfAbilitiesArePresentOnToken(): void
     {
         // Create a user object with the required methods

@@ -54,7 +54,6 @@ class PermissionMiddlewareTest extends PermissionTestCase
 
     protected function tearDown(): void
     {
-        m::close();
         parent::tearDown();
     }
 

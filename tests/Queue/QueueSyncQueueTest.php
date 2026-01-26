@@ -26,11 +26,6 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  */
 class QueueSyncQueueTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testPushShouldFireJobInstantly()
     {
         unset($_SERVER['__sync.test']);

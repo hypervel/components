@@ -25,11 +25,6 @@ use function Hyperf\Coroutine\run;
  */
 class QueueDeferQueueTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testPushShouldDefer()
     {
         unset($_SERVER['__defer.test']);

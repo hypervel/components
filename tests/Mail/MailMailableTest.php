@@ -31,11 +31,6 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  */
 class MailMailableTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testMailableSetsRecipientsCorrectly()
     {
         $this->mockContainer();

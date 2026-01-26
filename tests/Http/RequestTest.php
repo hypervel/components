@@ -35,7 +35,6 @@ class RequestTest extends TestCase
 {
     protected function tearDown(): void
     {
-        Mockery::close();
         Context::destroy(ServerRequestInterface::class);
         Context::destroy('http.request.parsedData');
         Context::destroy(HyperfRequest::class . '.properties.requestUri');

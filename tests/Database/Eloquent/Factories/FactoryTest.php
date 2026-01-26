@@ -18,7 +18,6 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Database\Fixtures\Models\Price;
-use Mockery as m;
 use ReflectionClass;
 
 /**
@@ -46,7 +45,6 @@ class DatabaseEloquentFactoryTest extends TestCase
      */
     protected function tearDown(): void
     {
-        m::close();
         Factory::flushState();
 
         parent::tearDown();

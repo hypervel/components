@@ -62,7 +62,6 @@ class GuardTest extends TestCase
         Context::destroy('__sanctum.acting_as_user');
         Context::destroy('__sanctum.acting_as_guard');
 
-        Mockery::close();
         Sanctum::$accessTokenRetrievalCallback = null;
         Sanctum::$accessTokenAuthenticationCallback = null;
     }

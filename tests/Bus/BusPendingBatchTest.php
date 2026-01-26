@@ -40,11 +40,6 @@ enum PendingBatchTestConnectionIntEnum: int
  */
 class BusPendingBatchTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testPendingBatchMayBeConfiguredAndDispatched()
     {
         $container = $this->getContainer();

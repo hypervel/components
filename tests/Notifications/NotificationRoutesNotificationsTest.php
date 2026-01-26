@@ -21,11 +21,6 @@ use stdClass;
  */
 class NotificationRoutesNotificationsTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testNotificationCanBeDispatched()
     {
         $container = $this->getContainer();

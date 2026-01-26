@@ -25,11 +25,6 @@ use function Hyperf\Coroutine\run;
  */
 class QueueCoroutineQueueTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testPushShouldCoroutine()
     {
         unset($_SERVER['__coroutine.test']);

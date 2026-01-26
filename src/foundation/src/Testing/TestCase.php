@@ -17,7 +17,6 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithTime;
 use Hypervel\Foundation\Testing\Concerns\MakesHttpRequests;
 use Hypervel\Foundation\Testing\Concerns\MocksApplicationServices;
 use Hypervel\Support\Facades\Facade;
-use Mockery;
 use Throwable;
 
 use function Hyperf\Coroutine\run;
@@ -146,14 +145,6 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
 
         if ($this->callbackException) {
             throw $this->callbackException;
-        }
-
-        if (class_exists('Mockery')) {
-            if ($container = Mockery::getContainer()) { // @phpstan-ignore if.alwaysTrue (defensive check)
-                $this->addToAssertionCount($container->mockery_getExpectationCount());
-            }
-
-            Mockery::close();
         }
 
         if (class_exists(Carbon::class)) {

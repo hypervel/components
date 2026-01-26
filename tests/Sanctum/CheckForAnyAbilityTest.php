@@ -18,13 +18,6 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 class CheckForAnyAbilityTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        Mockery::close();
-    }
-
     /**
      * Test request is passed along if any abilities are present on token.
      */

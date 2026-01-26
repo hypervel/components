@@ -18,11 +18,6 @@ use PHPUnit\Framework\TestCase;
  */
 class ValidationDatabasePresenceVerifierTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testBasicCount()
     {
         $verifier = new DatabasePresenceVerifier($db = m::mock(ConnectionResolverInterface::class));

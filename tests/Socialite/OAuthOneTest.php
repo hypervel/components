@@ -25,13 +25,6 @@ use Psr\Http\Message\ResponseInterface;
  */
 class OAuthOneTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        m::close();
-    }
-
     public function testRedirectGeneratesTheProperRedirectResponse()
     {
         $server = m::mock(Twitter::class);

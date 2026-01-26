@@ -17,11 +17,6 @@ use PHPUnit\Framework\TestCase;
  */
 class BroadcastEventTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testBasicEventBroadcastParameterFormatting()
     {
         $broadcaster = m::mock(Broadcaster::class);
