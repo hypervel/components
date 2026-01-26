@@ -11,6 +11,9 @@ use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
 use Hypervel\Redis\Traits\MultiExec;
 use Throwable;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @mixin \Hypervel\Redis\RedisConnection
@@ -168,11 +171,11 @@ class Redis
     /**
      * Get a Redis connection by name.
      */
-    public function connection(string $name = 'default'): RedisProxy
+    public function connection(UnitEnum|string $name = 'default'): RedisProxy
     {
         return ApplicationContext::getContainer()
             ->get(RedisFactory::class)
-            ->get($name);
+            ->get(enum_value($name));
     }
 
     /**
