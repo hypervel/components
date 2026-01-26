@@ -21,6 +21,9 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
 use Throwable;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @template TModel of Model
@@ -81,7 +84,7 @@ abstract class Factory
     /**
      * The name of the database connection that will be used to create the models.
      */
-    protected ?string $connection;
+    protected UnitEnum|string|null $connection;
 
     /**
      * The current Faker instance.
@@ -117,7 +120,7 @@ abstract class Factory
         ?Collection $for = null,
         ?Collection $afterMaking = null,
         ?Collection $afterCreating = null,
-        ?string $connection = null,
+        UnitEnum|string|null $connection = null,
         ?Collection $recycle = null,
         bool $expandRelationships = true
     ) {
@@ -662,15 +665,17 @@ abstract class Factory
     /**
      * Get the name of the database connection that is used to generate models.
      */
-    public function getConnectionName(): string
+    public function getConnectionName(): ?string
     {
-        return $this->connection;
+        $value = enum_value($this->connection);
+
+        return is_null($value) ? null : $value;
     }
 
     /**
      * Specify the database connection that should be used to generate models.
      */
-    public function connection(string $connection): self
+    public function connection(UnitEnum|string $connection): self
     {
         return $this->newInstance(['connection' => $connection]);
     }
