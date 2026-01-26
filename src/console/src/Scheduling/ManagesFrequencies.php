@@ -8,6 +8,9 @@ use Closure;
 use DateTimeZone;
 use Hypervel\Support\Carbon;
 use InvalidArgumentException;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 trait ManagesFrequencies
 {
@@ -523,9 +526,11 @@ trait ManagesFrequencies
     /**
      * Set the timezone the date should be evaluated on.
      */
-    public function timezone(DateTimeZone|string $timezone): static
+    public function timezone(DateTimeZone|UnitEnum|string $timezone): static
     {
-        $this->timezone = $timezone;
+        $this->timezone = $timezone instanceof UnitEnum
+            ? enum_value($timezone)
+            : $timezone;
 
         return $this;
     }
