@@ -2316,6 +2316,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
 
         if (version_compare(PHP_VERSION, '8.4.0', '>=')) {
             foreach ((new ReflectionClass($this))->getProperties() as $property) {
+                // @phpstan-ignore method.notFound (PHP 8.4+ only, guarded by version check)
                 if ($property->hasHooks()) {
                     unset($keys[$property->getName()]);
                 }
