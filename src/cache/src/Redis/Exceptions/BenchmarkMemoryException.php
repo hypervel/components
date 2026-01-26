@@ -31,7 +31,7 @@ Memory limit nearly exhausted during benchmark ({$currentMB}MB of {$limitMB}MB u
 To resolve this issue:
 
 1. Increase PHP memory limit:
-   - Add to your command: php -d memory_limit=512M bin/hyperf.php cache:redis-benchmark
+   - Add to your command: php -d memory_limit=512M artisan cache:redis-benchmark
    - Or set in php.ini: memory_limit = 512M
 
 2. Disable memory-hungry packages during benchmarking:

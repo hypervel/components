@@ -535,7 +535,7 @@ class BenchmarkCommand extends Command
 
         if ($currentLimitMB < $recommended) {
             $this->warn("Memory limit ({$currentLimitMB}MB) is below recommended ({$recommended}MB) for '{$scale}' scale.");
-            $this->line('   Consider: <fg=cyan>php -d memory_limit=' . $recommended . 'M bin/hyperf.php cache:redis-benchmark</>');
+            $this->line('   Consider: <fg=cyan>php -d memory_limit=' . $recommended . 'M artisan cache:redis-benchmark</>');
             $this->newLine();
         }
     }
@@ -556,7 +556,7 @@ class BenchmarkCommand extends Command
         $this->line('   After fixing memory issues, clean up leftover benchmark keys:');
         $this->newLine();
         $this->line('   Option 1 - Clear all cache (simple):');
-        $this->line('   <fg=cyan>php bin/hyperf.php cache:clear --store=' . $this->storeName . '</>');
+        $this->line('   <fg=cyan>php artisan cache:clear ' . $this->storeName . '</>');
         $this->newLine();
         $this->line('   Option 2 - Clear only benchmark keys (preserves other cache):');
         $cachePrefix = $config->get("cache.stores.{$this->storeName}.prefix", $config->get('cache.prefix', ''));
