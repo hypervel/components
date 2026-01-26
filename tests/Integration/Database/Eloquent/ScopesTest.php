@@ -37,10 +37,8 @@ class ScopesTest extends DatabaseTestCase
         });
     }
 
-    protected function setUp(): void
+    protected function seedArticles(): void
     {
-        parent::setUp();
-
         ScopeArticle::create(['title' => 'Published Article 1', 'status' => 'published', 'category' => 'tech', 'views' => 100, 'is_featured' => true]);
         ScopeArticle::create(['title' => 'Published Article 2', 'status' => 'published', 'category' => 'tech', 'views' => 50]);
         ScopeArticle::create(['title' => 'Draft Article', 'status' => 'draft', 'category' => 'news', 'views' => 0]);
@@ -50,6 +48,8 @@ class ScopesTest extends DatabaseTestCase
 
     public function testLocalScope(): void
     {
+        $this->seedArticles();
+
         $published = ScopeArticle::published()->get();
 
         $this->assertCount(3, $published);
@@ -60,6 +60,8 @@ class ScopesTest extends DatabaseTestCase
 
     public function testLocalScopeWithParameter(): void
     {
+        $this->seedArticles();
+
         $techArticles = ScopeArticle::inCategory('tech')->get();
 
         $this->assertCount(3, $techArticles);
@@ -70,6 +72,8 @@ class ScopesTest extends DatabaseTestCase
 
     public function testMultipleScopesCombined(): void
     {
+        $this->seedArticles();
+
         $publishedTech = ScopeArticle::published()->inCategory('tech')->get();
 
         $this->assertCount(2, $publishedTech);
@@ -77,6 +81,8 @@ class ScopesTest extends DatabaseTestCase
 
     public function testScopeWithMinViews(): void
     {
+        $this->seedArticles();
+
         $popular = ScopeArticle::minViews(100)->get();
 
         $this->assertCount(3, $popular);
@@ -87,6 +93,8 @@ class ScopesTest extends DatabaseTestCase
 
     public function testFeaturedScope(): void
     {
+        $this->seedArticles();
+
         $featured = ScopeArticle::featured()->get();
 
         $this->assertCount(2, $featured);
@@ -97,6 +105,8 @@ class ScopesTest extends DatabaseTestCase
 
     public function testChainingMultipleScopes(): void
     {
+        $this->seedArticles();
+
         $result = ScopeArticle::published()
             ->featured()
             ->minViews(50)
@@ -107,6 +117,8 @@ class ScopesTest extends DatabaseTestCase
 
     public function testScopeWithOrderBy(): void
     {
+        $this->seedArticles();
+
         $articles = ScopeArticle::popular()->get();
 
         $this->assertSame('Popular Article', $articles->first()->title);
@@ -152,6 +164,8 @@ class ScopesTest extends DatabaseTestCase
 
     public function testDynamicScope(): void
     {
+        $this->seedArticles();
+
         $articles = ScopeArticle::status('archived')->get();
 
         $this->assertCount(1, $articles);
@@ -160,6 +174,8 @@ class ScopesTest extends DatabaseTestCase
 
     public function testScopeOnRelation(): void
     {
+        $this->seedArticles();
+
         $author = ScopeAuthor::create(['name' => 'John']);
 
         ScopeArticle::where('title', 'Published Article 1')->update(['author_id' => $author->id]);
@@ -174,6 +190,8 @@ class ScopesTest extends DatabaseTestCase
 
     public function testScopeWithCount(): void
     {
+        $this->seedArticles();
+
         $count = ScopeArticle::published()->count();
 
         $this->assertSame(3, $count);
@@ -181,6 +199,8 @@ class ScopesTest extends DatabaseTestCase
 
     public function testScopeWithFirst(): void
     {
+        $this->seedArticles();
+
         $article = ScopeArticle::published()->inCategory('news')->first();
 
         $this->assertNotNull($article);
@@ -189,6 +209,8 @@ class ScopesTest extends DatabaseTestCase
 
     public function testScopeWithExists(): void
     {
+        $this->seedArticles();
+
         $this->assertTrue(ScopeArticle::published()->exists());
         $this->assertFalse(ScopeArticle::status('nonexistent')->exists());
     }
@@ -202,6 +224,8 @@ class ScopesTest extends DatabaseTestCase
 
     public function testScopeWithPluck(): void
     {
+        $this->seedArticles();
+
         $titles = ScopeArticle::published()->pluck('title');
 
         $this->assertCount(3, $titles);
@@ -210,6 +234,8 @@ class ScopesTest extends DatabaseTestCase
 
     public function testScopeWithAggregate(): void
     {
+        $this->seedArticles();
+
         $totalViews = ScopeArticle::published()->sum('views');
 
         $this->assertEquals(650, $totalViews);
@@ -217,6 +243,8 @@ class ScopesTest extends DatabaseTestCase
 
     public function testOrScope(): void
     {
+        $this->seedArticles();
+
         $articles = ScopeArticle::where(function ($query) {
             $query->featured()->orWhere('views', '>', 100);
         })->get();

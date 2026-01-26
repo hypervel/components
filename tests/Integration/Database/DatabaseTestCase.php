@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\DatabaseManager;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Testbench\TestCase;
 
@@ -23,6 +24,7 @@ use Hypervel\Testbench\TestCase;
 abstract class DatabaseTestCase extends TestCase
 {
     use DatabaseMigrations;
+    use RunTestsInCoroutine;
 
     /**
      * The current database driver.
