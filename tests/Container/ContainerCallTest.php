@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Container;
 use Hyperf\Contract\NormalizerInterface;
 use Hyperf\Di\ClosureDefinitionCollector;
 use Hyperf\Di\ClosureDefinitionCollectorInterface;
-use Hyperf\Di\MetadataCollector;
 use Hyperf\Di\MethodDefinitionCollector;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hyperf\Serializer\SimpleNormalizer;
@@ -26,7 +25,7 @@ class ContainerCallTest extends TestCase
     {
         parent::tearDown();
 
-        MetadataCollector::clear();
+        ClosureDefinitionCollector::clear();
     }
 
     protected function getContainer(array $dependencies = [])
