@@ -130,7 +130,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
         $manager = $this->app->get(DatabaseManager::class);
         $originalDefault = $manager->getDefaultConnection();
 
-        $testConnection = $originalDefault === 'pgsql' ? 'default' : 'pgsql';
+        $testConnection = 'sqlite';
 
         $manager->usingConnection($testConnection, function () use ($manager, $testConnection) {
             $this->assertSame($testConnection, $manager->getDefaultConnection());
@@ -144,7 +144,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
         /** @var DatabaseManager $manager */
         $manager = $this->app->get(DatabaseManager::class);
         $originalDefault = $manager->getDefaultConnection();
-        $testConnection = $originalDefault === 'pgsql' ? 'default' : 'pgsql';
+        $testConnection = 'sqlite';
 
         try {
             $manager->usingConnection($testConnection, function () use ($manager, $testConnection) {
@@ -163,7 +163,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
         /** @var DatabaseManager $manager */
         $manager = $this->app->get(DatabaseManager::class);
         $originalDefault = $manager->getDefaultConnection();
-        $testConnection = $originalDefault === 'pgsql' ? 'default' : 'pgsql';
+        $testConnection = 'sqlite';
 
         $results = [];
         $channel = new Channel(2);
@@ -205,7 +205,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
         $connectionBefore = DB::connection();
         $this->assertSame($originalDefault, $connectionBefore->getName());
 
-        $testConnection = $originalDefault === 'pgsql' ? 'default' : 'pgsql';
+        $testConnection = 'sqlite';
 
         $manager->usingConnection($testConnection, function () use ($testConnection) {
             $connection = DB::connection();
@@ -226,7 +226,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
         $manager = $this->app->get(DatabaseManager::class);
         $originalDefault = $manager->getDefaultConnection();
 
-        $testConnection = $originalDefault === 'pgsql' ? 'default' : 'pgsql';
+        $testConnection = 'sqlite';
 
         $manager->usingConnection($testConnection, function () use ($testConnection) {
             $schemaBuilder = Schema::connection();
@@ -249,7 +249,7 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
         $resolver = $this->app->get(ConnectionResolverInterface::class);
 
         $originalDefault = $manager->getDefaultConnection();
-        $testConnection = $originalDefault === 'pgsql' ? 'default' : 'pgsql';
+        $testConnection = 'sqlite';
 
         $this->assertSame($originalDefault, $resolver->getDefaultConnection());
 
