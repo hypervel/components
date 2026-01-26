@@ -17,7 +17,6 @@ use RuntimeException;
 use Throwable;
 
 use function Hypervel\Coroutine\go;
-use function Hypervel\Coroutine\run;
 
 /**
  * Tests coroutine safety of database components.
@@ -95,34 +94,31 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
     public function testUnguardedIsCoroutineIsolated(): void
     {
         $results = [];
+        $channel = new Channel(2);
+        $waiter = new WaitGroup();
 
-        run(function () use (&$results) {
-            $channel = new Channel(2);
-            $waiter = new WaitGroup();
-
-            $waiter->add(1);
-            go(function () use ($channel, $waiter) {
-                Model::unguarded(function () use ($channel) {
-                    $channel->push(['coroutine' => 1, 'unguarded' => Model::isUnguarded()]);
-                    usleep(50000);
-                });
-                $waiter->done();
+        $waiter->add(1);
+        go(function () use ($channel, $waiter) {
+            Model::unguarded(function () use ($channel) {
+                $channel->push(['coroutine' => 1, 'unguarded' => Model::isUnguarded()]);
+                usleep(50000);
             });
-
-            $waiter->add(1);
-            go(function () use ($channel, $waiter) {
-                usleep(10000);
-                $channel->push(['coroutine' => 2, 'unguarded' => Model::isUnguarded()]);
-                $waiter->done();
-            });
-
-            $waiter->wait();
-            $channel->close();
-
-            while (($result = $channel->pop()) !== false) {
-                $results[$result['coroutine']] = $result['unguarded'];
-            }
+            $waiter->done();
         });
+
+        $waiter->add(1);
+        go(function () use ($channel, $waiter) {
+            usleep(10000);
+            $channel->push(['coroutine' => 2, 'unguarded' => Model::isUnguarded()]);
+            $waiter->done();
+        });
+
+        $waiter->wait();
+        $channel->close();
+
+        while (($result = $channel->pop()) !== false) {
+            $results[$result['coroutine']] = $result['unguarded'];
+        }
 
         $this->assertTrue($results[1], 'Coroutine 1 should be unguarded');
         $this->assertFalse($results[2], 'Coroutine 2 should NOT be unguarded (isolated context)');
@@ -170,34 +166,31 @@ class ConnectionCoroutineSafetyTest extends DatabaseTestCase
         $testConnection = $originalDefault === 'pgsql' ? 'default' : 'pgsql';
 
         $results = [];
+        $channel = new Channel(2);
+        $waiter = new WaitGroup();
 
-        run(function () use ($manager, $testConnection, &$results) {
-            $channel = new Channel(2);
-            $waiter = new WaitGroup();
-
-            $waiter->add(1);
-            go(function () use ($channel, $waiter, $manager, $testConnection) {
-                $manager->usingConnection($testConnection, function () use ($channel, $manager) {
-                    $channel->push(['coroutine' => 1, 'connection' => $manager->getDefaultConnection()]);
-                    usleep(50000);
-                });
-                $waiter->done();
+        $waiter->add(1);
+        go(function () use ($channel, $waiter, $manager, $testConnection) {
+            $manager->usingConnection($testConnection, function () use ($channel, $manager) {
+                $channel->push(['coroutine' => 1, 'connection' => $manager->getDefaultConnection()]);
+                usleep(50000);
             });
-
-            $waiter->add(1);
-            go(function () use ($channel, $waiter, $manager) {
-                usleep(10000);
-                $channel->push(['coroutine' => 2, 'connection' => $manager->getDefaultConnection()]);
-                $waiter->done();
-            });
-
-            $waiter->wait();
-            $channel->close();
-
-            while (($result = $channel->pop()) !== false) {
-                $results[$result['coroutine']] = $result['connection'];
-            }
+            $waiter->done();
         });
+
+        $waiter->add(1);
+        go(function () use ($channel, $waiter, $manager) {
+            usleep(10000);
+            $channel->push(['coroutine' => 2, 'connection' => $manager->getDefaultConnection()]);
+            $waiter->done();
+        });
+
+        $waiter->wait();
+        $channel->close();
+
+        while (($result = $channel->pop()) !== false) {
+            $results[$result['coroutine']] = $result['connection'];
+        }
 
         $this->assertSame($testConnection, $results[1], 'Coroutine 1 should see overridden connection');
         $this->assertSame($originalDefault, $results[2], 'Coroutine 2 should see original connection (isolated)');

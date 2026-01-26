@@ -13,7 +13,6 @@ use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use RuntimeException;
 
 use function Hypervel\Coroutine\go;
-use function Hypervel\Coroutine\run;
 
 /**
  * Tests coroutine safety of Model state methods.
@@ -102,37 +101,35 @@ class ModelCoroutineSafetyTest extends DatabaseTestCase
 
     public function testWithoutEventsIsCoroutineIsolated(): void
     {
-        run(function () {
-            $channel = new Channel(2);
-            $waiter = new WaitGroup();
+        $channel = new Channel(2);
+        $waiter = new WaitGroup();
 
-            $waiter->add(1);
-            go(function () use ($channel, $waiter) {
-                Model::withoutEvents(function () use ($channel) {
-                    $channel->push(['coroutine' => 1, 'disabled' => Model::eventsDisabled()]);
-                    usleep(50000);
-                });
-                $waiter->done();
+        $waiter->add(1);
+        go(function () use ($channel, $waiter) {
+            Model::withoutEvents(function () use ($channel) {
+                $channel->push(['coroutine' => 1, 'disabled' => Model::eventsDisabled()]);
+                usleep(50000);
             });
-
-            $waiter->add(1);
-            go(function () use ($channel, $waiter) {
-                usleep(10000);
-                $channel->push(['coroutine' => 2, 'disabled' => Model::eventsDisabled()]);
-                $waiter->done();
-            });
-
-            $waiter->wait();
-            $channel->close();
-
-            $results = [];
-            while (($result = $channel->pop()) !== false) {
-                $results[$result['coroutine']] = $result['disabled'];
-            }
-
-            $this->assertTrue($results[1], 'Coroutine 1 should have events disabled');
-            $this->assertFalse($results[2], 'Coroutine 2 should have events enabled (isolated context)');
+            $waiter->done();
         });
+
+        $waiter->add(1);
+        go(function () use ($channel, $waiter) {
+            usleep(10000);
+            $channel->push(['coroutine' => 2, 'disabled' => Model::eventsDisabled()]);
+            $waiter->done();
+        });
+
+        $waiter->wait();
+        $channel->close();
+
+        $results = [];
+        while (($result = $channel->pop()) !== false) {
+            $results[$result['coroutine']] = $result['disabled'];
+        }
+
+        $this->assertTrue($results[1], 'Coroutine 1 should have events disabled');
+        $this->assertFalse($results[2], 'Coroutine 2 should have events enabled (isolated context)');
     }
 
     public function testWithoutBroadcastingDisablesBroadcastingWithinCallback(): void
@@ -181,37 +178,35 @@ class ModelCoroutineSafetyTest extends DatabaseTestCase
 
     public function testWithoutBroadcastingIsCoroutineIsolated(): void
     {
-        run(function () {
-            $channel = new Channel(2);
-            $waiter = new WaitGroup();
+        $channel = new Channel(2);
+        $waiter = new WaitGroup();
 
-            $waiter->add(1);
-            go(function () use ($channel, $waiter) {
-                Model::withoutBroadcasting(function () use ($channel) {
-                    $channel->push(['coroutine' => 1, 'broadcasting' => Model::isBroadcasting()]);
-                    usleep(50000);
-                });
-                $waiter->done();
+        $waiter->add(1);
+        go(function () use ($channel, $waiter) {
+            Model::withoutBroadcasting(function () use ($channel) {
+                $channel->push(['coroutine' => 1, 'broadcasting' => Model::isBroadcasting()]);
+                usleep(50000);
             });
-
-            $waiter->add(1);
-            go(function () use ($channel, $waiter) {
-                usleep(10000);
-                $channel->push(['coroutine' => 2, 'broadcasting' => Model::isBroadcasting()]);
-                $waiter->done();
-            });
-
-            $waiter->wait();
-            $channel->close();
-
-            $results = [];
-            while (($result = $channel->pop()) !== false) {
-                $results[$result['coroutine']] = $result['broadcasting'];
-            }
-
-            $this->assertFalse($results[1], 'Coroutine 1 should have broadcasting disabled');
-            $this->assertTrue($results[2], 'Coroutine 2 should have broadcasting enabled (isolated context)');
+            $waiter->done();
         });
+
+        $waiter->add(1);
+        go(function () use ($channel, $waiter) {
+            usleep(10000);
+            $channel->push(['coroutine' => 2, 'broadcasting' => Model::isBroadcasting()]);
+            $waiter->done();
+        });
+
+        $waiter->wait();
+        $channel->close();
+
+        $results = [];
+        while (($result = $channel->pop()) !== false) {
+            $results[$result['coroutine']] = $result['broadcasting'];
+        }
+
+        $this->assertFalse($results[1], 'Coroutine 1 should have broadcasting disabled');
+        $this->assertTrue($results[2], 'Coroutine 2 should have broadcasting enabled (isolated context)');
     }
 
     public function testWithoutTouchingDisablesTouchingWithinCallback(): void
@@ -271,43 +266,41 @@ class ModelCoroutineSafetyTest extends DatabaseTestCase
 
     public function testWithoutTouchingIsCoroutineIsolated(): void
     {
-        run(function () {
-            $channel = new Channel(2);
-            $waiter = new WaitGroup();
+        $channel = new Channel(2);
+        $waiter = new WaitGroup();
 
-            $waiter->add(1);
-            go(function () use ($channel, $waiter) {
-                Model::withoutTouching(function () use ($channel) {
-                    $channel->push([
-                        'coroutine' => 1,
-                        'ignoring' => Model::isIgnoringTouch(CoroutineTestUser::class),
-                    ]);
-                    usleep(50000);
-                });
-                $waiter->done();
-            });
-
-            $waiter->add(1);
-            go(function () use ($channel, $waiter) {
-                usleep(10000);
+        $waiter->add(1);
+        go(function () use ($channel, $waiter) {
+            Model::withoutTouching(function () use ($channel) {
                 $channel->push([
-                    'coroutine' => 2,
+                    'coroutine' => 1,
                     'ignoring' => Model::isIgnoringTouch(CoroutineTestUser::class),
                 ]);
-                $waiter->done();
+                usleep(50000);
             });
-
-            $waiter->wait();
-            $channel->close();
-
-            $results = [];
-            while (($result = $channel->pop()) !== false) {
-                $results[$result['coroutine']] = $result['ignoring'];
-            }
-
-            $this->assertTrue($results[1], 'Coroutine 1 should be ignoring touch');
-            $this->assertFalse($results[2], 'Coroutine 2 should NOT be ignoring touch (isolated context)');
+            $waiter->done();
         });
+
+        $waiter->add(1);
+        go(function () use ($channel, $waiter) {
+            usleep(10000);
+            $channel->push([
+                'coroutine' => 2,
+                'ignoring' => Model::isIgnoringTouch(CoroutineTestUser::class),
+            ]);
+            $waiter->done();
+        });
+
+        $waiter->wait();
+        $channel->close();
+
+        $results = [];
+        while (($result = $channel->pop()) !== false) {
+            $results[$result['coroutine']] = $result['ignoring'];
+        }
+
+        $this->assertTrue($results[1], 'Coroutine 1 should be ignoring touch');
+        $this->assertFalse($results[2], 'Coroutine 2 should NOT be ignoring touch (isolated context)');
     }
 
     public function testWithoutRecursionIsCoroutineIsolated(): void
@@ -315,42 +308,39 @@ class ModelCoroutineSafetyTest extends DatabaseTestCase
         $model = new RecursionTestModel();
         $counter = $this->newRecursionCounter();
         $results = [];
+        $channel = new Channel(2);
+        $waiter = new WaitGroup();
 
-        run(function () use ($model, $counter, &$results): void {
-            $channel = new Channel(2);
-            $waiter = new WaitGroup();
+        $callback = function () use ($counter): int {
+            usleep(50000);
+            return ++$counter->value;
+        };
 
-            $callback = function () use ($counter): int {
-                usleep(50000);
-                return ++$counter->value;
-            };
-
-            $waiter->add(1);
-            go(function () use ($model, $callback, $channel, $waiter): void {
-                $channel->push([
-                    'coroutine' => 1,
-                    'result' => $model->runRecursionGuard($callback, -1),
-                ]);
-                $waiter->done();
-            });
-
-            $waiter->add(1);
-            go(function () use ($model, $callback, $channel, $waiter): void {
-                usleep(10000);
-                $channel->push([
-                    'coroutine' => 2,
-                    'result' => $model->runRecursionGuard($callback, -1),
-                ]);
-                $waiter->done();
-            });
-
-            $waiter->wait();
-            $channel->close();
-
-            while (($result = $channel->pop()) !== false) {
-                $results[$result['coroutine']] = $result['result'];
-            }
+        $waiter->add(1);
+        go(function () use ($model, $callback, $channel, $waiter): void {
+            $channel->push([
+                'coroutine' => 1,
+                'result' => $model->runRecursionGuard($callback, -1),
+            ]);
+            $waiter->done();
         });
+
+        $waiter->add(1);
+        go(function () use ($model, $callback, $channel, $waiter): void {
+            usleep(10000);
+            $channel->push([
+                'coroutine' => 2,
+                'result' => $model->runRecursionGuard($callback, -1),
+            ]);
+            $waiter->done();
+        });
+
+        $waiter->wait();
+        $channel->close();
+
+        while (($result = $channel->pop()) !== false) {
+            $results[$result['coroutine']] = $result['result'];
+        }
 
         sort($results);
 
@@ -360,56 +350,54 @@ class ModelCoroutineSafetyTest extends DatabaseTestCase
 
     public function testAllStateMethodsAreCoroutineIsolated(): void
     {
-        run(function () {
-            $channel = new Channel(2);
-            $waiter = new WaitGroup();
+        $channel = new Channel(2);
+        $waiter = new WaitGroup();
 
-            $waiter->add(1);
-            go(function () use ($channel, $waiter) {
-                Model::withoutEvents(function () use ($channel) {
-                    Model::withoutBroadcasting(function () use ($channel) {
-                        Model::withoutTouching(function () use ($channel) {
-                            $channel->push([
-                                'coroutine' => 1,
-                                'eventsDisabled' => Model::eventsDisabled(),
-                                'broadcasting' => Model::isBroadcasting(),
-                                'ignoringTouch' => Model::isIgnoringTouch(CoroutineTestUser::class),
-                            ]);
-                            usleep(50000);
-                        });
+        $waiter->add(1);
+        go(function () use ($channel, $waiter) {
+            Model::withoutEvents(function () use ($channel) {
+                Model::withoutBroadcasting(function () use ($channel) {
+                    Model::withoutTouching(function () use ($channel) {
+                        $channel->push([
+                            'coroutine' => 1,
+                            'eventsDisabled' => Model::eventsDisabled(),
+                            'broadcasting' => Model::isBroadcasting(),
+                            'ignoringTouch' => Model::isIgnoringTouch(CoroutineTestUser::class),
+                        ]);
+                        usleep(50000);
                     });
                 });
-                $waiter->done();
             });
-
-            $waiter->add(1);
-            go(function () use ($channel, $waiter) {
-                usleep(10000);
-                $channel->push([
-                    'coroutine' => 2,
-                    'eventsDisabled' => Model::eventsDisabled(),
-                    'broadcasting' => Model::isBroadcasting(),
-                    'ignoringTouch' => Model::isIgnoringTouch(CoroutineTestUser::class),
-                ]);
-                $waiter->done();
-            });
-
-            $waiter->wait();
-            $channel->close();
-
-            $results = [];
-            while (($result = $channel->pop()) !== false) {
-                $results[$result['coroutine']] = $result;
-            }
-
-            $this->assertTrue($results[1]['eventsDisabled'], 'Coroutine 1: events should be disabled');
-            $this->assertFalse($results[1]['broadcasting'], 'Coroutine 1: broadcasting should be disabled');
-            $this->assertTrue($results[1]['ignoringTouch'], 'Coroutine 1: should be ignoring touch');
-
-            $this->assertFalse($results[2]['eventsDisabled'], 'Coroutine 2: events should be enabled');
-            $this->assertTrue($results[2]['broadcasting'], 'Coroutine 2: broadcasting should be enabled');
-            $this->assertFalse($results[2]['ignoringTouch'], 'Coroutine 2: should NOT be ignoring touch');
+            $waiter->done();
         });
+
+        $waiter->add(1);
+        go(function () use ($channel, $waiter) {
+            usleep(10000);
+            $channel->push([
+                'coroutine' => 2,
+                'eventsDisabled' => Model::eventsDisabled(),
+                'broadcasting' => Model::isBroadcasting(),
+                'ignoringTouch' => Model::isIgnoringTouch(CoroutineTestUser::class),
+            ]);
+            $waiter->done();
+        });
+
+        $waiter->wait();
+        $channel->close();
+
+        $results = [];
+        while (($result = $channel->pop()) !== false) {
+            $results[$result['coroutine']] = $result;
+        }
+
+        $this->assertTrue($results[1]['eventsDisabled'], 'Coroutine 1: events should be disabled');
+        $this->assertFalse($results[1]['broadcasting'], 'Coroutine 1: broadcasting should be disabled');
+        $this->assertTrue($results[1]['ignoringTouch'], 'Coroutine 1: should be ignoring touch');
+
+        $this->assertFalse($results[2]['eventsDisabled'], 'Coroutine 2: events should be enabled');
+        $this->assertTrue($results[2]['broadcasting'], 'Coroutine 2: broadcasting should be enabled');
+        $this->assertFalse($results[2]['ignoringTouch'], 'Coroutine 2: should NOT be ignoring touch');
     }
 
     private function newRecursionCounter(): object
