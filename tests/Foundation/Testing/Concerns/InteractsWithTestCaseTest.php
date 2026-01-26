@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
+use Attribute;
 use Hypervel\Foundation\Testing\AttributeParser;
 use Hypervel\Foundation\Testing\Attributes\Define;
 use Hypervel\Foundation\Testing\Attributes\DefineEnvironment;
@@ -67,8 +68,12 @@ class InteractsWithTestCaseTest extends TestCase
 
     public function testUsesTestingFeatureAddsAttribute(): void
     {
-        // Add a testing feature programmatically
-        static::usesTestingFeature(new WithConfig('testing.programmatic', 'added'));
+        // Add a testing feature programmatically at method level so it doesn't
+        // persist to other tests in this class
+        static::usesTestingFeature(
+            new WithConfig('testing.programmatic', 'added'),
+            Attribute::TARGET_METHOD
+        );
 
         // Re-resolve attributes to include the programmatically added one
         $attributes = $this->resolvePhpUnitAttributes();
@@ -105,6 +110,22 @@ class InteractsWithTestCaseTest extends TestCase
     protected function setupDefineEnvForExecution($app): void
     {
         $app->get('config')->set('testing.define_meta_attribute', 'define_env_executed');
+    }
+
+    public function testResolvePhpUnitAttributesReturnsCollectionOfCollections(): void
+    {
+        $attributes = $this->resolvePhpUnitAttributes();
+
+        $this->assertInstanceOf(Collection::class, $attributes);
+
+        // Each value should be a Collection, not an array
+        $attributes->each(function ($value, $key) {
+            $this->assertInstanceOf(
+                Collection::class,
+                $value,
+                "Value for key {$key} should be a Collection, not " . gettype($value)
+            );
+        });
     }
 }
 

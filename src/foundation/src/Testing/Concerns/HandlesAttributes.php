@@ -50,7 +50,7 @@ trait HandlesAttributes
     /**
      * Resolve PHPUnit method attributes.
      *
-     * @return \Hypervel\Support\Collection<class-string, array<int, object>>
+     * @return \Hypervel\Support\Collection<class-string, \Hypervel\Support\Collection<int, object>>
      */
     abstract protected function resolvePhpUnitAttributes(): Collection;
 }

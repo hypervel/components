@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use Attribute;
+use Closure;
 use Hypervel\Foundation\Testing\AttributeParser;
 use Hypervel\Foundation\Testing\Contracts\Attributes\Actionable;
 use Hypervel\Foundation\Testing\Contracts\Attributes\AfterAll;
@@ -180,13 +181,21 @@ trait InteractsWithTestCase
             ->filter(static fn ($instance) => $instance instanceof Invokable)
             ->each(fn ($instance) => $instance($this->app));
 
-        // Execute Actionable attributes (like DefineEnvironment, DefineRoute)
+        // Execute Actionable attributes (like DefineEnvironment, DefineRoute, DefineDatabase)
+        // Some attributes (like DefineDatabase with defer: true) return a Closure
+        // that must be executed to complete the setup
         $attributes
             ->filter(static fn ($instance) => $instance instanceof Actionable)
-            ->each(fn ($instance) => $instance->handle(
-                $this->app,
-                fn ($method, $parameters) => $this->{$method}(...$parameters)
-            ));
+            ->each(function ($instance): void {
+                $result = $instance->handle(
+                    $this->app,
+                    fn ($method, $parameters) => $this->{$method}(...$parameters)
+                );
+
+                if ($result instanceof Closure) {
+                    $result();
+                }
+            });
 
         // Execute BeforeEach attributes
         $attributes
