@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Session\Contracts;
 
 use SessionHandlerInterface;
+use UnitEnum;
 
 interface Session
 {
@@ -46,27 +47,27 @@ interface Session
     /**
      * Checks if a key exists.
      */
-    public function exists(array|string $key): bool;
+    public function exists(array|UnitEnum|string $key): bool;
 
     /**
      * Checks if a key is present and not null.
      */
-    public function has(array|string $key): bool;
+    public function has(array|UnitEnum|string $key): bool;
 
     /**
      * Get an item from the session.
      */
-    public function get(string $key, mixed $default = null): mixed;
+    public function get(UnitEnum|string $key, mixed $default = null): mixed;
 
     /**
      * Get the value of a given key and then forget it.
      */
-    public function pull(string $key, mixed $default = null): mixed;
+    public function pull(UnitEnum|string $key, mixed $default = null): mixed;
 
     /**
      * Put a key / value pair or array of key / value pairs in the session.
      */
-    public function put(array|string $key, mixed $value = null): void;
+    public function put(array|UnitEnum|string $key, mixed $value = null): void;
 
     /**
      * Get the CSRF token value.
@@ -81,12 +82,12 @@ interface Session
     /**
      * Remove an item from the session, returning its value.
      */
-    public function remove(string $key): mixed;
+    public function remove(UnitEnum|string $key): mixed;
 
     /**
      * Remove one or many items from the session.
      */
-    public function forget(array|string $keys): void;
+    public function forget(array|UnitEnum|string $keys): void;
 
     /**
      * Remove all of the items from the session.
