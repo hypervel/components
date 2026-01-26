@@ -36,12 +36,11 @@ function value(mixed $value, ...$args)
  */
 function enum_value($value, $default = null)
 {
-    return transform($value, fn ($value) => match (true) {
+    return match (true) {
         $value instanceof BackedEnum => $value->value,
         $value instanceof UnitEnum => $value->name,
-
-        default => $value,
-    }, $default ?? $value);
+        default => $value ?? value($default),
+    };
 }
 
 /**
