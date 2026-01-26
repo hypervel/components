@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
-use Hypervel\Support\Facades\Gate;
 use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\Validator;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
+use Hypervel\Support\Facades\Gate;
 
 class Can implements Rule, ValidatorAwareRule
 {

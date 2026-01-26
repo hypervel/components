@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Notifications;
 
-use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\ChannelManager;
 use Hypervel\Notifications\Notifiable;
 use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\NotificationSender;
-use Hypervel\Contracts\Queue\ShouldQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface as EventDispatcher;

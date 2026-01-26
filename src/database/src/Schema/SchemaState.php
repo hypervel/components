@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Schema;
 
+use Closure;
 use Hypervel\Database\Connection;
 use Hypervel\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
@@ -28,7 +29,7 @@ abstract class SchemaState
     /**
      * The process factory callback.
      */
-    protected \Closure $processFactory;
+    protected Closure $processFactory;
 
     /**
      * The output callable instance.
@@ -42,14 +43,13 @@ abstract class SchemaState
     {
         $this->connection = $connection;
 
-        $this->files = $files ?: new Filesystem;
+        $this->files = $files ?: new Filesystem();
 
         $this->processFactory = $processFactory ?: function (...$arguments) {
             return Process::fromShellCommandline(...$arguments)->setTimeout(null);
         };
 
         $this->handleOutputUsing(function () {
-            //
         });
     }
 
@@ -66,7 +66,7 @@ abstract class SchemaState
     /**
      * Get the base variables for a dump / load command.
      *
-     * @param  array<string, mixed>  $config
+     * @param array<string, mixed> $config
      * @return array<string, mixed>
      */
     abstract protected function baseVariables(array $config): array;
@@ -92,7 +92,7 @@ abstract class SchemaState
      */
     protected function getMigrationTable(): string
     {
-        return $this->connection->getTablePrefix().$this->migrationTable;
+        return $this->connection->getTablePrefix() . $this->migrationTable;
     }
 
     /**

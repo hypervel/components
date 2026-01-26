@@ -42,8 +42,8 @@ class MorphToMany extends BelongsToMany
     /**
      * Create a new morph to many relationship instance.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  TDeclaringModel  $parent
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param TDeclaringModel $parent
      */
     public function __construct(
         Builder $query,
@@ -58,12 +58,18 @@ class MorphToMany extends BelongsToMany
         bool $inverse = false,
     ) {
         $this->inverse = $inverse;
-        $this->morphType = $name.'_type';
+        $this->morphType = $name . '_type';
         $this->morphClass = $inverse ? $query->getModel()->getMorphClass() : $parent->getMorphClass();
 
         parent::__construct(
-            $query, $parent, $table, $foreignPivotKey,
-            $relatedPivotKey, $parentKey, $relatedKey, $relationName
+            $query,
+            $parent,
+            $table,
+            $foreignPivotKey,
+            $relatedPivotKey,
+            $parentKey,
+            $relatedKey,
+            $relationName
         );
     }
 
@@ -81,7 +87,6 @@ class MorphToMany extends BelongsToMany
         return $this;
     }
 
-    /** @inheritDoc */
     public function addEagerConstraints(array $models): void
     {
         parent::addEagerConstraints($models);
@@ -95,15 +100,17 @@ class MorphToMany extends BelongsToMany
     protected function baseAttachRecord(mixed $id, bool $timed): array
     {
         return Arr::add(
-            parent::baseAttachRecord($id, $timed), $this->morphType, $this->morphClass
+            parent::baseAttachRecord($id, $timed),
+            $this->morphType,
+            $this->morphClass
         );
     }
 
-    /** @inheritDoc */
     public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         return parent::getRelationExistenceQuery($query, $parentQuery, $columns)->where(
-            $this->qualifyPivotColumn($this->morphType), $this->morphClass
+            $this->qualifyPivotColumn($this->morphType),
+            $this->morphClass
         );
     }
 
@@ -166,7 +173,7 @@ class MorphToMany extends BelongsToMany
             $this->morphType,
             ...$this->pivotColumns,
         ]))
-            ->map(fn ($column) => $this->qualifyPivotColumn($column).' as pivot_'.$column)
+            ->map(fn ($column) => $this->qualifyPivotColumn($column) . ' as pivot_' . $column)
             ->unique()
             ->all();
     }

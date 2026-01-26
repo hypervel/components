@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hypervel\Support\Collection;
 use Hyperf\Devtool\Generator\GeneratorCommand;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Symfony\Component\Console\Input\InputOption;
 

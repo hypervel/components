@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent;
 
-use Hypervel\Database\Events\ModelsPruned;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Database\Events\ModelsPruned;
 use LogicException;
 use Throwable;
 
@@ -26,7 +26,7 @@ trait Prunable
                     try {
                         $model->prune();
 
-                        $total++;
+                        ++$total;
                     } catch (Throwable $e) {
                         $handler = app(ExceptionHandler::class);
 
@@ -71,6 +71,5 @@ trait Prunable
      */
     protected function pruning(): void
     {
-        //
     }
 }

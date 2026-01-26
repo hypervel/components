@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Features;
 
-use Hypervel\Database\Eloquent\Model;
 use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Notifications\Events\NotificationSending;
 use Hypervel\Notifications\Events\NotificationSent;
 use Hypervel\Sentry\Integrations\Integration;

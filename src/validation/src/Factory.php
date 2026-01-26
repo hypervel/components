@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Closure;
-use Hypervel\Support\Str;
 use Hypervel\Contracts\Translation\Translator;
 use Hypervel\Contracts\Validation\Factory as FactoryContract;
+use Hypervel\Support\Str;
 use Psr\Container\ContainerInterface;
 
 class Factory implements FactoryContract

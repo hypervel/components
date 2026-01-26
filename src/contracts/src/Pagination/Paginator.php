@@ -30,7 +30,7 @@ interface Paginator
     /**
      * Get / set the URL fragment to be appended to URLs.
      *
-     * @return $this|string|null
+     * @return null|$this|string
      */
     public function fragment(?string $fragment = null): static|string|null;
 
@@ -106,7 +106,7 @@ interface Paginator
     /**
      * Render the paginator using a given view.
      *
-     * @param  array<string, mixed>  $data
+     * @param array<string, mixed> $data
      */
     public function render(?string $view = null, array $data = []): Htmlable;
 }

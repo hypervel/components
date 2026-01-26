@@ -6,11 +6,11 @@ namespace Hypervel\Pagination;
 
 use ArrayAccess;
 use Countable;
-use Hypervel\Support\Collection;
-use Hypervel\Contracts\Support\Arrayable;
-use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Contracts\Pagination\Paginator as PaginatorContract;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Support\Collection;
 use IteratorAggregate;
 use JsonSerializable;
 
@@ -36,8 +36,8 @@ class Paginator extends AbstractPaginator implements Arrayable, ArrayAccess, Cou
     /**
      * Create a new paginator instance.
      *
-     * @param  Collection<TKey, TValue>|Arrayable<TKey, TValue>|iterable<TKey, TValue>  $items
-     * @param  array<string, mixed>  $options  (path, query, fragment, pageName)
+     * @param Arrayable<TKey, TValue>|Collection<TKey, TValue>|iterable<TKey, TValue> $items
+     * @param array<string, mixed> $options (path, query, fragment, pageName)
      */
     public function __construct(mixed $items, int $perPage, ?int $currentPage = null, array $options = [])
     {
@@ -67,7 +67,7 @@ class Paginator extends AbstractPaginator implements Arrayable, ArrayAccess, Cou
     /**
      * Set the items for the paginator.
      *
-     * @param  Collection<TKey, TValue>|Arrayable<TKey, TValue>|iterable<TKey, TValue>|null  $items
+     * @param null|Arrayable<TKey, TValue>|Collection<TKey, TValue>|iterable<TKey, TValue> $items
      */
     protected function setItems(mixed $items): void
     {
@@ -93,7 +93,7 @@ class Paginator extends AbstractPaginator implements Arrayable, ArrayAccess, Cou
     /**
      * Render the paginator using the given view.
      *
-     * @param  array<string, mixed>  $data
+     * @param array<string, mixed> $data
      */
     public function links(?string $view = null, array $data = []): Htmlable
     {
@@ -103,7 +103,7 @@ class Paginator extends AbstractPaginator implements Arrayable, ArrayAccess, Cou
     /**
      * Render the paginator using the given view.
      *
-     * @param  array<string, mixed>  $data
+     * @param array<string, mixed> $data
      */
     public function render(?string $view = null, array $data = []): Htmlable
     {

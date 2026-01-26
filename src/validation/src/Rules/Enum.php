@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Validation\Rules;
 
 use Hypervel\Contracts\Support\Arrayable;
-use Hypervel\Support\Arr;
-use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\Validator;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Traits\Conditionable;
 use TypeError;
 use UnitEnum;
 

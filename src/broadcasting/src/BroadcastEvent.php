@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting;
 
-use Hypervel\Support\Arr;
-use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
-use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Support\Arr;
 use ReflectionClass;
 use ReflectionProperty;
 

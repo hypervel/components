@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\Events\NotificationSent;
-use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\FormatModel;
 use Hypervel\Telescope\IncomingEntry;

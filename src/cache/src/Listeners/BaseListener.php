@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Listeners;
 
-use Hypervel\Support\Collection;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Event\Contract\ListenerInterface;
+use Hypervel\Support\Collection;
 use Psr\Container\ContainerInterface;
 
 abstract class BaseListener implements ListenerInterface

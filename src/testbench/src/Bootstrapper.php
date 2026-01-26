@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench;
 
-use Hypervel\Support\LazyCollection;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\ClassLoader;
 use Hypervel\Foundation\Testing\TestScanHandler;
+use Hypervel\Support\LazyCollection;
 use Symfony\Component\Yaml\Yaml;
 
 use function Hypervel\Filesystem\join_paths;

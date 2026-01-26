@@ -9,7 +9,7 @@ trait Tappable
     /**
      * Call the given Closure with this instance then return the instance.
      *
-     * @param (callable($this): mixed)|null $callback
+     * @param null|(callable($this): mixed) $callback
      * @return ($callback is null ? \Hypervel\Support\HigherOrderTapProxy : $this)
      */
     public function tap(?callable $callback = null): mixed

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent\Relations;
 
 use Closure;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -12,7 +13,6 @@ use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\UniqueConstraintViolationException;
-use Hypervel\Contracts\Support\Arrayable;
 
 /**
  * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
@@ -63,9 +63,9 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Create a new has many through relationship instance.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  TDeclaringModel  $farParent
-     * @param  TIntermediateModel  $throughParent
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param TDeclaringModel $farParent
+     * @param TIntermediateModel $throughParent
      */
     public function __construct(Builder $query, Model $farParent, Model $throughParent, string $firstKey, string $secondKey, string $localKey, string $secondLocalKey)
     {
@@ -99,7 +99,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Set the join clause on the query.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>|null  $query
+     * @param null|\Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
      */
     protected function performJoin(?Builder $query = null): void
     {
@@ -144,7 +144,6 @@ abstract class HasOneOrManyThrough extends Relation
         return $this;
     }
 
-    /** @inheritDoc */
     public function addEagerConstraints(array $models): void
     {
         $whereIn = $this->whereInMethod($this->farParent, $this->localKey);
@@ -160,7 +159,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Build model dictionary keyed by the relation's foreign key.
      *
-     * @param  \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>  $results
+     * @param \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> $results
      * @return array<array<TRelatedModel>>
      */
     protected function buildDictionary(EloquentCollection $results): array
@@ -237,8 +236,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Add a basic where clause to the query, and return the first result.
      *
-     * @param  \Closure|string|array  $column
-     * @return TRelatedModel|null
+     * @return null|TRelatedModel
      */
     public function firstWhere(Closure|string|array $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): ?Model
     {
@@ -248,7 +246,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Execute the query and get the first related model.
      *
-     * @return TRelatedModel|null
+     * @return null|TRelatedModel
      */
     public function first(array $columns = ['*']): ?Model
     {
@@ -270,7 +268,7 @@ abstract class HasOneOrManyThrough extends Relation
             return $model;
         }
 
-        throw (new ModelNotFoundException)->setModel(get_class($this->related));
+        throw (new ModelNotFoundException())->setModel(get_class($this->related));
     }
 
     /**
@@ -278,8 +276,8 @@ abstract class HasOneOrManyThrough extends Relation
      *
      * @template TValue
      *
-     * @param  (\Closure(): TValue)|list<string>  $columns
-     * @param  (\Closure(): TValue)|null  $callback
+     * @param (Closure(): TValue)|list<string> $columns
+     * @param null|(Closure(): TValue) $callback
      * @return TRelatedModel|TValue
      */
     public function firstOr(Closure|array $columns = ['*'], ?Closure $callback = null): mixed
@@ -300,7 +298,7 @@ abstract class HasOneOrManyThrough extends Relation
     /**
      * Find a related model by its primary key.
      *
-     * @return ($id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : TRelatedModel|null)
+     * @return ($id is (array<mixed>|\Hypervel\Contracts\Support\Arrayable<array-key, mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : null|TRelatedModel)
      */
     public function find(mixed $id, array $columns = ['*']): EloquentCollection|Model|null
     {
@@ -309,7 +307,9 @@ abstract class HasOneOrManyThrough extends Relation
         }
 
         return $this->where(
-            $this->getRelated()->getQualifiedKeyName(), '=', $id
+            $this->getRelated()->getQualifiedKeyName(),
+            '=',
+            $id
         )->first($columns);
     }
 
@@ -324,14 +324,16 @@ abstract class HasOneOrManyThrough extends Relation
     public function findSole(mixed $id, array $columns = ['*']): Model
     {
         return $this->where(
-            $this->getRelated()->getQualifiedKeyName(), '=', $id
+            $this->getRelated()->getQualifiedKeyName(),
+            '=',
+            $id
         )->sole($columns);
     }
 
     /**
      * Find multiple related models by their primary keys.
      *
-     * @param  \Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>  $ids
+     * @param array<mixed>|\Hypervel\Contracts\Support\Arrayable<array-key, mixed> $ids
      * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
      */
     public function findMany(Arrayable|array $ids, array $columns = ['*']): EloquentCollection
@@ -343,14 +345,15 @@ abstract class HasOneOrManyThrough extends Relation
         }
 
         return $this->whereIn(
-            $this->getRelated()->getQualifiedKeyName(), $ids
+            $this->getRelated()->getQualifiedKeyName(),
+            $ids
         )->get($columns);
     }
 
     /**
      * Find a related model by its primary key or throw an exception.
      *
-     * @return ($id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : TRelatedModel)
+     * @return ($id is (array<mixed>|\Hypervel\Contracts\Support\Arrayable<array-key, mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : TRelatedModel)
      *
      * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<TRelatedModel>
      */
@@ -368,7 +371,7 @@ abstract class HasOneOrManyThrough extends Relation
             return $result;
         }
 
-        throw (new ModelNotFoundException)->setModel(get_class($this->related), $id);
+        throw (new ModelNotFoundException())->setModel(get_class($this->related), $id);
     }
 
     /**
@@ -376,8 +379,8 @@ abstract class HasOneOrManyThrough extends Relation
      *
      * @template TValue
      *
-     * @param  (\Closure(): TValue)|list<string>|string  $columns
-     * @param  (\Closure(): TValue)|null  $callback
+     * @param (Closure(): TValue)|list<string>|string $columns
+     * @param null|(Closure(): TValue) $callback
      * @return (
      *     $id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>)
      *     ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>|TValue
@@ -407,7 +410,6 @@ abstract class HasOneOrManyThrough extends Relation
         return $callback();
     }
 
-    /** @inheritDoc */
     public function get(array $columns = ['*']): EloquentCollection
     {
         $builder = $this->prepareQueryBuilder($columns);
@@ -471,7 +473,7 @@ abstract class HasOneOrManyThrough extends Relation
             $columns = [$this->related->qualifyColumn('*')];
         }
 
-        return array_merge($columns, [$this->getQualifiedFirstKeyName().' as laravel_through_key']);
+        return array_merge($columns, [$this->getQualifiedFirstKeyName() . ' as laravel_through_key']);
     }
 
     /**
@@ -594,7 +596,6 @@ abstract class HasOneOrManyThrough extends Relation
         );
     }
 
-    /** @inheritDoc */
     public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         if ($parentQuery->getQuery()->from === $query->getQuery()->from) {
@@ -611,22 +612,24 @@ abstract class HasOneOrManyThrough extends Relation
         $this->performJoin($query);
 
         return $query->select($columns)->whereColumn(
-            $this->getQualifiedLocalKeyName(), '=', $this->getQualifiedFirstKeyName()
+            $this->getQualifiedLocalKeyName(),
+            '=',
+            $this->getQualifiedFirstKeyName()
         );
     }
 
     /**
      * Add the constraints for a relationship query on the same table.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  \Hypervel\Database\Eloquent\Builder<TDeclaringModel>  $parentQuery
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param \Hypervel\Database\Eloquent\Builder<TDeclaringModel> $parentQuery
      * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
      */
     public function getRelationExistenceQueryForSelfRelation(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
-        $query->from($query->getModel()->getTable().' as '.$hash = $this->getRelationCountHash());
+        $query->from($query->getModel()->getTable() . ' as ' . $hash = $this->getRelationCountHash());
 
-        $query->join($this->throughParent->getTable(), $this->getQualifiedParentKeyName(), '=', $hash.'.'.$this->secondKey);
+        $query->join($this->throughParent->getTable(), $this->getQualifiedParentKeyName(), '=', $hash . '.' . $this->secondKey);
 
         if ($this->throughParentSoftDeletes()) {
             $query->whereNull($this->throughParent->getQualifiedDeletedAtColumn());
@@ -635,29 +638,33 @@ abstract class HasOneOrManyThrough extends Relation
         $query->getModel()->setTable($hash);
 
         return $query->select($columns)->whereColumn(
-            $parentQuery->getQuery()->from.'.'.$this->localKey, '=', $this->getQualifiedFirstKeyName()
+            $parentQuery->getQuery()->from . '.' . $this->localKey,
+            '=',
+            $this->getQualifiedFirstKeyName()
         );
     }
 
     /**
      * Add the constraints for a relationship query on the same table as the through parent.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  \Hypervel\Database\Eloquent\Builder<TDeclaringModel>  $parentQuery
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param \Hypervel\Database\Eloquent\Builder<TDeclaringModel> $parentQuery
      * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
      */
     public function getRelationExistenceQueryForThroughSelfRelation(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
-        $table = $this->throughParent->getTable().' as '.$hash = $this->getRelationCountHash();
+        $table = $this->throughParent->getTable() . ' as ' . $hash = $this->getRelationCountHash();
 
-        $query->join($table, $hash.'.'.$this->secondLocalKey, '=', $this->getQualifiedFarKeyName());
+        $query->join($table, $hash . '.' . $this->secondLocalKey, '=', $this->getQualifiedFarKeyName());
 
         if ($this->throughParentSoftDeletes()) {
-            $query->whereNull($hash.'.'.$this->throughParent->getDeletedAtColumn());
+            $query->whereNull($hash . '.' . $this->throughParent->getDeletedAtColumn());
         }
 
         return $query->select($columns)->whereColumn(
-            $parentQuery->getQuery()->from.'.'.$this->localKey, '=', $hash.'.'.$this->firstKey
+            $parentQuery->getQuery()->from . '.' . $this->localKey,
+            '=',
+            $hash . '.' . $this->firstKey
         );
     }
 

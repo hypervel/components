@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Schema;
 
 use Hypervel\Database\Concerns\ParsesSearchPath;
+use Override;
 
 /**
  * @property \Hypervel\Database\Schema\Grammars\PostgresGrammar $grammar
@@ -16,7 +17,7 @@ class PostgresBuilder extends Builder
     /**
      * Drop all tables from the database.
      */
-    #[\Override]
+    #[Override]
     public function dropAllTables(): void
     {
         $tables = [];
@@ -41,7 +42,7 @@ class PostgresBuilder extends Builder
     /**
      * Drop all views from the database.
      */
-    #[\Override]
+    #[Override]
     public function dropAllViews(): void
     {
         $views = array_column($this->getViews($this->getCurrentSchemaListing()), 'schema_qualified_name');
@@ -58,7 +59,7 @@ class PostgresBuilder extends Builder
     /**
      * Drop all types from the database.
      */
-    #[\Override]
+    #[Override]
     public function dropAllTypes(): void
     {
         $types = [];
@@ -86,7 +87,7 @@ class PostgresBuilder extends Builder
     /**
      * Get the current schemas for the connection.
      */
-    #[\Override]
+    #[Override]
     public function getCurrentSchemaListing(): array
     {
         return array_map(

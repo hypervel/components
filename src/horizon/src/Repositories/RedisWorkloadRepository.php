@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Repositories;
 
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\Contracts\WorkloadRepository;
 use Hypervel\Horizon\WaitTimeCalculator;
-use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Support\Str;
 
 class RedisWorkloadRepository implements WorkloadRepository

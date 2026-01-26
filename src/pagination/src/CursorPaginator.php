@@ -6,11 +6,11 @@ namespace Hypervel\Pagination;
 
 use ArrayAccess;
 use Countable;
-use Hypervel\Support\Collection;
-use Hypervel\Contracts\Support\Arrayable;
-use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Contracts\Pagination\CursorPaginator as PaginatorContract;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Support\Collection;
 use IteratorAggregate;
 use JsonSerializable;
 
@@ -36,8 +36,8 @@ class CursorPaginator extends AbstractCursorPaginator implements Arrayable, Arra
     /**
      * Create a new paginator instance.
      *
-     * @param  Collection<TKey, TValue>|Arrayable<TKey, TValue>|iterable<TKey, TValue>|null  $items
-     * @param  array<string, mixed>  $options  (path, query, fragment, pageName)
+     * @param null|Arrayable<TKey, TValue>|Collection<TKey, TValue>|iterable<TKey, TValue> $items
+     * @param array<string, mixed> $options (path, query, fragment, pageName)
      */
     public function __construct(mixed $items, int $perPage, ?Cursor $cursor = null, array $options = [])
     {
@@ -57,7 +57,7 @@ class CursorPaginator extends AbstractCursorPaginator implements Arrayable, Arra
     /**
      * Set the items for the paginator.
      *
-     * @param  Collection<TKey, TValue>|Arrayable<TKey, TValue>|iterable<TKey, TValue>|null  $items
+     * @param null|Arrayable<TKey, TValue>|Collection<TKey, TValue>|iterable<TKey, TValue> $items
      */
     protected function setItems(mixed $items): void
     {
@@ -75,7 +75,7 @@ class CursorPaginator extends AbstractCursorPaginator implements Arrayable, Arra
     /**
      * Render the paginator using the given view.
      *
-     * @param  array<string, mixed>  $data
+     * @param array<string, mixed> $data
      */
     public function links(?string $view = null, array $data = []): Htmlable
     {
@@ -85,7 +85,7 @@ class CursorPaginator extends AbstractCursorPaginator implements Arrayable, Arra
     /**
      * Render the paginator using the given view.
      *
-     * @param  array<string, mixed>  $data
+     * @param array<string, mixed> $data
      */
     public function render(?string $view = null, array $data = []): Htmlable
     {
@@ -99,9 +99,9 @@ class CursorPaginator extends AbstractCursorPaginator implements Arrayable, Arra
      */
     public function hasMorePages(): bool
     {
-        return (is_null($this->cursor) && $this->hasMore) ||
-            (! is_null($this->cursor) && $this->cursor->pointsToNextItems() && $this->hasMore) ||
-            (! is_null($this->cursor) && $this->cursor->pointsToPreviousItems());
+        return (is_null($this->cursor) && $this->hasMore)
+            || (! is_null($this->cursor) && $this->cursor->pointsToNextItems() && $this->hasMore)
+            || (! is_null($this->cursor) && $this->cursor->pointsToPreviousItems());
     }
 
     /**

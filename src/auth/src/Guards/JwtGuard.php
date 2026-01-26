@@ -8,12 +8,12 @@ use Carbon\Carbon;
 use Hyperf\Context\Context;
 use Hyperf\Context\RequestContext;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use Hypervel\Support\Traits\Macroable;
-use Hypervel\Support\Str;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\JWT\Contracts\ManagerContract;
+use Hypervel\Support\Str;
+use Hypervel\Support\Traits\Macroable;
 use Throwable;
 
 class JwtGuard implements Guard

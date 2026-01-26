@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Router\Stub;
 
-use Hypervel\Database\Eloquent\Model;
 use Hypervel\Contracts\Router\UrlRoutable;
+use Hypervel\Database\Eloquent\Model;
 
 class UrlRoutableStub implements UrlRoutable
 {

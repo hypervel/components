@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent;
 
-use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Facades\Gate;
 use Hypervel\Support\Str;
@@ -48,8 +48,8 @@ class ModelInspector
     /**
      * Extract model details for the given model.
      *
-     * @param  class-string<Model>|string  $model
-     * @return array{class: class-string<Model>, database: string|null, table: string, policy: class-string|null, attributes: BaseCollection<int, array<string, mixed>>, relations: BaseCollection<int, array<string, mixed>>, events: BaseCollection<int, array<string, mixed>>, observers: BaseCollection<int, array<string, mixed>>, collection: class-string<Collection<array-key, Model>>, builder: class-string<Builder<Model>>, resource: class-string|null}
+     * @param class-string<Model>|string $model
+     * @return array{class: class-string<Model>, database: null|string, table: string, policy: null|class-string, attributes: BaseCollection<int, array<string, mixed>>, relations: BaseCollection<int, array<string, mixed>>, events: BaseCollection<int, array<string, mixed>>, observers: BaseCollection<int, array<string, mixed>>, collection: class-string<Collection<array-key, Model>>, builder: class-string<Builder<Model>>, resource: null|class-string}
      *
      * @throws \Hypervel\Container\BindingResolutionException
      */
@@ -68,7 +68,7 @@ class ModelInspector
         return [
             'class' => get_class($model),
             'database' => $model->getConnection()->getName(),
-            'table' => $model->getConnection()->getTablePrefix().$model->getTable(),
+            'table' => $model->getConnection()->getTablePrefix() . $model->getTable(),
             'policy' => $this->getPolicy($model),
             'attributes' => $this->getAttributes($model),
             'relations' => $this->getRelations($model),
@@ -112,7 +112,7 @@ class ModelInspector
     /**
      * Get the virtual (non-column) attributes for the given model.
      *
-     * @param  array<int, array<string, mixed>>  $columns
+     * @param array<int, array<string, mixed>> $columns
      * @return BaseCollection<int, array<string, mixed>>
      */
     protected function getVirtualAttributes(Model $model, array $columns): BaseCollection
@@ -128,11 +128,11 @@ class ModelInspector
             ->mapWithKeys(function (ReflectionMethod $method) use ($model) {
                 if (preg_match('/^get(.+)Attribute$/', $method->getName(), $matches) === 1) {
                     return [Str::snake($matches[1]) => 'accessor'];
-                } elseif ($model->hasAttributeMutator($method->getName())) {
-                    return [Str::snake($method->getName()) => 'attribute'];
-                } else {
-                    return [];
                 }
+                if ($model->hasAttributeMutator($method->getName())) {
+                    return [Str::snake($method->getName()) => 'attribute'];
+                }
+                return [];
             })
             ->reject(fn ($cast, $name) => (new BaseCollection($columns))->contains('name', $name))
             ->map(fn ($cast, $name) => [
@@ -180,7 +180,7 @@ class ModelInspector
                 }
 
                 return (new BaseCollection($this->relationMethods))
-                    ->contains(fn ($relationMethod) => str_contains($code, '$this->'.$relationMethod.'('));
+                    ->contains(fn ($relationMethod) => str_contains($code, '$this->' . $relationMethod . '('));
             })
             ->map(function (ReflectionMethod $method) use ($model) {
                 $relation = $method->invoke($model);
@@ -202,7 +202,7 @@ class ModelInspector
     /**
      * Get the first policy associated with this model.
      *
-     * @return class-string|null
+     * @return null|class-string
      */
     protected function getPolicy(Model $model): ?string
     {
@@ -272,7 +272,7 @@ class ModelInspector
     /**
      * Get the class used for JSON response transforming.
      *
-     * @return class-string|null
+     * @return null|class-string
      */
     protected function getResource(Model $model): ?string
     {
@@ -292,7 +292,7 @@ class ModelInspector
             return $model;
         }
 
-        $model = ltrim($model, '\\/');
+        $model = ltrim($model, '\/');
 
         $model = str_replace('/', '\\', $model);
 
@@ -303,8 +303,8 @@ class ModelInspector
         }
 
         return is_dir(app_path('Models'))
-            ? $rootNamespace.'Models\\'.$model
-            : $rootNamespace.$model;
+            ? $rootNamespace . 'Models\\' . $model
+            : $rootNamespace . $model;
     }
 
     /**

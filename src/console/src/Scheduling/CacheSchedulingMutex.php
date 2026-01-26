@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Console\Scheduling;
 
 use DateTimeInterface;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Console\Contracts\CacheAware;
 use Hypervel\Console\Contracts\SchedulingMutex;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
 
 class CacheSchedulingMutex implements SchedulingMutex, CacheAware
 {

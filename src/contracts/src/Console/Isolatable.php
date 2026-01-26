@@ -12,5 +12,4 @@ namespace Hypervel\Contracts\Console;
  */
 interface Isolatable
 {
-    //
 }

@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Hypervel\Database\ConnectionResolverInterface;
-use Hypervel\Support\Str;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\Failed\DatabaseUuidFailedJobProvider;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use RuntimeException;
 

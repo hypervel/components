@@ -22,7 +22,8 @@ class HigherOrderCollectionProxy
     public function __construct(
         protected Enumerable $collection,
         protected string $method
-    ) {}
+    ) {
+    }
 
     /**
      * Proxy accessing an attribute onto the collection items.

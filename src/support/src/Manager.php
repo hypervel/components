@@ -6,7 +6,6 @@ namespace Hypervel\Support;
 
 use Closure;
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Support\Str;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;
 

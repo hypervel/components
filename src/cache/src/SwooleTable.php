@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Hypervel\Support\Arr;
 use Hypervel\Cache\Exceptions\ValueTooLargeForColumnException;
+use Hypervel\Support\Arr;
 use Swoole\Table;
 
 class SwooleTable extends Table

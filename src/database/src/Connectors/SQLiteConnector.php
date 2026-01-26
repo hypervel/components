@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Connectors;
 
-use PDO;
 use Hypervel\Database\SQLiteDatabaseDoesNotExistException;
+use PDO;
 
 class SQLiteConnector extends Connector implements ConnectorInterface
 {
@@ -41,9 +41,9 @@ class SQLiteConnector extends Connector implements ConnectorInterface
         // SQLite supports "in-memory" databases that only last as long as the owning
         // connection does. These are useful for tests or for short lifetime store
         // querying. In-memory databases shall be anonymous (:memory:) or named.
-        if ($path === ':memory:' ||
-            str_contains($path, '?mode=memory') ||
-            str_contains($path, '&mode=memory')
+        if ($path === ':memory:'
+            || str_contains($path, '?mode=memory')
+            || str_contains($path, '&mode=memory')
         ) {
             return $path;
         }

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
+use Hypervel\Contracts\Queue\Factory as FactoryContract;
+use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\Console\ClearCommand;
 use Hypervel\Queue\Console\FlushFailedCommand;
 use Hypervel\Queue\Console\ForgetFailedCommand;
@@ -16,8 +18,6 @@ use Hypervel\Queue\Console\RestartCommand;
 use Hypervel\Queue\Console\RetryBatchCommand;
 use Hypervel\Queue\Console\RetryCommand;
 use Hypervel\Queue\Console\WorkCommand;
-use Hypervel\Contracts\Queue\Factory as FactoryContract;
-use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\Failed\FailedJobProviderFactory;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Laravel\SerializableClosure\SerializableClosure;

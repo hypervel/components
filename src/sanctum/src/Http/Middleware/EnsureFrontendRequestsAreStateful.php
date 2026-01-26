@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum\Http\Middleware;
 
-use Hypervel\Support\Collection;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Contract\ResponseInterface as HttpResponse;
 use Hypervel\Dispatcher\Pipeline;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;

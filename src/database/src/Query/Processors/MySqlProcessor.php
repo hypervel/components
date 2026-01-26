@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Database\Query\Processors;
 
 use Hypervel\Database\Query\Builder;
+use Override;
 
 class MySqlProcessor extends Processor
 {
     /**
      * Process the results of a column listing query.
      *
-     * @deprecated Will be removed in a future Laravel version.
+     * @deprecated will be removed in a future Laravel version
      */
     public function processColumnListing(array $results): array
     {
@@ -23,7 +24,7 @@ class MySqlProcessor extends Processor
     /**
      * Process an "insert get ID" query.
      */
-    #[\Override]
+    #[Override]
     public function processInsertGetId(Builder $query, string $sql, array $values, ?string $sequence = null): int|string
     {
         // @phpstan-ignore arguments.count (MySqlConnection::insert() accepts $sequence param)
@@ -35,7 +36,7 @@ class MySqlProcessor extends Processor
         return is_numeric($id) ? (int) $id : $id;
     }
 
-    #[\Override]
+    #[Override]
     public function processColumns(array $results, string $sql = ''): array
     {
         return array_map(function ($result) {
@@ -62,7 +63,7 @@ class MySqlProcessor extends Processor
         }, $results);
     }
 
-    #[\Override]
+    #[Override]
     public function processIndexes(array $results): array
     {
         return array_map(function ($result) {
@@ -78,7 +79,7 @@ class MySqlProcessor extends Processor
         }, $results);
     }
 
-    #[\Override]
+    #[Override]
     public function processForeignKeys(array $results): array
     {
         return array_map(function ($result) {

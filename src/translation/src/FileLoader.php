@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Translation;
 
+use Hypervel\Contracts\Translation\Loader;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Collection;
-use Hypervel\Contracts\Translation\Loader;
 use RuntimeException;
 
 class FileLoader implements Loader

@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\JWT;
 
-use Hypervel\Support\Collection;
-use Hypervel\Support\Str;
 use Hypervel\JWT\Contracts\BlacklistContract;
 use Hypervel\JWT\Contracts\ManagerContract;
 use Hypervel\JWT\Contracts\ValidationContract;
 use Hypervel\JWT\Exceptions\JWTException;
 use Hypervel\JWT\Exceptions\TokenBlacklistedException;
 use Hypervel\JWT\Providers\Lcobucci;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Manager;
+use Hypervel\Support\Str;
 use Psr\Container\ContainerInterface;
 use RuntimeException;
 

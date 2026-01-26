@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Support\Str;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\KeyForgotten;
 use Hypervel\Cache\Events\KeyWritten;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
 use Psr\Container\ContainerInterface;

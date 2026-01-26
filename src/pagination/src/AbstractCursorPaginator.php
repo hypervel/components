@@ -5,14 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Pagination;
 
 use ArrayAccess;
+use ArrayIterator;
 use Closure;
 use Exception;
-use Hypervel\Support\Arr;
-use Hypervel\Support\Collection;
+use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Http\Resources\Json\JsonResource;
-use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\Tappable;
@@ -29,12 +30,14 @@ use Traversable;
  */
 abstract class AbstractCursorPaginator implements Htmlable, Stringable
 {
-    use ForwardsCalls, Tappable, TransformsToResourceCollection;
+    use ForwardsCalls;
+    use Tappable;
+    use TransformsToResourceCollection;
 
     /**
      * Render the paginator using the given view.
      *
-     * @param  array<string, mixed>  $data
+     * @param array<string, mixed> $data
      */
     abstract public function render(?string $view = null, array $data = []): Htmlable;
 
@@ -116,9 +119,9 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
         }
 
         return $this->path()
-            .(str_contains($this->path(), '?') ? '&' : '?')
-            .Arr::query($parameters)
-            .$this->buildFragment();
+            . (str_contains($this->path(), '?') ? '&' : '?')
+            . Arr::query($parameters)
+            . $this->buildFragment();
     }
 
     /**
@@ -150,8 +153,8 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      */
     public function previousCursor(): ?Cursor
     {
-        if (is_null($this->cursor) ||
-            ($this->cursor->pointsToPreviousItems() && ! $this->hasMore)) {
+        if (is_null($this->cursor)
+            || ($this->cursor->pointsToPreviousItems() && ! $this->hasMore)) {
             return null;
         }
 
@@ -167,8 +170,8 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      */
     public function nextCursor(): ?Cursor
     {
-        if ((is_null($this->cursor) && ! $this->hasMore) ||
-            (! is_null($this->cursor) && $this->cursor->pointsToNextItems() && ! $this->hasMore)) {
+        if ((is_null($this->cursor) && ! $this->hasMore)
+            || (! is_null($this->cursor) && $this->cursor->pointsToNextItems() && ! $this->hasMore)) {
             return null;
         }
 
@@ -204,14 +207,16 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
                 $item = $item->resource;
             }
 
-            if ($item instanceof Model &&
-                ! is_null($parameter = $this->getPivotParameterForItem($item, $parameterName))) {
+            if ($item instanceof Model
+                && ! is_null($parameter = $this->getPivotParameterForItem($item, $parameterName))) {
                 return $parameter;
-            } elseif ($item instanceof ArrayAccess || is_array($item)) {
+            }
+            if ($item instanceof ArrayAccess || is_array($item)) {
                 return $this->ensureParameterIsPrimitive(
                     $item[$parameterName] ?? $item[Str::afterLast($parameterName, '.')]
                 );
-            } elseif (is_object($item)) {
+            }
+            if (is_object($item)) {
                 return $this->ensureParameterIsPrimitive(
                     $item->{$parameterName} ?? $item->{Str::afterLast($parameterName, '.')}
                 );
@@ -254,7 +259,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Get / set the URL fragment to be appended to URLs.
      *
-     * @return $this|string|null
+     * @return null|$this|string
      */
     public function fragment(?string $fragment = null): static|string|null
     {
@@ -288,7 +293,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Add an array of query string values.
      *
-     * @param  array<string, mixed>  $keys
+     * @param array<string, mixed> $keys
      * @return $this
      */
     protected function appendArray(array $keys): static
@@ -333,18 +338,18 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      */
     protected function buildFragment(): string
     {
-        return $this->fragment ? '#'.$this->fragment : '';
+        return $this->fragment ? '#' . $this->fragment : '';
     }
 
     /**
      * Load a set of relationships onto the mixed relationship collection.
      *
-     * @param  array<class-string, array<int, string>>  $relations
+     * @param array<class-string, array<int, string>> $relations
      * @return $this
      */
     public function loadMorph(string $relation, array $relations): static
     {
-        /** @phpstan-ignore method.notFound (loadMorph exists on Eloquent Collection, not base Collection) */
+        /* @phpstan-ignore method.notFound (loadMorph exists on Eloquent Collection, not base Collection) */
         $this->getCollection()->loadMorph($relation, $relations);
 
         return $this;
@@ -353,12 +358,12 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Load a set of relationship counts onto the mixed relationship collection.
      *
-     * @param  array<class-string, array<int, string>>  $relations
+     * @param array<class-string, array<int, string>> $relations
      * @return $this
      */
     public function loadMorphCount(string $relation, array $relations): static
     {
-        /** @phpstan-ignore method.notFound (loadMorphCount exists on Eloquent Collection, not base Collection) */
+        /* @phpstan-ignore method.notFound (loadMorphCount exists on Eloquent Collection, not base Collection) */
         $this->getCollection()->loadMorphCount($relation, $relations);
 
         return $this;
@@ -379,7 +384,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      *
      * @template TThroughValue
      *
-     * @param  callable(TValue, TKey): TThroughValue  $callback
+     * @param callable(TValue, TKey): TThroughValue $callback
      * @return $this
      *
      * @phpstan-this-out static<TKey, TThroughValue>
@@ -488,7 +493,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Get an iterator for the items.
      *
-     * @return \ArrayIterator<TKey, TValue>
+     * @return ArrayIterator<TKey, TValue>
      */
     public function getIterator(): Traversable
     {
@@ -535,14 +540,14 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      * @template TSetKey of array-key
      * @template TSetValue
      *
-     * @param  Collection<TSetKey, TSetValue>  $collection
+     * @param Collection<TSetKey, TSetValue> $collection
      * @return $this
      *
      * @phpstan-this-out static<TSetKey, TSetValue>
      */
     public function setCollection(Collection $collection): static
     {
-        /** @phpstan-ignore assign.propertyType */
+        /* @phpstan-ignore assign.propertyType */
         $this->items = $collection;
 
         return $this;
@@ -561,8 +566,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Determine if the given item exists.
      *
-     * @param  TKey  $key
-     * @return bool
+     * @param TKey $key
      */
     public function offsetExists($key): bool
     {
@@ -572,8 +576,8 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Get the item at the given offset.
      *
-     * @param  TKey  $key
-     * @return TValue|null
+     * @param TKey $key
+     * @return null|TValue
      */
     public function offsetGet($key): mixed
     {
@@ -583,9 +587,8 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Set the item at the given offset.
      *
-     * @param  TKey|null  $key
-     * @param  TValue  $value
-     * @return void
+     * @param null|TKey $key
+     * @param TValue $value
      */
     public function offsetSet($key, $value): void
     {
@@ -595,8 +598,7 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
     /**
      * Unset the item at the given key.
      *
-     * @param  TKey  $key
-     * @return void
+     * @param TKey $key
      */
     public function offsetUnset($key): void
     {

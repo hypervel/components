@@ -6,8 +6,8 @@ namespace Hypervel\Bus;
 
 use Carbon\CarbonImmutable;
 use Hyperf\Context\ApplicationContext;
-use Hypervel\Support\Str;
 use Hypervel\Contracts\Bus\BatchRepository;
+use Hypervel\Support\Str;
 use Hypervel\Support\Testing\Fakes\BatchFake;
 
 trait Batchable

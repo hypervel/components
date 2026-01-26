@@ -14,7 +14,7 @@ interface SupportsPartialRelations
      *
      * @return $this
      */
-    public function ofMany(string|null $column = 'id', string|Closure|null $aggregate = 'MAX', ?string $relation = null);
+    public function ofMany(?string $column = 'id', string|Closure|null $aggregate = 'MAX', ?string $relation = null);
 
     /**
      * Determine whether the relationship is a one-of-many relationship.
@@ -24,5 +24,5 @@ interface SupportsPartialRelations
     /**
      * Get the one of many inner join subselect query builder instance.
      */
-    public function getOneOfManySubQuery(): Builder|null;
+    public function getOneOfManySubQuery(): ?Builder;
 }

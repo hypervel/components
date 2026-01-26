@@ -21,8 +21,6 @@ use Hypervel\Support\Stringable as SupportStringable;
 if (! function_exists('append_config')) {
     /**
      * Assign high numeric IDs to a config item to force appending.
-     *
-     * @param  array  $array
      */
     function append_config(array $array): array
     {
@@ -30,7 +28,7 @@ if (! function_exists('append_config')) {
 
         foreach ($array as $key => $value) {
             if (is_numeric($key)) {
-                $start++;
+                ++$start;
 
                 $array[$start] = Arr::pull($array, $key);
             }
@@ -48,7 +46,7 @@ if (! function_exists('blank')) {
      *
      * @phpstan-assert-if-true !=numeric|bool $value
      *
-     * @param  mixed  $value
+     * @param mixed $value
      */
     function blank($value): bool
     {
@@ -84,7 +82,7 @@ if (! function_exists('class_basename')) {
     /**
      * Get the class "basename" of the given object / class.
      *
-     * @param  string|object  $class
+     * @param object|string $class
      */
     function class_basename($class): string
     {
@@ -98,7 +96,7 @@ if (! function_exists('class_uses_recursive')) {
     /**
      * Returns all traits used by a class, its parent classes and trait of their traits.
      *
-     * @param  object|string  $class
+     * @param object|string $class
      * @return array<string, string>
      */
     function class_uses_recursive($class): array
@@ -121,8 +119,8 @@ if (! function_exists('e')) {
     /**
      * Encode HTML special characters in a string.
      *
-     * @param  \Hypervel\Contracts\Support\DeferringDisplayableValue|\Hypervel\Contracts\Support\Htmlable|\BackedEnum|string|int|float|null  $value
-     * @param  bool  $doubleEncode
+     * @param null|\BackedEnum|float|\Hypervel\Contracts\Support\DeferringDisplayableValue|\Hypervel\Contracts\Support\Htmlable|int|string $value
+     * @param bool $doubleEncode
      */
     function e($value, $doubleEncode = true): string
     {
@@ -160,7 +158,7 @@ if (! function_exists('filled')) {
      *
      * @phpstan-assert-if-false !=numeric|bool $value
      *
-     * @param  mixed  $value
+     * @param mixed $value
      */
     function filled($value): bool
     {
@@ -172,7 +170,7 @@ if (! function_exists('fluent')) {
     /**
      * Create a Fluent object from the given value.
      *
-     * @param  iterable|object|null  $value
+     * @param null|iterable|object $value
      */
     function fluent($value = null): Fluent
     {
@@ -202,9 +200,9 @@ if (! function_exists('object_get')) {
      *
      * @template TValue of object
      *
-     * @param  TValue  $object
-     * @param  string|null  $key
-     * @param  mixed  $default
+     * @param TValue $object
+     * @param null|string $key
+     * @param mixed $default
      * @return ($key is empty ? TValue : mixed)
      */
     function object_get($object, $key, $default = null)
@@ -252,7 +250,7 @@ if (! function_exists('once')) {
      *
      * @template  TReturnType
      *
-     * @param  callable(): TReturnType  $callback
+     * @param callable(): TReturnType $callback
      * @return TReturnType
      */
     function once(callable $callback)
@@ -273,8 +271,8 @@ if (! function_exists('optional')) {
      * @template TValue
      * @template TReturn
      *
-     * @param  TValue  $value
-     * @param  (callable(TValue): TReturn)|null  $callback
+     * @param TValue $value
+     * @param null|(callable(TValue): TReturn) $callback
      * @return ($callback is null ? \Hypervel\Support\Optional : ($value is null ? null : TReturn))
      */
     function optional($value = null, ?callable $callback = null)
@@ -295,9 +293,8 @@ if (! function_exists('preg_replace_array')) {
     /**
      * Replace a given pattern with each value in the array in sequentially.
      *
-     * @param  string  $pattern
-     * @param  array  $replacements
-     * @param  string  $subject
+     * @param string $pattern
+     * @param string $subject
      */
     function preg_replace_array($pattern, array $replacements, $subject): string
     {
@@ -315,10 +312,10 @@ if (! function_exists('retry')) {
      *
      * @template TValue
      *
-     * @param  int|array<int, int>  $times
-     * @param  callable(int): TValue  $callback
-     * @param  int|\Closure(int, \Throwable): int  $sleepMilliseconds
-     * @param  (callable(\Throwable): bool)|null  $when
+     * @param array<int, int>|int $times
+     * @param callable(int): TValue $callback
+     * @param \Closure(int, \Throwable): int|int $sleepMilliseconds
+     * @param null|(callable(\Throwable): bool) $when
      * @return TValue
      *
      * @throws \Throwable
@@ -336,8 +333,8 @@ if (! function_exists('retry')) {
         }
 
         while (true) {
-            $attempts++;
-            $times--;
+            ++$attempts;
+            --$times;
 
             try {
                 return $callback($attempts);
@@ -360,14 +357,13 @@ if (! function_exists('str')) {
     /**
      * Get a new stringable object from the given string.
      *
-     * @param  string|null  $string
+     * @param null|string $string
      * @return ($string is null ? object : \Hypervel\Support\Stringable)
      */
     function str($string = null)
     {
         if (func_num_args() === 0) {
-            return new class
-            {
+            return new class {
                 public function __call($method, $parameters)
                 {
                     return Str::$method(...$parameters);
@@ -390,8 +386,8 @@ if (! function_exists('tap')) {
      *
      * @template TValue
      *
-     * @param  TValue  $value
-     * @param  (callable(TValue): mixed)|null  $callback
+     * @param TValue $value
+     * @param null|(callable(TValue): mixed) $callback
      * @return ($callback is null ? \Hypervel\Support\HigherOrderTapProxy : TValue)
      */
     function tap($value, $callback = null)
@@ -415,9 +411,9 @@ if (! function_exists('throw_if')) {
      * @template TException of \Throwable
      * @template TExceptionValue of TException|class-string<TException>|string
      *
-     * @param  TValue  $condition
-     * @param  Closure(TParams): TExceptionValue|TExceptionValue  $exception
-     * @param  TParams  ...$parameters
+     * @param TValue $condition
+     * @param Closure(TParams): TExceptionValue|TExceptionValue $exception
+     * @param TParams ...$parameters
      * @return ($condition is true ? never : ($condition is non-empty-mixed ? never : TValue))
      *
      * @throws TException
@@ -449,9 +445,9 @@ if (! function_exists('throw_unless')) {
      * @template TException of \Throwable
      * @template TExceptionValue of TException|class-string<TException>|string
      *
-     * @param  TValue  $condition
-     * @param  Closure(TParams): TExceptionValue|TExceptionValue  $exception
-     * @param  TParams  ...$parameters
+     * @param TValue $condition
+     * @param Closure(TParams): TExceptionValue|TExceptionValue $exception
+     * @param TParams ...$parameters
      * @return ($condition is false ? never : ($condition is non-empty-mixed ? TValue : never))
      *
      * @throws TException
@@ -468,7 +464,7 @@ if (! function_exists('trait_uses_recursive')) {
     /**
      * Returns all traits used by a trait and its traits.
      *
-     * @param  object|string  $trait
+     * @param object|string $trait
      * @return array<string, string>
      */
     function trait_uses_recursive($trait): array
@@ -491,9 +487,9 @@ if (! function_exists('transform')) {
      * @template TReturn
      * @template TDefault
      *
-     * @param  TValue  $value
-     * @param  callable(TValue): TReturn  $callback
-     * @param  TDefault|callable(TValue): TDefault  $default
+     * @param TValue $value
+     * @param callable(TValue): TReturn $callback
+     * @param callable(TValue): TDefault|TDefault $default
      * @return ($value is empty ? TDefault : TReturn)
      */
     function transform($value, callable $callback, $default = null)
@@ -527,8 +523,8 @@ if (! function_exists('with')) {
      * @template TValue
      * @template TReturn
      *
-     * @param  TValue  $value
-     * @param  (callable(TValue): (TReturn))|null  $callback
+     * @param TValue $value
+     * @param null|(callable(TValue): (TReturn)) $callback
      * @return ($callback is null ? TValue : TReturn)
      */
     function with($value, ?callable $callback = null)

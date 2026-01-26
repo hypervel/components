@@ -27,7 +27,7 @@ trait HasTimestamps
     public function touch(?string $attribute = null): bool
     {
         if ($attribute) {
-            $this->$attribute = $this->freshTimestamp();
+            $this->{$attribute} = $this->freshTimestamp();
 
             return $this->save();
         }
@@ -168,7 +168,7 @@ trait HasTimestamps
     /**
      * Disable timestamps for the given model classes during the given callback scope.
      *
-     * @param  array<int, class-string>  $models
+     * @param array<int, class-string> $models
      */
     public static function withoutTimestampsOn(array $models, callable $callback): mixed
     {
@@ -189,7 +189,7 @@ trait HasTimestamps
     /**
      * Determine if the given model is ignoring timestamps / touches.
      *
-     * @param  class-string|null  $class
+     * @param null|class-string $class
      */
     public static function isIgnoringTimestamps(?string $class = null): bool
     {

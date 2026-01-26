@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hypervel\Support\Str;
-use Hypervel\Mail\Attachment;
 use Hypervel\Contracts\Mail\Attachable;
+use Hypervel\Mail\Attachment;
 use Hypervel\Mail\Message;
+use Hypervel\Support\Str;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Email;

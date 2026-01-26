@@ -6,17 +6,17 @@ namespace Hypervel\Queue;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Support\Collection;
-use Hypervel\Database\ConnectionInterface;
-use Hypervel\Database\ConnectionResolverInterface;
-use Hypervel\Database\Query\Builder;
-use Hypervel\Support\Str;
 use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Queue\Jobs\DatabaseJob;
 use Hypervel\Queue\Jobs\DatabaseJobRecord;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use PDO;
 use Throwable;
 

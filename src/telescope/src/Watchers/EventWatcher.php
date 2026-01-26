@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hypervel\Support\Collection;
-use Hypervel\Support\Str;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\ExtractProperties;
 use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\IncomingEntry;

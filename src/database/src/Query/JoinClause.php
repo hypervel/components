@@ -5,10 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Database\Query;
 
 use Closure;
-use Hypervel\Database\ConnectionInterface;
 use Hypervel\Contracts\Database\Query\Expression as ExpressionContract;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
+use InvalidArgumentException;
 
 class JoinClause extends Builder
 {
@@ -73,7 +74,7 @@ class JoinClause extends Builder
      *
      * on `contacts`.`user_id` = `users`.`id` and `contacts`.`info_id` = `info`.`id`
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     public function on(
         Closure|ExpressionContract|string $first,

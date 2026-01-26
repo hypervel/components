@@ -6,11 +6,11 @@ namespace Hypervel\Router;
 
 use Closure;
 use Hyperf\Context\ApplicationContext;
-use Hypervel\Database\Eloquent\Model;
 use Hyperf\HttpServer\Request;
 use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\HttpServer\Router\DispatcherFactory;
 use Hyperf\HttpServer\Router\RouteCollector;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\DispatchedRoute;
 use RuntimeException;
 

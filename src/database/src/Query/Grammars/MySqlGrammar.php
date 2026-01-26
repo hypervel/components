@@ -9,6 +9,7 @@ use Hypervel\Database\Query\IndexHint;
 use Hypervel\Database\Query\JoinLateralClause;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use Override;
 
 class MySqlGrammar extends Grammar
 {
@@ -41,7 +42,7 @@ class MySqlGrammar extends Grammar
         if ($this->isJsonSelector($columnValue)) {
             [$field, $path] = $this->wrapJsonFieldAndPath($columnValue);
 
-            return '(json_extract('.$field.$path.') is null OR json_type(json_extract('.$field.$path.')) = \'NULL\')';
+            return '(json_extract(' . $field . $path . ') is null OR json_type(json_extract(' . $field . $path . ')) = \'NULL\')';
         }
 
         return parent::whereNull($query, $where);
@@ -57,7 +58,7 @@ class MySqlGrammar extends Grammar
         if ($this->isJsonSelector($columnValue)) {
             [$field, $path] = $this->wrapJsonFieldAndPath($columnValue);
 
-            return '(json_extract('.$field.$path.') is not null AND json_type(json_extract('.$field.$path.')) != \'NULL\')';
+            return '(json_extract(' . $field . $path . ') is not null AND json_type(json_extract(' . $field . $path . ')) != \'NULL\')';
         }
 
         return parent::whereNotNull($query, $where);
@@ -80,7 +81,7 @@ class MySqlGrammar extends Grammar
             ? ' with query expansion'
             : '';
 
-        return "match ({$columns}) against (".$value."{$mode}{$expanded})";
+        return "match ({$columns}) against (" . $value . "{$mode}{$expanded})";
     }
 
     /**
@@ -136,8 +137,8 @@ class MySqlGrammar extends Grammar
         $column = last(explode('.', $query->groupLimit['column']));
         $column = $this->wrap($column);
 
-        $partition = ', @laravel_row := if(@laravel_group = '.$column.', @laravel_row + 1, 1) as `laravel_row`';
-        $partition .= ', @laravel_group := '.$column;
+        $partition = ', @laravel_row := if(@laravel_group = ' . $column . ', @laravel_row + 1, 1) as `laravel_row`';
+        $partition .= ', @laravel_group := ' . $column;
 
         $orders = (array) $query->orders;
 
@@ -152,15 +153,15 @@ class MySqlGrammar extends Grammar
 
         $sql = $this->concatenate($components);
 
-        $from = '(select @laravel_row := 0, @laravel_group := 0) as `laravel_vars`, ('.$sql.') as `laravel_table`';
+        $from = '(select @laravel_row := 0, @laravel_group := 0) as `laravel_vars`, (' . $sql . ') as `laravel_table`';
 
-        $sql = 'select `laravel_table`.*'.$partition.' from '.$from.' having `laravel_row` <= '.$limit;
+        $sql = 'select `laravel_table`.*' . $partition . ' from ' . $from . ' having `laravel_row` <= ' . $limit;
 
         if (isset($offset)) {
-            $sql .= ' and `laravel_row` > '.$offset;
+            $sql .= ' and `laravel_row` > ' . $offset;
         }
 
-        return $sql.' order by `laravel_row`';
+        return $sql . ' order by `laravel_row`';
     }
 
     /**
@@ -186,7 +187,7 @@ class MySqlGrammar extends Grammar
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($column);
 
-        return 'json_contains('.$field.', '.$value.$path.')';
+        return 'json_contains(' . $field . ', ' . $value . $path . ')';
     }
 
     /**
@@ -196,7 +197,7 @@ class MySqlGrammar extends Grammar
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($column);
 
-        return 'json_overlaps('.$field.', '.$value.$path.')';
+        return 'json_overlaps(' . $field . ', ' . $value . $path . ')';
     }
 
     /**
@@ -206,7 +207,7 @@ class MySqlGrammar extends Grammar
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($column);
 
-        return 'ifnull(json_contains_path('.$field.', \'one\''.$path.'), 0)';
+        return 'ifnull(json_contains_path(' . $field . ', \'one\'' . $path . '), 0)';
     }
 
     /**
@@ -216,7 +217,7 @@ class MySqlGrammar extends Grammar
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($column);
 
-        return 'json_length('.$field.$path.') '.$operator.' '.$value;
+        return 'json_length(' . $field . $path . ') ' . $operator . ' ' . $value;
     }
 
     /**
@@ -224,7 +225,7 @@ class MySqlGrammar extends Grammar
      */
     public function compileJsonValueCast(string $value): string
     {
-        return 'cast('.$value.' as json)';
+        return 'cast(' . $value . ' as json)';
     }
 
     /**
@@ -232,7 +233,7 @@ class MySqlGrammar extends Grammar
      */
     public function compileRandom(string|int $seed): string
     {
-        return 'RAND('.$seed.')';
+        return 'RAND(' . $seed . ')';
     }
 
     /**
@@ -269,7 +270,7 @@ class MySqlGrammar extends Grammar
                 return $this->compileJsonUpdateColumn($key, $value);
             }
 
-            return $this->wrap($key).' = '.$this->parameter($value);
+            return $this->wrap($key) . ' = ' . $this->parameter($value);
         })->implode(', ');
     }
 
@@ -290,23 +291,19 @@ class MySqlGrammar extends Grammar
 
         $columns = (new Collection($update))->map(function ($value, $key) use ($useUpsertAlias) {
             if (! is_numeric($key)) {
-                return $this->wrap($key).' = '.$this->parameter($value);
+                return $this->wrap($key) . ' = ' . $this->parameter($value);
             }
 
             return $useUpsertAlias
-                ? $this->wrap($value).' = '.$this->wrap('laravel_upsert_alias').'.'.$this->wrap($value)
-                : $this->wrap($value).' = values('.$this->wrap($value).')';
+                ? $this->wrap($value) . ' = ' . $this->wrap('laravel_upsert_alias') . '.' . $this->wrap($value)
+                : $this->wrap($value) . ' = values(' . $this->wrap($value) . ')';
         })->implode(', ');
 
-        return $sql.$columns;
+        return $sql . $columns;
     }
 
     /**
      * Compile a "lateral join" clause.
-     *
-     * @param  \Hypervel\Database\Query\JoinLateralClause  $join
-     * @param  string  $expression
-     * @return string
      */
     public function compileJoinLateral(JoinLateralClause $join, string $expression): string
     {
@@ -339,11 +336,11 @@ class MySqlGrammar extends Grammar
         $sql = parent::compileUpdateWithoutJoins($query, $table, $columns, $where);
 
         if (! empty($query->orders)) {
-            $sql .= ' '.$this->compileOrders($query, $query->orders);
+            $sql .= ' ' . $this->compileOrders($query, $query->orders);
         }
 
         if (isset($query->limit)) {
-            $sql .= ' '.$this->compileLimit($query, $query->limit);
+            $sql .= ' ' . $this->compileLimit($query, $query->limit);
         }
 
         return $sql;
@@ -354,7 +351,7 @@ class MySqlGrammar extends Grammar
      *
      * Booleans, integers, and doubles are inserted into JSON updates as raw values.
      */
-    #[\Override]
+    #[Override]
     public function prepareBindingsForUpdate(array $bindings, array $values): array
     {
         $values = (new Collection($values))
@@ -376,11 +373,11 @@ class MySqlGrammar extends Grammar
         // so we will compile both of those here. Once we have finished compiling this
         // we will return the completed SQL statement so it will be executed for us.
         if (! empty($query->orders)) {
-            $sql .= ' '.$this->compileOrders($query, $query->orders);
+            $sql .= ' ' . $this->compileOrders($query, $query->orders);
         }
 
         if (isset($query->limit)) {
-            $sql .= ' '.$this->compileLimit($query, $query->limit);
+            $sql .= ' ' . $this->compileLimit($query, $query->limit);
         }
 
         return $sql;
@@ -399,7 +396,7 @@ class MySqlGrammar extends Grammar
      */
     protected function wrapValue(string $value): string
     {
-        return $value === '*' ? $value : '`'.str_replace('`', '``', $value).'`';
+        return $value === '*' ? $value : '`' . str_replace('`', '``', $value) . '`';
     }
 
     /**
@@ -409,7 +406,7 @@ class MySqlGrammar extends Grammar
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($value);
 
-        return 'json_unquote(json_extract('.$field.$path.'))';
+        return 'json_unquote(json_extract(' . $field . $path . '))';
     }
 
     /**
@@ -419,6 +416,6 @@ class MySqlGrammar extends Grammar
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($value);
 
-        return 'json_extract('.$field.$path.')';
+        return 'json_extract(' . $field . $path . ')';
     }
 }

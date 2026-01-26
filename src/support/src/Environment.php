@@ -6,7 +6,6 @@ namespace Hypervel\Support;
 
 use BadMethodCallException;
 use Hypervel\Support\Traits\Macroable;
-use Hypervel\Support\Str;
 
 /**
  * @method bool isTesting()

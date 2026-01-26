@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail\Compiler;
 
-use Hypervel\Support\Str;
 use Hyperf\ViewEngine\Blade;
 use Hyperf\ViewEngine\Compiler\ComponentTagCompiler as HyperfComponentTagCompiler;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
+use Hypervel\Support\Str;
 use InvalidArgumentException;
 
 class ComponentTagCompiler extends HyperfComponentTagCompiler

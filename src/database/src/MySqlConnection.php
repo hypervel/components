@@ -12,6 +12,7 @@ use Hypervel\Database\Schema\MySqlBuilder;
 use Hypervel\Database\Schema\MySqlSchemaState;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Str;
+use Override;
 use PDO;
 
 class MySqlConnection extends Connection
@@ -128,7 +129,7 @@ class MySqlConnection extends Connection
     /**
      * Get the schema state for the connection.
      */
-    #[\Override]
+    #[Override]
     public function getSchemaState(?Filesystem $files = null, ?callable $processFactory = null): MySqlSchemaState
     {
         return new MySqlSchemaState($this, $files, $processFactory);
@@ -139,6 +140,6 @@ class MySqlConnection extends Connection
      */
     protected function getDefaultPostProcessor(): MySqlProcessor
     {
-        return new MySqlProcessor;
+        return new MySqlProcessor();
     }
 }

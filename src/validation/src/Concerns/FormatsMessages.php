@@ -6,9 +6,9 @@ namespace Hypervel\Validation\Concerns;
 
 use Closure;
 use Hyperf\HttpMessage\Upload\UploadedFile;
+use Hypervel\Contracts\Validation\Validator;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
-use Hypervel\Contracts\Validation\Validator;
 
 trait FormatsMessages
 {

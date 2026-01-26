@@ -6,8 +6,8 @@ namespace Hypervel\Database\Eloquent\Casts;
 
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
-use Hypervel\Support\Str;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use InvalidArgumentException;
 
 class AsCollection implements Castable
@@ -19,8 +19,7 @@ class AsCollection implements Castable
      */
     public static function castUsing(array $arguments): CastsAttributes
     {
-        return new class($arguments) implements CastsAttributes
-        {
+        return new class($arguments) implements CastsAttributes {
             public function __construct(protected array $arguments)
             {
                 $this->arguments = array_pad(array_values($this->arguments), 2, '');
@@ -81,7 +80,7 @@ class AsCollection implements Castable
      * Specify the collection type for the cast.
      *
      * @param class-string $class
-     * @param array{class-string, string}|class-string|null $map
+     * @param null|array{class-string, string}|class-string $map
      */
     public static function using(string $class, array|string|null $map = null): string
     {

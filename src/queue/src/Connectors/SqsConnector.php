@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Connectors;
 
 use Aws\Sqs\SqsClient;
-use Hypervel\Support\Arr;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\SqsQueue;
+use Hypervel\Support\Arr;
 
 class SqsConnector implements ConnectorInterface
 {

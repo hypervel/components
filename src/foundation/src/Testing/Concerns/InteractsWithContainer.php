@@ -6,9 +6,9 @@ namespace Hypervel\Foundation\Testing\Concerns;
 
 use Closure;
 use Hyperf\Contract\ApplicationInterface;
-use Hypervel\Database\ConnectionResolverInterface;
 use Hyperf\Dispatcher\HttpDispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Foundation\Testing\DatabaseConnectionResolver;
 use Hypervel\Foundation\Testing\Dispatcher\HttpDispatcher as TestingHttpDispatcher;
 use Mockery;

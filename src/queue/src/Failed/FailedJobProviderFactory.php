@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Failed;
 
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
+use Hypervel\Database\ConnectionResolverInterface;
 use Psr\Container\ContainerInterface;
 
 class FailedJobProviderFactory

@@ -6,16 +6,16 @@ namespace Hypervel\Notifications;
 
 use Closure;
 use Hyperf\Context\Context;
-use Hypervel\Support\Str;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Notifications\Dispatcher as DispatcherContract;
+use Hypervel\Contracts\Notifications\Factory as FactoryContract;
 use Hypervel\Notifications\Channels\BroadcastChannel;
 use Hypervel\Notifications\Channels\DatabaseChannel;
 use Hypervel\Notifications\Channels\MailChannel;
 use Hypervel\Notifications\Channels\SlackNotificationRouterChannel;
-use Hypervel\Contracts\Notifications\Dispatcher as DispatcherContract;
-use Hypervel\Contracts\Notifications\Factory as FactoryContract;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Support\Manager;
+use Hypervel\Support\Str;
 use InvalidArgumentException;
 use Psr\EventDispatcher\EventDispatcherInterface;
 

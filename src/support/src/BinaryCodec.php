@@ -11,7 +11,7 @@ use Symfony\Component\Uid\Ulid;
 
 class BinaryCodec
 {
-    /** @var array<string, array{encode: callable(UuidInterface|Ulid|string|null): ?string, decode: callable(?string): ?string}> */
+    /** @var array<string, array{encode: callable(null|string|Ulid|UuidInterface): ?string, decode: callable(?string): ?string}> */
     protected static array $customCodecs = [];
 
     /**
@@ -49,7 +49,7 @@ class BinaryCodec
                 self::isBinary($value) => $value,
                 default => Ulid::fromString($value)->toBinary(),
             },
-            default => throw new InvalidArgumentException("Format [$format] is invalid."),
+            default => throw new InvalidArgumentException("Format [{$format}] is invalid."),
         };
     }
 
@@ -69,7 +69,7 @@ class BinaryCodec
         return match ($format) {
             'uuid' => (self::isBinary($value) ? Uuid::fromBytes($value) : Uuid::fromString($value))->toString(),
             'ulid' => (self::isBinary($value) ? Ulid::fromBinary($value) : Ulid::fromString($value))->toString(),
-            default => throw new InvalidArgumentException("Format [$format] is invalid."),
+            default => throw new InvalidArgumentException("Format [{$format}] is invalid."),
         };
     }
 

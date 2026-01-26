@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Horizon\Feature;
 
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Horizon\AutoScaler;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\RedisQueue;
 use Hypervel\Horizon\Supervisor;
 use Hypervel\Horizon\SupervisorOptions;
 use Hypervel\Horizon\SystemProcessCounter;
-use Hypervel\Contracts\Queue\Factory as QueueFactory;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Mockery;
 

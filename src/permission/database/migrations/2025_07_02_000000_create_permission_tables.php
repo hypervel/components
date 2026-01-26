@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Database\Migrations\Migration;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 
 use function Hypervel\Config\config;

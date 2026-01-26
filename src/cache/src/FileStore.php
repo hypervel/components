@@ -8,8 +8,8 @@ use Exception;
 use Hyperf\Support\Filesystem\Filesystem;
 use Hyperf\Support\Traits\InteractsWithTime;
 use Hypervel\Contracts\Cache\LockProvider;
-use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Cache\LockTimeoutException;
+use Hypervel\Contracts\Cache\Store;
 use Hypervel\Filesystem\LockableFile;
 
 class FileStore implements Store, LockProvider

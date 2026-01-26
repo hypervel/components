@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Prompts;
 
 use Closure;
-use Hypervel\Support\Collection;
 use Hypervel\Prompts\Exceptions\FormRevertedException;
+use Hypervel\Support\Collection;
 
 class FormBuilder
 {

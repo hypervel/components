@@ -29,7 +29,7 @@ abstract class Grammar
     /**
      * Wrap an array of values.
      *
-     * @param  array<Expression|string>  $values
+     * @param array<Expression|string> $values
      * @return array<string>
      */
     public function wrapArray(array $values): array
@@ -59,14 +59,14 @@ abstract class Grammar
         // prefix the last segment as the table name then wrap each segment alone
         // and eventually join them both back together using the dot connector.
         if (str_contains($table, '.')) {
-            $table = substr_replace($table, '.'.$prefix, strrpos($table, '.'), 1);
+            $table = substr_replace($table, '.' . $prefix, strrpos($table, '.'), 1);
 
             return (new Collection(explode('.', $table)))
                 ->map($this->wrapValue(...))
                 ->implode('.');
         }
 
-        return $this->wrapValue($prefix.$table);
+        return $this->wrapValue($prefix . $table);
     }
 
     /**
@@ -102,7 +102,7 @@ abstract class Grammar
     {
         $segments = preg_split('/\s+as\s+/i', $value);
 
-        return $this->wrap($segments[0]).' as '.$this->wrapValue($segments[1]);
+        return $this->wrap($segments[0]) . ' as ' . $this->wrapValue($segments[1]);
     }
 
     /**
@@ -114,13 +114,13 @@ abstract class Grammar
 
         $prefix ??= $this->connection->getTablePrefix();
 
-        return $this->wrapTable($segments[0], $prefix).' as '.$this->wrapValue($prefix.$segments[1]);
+        return $this->wrapTable($segments[0], $prefix) . ' as ' . $this->wrapValue($prefix . $segments[1]);
     }
 
     /**
      * Wrap the given value segments.
      *
-     * @param  list<string>  $segments
+     * @param list<string> $segments
      */
     protected function wrapSegments(array $segments): string
     {
@@ -137,7 +137,7 @@ abstract class Grammar
     protected function wrapValue(string $value): string
     {
         if ($value !== '*') {
-            return '"'.str_replace('"', '""', $value).'"';
+            return '"' . str_replace('"', '""', $value) . '"';
         }
 
         return $value;
@@ -164,7 +164,7 @@ abstract class Grammar
     /**
      * Convert an array of column names into a delimited string.
      *
-     * @param  array<Expression|string>  $columns
+     * @param array<Expression|string> $columns
      */
     public function columnize(array $columns): string
     {
@@ -190,7 +190,7 @@ abstract class Grammar
     /**
      * Quote the given string literal.
      *
-     * @param  string|array<string>  $value
+     * @param array<string>|string $value
      */
     public function quoteString(string|array $value): string
     {
@@ -198,7 +198,7 @@ abstract class Grammar
             return implode(', ', array_map([$this, __FUNCTION__], $value));
         }
 
-        return "'$value'";
+        return "'{$value}'";
     }
 
     /**

@@ -7,6 +7,7 @@ namespace Hypervel\Support\Traits;
 use BadMethodCallException;
 use Closure;
 use ReflectionClass;
+use ReflectionException;
 use ReflectionMethod;
 
 trait Macroable
@@ -29,7 +30,7 @@ trait Macroable
     /**
      * Mix another object into the class.
      *
-     * @throws \ReflectionException
+     * @throws ReflectionException
      */
     public static function mixin(object $mixin, bool $replace = true): void
     {
@@ -63,13 +64,15 @@ trait Macroable
     /**
      * Dynamically handle calls to the class.
      *
-     * @throws \BadMethodCallException
+     * @throws BadMethodCallException
      */
     public static function __callStatic(string $method, array $parameters): mixed
     {
         if (! static::hasMacro($method)) {
             throw new BadMethodCallException(sprintf(
-                'Method %s::%s does not exist.', static::class, $method
+                'Method %s::%s does not exist.',
+                static::class,
+                $method
             ));
         }
 
@@ -85,13 +88,15 @@ trait Macroable
     /**
      * Dynamically handle calls to the class.
      *
-     * @throws \BadMethodCallException
+     * @throws BadMethodCallException
      */
     public function __call(string $method, array $parameters): mixed
     {
         if (! static::hasMacro($method)) {
             throw new BadMethodCallException(sprintf(
-                'Method %s::%s does not exist.', static::class, $method
+                'Method %s::%s does not exist.',
+                static::class,
+                $method
             ));
         }
 

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon\Console;
 
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Console\Command;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Support\Arr;

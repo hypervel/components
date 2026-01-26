@@ -9,8 +9,8 @@ class DatabaseBusy
     /**
      * Create a new event instance.
      *
-     * @param string $connectionName The database connection name.
-     * @param int $connections The number of open connections.
+     * @param string $connectionName the database connection name
+     * @param int $connections the number of open connections
      */
     public function __construct(
         public string $connectionName,

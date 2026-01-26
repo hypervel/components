@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hypervel\Support\Collection;
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Support\Str;
 use Hyperf\ViewEngine\Contract\ViewInterface;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\Traits\FormatsClosure;

@@ -11,6 +11,7 @@ use Hypervel\Database\Schema\MariaDbBuilder;
 use Hypervel\Database\Schema\MariaDbSchemaState;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Str;
+use Override;
 
 class MariaDbConnection extends MySqlConnection
 {
@@ -69,7 +70,7 @@ class MariaDbConnection extends MySqlConnection
     /**
      * Get the schema state for the connection.
      */
-    #[\Override]
+    #[Override]
     public function getSchemaState(?Filesystem $files = null, ?callable $processFactory = null): MariaDbSchemaState
     {
         return new MariaDbSchemaState($this, $files, $processFactory);
@@ -80,6 +81,6 @@ class MariaDbConnection extends MySqlConnection
      */
     protected function getDefaultPostProcessor(): MariaDbProcessor
     {
-        return new MariaDbProcessor;
+        return new MariaDbProcessor();
     }
 }

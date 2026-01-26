@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Listeners;
 
-use Hyperf\Context\ApplicationContext;
 use Hyperf\Framework\Event\BootApplication;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Listeners\RegisterSQLiteConnectionListener;
@@ -12,6 +11,7 @@ use Hypervel\Database\SQLiteConnection;
 use Hypervel\Testbench\TestCase;
 use PDO;
 use ReflectionMethod;
+use ReflectionProperty;
 
 /**
  * @internal
@@ -159,10 +159,9 @@ class RegisterSQLiteConnectionListenerTest extends TestCase
     protected function clearSQLiteResolver(): void
     {
         // Use reflection to clear the resolver
-        $property = new \ReflectionProperty(Connection::class, 'resolvers');
+        $property = new ReflectionProperty(Connection::class, 'resolvers');
         $resolvers = $property->getValue();
         unset($resolvers['sqlite']);
         $property->setValue(null, $resolvers);
     }
-
 }

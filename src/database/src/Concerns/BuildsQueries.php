@@ -33,7 +33,7 @@ trait BuildsQueries
     /**
      * Chunk the results of the query.
      *
-     * @param  callable(\Hypervel\Support\Collection<int, TValue>, int): mixed  $callback
+     * @param callable(\Hypervel\Support\Collection<int, TValue>, int): mixed $callback
      */
     public function chunk(int $count, callable $callback): bool
     {
@@ -72,7 +72,7 @@ trait BuildsQueries
 
             unset($results);
 
-            $page++;
+            ++$page;
         } while ($countResults == $count);
 
         return true;
@@ -83,12 +83,12 @@ trait BuildsQueries
      *
      * @template TReturn
      *
-     * @param  callable(TValue): TReturn  $callback
+     * @param callable(TValue): TReturn $callback
      * @return \Hypervel\Support\Collection<int, TReturn>
      */
     public function chunkMap(callable $callback, int $count = 1000): Collection
     {
-        $collection = new Collection;
+        $collection = new Collection();
 
         $this->chunk($count, function ($items) use ($collection, $callback) {
             $items->each(function ($item) use ($collection, $callback) {
@@ -102,7 +102,7 @@ trait BuildsQueries
     /**
      * Execute a callback over each item while chunking.
      *
-     * @param  callable(TValue, int): mixed  $callback
+     * @param callable(TValue, int): mixed $callback
      */
     public function each(callable $callback, int $count = 1000): bool
     {
@@ -118,7 +118,7 @@ trait BuildsQueries
     /**
      * Chunk the results of a query by comparing IDs.
      *
-     * @param  callable(\Hypervel\Support\Collection<int, TValue>, int): mixed  $callback
+     * @param callable(\Hypervel\Support\Collection<int, TValue>, int): mixed $callback
      */
     public function chunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
     {
@@ -128,7 +128,7 @@ trait BuildsQueries
     /**
      * Chunk the results of a query by comparing IDs in descending order.
      *
-     * @param  callable(\Hypervel\Support\Collection<int, TValue>, int): mixed  $callback
+     * @param callable(\Hypervel\Support\Collection<int, TValue>, int): mixed $callback
      */
     public function chunkByIdDesc(int $count, callable $callback, ?string $column = null, ?string $alias = null): bool
     {
@@ -138,7 +138,7 @@ trait BuildsQueries
     /**
      * Chunk the results of a query by comparing IDs in a given order.
      *
-     * @param  callable(\Hypervel\Support\Collection<int, TValue>, int): mixed  $callback
+     * @param callable(\Hypervel\Support\Collection<int, TValue>, int): mixed $callback
      */
     public function orderedChunkById(int $count, callable $callback, ?string $column = null, ?string $alias = null, bool $descending = false): bool
     {
@@ -198,7 +198,7 @@ trait BuildsQueries
 
             unset($results);
 
-            $page++;
+            ++$page;
         } while ($countResults == $count);
 
         return true;
@@ -207,7 +207,7 @@ trait BuildsQueries
     /**
      * Execute a callback over each item while chunking by ID.
      *
-     * @param  callable(TValue, int): mixed  $callback
+     * @param callable(TValue, int): mixed $callback
      */
     public function eachById(callable $callback, int $count = 1000, ?string $column = null, ?string $alias = null): bool
     {
@@ -317,7 +317,7 @@ trait BuildsQueries
     /**
      * Execute the query and get the first result.
      *
-     * @return TValue|null
+     * @return null|TValue
      */
     public function first(array|string $columns = ['*'])
     {
@@ -356,7 +356,7 @@ trait BuildsQueries
         $count = $result->count();
 
         if ($count === 0) {
-            throw new RecordsNotFoundException;
+            throw new RecordsNotFoundException();
         }
 
         if ($count > 1) {
@@ -492,7 +492,11 @@ trait BuildsQueries
     protected function paginator(Collection $items, int $total, int $perPage, int $currentPage, array $options): LengthAwarePaginator
     {
         return Container::getInstance()->makeWith(LengthAwarePaginator::class, compact(
-            'items', 'total', 'perPage', 'currentPage', 'options'
+            'items',
+            'total',
+            'perPage',
+            'currentPage',
+            'options'
         ));
     }
 
@@ -502,7 +506,10 @@ trait BuildsQueries
     protected function simplePaginator(Collection $items, int $perPage, int $currentPage, array $options): Paginator
     {
         return Container::getInstance()->makeWith(Paginator::class, compact(
-            'items', 'perPage', 'currentPage', 'options'
+            'items',
+            'perPage',
+            'currentPage',
+            'options'
         ));
     }
 
@@ -512,14 +519,17 @@ trait BuildsQueries
     protected function cursorPaginator(Collection $items, int $perPage, ?Cursor $cursor, array $options): CursorPaginator
     {
         return Container::getInstance()->makeWith(CursorPaginator::class, compact(
-            'items', 'perPage', 'cursor', 'options'
+            'items',
+            'perPage',
+            'cursor',
+            'options'
         ));
     }
 
     /**
      * Pass the query to a given callback and then return it.
      *
-     * @param  callable($this): mixed  $callback
+     * @param callable($this): mixed $callback
      * @return $this
      */
     public function tap(callable $callback): static
@@ -534,7 +544,7 @@ trait BuildsQueries
      *
      * @template TReturn
      *
-     * @param  (callable($this): TReturn)  $callback
+     * @param (callable($this): TReturn) $callback
      * @return (TReturn is null|void ? $this : TReturn)
      */
     public function pipe(callable $callback)

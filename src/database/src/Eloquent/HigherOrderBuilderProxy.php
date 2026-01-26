@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent;
 
-use Hypervel\Database\Eloquent\Builder;
-
 /**
  * @mixin Builder
  */

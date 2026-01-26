@@ -16,8 +16,7 @@ class AsArrayObject implements Castable
      */
     public static function castUsing(array $arguments): CastsAttributes
     {
-        return new class implements CastsAttributes
-        {
+        return new class implements CastsAttributes {
             public function get(mixed $model, string $key, mixed $value, array $attributes): ?ArrayObject
             {
                 if (! isset($attributes[$key])) {

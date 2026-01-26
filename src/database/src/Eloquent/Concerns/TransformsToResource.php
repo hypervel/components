@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Concerns;
 
-use Hypervel\Support\Str;
 use Hypervel\Database\Eloquent\Attributes\UseResource;
 use Hypervel\Http\Resources\Json\JsonResource;
+use Hypervel\Support\Str;
 use LogicException;
 use ReflectionClass;
 

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon;
 
-use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
+use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Support\Collection;
 
 class AutoScaler

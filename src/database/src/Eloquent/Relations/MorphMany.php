@@ -38,7 +38,6 @@ class MorphMany extends MorphOneOrMany
         ));
     }
 
-    /** @inheritDoc */
     public function getResults()
     {
         return ! is_null($this->getParentKey())
@@ -46,7 +45,6 @@ class MorphMany extends MorphOneOrMany
             : $this->related->newCollection();
     }
 
-    /** @inheritDoc */
     public function initRelation(array $models, string $relation): array
     {
         foreach ($models as $model) {
@@ -56,13 +54,11 @@ class MorphMany extends MorphOneOrMany
         return $models;
     }
 
-    /** @inheritDoc */
     public function match(array $models, EloquentCollection $results, string $relation): array
     {
         return $this->matchMany($models, $results, $relation);
     }
 
-    /** @inheritDoc */
     public function forceCreate(array $attributes = []): Model
     {
         $attributes[$this->getMorphType()] = $this->morphClass;

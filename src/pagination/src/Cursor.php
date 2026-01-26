@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Pagination;
 
-use Hypervel\Support\Collection;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Support\Collection;
 use UnexpectedValueException;
 
 /** @implements Arrayable<array-key, mixed> */
@@ -14,8 +14,8 @@ class Cursor implements Arrayable
     /**
      * Create a new cursor instance.
      *
-     * @param  array<string, mixed>  $parameters  The parameters associated with the cursor.
-     * @param  bool  $pointsToNextItems  Determine whether the cursor points to the next or previous set of items.
+     * @param array<string, mixed> $parameters the parameters associated with the cursor
+     * @param bool $pointsToNextItems determine whether the cursor points to the next or previous set of items
      */
     public function __construct(
         protected array $parameters,
@@ -40,8 +40,8 @@ class Cursor implements Arrayable
     /**
      * Get the given parameters from the cursor.
      *
-     * @param  array<int, string>  $parameterNames
-     * @return array<int, string|null>
+     * @param array<int, string> $parameterNames
+     * @return array<int, null|string>
      */
     public function parameters(array $parameterNames): array
     {

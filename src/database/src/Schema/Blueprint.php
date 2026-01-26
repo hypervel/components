@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Schema;
 
+use BadMethodCallException;
 use Closure;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Concerns\HasUlids;
@@ -123,14 +124,14 @@ class Blueprint
                 continue;
             }
 
-            $method = 'compile'.ucfirst($command->name);
+            $method = 'compile' . ucfirst($command->name);
 
             if (method_exists($this->grammar, $method) || $this->grammar::hasMacro($method)) {
                 if ($this->hasState()) {
                     $this->state->update($command);
                 }
 
-                if (! is_null($sql = $this->grammar->$method($this, $command))) {
+                if (! is_null($sql = $this->grammar->{$method}($this, $command))) {
                     $statements = array_merge($statements, (array) $sql);
                 }
             }
@@ -142,17 +143,16 @@ class Blueprint
     /**
      * Ensure the commands on the blueprint are valid for the connection type.
      *
-     * @throws \BadMethodCallException
+     * @throws BadMethodCallException
      */
     protected function ensureCommandsAreValid(): void
     {
-        //
     }
 
     /**
      * Get all of the commands matching the given names.
      *
-     * @deprecated Will be removed in a future Laravel version.
+     * @deprecated will be removed in a future Laravel version
      */
     protected function commandsNamed(array $names): Collection
     {
@@ -211,8 +211,8 @@ class Blueprint
                 // If the index has been specified on the given column, but it equals false
                 // and the column is supposed to be changed, we will call the drop index
                 // method with an array of column to drop it by its conventional name.
-                elseif ($column->{$index} === false && $column->change) {
-                    $this->{'drop'.ucfirst($index)}([$column->name]);
+                if ($column->{$index} === false && $column->change) {
+                    $this->{'drop' . ucfirst($index)}([$column->name]);
                     $column->{$index} = null;
 
                     continue 2;
@@ -221,7 +221,7 @@ class Blueprint
                 // If the index has been specified on the given column, and it has a string
                 // value, we'll go ahead and call the index method and pass the name for
                 // the index since the developer specified the explicit name for this.
-                elseif (isset($column->{$index})) {
+                if (isset($column->{$index})) {
                     $indexMethod = $index === 'index' && $column->type === 'vector'
                         ? 'vectorIndex'
                         : $index;
@@ -448,7 +448,7 @@ class Blueprint
     public function dropForeignIdFor(object|string $model, ?string $column = null): Fluent
     {
         if (is_string($model)) {
-            $model = new $model;
+            $model = new $model();
         }
 
         return $this->dropColumn($column ?: $model->getForeignKey());
@@ -460,7 +460,7 @@ class Blueprint
     public function dropConstrainedForeignIdFor(object|string $model, ?string $column = null): Fluent
     {
         if (is_string($model)) {
-            $model = new $model;
+            $model = new $model();
         }
 
         return $this->dropConstrainedForeignId($column ?: $model->getForeignKey());
@@ -814,7 +814,7 @@ class Blueprint
     public function foreignIdFor(object|string $model, ?string $column = null): ForeignIdColumnDefinition
     {
         if (is_string($model)) {
-            $model = new $model;
+            $model = new $model();
         }
 
         $column = $column ?: $model->getForeignKey();
@@ -1319,7 +1319,8 @@ class Blueprint
         $index = $index ?: $this->createIndexName($type, $columns);
 
         return $this->addCommand(
-            $type, compact('index', 'columns', 'algorithm', 'operatorClass')
+            $type,
+            compact('index', 'columns', 'algorithm', 'operatorClass')
         );
     }
 
@@ -1349,11 +1350,11 @@ class Blueprint
 
         if ($this->connection->getConfig('prefix_indexes')) {
             $table = str_contains($this->table, '.')
-                ? substr_replace($this->table, '.'.$this->connection->getTablePrefix(), strrpos($this->table, '.'), 1)
-                : $this->connection->getTablePrefix().$this->table;
+                ? substr_replace($this->table, '.' . $this->connection->getTablePrefix(), strrpos($this->table, '.'), 1)
+                : $this->connection->getTablePrefix() . $this->table;
         }
 
-        $index = strtolower($table.'_'.implode('_', $columns).'_'.$type);
+        $index = strtolower($table . '_' . implode('_', $columns) . '_' . $type);
 
         return str_replace(['-', '.'], '_', $index);
     }
@@ -1373,7 +1374,7 @@ class Blueprint
      *
      * @template TColumnDefinition of \Hypervel\Database\Schema\ColumnDefinition
      *
-     * @param  TColumnDefinition  $definition
+     * @param TColumnDefinition $definition
      * @return TColumnDefinition
      */
     protected function addColumnDefinition(ColumnDefinition $definition): ColumnDefinition
@@ -1480,8 +1481,6 @@ class Blueprint
 
     /**
      * Determine if the blueprint has state.
-     *
-     * @return bool
      */
     private function hasState(): bool
     {
@@ -1511,7 +1510,7 @@ class Blueprint
     /**
      * Get the columns on the blueprint that should be changed.
      *
-     * @deprecated Will be removed in a future Laravel version.
+     * @deprecated will be removed in a future Laravel version
      *
      * @return \Hypervel\Database\Schema\ColumnDefinition[]
      */

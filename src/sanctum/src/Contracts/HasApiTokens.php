@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum\Contracts;
 
-use UnitEnum;
 use DateTimeInterface;
 use Hypervel\Database\Eloquent\Relations\MorphMany;
+use UnitEnum;
 
 interface HasApiTokens
 {

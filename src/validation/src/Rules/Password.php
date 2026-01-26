@@ -6,14 +6,14 @@ namespace Hypervel\Validation\Rules;
 
 use Closure;
 use Hypervel\Context\ApplicationContext;
-use Hypervel\Support\Arr;
-use Hypervel\Support\Facades\Validator;
-use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Contracts\Validation\DataAwareRule;
 use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\UncompromisedVerifier;
 use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Facades\Validator;
+use Hypervel\Support\Traits\Conditionable;
 use InvalidArgumentException;
 
 class Password implements Rule, DataAwareRule, ValidatorAwareRule

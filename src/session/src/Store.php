@@ -5,14 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Closure;
-use Hypervel\Support\Arr;
-use Hypervel\Support\Collection;
 use Hyperf\Context\Context;
-use Hypervel\Support\Traits\Macroable;
-use Hypervel\Support\Str;
 use Hyperf\Support\MessageBag;
 use Hyperf\ViewEngine\ViewErrorBag;
 use Hypervel\Contracts\Session\Session;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
+use Hypervel\Support\Traits\Macroable;
 use SessionHandlerInterface;
 use stdClass;
 use UnitEnum;

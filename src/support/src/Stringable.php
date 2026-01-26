@@ -6,17 +6,22 @@ namespace Hypervel\Support;
 
 use ArrayAccess;
 use Closure;
+use Countable;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Dumpable;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\Tappable;
 use JsonSerializable;
+use RuntimeException;
 use Stringable as BaseStringable;
 
 class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
 {
-    use Conditionable, Dumpable, Macroable, Tappable;
+    use Conditionable;
+    use Dumpable;
+    use Macroable;
+    use Tappable;
 
     /**
      * The underlying string value.
@@ -154,7 +159,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Determine if a given string contains a given substring.
      *
-     * @param string|iterable<string> $needles
+     * @param iterable<string>|string $needles
      */
     public function contains(string|iterable $needles, bool $ignoreCase = false): bool
     {
@@ -174,7 +179,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Determine if a given string doesn't contain a given substring.
      *
-     * @param string|iterable<string> $needles
+     * @param iterable<string>|string $needles
      */
     public function doesntContain(string|iterable $needles, bool $ignoreCase = false): bool
     {
@@ -208,7 +213,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Determine if a given string ends with a given substring.
      *
-     * @param string|iterable<string> $needles
+     * @param iterable<string>|string $needles
      */
     public function endsWith(string|iterable $needles): bool
     {
@@ -218,7 +223,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Determine if a given string doesn't end with a given substring.
      *
-     * @param string|iterable<string> $needles
+     * @param iterable<string>|string $needles
      */
     public function doesntEndWith(string|iterable $needles): bool
     {
@@ -282,7 +287,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Determine if a given string matches a given pattern.
      *
-     * @param string|iterable<string> $pattern
+     * @param iterable<string>|string $pattern
      */
     public function is(string|iterable $pattern, bool $ignoreCase = false): bool
     {
@@ -316,7 +321,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Determine if a given string is a valid UUID.
      *
-     * @param int<0, 8>|'max'|null $version
+     * @param null|'max'|int<0, 8> $version
      */
     public function isUuid(int|string|null $version = null): bool
     {
@@ -414,7 +419,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Determine if a given string matches a given pattern.
      *
-     * @param string|iterable<string> $pattern
+     * @param iterable<string>|string $pattern
      */
     public function isMatch(string|iterable $pattern): bool
     {
@@ -472,7 +477,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Parse a Class@method style callback into class and method.
      *
-     * @return array<int, string|null>
+     * @return array<int, null|string>
      */
     public function parseCallback(?string $default = null): array
     {
@@ -489,30 +494,24 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
 
     /**
      * Get the plural form of an English word.
-     *
-     * @param int|array|\Countable $count
      */
-    public function plural(int|array|\Countable $count = 2, bool $prependCount = false): static
+    public function plural(int|array|Countable $count = 2, bool $prependCount = false): static
     {
         return new static(Str::plural($this->value, $count, $prependCount));
     }
 
     /**
      * Pluralize the last word of an English, studly caps case string.
-     *
-     * @param int|array|\Countable $count
      */
-    public function pluralStudly(int|array|\Countable $count = 2): static
+    public function pluralStudly(int|array|Countable $count = 2): static
     {
         return new static(Str::pluralStudly($this->value, $count));
     }
 
     /**
      * Pluralize the last word of an English, Pascal caps case string.
-     *
-     * @param int|array|\Countable $count
      */
-    public function pluralPascal(int|array|\Countable $count = 2): static
+    public function pluralPascal(int|array|Countable $count = 2): static
     {
         return new static(Str::pluralStudly($this->value, $count));
     }
@@ -536,7 +535,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Remove any occurrence of the given string in the subject.
      *
-     * @param string|iterable<string> $search
+     * @param iterable<string>|string $search
      */
     public function remove(string|iterable $search, bool $caseSensitive = true): static
     {
@@ -562,8 +561,8 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Replace the given value in the given string.
      *
-     * @param string|iterable<string> $search
-     * @param string|iterable<string> $replace
+     * @param iterable<string>|string $search
+     * @param iterable<string>|string $replace
      */
     public function replace(string|iterable $search, string|iterable $replace, bool $caseSensitive = true): static
     {
@@ -615,8 +614,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Replace the patterns matching the given regular expression.
      *
-     * @param array|string $pattern
-     * @param Closure|string[]|string $replace
+     * @param Closure|string|string[] $replace
      */
     public function replaceMatches(array|string $pattern, Closure|array|string $replace, int $limit = -1): static
     {
@@ -654,7 +652,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Strip HTML and PHP tags from the given string.
      *
-     * @param string[]|string|null $allowedTags
+     * @param null|string|string[] $allowedTags
      */
     public function stripTags(array|string|null $allowedTags = null): static
     {
@@ -730,7 +728,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Determine if a given string starts with a given substring.
      *
-     * @param string|iterable<string> $needles
+     * @param iterable<string>|string $needles
      */
     public function startsWith(string|iterable $needles): bool
     {
@@ -740,7 +738,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Determine if a given string doesn't start with a given substring.
      *
-     * @param string|iterable<string> $needles
+     * @param iterable<string>|string $needles
      */
     public function doesntStartWith(string|iterable $needles): bool
     {
@@ -784,7 +782,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
      *
      * @param string|string[] $replace
      * @param int|int[] $offset
-     * @param int|int[]|null $length
+     * @param null|int|int[] $length
      */
     public function substrReplace(string|array $replace, int|array $offset = 0, int|array|null $length = null): static
     {
@@ -872,7 +870,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Execute the given callback if the string contains a given substring.
      *
-     * @param string|iterable<string> $needles
+     * @param iterable<string>|string $needles
      */
     public function whenContains(string|iterable $needles, callable $callback, ?callable $default = null): mixed
     {
@@ -908,7 +906,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Execute the given callback if the string ends with a given substring.
      *
-     * @param string|iterable<string> $needles
+     * @param iterable<string>|string $needles
      */
     public function whenEndsWith(string|iterable $needles, callable $callback, ?callable $default = null): mixed
     {
@@ -918,7 +916,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Execute the given callback if the string doesn't end with a given substring.
      *
-     * @param string|iterable<string> $needles
+     * @param iterable<string>|string $needles
      */
     public function whenDoesntEndWith(string|iterable $needles, callable $callback, ?callable $default = null): mixed
     {
@@ -944,7 +942,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Execute the given callback if the string matches a given pattern.
      *
-     * @param string|iterable<string> $pattern
+     * @param iterable<string>|string $pattern
      */
     public function whenIs(string|iterable $pattern, callable $callback, ?callable $default = null): mixed
     {
@@ -978,7 +976,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Execute the given callback if the string starts with a given substring.
      *
-     * @param string|iterable<string> $needles
+     * @param iterable<string>|string $needles
      */
     public function whenStartsWith(string|iterable $needles, callable $callback, ?callable $default = null): mixed
     {
@@ -988,7 +986,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Execute the given callback if the string doesn't start with a given substring.
      *
-     * @param string|iterable<string> $needles
+     * @param iterable<string>|string $needles
      */
     public function whenDoesntStartWith(string|iterable $needles, callable $callback, ?callable $default = null): mixed
     {
@@ -1072,12 +1070,12 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
      *
      * @return array<int, float>
      *
-     * @throws \RuntimeException
+     * @throws RuntimeException
      */
     public function toEmbeddings(bool $cache = false): array
     {
         // TODO: Implement AI embedding conversion (requires AI service configuration)
-        throw new \RuntimeException('String to vector embedding conversion is not yet implemented.');
+        throw new RuntimeException('String to vector embedding conversion is not yet implemented.');
     }
 
     /**

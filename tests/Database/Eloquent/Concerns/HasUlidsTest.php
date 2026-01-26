@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Eloquent\Concerns;
 
-use Hypervel\Support\Str;
 use Hypervel\Database\Eloquent\Concerns\HasUlids;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 
 /**

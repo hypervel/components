@@ -13,6 +13,7 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use RuntimeException;
+use Throwable;
 
 use function Hypervel\Coroutine\go;
 use function Hypervel\Coroutine\run;
@@ -314,7 +315,7 @@ class ConnectionCoroutineSafetyTest extends IntegrationTestCase
 
         try {
             $connection->select('SELECT * FROM nonexistent_table_xyz');
-        } catch (\Throwable) {
+        } catch (Throwable) {
             // Expected
         }
 

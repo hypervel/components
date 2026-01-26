@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope;
 
-use Hypervel\Support\Collection;
-use Hypervel\Database\Eloquent\Model;
 use Hypervel\Broadcasting\BroadcastEvent;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Event\CallQueuedListener;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Notifications\SendQueuedNotifications;
+use Hypervel\Support\Collection;
 use Illuminate\Events\CallQueuedListener as IlluminateCallQueuedListener;
 use ReflectionClass;
 use ReflectionException;

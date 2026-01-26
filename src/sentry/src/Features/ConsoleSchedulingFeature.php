@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Features;
 
 use DateTimeZone;
-use Hypervel\Contracts\Cache\Factory as Cache;
-use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\Events\ScheduledTaskFailed;
 use Hypervel\Console\Events\ScheduledTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event as SchedulingEvent;
+use Hypervel\Contracts\Cache\Factory as Cache;
+use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Sentry\Traits\TracksPushedScopesAndSpans;
 use Hypervel\Support\Str;

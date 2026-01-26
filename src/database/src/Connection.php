@@ -9,6 +9,7 @@ use Closure;
 use DateTimeInterface;
 use Exception;
 use Generator;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Database\Events\StatementPrepared;
 use Hypervel\Database\Events\TransactionBeginning;
@@ -20,7 +21,6 @@ use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Query\Grammars\Grammar as QueryGrammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
-use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\InteractsWithTime;
@@ -28,29 +28,30 @@ use Hypervel\Support\Traits\Macroable;
 use PDO;
 use PDOStatement;
 use RuntimeException;
+use stdClass;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
 class Connection implements ConnectionInterface
 {
-    use DetectsConcurrencyErrors,
-        DetectsLostConnections,
-        Concerns\ManagesTransactions,
-        InteractsWithTime,
-        Macroable;
+    use DetectsConcurrencyErrors;
+    use DetectsLostConnections;
+    use Concerns\ManagesTransactions;
+    use InteractsWithTime;
+    use Macroable;
 
     /**
      * The active PDO connection.
      *
-     * @var PDO|(Closure(): PDO)|null
+     * @var null|(Closure(): PDO)|PDO
      */
     protected PDO|Closure|null $pdo;
 
     /**
      * The active PDO connection used for reads.
      *
-     * @var PDO|(Closure(): PDO)|null
+     * @var null|(Closure(): PDO)|PDO
      */
     protected PDO|Closure|null $readPdo = null;
 
@@ -82,7 +83,7 @@ class Connection implements ConnectionInterface
     /**
      * The reconnector instance for the connection.
      *
-     * @var (callable(Connection): mixed)|null
+     * @var null|(callable(Connection): mixed)
      */
     protected mixed $reconnector = null;
 
@@ -134,7 +135,7 @@ class Connection implements ConnectionInterface
     /**
      * All of the queries run against the connection.
      *
-     * @var array{query: string, bindings: array, time: float|null}[]
+     * @var array{query: string, bindings: array, time: null|float}[]
      */
     protected array $queryLog = [];
 
@@ -191,7 +192,7 @@ class Connection implements ConnectionInterface
     /**
      * The last retrieved PDO read / write type.
      *
-     * @var 'read'|'write'|null
+     * @var null|'read'|'write'
      */
     protected ?string $latestPdoTypeRetrieved = null;
 
@@ -264,7 +265,7 @@ class Connection implements ConnectionInterface
      */
     protected function getDefaultPostProcessor(): Processor
     {
-        return new Processor;
+        return new Processor();
     }
 
     /**
@@ -282,7 +283,7 @@ class Connection implements ConnectionInterface
     /**
      * Get the schema state for the connection.
      *
-     * @throws \RuntimeException
+     * @throws RuntimeException
      */
     public function getSchemaState(?Filesystem $files = null, ?callable $processFactory = null): Schema\SchemaState
     {
@@ -303,7 +304,9 @@ class Connection implements ConnectionInterface
     public function query(): QueryBuilder
     {
         return new QueryBuilder(
-            $this, $this->getQueryGrammar(), $this->getPostProcessor()
+            $this,
+            $this->getQueryGrammar(),
+            $this->getPostProcessor()
         );
     }
 
@@ -333,7 +336,7 @@ class Connection implements ConnectionInterface
         $record = (array) $record;
 
         if (count($record) > 1) {
-            throw new MultipleColumnsSelectedException;
+            throw new MultipleColumnsSelectedException();
         }
 
         return Arr::first($record);
@@ -403,7 +406,7 @@ class Connection implements ConnectionInterface
     /**
      * Run a select statement against the database and returns a generator.
      *
-     * @return \Generator<int, \stdClass>
+     * @return Generator<int, stdClass>
      */
     public function cursor(string $query, array $bindings = [], bool $useReadPdo = true): Generator
     {
@@ -419,7 +422,8 @@ class Connection implements ConnectionInterface
                 ->prepare($query));
 
             $this->bindValues(
-                $statement, $this->prepareBindings($bindings)
+                $statement,
+                $this->prepareBindings($bindings)
             );
 
             // Next, we'll execute the query against the database and return the statement
@@ -557,8 +561,8 @@ class Connection implements ConnectionInterface
     /**
      * Execute the given callback in "dry run" mode.
      *
-     * @param  (\Closure(\Hypervel\Database\Connection): mixed)  $callback
-     * @return array{query: string, bindings: array, time: float|null}[]
+     * @param (Closure(\Hypervel\Database\Connection): mixed) $callback
+     * @return array{query: string, bindings: array, time: null|float}[]
      */
     public function pretend(Closure $callback): array
     {
@@ -599,7 +603,7 @@ class Connection implements ConnectionInterface
     /**
      * Execute the given callback in "dry run" mode.
      *
-     * @return array{query: string, bindings: array, time: float|null}[]
+     * @return array{query: string, bindings: array, time: null|float}[]
      */
     protected function withFreshQueryLog(Closure $callback): array
     {
@@ -683,7 +687,10 @@ class Connection implements ConnectionInterface
             $result = $this->runQueryCallback($query, $bindings, $callback);
         } catch (QueryException $e) {
             $result = $this->handleQueryException(
-                $e, $query, $bindings, $callback
+                $e,
+                $query,
+                $bindings,
+                $callback
             );
         }
 
@@ -691,7 +698,9 @@ class Connection implements ConnectionInterface
         // then log the query, bindings, and execution time so we will report them on
         // the event that the developer needs them. We'll log time in milliseconds.
         $this->logQuery(
-            $query, $bindings, $this->getElapsedTime($start)
+            $query,
+            $bindings,
+            $this->getElapsedTime($start)
         );
 
         return $result;
@@ -835,7 +844,10 @@ class Connection implements ConnectionInterface
         }
 
         return $this->tryAgainIfCausedByLostConnection(
-            $e, $query, $bindings, $callback
+            $e,
+            $query,
+            $bindings,
+            $callback
         );
     }
 
@@ -1004,23 +1016,25 @@ class Connection implements ConnectionInterface
     {
         if ($value === null) {
             return 'null';
-        } elseif ($binary) {
-            return $this->escapeBinary($value);
-        } elseif (is_int($value) || is_float($value)) {
-            return (string) $value;
-        } elseif (is_bool($value)) {
-            return $this->escapeBool($value);
-        } else {
-            if (str_contains($value, "\00")) {
-                throw new RuntimeException('Strings with null bytes cannot be escaped. Use the binary escape option.');
-            }
-
-            if (preg_match('//u', $value) === false) {
-                throw new RuntimeException('Strings with invalid UTF-8 byte sequences cannot be escaped.');
-            }
-
-            return $this->escapeString($value);
         }
+        if ($binary) {
+            return $this->escapeBinary($value);
+        }
+        if (is_int($value) || is_float($value)) {
+            return (string) $value;
+        }
+        if (is_bool($value)) {
+            return $this->escapeBool($value);
+        }
+        if (str_contains($value, "\00")) {
+            throw new RuntimeException('Strings with null bytes cannot be escaped. Use the binary escape option.');
+        }
+
+        if (preg_match('//u', $value) === false) {
+            throw new RuntimeException('Strings with invalid UTF-8 byte sequences cannot be escaped.');
+        }
+
+        return $this->escapeString($value);
     }
 
     /**
@@ -1070,7 +1084,6 @@ class Connection implements ConnectionInterface
     /**
      * Set the record modification state.
      *
-     * @param  bool  $value
      * @return $this
      */
     public function setRecordModificationState(bool $value)
@@ -1129,8 +1142,8 @@ class Connection implements ConnectionInterface
             return $this->getPdo();
         }
 
-        if ($this->readOnWriteConnection ||
-            ($this->recordsModified && $this->getConfig('sticky'))) {
+        if ($this->readOnWriteConnection
+            || ($this->recordsModified && $this->getConfig('sticky'))) {
             return $this->getPdo();
         }
 
@@ -1206,7 +1219,7 @@ class Connection implements ConnectionInterface
      */
     public function getNameWithReadWriteType(): ?string
     {
-        $name = $this->getName().($this->readWriteType ? '::'.$this->readWriteType : '');
+        $name = $this->getName() . ($this->readWriteType ? '::' . $this->readWriteType : '');
 
         return empty($name) ? null : $name;
     }
@@ -1379,7 +1392,7 @@ class Connection implements ConnectionInterface
     /**
      * Get the connection query log.
      *
-     * @return array{query: string, bindings: array, time: float|null}[]
+     * @return array{query: string, bindings: array, time: null|float}[]
      */
     public function getQueryLog(): array
     {
@@ -1463,7 +1476,7 @@ class Connection implements ConnectionInterface
     /**
      * Retrieve the latest read / write type used.
      *
-     * @return 'read'|'write'|null
+     * @return null|'read'|'write'
      */
     protected function latestReadWriteTypeUsed(): ?string
     {
@@ -1490,9 +1503,6 @@ class Connection implements ConnectionInterface
 
     /**
      * Execute the given callback without table prefix.
-     *
-     * @param  \Closure  $callback
-     * @return mixed
      */
     public function withoutTablePrefix(Closure $callback): mixed
     {
@@ -1509,8 +1519,6 @@ class Connection implements ConnectionInterface
 
     /**
      * Get the server version for the connection.
-     *
-     * @return string
      */
     public function getServerVersion(): string
     {

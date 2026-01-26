@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Listeners;
 
+use Closure;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Framework\Event\BootApplication;
@@ -67,11 +68,11 @@ class RegisterSQLiteConnectionListener implements ListenerInterface
      * ensuring all pooled connections for this in-memory database share
      * the same underlying PDO instance.
      *
-     * @param \Closure|PDO $connection The original PDO or PDO-creating closure
+     * @param Closure|PDO $connection The original PDO or PDO-creating closure
      * @param array $config The connection configuration
-     * @return \Closure A closure that returns the persistent PDO
+     * @return Closure A closure that returns the persistent PDO
      */
-    protected function createPersistentPdoResolver(\Closure|PDO $connection, array $config): \Closure
+    protected function createPersistentPdoResolver(Closure|PDO $connection, array $config): Closure
     {
         return function () use ($connection, $config): PDO {
             /** @var \Hyperf\Contract\ContainerInterface $container */
@@ -79,7 +80,7 @@ class RegisterSQLiteConnectionListener implements ListenerInterface
             $key = 'sqlite.persistent.pdo.' . ($config['name'] ?? 'default');
 
             if (! $container->has($key)) {
-                $pdo = $connection instanceof \Closure ? $connection() : $connection;
+                $pdo = $connection instanceof Closure ? $connection() : $connection;
                 $container->set($key, $pdo);
             }
 

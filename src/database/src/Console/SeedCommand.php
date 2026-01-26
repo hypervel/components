@@ -6,9 +6,9 @@ namespace Hypervel\Database\Console;
 
 use Hyperf\Command\Concerns\Prohibitable;
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Seeder;
 use Symfony\Component\Console\Input\InputArgument;

@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Horizon\Feature;
 
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
+use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\WaitTimeCalculator;
-use Hypervel\Contracts\Queue\Factory as QueueFactory;
-use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Mockery;
 

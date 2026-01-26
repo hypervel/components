@@ -6,8 +6,8 @@ namespace Hypervel\Queue\Failed;
 
 use Closure;
 use DateTimeInterface;
-use Hypervel\Support\Collection;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\Collection;
 use Throwable;
 
 class FileFailedJobProvider implements CountableFailedJobProvider, FailedJobProviderInterface, PrunableFailedJobProvider

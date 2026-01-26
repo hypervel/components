@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation;
 
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
 use Hypervel\Foundation\Bootstrap\RegisterFacades;
@@ -14,7 +15,6 @@ use Hypervel\Support\Environment;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
-use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use stdClass;

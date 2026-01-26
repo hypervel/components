@@ -6,12 +6,12 @@ namespace Hypervel\Tests\Queue;
 
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
-use Hypervel\Support\Str;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Queue\DatabaseQueue;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface;

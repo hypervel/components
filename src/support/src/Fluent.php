@@ -6,12 +6,12 @@ namespace Hypervel\Support;
 
 use ArrayAccess;
 use ArrayIterator;
+use Closure;
 use Hyperf\Conditionable\Conditionable;
-use Hypervel\Support\Traits\Macroable;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
-use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\InteractsWithData;
+use Hypervel\Support\Traits\Macroable;
 use IteratorAggregate;
 use JsonSerializable;
 use Traversable;
@@ -21,7 +21,7 @@ use Traversable;
  * @template TValue
  *
  * @implements \Hypervel\Contracts\Support\Arrayable<TKey, TValue>
- * @implements \ArrayAccess<TKey, TValue>
+ * @implements ArrayAccess<TKey, TValue>
  */
 class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, JsonSerializable
 {
@@ -39,7 +39,7 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     /**
      * Create a new fluent instance.
      *
-     * @param  iterable<TKey, TValue>  $attributes
+     * @param iterable<TKey, TValue> $attributes
      */
     public function __construct(iterable $attributes = [])
     {
@@ -49,7 +49,7 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     /**
      * Create a new fluent instance.
      *
-     * @param  iterable<TKey, TValue>  $attributes
+     * @param iterable<TKey, TValue> $attributes
      */
     public static function make(iterable $attributes = []): static
     {
@@ -61,8 +61,8 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
      *
      * @template TGetDefault
      *
-     * @param  TGetDefault|(\Closure(): TGetDefault)  $default
-     * @return TValue|TGetDefault
+     * @param (Closure(): TGetDefault)|TGetDefault $default
+     * @return TGetDefault|TValue
      */
     public function get(?string $key = null, mixed $default = null): mixed
     {
@@ -82,7 +82,7 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     /**
      * Fill the fluent instance with an array of attributes.
      *
-     * @param  iterable<TKey, TValue>  $attributes
+     * @param iterable<TKey, TValue> $attributes
      */
     public function fill(iterable $attributes): static
     {
@@ -191,8 +191,6 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
 
     /**
      * Determine if the fluent instance is empty.
-     *
-     * @return bool
      */
     public function isEmpty(): bool
     {
@@ -201,8 +199,6 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
 
     /**
      * Determine if the fluent instance is not empty.
-     *
-     * @return bool
      */
     public function isNotEmpty(): bool
     {
@@ -212,7 +208,7 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     /**
      * Determine if the given offset exists.
      *
-     * @param  TKey  $offset
+     * @param TKey $offset
      */
     public function offsetExists(mixed $offset): bool
     {
@@ -222,8 +218,8 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     /**
      * Get the value for a given offset.
      *
-     * @param  TKey  $offset
-     * @return TValue|null
+     * @param TKey $offset
+     * @return null|TValue
      */
     public function offsetGet(mixed $offset): mixed
     {
@@ -233,8 +229,8 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     /**
      * Set the value at the given offset.
      *
-     * @param  TKey  $offset
-     * @param  TValue  $value
+     * @param TKey $offset
+     * @param TValue $value
      */
     public function offsetSet(mixed $offset, mixed $value): void
     {
@@ -244,7 +240,7 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     /**
      * Unset the value at the given offset.
      *
-     * @param  TKey  $offset
+     * @param TKey $offset
      */
     public function offsetUnset(mixed $offset): void
     {
@@ -264,7 +260,7 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     /**
      * Handle dynamic calls to the fluent instance to set attributes.
      *
-     * @param  array<int, TValue>  $parameters
+     * @param array<int, TValue> $parameters
      */
     public function __call(string $method, array $parameters): mixed
     {
@@ -280,7 +276,7 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     /**
      * Dynamically retrieve the value of an attribute.
      *
-     * @return TValue|null
+     * @return null|TValue
      */
     public function __get(string $key): mixed
     {

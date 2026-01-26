@@ -44,7 +44,7 @@ class Sequence implements Countable
     /**
      * Get the next value in the sequence.
      *
-     * @param  array<string, mixed>  $attributes
+     * @param array<string, mixed> $attributes
      */
     public function __invoke(array|Model $attributes = [], ?Model $parent = null): mixed
     {

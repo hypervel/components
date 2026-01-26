@@ -42,7 +42,7 @@ trait GuardsAttributes
     /**
      * Set the fillable attributes for the model.
      *
-     * @param  array<string>  $fillable
+     * @param array<string> $fillable
      */
     public function fillable(array $fillable): static
     {
@@ -54,7 +54,7 @@ trait GuardsAttributes
     /**
      * Merge new fillable attributes with existing fillable attributes on the model.
      *
-     * @param  array<string>  $fillable
+     * @param array<string> $fillable
      */
     public function mergeFillable(array $fillable): static
     {
@@ -78,7 +78,7 @@ trait GuardsAttributes
     /**
      * Set the guarded attributes for the model.
      *
-     * @param  array<string>  $guarded
+     * @param array<string> $guarded
      */
     public function guard(array $guarded): static
     {
@@ -90,7 +90,7 @@ trait GuardsAttributes
     /**
      * Merge new guarded attributes with existing guarded attributes on the model.
      *
-     * @param  array<string>  $guarded
+     * @param array<string> $guarded
      */
     public function mergeGuarded(array $guarded): static
     {
@@ -133,7 +133,7 @@ trait GuardsAttributes
      *
      * @template TReturn
      *
-     * @param  callable(): TReturn  $callback
+     * @param callable(): TReturn $callback
      * @return TReturn
      */
     public static function unguarded(callable $callback): mixed
@@ -175,9 +175,9 @@ trait GuardsAttributes
             return false;
         }
 
-        return empty($this->getFillable()) &&
-            ! str_contains($key, '.') &&
-            ! str_starts_with($key, '_');
+        return empty($this->getFillable())
+            && ! str_contains($key, '.')
+            && ! str_starts_with($key, '_');
     }
 
     /**
@@ -189,9 +189,9 @@ trait GuardsAttributes
             return false;
         }
 
-        return $this->getGuarded() == ['*'] ||
-               ! empty(preg_grep('/^'.preg_quote($key, '/').'$/i', $this->getGuarded())) ||
-               ! $this->isGuardableColumn($key);
+        return $this->getGuarded() == ['*']
+               || ! empty(preg_grep('/^' . preg_quote($key, '/') . '$/i', $this->getGuarded()))
+               || ! $this->isGuardableColumn($key);
     }
 
     /**
@@ -229,7 +229,7 @@ trait GuardsAttributes
     /**
      * Get the fillable attributes of a given array.
      *
-     * @param  array<string, mixed>  $attributes
+     * @param array<string, mixed> $attributes
      * @return array<string, mixed>
      */
     protected function fillableFromArray(array $attributes): array

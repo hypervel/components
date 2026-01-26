@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Process;
 
-use Hypervel\Support\Collection;
 use Hypervel\Process\Contracts\ProcessResult as ProcessResultContract;
 use Hypervel\Process\Exceptions\ProcessFailedException;
+use Hypervel\Support\Collection;
 
 class FakeProcessResult implements ProcessResultContract
 {

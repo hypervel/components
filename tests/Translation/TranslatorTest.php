@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Translation;
 
+use Hypervel\Contracts\Translation\Loader;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
-use Hypervel\Contracts\Translation\Loader;
 use Hypervel\Translation\MessageSelector;
 use Hypervel\Translation\Translator;
 use Mockery as m;

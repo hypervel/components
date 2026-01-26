@@ -15,8 +15,8 @@ trait HasFactory
     /**
      * Get a new factory instance for the model.
      *
-     * @param  (callable(array<string, mixed>, static|null): array<string, mixed>)|array<string, mixed>|int|null  $count
-     * @param  (callable(array<string, mixed>, static|null): array<string, mixed>)|array<string, mixed>  $state
+     * @param null|array<string, mixed>|(callable(array<string, mixed>, null|static): array<string, mixed>)|int $count
+     * @param array<string, mixed>|(callable(array<string, mixed>, null|static): array<string, mixed>) $state
      * @return TFactory
      */
     public static function factory(callable|array|int|null $count = null, callable|array $state = []): Factory
@@ -31,7 +31,7 @@ trait HasFactory
     /**
      * Create a new factory instance for the model.
      *
-     * @return TFactory|null
+     * @return null|TFactory
      */
     protected static function newFactory(): ?Factory
     {
@@ -45,7 +45,7 @@ trait HasFactory
     /**
      * Get the factory from the UseFactory class attribute.
      *
-     * @return TFactory|null
+     * @return null|TFactory
      */
     protected static function getUseFactoryAttribute(): ?Factory
     {

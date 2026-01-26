@@ -6,10 +6,10 @@ namespace Hypervel\Database;
 
 use Closure;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Pool\PoolFactory;
-use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -29,7 +29,6 @@ class DatabaseManager implements ConnectionResolverInterface
     use Macroable {
         __call as macroCall;
     }
-
 
     /**
      * The active connection instances.
@@ -97,8 +96,8 @@ class DatabaseManager implements ConnectionResolverInterface
     public function build(array $config): ConnectionInterface
     {
         throw new RuntimeException(
-            'Dynamic database connections via DB::build() are not supported in Hypervel. ' .
-            'Configure all connections in config/databases.php instead.'
+            'Dynamic database connections via DB::build() are not supported in Hypervel. '
+            . 'Configure all connections in config/databases.php instead.'
         );
     }
 
@@ -107,8 +106,8 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public static function calculateDynamicConnectionName(array $config): string
     {
-        return 'dynamic_'.md5((new Collection($config))->map(function ($value, $key) {
-            return $key.(is_string($value) || is_int($value) ? $value : '');
+        return 'dynamic_' . md5((new Collection($config))->map(function ($value, $key) {
+            return $key . (is_string($value) || is_int($value) ? $value : '');
         })->implode(''));
     }
 
@@ -120,15 +119,15 @@ class DatabaseManager implements ConnectionResolverInterface
     public function connectUsing(string $name, array $config, bool $force = false): ConnectionInterface
     {
         throw new RuntimeException(
-            'Dynamic database connections via DB::connectUsing() are not supported in Hypervel. ' .
-            'Configure all connections in config/databases.php instead.'
+            'Dynamic database connections via DB::connectUsing() are not supported in Hypervel. '
+            . 'Configure all connections in config/databases.php instead.'
         );
     }
 
     /**
      * Parse the connection into an array of the name and read / write type.
      *
-     * @return array{0: string, 1: string|null}
+     * @return array{0: string, 1: null|string}
      */
     protected function parseConnectionName(string $name): array
     {
@@ -176,7 +175,7 @@ class DatabaseManager implements ConnectionResolverInterface
             throw new InvalidArgumentException("Database connection [{$name}] not configured.");
         }
 
-        return (new ConfigurationUrlParser)
+        return (new ConfigurationUrlParser())
             ->parseConfiguration($config);
     }
 
@@ -338,7 +337,8 @@ class DatabaseManager implements ConnectionResolverInterface
         [$database, $type] = $this->parseConnectionName($name);
 
         $fresh = $this->configure(
-            $this->makeConnection($database), $type
+            $this->makeConnection($database),
+            $type
         );
 
         return $this->connections[$name]
@@ -457,6 +457,6 @@ class DatabaseManager implements ConnectionResolverInterface
             return $this->macroCall($method, $parameters);
         }
 
-        return $this->connection()->$method(...$parameters);
+        return $this->connection()->{$method}(...$parameters);
     }
 }

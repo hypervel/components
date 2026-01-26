@@ -27,7 +27,7 @@ class MorphPivot extends Pivot
     /**
      * Set the keys for a save update query.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<static>  $query
+     * @param \Hypervel\Database\Eloquent\Builder<static> $query
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
     protected function setKeysForSaveQuery(Builder $query): Builder
@@ -40,7 +40,7 @@ class MorphPivot extends Pivot
     /**
      * Set the keys for a select query.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<static>  $query
+     * @param \Hypervel\Database\Eloquent\Builder<static> $query
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
     protected function setKeysForSelectQuery(Builder $query): Builder
@@ -97,7 +97,7 @@ class MorphPivot extends Pivot
     /**
      * Set the morph class for the pivot.
      *
-     * @param  class-string  $morphClass
+     * @param class-string $morphClass
      * @return $this
      */
     public function setMorphClass(string $morphClass): static
@@ -118,9 +118,12 @@ class MorphPivot extends Pivot
 
         return sprintf(
             '%s:%s:%s:%s:%s:%s',
-            $this->foreignKey, $this->getAttribute($this->foreignKey),
-            $this->relatedKey, $this->getAttribute($this->relatedKey),
-            $this->morphType, $this->morphClass
+            $this->foreignKey,
+            $this->getAttribute($this->foreignKey),
+            $this->relatedKey,
+            $this->getAttribute($this->relatedKey),
+            $this->morphType,
+            $this->morphClass
         );
     }
 

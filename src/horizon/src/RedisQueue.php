@@ -8,12 +8,12 @@ use DateInterval;
 use DateTimeInterface;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Queue\Job;
 use Hypervel\Horizon\Events\JobDeleted;
 use Hypervel\Horizon\Events\JobPushed;
 use Hypervel\Horizon\Events\JobReleased;
 use Hypervel\Horizon\Events\JobReserved;
 use Hypervel\Horizon\Events\JobsMigrated;
-use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\RedisQueue as BaseQueue;
 use Hypervel\Support\Str;
@@ -106,7 +106,7 @@ class RedisQueue extends BaseQueue
     public function pop(?string $queue = null, int $index = 0): ?Job
     {
         return tap(parent::pop($queue, $index), function ($result) use ($queue) {
-            /** @var RedisJob|null $result */
+            /** @var null|RedisJob $result */
             if ($result) {
                 $this->event($this->getQueue($queue), new JobReserved($result->getReservedJob()));
             }

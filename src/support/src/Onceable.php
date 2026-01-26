@@ -13,23 +13,19 @@ class Onceable
     /**
      * Create a new onceable instance.
      *
-     * @param  string  $hash
-     * @param  object|null  $object
-     * @param  callable  $callable
+     * @param callable $callable
      */
     public function __construct(
         public string $hash,
         public ?object $object,
         public $callable,
     ) {
-        //
     }
 
     /**
      * Tries to create a new onceable instance from the given trace.
      *
-     * @param  array<int, array<string, mixed>>  $trace
-     * @return static|null
+     * @param array<int, array<string, mixed>> $trace
      */
     public static function tryFromTrace(array $trace, callable $callable): ?static
     {
@@ -45,8 +41,8 @@ class Onceable
     /**
      * Computes the object of the onceable from the given trace, if any.
      *
-     * @param  array<int, array<string, mixed>>  $trace
-     * @return object|null
+     * @param array<int, array<string, mixed>> $trace
+     * @return null|object
      */
     protected static function objectFromTrace(array $trace)
     {
@@ -56,8 +52,8 @@ class Onceable
     /**
      * Computes the hash of the onceable from the given trace.
      *
-     * @param  array<int, array<string, mixed>>  $trace
-     * @return string|null
+     * @param array<int, array<string, mixed>> $trace
+     * @return null|string
      */
     protected static function hashFromTrace(array $trace, callable $callable)
     {
@@ -87,7 +83,7 @@ class Onceable
         return hash('xxh128', sprintf(
             '%s@%s%s:%s (%s)',
             $trace[0]['file'],
-            $class ? $class.'@' : '',
+            $class ? $class . '@' : '',
             $trace[1]['function'],
             $trace[0]['line'],
             serialize($uses),

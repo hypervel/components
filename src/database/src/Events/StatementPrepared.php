@@ -12,8 +12,8 @@ class StatementPrepared
     /**
      * Create a new event instance.
      *
-     * @param Connection $connection The database connection instance.
-     * @param PDOStatement $statement The PDO statement.
+     * @param Connection $connection the database connection instance
+     * @param PDOStatement $statement the PDO statement
      */
     public function __construct(
         public Connection $connection,

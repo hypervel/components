@@ -9,17 +9,17 @@ class ModelIdentifier
     /**
      * The class name of the model collection.
      *
-     * @var class-string|null
+     * @var null|class-string
      */
     public ?string $collectionClass = null;
 
     /**
      * Create a new model identifier.
      *
-     * @param  class-string  $class
-     * @param  mixed  $id  This may be either a single ID or an array of IDs.
-     * @param  array  $relations  The relationships loaded on the model.
-     * @param  string|null  $connection  The connection name of the model.
+     * @param class-string $class
+     * @param mixed $id this may be either a single ID or an array of IDs
+     * @param array $relations the relationships loaded on the model
+     * @param null|string $connection the connection name of the model
      */
     public function __construct(
         public string $class,
@@ -32,7 +32,7 @@ class ModelIdentifier
     /**
      * Specify the collection class that should be used when serializing / restoring collections.
      *
-     * @param  class-string|null  $collectionClass
+     * @param null|class-string $collectionClass
      */
     public function useCollectionClass(?string $collectionClass): static
     {

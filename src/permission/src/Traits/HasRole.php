@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Permission\Traits;
 
 use BackedEnum;
-use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Database\Eloquent\Builder;
-use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Permission\Contracts\Role;
 use Hypervel\Permission\PermissionManager;
+use Hypervel\Support\Collection as BaseCollection;
 use InvalidArgumentException;
 use UnitEnum;
 
@@ -150,7 +150,7 @@ trait HasRole
     /**
      * Separate roles array into IDs and names collections.
      *
-     * @param array<int, UnitEnum|int|string> $roles
+     * @param array<int, int|string|UnitEnum> $roles
      */
     private function separateRolesByType(array $roles): array
     {
@@ -173,7 +173,7 @@ trait HasRole
     /**
      * Check if the owner has any of the specified roles.
      *
-     * @param array<int, UnitEnum|int|string> $roles
+     * @param array<int, int|string|UnitEnum> $roles
      */
     public function hasAnyRoles(array $roles): bool
     {
@@ -189,7 +189,7 @@ trait HasRole
     /**
      * Check if the owner has all of the specified roles.
      *
-     * @param array<int, UnitEnum|int|string> $roles
+     * @param array<int, int|string|UnitEnum> $roles
      */
     public function hasAllRoles(array $roles): bool
     {
@@ -205,7 +205,7 @@ trait HasRole
     /**
      * Get only the roles that match the specified roles from the owner's assigned roles.
      *
-     * @param array<int, UnitEnum|int|string> $roles
+     * @param array<int, int|string|UnitEnum> $roles
      */
     public function onlyRoles(array $roles): Collection
     {

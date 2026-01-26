@@ -6,10 +6,11 @@ namespace Hypervel\Database\Schema\Grammars;
 
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Fluent;
+use Override;
 
 class MariaDbGrammar extends MySqlGrammar
 {
-    #[\Override]
+    #[Override]
     public function compileRenameColumn(Blueprint $blueprint, Fluent $command): array|string
     {
         if (version_compare($this->connection->getServerVersion(), '10.5.2', '<')) {
@@ -42,9 +43,10 @@ class MariaDbGrammar extends MySqlGrammar
             $subtype = null;
         }
 
-        return sprintf('%s%s',
+        return sprintf(
+            '%s%s',
             $subtype ?? 'geometry',
-            $column->srid ? ' ref_system_id='.$column->srid : ''
+            $column->srid ? ' ref_system_id=' . $column->srid : ''
         );
     }
 
@@ -55,6 +57,6 @@ class MariaDbGrammar extends MySqlGrammar
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($value);
 
-        return 'json_value('.$field.$path.')';
+        return 'json_value(' . $field . $path . ')';
     }
 }

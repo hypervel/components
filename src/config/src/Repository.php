@@ -6,9 +6,9 @@ namespace Hypervel\Config;
 
 use ArrayAccess;
 use Closure;
+use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Macroable;
-use Hypervel\Contracts\Config\Repository as ConfigContract;
 use InvalidArgumentException;
 
 class Repository implements ArrayAccess, ConfigContract

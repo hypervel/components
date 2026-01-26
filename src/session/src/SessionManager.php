@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Session;
 
-use Hypervel\Database\ConnectionResolverInterface;
 use Hyperf\HttpServer\Request;
 use Hyperf\Support\Filesystem\Filesystem;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
@@ -12,6 +11,7 @@ use Hypervel\Contracts\Cookie\Cookie as CookieContract;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Session\Factory;
 use Hypervel\Contracts\Session\Session as SessionContract;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Support\Manager;
 use SessionHandlerInterface;
 

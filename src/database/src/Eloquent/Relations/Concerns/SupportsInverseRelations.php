@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Relations\Concerns;
 
-use Hypervel\Support\Arr;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Support\Str;
 use Hypervel\Database\Eloquent\RelationNotFoundException;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
 
 trait SupportsInverseRelations
 {

@@ -7,15 +7,16 @@ namespace Hypervel\Database\Pool;
 use Hyperf\Contract\ConnectionInterface as PoolConnectionInterface;
 use Hyperf\Contract\PoolInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hypervel\Pool\Event\ReleaseConnection;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Events\ConnectionEstablished;
-use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Pool\Event\ReleaseConnection;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
+use RuntimeException;
 use Throwable;
 
 /**
@@ -81,7 +82,7 @@ class PooledConnection implements PoolConnectionInterface
         }
 
         if (! $this->reconnect()) {
-            throw new \RuntimeException('Database connection reconnect failed.');
+            throw new RuntimeException('Database connection reconnect failed.');
         }
 
         return $this->connection;

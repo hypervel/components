@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hypervel\Support\Collection;
 use Hyperf\Context\Context;
 use Hypervel\Database\Eloquent\Events\ModelEvent;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Collection;
 use Hypervel\Telescope\FormatModel;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Storage\EntryModel;

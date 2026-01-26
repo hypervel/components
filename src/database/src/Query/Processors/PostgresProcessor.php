@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Database\Query\Processors;
 
 use Hypervel\Database\Query\Builder;
+use Override;
 
 class PostgresProcessor extends Processor
 {
     /**
      * Process an "insert get ID" query.
      */
-    #[\Override]
+    #[Override]
     public function processInsertGetId(Builder $query, string $sql, array $values, ?string $sequence = null): int|string
     {
         $connection = $query->getConnection();
@@ -27,7 +28,7 @@ class PostgresProcessor extends Processor
         return is_numeric($id) ? (int) $id : $id;
     }
 
-    #[\Override]
+    #[Override]
     public function processTypes(array $results): array
     {
         return array_map(function ($result) {
@@ -36,7 +37,7 @@ class PostgresProcessor extends Processor
             return [
                 'name' => $result->name,
                 'schema' => $result->schema,
-                'schema_qualified_name' => $result->schema.'.'.$result->name,
+                'schema_qualified_name' => $result->schema . '.' . $result->name,
                 'implicit' => (bool) $result->implicit,
                 'type' => match (strtolower($result->type)) {
                     'b' => 'base',
@@ -71,7 +72,7 @@ class PostgresProcessor extends Processor
         }, $results);
     }
 
-    #[\Override]
+    #[Override]
     public function processColumns(array $results, string $sql = ''): array
     {
         return array_map(function ($result) {
@@ -100,7 +101,7 @@ class PostgresProcessor extends Processor
         }, $results);
     }
 
-    #[\Override]
+    #[Override]
     public function processIndexes(array $results): array
     {
         return array_map(function ($result) {
@@ -116,7 +117,7 @@ class PostgresProcessor extends Processor
         }, $results);
     }
 
-    #[\Override]
+    #[Override]
     public function processForeignKeys(array $results): array
     {
         return array_map(function ($result) {

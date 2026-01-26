@@ -44,24 +44,27 @@ trait HasGlobalScopes
     /**
      * Register a new global scope on the model.
      *
-     * @param  \Hypervel\Database\Eloquent\Scope|(\Closure(\Hypervel\Database\Eloquent\Builder<static>): mixed)|string  $scope
-     * @param  \Hypervel\Database\Eloquent\Scope|(\Closure(\Hypervel\Database\Eloquent\Builder<static>): mixed)|null  $implementation
+     * @param (Closure(\Hypervel\Database\Eloquent\Builder<static>): mixed)|\Hypervel\Database\Eloquent\Scope|string $scope
+     * @param null|(Closure(\Hypervel\Database\Eloquent\Builder<static>): mixed)|\Hypervel\Database\Eloquent\Scope $implementation
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     public static function addGlobalScope(Scope|Closure|string $scope, Scope|Closure|null $implementation = null): mixed
     {
         if (is_string($scope) && ($implementation instanceof Closure || $implementation instanceof Scope)) {
             return static::$globalScopes[static::class][$scope] = $implementation;
-        } elseif ($scope instanceof Closure) {
+        }
+        if ($scope instanceof Closure) {
             return static::$globalScopes[static::class][spl_object_hash($scope)] = $scope;
-        } elseif ($scope instanceof Scope) {
+        }
+        if ($scope instanceof Scope) {
             return static::$globalScopes[static::class][get_class($scope)] = $scope;
-        } elseif (class_exists($scope) && is_subclass_of($scope, Scope::class)) {
-            return static::$globalScopes[static::class][$scope] = new $scope;
+        }
+        if (class_exists($scope) && is_subclass_of($scope, Scope::class)) {
+            return static::$globalScopes[static::class][$scope] = new $scope();
         }
 
-        throw new InvalidArgumentException('Global scope must be an instance of Closure or Scope or be a class name of a class extending '.Scope::class);
+        throw new InvalidArgumentException('Global scope must be an instance of Closure or Scope or be a class name of a class extending ' . Scope::class);
     }
 
     /**
@@ -89,16 +92,17 @@ trait HasGlobalScopes
     /**
      * Get a global scope registered with the model.
      *
-     * @return \Hypervel\Database\Eloquent\Scope|(\Closure(\Hypervel\Database\Eloquent\Builder<static>): mixed)|null
+     * @return null|(Closure(\Hypervel\Database\Eloquent\Builder<static>): mixed)|\Hypervel\Database\Eloquent\Scope
      */
     public static function getGlobalScope(Scope|string $scope): Scope|Closure|null
     {
         if (is_string($scope)) {
-            return Arr::get(static::$globalScopes, static::class.'.'.$scope);
+            return Arr::get(static::$globalScopes, static::class . '.' . $scope);
         }
 
         return Arr::get(
-            static::$globalScopes, static::class.'.'.get_class($scope)
+            static::$globalScopes,
+            static::class . '.' . get_class($scope)
         );
     }
 

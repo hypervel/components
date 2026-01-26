@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Closure;
-use Hypervel\Support\Collection;
 use Hyperf\Coroutine\Coroutine;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Bus\QueueingDispatcher;
@@ -13,6 +12,7 @@ use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Pipeline;
 use Psr\Container\ContainerInterface;
 use RuntimeException;

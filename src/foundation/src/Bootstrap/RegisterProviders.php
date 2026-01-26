@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Bootstrap;
 
-use Hypervel\Support\Arr;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Providers\FoundationServiceProvider;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Composer;
 use Throwable;
 

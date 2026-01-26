@@ -52,7 +52,7 @@ trait CanBeOneOfMany
      *
      * @return $this
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     public function ofMany(string|array|null $column = 'id', string|Closure|null $aggregate = 'MAX', ?string $relation = null): static
     {
@@ -159,14 +159,14 @@ trait CanBeOneOfMany
     protected function getDefaultOneOfManyJoinAlias(string $relation): string
     {
         return $relation == $this->query->getModel()->getTable()
-            ? $relation.'_of_many'
+            ? $relation . '_of_many'
             : $relation;
     }
 
     /**
      * Get a new query for the related model, grouping the query by the given column, often the foreign key of the relationship.
      *
-     * @param  array<string>|null  $columns
+     * @param null|array<string> $columns
      * @return \Hypervel\Database\Eloquent\Builder<*>
      */
     protected function newOneOfManySubQuery(string|array $groupBy, ?array $columns = null, ?string $aggregate = null): Builder
@@ -189,7 +189,7 @@ trait CanBeOneOfMany
                     $aggregatedColumn = "min({$aggregatedColumn})";
                 }
 
-                $subQuery->selectRaw($aggregatedColumn.' as '.$subQuery->getQuery()->grammar->wrap($column.'_aggregate'));
+                $subQuery->selectRaw($aggregatedColumn . ' as ' . $subQuery->getQuery()->grammar->wrap($column . '_aggregate'));
             }
         }
 
@@ -203,7 +203,7 @@ trait CanBeOneOfMany
      *
      * @param  \Hypervel\Database\Eloquent\Builder<*>  $parent
      * @param  \Hypervel\Database\Eloquent\Builder<*>  $subQuery
-     * @param  array<string>  $on
+     * @param array<string> $on
      */
     protected function addOneOfManyJoinSubQuery(Builder $parent, Builder $subQuery, array $on): void
     {
@@ -212,7 +212,7 @@ trait CanBeOneOfMany
 
             $parent->joinSub($subQuery, $this->relationName, function ($join) use ($on) {
                 foreach ($on as $onColumn) {
-                    $join->on($this->qualifySubSelectColumn($onColumn.'_aggregate'), '=', $this->qualifyRelatedColumn($onColumn));
+                    $join->on($this->qualifySubSelectColumn($onColumn . '_aggregate'), '=', $this->qualifyRelatedColumn($onColumn));
                 }
 
                 $this->addOneOfManyJoinSubQueryConstraints($join);
@@ -259,7 +259,7 @@ trait CanBeOneOfMany
      */
     public function qualifySubSelectColumn(string $column): string
     {
-        return $this->getRelationName().'.'.last(explode('.', $column));
+        return $this->getRelationName() . '.' . last(explode('.', $column));
     }
 
     /**

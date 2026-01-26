@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Exception;
-use Hypervel\Support\Collection;
-use Hypervel\HttpClient\Factory as HttpClientFactory;
-use Hypervel\Support\Stringable;
 use Hypervel\Contracts\Validation\UncompromisedVerifier;
+use Hypervel\HttpClient\Factory as HttpClientFactory;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Stringable;
 
 class NotPwnedVerifier implements UncompromisedVerifier
 {

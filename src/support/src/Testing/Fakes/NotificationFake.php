@@ -6,14 +6,14 @@ namespace Hypervel\Support\Testing\Fakes;
 
 use Closure;
 use Exception;
-use Hypervel\Support\Collection;
-use Hypervel\Support\Traits\Macroable;
-use Hypervel\Support\Str;
-use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Contracts\Notifications\Dispatcher as NotificationDispatcher;
 use Hypervel\Contracts\Notifications\Factory as NotificationFactory;
-use Hypervel\Support\Traits\ReflectsClosures;
 use Hypervel\Contracts\Translation\HasLocalePreference;
+use Hypervel\Notifications\AnonymousNotifiable;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
+use Hypervel\Support\Traits\Macroable;
+use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
 
 class NotificationFake implements Fake, NotificationDispatcher, NotificationFactory

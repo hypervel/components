@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Bus;
 
-use Hypervel\Support\Collection;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\PendingBatch;
+use Hypervel\Support\Collection;
 
 interface QueueingDispatcher extends Dispatcher
 {

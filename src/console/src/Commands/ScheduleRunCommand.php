@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Console\Commands;
 
-use Hypervel\Support\Collection;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Console\Command;
 use Hypervel\Console\Events\ScheduledTaskFailed;
 use Hypervel\Console\Events\ScheduledTaskFinished;
@@ -14,10 +12,12 @@ use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Coroutine\Concurrent;
 use Hypervel\Coroutine\Waiter;
-use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Sleep;
 use Psr\EventDispatcher\EventDispatcherInterface;

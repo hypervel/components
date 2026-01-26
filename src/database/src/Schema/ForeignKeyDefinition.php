@@ -13,7 +13,7 @@ use Hypervel\Support\Fluent;
  * @method ForeignKeyDefinition on(string $table) Specify the referenced table
  * @method ForeignKeyDefinition onDelete(string $action) Add an ON DELETE action
  * @method ForeignKeyDefinition onUpdate(string $action) Add an ON UPDATE action
- * @method ForeignKeyDefinition references(string|array $columns) Specify the referenced column(s)
+ * @method ForeignKeyDefinition references(array|string $columns) Specify the referenced column(s)
  */
 class ForeignKeyDefinition extends Fluent
 {

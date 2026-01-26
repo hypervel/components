@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\Eloquent;
 
 use Hypervel\Database\Connection;
-use Hypervel\Database\Query\Builder as QueryBuilder;
-use Hypervel\Database\Query\Grammars\Grammar;
-use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Query\Builder as QueryBuilder;
+use Hypervel\Database\Query\Grammars\Grammar;
+use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 

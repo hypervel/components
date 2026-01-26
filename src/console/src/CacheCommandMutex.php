@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Console;
 
 use Carbon\CarbonInterval;
+use Hypervel\Console\Contracts\CommandMutex;
 use Hypervel\Contracts\Cache\Factory as Cache;
 use Hypervel\Contracts\Cache\LockProvider;
-use Hypervel\Console\Contracts\CommandMutex;
 use Hypervel\Support\Traits\InteractsWithTime;
 
 class CacheCommandMutex implements CommandMutex
@@ -108,5 +108,4 @@ class CacheCommandMutex implements CommandMutex
 
         return $this;
     }
-
 }

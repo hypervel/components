@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use Exception;
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Sentry\Features\QueueFeature;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Sentry\Breadcrumb;

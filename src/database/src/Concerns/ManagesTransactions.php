@@ -20,14 +20,14 @@ trait ManagesTransactions
      *
      * Execute a Closure within a transaction.
      *
-     * @param  (\Closure(static): TReturn)  $callback
+     * @param (Closure(static): TReturn) $callback
      * @return TReturn
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function transaction(Closure $callback, int $attempts = 1): mixed
     {
-        for ($currentAttempt = 1; $currentAttempt <= $attempts; $currentAttempt++) {
+        for ($currentAttempt = 1; $currentAttempt <= $attempts; ++$currentAttempt) {
             $this->beginTransaction();
 
             // We'll simply execute the given callback within a try / catch block and if we
@@ -42,7 +42,9 @@ trait ManagesTransactions
             // exception back out, and let the developer handle an uncaught exception.
             catch (Throwable $e) {
                 $this->handleTransactionException(
-                    $e, $currentAttempt, $attempts
+                    $e,
+                    $currentAttempt,
+                    $attempts
                 );
 
                 continue;
@@ -59,7 +61,9 @@ trait ManagesTransactions
                 $this->transactions = max(0, $this->transactions - 1);
             } catch (Throwable $e) {
                 $this->handleCommitTransactionException(
-                    $e, $currentAttempt, $attempts
+                    $e,
+                    $currentAttempt,
+                    $attempts
                 );
 
                 continue;
@@ -83,19 +87,20 @@ trait ManagesTransactions
     /**
      * Handle an exception encountered when running a transacted statement.
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
     protected function handleTransactionException(Throwable $e, int $currentAttempt, int $maxAttempts): void
     {
         // On a deadlock, MySQL rolls back the entire transaction so we can't just
         // retry the query. We have to throw this exception all the way out and
         // let the developer handle it in another way. We will decrement too.
-        if ($this->causedByConcurrencyError($e) &&
-            $this->transactions > 1) {
-            $this->transactions--;
+        if ($this->causedByConcurrencyError($e)
+            && $this->transactions > 1) {
+            --$this->transactions;
 
             $this->transactionsManager?->rollback(
-                $this->getName(), $this->transactions
+                $this->getName(),
+                $this->transactions
             );
 
             throw new DeadlockException($e->getMessage(), is_int($e->getCode()) ? $e->getCode() : 0, $e);
@@ -106,8 +111,8 @@ trait ManagesTransactions
         // if we haven't we will return and try this query again in our loop.
         $this->rollBack();
 
-        if ($this->causedByConcurrencyError($e) &&
-            $currentAttempt < $maxAttempts) {
+        if ($this->causedByConcurrencyError($e)
+            && $currentAttempt < $maxAttempts) {
             return;
         }
 
@@ -117,7 +122,7 @@ trait ManagesTransactions
     /**
      * Start a new database transaction.
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function beginTransaction(): void
     {
@@ -127,10 +132,11 @@ trait ManagesTransactions
 
         $this->createTransaction();
 
-        $this->transactions++;
+        ++$this->transactions;
 
         $this->transactionsManager?->begin(
-            $this->getName(), $this->transactions
+            $this->getName(),
+            $this->transactions
         );
 
         $this->fireConnectionEvent('beganTransaction');
@@ -139,7 +145,7 @@ trait ManagesTransactions
     /**
      * Create a transaction within the database.
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
     protected function createTransaction(): void
     {
@@ -159,19 +165,19 @@ trait ManagesTransactions
     /**
      * Create a save point within the database.
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
     protected function createSavepoint(): void
     {
         $this->getPdo()->exec(
-            $this->queryGrammar->compileSavepoint('trans'.($this->transactions + 1))
+            $this->queryGrammar->compileSavepoint('trans' . ($this->transactions + 1))
         );
     }
 
     /**
      * Handle an exception from a transaction beginning.
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
     protected function handleBeginTransactionException(Throwable $e): void
     {
@@ -187,7 +193,7 @@ trait ManagesTransactions
     /**
      * Commit the active database transaction.
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function commit(): void
     {
@@ -202,7 +208,9 @@ trait ManagesTransactions
         ];
 
         $this->transactionsManager?->commit(
-            $this->getName(), $levelBeingCommitted, $this->transactions
+            $this->getName(),
+            $levelBeingCommitted,
+            $this->transactions
         );
 
         $this->fireConnectionEvent('committed');
@@ -211,7 +219,7 @@ trait ManagesTransactions
     /**
      * Handle an exception encountered when committing a transaction.
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
     protected function handleCommitTransactionException(Throwable $e, int $currentAttempt, int $maxAttempts): void
     {
@@ -231,7 +239,7 @@ trait ManagesTransactions
     /**
      * Rollback the active database transaction.
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function rollBack(?int $toLevel = null): void
     {
@@ -258,7 +266,8 @@ trait ManagesTransactions
         $this->transactions = $toLevel;
 
         $this->transactionsManager?->rollback(
-            $this->getName(), $this->transactions
+            $this->getName(),
+            $this->transactions
         );
 
         $this->fireConnectionEvent('rollingBack');
@@ -267,7 +276,7 @@ trait ManagesTransactions
     /**
      * Perform a rollback within the database.
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
     protected function performRollBack(int $toLevel): void
     {
@@ -279,7 +288,7 @@ trait ManagesTransactions
             }
         } elseif ($this->queryGrammar->supportsSavepoints()) {
             $this->getPdo()->exec(
-                $this->queryGrammar->compileSavepointRollBack('trans'.($toLevel + 1))
+                $this->queryGrammar->compileSavepointRollBack('trans' . ($toLevel + 1))
             );
         }
     }
@@ -287,7 +296,7 @@ trait ManagesTransactions
     /**
      * Handle an exception from a rollback.
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
     protected function handleRollBackException(Throwable $e): void
     {
@@ -295,7 +304,8 @@ trait ManagesTransactions
             $this->transactions = 0;
 
             $this->transactionsManager?->rollback(
-                $this->getName(), $this->transactions
+                $this->getName(),
+                $this->transactions
             );
         }
 
@@ -313,7 +323,7 @@ trait ManagesTransactions
     /**
      * Execute the callback after a transaction commits.
      *
-     * @throws \RuntimeException
+     * @throws RuntimeException
      */
     public function afterCommit(callable $callback): void
     {
@@ -329,7 +339,7 @@ trait ManagesTransactions
     /**
      * Execute the callback after a transaction rolls back.
      *
-     * @throws \RuntimeException
+     * @throws RuntimeException
      */
     public function afterRollBack(callable $callback): void
     {

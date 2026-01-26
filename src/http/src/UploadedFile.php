@@ -4,12 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Http;
 
-use Hypervel\Support\Arr;
 use Hyperf\Context\ApplicationContext;
 use Hyperf\HttpMessage\Stream\StandardStream;
 use Hyperf\HttpMessage\Upload\UploadedFile as HyperfUploadedFile;
-use Hypervel\Support\Traits\Macroable;
-use Hypervel\Support\Str;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Http\Exceptions\CannotWriteFileException;
 use Hypervel\Http\Exceptions\ExtensionFileException;
@@ -21,8 +18,11 @@ use Hypervel\Http\Exceptions\NoFileException;
 use Hypervel\Http\Exceptions\NoTmpDirFileException;
 use Hypervel\Http\Exceptions\PartialFileException;
 use Hypervel\Http\Testing\FileFactory;
+use Hypervel\Support\Arr;
 use Hypervel\Support\FileinfoMimeTypeGuesser;
 use Hypervel\Support\MimeTypeExtensionGuesser;
+use Hypervel\Support\Str;
+use Hypervel\Support\Traits\Macroable;
 use Psr\Http\Message\StreamInterface;
 
 class UploadedFile extends HyperfUploadedFile

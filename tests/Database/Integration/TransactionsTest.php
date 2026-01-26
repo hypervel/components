@@ -183,7 +183,7 @@ class TransactionsTest extends IntegrationTestCase
         $attempts = 0;
 
         $this->conn()->transaction(function () use (&$attempts) {
-            $attempts++;
+            ++$attempts;
             TxAccount::create(['name' => 'Attempts Test', 'balance' => 100]);
         }, 3);
 
@@ -195,7 +195,7 @@ class TransactionsTest extends IntegrationTestCase
     {
         $results = [];
 
-        for ($i = 1; $i <= 3; $i++) {
+        for ($i = 1; $i <= 3; ++$i) {
             $result = $this->conn()->transaction(function () use ($i) {
                 return TxAccount::create(['name' => "Batch {$i}", 'balance' => $i * 100]);
             });
@@ -225,7 +225,7 @@ class TransactionsTest extends IntegrationTestCase
     public function testBulkOperationsInTransaction(): void
     {
         $this->conn()->transaction(function () {
-            for ($i = 1; $i <= 100; $i++) {
+            for ($i = 1; $i <= 100; ++$i) {
                 TxAccount::create(['name' => "Bulk Account {$i}", 'balance' => $i]);
             }
         });

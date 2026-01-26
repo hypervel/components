@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
-use Hypervel\Database\ConnectionInterface;
-use Hypervel\Database\Query\Builder;
-use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Auth\GenericUser;
 use Hypervel\Auth\Providers\DatabaseUserProvider;
+use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Hashing\Hasher;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 

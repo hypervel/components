@@ -17,6 +17,7 @@ class DatabaseConnectionResolver extends ConnectionResolver
 
     /**
      * Get a database connection instance.
+     * @param null|mixed $name
      */
     public function connection($name = null): ConnectionInterface
     {

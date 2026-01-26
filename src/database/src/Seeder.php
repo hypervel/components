@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
-use Hypervel\Console\Command;
 use FriendsOfHyperf\PrettyConsole\View\Components\TwoColumnDetail;
+use Hypervel\Console\Command;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Console\Seeds\WithoutModelEvents;
 use Hypervel\Support\Arr;
@@ -33,7 +33,7 @@ abstract class Seeder
     /**
      * Run the given seeder class.
      *
-     * @param  array<int, class-string>|class-string  $class
+     * @param array<int, class-string>|class-string $class
      */
     public function call(array|string $class, bool $silent = false, array $parameters = []): static
     {
@@ -71,7 +71,7 @@ abstract class Seeder
     /**
      * Run the given seeder class.
      *
-     * @param  array<int, class-string>|class-string  $class
+     * @param array<int, class-string>|class-string $class
      */
     public function callWith(array|string $class, array $parameters = []): static
     {
@@ -81,7 +81,7 @@ abstract class Seeder
     /**
      * Silently run the given seeder class.
      *
-     * @param  array<int, class-string>|class-string  $class
+     * @param array<int, class-string>|class-string $class
      */
     public function callSilent(array|string $class, array $parameters = []): static
     {
@@ -91,7 +91,7 @@ abstract class Seeder
     /**
      * Run the given seeder class once.
      *
-     * @param  array<int, class-string>|class-string  $class
+     * @param array<int, class-string>|class-string $class
      */
     public function callOnce(array|string $class, bool $silent = false, array $parameters = []): static
     {

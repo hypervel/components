@@ -11,6 +11,7 @@ use Hypervel\Database\Schema\Grammars\SQLiteGrammar as SQLiteSchemaGrammar;
 use Hypervel\Database\Schema\SQLiteBuilder;
 use Hypervel\Database\Schema\SqliteSchemaState;
 use Hypervel\Filesystem\Filesystem;
+use Override;
 
 class SQLiteConnection extends Connection
 {
@@ -87,7 +88,7 @@ class SQLiteConnection extends Connection
     /**
      * Get the schema state for the connection.
      */
-    #[\Override]
+    #[Override]
     public function getSchemaState(?Filesystem $files = null, ?callable $processFactory = null): SqliteSchemaState
     {
         return new SqliteSchemaState($this, $files, $processFactory);
@@ -98,6 +99,6 @@ class SQLiteConnection extends Connection
      */
     protected function getDefaultPostProcessor(): SQLiteProcessor
     {
-        return new SQLiteProcessor;
+        return new SQLiteProcessor();
     }
 }

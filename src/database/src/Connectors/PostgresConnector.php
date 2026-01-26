@@ -30,7 +30,9 @@ class PostgresConnector extends Connector implements ConnectorInterface
         // using the configuration option specified by the developer. We will also
         // set the default character set on the connections to UTF-8 by default.
         $connection = $this->createConnection(
-            $this->getDsn($config), $config, $this->getOptions($config)
+            $this->getDsn($config),
+            $config,
+            $this->getOptions($config)
         );
 
         $this->configureIsolationLevel($connection, $config);
@@ -82,7 +84,7 @@ class PostgresConnector extends Connector implements ConnectorInterface
         // used to when monitoring the application with pg_stat_activity. So we'll
         // determine if the option has been specified and run a statement if so.
         if (isset($application_name)) {
-            $dsn .= ";application_name='".str_replace("'", "\'", $application_name)."'";
+            $dsn .= ";application_name='" . str_replace("'", "\\'", $application_name) . "'";
         }
 
         return $this->addSslOptions($dsn, $config);
@@ -143,7 +145,7 @@ class PostgresConnector extends Connector implements ConnectorInterface
      */
     protected function quoteSearchPath(array $searchPath): string
     {
-        return count($searchPath) === 1 ? '"'.$searchPath[0].'"' : '"'.implode('", "', $searchPath).'"';
+        return count($searchPath) === 1 ? '"' . $searchPath[0] . '"' : '"' . implode('", "', $searchPath) . '"';
     }
 
     /**

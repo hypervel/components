@@ -8,14 +8,14 @@ use Closure;
 use Hyperf\Context\Context;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
-use Hypervel\Contracts\Auth\Guard;
-use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Auth\Guards\JwtGuard;
 use Hypervel\Auth\Guards\RequestGuard;
 use Hypervel\Auth\Guards\SessionGuard;
-use Hypervel\JWT\JWTManager;
+use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
+use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Session\Session as SessionContract;
+use Hypervel\JWT\JWTManager;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;
 

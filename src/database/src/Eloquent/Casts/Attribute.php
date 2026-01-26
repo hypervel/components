@@ -9,14 +9,14 @@ class Attribute
     /**
      * The attribute accessor.
      *
-     * @var callable|null
+     * @var null|callable
      */
     public mixed $get;
 
     /**
      * The attribute mutator.
      *
-     * @var callable|null
+     * @var null|callable
      */
     public mixed $set;
 

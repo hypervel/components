@@ -33,8 +33,8 @@ abstract class MorphOneOrMany extends HasOneOrMany
     /**
      * Create a new morph one or many relationship instance.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  TDeclaringModel  $parent
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param TDeclaringModel $parent
      */
     public function __construct(Builder $query, Model $parent, string $type, string $id, string $localKey)
     {
@@ -57,7 +57,6 @@ abstract class MorphOneOrMany extends HasOneOrMany
         }
     }
 
-    /** @inheritDoc */
     public function addEagerConstraints(array $models): void
     {
         parent::addEagerConstraints($models);
@@ -81,7 +80,7 @@ abstract class MorphOneOrMany extends HasOneOrMany
     /**
      * Set the foreign ID and type for creating a related model.
      *
-     * @param  TRelatedModel  $model
+     * @param TRelatedModel $model
      */
     protected function setForeignAttributesForCreate(Model $model): void
     {
@@ -116,11 +115,11 @@ abstract class MorphOneOrMany extends HasOneOrMany
         return parent::upsert($values, $uniqueBy, $update);
     }
 
-    /** @inheritDoc */
     public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         return parent::getRelationExistenceQuery($query, $parentQuery, $columns)->where(
-            $query->qualifyColumn($this->getMorphType()), $this->morphClass
+            $query->qualifyColumn($this->getMorphType()),
+            $this->morphClass
         );
     }
 

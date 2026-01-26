@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Event;
 
 use Error;
 use Exception;
-use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Contracts\Event\ShouldDispatchAfterCommit;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
 use Hypervel\Tests\TestCase;

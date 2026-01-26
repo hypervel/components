@@ -8,11 +8,11 @@ use DateInterval;
 use DateTimeInterface;
 use Hyperf\Redis\RedisFactory;
 use Hyperf\Redis\RedisProxy;
-use Hypervel\Support\Str;
 use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Queue\Jobs\RedisJob;
+use Hypervel\Support\Str;
 
 class RedisQueue extends Queue implements QueueContract, ClearableQueue
 {

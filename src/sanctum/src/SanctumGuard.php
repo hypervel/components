@@ -8,14 +8,14 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\Context\RequestContext;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use Hypervel\Support\Traits\Macroable;
+use Hypervel\Auth\Guards\GuardHelpers;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\Guard as GuardContract;
 use Hypervel\Contracts\Auth\UserProvider;
-use Hypervel\Auth\Guards\GuardHelpers;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Traits\Macroable;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 class SanctumGuard implements GuardContract

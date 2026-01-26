@@ -9,18 +9,18 @@ use FriendsOfHyperf\PrettyConsole\View\Components\BulletList;
 use FriendsOfHyperf\PrettyConsole\View\Components\Info;
 use FriendsOfHyperf\PrettyConsole\View\Components\Task;
 use FriendsOfHyperf\PrettyConsole\View\Components\TwoColumnDetail;
+use Hypervel\Contracts\Database\Events\MigrationEvent as MigrationEventContract;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
-use Hypervel\Contracts\Database\Events\MigrationEvent as MigrationEventContract;
 use Hypervel\Database\Events\MigrationEnded;
 use Hypervel\Database\Events\MigrationsEnded;
 use Hypervel\Database\Events\MigrationSkipped;
 use Hypervel\Database\Events\MigrationsStarted;
 use Hypervel\Database\Events\MigrationStarted;
 use Hypervel\Database\Events\NoPendingMigrations;
-use Hypervel\Contracts\Event\Dispatcher;
-use Hypervel\Filesystem\Filesystem;
 use Hypervel\Database\Schema\Grammars\Grammar as SchemaGrammar;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -49,7 +49,7 @@ class Migrator
     /**
      * The paths that have already been required.
      *
-     * @var array<string, \Hypervel\Database\Migrations\Migration|null>
+     * @var array<string, null|\Hypervel\Database\Migrations\Migration>
      */
     protected static array $requiredPathCache = [];
 
@@ -79,8 +79,8 @@ class Migrator
     /**
      * Run the pending migrations at a given path.
      *
-     * @param  string[]|string  $paths
-     * @param  array<string, mixed>  $options
+     * @param string|string[] $paths
+     * @param array<string, mixed> $options
      * @return string[]
      */
     public function run(array|string $paths = [], array $options = []): array
@@ -91,7 +91,8 @@ class Migrator
         $files = $this->getMigrationFiles($paths);
 
         $this->requireFiles($migrations = $this->pendingMigrations(
-            $files, $this->repository->getRan()
+            $files,
+            $this->repository->getRan()
         ));
 
         // Once we have all these migrations that are outstanding we are ready to run
@@ -105,8 +106,8 @@ class Migrator
     /**
      * Get the migration files that have not yet run.
      *
-     * @param  string[]  $files
-     * @param  string[]  $ran
+     * @param string[] $files
+     * @param string[] $ran
      * @return string[]
      */
     protected function pendingMigrations(array $files, array $ran): array
@@ -114,8 +115,9 @@ class Migrator
         $migrationsToSkip = $this->migrationsToSkip();
 
         return (new Collection($files))
-            ->reject(fn ($file) => in_array($migrationName = $this->getMigrationName($file), $ran) ||
-                in_array($migrationName, $migrationsToSkip)
+            ->reject(
+                fn ($file) => in_array($migrationName = $this->getMigrationName($file), $ran)
+                || in_array($migrationName, $migrationsToSkip)
             )
             ->values()
             ->all();
@@ -136,8 +138,8 @@ class Migrator
     /**
      * Run an array of migrations.
      *
-     * @param  string[]  $migrations
-     * @param  array<string, mixed>  $options
+     * @param string[] $migrations
+     * @param array<string, mixed> $options
      */
     public function runPending(array $migrations, array $options = []): void
     {
@@ -172,7 +174,7 @@ class Migrator
             $this->runUp($file, $batch, $pretend);
 
             if ($step) {
-                $batch++;
+                ++$batch;
             }
         }
 
@@ -220,8 +222,8 @@ class Migrator
     /**
      * Rollback the last migration operation.
      *
-     * @param  string[]|string  $paths
-     * @param  array<string, mixed>  $options
+     * @param string|string[] $paths
+     * @param array<string, mixed> $options
      * @return string[]
      */
     public function rollback(array|string $paths = [], array $options = []): array
@@ -247,7 +249,7 @@ class Migrator
     /**
      * Get the migrations for a rollback operation.
      *
-     * @param  array<string, mixed>  $options
+     * @param array<string, mixed> $options
      */
     protected function getMigrationsForRollback(array $options): array
     {
@@ -265,8 +267,8 @@ class Migrator
     /**
      * Rollback the given migrations.
      *
-     * @param  string[]|string  $paths
-     * @param  array<string, mixed>  $options
+     * @param string|string[] $paths
+     * @param array<string, mixed> $options
      * @return string[]
      */
     protected function rollbackMigrations(array $migrations, array|string $paths, array $options): array
@@ -294,7 +296,8 @@ class Migrator
             $rolledBack[] = $file;
 
             $this->runDown(
-                $file, $migration,
+                $file,
+                $migration,
                 $options['pretend'] ?? false
             );
         }
@@ -307,7 +310,7 @@ class Migrator
     /**
      * Rolls all of the currently applied migrations back.
      *
-     * @param  string[]|string  $paths
+     * @param string|string[] $paths
      */
     public function reset(array|string $paths = [], bool $pretend = false): array
     {
@@ -330,8 +333,8 @@ class Migrator
     /**
      * Reset the given migrations.
      *
-     * @param  string[]  $migrations
-     * @param  string[]  $paths
+     * @param string[] $migrations
+     * @param string[] $paths
      */
     protected function resetMigrations(array $migrations, array $paths, bool $pretend = false): array
     {
@@ -341,7 +344,9 @@ class Migrator
         $migrations = (new Collection($migrations))->map(fn ($m) => (object) ['migration' => $m])->all();
 
         return $this->rollbackMigrations(
-            $migrations, $paths, compact('pretend')
+            $migrations,
+            $paths,
+            compact('pretend')
         );
     }
 
@@ -459,7 +464,7 @@ class Migrator
     {
         $class = $this->getMigrationClass($file);
 
-        return new $class;
+        return new $class();
     }
 
     /**
@@ -470,7 +475,7 @@ class Migrator
         $class = $this->getMigrationClass($this->getMigrationName($path));
 
         if (class_exists($class) && realpath($path) == (new ReflectionClass($class))->getFileName()) {
-            return new $class;
+            return new $class();
         }
 
         $migration = static::$requiredPathCache[$path] ??= $this->files->getRequire($path);
@@ -481,14 +486,11 @@ class Migrator
                 : clone $migration;
         }
 
-        return new $class;
+        return new $class();
     }
 
     /**
      * Generate a migration class name based on the migration file name.
-     *
-     * @param  string  $migrationName
-     * @return string
      */
     protected function getMigrationClass(string $migrationName): string
     {
@@ -498,13 +500,12 @@ class Migrator
     /**
      * Get all of the migration files in a given path.
      *
-     * @param  string|array  $paths
      * @return array<string, string>
      */
     public function getMigrationFiles(array|string $paths): array
     {
         return (new Collection($paths))
-            ->flatMap(fn ($path) => str_ends_with($path, '.php') ? [$path] : $this->files->glob($path.'/*_*.php'))
+            ->flatMap(fn ($path) => str_ends_with($path, '.php') ? [$path] : $this->files->glob($path . '/*_*.php'))
             ->filter()
             ->values()
             ->keyBy(fn ($file) => $this->getMigrationName($file))
@@ -515,7 +516,7 @@ class Migrator
     /**
      * Require in all the migration files in a given path.
      *
-     * @param  string[]  $files
+     * @param string[] $files
      */
     public function requireFiles(array $files): void
     {
@@ -553,7 +554,7 @@ class Migrator
     /**
      * Set the pending migrations to skip.
      *
-     * @param  list<string>  $migrations
+     * @param list<string> $migrations
      */
     public static function withoutMigrations(array $migrations): void
     {
@@ -609,10 +610,9 @@ class Migrator
                 $this->resolver,
                 $connection ?: $this->connection
             );
-        } else {
-            // @phpstan-ignore return.type (resolver returns ConnectionInterface but concrete Connection in practice)
-            return $this->resolver->connection($connection ?: $this->connection);
         }
+        // @phpstan-ignore return.type (resolver returns ConnectionInterface but concrete Connection in practice)
+        return $this->resolver->connection($connection ?: $this->connection);
     }
 
     /**
@@ -690,7 +690,7 @@ class Migrator
     /**
      * Write to the console's output.
      *
-     * @param  class-string  $component
+     * @param class-string $component
      */
     protected function write(string $component, mixed ...$arguments): void
     {

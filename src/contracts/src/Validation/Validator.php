@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\Validation;
 
 use Hypervel\Contracts\Support\MessageProvider;
-use Hypervel\Support\MessageBag;
 use Hypervel\Contracts\Translation\Translator;
+use Hypervel\Support\MessageBag;
 use Hypervel\Validation\ValidationException;
 
 interface Validator extends MessageProvider

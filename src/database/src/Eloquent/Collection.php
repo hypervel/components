@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent;
 
-use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
+use Closure;
 use Hypervel\Contracts\Queue\QueueableCollection;
-use Hypervel\Contracts\Queue\QueueableEntity;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
-use Hypervel\Contracts\Support\Arrayable;
 use LogicException;
+use Override;
 
 /**
  * @template TKey of array-key
@@ -27,9 +28,9 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @template TFindDefault
      *
-     * @param  mixed  $key
-     * @param  TFindDefault  $default
-     * @return ($key is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>) ? static : TModel|TFindDefault)
+     * @param mixed $key
+     * @param TFindDefault $default
+     * @return ($key is (array<mixed>|\Hypervel\Contracts\Support\Arrayable<array-key, mixed>) ? static : TFindDefault|TModel)
      */
     public function find($key, $default = null)
     {
@@ -43,7 +44,7 @@ class Collection extends BaseCollection implements QueueableCollection
 
         if (is_array($key)) {
             if ($this->isEmpty()) {
-                return new static;
+                return new static();
             }
 
             return $this->whereIn($this->first()->getKeyName(), $key);
@@ -55,7 +56,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Find a model in the collection by key or throw an exception.
      *
-     * @param  mixed  $key
+     * @param mixed $key
      * @return TModel
      *
      * @throws \Hypervel\Database\Eloquent\ModelNotFoundException
@@ -66,11 +67,12 @@ class Collection extends BaseCollection implements QueueableCollection
 
         if (is_array($key) && count($result) === count(array_unique($key))) {
             return $result;
-        } elseif (! is_array($key) && ! is_null($result)) {
+        }
+        if (! is_array($key) && ! is_null($result)) {
             return $result;
         }
 
-        $exception = new ModelNotFoundException;
+        $exception = new ModelNotFoundException();
 
         if (! $model = head($this->items)) {
             throw $exception;
@@ -108,8 +110,8 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of aggregations over relationship's column onto the collection.
      *
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string  $relations
-     * @param  string  $column
-     * @param  string|null  $function
+     * @param string $column
+     * @param null|string $function
      * @return $this
      */
     public function loadAggregate($relations, $column, $function = null)
@@ -157,7 +159,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of relationship's max column values onto the collection.
      *
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string  $relations
-     * @param  string  $column
+     * @param string $column
      * @return $this
      */
     public function loadMax($relations, $column)
@@ -169,7 +171,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of relationship's min column values onto the collection.
      *
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string  $relations
-     * @param  string  $column
+     * @param string $column
      * @return $this
      */
     public function loadMin($relations, $column)
@@ -181,7 +183,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of relationship's column summations onto the collection.
      *
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string  $relations
-     * @param  string  $column
+     * @param string $column
      * @return $this
      */
     public function loadSum($relations, $column)
@@ -193,7 +195,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * Load a set of relationship's average column values onto the collection.
      *
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>|string  $relations
-     * @param  string  $column
+     * @param string $column
      * @return $this
      */
     public function loadAvg($relations, $column)
@@ -231,7 +233,7 @@ class Collection extends BaseCollection implements QueueableCollection
                 $segments = explode('.', explode(':', $key)[0]);
 
                 if (str_contains($key, ':')) {
-                    $segments[count($segments) - 1] .= ':'.explode(':', $key)[1];
+                    $segments[count($segments) - 1] .= ':' . explode(':', $key)[1];
                 }
 
                 $path = [];
@@ -254,7 +256,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a relationship path for models of the given type if it is not already eager loaded.
      *
-     * @param  array<int, array{string, class-string}>  $tuples
+     * @param array<int, array{string, class-string}> $tuples
      */
     public function loadMissingRelationshipChain(array $tuples): void
     {
@@ -262,9 +264,9 @@ class Collection extends BaseCollection implements QueueableCollection
 
         $this->filter(function ($model) use ($relation, $class) {
             // @phpstan-ignore function.impossibleType (collection may contain nulls at runtime)
-            return ! is_null($model) &&
-                ! $model->relationLoaded($relation) &&
-                $model::class === $class;
+            return ! is_null($model)
+                && ! $model->relationLoaded($relation)
+                && $model::class === $class;
         })->load($relation);
 
         if (empty($tuples)) {
@@ -283,9 +285,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a relationship path if it is not already eager loaded.
      *
-     * @param  \Hypervel\Database\Eloquent\Collection<int, TModel>  $models
-     * @param  array  $path
-     * @return void
+     * @param \Hypervel\Database\Eloquent\Collection<int, TModel> $models
      */
     protected function loadMissingRelation(self $models, array $path)
     {
@@ -316,7 +316,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationships onto the mixed relationship collection.
      *
-     * @param  string  $relation
+     * @param string $relation
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>  $relations
      * @return $this
      */
@@ -333,7 +333,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Load a set of relationship counts onto the mixed relationship collection.
      *
-     * @param  string  $relation
+     * @param string $relation
      * @param  array<array-key, array|(callable(\Hypervel\Database\Eloquent\Relations\Relation<*, *, *>): mixed)|string>  $relations
      * @return $this
      */
@@ -350,9 +350,9 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Determine if a key exists in the collection.
      *
-     * @param  (callable(TModel, TKey): bool)|TModel|string|int  $key
-     * @param  mixed  $operator
-     * @param  mixed  $value
+     * @param (callable(TModel, TKey): bool)|int|string|TModel $key
+     * @param mixed $operator
+     * @param mixed $value
      */
     public function contains($key, $operator = null, $value = null): bool
     {
@@ -370,9 +370,9 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Determine if a key does not exist in the collection.
      *
-     * @param  (callable(TModel, TKey): bool)|TModel|string|int  $key
-     * @param  mixed  $operator
-     * @param  mixed  $value
+     * @param (callable(TModel, TKey): bool)|int|string|TModel $key
+     * @param mixed $operator
+     * @param mixed $value
      */
     public function doesntContain($key, $operator = null, $value = null): bool
     {
@@ -392,8 +392,8 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Merge the collection with the given items.
      *
-     * @param  iterable<array-key, TModel>  $items
-     * @return static
+     * @param iterable<array-key, TModel> $items
+     * @return static<int, TModel>
      */
     public function merge($items): static
     {
@@ -411,7 +411,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @template TMapValue
      *
-     * @param  callable(TModel, TKey): TMapValue  $callback
+     * @param callable(TModel, TKey): TMapValue $callback
      * @return \Hypervel\Support\Collection<TKey, TMapValue>|static<TKey, TMapValue>
      */
     public function map(callable $callback)
@@ -430,7 +430,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @template TMapWithKeysKey of array-key
      * @template TMapWithKeysValue
      *
-     * @param  callable(TModel, TKey): array<TMapWithKeysKey, TMapWithKeysValue>  $callback
+     * @param callable(TModel, TKey): array<TMapWithKeysKey, TMapWithKeysValue> $callback
      * @return \Hypervel\Support\Collection<TMapWithKeysKey, TMapWithKeysValue>|static<TMapWithKeysKey, TMapWithKeysValue>
      */
     public function mapWithKeys(callable $callback)
@@ -444,13 +444,13 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Reload a fresh model instance from the database for all the entities.
      *
-     * @param  array<array-key, string>|string  $with
+     * @param array<array-key, string>|string $with
      * @return static
      */
     public function fresh($with = [])
     {
         if ($this->isEmpty()) {
-            return new static;
+            return new static();
         }
 
         $model = $this->first();
@@ -470,11 +470,11 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Diff the collection with the given items.
      *
-     * @param  iterable<array-key, TModel>  $items
+     * @param iterable<array-key, TModel> $items
      */
     public function diff($items): static
     {
-        $diff = new static;
+        $diff = new static();
 
         $dictionary = $this->getDictionary($items);
 
@@ -491,12 +491,11 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Intersect the collection with the given items.
      *
-     * @param  iterable<array-key, TModel>  $items
-     * @return static
+     * @param iterable<array-key, TModel> $items
      */
     public function intersect(mixed $items): static
     {
-        $intersect = new static;
+        $intersect = new static();
 
         if (empty($items)) {
             return $intersect;
@@ -517,9 +516,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Return only unique items from the collection.
      *
-     * @param  (callable(TModel, TKey): mixed)|string|null  $key
-     * @param  bool  $strict
-     * @return static
+     * @param null|(callable(TModel, TKey): mixed)|string $key
      */
     public function unique(mixed $key = null, bool $strict = false): static
     {
@@ -533,8 +530,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Returns only the models from the collection with the specified keys.
      *
-     * @param  array<array-key, mixed>|null  $keys
-     * @return static
+     * @param null|array<array-key, mixed> $keys
      */
     public function only($keys): static
     {
@@ -552,7 +548,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Returns all models in the collection except the models with specified keys.
      *
-     * @param  array<array-key, mixed>|null  $keys
+     * @param null|array<array-key, mixed> $keys
      */
     public function except($keys): static
     {
@@ -570,7 +566,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Make the given, typically visible, attributes hidden across the entire collection.
      *
-     * @param  array<array-key, string>|string  $attributes
+     * @param array<array-key, string>|string $attributes
      * @return $this
      */
     public function makeHidden($attributes)
@@ -582,7 +578,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Merge the given, typically visible, attributes hidden across the entire collection.
      *
-     * @param  array<array-key, string>|string  $attributes
+     * @param array<array-key, string>|string $attributes
      * @return $this
      */
     public function mergeHidden($attributes)
@@ -594,7 +590,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Set the hidden attributes across the entire collection.
      *
-     * @param  array<int, string>  $hidden
+     * @param array<int, string> $hidden
      * @return $this
      */
     public function setHidden($hidden)
@@ -606,7 +602,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Make the given, typically hidden, attributes visible across the entire collection.
      *
-     * @param  array<array-key, string>|string  $attributes
+     * @param array<array-key, string>|string $attributes
      * @return $this
      */
     public function makeVisible($attributes)
@@ -618,7 +614,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Merge the given, typically hidden, attributes visible across the entire collection.
      *
-     * @param  array<array-key, string>|string  $attributes
+     * @param array<array-key, string>|string $attributes
      * @return $this
      */
     public function mergeVisible($attributes)
@@ -630,7 +626,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Set the visible attributes across the entire collection.
      *
-     * @param  array<int, string>  $visible
+     * @param array<int, string> $visible
      * @return $this
      */
     public function setVisible($visible)
@@ -642,7 +638,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Append an attribute across the entire collection.
      *
-     * @param  array<array-key, string>|string  $attributes
+     * @param array<array-key, string>|string $attributes
      * @return $this
      */
     public function append($attributes)
@@ -654,7 +650,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Sets the appends on every element of the collection, overwriting the existing appends for each.
      *
-     * @param  array<array-key, mixed>  $appends
+     * @param array<array-key, mixed> $appends
      * @return $this
      */
     public function setAppends(array $appends)
@@ -676,7 +672,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Get a dictionary keyed by primary keys.
      *
-     * @param  iterable<array-key, TModel>|null  $items
+     * @param null|iterable<array-key, TModel> $items
      * @return array<array-key, TModel>
      */
     public function getDictionary($items = null)
@@ -697,80 +693,66 @@ class Collection extends BaseCollection implements QueueableCollection
      */
 
     /**
-     * {@inheritDoc}
-     *
      * @return \Hypervel\Support\Collection<array-key, int>
      */
-    #[\Override]
+    #[Override]
     public function countBy(callable|string|null $countBy = null)
     {
         return $this->toBase()->countBy($countBy);
     }
 
     /**
-     * {@inheritDoc}
-     *
      * @return \Hypervel\Support\Collection<int, mixed>
      */
-    #[\Override]
+    #[Override]
     public function collapse()
     {
         return $this->toBase()->collapse();
     }
 
     /**
-     * {@inheritDoc}
-     *
      * @return \Hypervel\Support\Collection<int, mixed>
      */
-    #[\Override]
+    #[Override]
     public function flatten(int|float $depth = INF)
     {
         return $this->toBase()->flatten($depth);
     }
 
     /**
-     * {@inheritDoc}
-     *
      * @return \Hypervel\Support\Collection<TModel, TKey>
      */
-    #[\Override]
+    #[Override]
     public function flip()
     {
         return $this->toBase()->flip();
     }
 
     /**
-     * {@inheritDoc}
-     *
      * @return \Hypervel\Support\Collection<int, TKey>
      */
-    #[\Override]
+    #[Override]
     public function keys()
     {
         return $this->toBase()->keys();
     }
 
     /**
-     * {@inheritDoc}
-     *
      * @template TPadValue
      *
      * @return \Hypervel\Support\Collection<int, TModel|TPadValue>
      */
-    #[\Override]
+    #[Override]
     public function pad(int $size, mixed $value)
     {
         return $this->toBase()->pad($size, $value);
     }
 
     /**
-     * {@inheritDoc}
-     *
      * @return \Hypervel\Support\Collection<int<0, 1>, static<TKey, TModel>>
      * @phpstan-ignore return.phpDocType (partition returns Collection of collections)
      */
-    #[\Override]
+    #[Override]
     public function partition(mixed $key, mixed $operator = null, mixed $value = null)
     {
         // @phpstan-ignore return.type (parent returns Hyperf Collection, we convert to Support Collection)
@@ -778,24 +760,20 @@ class Collection extends BaseCollection implements QueueableCollection
     }
 
     /**
-     * {@inheritDoc}
-     *
      * @return \Hypervel\Support\Collection<array-key, mixed>
      */
-    #[\Override]
-    public function pluck(\Closure|string|int|array|null $value, \Closure|string|null $key = null)
+    #[Override]
+    public function pluck(Closure|string|int|array|null $value, Closure|string|null $key = null)
     {
         return $this->toBase()->pluck($value, $key);
     }
 
     /**
-     * {@inheritDoc}
-     *
      * @template TZipValue
      *
      * @return \Hypervel\Support\Collection<int, \Hypervel\Support\Collection<int, TModel|TZipValue>>
      */
-    #[\Override]
+    #[Override]
     public function zip(\Hypervel\Contracts\Support\Arrayable|iterable ...$items)
     {
         return $this->toBase()->zip(...$items);
@@ -832,9 +810,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Get the type of the entities being queued.
      *
-     * @return string|null
-     *
-     * @throws \LogicException
+     * @throws LogicException
      */
     public function getQueueableClass(): ?string
     {
@@ -856,7 +832,7 @@ class Collection extends BaseCollection implements QueueableCollection
     /**
      * Get the queueable class name for the given model.
      *
-     * @param  \Hypervel\Database\Eloquent\Model  $model
+     * @param \Hypervel\Database\Eloquent\Model $model
      * @return string
      */
     protected function getQueueableModelClass($model)
@@ -896,19 +872,17 @@ class Collection extends BaseCollection implements QueueableCollection
 
         if (count($relations) === 0 || $relations === [[]]) {
             return [];
-        } elseif (count($relations) === 1) {
-            return reset($relations);
-        } else {
-            return array_intersect(...array_values($relations));
         }
+        if (count($relations) === 1) {
+            return reset($relations);
+        }
+        return array_intersect(...array_values($relations));
     }
 
     /**
      * Get the connection of the entities being queued.
      *
-     * @return string|null
-     *
-     * @throws \LogicException
+     * @throws LogicException
      */
     public function getQueueableConnection(): ?string
     {
@@ -932,7 +906,7 @@ class Collection extends BaseCollection implements QueueableCollection
      *
      * @return \Hypervel\Database\Eloquent\Builder<TModel>
      *
-     * @throws \LogicException
+     * @throws LogicException
      */
     public function toQuery()
     {

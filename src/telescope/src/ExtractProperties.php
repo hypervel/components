@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope;
 
-use Hypervel\Support\Collection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Collection;
 use ReflectionClass;
 
 class ExtractProperties

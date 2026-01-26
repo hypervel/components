@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Validation;
 
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Model;
-use UnitEnum;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Translation\ArrayLoader;
@@ -14,6 +13,7 @@ use Hypervel\Translation\Translator;
 use Hypervel\Validation\DatabasePresenceVerifier;
 use Hypervel\Validation\Rules\Unique;
 use Hypervel\Validation\Validator;
+use UnitEnum;
 
 /**
  * @internal

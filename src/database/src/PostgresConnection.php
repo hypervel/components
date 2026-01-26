@@ -11,6 +11,7 @@ use Hypervel\Database\Schema\Grammars\PostgresGrammar as PostgresSchemaGrammar;
 use Hypervel\Database\Schema\PostgresBuilder;
 use Hypervel\Database\Schema\PostgresSchemaState;
 use Hypervel\Filesystem\Filesystem;
+use Override;
 
 class PostgresConnection extends Connection
 {
@@ -29,7 +30,7 @@ class PostgresConnection extends Connection
     {
         $hex = bin2hex($value);
 
-        return "'\x{$hex}'::bytea";
+        return "'\\x{$hex}'::bytea";
     }
 
     /**
@@ -45,7 +46,7 @@ class PostgresConnection extends Connection
      */
     protected function isUniqueConstraintError(Exception $exception): bool
     {
-        return '23505' === $exception->getCode();
+        return $exception->getCode() === '23505';
     }
 
     /**
@@ -79,7 +80,7 @@ class PostgresConnection extends Connection
     /**
      * Get the schema state for the connection.
      */
-    #[\Override]
+    #[Override]
     public function getSchemaState(?Filesystem $files = null, ?callable $processFactory = null): PostgresSchemaState
     {
         return new PostgresSchemaState($this, $files, $processFactory);
@@ -90,6 +91,6 @@ class PostgresConnection extends Connection
      */
     protected function getDefaultPostProcessor(): PostgresProcessor
     {
-        return new PostgresProcessor;
+        return new PostgresProcessor();
     }
 }

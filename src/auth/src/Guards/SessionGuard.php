@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Auth\Guards;
 
 use Hyperf\Context\Context;
-use Hypervel\Support\Traits\Macroable;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\StatefulGuard;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Session\Session as SessionContract;
+use Hypervel\Support\Traits\Macroable;
 use Throwable;
 
 class SessionGuard implements StatefulGuard

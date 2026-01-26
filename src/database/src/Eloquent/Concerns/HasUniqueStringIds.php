@@ -91,6 +91,6 @@ trait HasUniqueStringIds
      */
     protected function handleInvalidUniqueId(mixed $value, ?string $field): never
     {
-        throw (new ModelNotFoundException)->setModel(get_class($this), $value);
+        throw (new ModelNotFoundException())->setModel(get_class($this), $value);
     }
 }

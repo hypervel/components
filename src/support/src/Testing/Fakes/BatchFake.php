@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Support\Testing\Fakes;
 
 use Carbon\CarbonInterface;
-use Hypervel\Support\Collection;
-use Hypervel\Support\Enumerable;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\UpdatedBatchJobCounts;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Enumerable;
 use Throwable;
 
 class BatchFake extends Batch

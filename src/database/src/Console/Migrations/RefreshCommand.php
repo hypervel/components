@@ -119,7 +119,7 @@ class RefreshCommand extends Command
     {
         $this->call('db:seed', array_filter([
             '--database' => $database,
-            '--class' => $this->option('seeder') ?: 'Database\\Seeders\\DatabaseSeeder',
+            '--class' => $this->option('seeder') ?: 'Database\Seeders\DatabaseSeeder',
             '--force' => true,
         ]));
     }

@@ -6,7 +6,6 @@ namespace Hypervel\Database\Eloquent\Relations\Concerns;
 
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Support\Str;
 use Hypervel\Support\StrCache;
 
 trait AsPivot
@@ -36,7 +35,7 @@ trait AsPivot
      */
     public static function fromAttributes(Model $parent, array $attributes, string $table, bool $exists = false): static
     {
-        $instance = new static;
+        $instance = new static();
 
         $instance->timestamps = $instance->hasTimestampAttributes($attributes);
 
@@ -68,7 +67,8 @@ trait AsPivot
         $instance->timestamps = $instance->hasTimestampAttributes($attributes);
 
         $instance->setRawAttributes(
-            array_merge($instance->getRawOriginal(), $attributes), $exists
+            array_merge($instance->getRawOriginal(), $attributes),
+            $exists
         );
 
         return $instance;
@@ -77,7 +77,7 @@ trait AsPivot
     /**
      * Set the keys for a select query.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<static>  $query
+     * @param \Hypervel\Database\Eloquent\Builder<static> $query
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
     protected function setKeysForSelectQuery(Builder $query): Builder
@@ -87,18 +87,20 @@ trait AsPivot
         }
 
         $query->where($this->foreignKey, $this->getOriginal(
-            $this->foreignKey, $this->getAttribute($this->foreignKey)
+            $this->foreignKey,
+            $this->getAttribute($this->foreignKey)
         ));
 
         return $query->where($this->relatedKey, $this->getOriginal(
-            $this->relatedKey, $this->getAttribute($this->relatedKey)
+            $this->relatedKey,
+            $this->getAttribute($this->relatedKey)
         ));
     }
 
     /**
      * Set the keys for a save update query.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<static>  $query
+     * @param \Hypervel\Database\Eloquent\Builder<static> $query
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
     protected function setKeysForSaveQuery(Builder $query): Builder
@@ -151,7 +153,9 @@ trait AsPivot
     {
         if (! isset($this->table)) {
             $this->setTable(str_replace(
-                '\\', '', StrCache::snake(StrCache::singular(class_basename($this)))
+                '\\',
+                '',
+                StrCache::snake(StrCache::singular(class_basename($this)))
             ));
         }
 
@@ -248,15 +252,16 @@ trait AsPivot
 
         return sprintf(
             '%s:%s:%s:%s',
-            $this->foreignKey, $this->getAttribute($this->foreignKey),
-            $this->relatedKey, $this->getAttribute($this->relatedKey)
+            $this->foreignKey,
+            $this->getAttribute($this->foreignKey),
+            $this->relatedKey,
+            $this->getAttribute($this->relatedKey)
         );
     }
 
     /**
      * Get a new query to restore one or more models by their queueable IDs.
      *
-     * @param  array|int|string  $ids
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
     public function newQueryForRestoration(array|int|string $ids): Builder
@@ -279,7 +284,7 @@ trait AsPivot
     /**
      * Get a new query to restore multiple models by their queueable IDs.
      *
-     * @param  int[]|string[]  $ids
+     * @param int[]|string[] $ids
      * @return \Hypervel\Database\Eloquent\Builder<static>
      */
     protected function newQueryForCollectionRestoration(array $ids): Builder

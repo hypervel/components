@@ -17,8 +17,7 @@ class AsUri implements Castable
      */
     public static function castUsing(array $arguments): CastsAttributes
     {
-        return new class implements CastsAttributes
-        {
+        return new class implements CastsAttributes {
             public function get(mixed $model, string $key, mixed $value, array $attributes): ?Uri
             {
                 return isset($value) ? new Uri($value) : null;

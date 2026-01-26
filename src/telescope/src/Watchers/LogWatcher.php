@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hypervel\Support\Arr;
 use Hypervel\Log\Events\MessageLogged;
+use Hypervel\Support\Arr;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
 use Psr\Container\ContainerInterface;

@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Translation\ArrayLoader;
-use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rules\Enum;
 use Hypervel\Validation\Validator;

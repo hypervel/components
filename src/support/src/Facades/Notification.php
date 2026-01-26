@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Contracts\Notifications\Dispatcher as NotificationDispatcher;
+use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Support\Testing\Fakes\NotificationFake;
 
 /**

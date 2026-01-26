@@ -101,13 +101,13 @@ class Env
      */
     public static function getOrFail(string $key): mixed
     {
-        return self::getOption($key)->getOrThrow(new RuntimeException("Environment variable [$key] has no value."));
+        return self::getOption($key)->getOrThrow(new RuntimeException("Environment variable [{$key}] has no value."));
     }
 
     /**
      * Write an array of key-value pairs to the environment file.
      *
-     * @param  array<string, mixed>  $variables
+     * @param array<string, mixed> $variables
      *
      * @throws RuntimeException
      * @throws FileNotFoundException
@@ -154,25 +154,25 @@ class Env
     /**
      * Add a variable to the environment file contents.
      *
-     * @param  array<int, string>  $envLines
+     * @param array<int, string> $envLines
      * @return array<int, string>
      */
     protected static function addVariableToEnvContents(string $key, mixed $value, array $envLines, bool $overwrite): array
     {
-        $prefix = explode('_', $key)[0].'_';
+        $prefix = explode('_', $key)[0] . '_';
         $lastPrefixIndex = -1;
 
         $shouldQuote = preg_match('/^[a-zA-z0-9]+$/', $value) === 0;
 
         $lineToAddVariations = [
-            $key.'='.(is_string($value) ? self::prepareQuotedValue($value) : $value),
-            $key.'='.$value,
+            $key . '=' . (is_string($value) ? self::prepareQuotedValue($value) : $value),
+            $key . '=' . $value,
         ];
 
         $lineToAdd = $shouldQuote ? $lineToAddVariations[0] : $lineToAddVariations[1];
 
         if ($value === '') {
-            $lineToAdd = $key.'=';
+            $lineToAdd = $key . '=';
         }
 
         foreach ($envLines as $index => $line) {
@@ -185,14 +185,14 @@ class Env
                 return $envLines;
             }
 
-            if ($line === $key.'=') {
+            if ($line === $key . '=') {
                 // If the value is empty, we can replace it with the new value.
                 $envLines[$index] = $lineToAdd;
 
                 return $envLines;
             }
 
-            if (str_starts_with($line, $key.'=')) {
+            if (str_starts_with($line, $key . '=')) {
                 if (! $overwrite) {
                     return $envLines;
                 }
@@ -254,21 +254,21 @@ class Env
     protected static function prepareQuotedValue(string $input): string
     {
         return str_contains($input, '"')
-            ? "'".self::addSlashesExceptFor($input, ['"'])."'"
-            : '"'.self::addSlashesExceptFor($input, ["'"]).'"';
+            ? "'" . self::addSlashesExceptFor($input, ['"']) . "'"
+            : '"' . self::addSlashesExceptFor($input, ["'"]) . '"';
     }
 
     /**
      * Escape a string using addslashes, excluding the specified characters from being escaped.
      *
-     * @param  array<int, string>  $except
+     * @param array<int, string> $except
      */
     protected static function addSlashesExceptFor(string $value, array $except = []): string
     {
         $escaped = addslashes($value);
 
         foreach ($except as $character) {
-            $escaped = str_replace('\\'.$character, $character, $escaped);
+            $escaped = str_replace('\\' . $character, $character, $escaped);
         }
 
         return $escaped;

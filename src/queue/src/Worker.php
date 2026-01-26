@@ -6,14 +6,14 @@ namespace Hypervel\Queue;
 
 use Hyperf\Coordinator\Timer;
 use Hyperf\Coroutine\Concurrent;
-use Hypervel\Database\DetectsLostConnections;
-use Hypervel\Support\Str;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
-use Hypervel\Coroutine\Waiter;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\Factory as QueueManager;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Coroutine\Waiter;
+use Hypervel\Database\DetectsLostConnections;
 use Hypervel\Queue\Events\JobAttempted;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobPopped;
@@ -27,7 +27,7 @@ use Hypervel\Queue\Events\WorkerStopping;
 use Hypervel\Queue\Exceptions\MaxAttemptsExceededException;
 use Hypervel\Queue\Exceptions\TimeoutExceededException;
 use Hypervel\Support\Carbon;
-use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
+use Hypervel\Support\Str;
 use Throwable;
 
 class Worker

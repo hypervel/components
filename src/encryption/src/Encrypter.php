@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Encryption;
 
-use Hypervel\Contracts\Encryption\Encrypter as EncrypterContract;
-use Hypervel\Contracts\Encryption\StringEncrypter;
 use Hypervel\Contracts\Encryption\DecryptException;
+use Hypervel\Contracts\Encryption\Encrypter as EncrypterContract;
 use Hypervel\Contracts\Encryption\EncryptException;
+use Hypervel\Contracts\Encryption\StringEncrypter;
 use RuntimeException;
 
 class Encrypter implements EncrypterContract, StringEncrypter

@@ -35,8 +35,8 @@ class PendingHasThroughRelationship
     /**
      * Create a pending has-many-through or has-one-through relationship.
      *
-     * @param  TDeclaringModel  $rootModel
-     * @param  TLocalRelationship  $localRelationship
+     * @param TDeclaringModel $rootModel
+     * @param TLocalRelationship $localRelationship
      */
     public function __construct(Model $rootModel, HasOneOrMany $localRelationship)
     {
@@ -49,7 +49,7 @@ class PendingHasThroughRelationship
      *
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  string|(callable(TIntermediateModel): (\Hypervel\Database\Eloquent\Relations\HasOne<TRelatedModel, TIntermediateModel>|\Hypervel\Database\Eloquent\Relations\HasMany<TRelatedModel, TIntermediateModel>|\Hypervel\Database\Eloquent\Relations\MorphOneOrMany<TRelatedModel, TIntermediateModel>))  $callback
+     * @param (callable(TIntermediateModel): (\Hypervel\Database\Eloquent\Relations\HasMany<TRelatedModel, TIntermediateModel>|\Hypervel\Database\Eloquent\Relations\HasOne<TRelatedModel, TIntermediateModel>|\Hypervel\Database\Eloquent\Relations\MorphOneOrMany<TRelatedModel, TIntermediateModel>))|string $callback
      * @return (
      *     $callback is string
      *     ? \Hypervel\Database\Eloquent\Relations\HasManyThrough<\Hypervel\Database\Eloquent\Model, TIntermediateModel, TDeclaringModel>|\Hypervel\Database\Eloquent\Relations\HasOneThrough<\Hypervel\Database\Eloquent\Model, TIntermediateModel, TDeclaringModel>
@@ -109,7 +109,9 @@ class PendingHasThroughRelationship
         }
 
         throw new BadMethodCallException(sprintf(
-            'Call to undefined method %s::%s()', static::class, $method
+            'Call to undefined method %s::%s()',
+            static::class,
+            $method
         ));
     }
 }

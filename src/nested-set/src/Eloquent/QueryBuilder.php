@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\NestedSet\Eloquent;
 
-use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
@@ -12,6 +11,7 @@ use Hypervel\Database\Query\Builder as BaseQueryBuilder;
 use Hypervel\Database\Query\Expression;
 use Hypervel\NestedSet\NestedSet;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Collection as BaseCollection;
 use LogicException;
 
 class QueryBuilder extends EloquentBuilder

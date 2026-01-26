@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
-use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Cache\CacheManager;
-use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Sanctum\Contracts\HasAbilities;

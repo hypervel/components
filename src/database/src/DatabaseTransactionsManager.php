@@ -16,7 +16,9 @@ use Hypervel\Support\Collection;
 class DatabaseTransactionsManager
 {
     protected const CONTEXT_COMMITTED = '__db.transactions.committed';
+
     protected const CONTEXT_PENDING = '__db.transactions.pending';
+
     protected const CONTEXT_CURRENT = '__db.transactions.current';
 
     /**
@@ -26,7 +28,7 @@ class DatabaseTransactionsManager
      */
     protected function getCommittedTransactionsInternal(): Collection
     {
-        return Context::get(self::CONTEXT_COMMITTED, new Collection);
+        return Context::get(self::CONTEXT_COMMITTED, new Collection());
     }
 
     /**
@@ -46,7 +48,7 @@ class DatabaseTransactionsManager
      */
     protected function getPendingTransactionsInternal(): Collection
     {
-        return Context::get(self::CONTEXT_PENDING, new Collection);
+        return Context::get(self::CONTEXT_PENDING, new Collection());
     }
 
     /**
@@ -62,7 +64,7 @@ class DatabaseTransactionsManager
     /**
      * Get current transaction map for the current coroutine.
      *
-     * @return array<string, DatabaseTransactionRecord|null>
+     * @return array<string, null|DatabaseTransactionRecord>
      */
     protected function getCurrentTransaction(): array
     {
@@ -119,15 +121,15 @@ class DatabaseTransactionsManager
             $this->setCurrentTransactionForConnection($connection, $currentForConnection->parent);
         }
 
-        if (! $this->afterCommitCallbacksShouldBeExecuted($newTransactionLevel) &&
-            $newTransactionLevel !== 0) {
-            return new Collection;
+        if (! $this->afterCommitCallbacksShouldBeExecuted($newTransactionLevel)
+            && $newTransactionLevel !== 0) {
+            return new Collection();
         }
 
         // Clear pending transactions for this connection at or above the committed level
         $pending = $this->getPendingTransactionsInternal()->reject(
-            fn ($transaction) => $transaction->connection === $connection &&
-                $transaction->level >= $levelBeingCommitted
+            fn ($transaction) => $transaction->connection === $connection
+                && $transaction->level >= $levelBeingCommitted
         )->values();
         $this->setPendingTransactions($pending);
 
@@ -152,16 +154,16 @@ class DatabaseTransactionsManager
         $committed = $this->getCommittedTransactionsInternal();
 
         $toStage = $pending->filter(
-            fn ($transaction) => $transaction->connection === $connection &&
-                                 $transaction->level >= $levelBeingCommitted
+            fn ($transaction) => $transaction->connection === $connection
+                                 && $transaction->level >= $levelBeingCommitted
         );
 
         $this->setCommittedTransactions($committed->merge($toStage));
 
         $this->setPendingTransactions(
             $pending->reject(
-                fn ($transaction) => $transaction->connection === $connection &&
-                                     $transaction->level >= $levelBeingCommitted
+                fn ($transaction) => $transaction->connection === $connection
+                                     && $transaction->level >= $levelBeingCommitted
             )
         );
     }
@@ -175,8 +177,8 @@ class DatabaseTransactionsManager
             $this->removeAllTransactionsForConnection($connection);
         } else {
             $pending = $this->getPendingTransactionsInternal()->reject(
-                fn ($transaction) => $transaction->connection === $connection &&
-                                     $transaction->level > $newTransactionLevel
+                fn ($transaction) => $transaction->connection === $connection
+                                     && $transaction->level > $newTransactionLevel
             )->values();
             $this->setPendingTransactions($pending);
 
@@ -188,8 +190,8 @@ class DatabaseTransactionsManager
                     $currentForConnection = $currentForConnection->parent;
                     $this->setCurrentTransactionForConnection($connection, $currentForConnection);
                 } while (
-                    $currentForConnection !== null &&
-                    $currentForConnection->level > $newTransactionLevel
+                    $currentForConnection !== null
+                    && $currentForConnection->level > $newTransactionLevel
                 );
             }
         }
@@ -229,8 +231,8 @@ class DatabaseTransactionsManager
         $committed = $this->getCommittedTransactionsInternal();
 
         [$removedTransactions, $remaining] = $committed->partition(
-            fn ($committed) => $committed->connection === $transaction->connection &&
-                               $committed->parent === $transaction
+            fn ($committed) => $committed->connection === $transaction->connection
+                               && $committed->parent === $transaction
         );
 
         $this->setCommittedTransactions($remaining);

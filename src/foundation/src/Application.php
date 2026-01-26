@@ -5,17 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Foundation;
 
 use Closure;
-use Hypervel\Support\Arr;
 use Hyperf\Di\Definition\DefinitionSourceInterface;
-use Hypervel\Support\Traits\Macroable;
 use Hypervel\Container\Container;
 use Hypervel\Container\DefinitionSourceFactory;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Events\LocaleUpdated;
 use Hypervel\HttpMessage\Exceptions\HttpException;
 use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Environment;
 use Hypervel\Support\ServiceProvider;
+use Hypervel\Support\Traits\Macroable;
 use Psr\Container\ContainerInterface;
 use RuntimeException;
 

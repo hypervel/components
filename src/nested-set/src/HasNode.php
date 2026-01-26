@@ -61,7 +61,8 @@ trait HasNode
 
         if (static::usesSoftDelete()) {
             static::restoring(fn ($model) => NodeContext::keepDeletedAt($model));
-            static::restored(fn ($model) => $model->restoreDescendants(NodeContext::restoreDeletedAt($model))
+            static::restored(
+                fn ($model) => $model->restoreDescendants(NodeContext::restoreDeletedAt($model))
             );
         }
     }

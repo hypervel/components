@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Notifications\Slack;
 
 use Closure;
-use Hypervel\Support\Arr;
 use Hyperf\Conditionable\Conditionable;
 use Hypervel\Contracts\Support\Arrayable;
-use Hypervel\Notifications\Slack\Contracts\BlockContract;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ActionsBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ContextBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\DividerBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\HeaderBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ImageBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock;
+use Hypervel\Notifications\Slack\Contracts\BlockContract;
+use Hypervel\Support\Arr;
 use JsonException;
 use LogicException;
 

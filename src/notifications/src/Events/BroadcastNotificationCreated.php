@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications\Events;
 
-use Hypervel\Support\Arr;
-use Hypervel\Support\Collection;
-use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Broadcasting\PrivateChannel;
 use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\Notification;
 use Hypervel\Queue\SerializesModels;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 
 class BroadcastNotificationCreated implements ShouldBroadcast
 {

@@ -30,7 +30,7 @@ class Builder
     /**
      * The Blueprint resolver callback.
      *
-     * @var \Closure(\Hypervel\Database\Connection, string, \Closure|null): \Hypervel\Database\Schema\Blueprint
+     * @var Closure(\Hypervel\Database\Connection, string, null|Closure): \Hypervel\Database\Schema\Blueprint
      */
     protected ?Closure $resolver = null;
 
@@ -77,7 +77,7 @@ class Builder
     /**
      * Set the default morph key type for migrations.
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     public static function defaultMorphKeyType(string $type): void
     {
@@ -127,7 +127,7 @@ class Builder
     /**
      * Get the schemas that belong to the connection.
      *
-     * @return list<array{name: string, path: string|null, default: bool}>
+     * @return list<array{name: string, path: null|string, default: bool}>
      */
     public function getSchemas(): array
     {
@@ -143,7 +143,7 @@ class Builder
     {
         [$schema, $table] = $this->parseSchemaAndTable($table);
 
-        $table = $this->connection->getTablePrefix().$table;
+        $table = $this->connection->getTablePrefix() . $table;
 
         if ($sql = $this->grammar->compileTableExists($schema, $table)) {
             return (bool) $this->connection->scalar($sql);
@@ -165,7 +165,7 @@ class Builder
     {
         [$schema, $view] = $this->parseSchemaAndTable($view);
 
-        $view = $this->connection->getTablePrefix().$view;
+        $view = $this->connection->getTablePrefix() . $view;
 
         foreach ($this->getViews($schema ?? $this->getCurrentSchemaName()) as $value) {
             if (strtolower($view) === strtolower($value['name'])) {
@@ -179,8 +179,8 @@ class Builder
     /**
      * Get the tables that belong to the connection.
      *
-     * @param  string|string[]|null  $schema
-     * @return list<array{name: string, schema: string|null, schema_qualified_name: string, size: int|null, comment: string|null, collation: string|null, engine: string|null}>
+     * @param null|string|string[] $schema
+     * @return list<array{name: string, schema: null|string, schema_qualified_name: string, size: null|int, comment: null|string, collation: null|string, engine: null|string}>
      */
     public function getTables(array|string|null $schema = null): array
     {
@@ -205,7 +205,7 @@ class Builder
     /**
      * Get the views that belong to the connection.
      *
-     * @return list<array{name: string, schema: string|null, schema_qualified_name: string, definition: string}>
+     * @return list<array{name: string, schema: null|string, schema_qualified_name: string, definition: string}>
      */
     public function getViews(array|string|null $schema = null): array
     {
@@ -232,14 +232,15 @@ class Builder
     public function hasColumn(string $table, string $column): bool
     {
         return in_array(
-            strtolower($column), array_map(strtolower(...), $this->getColumnListing($table))
+            strtolower($column),
+            array_map(strtolower(...), $this->getColumnListing($table))
         );
     }
 
     /**
      * Determine if the given table has given columns.
      *
-     * @param  array<string>  $columns
+     * @param array<string> $columns
      */
     public function hasColumns(string $table, array $columns): bool
     {
@@ -307,7 +308,7 @@ class Builder
             }
         }
 
-        throw new InvalidArgumentException("There is no column with name '$column' on table '$table'.");
+        throw new InvalidArgumentException("There is no column with name '{$column}' on table '{$table}'.");
     }
 
     /**
@@ -323,13 +324,13 @@ class Builder
     /**
      * Get the columns for a given table.
      *
-     * @return list<array{name: string, type: string, type_name: string, collation: string|null, nullable: bool, default: mixed, auto_increment: bool, comment: string|null, generation: array{type: string, expression: string|null}|null}>
+     * @return list<array{name: string, type: string, type_name: string, collation: null|string, nullable: bool, default: mixed, auto_increment: bool, comment: null|string, generation: null|array{type: string, expression: null|string}}>
      */
     public function getColumns(string $table): array
     {
         [$schema, $table] = $this->parseSchemaAndTable($table);
 
-        $table = $this->connection->getTablePrefix().$table;
+        $table = $this->connection->getTablePrefix() . $table;
 
         return $this->connection->getPostProcessor()->processColumns(
             $this->connection->selectFromWriteConnection(
@@ -347,7 +348,7 @@ class Builder
     {
         [$schema, $table] = $this->parseSchemaAndTable($table);
 
-        $table = $this->connection->getTablePrefix().$table;
+        $table = $this->connection->getTablePrefix() . $table;
 
         return $this->connection->getPostProcessor()->processIndexes(
             $this->connection->selectFromWriteConnection(
@@ -394,7 +395,7 @@ class Builder
     {
         [$schema, $table] = $this->parseSchemaAndTable($table);
 
-        $table = $this->connection->getTablePrefix().$table;
+        $table = $this->connection->getTablePrefix() . $table;
 
         return $this->connection->getPostProcessor()->processForeignKeys(
             $this->connection->selectFromWriteConnection(
@@ -446,7 +447,7 @@ class Builder
     /**
      * Drop columns from a table schema.
      *
-     * @param  string|array<string>  $columns
+     * @param array<string>|string $columns
      */
     public function dropColumns(string $table, array|string $columns): void
     {
@@ -458,7 +459,7 @@ class Builder
     /**
      * Drop all tables from the database.
      *
-     * @throws \LogicException
+     * @throws LogicException
      */
     public function dropAllTables(): void
     {
@@ -468,7 +469,7 @@ class Builder
     /**
      * Drop all views from the database.
      *
-     * @throws \LogicException
+     * @throws LogicException
      */
     public function dropAllViews(): void
     {
@@ -478,7 +479,7 @@ class Builder
     /**
      * Drop all types from the database.
      *
-     * @throws \LogicException
+     * @throws LogicException
      */
     public function dropAllTypes(): void
     {
@@ -579,7 +580,7 @@ class Builder
     /**
      * Get the names of the current schemas for the connection.
      *
-     * @return string[]|null
+     * @return null|string[]
      */
     public function getCurrentSchemaListing(): ?array
     {
@@ -630,7 +631,7 @@ class Builder
     /**
      * Set the Schema Blueprint resolver callback.
      *
-     * @param  \Closure(\Hypervel\Database\Connection, string, \Closure|null): \Hypervel\Database\Schema\Blueprint  $resolver
+     * @param Closure(\Hypervel\Database\Connection, string, null|Closure): \Hypervel\Database\Schema\Blueprint $resolver
      */
     public function blueprintResolver(Closure $resolver): void
     {

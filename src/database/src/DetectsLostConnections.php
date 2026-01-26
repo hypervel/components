@@ -6,7 +6,6 @@ namespace Hypervel\Database;
 
 use Hyperf\Context\ApplicationContext;
 use Hypervel\Contracts\Database\LostConnectionDetector as LostConnectionDetectorContract;
-use Hypervel\Database\LostConnectionDetector;
 use Throwable;
 
 trait DetectsLostConnections

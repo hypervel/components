@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Translation;
 
-use Hypervel\Filesystem\Filesystem;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Translation\Loader as LoaderContract;
+use Hypervel\Filesystem\Filesystem;
 use Psr\Container\ContainerInterface;
 
 class LoaderFactory

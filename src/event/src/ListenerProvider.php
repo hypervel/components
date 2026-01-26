@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Event;
 
-use Hypervel\Support\Collection;
 use Hyperf\Stdlib\SplPriorityQueue;
-use Hypervel\Support\Str;
 use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 
 class ListenerProvider implements ListenerProviderContract
 {

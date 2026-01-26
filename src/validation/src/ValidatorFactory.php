@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
-use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Contracts\Translation\Translator;
+use Hypervel\Database\ConnectionResolverInterface;
 use Psr\Container\ContainerInterface;
 
 class ValidatorFactory

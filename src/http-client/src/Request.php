@@ -6,8 +6,8 @@ namespace Hypervel\HttpClient;
 
 use ArrayAccess;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Traits\Macroable;
 use LogicException;
 use Psr\Http\Message\RequestInterface;
 

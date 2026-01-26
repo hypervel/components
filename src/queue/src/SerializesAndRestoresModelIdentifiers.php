@@ -4,15 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
-use Hypervel\Support\Collection;
+use Hypervel\Contracts\Queue\QueueableCollection;
+use Hypervel\Contracts\Queue\QueueableEntity;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\ModelIdentifier;
-use Hypervel\Contracts\Queue\QueueableCollection;
-use Hypervel\Contracts\Queue\QueueableEntity;
+use Hypervel\Support\Collection;
 
 trait SerializesAndRestoresModelIdentifiers
 {

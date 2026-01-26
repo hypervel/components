@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Closure;
-use Hypervel\Translation\CreatesPotentiallyTranslatedStrings;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Contracts\Validation\Validator;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
+use Hypervel\Translation\CreatesPotentiallyTranslatedStrings;
 
 class ClosureValidationRule implements RuleContract, ValidatorAwareRule
 {

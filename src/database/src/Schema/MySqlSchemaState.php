@@ -7,6 +7,8 @@ namespace Hypervel\Database\Schema;
 use Exception;
 use Hypervel\Database\Connection;
 use Hypervel\Support\Str;
+use Override;
+use PDO;
 use Symfony\Component\Process\Process;
 
 class MySqlSchemaState extends SchemaState
@@ -14,11 +16,11 @@ class MySqlSchemaState extends SchemaState
     /**
      * Dump the database's schema into a file.
      */
-    #[\Override]
+    #[Override]
     public function dump(Connection $connection, string $path): void
     {
         $this->executeDumpProcess($this->makeProcess(
-            $this->baseDumpCommand().' --routines --result-file="${:LARAVEL_LOAD_PATH}" --no-data'
+            $this->baseDumpCommand() . ' --routines --result-file="${:LARAVEL_LOAD_PATH}" --no-data'
         ), $this->output, array_merge($this->baseVariables($this->connection->getConfig()), [
             'LARAVEL_LOAD_PATH' => $path,
         ]));
@@ -48,9 +50,8 @@ class MySqlSchemaState extends SchemaState
     protected function appendMigrationData(string $path): void
     {
         $process = $this->executeDumpProcess($this->makeProcess(
-            $this->baseDumpCommand().' '.$this->getMigrationTable().' --no-create-info --skip-extended-insert --skip-routines --compact --complete-insert'
+            $this->baseDumpCommand() . ' ' . $this->getMigrationTable() . ' --no-create-info --skip-extended-insert --skip-routines --compact --complete-insert'
         ), null, array_merge($this->baseVariables($this->connection->getConfig()), [
-            //
         ]));
 
         $this->files->append($path, $process->getOutput());
@@ -59,10 +60,10 @@ class MySqlSchemaState extends SchemaState
     /**
      * Load the given schema file into the database.
      */
-    #[\Override]
+    #[Override]
     public function load(string $path): void
     {
-        $command = 'mysql '.$this->connectionString().' --database="${:LARAVEL_LOAD_DATABASE}" < "${:LARAVEL_LOAD_PATH}"';
+        $command = 'mysql ' . $this->connectionString() . ' --database="${:LARAVEL_LOAD_DATABASE}" < "${:LARAVEL_LOAD_PATH}"';
 
         $process = $this->makeProcess($command)->setTimeout(null);
 
@@ -76,13 +77,13 @@ class MySqlSchemaState extends SchemaState
      */
     protected function baseDumpCommand(): string
     {
-        $command = 'mysqldump '.$this->connectionString().' --no-tablespaces --skip-add-locks --skip-comments --skip-set-charset --tz-utc --column-statistics=0';
+        $command = 'mysqldump ' . $this->connectionString() . ' --no-tablespaces --skip-add-locks --skip-comments --skip-set-charset --tz-utc --column-statistics=0';
 
         if (! $this->connection->isMaria()) {
             $command .= ' --set-gtid-purged=OFF';
         }
 
-        return $command.' "${:LARAVEL_LOAD_DATABASE}"';
+        return $command . ' "${:LARAVEL_LOAD_DATABASE}"';
     }
 
     /**
@@ -98,8 +99,8 @@ class MySqlSchemaState extends SchemaState
             ? ' --socket="${:LARAVEL_LOAD_SOCKET}"'
             : ' --host="${:LARAVEL_LOAD_HOST}" --port="${:LARAVEL_LOAD_PORT}"';
 
-        /** @phpstan-ignore class.notFound */
-        if (isset($config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : \PDO::MYSQL_ATTR_SSL_CA])) {
+        /* @phpstan-ignore class.notFound */
+        if (isset($config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA])) {
             $value .= ' --ssl-ca="${:LARAVEL_LOAD_SSL_CA}"';
         }
 
@@ -114,7 +115,7 @@ class MySqlSchemaState extends SchemaState
     /**
      * Get the base variables for a dump / load command.
      */
-    #[\Override]
+    #[Override]
     protected function baseVariables(array $config): array
     {
         $config['host'] ??= '';
@@ -126,7 +127,7 @@ class MySqlSchemaState extends SchemaState
             'LARAVEL_LOAD_USER' => $config['username'],
             'LARAVEL_LOAD_PASSWORD' => $config['password'] ?? '',
             'LARAVEL_LOAD_DATABASE' => $config['database'],
-            'LARAVEL_LOAD_SSL_CA' => $config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : \PDO::MYSQL_ATTR_SSL_CA] ?? '', // @phpstan-ignore class.notFound
+            'LARAVEL_LOAD_SSL_CA' => $config['options'][PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA] ?? '', // @phpstan-ignore class.notFound
         ];
     }
 

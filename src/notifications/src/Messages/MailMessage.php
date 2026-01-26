@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications\Messages;
 
-use Hypervel\Support\Collection;
 use Hyperf\Conditionable\Conditionable;
 use Hyperf\Context\ApplicationContext;
-use Hypervel\Contracts\Support\Arrayable;
-use Hypervel\Mail\Attachment;
 use Hypervel\Contracts\Mail\Attachable;
-use Hypervel\Mail\Markdown;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Renderable;
+use Hypervel\Mail\Attachment;
+use Hypervel\Mail\Markdown;
+use Hypervel\Support\Collection;
 
 class MailMessage extends SimpleMessage implements Renderable
 {

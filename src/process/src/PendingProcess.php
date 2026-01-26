@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Process;
 
 use Closure;
-use Hypervel\Support\Collection;
 use Hyperf\Conditionable\Conditionable;
 use Hypervel\Process\Contracts\InvokedProcess as InvokedProcessContract;
 use Hypervel\Process\Contracts\ProcessResult as ProcessResultContract;
 use Hypervel\Process\Exceptions\ProcessTimedOutException;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use LogicException;
 use RuntimeException;

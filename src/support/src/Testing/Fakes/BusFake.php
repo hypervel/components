@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Support\Testing\Fakes;
 
 use Closure;
-use Hypervel\Support\Arr;
-use Hypervel\Support\Collection;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\ChainedBatch;
-use Hypervel\Contracts\Bus\BatchRepository;
-use Hypervel\Contracts\Bus\QueueingDispatcher;
 use Hypervel\Bus\PendingBatch;
 use Hypervel\Bus\PendingChain;
+use Hypervel\Contracts\Bus\BatchRepository;
+use Hypervel\Contracts\Bus\QueueingDispatcher;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
 use RuntimeException;

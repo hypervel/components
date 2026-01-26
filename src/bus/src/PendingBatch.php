@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Closure;
-use Hypervel\Support\Arr;
-use Hypervel\Support\Collection;
 use Hyperf\Conditionable\Conditionable;
 use Hyperf\Coroutine\Coroutine;
-use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Bus\Events\BatchDispatched;
+use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Laravel\SerializableClosure\SerializableClosure;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;

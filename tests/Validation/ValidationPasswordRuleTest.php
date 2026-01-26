@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
-use Hypervel\Testbench\TestCase;
-use Hypervel\Translation\ArrayLoader;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
-use Hypervel\Translation\Translator;
 use Hypervel\Contracts\Validation\Rule as RuleContract;
 use Hypervel\Contracts\Validation\UncompromisedVerifier;
+use Hypervel\Testbench\TestCase;
+use Hypervel\Translation\ArrayLoader;
+use Hypervel\Translation\Translator;
 use Hypervel\Validation\Rules\Password;
 use Hypervel\Validation\Validator;
 use Mockery as m;

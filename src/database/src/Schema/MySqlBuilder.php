@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Schema;
 
+use Override;
+
 /**
  * @property \Hypervel\Database\Schema\Grammars\MySqlGrammar $grammar
  */
@@ -12,7 +14,7 @@ class MySqlBuilder extends Builder
     /**
      * Drop all tables from the database.
      */
-    #[\Override]
+    #[Override]
     public function dropAllTables(): void
     {
         $tables = $this->getTableListing($this->getCurrentSchemaListing());
@@ -35,7 +37,7 @@ class MySqlBuilder extends Builder
     /**
      * Drop all views from the database.
      */
-    #[\Override]
+    #[Override]
     public function dropAllViews(): void
     {
         $views = array_column($this->getViews($this->getCurrentSchemaListing()), 'schema_qualified_name');
@@ -52,7 +54,7 @@ class MySqlBuilder extends Builder
     /**
      * Get the names of current schemas for the connection.
      */
-    #[\Override]
+    #[Override]
     public function getCurrentSchemaListing(): array
     {
         return [$this->connection->getDatabaseName()];

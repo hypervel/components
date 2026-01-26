@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Console\Scheduling;
 
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
-use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Console\Scheduling\CacheEventMutex;
 use Hypervel\Console\Scheduling\CacheSchedulingMutex;
 use Hypervel\Console\Scheduling\Event;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
+use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Support\Carbon;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;

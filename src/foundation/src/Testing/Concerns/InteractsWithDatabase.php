@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hypervel\Support\Arr;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
@@ -13,6 +12,7 @@ use Hypervel\Foundation\Testing\Constraints\CountInDatabase;
 use Hypervel\Foundation\Testing\Constraints\HasInDatabase;
 use Hypervel\Foundation\Testing\Constraints\NotSoftDeletedInDatabase;
 use Hypervel\Foundation\Testing\Constraints\SoftDeletedInDatabase;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\DB;
 use PHPUnit\Framework\Constraint\LogicalNot as ReverseConstraint;
 

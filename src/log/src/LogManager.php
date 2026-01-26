@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Log;
 
 use Closure;
-use Hypervel\Support\Collection;
 use Hyperf\Context\Context;
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Support\Str;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Environment;
+use Hypervel\Support\Str;
 use InvalidArgumentException;
 use Monolog\Formatter\LineFormatter;
 use Monolog\Handler\ErrorLogHandler;

@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Bus;
 
-use Hypervel\Support\Collection;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
-use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Bus\PendingBatch;
+use Hypervel\Contracts\Bus\BatchRepository;
+use Hypervel\Support\Collection;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;

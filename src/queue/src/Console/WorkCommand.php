@@ -6,7 +6,6 @@ namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Support\Str;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\Events\JobFailed;
@@ -17,6 +16,7 @@ use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
 use Hypervel\Support\Carbon;
+use Hypervel\Support\Str;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
 use Hypervel\Support\Traits\InteractsWithTime;
 use Psr\Container\ContainerInterface;

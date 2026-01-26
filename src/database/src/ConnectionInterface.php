@@ -12,6 +12,7 @@ use Hypervel\Database\Query\Grammars\Grammar as QueryGrammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
 use PDO;
+use Throwable;
 use UnitEnum;
 
 interface ConnectionInterface
@@ -86,7 +87,7 @@ interface ConnectionInterface
     /**
      * Execute a Closure within a transaction.
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function transaction(Closure $callback, int $attempts = 1): mixed;
 

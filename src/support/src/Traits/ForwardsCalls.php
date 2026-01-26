@@ -12,12 +12,12 @@ trait ForwardsCalls
     /**
      * Forward a method call to the given object.
      *
-     * @param  mixed  $object
-     * @param  string  $method
-     * @param  array  $parameters
+     * @param mixed $object
+     * @param string $method
+     * @param array $parameters
      * @return mixed
      *
-     * @throws \BadMethodCallException
+     * @throws BadMethodCallException
      */
     protected function forwardCallTo($object, $method, $parameters)
     {
@@ -30,8 +30,8 @@ trait ForwardsCalls
                 throw $e;
             }
 
-            if ($matches['class'] !== get_class($object) ||
-                $matches['method'] !== $method) {
+            if ($matches['class'] !== get_class($object)
+                || $matches['method'] !== $method) {
                 throw $e;
             }
 
@@ -42,12 +42,12 @@ trait ForwardsCalls
     /**
      * Forward a method call to the given object, returning $this if the forwarded call returned itself.
      *
-     * @param  mixed  $object
-     * @param  string  $method
-     * @param  array  $parameters
+     * @param mixed $object
+     * @param string $method
+     * @param array $parameters
      * @return mixed
      *
-     * @throws \BadMethodCallException
+     * @throws BadMethodCallException
      */
     protected function forwardDecoratedCallTo($object, $method, $parameters)
     {
@@ -59,15 +59,16 @@ trait ForwardsCalls
     /**
      * Throw a bad method call exception for the given method.
      *
-     * @param  string  $method
-     * @return never
+     * @param string $method
      *
-     * @throws \BadMethodCallException
+     * @throws BadMethodCallException
      */
     protected static function throwBadMethodCallException($method): never
     {
         throw new BadMethodCallException(sprintf(
-            'Call to undefined method %s::%s()', static::class, $method
+            'Call to undefined method %s::%s()',
+            static::class,
+            $method
         ));
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent;
 
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Eloquent\Events\Booted;
 use Hypervel\Database\Eloquent\Events\Booting;
 use Hypervel\Database\Eloquent\Events\Created;
@@ -22,7 +23,6 @@ use Hypervel\Database\Eloquent\Events\Saving;
 use Hypervel\Database\Eloquent\Events\Trashed;
 use Hypervel\Database\Eloquent\Events\Updated;
 use Hypervel\Database\Eloquent\Events\Updating;
-use Hypervel\Contracts\Event\Dispatcher;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;
 
@@ -248,7 +248,7 @@ class ModelListener
     /**
      * Get the event class for a given event name.
      *
-     * @return class-string<ModelEvent>|null
+     * @return null|class-string<ModelEvent>
      */
     public function getEventClass(string $event): ?string
     {

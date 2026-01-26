@@ -23,9 +23,11 @@ use Hypervel\Database\Query\JoinClause;
  */
 class HasOneThrough extends HasOneOrManyThrough implements SupportsPartialRelations
 {
-    use ComparesRelatedModels, CanBeOneOfMany, InteractsWithDictionary, SupportsDefaultModels;
+    use ComparesRelatedModels;
+    use CanBeOneOfMany;
+    use InteractsWithDictionary;
+    use SupportsDefaultModels;
 
-    /** @inheritDoc */
     public function getResults()
     {
         if (is_null($this->getParentKey())) {
@@ -35,7 +37,6 @@ class HasOneThrough extends HasOneOrManyThrough implements SupportsPartialRelati
         return $this->first() ?: $this->getDefaultFor($this->farParent);
     }
 
-    /** @inheritDoc */
     public function initRelation(array $models, string $relation): array
     {
         foreach ($models as $model) {
@@ -45,7 +46,6 @@ class HasOneThrough extends HasOneOrManyThrough implements SupportsPartialRelati
         return $models;
     }
 
-    /** @inheritDoc */
     public function match(array $models, EloquentCollection $results, string $relation): array
     {
         $dictionary = $this->buildDictionary($results);
@@ -60,7 +60,8 @@ class HasOneThrough extends HasOneOrManyThrough implements SupportsPartialRelati
                 $value = $dictionary[$key];
 
                 $model->setRelation(
-                    $relation, reset($value)
+                    $relation,
+                    reset($value)
                 );
             }
         }
@@ -68,7 +69,6 @@ class HasOneThrough extends HasOneOrManyThrough implements SupportsPartialRelati
         return $models;
     }
 
-    /** @inheritDoc */
     public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         if ($this->isOneOfMany()) {
@@ -78,7 +78,6 @@ class HasOneThrough extends HasOneOrManyThrough implements SupportsPartialRelati
         return parent::getRelationExistenceQuery($query, $parentQuery, $columns);
     }
 
-    /** @inheritDoc */
     public function addOneOfManySubQueryConstraints(Builder $query, ?string $column = null, ?string $aggregate = null): void
     {
         $query->addSelect([$this->getQualifiedFirstKeyName()]);
@@ -90,13 +89,11 @@ class HasOneThrough extends HasOneOrManyThrough implements SupportsPartialRelati
         }
     }
 
-    /** @inheritDoc */
     public function getOneOfManySubQuerySelectColumns(): array|string
     {
         return [$this->getQualifiedFirstKeyName()];
     }
 
-    /** @inheritDoc */
     public function addOneOfManyJoinSubQueryConstraints(JoinClause $join): void
     {
         $join->on($this->qualifySubSelectColumn($this->firstKey), '=', $this->getQualifiedFirstKeyName());
@@ -105,7 +102,7 @@ class HasOneThrough extends HasOneOrManyThrough implements SupportsPartialRelati
     /**
      * Make a new related instance for the given model.
      *
-     * @param  TDeclaringModel  $parent
+     * @param TDeclaringModel $parent
      * @return TRelatedModel
      */
     public function newRelatedInstanceFor(Model $parent): Model
@@ -113,13 +110,11 @@ class HasOneThrough extends HasOneOrManyThrough implements SupportsPartialRelati
         return $this->related->newInstance();
     }
 
-    /** @inheritDoc */
     protected function getRelatedKeyFrom(Model $model): mixed
     {
         return $model->getAttribute($this->getForeignKeyName());
     }
 
-    /** @inheritDoc */
     public function getParentKey(): mixed
     {
         return $this->farParent->getAttribute($this->localKey);

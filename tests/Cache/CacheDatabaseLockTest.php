@@ -6,12 +6,12 @@ namespace Hypervel\Tests\Cache;
 
 use Carbon\Carbon;
 use Exception;
+use Hypervel\Cache\DatabaseLock;
+use Hypervel\Contracts\Cache\RefreshableLock;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
-use Hypervel\Database\QueryException;
 use Hypervel\Database\Query\Builder;
-use Hypervel\Contracts\Cache\RefreshableLock;
-use Hypervel\Cache\DatabaseLock;
+use Hypervel\Database\QueryException;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;

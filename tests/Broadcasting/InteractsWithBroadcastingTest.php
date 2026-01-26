@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Broadcasting;
 
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\Channel;
-use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Hypervel\Broadcasting\InteractsWithBroadcasting;
+use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use TypeError;

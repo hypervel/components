@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Console\Scheduling;
 
+use Hypervel\Console\Contracts\CacheAware;
+use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Contracts\Cache\Store;
-use Hypervel\Console\Contracts\CacheAware;
-use Hypervel\Console\Contracts\EventMutex;
 
 class CacheEventMutex implements EventMutex, CacheAware
 {

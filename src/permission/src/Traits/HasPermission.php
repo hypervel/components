@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Permission\Traits;
 
 use BackedEnum;
-use Hypervel\Support\Collection as BaseCollection;
-use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Permission\Contracts\Permission;
 use Hypervel\Permission\Contracts\Role;
 use Hypervel\Permission\PermissionManager;
+use Hypervel\Support\Collection as BaseCollection;
 use InvalidArgumentException;
 use UnitEnum;
 
@@ -330,8 +330,8 @@ trait HasPermission
     /**
      * Synchronize the owner's permissions with the given permission list.
      *
-     * @param array<UnitEnum|int|string> $allowPermissions
-     * @param array<UnitEnum|int|string> $forbiddenPermissions
+     * @param array<int|string|UnitEnum> $allowPermissions
+     * @param array<int|string|UnitEnum> $forbiddenPermissions
      */
     public function syncPermissions(array $allowPermissions = [], array $forbiddenPermissions = []): array
     {
@@ -403,7 +403,7 @@ trait HasPermission
     /**
      * Separate permissions array into IDs and names collections.
      *
-     * @param array<UnitEnum|int|string> $permissions
+     * @param array<int|string|UnitEnum> $permissions
      */
     private function separatePermissionsByType(array $permissions): array
     {
@@ -426,7 +426,7 @@ trait HasPermission
     /**
      * Attach permission to the owner.
      *
-     * @param array<UnitEnum|int|string> $permissions
+     * @param array<int|string|UnitEnum> $permissions
      */
     private function attachPermission(array $permissions, bool $isForbidden = false): static
     {

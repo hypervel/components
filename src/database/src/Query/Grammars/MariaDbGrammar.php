@@ -49,6 +49,6 @@ class MariaDbGrammar extends MySqlGrammar
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($value);
 
-        return 'json_value('.$field.$path.')';
+        return 'json_value(' . $field . $path . ')';
     }
 }

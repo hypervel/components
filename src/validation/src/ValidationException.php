@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Exception;
+use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Validator;
-use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Psr\Http\Message\ResponseInterface;
 
 class ValidationException extends Exception

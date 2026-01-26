@@ -145,11 +145,9 @@ class BlueprintState
             case 'alter':
                 // Already handled...
                 break;
-
             case 'add':
                 $this->columns[] = $command->column;
                 break;
-
             case 'change':
                 foreach ($this->columns as &$column) {
                     if ($column->name === $command->column->name) {
@@ -159,7 +157,6 @@ class BlueprintState
                 }
 
                 break;
-
             case 'renameColumn':
                 foreach ($this->columns as $column) {
                     if ($column->name === $command->from) {
@@ -181,25 +178,21 @@ class BlueprintState
                 }
 
                 break;
-
             case 'dropColumn':
                 $this->columns = array_values(
                     array_filter($this->columns, fn ($column) => ! in_array($column->name, $command->columns))
                 );
 
                 break;
-
             case 'primary':
                 // @phpstan-ignore assign.propertyType (Blueprint commands are Fluent, stored as IndexDefinition)
                 $this->primaryKey = $command;
                 break;
-
             case 'unique':
             case 'index':
                 // @phpstan-ignore assign.propertyType (Blueprint commands are Fluent, stored as IndexDefinition)
                 $this->indexes[] = $command;
                 break;
-
             case 'renameIndex':
                 foreach ($this->indexes as $index) {
                     if ($index->index === $command->from) {
@@ -209,16 +202,13 @@ class BlueprintState
                 }
 
                 break;
-
             case 'foreign':
                 // @phpstan-ignore assign.propertyType (Blueprint commands are Fluent, stored as ForeignKeyDefinition)
                 $this->foreignKeys[] = $command;
                 break;
-
             case 'dropPrimary':
                 $this->primaryKey = null;
                 break;
-
             case 'dropIndex':
             case 'dropUnique':
                 $this->indexes = array_values(
@@ -226,7 +216,6 @@ class BlueprintState
                 );
 
                 break;
-
             case 'dropForeign':
                 $this->foreignKeys = array_values(
                     array_filter($this->foreignKeys, fn ($fk) => $fk->columns !== $command->columns)

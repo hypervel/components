@@ -7,12 +7,9 @@ namespace Hypervel\Support;
 use ArgumentCountError;
 use ArrayAccess;
 use Closure;
-use Hypervel\Support\Traits\Macroable;
-use Hypervel\Support\Enumerable;
-use Hypervel\Support\ItemNotFoundException;
-use Hypervel\Support\MultipleItemsFoundException;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use JsonSerializable;
 use Random\Randomizer;
@@ -58,7 +55,7 @@ class Arr
     /**
      * Get an array item from an array using "dot" notation.
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     public static function array(ArrayAccess|array $array, string|int|null $key, ?array $default = null): array
     {
@@ -76,7 +73,7 @@ class Arr
     /**
      * Get a boolean item from an array using "dot" notation.
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     public static function boolean(ArrayAccess|array $array, string|int|null $key, ?bool $default = null): bool
     {
@@ -150,10 +147,10 @@ class Arr
 
         $flatten = function ($data, $prefix) use (&$results, &$flatten): void {
             foreach ($data as $key => $value) {
-                $newKey = $prefix.$key;
+                $newKey = $prefix . $key;
 
                 if (is_array($value) && ! empty($value)) {
-                    $flatten($value, $newKey.'.');
+                    $flatten($value, $newKey . '.');
                 } else {
                     $results[$newKey] = $value;
                 }
@@ -228,10 +225,10 @@ class Arr
      * @template TValue
      * @template TFirstDefault
      *
-     * @param  iterable<TKey, TValue>  $array
-     * @param  (callable(TValue, TKey): bool)|null  $callback
-     * @param  TFirstDefault|(\Closure(): TFirstDefault)  $default
-     * @return TValue|TFirstDefault
+     * @param iterable<TKey, TValue> $array
+     * @param null|(callable(TValue, TKey): bool) $callback
+     * @param (Closure(): TFirstDefault)|TFirstDefault $default
+     * @return TFirstDefault|TValue
      */
     public static function first(iterable $array, ?callable $callback = null, mixed $default = null): mixed
     {
@@ -265,10 +262,10 @@ class Arr
      * @template TValue
      * @template TLastDefault
      *
-     * @param  iterable<TKey, TValue>  $array
-     * @param  (callable(TValue, TKey): bool)|null  $callback
-     * @param  TLastDefault|(\Closure(): TLastDefault)  $default
-     * @return TValue|TLastDefault
+     * @param iterable<TKey, TValue> $array
+     * @param null|(callable(TValue, TKey): bool) $callback
+     * @param (Closure(): TLastDefault)|TLastDefault $default
+     * @return TLastDefault|TValue
      */
     public static function last(iterable $array, ?callable $callback = null, mixed $default = null): mixed
     {
@@ -320,7 +317,7 @@ class Arr
     /**
      * Get a float item from an array using "dot" notation.
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     public static function float(ArrayAccess|array $array, string|int|null $key, ?float $default = null): float
     {
@@ -381,7 +378,7 @@ class Arr
      * @template TKey of array-key = array-key
      * @template TValue = mixed
      *
-     * @param  array<TKey, TValue>|Enumerable<TKey, TValue>|Arrayable<TKey, TValue>|WeakMap<object, TValue>|Traversable<TKey, TValue>|Jsonable|JsonSerializable|object  $items
+     * @param array<TKey, TValue>|Arrayable<TKey, TValue>|Enumerable<TKey, TValue>|Jsonable|JsonSerializable|object|Traversable<TKey, TValue>|WeakMap<object, TValue> $items
      * @return ($items is WeakMap ? list<TValue> : array<TKey, TValue>)
      *
      * @throws InvalidArgumentException
@@ -530,7 +527,7 @@ class Arr
     /**
      * Get an integer item from an array using "dot" notation.
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     public static function integer(ArrayAccess|array $array, string|int|null $key, ?int $default = null): int
     {
@@ -584,7 +581,7 @@ class Arr
 
         $finalItem = array_pop($array);
 
-        return implode($glue, $array).$finalGlue.$finalItem;
+        return implode($glue, $array) . $finalGlue . $finalItem;
     }
 
     /**
@@ -600,7 +597,7 @@ class Arr
      */
     public static function prependKeysWith(array $array, string $prependWith): array
     {
-        return static::mapWithKeys($array, fn ($item, $key) => [$prependWith.$key => $item]);
+        return static::mapWithKeys($array, fn ($item, $key) => [$prependWith . $key => $item]);
     }
 
     /**
@@ -683,8 +680,8 @@ class Arr
     /**
      * Explode the "value" and "key" arguments passed to "pluck".
      *
-     * @param  string|array|Closure  $value
-     * @param  string|array|Closure|null  $key
+     * @param array|Closure|string $value
+     * @param null|array|Closure|string $key
      * @return array
      */
     protected static function explodePluckParameters($value, $key)
@@ -722,8 +719,8 @@ class Arr
      * @template TMapWithKeysKey of array-key
      * @template TMapWithKeysValue
      *
-     * @param  array<TKey, TValue>  $array
-     * @param  callable(TValue, TKey): array<TMapWithKeysKey, TMapWithKeysValue>  $callback
+     * @param array<TKey, TValue> $array
+     * @param callable(TValue, TKey): array<TMapWithKeysKey, TMapWithKeysValue> $callback
      */
     public static function mapWithKeys(array $array, callable $callback): array
     {
@@ -746,8 +743,8 @@ class Arr
      * @template TKey
      * @template TValue
      *
-     * @param  array<TKey, array>  $array
-     * @param  callable(mixed...): TValue  $callback
+     * @param array<TKey, array> $array
+     * @param callable(mixed...): TValue $callback
      * @return array<TKey, TValue>
      */
     public static function mapSpread(array $array, callable $callback): array
@@ -814,7 +811,7 @@ class Arr
             return is_null($number) ? null : [];
         }
 
-        $keys = (new Randomizer)->pickArrayKeys($array, $requested);
+        $keys = (new Randomizer())->pickArrayKeys($array, $requested);
 
         if (is_null($number)) {
             return $array[$keys[0]];
@@ -872,11 +869,6 @@ class Arr
 
     /**
      * Push an item into an array using "dot" notation.
-     *
-     * @param  \ArrayAccess|array  $array
-     * @param  string|int|null  $key
-     * @param  mixed  $values
-     * @return array
      */
     public static function push(ArrayAccess|array &$array, string|int|null $key, mixed ...$values): array
     {
@@ -892,7 +884,7 @@ class Arr
      */
     public static function shuffle(array $array): array
     {
-        return (new Randomizer)->shuffleArray($array);
+        return (new Randomizer())->shuffleArray($array);
     }
 
     /**
@@ -910,7 +902,7 @@ class Arr
         $count = count($array);
 
         if ($count === 0) {
-            throw new ItemNotFoundException;
+            throw new ItemNotFoundException();
         }
 
         if ($count > 1) {
@@ -971,7 +963,7 @@ class Arr
     /**
      * Get a string item from an array using "dot" notation.
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     public static function string(ArrayAccess|array $array, string|int|null $key, ?string $default = null): string
     {
@@ -1048,8 +1040,8 @@ class Arr
      * @template TKey of array-key
      * @template TValue of mixed
      *
-     * @param  iterable<TKey, TValue>  $array
-     * @param  callable(TValue, TKey): bool  $callback
+     * @param iterable<TKey, TValue> $array
+     * @param callable(TValue, TKey): bool $callback
      * @return array<int<0, 1>, array<TKey, TValue>>
      */
     public static function partition(iterable $array, callable $callback): array

@@ -6,11 +6,11 @@ namespace Hypervel\Tests\NestedSet;
 
 use BadMethodCallException;
 use Carbon\Carbon;
-use Hypervel\Support\Collection as BaseCollection;
-use Hypervel\Database\QueryException;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\QueryException;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\NestedSet\Eloquent\Collection;
+use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\NestedSet\Models\Category;

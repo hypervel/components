@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Config;
 
-use Hypervel\Support\Arr;
 use Hyperf\Config\ProviderConfig as HyperfProviderConfig;
 use Hyperf\Di\Definition\PriorityDefinition;
 use Hyperf\Support\Composer;
+use Hypervel\Support\Arr;
 use Hypervel\Support\ServiceProvider;
 use Throwable;
 

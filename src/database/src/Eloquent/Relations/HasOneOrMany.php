@@ -21,7 +21,8 @@ use Hypervel\Support\Arr;
  */
 abstract class HasOneOrMany extends Relation
 {
-    use InteractsWithDictionary, SupportsInverseRelations;
+    use InteractsWithDictionary;
+    use SupportsInverseRelations;
 
     /**
      * The foreign key of the parent model.
@@ -36,8 +37,8 @@ abstract class HasOneOrMany extends Relation
     /**
      * Create a new has one or many relationship instance.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  TDeclaringModel  $parent
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param TDeclaringModel $parent
      */
     public function __construct(Builder $query, Model $parent, string $foreignKey, string $localKey)
     {
@@ -90,7 +91,6 @@ abstract class HasOneOrMany extends Relation
         }
     }
 
-    /** @inheritDoc */
     public function addEagerConstraints(array $models): void
     {
         $whereIn = $this->whereInMethod($this->parent, $this->localKey);
@@ -106,8 +106,8 @@ abstract class HasOneOrMany extends Relation
     /**
      * Match the eagerly loaded results to their single parents.
      *
-     * @param  array<int, TDeclaringModel>  $models
-     * @param  \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>  $results
+     * @param array<int, TDeclaringModel> $models
+     * @param \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> $results
      * @return array<int, TDeclaringModel>
      */
     public function matchOne(array $models, EloquentCollection $results, string $relation): array
@@ -118,8 +118,8 @@ abstract class HasOneOrMany extends Relation
     /**
      * Match the eagerly loaded results to their many parents.
      *
-     * @param  array<int, TDeclaringModel>  $models
-     * @param  \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>  $results
+     * @param array<int, TDeclaringModel> $models
+     * @param \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> $results
      * @return array<int, TDeclaringModel>
      */
     public function matchMany(array $models, EloquentCollection $results, string $relation): array
@@ -130,8 +130,8 @@ abstract class HasOneOrMany extends Relation
     /**
      * Match the eagerly loaded results to their many parents.
      *
-     * @param  array<int, TDeclaringModel>  $models
-     * @param  \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>  $results
+     * @param array<int, TDeclaringModel> $models
+     * @param \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> $results
      * @return array<int, TDeclaringModel>
      */
     protected function matchOneOrMany(array $models, EloquentCollection $results, string $relation, string $type): array
@@ -172,7 +172,7 @@ abstract class HasOneOrMany extends Relation
     /**
      * Build model dictionary keyed by the relation's foreign key.
      *
-     * @param  \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>  $results
+     * @param \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> $results
      * @return array<array<int, TRelatedModel>>
      */
     protected function buildDictionary(EloquentCollection $results): array
@@ -187,7 +187,7 @@ abstract class HasOneOrMany extends Relation
     /**
      * Find a model by its primary key or return a new instance of the related model.
      *
-     * @return ($id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : TRelatedModel)
+     * @return ($id is (array<mixed>|\Hypervel\Contracts\Support\Arrayable<array-key, mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> : TRelatedModel)
      */
     public function findOrNew(mixed $id, array $columns = ['*']): EloquentCollection|Model
     {
@@ -279,8 +279,8 @@ abstract class HasOneOrMany extends Relation
     /**
      * Attach a model instance to the parent model.
      *
-     * @param  TRelatedModel  $model
-     * @return TRelatedModel|false
+     * @param TRelatedModel $model
+     * @return false|TRelatedModel
      */
     public function save(Model $model): Model|false
     {
@@ -292,8 +292,8 @@ abstract class HasOneOrMany extends Relation
     /**
      * Attach a model instance without raising any events to the parent model.
      *
-     * @param  TRelatedModel  $model
-     * @return TRelatedModel|false
+     * @param TRelatedModel $model
+     * @return false|TRelatedModel
      */
     public function saveQuietly(Model $model): Model|false
     {
@@ -305,7 +305,7 @@ abstract class HasOneOrMany extends Relation
     /**
      * Attach a collection of models to the parent instance.
      *
-     * @param  iterable<TRelatedModel>  $models
+     * @param iterable<TRelatedModel> $models
      * @return iterable<TRelatedModel>
      */
     public function saveMany(iterable $models): iterable
@@ -320,7 +320,7 @@ abstract class HasOneOrMany extends Relation
     /**
      * Attach a collection of models to the parent instance without raising any events to the parent model.
      *
-     * @param  iterable<TRelatedModel>  $models
+     * @param iterable<TRelatedModel> $models
      * @return iterable<TRelatedModel>
      */
     public function saveManyQuietly(iterable $models): iterable
@@ -433,7 +433,7 @@ abstract class HasOneOrMany extends Relation
     /**
      * Set the foreign ID for creating a related model.
      *
-     * @param  TRelatedModel  $model
+     * @param TRelatedModel $model
      */
     protected function setForeignAttributesForCreate(Model $model): void
     {
@@ -450,7 +450,6 @@ abstract class HasOneOrMany extends Relation
         $this->applyInverseRelationToModel($model);
     }
 
-    /** @inheritDoc */
     public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         if ($query->getQuery()->from == $parentQuery->getQuery()->from) {
@@ -463,18 +462,20 @@ abstract class HasOneOrMany extends Relation
     /**
      * Add the constraints for a relationship query on the same table.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  \Hypervel\Database\Eloquent\Builder<TDeclaringModel>  $parentQuery
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param \Hypervel\Database\Eloquent\Builder<TDeclaringModel> $parentQuery
      * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
      */
     public function getRelationExistenceQueryForSelfRelation(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
-        $query->from($query->getModel()->getTable().' as '.$hash = $this->getRelationCountHash());
+        $query->from($query->getModel()->getTable() . ' as ' . $hash = $this->getRelationCountHash());
 
         $query->getModel()->setTable($hash);
 
         return $query->select($columns)->whereColumn(
-            $this->getQualifiedParentKeyName(), '=', $hash.'.'.$this->getForeignKeyName()
+            $this->getQualifiedParentKeyName(),
+            '=',
+            $hash . '.' . $this->getForeignKeyName()
         );
     }
 

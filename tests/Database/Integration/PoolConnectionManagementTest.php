@@ -10,7 +10,6 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\SQLiteConnector;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Events\ConnectionEstablished;
-use Hypervel\Database\Pool\DbPool;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolFactory;
 use Hypervel\Event\ListenerProvider;
@@ -65,6 +64,10 @@ class PoolConnectionManagementTest extends TestCase
 
         $this->configureDatabase();
         $this->createTestTable();
+
+        // Suppress expected error logs from transaction rollback tests
+        $config = $this->app->get(ConfigInterface::class);
+        $config->set('Hyperf\Contract\StdoutLoggerInterface.log_level', []);
     }
 
     protected function configureDatabase(): void
@@ -240,7 +243,7 @@ class PoolConnectionManagementTest extends TestCase
         // Get and release a few connections to populate the pool
         run(function () use ($pool) {
             $connections = [];
-            for ($i = 0; $i < 3; $i++) {
+            for ($i = 0; $i < 3; ++$i) {
                 $connections[] = $pool->get();
             }
             foreach ($connections as $conn) {

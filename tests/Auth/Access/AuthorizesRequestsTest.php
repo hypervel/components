@@ -6,9 +6,9 @@ namespace Hypervel\Tests\Auth\Access;
 
 use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ContainerInterface;
-use Hypervel\Database\Eloquent\Model;
 use Hypervel\Auth\Access\Response;
 use Hypervel\Contracts\Auth\Access\Gate;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\Auth\Stub\AuthorizesRequestsStub;
 use Hypervel\Tests\TestCase;
 use Mockery;

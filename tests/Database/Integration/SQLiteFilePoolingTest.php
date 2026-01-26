@@ -352,12 +352,12 @@ class SQLiteFilePoolingTest extends TestCase
             $coroutineCount = 3;
             $itemsPerCoroutine = 5;
 
-            for ($c = 1; $c <= $coroutineCount; $c++) {
+            for ($c = 1; $c <= $coroutineCount; ++$c) {
                 go(function () use ($c, $itemsPerCoroutine) {
                     $pooled = $this->getPooledConnection();
                     $connection = $pooled->getConnection();
 
-                    for ($i = 1; $i <= $itemsPerCoroutine; $i++) {
+                    for ($i = 1; $i <= $itemsPerCoroutine; ++$i) {
                         $connection->table('pool_test_items')->insert([
                             'name' => "Coroutine {$c} Item {$i}",
                             'value' => ($c * 100) + $i,

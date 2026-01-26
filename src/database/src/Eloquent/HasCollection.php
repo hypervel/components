@@ -22,7 +22,7 @@ trait HasCollection
     /**
      * Create a new Eloquent Collection instance.
      *
-     * @param  array<array-key, Model>  $models
+     * @param array<array-key, Model> $models
      * @return TCollection
      */
     public function newCollection(array $models = []): Collection
@@ -43,7 +43,7 @@ trait HasCollection
     /**
      * Resolve the collection class name from the CollectedBy attribute.
      *
-     * @return class-string<TCollection>|null
+     * @return null|class-string<TCollection>
      */
     public function resolveCollectionFromAttribute(): ?string
     {

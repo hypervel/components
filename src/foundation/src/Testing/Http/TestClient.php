@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Http;
 
-use Hypervel\Support\Arr;
 use Hyperf\Context\Context;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Dispatcher\HttpDispatcher;
@@ -19,6 +18,7 @@ use Hyperf\Support\Filesystem\Filesystem;
 use Hyperf\Testing\HttpMessage\Upload\UploadedFile;
 use Hypervel\Foundation\Http\Kernel as HttpKernel;
 use Hypervel\Foundation\Testing\Coroutine\Waiter;
+use Hypervel\Support\Arr;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;

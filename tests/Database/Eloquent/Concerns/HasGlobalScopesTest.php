@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Eloquent\Concerns;
 
-use Hypervel\Database\Eloquent\Builder;
-use Hypervel\Database\Eloquent\Model as HyperfModel;
-use Hypervel\Database\Eloquent\Scope;
 use Hypervel\Database\Eloquent\Attributes\ScopedBy;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Concerns\HasGlobalScopes;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Model as HyperfModel;
 use Hypervel\Database\Eloquent\Relations\MorphPivot;
 use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Eloquent\Scope;
 use Hypervel\Tests\TestCase;
 
 /**

@@ -29,7 +29,6 @@ use InvalidArgumentException;
  */
 abstract class DatabaseIntegrationTestCase extends TestCase
 {
-
     protected function setUp(): void
     {
         $driver = $this->getDatabaseDriver();

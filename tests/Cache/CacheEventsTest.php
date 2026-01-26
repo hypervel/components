@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache;
 
 use Hypervel\Cache\ArrayStore;
-use Hypervel\Contracts\Cache\Store;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\ForgettingKey;
@@ -15,6 +14,7 @@ use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Repository;
+use Hypervel\Contracts\Cache\Store;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface as Dispatcher;

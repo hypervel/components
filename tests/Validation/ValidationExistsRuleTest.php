@@ -13,6 +13,7 @@ use Hypervel\Translation\Translator;
 use Hypervel\Validation\DatabasePresenceVerifier;
 use Hypervel\Validation\Rules\Exists;
 use Hypervel\Validation\Validator;
+use UnitEnum;
 
 /**
  * @internal
@@ -308,7 +309,7 @@ class UserWithPrefixedTable extends Eloquent
 
 class UserWithConnection extends User
 {
-    protected \UnitEnum|string|null $connection = 'mysql';
+    protected UnitEnum|string|null $connection = 'mysql';
 }
 
 class NoTableNameModel extends Eloquent

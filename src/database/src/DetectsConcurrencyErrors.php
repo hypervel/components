@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Database;
 
 use Hyperf\Context\ApplicationContext;
-use Hypervel\Database\ConcurrencyErrorDetector;
 use Hypervel\Contracts\Database\ConcurrencyErrorDetector as ConcurrencyErrorDetectorContract;
 use Throwable;
 

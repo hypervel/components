@@ -23,7 +23,6 @@ use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Str;
 use Hypervel\Support\StrCache;
 
 trait HasRelationships
@@ -67,7 +66,7 @@ trait HasRelationships
      *
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  class-string<TRelatedModel>  $class
+     * @param class-string<TRelatedModel> $class
      */
     public function relationResolver(string $class, string $key): ?Closure
     {
@@ -174,7 +173,7 @@ trait HasRelationships
      *
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  class-string<TRelatedModel>  $related
+     * @param class-string<TRelatedModel> $related
      * @return \Hypervel\Database\Eloquent\Relations\HasOne<TRelatedModel, $this>
      */
     public function hasOne(string $related, ?string $foreignKey = null, ?string $localKey = null): HasOne
@@ -194,8 +193,8 @@ trait HasRelationships
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  TDeclaringModel  $parent
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param TDeclaringModel $parent
      * @return \Hypervel\Database\Eloquent\Relations\HasOne<TRelatedModel, TDeclaringModel>
      */
     protected function newHasOne(Builder $query, Model $parent, string $foreignKey, string $localKey): HasOne
@@ -209,8 +208,8 @@ trait HasRelationships
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      * @template TIntermediateModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  class-string<TRelatedModel>  $related
-     * @param  class-string<TIntermediateModel>  $through
+     * @param class-string<TRelatedModel> $related
+     * @param class-string<TIntermediateModel> $through
      * @return \Hypervel\Database\Eloquent\Relations\HasOneThrough<TRelatedModel, TIntermediateModel, $this>
      */
     public function hasOneThrough(string $related, string $through, ?string $firstKey = null, ?string $secondKey = null, ?string $localKey = null, ?string $secondLocalKey = null): HasOneThrough
@@ -239,9 +238,9 @@ trait HasRelationships
      * @template TIntermediateModel of \Hypervel\Database\Eloquent\Model
      * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  TDeclaringModel  $farParent
-     * @param  TIntermediateModel  $throughParent
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param TDeclaringModel $farParent
+     * @param TIntermediateModel $throughParent
      * @return \Hypervel\Database\Eloquent\Relations\HasOneThrough<TRelatedModel, TIntermediateModel, TDeclaringModel>
      */
     protected function newHasOneThrough(Builder $query, Model $farParent, Model $throughParent, string $firstKey, string $secondKey, string $localKey, string $secondLocalKey): HasOneThrough
@@ -254,7 +253,7 @@ trait HasRelationships
      *
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  class-string<TRelatedModel>  $related
+     * @param class-string<TRelatedModel> $related
      * @return \Hypervel\Database\Eloquent\Relations\MorphOne<TRelatedModel, $this>
      */
     public function morphOne(string $related, string $name, ?string $type = null, ?string $id = null, ?string $localKey = null): MorphOne
@@ -274,8 +273,8 @@ trait HasRelationships
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  TDeclaringModel  $parent
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param TDeclaringModel $parent
      * @return \Hypervel\Database\Eloquent\Relations\MorphOne<TRelatedModel, TDeclaringModel>
      */
     protected function newMorphOne(Builder $query, Model $parent, string $type, string $id, string $localKey): MorphOne
@@ -288,7 +287,7 @@ trait HasRelationships
      *
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  class-string<TRelatedModel>  $related
+     * @param class-string<TRelatedModel> $related
      * @return \Hypervel\Database\Eloquent\Relations\BelongsTo<TRelatedModel, $this>
      */
     public function belongsTo(string $related, ?string $foreignKey = null, ?string $ownerKey = null, ?string $relation = null): BelongsTo
@@ -306,7 +305,7 @@ trait HasRelationships
         // foreign key name by using the name of the relationship function, which
         // when combined with an "_id" should conventionally match the columns.
         if (is_null($foreignKey)) {
-            $foreignKey = StrCache::snake($relation).'_'.$instance->getKeyName();
+            $foreignKey = StrCache::snake($relation) . '_' . $instance->getKeyName();
         }
 
         // Once we have the foreign key names we'll just create a new Eloquent query
@@ -315,7 +314,11 @@ trait HasRelationships
         $ownerKey = $ownerKey ?: $instance->getKeyName();
 
         return $this->newBelongsTo(
-            $instance->newQuery(), $this, $foreignKey, $ownerKey, $relation
+            $instance->newQuery(),
+            $this,
+            $foreignKey,
+            $ownerKey,
+            $relation
         );
     }
 
@@ -325,8 +328,8 @@ trait HasRelationships
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  TDeclaringModel  $child
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param TDeclaringModel $child
      * @return \Hypervel\Database\Eloquent\Relations\BelongsTo<TRelatedModel, TDeclaringModel>
      */
     protected function newBelongsTo(Builder $query, Model $child, string $foreignKey, string $ownerKey, string $relation): BelongsTo
@@ -347,7 +350,9 @@ trait HasRelationships
         $name = $name ?: $this->guessBelongsToRelation();
 
         [$type, $id] = $this->getMorphs(
-            StrCache::snake($name), $type, $id
+            StrCache::snake($name),
+            $type,
+            $id
         );
 
         // If the type value is null it is probably safe to assume we're eager loading
@@ -367,7 +372,12 @@ trait HasRelationships
     {
         // @phpstan-ignore return.type (MorphTo<Model, $this> vs MorphTo<static, $this> - template covariance)
         return $this->newMorphTo(
-            $this->newQuery()->setEagerLoads([]), $this, $id, $ownerKey, $type, $name
+            $this->newQuery()->setEagerLoads([]),
+            $this,
+            $id,
+            $ownerKey,
+            $type,
+            $name
         );
     }
 
@@ -383,7 +393,12 @@ trait HasRelationships
         );
 
         return $this->newMorphTo(
-            $instance->newQuery(), $this, $id, $ownerKey ?? $instance->getKeyName(), $type, $name
+            $instance->newQuery(),
+            $this,
+            $id,
+            $ownerKey ?? $instance->getKeyName(),
+            $type,
+            $name
         );
     }
 
@@ -393,8 +408,8 @@ trait HasRelationships
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  TDeclaringModel  $parent
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param TDeclaringModel $parent
      * @return \Hypervel\Database\Eloquent\Relations\MorphTo<TRelatedModel, TDeclaringModel>
      */
     protected function newMorphTo(Builder $query, Model $parent, string $foreignKey, ?string $ownerKey, string $type, string $relation): MorphTo
@@ -425,7 +440,7 @@ trait HasRelationships
      *
      * @template TIntermediateModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  string|\Hypervel\Database\Eloquent\Relations\HasMany<TIntermediateModel, covariant $this>|\Hypervel\Database\Eloquent\Relations\HasOne<TIntermediateModel, covariant $this>  $relationship
+     * @param \Hypervel\Database\Eloquent\Relations\HasMany<TIntermediateModel, covariant $this>|\Hypervel\Database\Eloquent\Relations\HasOne<TIntermediateModel, covariant $this>|string $relationship
      * @return (
      *     $relationship is string
      *     ? \Hypervel\Database\Eloquent\PendingHasThroughRelationship<\Hypervel\Database\Eloquent\Model, $this>
@@ -452,7 +467,7 @@ trait HasRelationships
      *
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  class-string<TRelatedModel>  $related
+     * @param class-string<TRelatedModel> $related
      * @return \Hypervel\Database\Eloquent\Relations\HasMany<TRelatedModel, $this>
      */
     public function hasMany(string $related, ?string $foreignKey = null, ?string $localKey = null): HasMany
@@ -464,7 +479,10 @@ trait HasRelationships
         $localKey = $localKey ?: $this->getKeyName();
 
         return $this->newHasMany(
-            $instance->newQuery(), $this, $instance->qualifyColumn($foreignKey), $localKey
+            $instance->newQuery(),
+            $this,
+            $instance->qualifyColumn($foreignKey),
+            $localKey
         );
     }
 
@@ -474,8 +492,8 @@ trait HasRelationships
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  TDeclaringModel  $parent
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param TDeclaringModel $parent
      * @return \Hypervel\Database\Eloquent\Relations\HasMany<TRelatedModel, TDeclaringModel>
      */
     protected function newHasMany(Builder $query, Model $parent, string $foreignKey, string $localKey): HasMany
@@ -489,8 +507,8 @@ trait HasRelationships
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      * @template TIntermediateModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  class-string<TRelatedModel>  $related
-     * @param  class-string<TIntermediateModel>  $through
+     * @param class-string<TRelatedModel> $related
+     * @param class-string<TIntermediateModel> $through
      * @return \Hypervel\Database\Eloquent\Relations\HasManyThrough<TRelatedModel, TIntermediateModel, $this>
      */
     public function hasManyThrough(string $related, string $through, ?string $firstKey = null, ?string $secondKey = null, ?string $localKey = null, ?string $secondLocalKey = null): HasManyThrough
@@ -519,9 +537,9 @@ trait HasRelationships
      * @template TIntermediateModel of \Hypervel\Database\Eloquent\Model
      * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  TDeclaringModel  $farParent
-     * @param  TIntermediateModel  $throughParent
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param TDeclaringModel $farParent
+     * @param TIntermediateModel $throughParent
      * @return \Hypervel\Database\Eloquent\Relations\HasManyThrough<TRelatedModel, TIntermediateModel, TDeclaringModel>
      */
     protected function newHasManyThrough(Builder $query, Model $farParent, Model $throughParent, string $firstKey, string $secondKey, string $localKey, string $secondLocalKey): HasManyThrough
@@ -534,7 +552,7 @@ trait HasRelationships
      *
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  class-string<TRelatedModel>  $related
+     * @param class-string<TRelatedModel> $related
      * @return \Hypervel\Database\Eloquent\Relations\MorphMany<TRelatedModel, $this>
      */
     public function morphMany(string $related, string $name, ?string $type = null, ?string $id = null, ?string $localKey = null): MorphMany
@@ -557,8 +575,8 @@ trait HasRelationships
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  TDeclaringModel  $parent
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param TDeclaringModel $parent
      * @return \Hypervel\Database\Eloquent\Relations\MorphMany<TRelatedModel, TDeclaringModel>
      */
     protected function newMorphMany(Builder $query, Model $parent, string $type, string $id, string $localKey): MorphMany
@@ -571,8 +589,8 @@ trait HasRelationships
      *
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  class-string<TRelatedModel>  $related
-     * @param  string|class-string<\Hypervel\Database\Eloquent\Model>|null  $table
+     * @param class-string<TRelatedModel> $related
+     * @param null|class-string<\Hypervel\Database\Eloquent\Model>|string $table
      * @return \Hypervel\Database\Eloquent\Relations\BelongsToMany<TRelatedModel, $this, \Hypervel\Database\Eloquent\Relations\Pivot>
      */
     public function belongsToMany(
@@ -625,9 +643,9 @@ trait HasRelationships
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  TDeclaringModel  $parent
-     * @param  string|class-string<\Hypervel\Database\Eloquent\Model>  $table
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param TDeclaringModel $parent
+     * @param class-string<\Hypervel\Database\Eloquent\Model>|string $table
      * @return \Hypervel\Database\Eloquent\Relations\BelongsToMany<TRelatedModel, TDeclaringModel, \Hypervel\Database\Eloquent\Relations\Pivot>
      */
     protected function newBelongsToMany(
@@ -648,7 +666,7 @@ trait HasRelationships
      *
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  class-string<TRelatedModel>  $related
+     * @param class-string<TRelatedModel> $related
      * @return \Hypervel\Database\Eloquent\Relations\MorphToMany<TRelatedModel, $this>
      */
     public function morphToMany(
@@ -669,7 +687,7 @@ trait HasRelationships
         // instances, as well as the relationship instances we need for these.
         $instance = $this->newRelatedInstance($related);
 
-        $foreignPivotKey = $foreignPivotKey ?: $name.'_id';
+        $foreignPivotKey = $foreignPivotKey ?: $name . '_id';
 
         $relatedPivotKey = $relatedPivotKey ?: $instance->getForeignKey();
 
@@ -681,7 +699,7 @@ trait HasRelationships
 
             $lastWord = array_pop($words);
 
-            $table = implode('', $words).StrCache::plural($lastWord);
+            $table = implode('', $words) . StrCache::plural($lastWord);
         }
 
         return $this->newMorphToMany(
@@ -704,8 +722,8 @@ trait HasRelationships
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      * @template TDeclaringModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  TDeclaringModel  $parent
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param TDeclaringModel $parent
      * @return \Hypervel\Database\Eloquent\Relations\MorphToMany<TRelatedModel, TDeclaringModel>
      */
     protected function newMorphToMany(
@@ -739,7 +757,7 @@ trait HasRelationships
      *
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  class-string<TRelatedModel>  $related
+     * @param class-string<TRelatedModel> $related
      * @return \Hypervel\Database\Eloquent\Relations\MorphToMany<TRelatedModel, $this>
      */
     public function morphedByMany(
@@ -757,7 +775,7 @@ trait HasRelationships
         // For the inverse of the polymorphic many-to-many relations, we will change
         // the way we determine the foreign and other keys, as it is the opposite
         // of the morph-to-many method since we're figuring out these inverses.
-        $relatedPivotKey = $relatedPivotKey ?: $name.'_id';
+        $relatedPivotKey = $relatedPivotKey ?: $name . '_id';
 
         return $this->morphToMany(
             $related,
@@ -833,14 +851,14 @@ trait HasRelationships
     {
         $this->withoutRecursion(function () {
             foreach ($this->getTouchedRelations() as $relation) {
-                $this->$relation()->touch();
+                $this->{$relation}()->touch();
 
-                if ($this->$relation instanceof self) {
-                    $this->$relation->fireModelEvent('saved', false);
+                if ($this->{$relation} instanceof self) {
+                    $this->{$relation}->fireModelEvent('saved', false);
 
-                    $this->$relation->touchOwners();
-                } elseif ($this->$relation instanceof EloquentCollection) {
-                    $this->$relation->each->touchOwners();
+                    $this->{$relation}->touchOwners();
+                } elseif ($this->{$relation} instanceof EloquentCollection) {
+                    $this->{$relation}->each->touchOwners();
                 }
             }
         });
@@ -853,7 +871,7 @@ trait HasRelationships
      */
     protected function getMorphs(string $name, ?string $type, ?string $id): array
     {
-        return [$type ?: $name.'_type', $id ?: $name.'_id'];
+        return [$type ?: $name . '_type', $id ?: $name . '_id'];
     }
 
     /**
@@ -883,12 +901,12 @@ trait HasRelationships
      *
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  class-string<TRelatedModel>  $class
+     * @param class-string<TRelatedModel> $class
      * @return TRelatedModel
      */
     protected function newRelatedInstance(string $class): Model
     {
-        return tap(new $class, function ($instance) {
+        return tap(new $class(), function ($instance) {
             if (! $instance->getConnectionName()) {
                 $instance->setConnection($this->connection);
             }
@@ -900,12 +918,12 @@ trait HasRelationships
      *
      * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
      *
-     * @param  class-string<TRelatedModel>  $class
+     * @param class-string<TRelatedModel> $class
      * @return TRelatedModel
      */
     protected function newRelatedThroughInstance(string $class): Model
     {
-        return new $class;
+        return new $class();
     }
 
     /**

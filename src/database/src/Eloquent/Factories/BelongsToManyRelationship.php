@@ -17,7 +17,7 @@ class BelongsToManyRelationship
     /**
      * The pivot attributes / attribute resolver.
      *
-     * @var callable|array
+     * @var array|callable
      */
     protected mixed $pivot;
 
@@ -28,8 +28,6 @@ class BelongsToManyRelationship
 
     /**
      * Create a new attached relationship definition.
-     *
-     * @param callable|array $pivot
      */
     public function __construct(Factory|Collection|Model|array $factory, callable|array $pivot, string $relationship)
     {

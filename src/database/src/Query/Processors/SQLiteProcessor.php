@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Query\Processors;
 
+use Override;
+
 class SQLiteProcessor extends Processor
 {
-    #[\Override]
+    #[Override]
     public function processColumns(array $results, string $sql = ''): array
     {
         $hasPrimaryKey = array_sum(array_column($results, 'primary')) === 1;
@@ -19,7 +21,7 @@ class SQLiteProcessor extends Processor
             $safeName = preg_quote($result->name, '/');
 
             $collation = preg_match(
-                '/\b'.$safeName.'\b[^,(]+(?:\([^()]+\)[^,]*)?(?:(?:default|check|as)\s*(?:\(.*?\))?[^,]*)*collate\s+["\'`]?(\w+)/i',
+                '/\b' . $safeName . '\b[^,(]+(?:\([^()]+\)[^,]*)?(?:(?:default|check|as)\s*(?:\(.*?\))?[^,]*)*collate\s+["\'`]?(\w+)/i',
                 $sql,
                 $matches
             ) === 1 ? strtolower($matches[1]) : null;
@@ -27,7 +29,7 @@ class SQLiteProcessor extends Processor
             $isGenerated = in_array($result->extra, [2, 3]);
 
             $expression = $isGenerated && preg_match(
-                '/\b'.$safeName.'\b[^,]+\s+as\s+\(((?:[^()]+|\((?:[^()]+|\([^()]*\))*\))*)\)/i',
+                '/\b' . $safeName . '\b[^,]+\s+as\s+\(((?:[^()]+|\((?:[^()]+|\([^()]*\))*\))*)\)/i',
                 $sql,
                 $matches
             ) === 1 ? $matches[1] : null;
@@ -53,7 +55,7 @@ class SQLiteProcessor extends Processor
         }, $results);
     }
 
-    #[\Override]
+    #[Override]
     public function processIndexes(array $results): array
     {
         $primaryCount = 0;
@@ -62,7 +64,7 @@ class SQLiteProcessor extends Processor
             $result = (object) $result;
 
             if ($isPrimary = (bool) $result->primary) {
-                $primaryCount += 1;
+                ++$primaryCount;
             }
 
             return [
@@ -81,7 +83,7 @@ class SQLiteProcessor extends Processor
         return $indexes;
     }
 
-    #[\Override]
+    #[Override]
     public function processForeignKeys(array $results): array
     {
         return array_map(function ($result) {

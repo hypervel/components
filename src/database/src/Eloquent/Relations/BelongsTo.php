@@ -21,9 +21,9 @@ use function Hypervel\Support\enum_value;
  */
 class BelongsTo extends Relation
 {
-    use ComparesRelatedModels,
-        InteractsWithDictionary,
-        SupportsDefaultModels;
+    use ComparesRelatedModels;
+    use InteractsWithDictionary;
+    use SupportsDefaultModels;
 
     /**
      * The child model instance of the relation.
@@ -50,8 +50,8 @@ class BelongsTo extends Relation
     /**
      * Create a new belongs to relationship instance.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  TDeclaringModel  $child
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param TDeclaringModel $child
      */
     public function __construct(Builder $query, Model $child, string $foreignKey, ?string $ownerKey, string $relationName)
     {
@@ -67,7 +67,6 @@ class BelongsTo extends Relation
         parent::__construct($query, $child);
     }
 
-    /** @inheritDoc */
     public function getResults()
     {
         if (is_null($this->getForeignKeyFrom($this->child))) {
@@ -92,7 +91,6 @@ class BelongsTo extends Relation
         }
     }
 
-    /** @inheritDoc */
     public function addEagerConstraints(array $models): void
     {
         // We'll grab the primary key name of the related models since it could be set to
@@ -108,7 +106,7 @@ class BelongsTo extends Relation
     /**
      * Gather the keys from an array of related models.
      *
-     * @param  array<int, TDeclaringModel>  $models
+     * @param array<int, TDeclaringModel> $models
      */
     protected function getEagerModelKeys(array $models): array
     {
@@ -128,7 +126,6 @@ class BelongsTo extends Relation
         return array_values(array_unique($keys));
     }
 
-    /** @inheritDoc */
     public function initRelation(array $models, string $relation): array
     {
         foreach ($models as $model) {
@@ -138,7 +135,6 @@ class BelongsTo extends Relation
         return $models;
     }
 
-    /** @inheritDoc */
     public function match(array $models, EloquentCollection $results, string $relation): array
     {
         // First we will get to build a dictionary of the child models by their primary
@@ -169,7 +165,7 @@ class BelongsTo extends Relation
     /**
      * Associate the model instance to the given parent.
      *
-     * @param  TRelatedModel|int|string|null  $model
+     * @param null|int|string|TRelatedModel $model
      * @return TDeclaringModel
      */
     public function associate(Model|int|string|null $model): Model
@@ -219,7 +215,6 @@ class BelongsTo extends Relation
         }
     }
 
-    /** @inheritDoc */
     public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         if ($parentQuery->getQuery()->from == $query->getQuery()->from) {
@@ -227,27 +222,31 @@ class BelongsTo extends Relation
         }
 
         return $query->select($columns)->whereColumn(
-            $this->getQualifiedForeignKeyName(), '=', $query->qualifyColumn($this->ownerKey)
+            $this->getQualifiedForeignKeyName(),
+            '=',
+            $query->qualifyColumn($this->ownerKey)
         );
     }
 
     /**
      * Add the constraints for a relationship query on the same table.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  \Hypervel\Database\Eloquent\Builder<TDeclaringModel>  $parentQuery
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param \Hypervel\Database\Eloquent\Builder<TDeclaringModel> $parentQuery
      * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
      */
     public function getRelationExistenceQueryForSelfRelation(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         $query->select($columns)->from(
-            $query->getModel()->getTable().' as '.$hash = $this->getRelationCountHash()
+            $query->getModel()->getTable() . ' as ' . $hash = $this->getRelationCountHash()
         );
 
         $query->getModel()->setTable($hash);
 
         return $query->whereColumn(
-            $hash.'.'.$this->ownerKey, '=', $this->getQualifiedForeignKeyName()
+            $hash . '.' . $this->ownerKey,
+            '=',
+            $this->getQualifiedForeignKeyName()
         );
     }
 
@@ -256,14 +255,14 @@ class BelongsTo extends Relation
      */
     protected function relationHasIncrementingId(): bool
     {
-        return $this->related->getIncrementing() &&
-            in_array($this->related->getKeyType(), ['int', 'integer']);
+        return $this->related->getIncrementing()
+            && in_array($this->related->getKeyType(), ['int', 'integer']);
     }
 
     /**
      * Make a new related instance for the given model.
      *
-     * @param  TDeclaringModel  $parent
+     * @param TDeclaringModel $parent
      * @return TRelatedModel
      */
     protected function newRelatedInstanceFor(Model $parent): Model
@@ -324,7 +323,7 @@ class BelongsTo extends Relation
     /**
      * Get the value of the model's foreign key.
      *
-     * @param  TRelatedModel  $model
+     * @param TRelatedModel $model
      */
     protected function getRelatedKeyFrom(Model $model): mixed
     {
@@ -334,7 +333,7 @@ class BelongsTo extends Relation
     /**
      * Get the value of the model's foreign key.
      *
-     * @param  TDeclaringModel  $model
+     * @param TDeclaringModel $model
      */
     protected function getForeignKeyFrom(Model $model): mixed
     {

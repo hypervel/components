@@ -21,9 +21,10 @@ use Hypervel\Database\Query\JoinClause;
  */
 class HasOne extends HasOneOrMany implements SupportsPartialRelations
 {
-    use ComparesRelatedModels, CanBeOneOfMany, SupportsDefaultModels;
+    use ComparesRelatedModels;
+    use CanBeOneOfMany;
+    use SupportsDefaultModels;
 
-    /** @inheritDoc */
     public function getResults()
     {
         if (is_null($this->getParentKey())) {
@@ -33,7 +34,6 @@ class HasOne extends HasOneOrMany implements SupportsPartialRelations
         return $this->query->first() ?: $this->getDefaultFor($this->parent);
     }
 
-    /** @inheritDoc */
     public function initRelation(array $models, string $relation): array
     {
         foreach ($models as $model) {
@@ -43,13 +43,11 @@ class HasOne extends HasOneOrMany implements SupportsPartialRelations
         return $models;
     }
 
-    /** @inheritDoc */
     public function match(array $models, EloquentCollection $results, string $relation): array
     {
         return $this->matchOne($models, $results, $relation);
     }
 
-    /** @inheritDoc */
     public function getRelationExistenceQuery(Builder $query, Builder $parentQuery, mixed $columns = ['*']): Builder
     {
         if ($this->isOneOfMany()) {
@@ -62,7 +60,7 @@ class HasOne extends HasOneOrMany implements SupportsPartialRelations
     /**
      * Add constraints for inner join subselect for one of many relationships.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
      */
     public function addOneOfManySubQueryConstraints(Builder $query, ?string $column = null, ?string $aggregate = null): void
     {
@@ -88,7 +86,7 @@ class HasOne extends HasOneOrMany implements SupportsPartialRelations
     /**
      * Make a new related instance for the given model.
      *
-     * @param  TDeclaringModel  $parent
+     * @param TDeclaringModel $parent
      * @return TRelatedModel
      */
     public function newRelatedInstanceFor(Model $parent): Model
@@ -102,7 +100,7 @@ class HasOne extends HasOneOrMany implements SupportsPartialRelations
     /**
      * Get the value of the model's foreign key.
      *
-     * @param  TRelatedModel  $model
+     * @param TRelatedModel $model
      */
     protected function getRelatedKeyFrom(Model $model): mixed
     {

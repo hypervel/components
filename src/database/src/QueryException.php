@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
-use Hypervel\Support\Str;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Str;
 use PDOException;
 use Throwable;
 

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Process;
 
 use Closure;
-use Hypervel\Support\Collection;
 use Hypervel\Process\Contracts\ProcessResult as ProcessResultContract;
+use Hypervel\Support\Collection;
 use InvalidArgumentException;
 
 /**

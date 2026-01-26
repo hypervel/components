@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
-use Hypervel\Translation\CreatesPotentiallyTranslatedStrings;
 use Hypervel\Contracts\Validation\DataAwareRule;
 use Hypervel\Contracts\Validation\ImplicitRule;
 use Hypervel\Contracts\Validation\InvokableRule;
@@ -12,6 +11,7 @@ use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\ValidationRule;
 use Hypervel\Contracts\Validation\Validator;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
+use Hypervel\Translation\CreatesPotentiallyTranslatedStrings;
 
 class InvokableValidationRule implements Rule, ValidatorAwareRule
 {

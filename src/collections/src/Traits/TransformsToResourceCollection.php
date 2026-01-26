@@ -11,16 +11,16 @@ use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Http\Resources\Json\ResourceCollection;
 use LogicException;
 use ReflectionClass;
+use Throwable;
 
 trait TransformsToResourceCollection
 {
     /**
      * Create a new resource collection instance for the given resource.
      *
-     * @param  class-string<\Hypervel\Http\Resources\Json\JsonResource>|null  $resourceClass
-     * @return \Hypervel\Http\Resources\Json\ResourceCollection
+     * @param null|class-string<\Hypervel\Http\Resources\Json\JsonResource> $resourceClass
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function toResourceCollection(?string $resourceClass = null): ResourceCollection
     {
@@ -34,9 +34,7 @@ trait TransformsToResourceCollection
     /**
      * Guess the resource collection for the items.
      *
-     * @return \Hypervel\Http\Resources\Json\ResourceCollection
-     *
-     * @throws \Throwable
+     * @throws Throwable
      */
     protected function guessResourceCollection(): ResourceCollection
     {
@@ -69,7 +67,7 @@ trait TransformsToResourceCollection
         $resourceClasses = $className::guessResourceName();
 
         foreach ($resourceClasses as $resourceClass) {
-            $resourceCollection = $resourceClass.'Collection';
+            $resourceCollection = $resourceClass . 'Collection';
 
             if (class_exists($resourceCollection)) {
                 return new $resourceCollection($this);
@@ -88,8 +86,8 @@ trait TransformsToResourceCollection
     /**
      * Get the resource class from the class attribute.
      *
-     * @param  class-string  $class
-     * @return class-string<JsonResource>|null
+     * @param class-string $class
+     * @return null|class-string<JsonResource>
      */
     protected function resolveResourceFromAttribute(string $class): ?string
     {
@@ -107,8 +105,8 @@ trait TransformsToResourceCollection
     /**
      * Get the resource collection class from the class attribute.
      *
-     * @param  class-string  $class
-     * @return class-string<ResourceCollection>|null
+     * @param class-string $class
+     * @return null|class-string<ResourceCollection>
      */
     protected function resolveResourceCollectionFromAttribute(string $class): ?string
     {

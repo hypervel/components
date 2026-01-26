@@ -31,8 +31,8 @@ class Processor
     /**
      * Process the results of a schemas query.
      *
-     * @param  list<array<string, mixed>>  $results
-     * @return list<array{name: string, path: string|null, default: bool}>
+     * @param list<array<string, mixed>> $results
+     * @return list<array{name: string, path: null|string, default: bool}>
      */
     public function processSchemas(array $results): array
     {
@@ -50,8 +50,8 @@ class Processor
     /**
      * Process the results of a tables query.
      *
-     * @param  list<array<string, mixed>>  $results
-     * @return list<array{name: string, schema: string|null, schema_qualified_name: string, size: int|null, comment: string|null, collation: string|null, engine: string|null}>
+     * @param list<array<string, mixed>> $results
+     * @return list<array{name: string, schema: null|string, schema_qualified_name: string, size: null|int, comment: null|string, collation: null|string, engine: null|string}>
      */
     public function processTables(array $results): array
     {
@@ -61,7 +61,7 @@ class Processor
             return [
                 'name' => $result->name,
                 'schema' => $result->schema ?? null,
-                'schema_qualified_name' => isset($result->schema) ? $result->schema.'.'.$result->name : $result->name,
+                'schema_qualified_name' => isset($result->schema) ? $result->schema . '.' . $result->name : $result->name,
                 'size' => isset($result->size) ? (int) $result->size : null,
                 'comment' => $result->comment ?? null, // MySQL and PostgreSQL
                 'collation' => $result->collation ?? null, // MySQL only
@@ -73,7 +73,7 @@ class Processor
     /**
      * Process the results of a views query.
      *
-     * @param  list<array<string, mixed>>  $results
+     * @param list<array<string, mixed>> $results
      * @return list<array{name: string, schema: string, schema_qualified_name: string, definition: string}>
      */
     public function processViews(array $results): array
@@ -84,7 +84,7 @@ class Processor
             return [
                 'name' => $result->name,
                 'schema' => $result->schema ?? null,
-                'schema_qualified_name' => isset($result->schema) ? $result->schema.'.'.$result->name : $result->name,
+                'schema_qualified_name' => isset($result->schema) ? $result->schema . '.' . $result->name : $result->name,
                 'definition' => $result->definition,
             ];
         }, $results);
@@ -93,7 +93,7 @@ class Processor
     /**
      * Process the results of a types query.
      *
-     * @param  list<array<string, mixed>>  $results
+     * @param list<array<string, mixed>> $results
      * @return list<array{name: string, schema: string, schema_qualified_name: string, type: string, category: string, implicit: bool}>
      */
     public function processTypes(array $results): array
@@ -104,8 +104,8 @@ class Processor
     /**
      * Process the results of a columns query.
      *
-     * @param  list<array<string, mixed>>  $results
-     * @return list<array{name: string, type: string, type_name: string, collation: string|null, nullable: bool, default: mixed, auto_increment: bool, comment: string|null, generation: array{type: string, expression: string|null}|null}>
+     * @param list<array<string, mixed>> $results
+     * @return list<array{name: string, type: string, type_name: string, collation: null|string, nullable: bool, default: mixed, auto_increment: bool, comment: null|string, generation: null|array{type: string, expression: null|string}}>
      */
     public function processColumns(array $results, string $sql = ''): array
     {
@@ -115,8 +115,8 @@ class Processor
     /**
      * Process the results of an indexes query.
      *
-     * @param  list<array<string, mixed>>  $results
-     * @return list<array{name: string, columns: list<string>, type: string|null, unique: bool, primary: bool}>
+     * @param list<array<string, mixed>> $results
+     * @return list<array{name: string, columns: list<string>, type: null|string, unique: bool, primary: bool}>
      */
     public function processIndexes(array $results): array
     {
@@ -126,8 +126,8 @@ class Processor
     /**
      * Process the results of a foreign keys query.
      *
-     * @param  list<array<string, mixed>>  $results
-     * @return list<array{name: string|null, columns: list<string>, foreign_schema: string, foreign_table: string, foreign_columns: list<string>, on_update: string, on_delete: string}>
+     * @param list<array<string, mixed>> $results
+     * @return list<array{name: null|string, columns: list<string>, foreign_schema: string, foreign_table: string, foreign_columns: list<string>, on_update: string, on_delete: string}>
      */
     public function processForeignKeys(array $results): array
     {

@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
+use Hyperf\Di\Container;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
-use Hyperf\Di\Container;
-use Hypervel\Support\Str;
 use Hypervel\Queue\DatabaseQueue;
 use Hypervel\Queue\Queue;
+use Hypervel\Support\Str;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;

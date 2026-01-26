@@ -6,10 +6,10 @@ namespace Hypervel\Validation;
 
 use Closure;
 use Hypervel\Contracts\Support\Arrayable;
-use Hypervel\Support\Arr;
-use Hypervel\Support\Traits\Macroable;
 use Hypervel\Contracts\Validation\InvokableRule;
 use Hypervel\Contracts\Validation\ValidationRule;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\Validation\Rules\AnyOf;
 use Hypervel\Validation\Rules\ArrayRule;
 use Hypervel\Validation\Rules\Can;

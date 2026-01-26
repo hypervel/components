@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Concerns;
 
-use Hypervel\Support\Str;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 
 trait CompilesJsonPaths
 {

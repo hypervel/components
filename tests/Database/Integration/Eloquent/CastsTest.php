@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Integration\Eloquent;
 
+use ArrayObject;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Hypervel\Database\Eloquent\Casts\AsArrayObject;
@@ -181,7 +182,7 @@ class CastsTest extends IntegrationTestCase
         $settings = ['theme' => 'dark', 'notifications' => true];
         $model = CastModel::create(['name' => 'Test', 'settings' => $settings]);
 
-        $this->assertInstanceOf(\ArrayObject::class, $model->settings);
+        $this->assertInstanceOf(ArrayObject::class, $model->settings);
         $this->assertSame('dark', $model->settings['theme']);
 
         $model->settings['theme'] = 'light';

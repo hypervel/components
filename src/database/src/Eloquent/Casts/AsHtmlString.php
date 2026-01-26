@@ -13,12 +13,11 @@ class AsHtmlString implements Castable
     /**
      * Get the caster class to use when casting from / to this cast target.
      *
-     * @return CastsAttributes<HtmlString, string|HtmlString>
+     * @return CastsAttributes<HtmlString, HtmlString|string>
      */
     public static function castUsing(array $arguments): CastsAttributes
     {
-        return new class implements CastsAttributes
-        {
+        return new class implements CastsAttributes {
             public function get(mixed $model, string $key, mixed $value, array $attributes): ?HtmlString
             {
                 return isset($value) ? new HtmlString($value) : null;

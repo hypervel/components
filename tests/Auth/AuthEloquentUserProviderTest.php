@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
+use Hypervel\Auth\Authenticatable as AuthenticatableUser;
+use Hypervel\Auth\Providers\EloquentUserProvider;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Hashing\Hasher;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Auth\Authenticatable as AuthenticatableUser;
-use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Auth\Providers\EloquentUserProvider;
-use Hypervel\Contracts\Hashing\Hasher;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 

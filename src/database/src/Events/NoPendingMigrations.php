@@ -11,7 +11,7 @@ class NoPendingMigrations implements MigrationEvent
     /**
      * Create a new event instance.
      *
-     * @param string $method The migration method that was called.
+     * @param string $method the migration method that was called
      */
     public function __construct(
         public string $method,

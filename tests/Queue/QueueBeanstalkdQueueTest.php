@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hypervel\Support\Str;
 use Hypervel\Queue\BeanstalkdQueue;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
+use Hypervel\Support\Str;
 use Mockery as m;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;

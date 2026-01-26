@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Http;
 
+use Hyperf\HttpServer\Contract\ResponseInterface as HyperfResponseInterface;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
-use Hyperf\HttpServer\Contract\ResponseInterface as HyperfResponseInterface;
 use Psr\Http\Message\ResponseInterface;
 
 interface Response extends HyperfResponseInterface

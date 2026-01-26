@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Schema\Grammars;
 
-use Hypervel\Database\Concerns\CompilesJsonPaths;
 use Hypervel\Contracts\Database\Query\Expression;
+use Hypervel\Database\Concerns\CompilesJsonPaths;
 use Hypervel\Database\Grammar as BaseGrammar;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Arr;
@@ -43,7 +43,8 @@ abstract class Grammar extends BaseGrammar
      */
     public function compileCreateDatabase(string $name): string
     {
-        return sprintf('create database %s',
+        return sprintf(
+            'create database %s',
             $this->wrapValue($name),
         );
     }
@@ -53,7 +54,8 @@ abstract class Grammar extends BaseGrammar
      */
     public function compileDropDatabaseIfExists(string $name): string
     {
-        return sprintf('drop database if exists %s',
+        return sprintf(
+            'drop database if exists %s',
             $this->wrapValue($name)
         );
     }
@@ -77,7 +79,7 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile the query to determine the tables.
      *
-     * @param  string|string[]|null  $schema
+     * @param null|string|string[] $schema
      */
     public function compileTables(string|array|null $schema): string
     {
@@ -87,7 +89,7 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile the query to determine the views.
      *
-     * @param  string|string[]|null  $schema
+     * @param null|string|string[] $schema
      */
     public function compileViews(string|array|null $schema): string
     {
@@ -97,7 +99,7 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile the query to determine the user-defined types.
      *
-     * @param  string|string[]|null  $schema
+     * @param null|string|string[] $schema
      */
     public function compileTypes(string|array|null $schema): string
     {
@@ -159,7 +161,8 @@ abstract class Grammar extends BaseGrammar
      */
     public function compileRenameColumn(Blueprint $blueprint, Fluent $command): array|string
     {
-        return sprintf('alter table %s rename column %s to %s',
+        return sprintf(
+            'alter table %s rename column %s to %s',
             $this->wrapTable($blueprint),
             $this->wrap($command->from),
             $this->wrap($command->to)
@@ -200,7 +203,8 @@ abstract class Grammar extends BaseGrammar
         // We need to prepare several of the elements of the foreign key definition
         // before we can create the SQL, such as wrapping the tables and convert
         // an array of columns to comma-delimited strings for the SQL queries.
-        $sql = sprintf('alter table %s add constraint %s ',
+        $sql = sprintf(
+            'alter table %s add constraint %s ',
             $this->wrapTable($blueprint),
             $this->wrap($command->index)
         );
@@ -208,7 +212,8 @@ abstract class Grammar extends BaseGrammar
         // Once we have the initial portion of the SQL statement we will add on the
         // key name, table name, and referenced columns. These will complete the
         // main portion of the SQL statement and this SQL will almost be done.
-        $sql .= sprintf('foreign key (%s) references %s (%s)',
+        $sql .= sprintf(
+            'foreign key (%s) references %s (%s)',
             $this->columnize($command->columns),
             $this->wrapTable($command->on),
             $this->columnize((array) $command->references)
@@ -255,14 +260,14 @@ abstract class Grammar extends BaseGrammar
     /**
      * Compile the column definition.
      *
-     * @param  \Hypervel\Database\Schema\ColumnDefinition  $column
+     * @param \Hypervel\Database\Schema\ColumnDefinition $column
      */
     protected function getColumn(Blueprint $blueprint, Fluent $column): string
     {
         // Each of the column types has their own compiler functions, which are tasked
         // with turning the column definition into its SQL format for this platform
         // used by the connection. The column's modifiers are compiled and added.
-        $sql = $this->wrap($column).' '.$this->getType($column);
+        $sql = $this->wrap($column) . ' ' . $this->getType($column);
 
         return $this->addModifiers($sql, $blueprint, $column);
     }
@@ -272,7 +277,7 @@ abstract class Grammar extends BaseGrammar
      */
     protected function getType(Fluent $column): string
     {
-        return $this->{'type'.ucfirst($column->type)}($column);
+        return $this->{'type' . ucfirst($column->type)}($column);
     }
 
     /**
@@ -356,13 +361,13 @@ abstract class Grammar extends BaseGrammar
     /**
      * Add a prefix to an array of values.
      *
-     * @param  string[]  $values
+     * @param string[] $values
      * @return string[]
      */
     public function prefixArray(string $prefix, array $values): array
     {
         return array_map(function ($value) use ($prefix) {
-            return $prefix.' '.$value;
+            return $prefix . ' ' . $value;
         }, $values);
     }
 
@@ -397,12 +402,12 @@ abstract class Grammar extends BaseGrammar
         }
 
         if ($value instanceof UnitEnum) {
-            return "'".str_replace("'", "''", enum_value($value))."'";
+            return "'" . str_replace("'", "''", enum_value($value)) . "'";
         }
 
         return is_bool($value)
-            ? "'".(int) $value."'"
-            : "'".str_replace("'", "''", (string) $value)."'";
+            ? "'" . (int) $value . "'"
+            : "'" . str_replace("'", "''", (string) $value) . "'";
     }
 
     /**

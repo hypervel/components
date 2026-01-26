@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\Query;
 
 use Hypervel\Database\ConnectionInterface;
-use Hypervel\Database\Query\Expression;
-use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\Query\Builder;
+use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\Query\Grammars\PostgresGrammar;
 use Hypervel\Database\Query\Grammars\SQLiteGrammar;
+use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 

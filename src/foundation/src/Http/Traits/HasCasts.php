@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http\Traits;
 
+use BackedEnum;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use DateTimeInterface;
@@ -240,7 +241,7 @@ trait HasCasts
      */
     protected function getEnumCaseFromValue(string $enumClass, int|string $value): UnitEnum
     {
-        return is_subclass_of($enumClass, \BackedEnum::class)
+        return is_subclass_of($enumClass, BackedEnum::class)
             ? $enumClass::from($value)
             : constant($enumClass . '::' . $value);
     }

@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting\Broadcasters;
 
-use Hypervel\Support\Arr;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use Hypervel\Pool\Exception\ConnectionException;
 use Hyperf\Redis\RedisFactory;
 use Hypervel\Broadcasting\BroadcastException;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
+use Hypervel\Pool\Exception\ConnectionException;
+use Hypervel\Support\Arr;
 use Psr\Container\ContainerInterface;
 use RedisException;
 

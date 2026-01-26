@@ -6,9 +6,9 @@ namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Support\Str;
 use Hypervel\Queue\Listener;
 use Hypervel\Queue\ListenerOptions;
+use Hypervel\Support\Str;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
 
 class ListenCommand extends Command

@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Database\Eloquent;
 
 use Hypervel\Broadcasting\Channel;
+use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
 use Hypervel\Contracts\Broadcasting\HasBroadcastChannel;
-use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Support\Arr;
 
 trait BroadcastsEvents
@@ -51,7 +51,9 @@ trait BroadcastsEvents
     public function broadcastCreated(Channel|HasBroadcastChannel|array|null $channels = null): ?PendingBroadcast
     {
         return $this->broadcastIfBroadcastChannelsExistForEvent(
-            $this->newBroadcastableModelEvent('created'), 'created', $channels
+            $this->newBroadcastableModelEvent('created'),
+            'created',
+            $channels
         );
     }
 
@@ -61,7 +63,9 @@ trait BroadcastsEvents
     public function broadcastUpdated(Channel|HasBroadcastChannel|array|null $channels = null): ?PendingBroadcast
     {
         return $this->broadcastIfBroadcastChannelsExistForEvent(
-            $this->newBroadcastableModelEvent('updated'), 'updated', $channels
+            $this->newBroadcastableModelEvent('updated'),
+            'updated',
+            $channels
         );
     }
 
@@ -71,7 +75,9 @@ trait BroadcastsEvents
     public function broadcastTrashed(Channel|HasBroadcastChannel|array|null $channels = null): ?PendingBroadcast
     {
         return $this->broadcastIfBroadcastChannelsExistForEvent(
-            $this->newBroadcastableModelEvent('trashed'), 'trashed', $channels
+            $this->newBroadcastableModelEvent('trashed'),
+            'trashed',
+            $channels
         );
     }
 
@@ -81,7 +87,9 @@ trait BroadcastsEvents
     public function broadcastRestored(Channel|HasBroadcastChannel|array|null $channels = null): ?PendingBroadcast
     {
         return $this->broadcastIfBroadcastChannelsExistForEvent(
-            $this->newBroadcastableModelEvent('restored'), 'restored', $channels
+            $this->newBroadcastableModelEvent('restored'),
+            'restored',
+            $channels
         );
     }
 
@@ -91,7 +99,9 @@ trait BroadcastsEvents
     public function broadcastDeleted(Channel|HasBroadcastChannel|array|null $channels = null): ?PendingBroadcast
     {
         return $this->broadcastIfBroadcastChannelsExistForEvent(
-            $this->newBroadcastableModelEvent('deleted'), 'deleted', $channels
+            $this->newBroadcastableModelEvent('deleted'),
+            'deleted',
+            $channels
         );
     }
 
@@ -102,8 +112,7 @@ trait BroadcastsEvents
         BroadcastableModelEventOccurred $instance,
         string $event,
         Channel|HasBroadcastChannel|array|null $channels = null,
-    ): ?PendingBroadcast
-    {
+    ): ?PendingBroadcast {
         if (! static::isBroadcasting()) {
             return null;
         }

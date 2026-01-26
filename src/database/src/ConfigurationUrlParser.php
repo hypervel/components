@@ -8,5 +8,4 @@ use Hypervel\Support\ConfigurationUrlParser as BaseConfigurationUrlParser;
 
 class ConfigurationUrlParser extends BaseConfigurationUrlParser
 {
-    //
 }

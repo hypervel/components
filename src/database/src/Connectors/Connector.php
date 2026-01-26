@@ -7,6 +7,7 @@ namespace Hypervel\Database\Connectors;
 use Exception;
 use Hypervel\Database\DetectsLostConnections;
 use PDO;
+use SensitiveParameter;
 use Throwable;
 
 class Connector
@@ -27,7 +28,7 @@ class Connector
     /**
      * Create a new PDO connection.
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public function createConnection(string $dsn, array $config, array $options): PDO
     {
@@ -37,11 +38,18 @@ class Connector
 
         try {
             return $this->createPdoConnection(
-                $dsn, $username, $password, $options
+                $dsn,
+                $username,
+                $password,
+                $options
             );
         } catch (Exception $e) {
             return $this->tryAgainIfCausedByLostConnection(
-                $e, $dsn, $username, $password, $options
+                $e,
+                $dsn,
+                $username,
+                $password,
+                $options
             );
         }
     }
@@ -49,19 +57,19 @@ class Connector
     /**
      * Create a new PDO connection instance.
      */
-    protected function createPdoConnection(string $dsn, ?string $username, #[\SensitiveParameter] ?string $password, array $options): PDO
+    protected function createPdoConnection(string $dsn, ?string $username, #[SensitiveParameter] ?string $password, array $options): PDO
     {
         return version_compare(PHP_VERSION, '8.4.0', '<')
             ? new PDO($dsn, $username, $password, $options)
-            : PDO::connect($dsn, $username, $password, $options); /** @phpstan-ignore staticMethod.notFound (PHP 8.4) */
+            : PDO::connect($dsn, $username, $password, $options); /* @phpstan-ignore staticMethod.notFound (PHP 8.4) */
     }
 
     /**
      * Handle an exception that occurred during connect execution.
      *
-     * @throws \Throwable
+     * @throws Throwable
      */
-    protected function tryAgainIfCausedByLostConnection(Throwable $e, string $dsn, ?string $username, #[\SensitiveParameter] ?string $password, array $options): PDO
+    protected function tryAgainIfCausedByLostConnection(Throwable $e, string $dsn, ?string $username, #[SensitiveParameter] ?string $password, array $options): PDO
     {
         if ($this->causedByLostConnection($e)) {
             return $this->createPdoConnection($dsn, $username, $password, $options);

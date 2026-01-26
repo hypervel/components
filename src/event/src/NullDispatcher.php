@@ -33,7 +33,6 @@ class NullDispatcher implements Dispatcher
      */
     public function push(string $event, mixed $payload = []): void
     {
-        //
     }
 
     /**

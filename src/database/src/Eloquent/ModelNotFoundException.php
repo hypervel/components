@@ -29,8 +29,8 @@ class ModelNotFoundException extends RecordsNotFoundException
     /**
      * Set the affected Eloquent model and instance ids.
      *
-     * @param  class-string<TModel>  $model
-     * @param  array<int, int|string>|int|string  $ids
+     * @param class-string<TModel> $model
+     * @param array<int, int|string>|int|string $ids
      */
     public function setModel(string $model, array|int|string $ids = []): static
     {

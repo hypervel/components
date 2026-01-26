@@ -13,8 +13,6 @@ trait SupportsDefaultModels
      * Indicates if a default model instance should be used.
      *
      * Alternatively, may be a Closure or array.
-     *
-     * @var Closure|array|bool
      */
     protected Closure|array|bool $withDefault = false;
 

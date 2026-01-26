@@ -15,9 +15,9 @@ trait Conditionable
      * @template TWhenParameter
      * @template TWhenReturnType
      *
-     * @param  (\Closure($this): TWhenParameter)|TWhenParameter|null  $value
-     * @param  (callable($this, TWhenParameter): TWhenReturnType)|null  $callback
-     * @param  (callable($this, TWhenParameter): TWhenReturnType)|null  $default
+     * @param null|(Closure($this): TWhenParameter)|TWhenParameter $value
+     * @param null|(callable($this, TWhenParameter): TWhenReturnType) $callback
+     * @param null|(callable($this, TWhenParameter): TWhenReturnType) $default
      * @return $this|TWhenReturnType
      */
     public function when(mixed $value = null, ?callable $callback = null, ?callable $default = null): mixed
@@ -34,7 +34,8 @@ trait Conditionable
 
         if ($value) {
             return $callback($this, $value) ?? $this;
-        } elseif ($default) {
+        }
+        if ($default) {
             return $default($this, $value) ?? $this;
         }
 
@@ -47,9 +48,9 @@ trait Conditionable
      * @template TUnlessParameter
      * @template TUnlessReturnType
      *
-     * @param  (\Closure($this): TUnlessParameter)|TUnlessParameter|null  $value
-     * @param  (callable($this, TUnlessParameter): TUnlessReturnType)|null  $callback
-     * @param  (callable($this, TUnlessParameter): TUnlessReturnType)|null  $default
+     * @param null|(Closure($this): TUnlessParameter)|TUnlessParameter $value
+     * @param null|(callable($this, TUnlessParameter): TUnlessReturnType) $callback
+     * @param null|(callable($this, TUnlessParameter): TUnlessReturnType) $default
      * @return $this|TUnlessReturnType
      */
     public function unless(mixed $value = null, ?callable $callback = null, ?callable $default = null): mixed
@@ -66,7 +67,8 @@ trait Conditionable
 
         if (! $value) {
             return $callback($this, $value) ?? $this;
-        } elseif ($default) {
+        }
+        if ($default) {
             return $default($this, $value) ?? $this;
         }
 

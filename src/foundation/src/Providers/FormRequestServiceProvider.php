@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Providers;
 
+use Hypervel\Contracts\Validation\ValidatesWhenResolved;
 use Hypervel\Http\RouteDependency;
 use Hypervel\Support\ServiceProvider;
-use Hypervel\Contracts\Validation\ValidatesWhenResolved;
 
 class FormRequestServiceProvider extends ServiceProvider
 {

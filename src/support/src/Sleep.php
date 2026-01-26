@@ -7,7 +7,6 @@ namespace Hypervel\Support;
 use Carbon\CarbonInterval;
 use Closure;
 use DateInterval;
-use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\Macroable;
 use PHPUnit\Framework\Assert as PHPUnit;
 use RuntimeException;
@@ -359,7 +358,7 @@ class Sleep
 
         (new Collection($sequence))
             ->zip(static::$sequence)
-            /** @phpstan-ignore argument.type (eachSpread signature can't express fixed-param callbacks) */
+            /* @phpstan-ignore argument.type (eachSpread signature can't express fixed-param callbacks) */
             ->eachSpread(function (?Sleep $expected, CarbonInterval $actual) {
                 if ($expected === null) {
                     return;

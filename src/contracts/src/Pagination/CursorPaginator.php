@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Pagination;
 
-use Hypervel\Pagination\Cursor;
 use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Pagination\Cursor;
 
 /**
  * @template TKey of array-key
@@ -31,7 +31,7 @@ interface CursorPaginator
     /**
      * Get / set the URL fragment to be appended to URLs.
      *
-     * @return $this|string|null
+     * @return null|$this|string
      */
     public function fragment(?string $fragment = null): static|string|null;
 
@@ -107,7 +107,7 @@ interface CursorPaginator
     /**
      * Render the paginator using a given view.
      *
-     * @param  array<string, mixed>  $data
+     * @param array<string, mixed> $data
      */
     public function render(?string $view = null, array $data = []): Htmlable;
 }

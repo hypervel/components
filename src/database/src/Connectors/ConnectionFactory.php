@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Connectors;
 
+use Closure;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Connection;
 use Hypervel\Database\MariaDbConnection;
@@ -55,7 +56,11 @@ class ConnectionFactory
         $pdo = $this->createPdoResolver($config);
 
         return $this->createConnection(
-            $config['driver'], $pdo, $config['database'], $config['prefix'], $config
+            $config['driver'],
+            $pdo,
+            $config['database'],
+            $config['prefix'],
+            $config
         );
     }
 
@@ -74,7 +79,7 @@ class ConnectionFactory
     /**
      * Create a new PDO instance for reading.
      */
-    protected function createReadPdo(array $config): \Closure
+    protected function createReadPdo(array $config): Closure
     {
         return $this->createPdoResolver($this->getReadConfig($config));
     }
@@ -85,7 +90,8 @@ class ConnectionFactory
     protected function getReadConfig(array $config): array
     {
         return $this->mergeReadWriteConfig(
-            $config, $this->getReadWriteConfig($config, 'read')
+            $config,
+            $this->getReadWriteConfig($config, 'read')
         );
     }
 
@@ -95,7 +101,8 @@ class ConnectionFactory
     protected function getWriteConfig(array $config): array
     {
         return $this->mergeReadWriteConfig(
-            $config, $this->getReadWriteConfig($config, 'write')
+            $config,
+            $this->getReadWriteConfig($config, 'write')
         );
     }
 
@@ -120,7 +127,7 @@ class ConnectionFactory
     /**
      * Create a new Closure that resolves to a PDO instance.
      */
-    protected function createPdoResolver(array $config): \Closure
+    protected function createPdoResolver(array $config): Closure
     {
         return array_key_exists('host', $config)
             ? $this->createPdoResolverWithHosts($config)
@@ -130,7 +137,7 @@ class ConnectionFactory
     /**
      * Create a new Closure that resolves to a PDO instance with a specific host or an array of hosts.
      */
-    protected function createPdoResolverWithHosts(array $config): \Closure
+    protected function createPdoResolverWithHosts(array $config): Closure
     {
         return function () use ($config) {
             foreach (Arr::shuffle($this->parseHosts($config)) as $host) {
@@ -152,7 +159,7 @@ class ConnectionFactory
     /**
      * Parse the hosts configuration item into an array.
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     protected function parseHosts(array $config): array
     {
@@ -168,7 +175,7 @@ class ConnectionFactory
     /**
      * Create a new Closure that resolves to a PDO instance where there is no configured host.
      */
-    protected function createPdoResolverWithoutHosts(array $config): \Closure
+    protected function createPdoResolverWithoutHosts(array $config): Closure
     {
         return fn () => $this->createConnector($config)->connect($config);
     }
@@ -176,7 +183,7 @@ class ConnectionFactory
     /**
      * Create a connector instance based on the configuration.
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     public function createConnector(array $config): ConnectorInterface
     {
@@ -189,10 +196,10 @@ class ConnectionFactory
         }
 
         return match ($config['driver']) {
-            'mysql' => new MySqlConnector,
-            'mariadb' => new MariaDbConnector,
-            'pgsql' => new PostgresConnector,
-            'sqlite' => new SQLiteConnector,
+            'mysql' => new MySqlConnector(),
+            'mariadb' => new MariaDbConnector(),
+            'pgsql' => new PostgresConnector(),
+            'sqlite' => new SQLiteConnector(),
             default => throw new InvalidArgumentException("Unsupported driver [{$config['driver']}]."),
         };
     }
@@ -200,9 +207,9 @@ class ConnectionFactory
     /**
      * Create a new connection instance.
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
-    protected function createConnection(string $driver, PDO|\Closure $connection, string $database, string $prefix = '', array $config = []): Connection
+    protected function createConnection(string $driver, PDO|Closure $connection, string $database, string $prefix = '', array $config = []): Connection
     {
         if ($resolver = Connection::getResolver($driver)) {
             return $resolver($connection, $database, $prefix, $config);

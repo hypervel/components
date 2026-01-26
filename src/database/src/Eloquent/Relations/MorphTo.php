@@ -9,6 +9,7 @@ use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
+use Override;
 
 /**
  * @template TRelatedModel of \Hypervel\Database\Eloquent\Model
@@ -65,8 +66,8 @@ class MorphTo extends BelongsTo
     /**
      * Create a new morph to relationship instance.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
-     * @param  TDeclaringModel  $parent
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
+     * @param TDeclaringModel $parent
      */
     public function __construct(Builder $query, Model $parent, string $foreignKey, ?string $ownerKey, string $type, string $relation)
     {
@@ -75,8 +76,7 @@ class MorphTo extends BelongsTo
         parent::__construct($query, $parent, $foreignKey, $ownerKey, $relation);
     }
 
-    /** @inheritDoc */
-    #[\Override]
+    #[Override]
     public function addEagerConstraints(array $models): void
     {
         // @phpstan-ignore argument.type (MorphTo eager loading uses declaring model, not related model)
@@ -86,7 +86,7 @@ class MorphTo extends BelongsTo
     /**
      * Build a dictionary with the models.
      *
-     * @param  \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>  $models
+     * @param \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> $models
      */
     protected function buildDictionary(EloquentCollection $models): void
     {
@@ -144,7 +144,8 @@ class MorphTo extends BelongsTo
         $whereIn = $this->whereInMethod($instance, $ownerKey);
 
         return $query->{$whereIn}(
-            $instance->qualifyColumn($ownerKey), $this->gatherKeysByType($type, $instance->getKeyType())
+            $instance->qualifyColumn($ownerKey),
+            $this->gatherKeysByType($type, $instance->getKeyType())
         )->get();
     }
 
@@ -169,15 +170,14 @@ class MorphTo extends BelongsTo
     {
         $class = Model::getActualClassNameForMorph($type);
 
-        return tap(new $class, function ($instance) {
+        return tap(new $class(), function ($instance) {
             if (! $instance->getConnectionName()) {
                 $instance->setConnection($this->getConnection()->getName());
             }
         });
     }
 
-    /** @inheritDoc */
-    #[\Override]
+    #[Override]
     public function match(array $models, EloquentCollection $results, string $relation): array
     {
         return $models;
@@ -186,7 +186,7 @@ class MorphTo extends BelongsTo
     /**
      * Match the results for a given type to their parents.
      *
-     * @param  \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>  $results
+     * @param \Hypervel\Database\Eloquent\Collection<int, TRelatedModel> $results
      */
     protected function matchToMorphParents(string $type, EloquentCollection $results): void
     {
@@ -204,10 +204,10 @@ class MorphTo extends BelongsTo
     /**
      * Associate the model instance to the given parent.
      *
-     * @param  TRelatedModel|null  $model
+     * @param null|TRelatedModel $model
      * @return TDeclaringModel
      */
-    #[\Override]
+    #[Override]
     public function associate(Model|string|int|null $model): Model
     {
         if ($model instanceof Model) {
@@ -217,11 +217,13 @@ class MorphTo extends BelongsTo
         }
 
         $this->parent->setAttribute(
-            $this->foreignKey, $model instanceof Model ? $model->{$foreignKey} : null
+            $this->foreignKey,
+            $model instanceof Model ? $model->{$foreignKey} : null
         );
 
         $this->parent->setAttribute(
-            $this->morphType, $model instanceof Model ? $model->getMorphClass() : null
+            $this->morphType,
+            $model instanceof Model ? $model->getMorphClass() : null
         );
 
         return $this->parent->setRelation($this->relationName, $model);
@@ -232,7 +234,7 @@ class MorphTo extends BelongsTo
      *
      * @return TDeclaringModel
      */
-    #[\Override]
+    #[Override]
     public function dissociate(): Model
     {
         $this->parent->setAttribute($this->foreignKey, null);
@@ -242,8 +244,7 @@ class MorphTo extends BelongsTo
         return $this->parent->setRelation($this->relationName, null);
     }
 
-    /** @inheritDoc */
-    #[\Override]
+    #[Override]
     public function touch(): void
     {
         if (! is_null($this->getParentKey())) {
@@ -251,8 +252,7 @@ class MorphTo extends BelongsTo
         }
     }
 
-    /** @inheritDoc */
-    #[\Override]
+    #[Override]
     protected function newRelatedInstanceFor(Model $parent): Model
     {
         return $parent->{$this->getRelationName()}()->getRelated()->newInstance();
@@ -282,7 +282,8 @@ class MorphTo extends BelongsTo
     public function morphWith(array $with): static
     {
         $this->morphableEagerLoads = array_merge(
-            $this->morphableEagerLoads, $with
+            $this->morphableEagerLoads,
+            $with
         );
 
         return $this;
@@ -296,7 +297,8 @@ class MorphTo extends BelongsTo
     public function morphWithCount(array $withCount): static
     {
         $this->morphableEagerLoadCounts = array_merge(
-            $this->morphableEagerLoadCounts, $withCount
+            $this->morphableEagerLoadCounts,
+            $withCount
         );
 
         return $this;
@@ -310,7 +312,8 @@ class MorphTo extends BelongsTo
     public function constrain(array $callbacks): static
     {
         $this->morphableConstraints = array_merge(
-            $this->morphableConstraints, $callbacks
+            $this->morphableConstraints,
+            $callbacks
         );
 
         return $this;
@@ -370,7 +373,7 @@ class MorphTo extends BelongsTo
     /**
      * Replay stored macro calls on the actual related instance.
      *
-     * @param  \Hypervel\Database\Eloquent\Builder<TRelatedModel>  $query
+     * @param \Hypervel\Database\Eloquent\Builder<TRelatedModel> $query
      * @return \Hypervel\Database\Eloquent\Builder<TRelatedModel>
      */
     protected function replayMacros(Builder $query): Builder
@@ -382,8 +385,7 @@ class MorphTo extends BelongsTo
         return $query;
     }
 
-    /** @inheritDoc */
-    #[\Override]
+    #[Override]
     public function getQualifiedOwnerKeyName(): string
     {
         if (is_null($this->ownerKey)) {

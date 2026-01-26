@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Database\Migrations;
 
 use Closure;
+use Exception;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
@@ -28,7 +29,7 @@ class MigrationCreator
     /**
      * Create a new migration at the given path.
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public function create(string $name, string $path, ?string $table = null, bool $create = false): string
     {
@@ -44,7 +45,8 @@ class MigrationCreator
         $this->files->ensureDirectoryExists(dirname($path));
 
         $this->files->put(
-            $path, $this->populateStub($stub, $table)
+            $path,
+            $this->populateStub($stub, $table)
         );
 
         // Next, we will fire any hooks that are supposed to fire after a migration is
@@ -58,12 +60,12 @@ class MigrationCreator
     /**
      * Ensure that a migration with the given name doesn't already exist.
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     protected function ensureMigrationDoesntAlreadyExist(string $name, ?string $migrationPath = null): void
     {
         if (! empty($migrationPath)) {
-            $migrationFiles = $this->files->glob($migrationPath.'/*.php');
+            $migrationFiles = $this->files->glob($migrationPath . '/*.php');
 
             foreach ($migrationFiles as $migrationFile) {
                 $this->files->requireOnce($migrationFile);
@@ -81,17 +83,17 @@ class MigrationCreator
     protected function getStub(?string $table, bool $create): string
     {
         if (is_null($table)) {
-            $stub = $this->files->exists($customPath = $this->customStubPath.'/migration.stub')
+            $stub = $this->files->exists($customPath = $this->customStubPath . '/migration.stub')
                 ? $customPath
-                : $this->stubPath().'/migration.stub';
+                : $this->stubPath() . '/migration.stub';
         } elseif ($create) {
-            $stub = $this->files->exists($customPath = $this->customStubPath.'/migration.create.stub')
+            $stub = $this->files->exists($customPath = $this->customStubPath . '/migration.create.stub')
                 ? $customPath
-                : $this->stubPath().'/migration.create.stub';
+                : $this->stubPath() . '/migration.create.stub';
         } else {
-            $stub = $this->files->exists($customPath = $this->customStubPath.'/migration.update.stub')
+            $stub = $this->files->exists($customPath = $this->customStubPath . '/migration.update.stub')
                 ? $customPath
-                : $this->stubPath().'/migration.update.stub';
+                : $this->stubPath() . '/migration.update.stub';
         }
 
         return $this->files->get($stub);
@@ -108,7 +110,8 @@ class MigrationCreator
         if (! is_null($table)) {
             $stub = str_replace(
                 ['DummyTable', '{{ table }}', '{{table}}'],
-                $table, $stub
+                $table,
+                $stub
             );
         }
 
@@ -128,7 +131,7 @@ class MigrationCreator
      */
     protected function getPath(string $name, string $path): string
     {
-        return $path.'/'.$this->getDatePrefix().'_'.$name.'.php';
+        return $path . '/' . $this->getDatePrefix() . '_' . $name . '.php';
     }
 
     /**
@@ -162,7 +165,7 @@ class MigrationCreator
      */
     public function stubPath(): string
     {
-        return __DIR__.'/stubs';
+        return __DIR__ . '/stubs';
     }
 
     /**

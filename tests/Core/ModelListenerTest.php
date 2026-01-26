@@ -4,14 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Core;
 
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Eloquent\Events\Created;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\ModelListener;
-use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use Psr\Container\ContainerInterface;
+use stdClass;
 
 /**
  * @internal
@@ -34,7 +35,7 @@ class ModelListenerTest extends TestCase
         $this->expectExceptionMessage('Class [stdClass] must extend Model.');
 
         $this->getModelListener()
-            ->register(\stdClass::class, 'created', fn () => true);
+            ->register(stdClass::class, 'created', fn () => true);
     }
 
     public function testRegisterWithInvalidEvent()

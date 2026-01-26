@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Jobs;
 
-use Hypervel\Support\Collection;
 use Hypervel\Bus\Dispatchable;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\SerializesModels;
+use Hypervel\Support\Collection;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 
 use function Hypervel\Config\config;

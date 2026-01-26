@@ -7,13 +7,13 @@ namespace Hypervel\Translation;
 use Closure;
 use Countable;
 use Hyperf\Context\Context;
+use Hypervel\Contracts\Translation\Loader;
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Support\Arr;
 use Hypervel\Support\NamespacedItemResolver;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\ReflectsClosures;
-use Hypervel\Contracts\Translation\Loader;
-use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use InvalidArgumentException;
 
 use function Hypervel\Support\enum_value;

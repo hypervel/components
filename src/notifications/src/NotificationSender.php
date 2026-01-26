@@ -4,16 +4,16 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications;
 
-use Hypervel\Support\Collection;
+use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Translation\HasLocalePreference;
 use Hypervel\Database\Eloquent\Collection as ModelCollection;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Support\Str;
-use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Notifications\Events\NotificationSending;
 use Hypervel\Notifications\Events\NotificationSent;
-use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Localizable;
-use Hypervel\Contracts\Translation\HasLocalePreference;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 use function Hyperf\Support\value;

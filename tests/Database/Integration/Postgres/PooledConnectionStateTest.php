@@ -119,7 +119,7 @@ class PooledConnectionStateTest extends PostgresIntegrationTestCase
             $pooled1 = $this->getPooledConnection();
             $connection1 = $pooled1->getConnection();
 
-            for ($i = 0; $i < 10; $i++) {
+            for ($i = 0; $i < 10; ++$i) {
                 $connection1->select('SELECT pg_sleep(0.001)');
             }
 

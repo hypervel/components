@@ -9,6 +9,7 @@ use Hypervel\Database\Query\IndexHint;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use Override;
 
 class SQLiteGrammar extends Grammar
 {
@@ -36,7 +37,7 @@ class SQLiteGrammar extends Grammar
      */
     protected function wrapUnion(string $sql): string
     {
-        return 'select * from ('.$sql.')';
+        return 'select * from (' . $sql . ')';
     }
 
     /**
@@ -146,7 +147,7 @@ class SQLiteGrammar extends Grammar
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($column);
 
-        return 'json_array_length('.$field.$path.') '.$operator.' '.$value;
+        return 'json_array_length(' . $field . $path . ') ' . $operator . ' ' . $value;
     }
 
     /**
@@ -156,7 +157,7 @@ class SQLiteGrammar extends Grammar
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($column);
 
-        return 'exists (select 1 from json_each('.$field.$path.') where '.$this->wrap('json_each.value').' is '.$value.')';
+        return 'exists (select 1 from json_each(' . $field . $path . ') where ' . $this->wrap('json_each.value') . ' is ' . $value . ')';
     }
 
     /**
@@ -174,7 +175,7 @@ class SQLiteGrammar extends Grammar
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($column);
 
-        return 'json_type('.$field.$path.') is not null';
+        return 'json_type(' . $field . $path . ') is not null';
     }
 
     /**
@@ -236,7 +237,7 @@ class SQLiteGrammar extends Grammar
 
                 $value = isset($jsonGroups[$key]) ? $this->compileJsonPatch($column, $value) : $this->parameter($value);
 
-                return $this->wrap($column).' = '.$value;
+                return $this->wrap($column) . ' = ' . $value;
             })
             ->implode(', ');
     }
@@ -248,15 +249,15 @@ class SQLiteGrammar extends Grammar
     {
         $sql = $this->compileInsert($query, $values);
 
-        $sql .= ' on conflict ('.$this->columnize($uniqueBy).') do update set ';
+        $sql .= ' on conflict (' . $this->columnize($uniqueBy) . ') do update set ';
 
         $columns = (new Collection($update))->map(function ($value, $key) {
             return is_numeric($key)
-                ? $this->wrap($value).' = '.$this->wrapValue('excluded').'.'.$this->wrap($value)
-                : $this->wrap($key).' = '.$this->parameter($value);
+                ? $this->wrap($value) . ' = ' . $this->wrapValue('excluded') . '.' . $this->wrap($value)
+                : $this->wrap($key) . ' = ' . $this->parameter($value);
         })->implode(', ');
 
-        return $sql.$columns;
+        return $sql . $columns;
     }
 
     /**
@@ -294,7 +295,7 @@ class SQLiteGrammar extends Grammar
 
         $alias = last(preg_split('/\s+as\s+/i', $query->from));
 
-        $selectSql = $this->compileSelect($query->select($alias.'.rowid'));
+        $selectSql = $this->compileSelect($query->select($alias . '.rowid'));
 
         return "update {$table} set {$columns} where {$this->wrap('rowid')} in ({$selectSql})";
     }
@@ -302,7 +303,7 @@ class SQLiteGrammar extends Grammar
     /**
      * Prepare the bindings for an update statement.
      */
-    #[\Override]
+    #[Override]
     public function prepareBindingsForUpdate(array $bindings, array $values): array
     {
         $groups = $this->groupJsonColumnsForUpdate($values);
@@ -343,7 +344,7 @@ class SQLiteGrammar extends Grammar
 
         $alias = last(preg_split('/\s+as\s+/i', $query->from));
 
-        $selectSql = $this->compileSelect($query->select($alias.'.rowid'));
+        $selectSql = $this->compileSelect($query->select($alias . '.rowid'));
 
         return "delete from {$table} where {$this->wrap('rowid')} in ({$selectSql})";
     }
@@ -355,11 +356,11 @@ class SQLiteGrammar extends Grammar
     {
         [$schema, $table] = $query->getConnection()->getSchemaBuilder()->parseSchemaAndTable($query->from);
 
-        $schema = $schema ? $this->wrapValue($schema).'.' : '';
+        $schema = $schema ? $this->wrapValue($schema) . '.' : '';
 
         return [
-            'delete from '.$schema.'sqlite_sequence where name = ?' => [$query->getConnection()->getTablePrefix().$table],
-            'delete from '.$this->wrapTable($query->from) => [],
+            'delete from ' . $schema . 'sqlite_sequence where name = ?' => [$query->getConnection()->getTablePrefix() . $table],
+            'delete from ' . $this->wrapTable($query->from) => [],
         ];
     }
 
@@ -370,6 +371,6 @@ class SQLiteGrammar extends Grammar
     {
         [$field, $path] = $this->wrapJsonFieldAndPath($value);
 
-        return 'json_extract('.$field.$path.')';
+        return 'json_extract(' . $field . $path . ')';
     }
 }

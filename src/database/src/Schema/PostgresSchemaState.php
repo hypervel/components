@@ -6,21 +6,22 @@ namespace Hypervel\Database\Schema;
 
 use Hypervel\Database\Connection;
 use Hypervel\Support\Collection;
+use Override;
 
 class PostgresSchemaState extends SchemaState
 {
     /**
      * Dump the database's schema into a file.
      */
-    #[\Override]
+    #[Override]
     public function dump(Connection $connection, string $path): void
     {
         $commands = new Collection([
-            $this->baseDumpCommand().' --schema-only > '.$path,
+            $this->baseDumpCommand() . ' --schema-only > ' . $path,
         ]);
 
         if ($this->hasMigrationTable()) {
-            $commands->push($this->baseDumpCommand().' -t '.$this->getMigrationTable().' --data-only >> '.$path);
+            $commands->push($this->baseDumpCommand() . ' -t ' . $this->getMigrationTable() . ' --data-only >> ' . $path);
         }
 
         $commands->map(function ($command, $path) {
@@ -33,7 +34,7 @@ class PostgresSchemaState extends SchemaState
     /**
      * Load the given schema file into the database.
      */
-    #[\Override]
+    #[Override]
     public function load(string $path): void
     {
         $command = 'pg_restore --no-owner --no-acl --clean --if-exists --host="${:LARAVEL_LOAD_HOST}" --port="${:LARAVEL_LOAD_PORT}" --username="${:LARAVEL_LOAD_USER}" --dbname="${:LARAVEL_LOAD_DATABASE}" "${:LARAVEL_LOAD_PATH}"';
@@ -52,12 +53,12 @@ class PostgresSchemaState extends SchemaState
     /**
      * Get the name of the application's migration table.
      */
-    #[\Override]
+    #[Override]
     protected function getMigrationTable(): string
     {
         [$schema, $table] = $this->connection->getSchemaBuilder()->parseSchemaAndTable($this->migrationTable, withDefaultSchema: true);
 
-        return $schema.'.'.$this->connection->getTablePrefix().$table;
+        return $schema . '.' . $this->connection->getTablePrefix() . $table;
     }
 
     /**
@@ -71,7 +72,7 @@ class PostgresSchemaState extends SchemaState
     /**
      * Get the base variables for a dump / load command.
      */
-    #[\Override]
+    #[Override]
     protected function baseVariables(array $config): array
     {
         $config['host'] ??= '';

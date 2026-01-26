@@ -6,9 +6,9 @@ namespace Hypervel\Database\Listeners;
 
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Framework\Event\BootApplication;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Contracts\Event\Dispatcher;
 use Psr\Container\ContainerInterface;
 
 /**

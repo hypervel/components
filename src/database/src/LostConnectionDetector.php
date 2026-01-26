@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
-use Hypervel\Support\Str;
 use Hypervel\Contracts\Database\LostConnectionDetector as LostConnectionDetectorContract;
+use Hypervel\Support\Str;
 use Throwable;
 
 class LostConnectionDetector implements LostConnectionDetectorContract
