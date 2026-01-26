@@ -32,6 +32,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * @use \Hypervel\Support\Traits\EnumeratesValues<TKey, TValue>
      */
     use EnumeratesValues;
+
     use Macroable;
     use TransformsToResourceCollection;
 

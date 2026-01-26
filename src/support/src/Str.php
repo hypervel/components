@@ -578,7 +578,7 @@ class Str
             return $trimmed . $end;
         }
 
-        return preg_replace('/(.*)\\s.*/', '$1', $trimmed) . $end;
+        return preg_replace('/(.*)\s.*/', '$1', $trimmed) . $end;
     }
 
     /**

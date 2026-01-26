@@ -36,6 +36,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      * @use EnumeratesValues<TKey, TValue>
      */
     use EnumeratesValues;
+
     use Macroable;
 
     /**
