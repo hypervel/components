@@ -27,10 +27,10 @@ class Forever
      */
     public function execute(string $key, mixed $value): bool
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value) {
-            return (bool) $conn->set(
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value) {
+            return (bool) $connection->set(
                 $this->context->prefix() . $key,
-                $this->serialization->serialize($conn, $value)
+                $this->serialization->serialize($connection, $value)
             );
         });
     }

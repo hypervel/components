@@ -135,17 +135,17 @@ class BenchmarkCommand extends Command
         $this->newLine();
 
         $cacheManager = $this->app->get(CacheContract::class);
-        $ctx = $this->createContext($config, $cacheManager);
+        $context = $this->createContext($config, $cacheManager);
 
         try {
             // Run Benchmark(s)
             if ($this->option('compare-tag-modes')) {
-                $this->runComparison($ctx, $runs);
+                $this->runComparison($context, $runs);
             } else {
                 // Use provided tag mode or current config
-                $store = $ctx->getStoreInstance();
+                $store = $context->getStoreInstance();
                 $tagMode = $tagModeOption ?? $store->getTagMode()->value;
-                $this->runSuiteWithRuns($tagMode, $ctx, $runs);
+                $this->runSuiteWithRuns($tagMode, $context, $runs);
             }
         } catch (BenchmarkMemoryException $e) {
             $this->displayMemoryError($e);
@@ -155,7 +155,7 @@ class BenchmarkCommand extends Command
 
         $this->newLine();
         $this->info('Cleaning up benchmark data...');
-        $ctx->cleanup();
+        $context->cleanup();
 
         return self::SUCCESS;
     }
@@ -308,17 +308,17 @@ class BenchmarkCommand extends Command
     /**
      * Run benchmark comparison between all and any tag modes.
      */
-    protected function runComparison(BenchmarkContext $ctx, int $runs): void
+    protected function runComparison(BenchmarkContext $context, int $runs): void
     {
         $this->info('Running comparison between <fg=yellow>All</> and <fg=yellow>Any</> tag modes...');
         $this->newLine();
 
         $this->info('--- Phase 1: All Mode (Intersection) ---');
-        $allResults = $this->runSuiteWithRuns('all', $ctx, $runs, returnResults: true);
+        $allResults = $this->runSuiteWithRuns('all', $context, $runs, returnResults: true);
 
         $this->newLine();
         $this->info('--- Phase 2: Any Mode (Union) ---');
-        $anyResults = $this->runSuiteWithRuns('any', $ctx, $runs, returnResults: true);
+        $anyResults = $this->runSuiteWithRuns('any', $context, $runs, returnResults: true);
 
         $this->formatter->displayComparisonTable($allResults, $anyResults);
     }
@@ -328,7 +328,7 @@ class BenchmarkCommand extends Command
      *
      * @return array<string, ScenarioResult>
      */
-    protected function runSuiteWithRuns(string $tagMode, BenchmarkContext $ctx, int $runs, bool $returnResults = false): array
+    protected function runSuiteWithRuns(string $tagMode, BenchmarkContext $context, int $runs, bool $returnResults = false): array
     {
         /** @var array<int, array<string, ScenarioResult>> $allRunResults */
         $allRunResults = [];
@@ -338,7 +338,7 @@ class BenchmarkCommand extends Command
                 $this->line("<fg=yellow>Run {$run}/{$runs}</>");
             }
 
-            $results = $this->runSuite($tagMode, $ctx);
+            $results = $this->runSuite($tagMode, $context);
             $allRunResults[] = $results;
 
             if ($run < $runs) {
@@ -363,10 +363,10 @@ class BenchmarkCommand extends Command
      *
      * @return array<string, ScenarioResult>
      */
-    protected function runSuite(string $tagMode, BenchmarkContext $ctx): array
+    protected function runSuite(string $tagMode, BenchmarkContext $context): array
     {
         // Set the tag mode on the store
-        $store = $ctx->getStoreInstance();
+        $store = $context->getStoreInstance();
         $store->setTagMode(TagMode::fromConfig($tagMode));
 
         $this->line("Tag Mode: <fg=green>{$tagMode}</>");
@@ -375,7 +375,7 @@ class BenchmarkCommand extends Command
 
         foreach ($this->getScenarios() as $scenario) {
             $key = $this->scenarioKey($scenario);
-            $result = $scenario->run($ctx);
+            $result = $scenario->run($context);
             $results[$key] = $result;
         }
 
@@ -501,7 +501,7 @@ class BenchmarkCommand extends Command
             if ($store instanceof RedisStore) {
                 $context = $store->getContext();
                 $info = $context->withConnection(
-                    fn (RedisConnection $conn) => $conn->info('server')
+                    fn (RedisConnection $connection) => $connection->info('server')
                 );
 
                 if (isset($info['valkey_version'])) {

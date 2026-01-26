@@ -500,7 +500,7 @@ trait ManagesFrequencies
     /**
      * Schedule the event to run yearly on a given month, day, and time.
      *
-     * @param int|string|string $dayOfMonth
+     * @param int|string $dayOfMonth
      */
     public function yearlyOn(int $month = 1, int|string $dayOfMonth = 1, string $time = '0:0'): static
     {

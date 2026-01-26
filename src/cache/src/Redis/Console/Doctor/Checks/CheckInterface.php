@@ -23,5 +23,5 @@ interface CheckInterface
     /**
      * Run the check and return results.
      */
-    public function run(DoctorContext $ctx): CheckResult;
+    public function run(DoctorContext $context): CheckResult;
 }

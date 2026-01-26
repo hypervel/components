@@ -60,7 +60,7 @@ class Flush
             ->map(fn (string $key) => $prefix . $key);
 
         // Use a single connection for all chunk deletions
-        $this->context->withConnection(function (RedisConnection $conn) use ($entries, $isCluster) {
+        $this->context->withConnection(function (RedisConnection $connection) use ($entries, $isCluster) {
             foreach ($entries->chunk(self::CHUNK_SIZE) as $chunk) {
                 $keys = $chunk->all();
 
@@ -70,10 +70,10 @@ class Flush
 
                 if ($isCluster) {
                     // Cluster mode: sequential DEL (keys may be in different slots)
-                    $conn->del(...$keys);
+                    $connection->del(...$keys);
                 } else {
                     // Standard mode: pipeline for batching
-                    $this->deleteChunkPipelined($conn, $keys);
+                    $this->deleteChunkPipelined($connection, $keys);
                 }
             }
         });
@@ -82,12 +82,12 @@ class Flush
     /**
      * Delete a chunk of keys using pipeline.
      *
-     * @param RedisConnection $conn The Redis connection
+     * @param RedisConnection $connection The Redis connection
      * @param array<string> $keys Keys to delete
      */
-    private function deleteChunkPipelined(RedisConnection $conn, array $keys): void
+    private function deleteChunkPipelined(RedisConnection $connection, array $keys): void
     {
-        $pipeline = $conn->pipeline();
+        $pipeline = $connection->pipeline();
         $pipeline->del(...$keys);
         $pipeline->exec();
     }
@@ -105,13 +105,13 @@ class Flush
             return;
         }
 
-        $this->context->withConnection(function (RedisConnection $conn) use ($tagNames) {
+        $this->context->withConnection(function (RedisConnection $connection) use ($tagNames) {
             $tagKeys = array_map(
                 fn (string $name) => $this->context->tagHashKey($name),
                 $tagNames
             );
 
-            $conn->del(...$tagKeys);
+            $connection->del(...$tagKeys);
         });
     }
 }

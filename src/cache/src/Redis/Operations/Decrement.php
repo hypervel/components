@@ -25,8 +25,8 @@ class Decrement
      */
     public function execute(string $key, int $value = 1): int
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value) {
-            return $conn->decrBy($this->context->prefix() . $key, $value);
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value) {
+            return $connection->decrBy($this->context->prefix() . $key, $value);
         });
     }
 }

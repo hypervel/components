@@ -75,9 +75,9 @@ class DoctorCommandTest extends TestCase
         $context = m::mock(StoreContext::class);
         $context->shouldReceive('withConnection')
             ->andReturnUsing(function ($callback) {
-                $conn = m::mock(RedisConnection::class);
-                $conn->shouldReceive('info')->with('server')->andReturn(['redis_version' => '7.0.0']);
-                return $callback($conn);
+                $connection = m::mock(RedisConnection::class);
+                $connection->shouldReceive('info')->with('server')->andReturn(['redis_version' => '7.0.0']);
+                return $callback($connection);
             });
 
         $store = m::mock(RedisStore::class);
@@ -109,6 +109,14 @@ class DoctorCommandTest extends TestCase
 
     public function testDoctorUsesSpecifiedStore(): void
     {
+        if (! extension_loaded('redis')
+            || ! version_compare(phpversion('redis'), '6.3.0', '>=')) {
+            $this->markTestSkipped(
+                'Redis extension >= 6.3.0 is required for this test.'
+            );
+            return;
+        }
+
         $config = m::mock(ConfigInterface::class);
         $config->shouldReceive('get')
             ->with('cache.default', 'file')
@@ -123,9 +131,9 @@ class DoctorCommandTest extends TestCase
         $context = m::mock(StoreContext::class);
         $context->shouldReceive('withConnection')
             ->andReturnUsing(function ($callback) {
-                $conn = m::mock(RedisConnection::class);
-                $conn->shouldReceive('info')->with('server')->andReturn(['redis_version' => '7.0.0']);
-                return $callback($conn);
+                $connection = m::mock(RedisConnection::class);
+                $connection->shouldReceive('info')->with('server')->andReturn(['redis_version' => '7.0.0']);
+                return $callback($connection);
             });
 
         $store = m::mock(RedisStore::class);
@@ -169,9 +177,9 @@ class DoctorCommandTest extends TestCase
         $context = m::mock(StoreContext::class);
         $context->shouldReceive('withConnection')
             ->andReturnUsing(function ($callback) {
-                $conn = m::mock(RedisConnection::class);
-                $conn->shouldReceive('info')->with('server')->andReturn(['redis_version' => '7.0.0']);
-                return $callback($conn);
+                $connection = m::mock(RedisConnection::class);
+                $connection->shouldReceive('info')->with('server')->andReturn(['redis_version' => '7.0.0']);
+                return $callback($connection);
             });
 
         $store = m::mock(RedisStore::class);
@@ -243,9 +251,9 @@ class DoctorCommandTest extends TestCase
         $context = m::mock(StoreContext::class);
         $context->shouldReceive('withConnection')
             ->andReturnUsing(function ($callback) {
-                $conn = m::mock(RedisConnection::class);
-                $conn->shouldReceive('info')->with('server')->andReturn(['redis_version' => '7.2.4']);
-                return $callback($conn);
+                $connection = m::mock(RedisConnection::class);
+                $connection->shouldReceive('info')->with('server')->andReturn(['redis_version' => '7.2.4']);
+                return $callback($connection);
             });
 
         $store = m::mock(RedisStore::class);

@@ -19,11 +19,11 @@ final class HashStructuresCheck implements CheckInterface
         return 'Redis Hash Structures Verification';
     }
 
-    public function run(DoctorContext $ctx): CheckResult
+    public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult();
 
-        if ($ctx->isAllMode()) {
+        if ($context->isAllMode()) {
             $result->assert(
                 true,
                 'Hash structures check skipped (all mode uses sorted sets)'
@@ -33,31 +33,31 @@ final class HashStructuresCheck implements CheckInterface
         }
 
         // Create tagged item
-        $ctx->cache->tags([$ctx->prefixed('verify')])->put($ctx->prefixed('hash:item'), 'value', 120);
+        $context->cache->tags([$context->prefixed('verify')])->put($context->prefixed('hash:item'), 'value', 120);
 
-        $tagKey = $ctx->tagHashKey($ctx->prefixed('verify'));
+        $tagKey = $context->tagHashKey($context->prefixed('verify'));
 
         // Verify hash exists
         $result->assert(
-            $ctx->redis->exists($tagKey) === 1,
+            $context->redis->exists($tagKey) === 1,
             'Tag hash is created'
         );
 
         // Verify field exists
         $result->assert(
-            $ctx->redis->hExists($tagKey, $ctx->prefixed('hash:item')) === true,
+            $context->redis->hExists($tagKey, $context->prefixed('hash:item')) === true,
             'Cache key is added as hash field'
         );
 
         // Verify field value
-        $value = $ctx->redis->hGet($tagKey, $ctx->prefixed('hash:item'));
+        $value = $context->redis->hGet($tagKey, $context->prefixed('hash:item'));
         $result->assert(
             $value === '1',
             'Hash field value is "1" (minimal metadata)'
         );
 
         // Verify field has expiration
-        $ttl = $ctx->redis->httl($tagKey, [$ctx->prefixed('hash:item')]);
+        $ttl = $context->redis->httl($tagKey, [$context->prefixed('hash:item')]);
         $result->assert(
             $ttl[0] > 0 && $ttl[0] <= 120,
             'Hash field has expiration matching cache TTL'
@@ -65,12 +65,12 @@ final class HashStructuresCheck implements CheckInterface
 
         // Verify cache key itself exists
         $result->assert(
-            $ctx->redis->exists($ctx->cachePrefix . $ctx->prefixed('hash:item')) === 1,
+            $context->redis->exists($context->cachePrefix . $context->prefixed('hash:item')) === 1,
             'Cache key exists in Redis'
         );
 
         // Verify cache key TTL
-        $keyTtl = $ctx->redis->ttl($ctx->cachePrefix . $ctx->prefixed('hash:item'));
+        $keyTtl = $context->redis->ttl($context->cachePrefix . $context->prefixed('hash:item'));
         $result->assert(
             $keyTtl > 0 && $keyTtl <= 120,
             'Cache key has correct TTL'

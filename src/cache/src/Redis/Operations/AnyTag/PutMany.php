@@ -55,7 +55,7 @@ class PutMany
      */
     private function executeCluster(array $values, int $seconds, array $tags): bool
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($values, $seconds, $tags) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($values, $seconds, $tags) {
             $prefix = $this->context->prefix();
             $registryKey = $this->context->registryKey();
             $expiry = time() + $seconds;
@@ -66,7 +66,7 @@ class PutMany
                 $oldTagsResults = [];
 
                 foreach ($chunk as $key => $value) {
-                    $oldTagsResults[] = $conn->smembers($this->context->reverseIndexKey($key));
+                    $oldTagsResults[] = $connection->smembers($this->context->reverseIndexKey($key));
                 }
 
                 // Step 2: Prepare updates
@@ -87,17 +87,17 @@ class PutMany
                     }
 
                     // 1. Store the actual cache value
-                    $conn->setex(
+                    $connection->setex(
                         $prefix . $key,
                         $ttl,
-                        $this->serialization->serialize($conn, $value)
+                        $this->serialization->serialize($connection, $value)
                     );
 
                     // 2. Store reverse index of tags for this key
                     $tagsKey = $this->context->reverseIndexKey($key);
 
                     // Use multi() for reverse index updates (same slot)
-                    $multi = $conn->multi();
+                    $multi = $connection->multi();
                     $multi->del($tagsKey); // Clear old tags
 
                     if (! empty($tags)) {
@@ -116,7 +116,7 @@ class PutMany
                 // 3. Batch remove from old tags
                 foreach ($keysToRemoveByTag as $tag => $keys) {
                     $tag = (string) $tag;
-                    $conn->hdel($this->context->tagHashKey($tag), ...$keys);
+                    $connection->hdel($this->context->tagHashKey($tag), ...$keys);
                 }
 
                 // 4. Batch update new tag hashes
@@ -128,7 +128,7 @@ class PutMany
                     $hsetArgs = array_fill_keys($keys, StoreContext::TAG_FIELD_VALUE);
 
                     // Use multi() for tag hash updates (same slot)
-                    $multi = $conn->multi();
+                    $multi = $connection->multi();
                     $multi->hSet($tagHashKey, $hsetArgs); // @phpstan-ignore arguments.count, argument.type (phpredis supports array syntax)
                     $multi->hexpire($tagHashKey, $ttl, $keys); // @phpstan-ignore method.nonObject (phpredis multi() returns Redis)
                     $multi->exec();
@@ -143,7 +143,7 @@ class PutMany
                         $zaddArgs[] = (string) $tag;
                     }
 
-                    $conn->zadd($registryKey, ['GT'], ...$zaddArgs);
+                    $connection->zadd($registryKey, ['GT'], ...$zaddArgs);
                 }
             }
 
@@ -156,7 +156,7 @@ class PutMany
      */
     private function executeUsingPipeline(array $values, int $seconds, array $tags): bool
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($values, $seconds, $tags) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($values, $seconds, $tags) {
             $prefix = $this->context->prefix();
             $registryKey = $this->context->registryKey();
             $expiry = time() + $seconds;
@@ -164,7 +164,7 @@ class PutMany
 
             foreach (array_chunk($values, self::CHUNK_SIZE, true) as $chunk) {
                 // Step 1: Retrieve old tags for all keys in the chunk
-                $pipeline = $conn->pipeline();
+                $pipeline = $connection->pipeline();
 
                 foreach ($chunk as $key => $value) {
                     $pipeline->smembers($this->context->reverseIndexKey($key));
@@ -176,7 +176,7 @@ class PutMany
                 $keysByNewTag = [];
                 $keysToRemoveByTag = [];
 
-                $pipeline = $conn->pipeline();
+                $pipeline = $connection->pipeline();
                 $i = 0;
 
                 foreach ($chunk as $key => $value) {
@@ -194,7 +194,7 @@ class PutMany
                     $pipeline->setex(
                         $prefix . $key,
                         $ttl,
-                        $this->serialization->serialize($conn, $value)
+                        $this->serialization->serialize($connection, $value)
                     );
 
                     // 2. Store reverse index of tags for this key

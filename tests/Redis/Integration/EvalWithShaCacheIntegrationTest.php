@@ -26,8 +26,8 @@ class EvalWithShaCacheIntegrationTest extends RedisIntegrationTestCase
 {
     public function testEvalWithShaCacheExecutesScript(): void
     {
-        $result = Redis::withConnection(function ($conn) {
-            return $conn->evalWithShaCache(
+        $result = Redis::withConnection(function ($connection) {
+            return $connection->evalWithShaCache(
                 'return ARGV[1]',
                 [],
                 ['hello']
@@ -42,8 +42,8 @@ class EvalWithShaCacheIntegrationTest extends RedisIntegrationTestCase
         // Set up a key first
         Redis::set('testkey', 'testvalue');
 
-        $result = Redis::withConnection(function ($conn) {
-            return $conn->evalWithShaCache(
+        $result = Redis::withConnection(function ($connection) {
+            return $connection->evalWithShaCache(
                 'return redis.call("GET", KEYS[1])',
                 ['testkey'],
                 []
@@ -55,8 +55,8 @@ class EvalWithShaCacheIntegrationTest extends RedisIntegrationTestCase
 
     public function testEvalWithShaCacheHandlesMultipleKeysAndArgs(): void
     {
-        $result = Redis::withConnection(function ($conn) {
-            return $conn->evalWithShaCache(
+        $result = Redis::withConnection(function ($connection) {
+            return $connection->evalWithShaCache(
                 'return {KEYS[1], KEYS[2], ARGV[1], ARGV[2]}',
                 ['key1', 'key2'],
                 ['arg1', 'arg2']
@@ -72,13 +72,13 @@ class EvalWithShaCacheIntegrationTest extends RedisIntegrationTestCase
         $script = 'return "cached"';
 
         // First call - should use eval (script not cached)
-        $result1 = Redis::withConnection(function ($conn) use ($script) {
-            return $conn->evalWithShaCache($script, [], []);
+        $result1 = Redis::withConnection(function ($connection) use ($script) {
+            return $connection->evalWithShaCache($script, [], []);
         });
 
         // Second call - should use evalSha (script now cached)
-        $result2 = Redis::withConnection(function ($conn) use ($script) {
-            return $conn->evalWithShaCache($script, [], []);
+        $result2 = Redis::withConnection(function ($connection) use ($script) {
+            return $connection->evalWithShaCache($script, [], []);
         });
 
         $this->assertEquals('cached', $result1);
@@ -98,8 +98,8 @@ class EvalWithShaCacheIntegrationTest extends RedisIntegrationTestCase
         $this->assertEquals([0], $exists, 'Script should not be cached before test');
 
         // Call evalWithShaCache - should handle NOSCRIPT and fall back to eval
-        $result = Redis::withConnection(function ($conn) use ($script) {
-            return $conn->evalWithShaCache($script, [], []);
+        $result = Redis::withConnection(function ($connection) use ($script) {
+            return $connection->evalWithShaCache($script, [], []);
         });
 
         $this->assertEquals('fallback_test', $result);
@@ -114,8 +114,8 @@ class EvalWithShaCacheIntegrationTest extends RedisIntegrationTestCase
         $this->expectException(LuaScriptException::class);
         $this->expectExceptionMessage('Lua script execution failed');
 
-        Redis::withConnection(function ($conn) {
-            return $conn->evalWithShaCache(
+        Redis::withConnection(function ($connection) {
+            return $connection->evalWithShaCache(
                 'this is not valid lua syntax!!!',
                 [],
                 []
@@ -127,9 +127,9 @@ class EvalWithShaCacheIntegrationTest extends RedisIntegrationTestCase
     {
         $this->expectException(LuaScriptException::class);
 
-        Redis::withConnection(function ($conn) {
+        Redis::withConnection(function ($connection) {
             // Call a non-existent Redis command
-            return $conn->evalWithShaCache(
+            return $connection->evalWithShaCache(
                 'return redis.call("NONEXISTENT_COMMAND")',
                 [],
                 []
@@ -139,8 +139,8 @@ class EvalWithShaCacheIntegrationTest extends RedisIntegrationTestCase
 
     public function testEvalWithShaCacheReturnsNilAsFalse(): void
     {
-        $result = Redis::withConnection(function ($conn) {
-            return $conn->evalWithShaCache('return nil', [], []);
+        $result = Redis::withConnection(function ($connection) {
+            return $connection->evalWithShaCache('return nil', [], []);
         });
 
         $this->assertFalse($result);
@@ -148,8 +148,8 @@ class EvalWithShaCacheIntegrationTest extends RedisIntegrationTestCase
 
     public function testEvalWithShaCacheReturnsTable(): void
     {
-        $result = Redis::withConnection(function ($conn) {
-            return $conn->evalWithShaCache(
+        $result = Redis::withConnection(function ($connection) {
+            return $connection->evalWithShaCache(
                 'return {"a", "b", "c"}',
                 [],
                 []
@@ -161,8 +161,8 @@ class EvalWithShaCacheIntegrationTest extends RedisIntegrationTestCase
 
     public function testEvalWithShaCacheReturnsNumber(): void
     {
-        $result = Redis::withConnection(function ($conn) {
-            return $conn->evalWithShaCache('return 42', [], []);
+        $result = Redis::withConnection(function ($connection) {
+            return $connection->evalWithShaCache('return 42', [], []);
         });
 
         $this->assertEquals(42, $result);

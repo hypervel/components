@@ -50,22 +50,22 @@ class Decrement
      */
     private function executeCluster(string $key, int $value, array $tags): int|bool
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $tags) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tags) {
             $prefix = $this->context->prefix();
 
             // 1. Decrement and Get TTL (Same slot, so we can use multi)
-            $multi = $conn->multi();
+            $multi = $connection->multi();
             $multi->decrBy($prefix . $key, $value);
             $multi->ttl($prefix . $key);
             [$newValue, $ttl] = $multi->exec();
 
             $tagsKey = $this->context->reverseIndexKey($key);
-            $oldTags = $conn->smembers($tagsKey);
+            $oldTags = $connection->smembers($tagsKey);
 
             // Add to tags with expiration if the key has TTL
             if (! empty($tags)) {
                 // 2. Update Reverse Index (Same slot, so we can use multi)
-                $multi = $conn->multi();
+                $multi = $connection->multi();
                 $multi->del($tagsKey);
                 $multi->sadd($tagsKey, ...$tags);
 
@@ -80,7 +80,7 @@ class Decrement
 
                 foreach ($tagsToRemove as $tag) {
                     $tag = (string) $tag;
-                    $conn->hdel($this->context->tagHashKey($tag), $key);
+                    $connection->hdel($this->context->tagHashKey($tag), $key);
                 }
 
                 // Calculate expiry for Registry
@@ -94,9 +94,9 @@ class Decrement
 
                     if ($ttl > 0) {
                         // Use HSETEX for atomic operation
-                        $conn->hsetex($tagHashKey, [$key => StoreContext::TAG_FIELD_VALUE], ['EX' => $ttl]);
+                        $connection->hsetex($tagHashKey, [$key => StoreContext::TAG_FIELD_VALUE], ['EX' => $ttl]);
                     } else {
-                        $conn->hSet($tagHashKey, $key, StoreContext::TAG_FIELD_VALUE);
+                        $connection->hSet($tagHashKey, $key, StoreContext::TAG_FIELD_VALUE);
                     }
                 }
 
@@ -108,7 +108,7 @@ class Decrement
                     $zaddArgs[] = (string) $tag;
                 }
 
-                $conn->zadd($registryKey, ['GT'], ...$zaddArgs);
+                $connection->zadd($registryKey, ['GT'], ...$zaddArgs);
             }
 
             return $newValue;
@@ -120,7 +120,7 @@ class Decrement
      */
     private function executeUsingLua(string $key, int $value, array $tags): int|bool
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $tags) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tags) {
             $prefix = $this->context->prefix();
 
             $keys = [
@@ -138,7 +138,7 @@ class Decrement
                 ...$tags,                          // ARGV[7...]
             ];
 
-            return $conn->evalWithShaCache($this->decrementWithTagsScript(), $keys, $args);
+            return $connection->evalWithShaCache($this->decrementWithTagsScript(), $keys, $args);
         });
     }
 

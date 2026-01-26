@@ -25,8 +25,8 @@ class Forget
      */
     public function execute(string $key): bool
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key) {
-            return (bool) $conn->del($this->context->prefix() . $key);
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key) {
+            return (bool) $connection->del($this->context->prefix() . $key);
         });
     }
 }

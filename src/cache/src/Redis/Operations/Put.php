@@ -27,11 +27,11 @@ class Put
      */
     public function execute(string $key, mixed $value, int $seconds): bool
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $seconds) {
-            return (bool) $conn->setex(
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds) {
+            return (bool) $connection->setex(
                 $this->context->prefix() . $key,
                 max(1, $seconds),
-                $this->serialization->serialize($conn, $value)
+                $this->serialization->serialize($connection, $value)
             );
         });
     }

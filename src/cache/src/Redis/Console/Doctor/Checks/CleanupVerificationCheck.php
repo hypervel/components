@@ -21,12 +21,12 @@ final class CleanupVerificationCheck implements CheckInterface
         return 'Cleanup Verification';
     }
 
-    public function run(DoctorContext $ctx): CheckResult
+    public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult();
 
-        $testPrefix = $ctx->getTestPrefix();
-        $remainingKeys = $this->findTestKeys($ctx, $testPrefix);
+        $testPrefix = $context->getTestPrefix();
+        $remainingKeys = $this->findTestKeys($context, $testPrefix);
 
         $result->assert(
             empty($remainingKeys),
@@ -36,8 +36,8 @@ final class CleanupVerificationCheck implements CheckInterface
         );
 
         // Any mode: verify tag registry has no test entries
-        if ($ctx->isAnyMode()) {
-            $registryOrphans = $this->findRegistryOrphans($ctx, $testPrefix);
+        if ($context->isAnyMode()) {
+            $registryOrphans = $this->findRegistryOrphans($context, $testPrefix);
             $result->assert(
                 empty($registryOrphans),
                 empty($registryOrphans)
@@ -54,25 +54,25 @@ final class CleanupVerificationCheck implements CheckInterface
      *
      * @return array<string>
      */
-    private function findTestKeys(DoctorContext $ctx, string $testPrefix): array
+    private function findTestKeys(DoctorContext $context, string $testPrefix): array
     {
         $remainingKeys = [];
 
         // Get patterns to check (includes both mode patterns for comprehensive verification)
         $patterns = array_merge(
-            $ctx->getCacheValuePatterns($testPrefix),
-            $ctx->getTagStoragePatterns($testPrefix),
+            $context->getCacheValuePatterns($testPrefix),
+            $context->getTagStoragePatterns($testPrefix),
         );
 
         // Get OPT_PREFIX for SCAN pattern
-        $optPrefix = (string) $ctx->redis->getOption(Redis::OPT_PREFIX);
+        $optPrefix = (string) $context->redis->getOption(Redis::OPT_PREFIX);
 
         foreach ($patterns as $pattern) {
             // SCAN requires the full pattern including OPT_PREFIX
             $scanPattern = $optPrefix . $pattern;
             $iterator = null;
 
-            while (($keys = $ctx->redis->scan($iterator, $scanPattern, 100)) !== false) {
+            while (($keys = $context->redis->scan($iterator, $scanPattern, 100)) !== false) {
                 foreach ($keys as $key) {
                     // Strip OPT_PREFIX from returned keys for display
                     $remainingKeys[] = $optPrefix ? substr($key, strlen($optPrefix)) : $key;
@@ -92,10 +92,10 @@ final class CleanupVerificationCheck implements CheckInterface
      *
      * @return array<string>
      */
-    private function findRegistryOrphans(DoctorContext $ctx, string $testPrefix): array
+    private function findRegistryOrphans(DoctorContext $context, string $testPrefix): array
     {
-        $registryKey = $ctx->store->getContext()->registryKey();
-        $members = $ctx->redis->zRange($registryKey, 0, -1);
+        $registryKey = $context->store->getContext()->registryKey();
+        $members = $context->redis->zRange($registryKey, 0, -1);
 
         if (! is_array($members)) {
             return [];

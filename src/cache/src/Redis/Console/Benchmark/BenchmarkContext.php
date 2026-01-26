@@ -281,15 +281,15 @@ class BenchmarkContext
         // 4. Any mode: clean up benchmark entries from the tag registry
         if ($this->isAnyMode()) {
             $context = $storeInstance->getContext();
-            $context->withConnection(function ($conn) use ($context) {
+            $context->withConnection(function ($connection) use ($context) {
                 $registryKey = $context->registryKey();
-                $members = $conn->zRange($registryKey, 0, -1);
+                $members = $connection->zRange($registryKey, 0, -1);
                 $benchMembers = array_filter(
                     $members,
                     fn ($m) => str_starts_with($m, self::KEY_PREFIX)
                 );
                 if (! empty($benchMembers)) {
-                    $conn->zRem($registryKey, ...$benchMembers);
+                    $connection->zrem($registryKey, ...$benchMembers);
                 }
             });
         }
@@ -304,7 +304,7 @@ class BenchmarkContext
     private function flushKeysByPattern(RedisStore $store, string $pattern): void
     {
         $store->getContext()->withConnection(
-            fn (RedisConnection $conn) => $conn->flushByPattern($pattern)
+            fn (RedisConnection $connection) => $connection->flushByPattern($pattern)
         );
     }
 }

@@ -38,22 +38,22 @@ class RememberForever
      */
     public function execute(string $key, Closure $callback): array
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $callback) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $callback) {
             $prefixedKey = $this->context->prefix() . $key;
 
             // Try to get the cached value
-            $value = $conn->get($prefixedKey);
+            $value = $connection->get($prefixedKey);
 
             if ($value !== false && $value !== null) {
-                return [$this->serialization->unserialize($conn, $value), true];
+                return [$this->serialization->unserialize($connection, $value), true];
             }
 
             // Cache miss - execute callback and store result forever (no TTL)
             $value = $callback();
 
-            $conn->set(
+            $connection->set(
                 $prefixedKey,
-                $this->serialization->serialize($conn, $value)
+                $this->serialization->serialize($connection, $value)
             );
 
             return [$value, false];

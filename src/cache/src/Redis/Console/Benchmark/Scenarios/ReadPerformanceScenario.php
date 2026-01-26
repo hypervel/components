@@ -23,56 +23,56 @@ class ReadPerformanceScenario implements ScenarioInterface
     /**
      * Run read performance benchmark after tagged writes.
      */
-    public function run(BenchmarkContext $ctx): ScenarioResult
+    public function run(BenchmarkContext $context): ScenarioResult
     {
-        $items = $ctx->items;
-        $ctx->newLine();
-        $ctx->line('  Running Read Performance Scenario...');
-        $ctx->cleanup();
+        $items = $context->items;
+        $context->newLine();
+        $context->line('  Running Read Performance Scenario...');
+        $context->cleanup();
 
-        $store = $ctx->getStore();
+        $store = $context->getStore();
         $chunkSize = 100;
 
         // Seed data
-        $bar = $ctx->createProgressBar($items);
+        $bar = $context->createProgressBar($items);
 
-        $tag = $ctx->prefixed('read:tag');
+        $tag = $context->prefixed('read:tag');
 
         for ($i = 0; $i < $items; ++$i) {
-            $store->tags([$tag])->put($ctx->prefixed("read:{$i}"), 'value', 3600);
+            $store->tags([$tag])->put($context->prefixed("read:{$i}"), 'value', 3600);
 
             if ($i % $chunkSize === 0) {
                 $bar->advance($chunkSize);
-                $ctx->checkMemoryUsage();
+                $context->checkMemoryUsage();
             }
         }
 
         $bar->finish();
-        $ctx->line('');
+        $context->line('');
 
         // Read performance
         $start = hrtime(true);
-        $bar = $ctx->createProgressBar($items);
+        $bar = $context->createProgressBar($items);
 
         // In 'any' mode, items can be read directly without specifying tags
         // In 'all' mode, items must be read with the same tags used when storing
-        $isAnyMode = $ctx->getStoreInstance()->getTagMode()->isAnyMode();
+        $isAnyMode = $context->getStoreInstance()->getTagMode()->isAnyMode();
 
         for ($i = 0; $i < $items; ++$i) {
             if ($isAnyMode) {
-                $store->get($ctx->prefixed("read:{$i}"));
+                $store->get($context->prefixed("read:{$i}"));
             } else {
-                $store->tags([$tag])->get($ctx->prefixed("read:{$i}"));
+                $store->tags([$tag])->get($context->prefixed("read:{$i}"));
             }
 
             if ($i % $chunkSize === 0) {
                 $bar->advance($chunkSize);
-                $ctx->checkMemoryUsage();
+                $context->checkMemoryUsage();
             }
         }
 
         $bar->finish();
-        $ctx->line('');
+        $context->line('');
 
         $readTime = (hrtime(true) - $start) / 1e9;
         $readRate = $items / $readTime;

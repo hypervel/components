@@ -62,9 +62,9 @@ class AddEntry
      */
     private function executePipeline(string $key, int $score, array $tagIds, ?string $updateWhen): void
     {
-        $this->context->withConnection(function (RedisConnection $conn) use ($key, $score, $tagIds, $updateWhen) {
+        $this->context->withConnection(function (RedisConnection $connection) use ($key, $score, $tagIds, $updateWhen) {
             $prefix = $this->context->prefix();
-            $pipeline = $conn->pipeline();
+            $pipeline = $connection->pipeline();
 
             foreach ($tagIds as $tagId) {
                 $prefixedTagKey = $prefix . $tagId;
@@ -90,7 +90,7 @@ class AddEntry
      */
     private function executeCluster(string $key, int $score, array $tagIds, ?string $updateWhen): void
     {
-        $this->context->withConnection(function (RedisConnection $conn) use ($key, $score, $tagIds, $updateWhen) {
+        $this->context->withConnection(function (RedisConnection $connection) use ($key, $score, $tagIds, $updateWhen) {
             $prefix = $this->context->prefix();
 
             foreach ($tagIds as $tagId) {
@@ -99,10 +99,10 @@ class AddEntry
                 if ($updateWhen) {
                     // ZADD with flag (NX, XX, GT, LT)
                     // RedisCluster requires options as array, not string
-                    $conn->zadd($prefixedTagKey, [$updateWhen], $score, $key);
+                    $connection->zadd($prefixedTagKey, [$updateWhen], $score, $key);
                 } else {
                     // Standard ZADD
-                    $conn->zadd($prefixedTagKey, $score, $key);
+                    $connection->zadd($prefixedTagKey, $score, $key);
                 }
             }
         });

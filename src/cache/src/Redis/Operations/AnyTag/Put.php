@@ -61,23 +61,23 @@ class Put
      */
     private function executeCluster(string $key, mixed $value, int $seconds, array $tags): bool
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $seconds, $tags) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tags) {
             $prefix = $this->context->prefix();
 
             // Get old tags to handle replacement correctly (remove from old, add to new)
             $tagsKey = $this->context->reverseIndexKey($key);
-            $oldTags = $conn->smembers($tagsKey);
+            $oldTags = $connection->smembers($tagsKey);
 
             // Store the actual cache value
-            $conn->setex(
+            $connection->setex(
                 $prefix . $key,
                 max(1, $seconds),
-                $this->serialization->serialize($conn, $value)
+                $this->serialization->serialize($connection, $value)
             );
 
             // Store reverse index of tags for this key
             // Use multi() as these keys are in the same slot
-            $multi = $conn->multi();
+            $multi = $connection->multi();
             $multi->del($tagsKey); // Clear old tags
 
             if (! empty($tags)) {
@@ -92,7 +92,7 @@ class Put
 
             foreach ($tagsToRemove as $tag) {
                 $tag = (string) $tag;
-                $conn->hdel($this->context->tagHashKey($tag), $key);
+                $connection->hdel($this->context->tagHashKey($tag), $key);
             }
 
             // Add to each tag's hash with expiration (using HSETEX for atomic operation)
@@ -105,7 +105,7 @@ class Put
                 $tag = (string) $tag;
 
                 // Use HSETEX to set field and expiration atomically in one command
-                $conn->hsetex(
+                $connection->hsetex(
                     $this->context->tagHashKey($tag),
                     [$key => StoreContext::TAG_FIELD_VALUE],
                     ['EX' => $seconds]
@@ -122,7 +122,7 @@ class Put
                 }
 
                 // Update Registry: ZADD with GT (Greater Than) to only extend expiry
-                $conn->zadd($registryKey, ['GT'], ...$zaddArgs);
+                $connection->zadd($registryKey, ['GT'], ...$zaddArgs);
             }
 
             return true;
@@ -134,7 +134,7 @@ class Put
      */
     private function executeUsingLua(string $key, mixed $value, int $seconds, array $tags): bool
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $seconds, $tags) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tags) {
             $prefix = $this->context->prefix();
 
             $keys = [
@@ -143,7 +143,7 @@ class Put
             ];
 
             $args = [
-                $this->serialization->serializeForLua($conn, $value), // ARGV[1]
+                $this->serialization->serializeForLua($connection, $value), // ARGV[1]
                 max(1, $seconds),                            // ARGV[2]
                 $this->context->fullTagPrefix(),             // ARGV[3]
                 $this->context->fullRegistryKey(),           // ARGV[4]
@@ -153,7 +153,7 @@ class Put
                 ...$tags,                                    // ARGV[8...]
             ];
 
-            $conn->evalWithShaCache($this->storeWithTagsScript(), $keys, $args);
+            $connection->evalWithShaCache($this->storeWithTagsScript(), $keys, $args);
 
             return true;
         });

@@ -23,85 +23,85 @@ class NonTaggedScenario implements ScenarioInterface
     /**
      * Run non-tagged cache operations benchmark.
      */
-    public function run(BenchmarkContext $ctx): ScenarioResult
+    public function run(BenchmarkContext $context): ScenarioResult
     {
-        $items = $ctx->items;
-        $ctx->newLine();
-        $ctx->line("  Running Non-Tagged Operations Scenario ({$items} items)...");
-        $ctx->cleanup();
+        $items = $context->items;
+        $context->newLine();
+        $context->line("  Running Non-Tagged Operations Scenario ({$items} items)...");
+        $context->cleanup();
 
-        $store = $ctx->getStore();
+        $store = $context->getStore();
         $chunkSize = 100;
 
         // 1. Write Performance (put)
-        $ctx->line('  Testing put()...');
+        $context->line('  Testing put()...');
         $start = hrtime(true);
-        $bar = $ctx->createProgressBar($items);
+        $bar = $context->createProgressBar($items);
 
         for ($i = 0; $i < $items; ++$i) {
-            $store->put($ctx->prefixed("nontagged:put:{$i}"), 'value', 3600);
+            $store->put($context->prefixed("nontagged:put:{$i}"), 'value', 3600);
 
             if ($i % $chunkSize === 0) {
                 $bar->advance($chunkSize);
-                $ctx->checkMemoryUsage();
+                $context->checkMemoryUsage();
             }
         }
 
         $bar->finish();
-        $ctx->line('');
+        $context->line('');
 
         $putTime = (hrtime(true) - $start) / 1e9;
         $putRate = $items / $putTime;
 
         // 2. Read Performance (get)
-        $ctx->line('  Testing get()...');
+        $context->line('  Testing get()...');
         $start = hrtime(true);
-        $bar = $ctx->createProgressBar($items);
+        $bar = $context->createProgressBar($items);
 
         for ($i = 0; $i < $items; ++$i) {
-            $store->get($ctx->prefixed("nontagged:put:{$i}"));
+            $store->get($context->prefixed("nontagged:put:{$i}"));
 
             if ($i % $chunkSize === 0) {
                 $bar->advance($chunkSize);
-                $ctx->checkMemoryUsage();
+                $context->checkMemoryUsage();
             }
         }
 
         $bar->finish();
-        $ctx->line('');
+        $context->line('');
 
         $getTime = (hrtime(true) - $start) / 1e9;
         $getRate = $items / $getTime;
 
         // 3. Delete Performance (forget)
-        $ctx->line('  Testing forget()...');
+        $context->line('  Testing forget()...');
         $start = hrtime(true);
-        $bar = $ctx->createProgressBar($items);
+        $bar = $context->createProgressBar($items);
 
         for ($i = 0; $i < $items; ++$i) {
-            $store->forget($ctx->prefixed("nontagged:put:{$i}"));
+            $store->forget($context->prefixed("nontagged:put:{$i}"));
 
             if ($i % $chunkSize === 0) {
                 $bar->advance($chunkSize);
-                $ctx->checkMemoryUsage();
+                $context->checkMemoryUsage();
             }
         }
 
         $bar->finish();
-        $ctx->line('');
+        $context->line('');
 
         $forgetTime = (hrtime(true) - $start) / 1e9;
         $forgetRate = $items / $forgetTime;
 
         // 4. Remember Performance (cache miss + store)
-        $ctx->line('  Testing remember()...');
+        $context->line('  Testing remember()...');
         $rememberItems = min(1000, (int) ($items / 10));
         $start = hrtime(true);
-        $bar = $ctx->createProgressBar($rememberItems);
+        $bar = $context->createProgressBar($rememberItems);
         $rememberChunk = 10;
 
         for ($i = 0; $i < $rememberItems; ++$i) {
-            $store->remember($ctx->prefixed("nontagged:remember:{$i}"), 3600, function (): string {
+            $store->remember($context->prefixed("nontagged:remember:{$i}"), 3600, function (): string {
                 return 'computed_value';
             });
 
@@ -111,22 +111,22 @@ class NonTaggedScenario implements ScenarioInterface
         }
 
         $bar->finish();
-        $ctx->line('');
+        $context->line('');
 
         $rememberTime = (hrtime(true) - $start) / 1e9;
         $rememberRate = $rememberItems / $rememberTime;
 
         // 5. Bulk Write Performance (putMany)
-        $ctx->line('  Testing putMany()...');
-        $ctx->cleanup();
+        $context->line('  Testing putMany()...');
+        $context->cleanup();
         $bulkChunkSize = 100;
         $start = hrtime(true);
-        $bar = $ctx->createProgressBar($items);
+        $bar = $context->createProgressBar($items);
 
         $buffer = [];
 
         for ($i = 0; $i < $items; ++$i) {
-            $buffer[$ctx->prefixed("nontagged:bulk:{$i}")] = 'value';
+            $buffer[$context->prefixed("nontagged:bulk:{$i}")] = 'value';
 
             if (count($buffer) >= $bulkChunkSize) {
                 $store->putMany($buffer, 3600);
@@ -141,28 +141,28 @@ class NonTaggedScenario implements ScenarioInterface
         }
 
         $bar->finish();
-        $ctx->line('');
+        $context->line('');
 
         $putManyTime = (hrtime(true) - $start) / 1e9;
         $putManyRate = $items / $putManyTime;
 
         // 6. Add Performance (add)
-        $ctx->line('  Testing add()...');
-        $ctx->cleanup();
+        $context->line('  Testing add()...');
+        $context->cleanup();
         $start = hrtime(true);
-        $bar = $ctx->createProgressBar($items);
+        $bar = $context->createProgressBar($items);
 
         for ($i = 0; $i < $items; ++$i) {
-            $store->add($ctx->prefixed("nontagged:add:{$i}"), 'value', 3600);
+            $store->add($context->prefixed("nontagged:add:{$i}"), 'value', 3600);
 
             if ($i % $chunkSize === 0) {
                 $bar->advance($chunkSize);
-                $ctx->checkMemoryUsage();
+                $context->checkMemoryUsage();
             }
         }
 
         $bar->finish();
-        $ctx->line('');
+        $context->line('');
 
         $addTime = (hrtime(true) - $start) / 1e9;
         $addRate = $items / $addTime;

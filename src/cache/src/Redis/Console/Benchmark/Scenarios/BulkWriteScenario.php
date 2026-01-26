@@ -23,24 +23,24 @@ class BulkWriteScenario implements ScenarioInterface
     /**
      * Run bulk write (putMany) benchmark with tags.
      */
-    public function run(BenchmarkContext $ctx): ScenarioResult
+    public function run(BenchmarkContext $context): ScenarioResult
     {
-        $items = $ctx->items;
-        $ctx->newLine();
-        $ctx->line("  Running Bulk Write Scenario (putMany, {$items} items)...");
-        $ctx->cleanup();
+        $items = $context->items;
+        $context->newLine();
+        $context->line("  Running Bulk Write Scenario (putMany, {$items} items)...");
+        $context->cleanup();
 
-        $store = $ctx->getStore();
+        $store = $context->getStore();
         $chunkSize = 100;
 
         $start = hrtime(true);
-        $bar = $ctx->createProgressBar($items);
+        $bar = $context->createProgressBar($items);
 
-        $tag = $ctx->prefixed('bulk:tag');
+        $tag = $context->prefixed('bulk:tag');
         $buffer = [];
 
         for ($i = 0; $i < $items; ++$i) {
-            $buffer[$ctx->prefixed("bulk:{$i}")] = 'value';
+            $buffer[$context->prefixed("bulk:{$i}")] = 'value';
 
             if (count($buffer) >= $chunkSize) {
                 $store->tags([$tag])->putMany($buffer, 3600);
@@ -55,7 +55,7 @@ class BulkWriteScenario implements ScenarioInterface
         }
 
         $bar->finish();
-        $ctx->line('');
+        $context->line('');
 
         $writeTime = (hrtime(true) - $start) / 1e9;
         $writeRate = $items / $writeTime;

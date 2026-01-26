@@ -60,7 +60,7 @@ class Prune
      */
     private function executePipeline(int $scanCount): array
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($scanCount) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($scanCount) {
             $prefix = $this->context->prefix();
             $registryKey = $this->context->registryKey();
             $now = time();
@@ -74,11 +74,11 @@ class Prune
             ];
 
             // Step 1: Remove expired tags from registry
-            $expiredCount = $conn->zRemRangeByScore($registryKey, '-inf', (string) $now);
+            $expiredCount = $connection->zRemRangeByScore($registryKey, '-inf', (string) $now);
             $stats['expired_tags_removed'] = is_int($expiredCount) ? $expiredCount : 0;
 
             // Step 2: Get active tags from registry
-            $tags = $conn->zRange($registryKey, 0, -1);
+            $tags = $connection->zRange($registryKey, 0, -1);
 
             if (empty($tags) || ! is_array($tags)) {
                 return $stats;
@@ -87,7 +87,7 @@ class Prune
             // Step 3: Process each tag hash
             foreach ($tags as $tag) {
                 $tagHash = $this->context->tagHashKey($tag);
-                $result = $this->cleanupTagHashPipeline($conn, $tagHash, $prefix, $scanCount);
+                $result = $this->cleanupTagHashPipeline($connection, $tagHash, $prefix, $scanCount);
 
                 ++$stats['hashes_scanned'];
                 $stats['fields_checked'] += $result['checked'];
@@ -112,7 +112,7 @@ class Prune
      */
     private function executeCluster(int $scanCount): array
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($scanCount) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($scanCount) {
             $prefix = $this->context->prefix();
             $registryKey = $this->context->registryKey();
             $now = time();
@@ -126,11 +126,11 @@ class Prune
             ];
 
             // Step 1: Remove expired tags from registry
-            $expiredCount = $conn->zRemRangeByScore($registryKey, '-inf', (string) $now);
+            $expiredCount = $connection->zRemRangeByScore($registryKey, '-inf', (string) $now);
             $stats['expired_tags_removed'] = is_int($expiredCount) ? $expiredCount : 0;
 
             // Step 2: Get active tags from registry
-            $tags = $conn->zRange($registryKey, 0, -1);
+            $tags = $connection->zRange($registryKey, 0, -1);
 
             if (empty($tags) || ! is_array($tags)) {
                 return $stats;
@@ -139,7 +139,7 @@ class Prune
             // Step 3: Process each tag hash
             foreach ($tags as $tag) {
                 $tagHash = $this->context->tagHashKey($tag);
-                $result = $this->cleanupTagHashCluster($conn, $tagHash, $prefix, $scanCount);
+                $result = $this->cleanupTagHashCluster($connection, $tagHash, $prefix, $scanCount);
 
                 ++$stats['hashes_scanned'];
                 $stats['fields_checked'] += $result['checked'];
@@ -162,7 +162,7 @@ class Prune
      *
      * @return array{checked: int, removed: int, deleted: bool}
      */
-    private function cleanupTagHashPipeline(RedisConnection $conn, string $tagHash, string $prefix, int $scanCount): array
+    private function cleanupTagHashPipeline(RedisConnection $connection, string $tagHash, string $prefix, int $scanCount): array
     {
         $checked = 0;
         $removed = 0;
@@ -175,7 +175,7 @@ class Prune
 
         do {
             // HSCAN returns [field => value, ...] array
-            $fields = $conn->hScan($tagHash, $iterator, '*', $scanCount);
+            $fields = $connection->hScan($tagHash, $iterator, '*', $scanCount);
 
             if ($fields === false || ! is_array($fields) || empty($fields)) {
                 break;
@@ -185,7 +185,7 @@ class Prune
             $checked += count($fieldKeys);
 
             // Use pipeline to check existence of all cache keys
-            $pipeline = $conn->pipeline();
+            $pipeline = $connection->pipeline();
             foreach ($fieldKeys as $key) {
                 $pipeline->exists($prefix . $key);
             }
@@ -201,16 +201,16 @@ class Prune
 
             // Remove orphaned fields
             if (! empty($orphanedFields)) {
-                $conn->hDel($tagHash, ...$orphanedFields);
+                $connection->hDel($tagHash, ...$orphanedFields);
                 $removed += count($orphanedFields);
             }
         } while ($iterator > 0);
 
         // Check if hash is now empty and delete it
         $deleted = false;
-        $hashLen = $conn->hLen($tagHash);
+        $hashLen = $connection->hlen($tagHash);
         if ($hashLen === 0) {
-            $conn->del($tagHash);
+            $connection->del($tagHash);
             $deleted = true;
         }
 
@@ -226,7 +226,7 @@ class Prune
      *
      * @return array{checked: int, removed: int, deleted: bool}
      */
-    private function cleanupTagHashCluster(RedisConnection $conn, string $tagHash, string $prefix, int $scanCount): array
+    private function cleanupTagHashCluster(RedisConnection $connection, string $tagHash, string $prefix, int $scanCount): array
     {
         $checked = 0;
         $removed = 0;
@@ -239,7 +239,7 @@ class Prune
 
         do {
             // HSCAN returns [field => value, ...] array
-            $fields = $conn->hScan($tagHash, $iterator, '*', $scanCount);
+            $fields = $connection->hScan($tagHash, $iterator, '*', $scanCount);
 
             if ($fields === false || ! is_array($fields) || empty($fields)) {
                 break;
@@ -251,23 +251,23 @@ class Prune
             // Check existence sequentially in cluster mode
             $orphanedFields = [];
             foreach ($fieldKeys as $key) {
-                if (! $conn->exists($prefix . $key)) {
+                if (! $connection->exists($prefix . $key)) {
                     $orphanedFields[] = $key;
                 }
             }
 
             // Remove orphaned fields
             if (! empty($orphanedFields)) {
-                $conn->hDel($tagHash, ...$orphanedFields);
+                $connection->hDel($tagHash, ...$orphanedFields);
                 $removed += count($orphanedFields);
             }
         } while ($iterator > 0);
 
         // Check if hash is now empty and delete it
         $deleted = false;
-        $hashLen = $conn->hLen($tagHash);
+        $hashLen = $connection->hlen($tagHash);
         if ($hashLen === 0) {
-            $conn->del($tagHash);
+            $connection->del($tagHash);
             $deleted = true;
         }
 

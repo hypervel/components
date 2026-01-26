@@ -30,10 +30,10 @@ class Get
      */
     public function execute(string $key): mixed
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key) {
-            $value = $conn->get($this->context->prefix() . $key);
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key) {
+            $value = $connection->get($this->context->prefix() . $key);
 
-            return $this->serialization->unserialize($conn, $value);
+            return $this->serialization->unserialize($connection, $value);
         });
     }
 }

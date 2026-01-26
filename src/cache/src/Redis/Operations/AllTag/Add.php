@@ -53,13 +53,13 @@ class Add
      */
     private function executePipeline(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $seconds, $tagIds) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds) {
             $prefix = $this->context->prefix();
             $score = now()->addSeconds($seconds)->getTimestamp();
 
             // Pipeline the ZADD operations for tag tracking
             if (! empty($tagIds)) {
-                $pipeline = $conn->pipeline();
+                $pipeline = $connection->pipeline();
 
                 foreach ($tagIds as $tagId) {
                     $pipeline->zadd($prefix . $tagId, $score, $key);
@@ -69,9 +69,9 @@ class Add
             }
 
             // SET key value EX seconds NX - atomic "add if not exists"
-            $result = $conn->set(
+            $result = $connection->set(
                 $prefix . $key,
-                $this->serialization->serialize($conn, $value),
+                $this->serialization->serialize($connection, $value),
                 ['EX' => max(1, $seconds), 'NX']
             );
 
@@ -87,19 +87,19 @@ class Add
      */
     private function executeCluster(string $key, mixed $value, int $seconds, array $tagIds): bool
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $seconds, $tagIds) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tagIds) {
             $prefix = $this->context->prefix();
             $score = now()->addSeconds($seconds)->getTimestamp();
 
             // ZADD to each tag's sorted set (sequential - cross-slot)
             foreach ($tagIds as $tagId) {
-                $conn->zadd($prefix . $tagId, $score, $key);
+                $connection->zadd($prefix . $tagId, $score, $key);
             }
 
             // SET key value EX seconds NX - atomic "add if not exists"
-            $result = $conn->set(
+            $result = $connection->set(
                 $prefix . $key,
-                $this->serialization->serialize($conn, $value),
+                $this->serialization->serialize($connection, $value),
                 ['EX' => max(1, $seconds), 'NX']
             );
 

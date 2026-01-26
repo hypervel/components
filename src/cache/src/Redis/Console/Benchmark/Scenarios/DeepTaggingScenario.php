@@ -23,36 +23,36 @@ class DeepTaggingScenario implements ScenarioInterface
     /**
      * Run deep tagging benchmark with a single tag across many items.
      */
-    public function run(BenchmarkContext $ctx): ScenarioResult
+    public function run(BenchmarkContext $context): ScenarioResult
     {
-        $items = $ctx->items;
-        $ctx->newLine();
-        $ctx->line("  Running Deep Tagging Scenario (1 tag, {$items} items)...");
-        $ctx->cleanup();
+        $items = $context->items;
+        $context->newLine();
+        $context->line("  Running Deep Tagging Scenario (1 tag, {$items} items)...");
+        $context->cleanup();
 
-        $tag = $ctx->prefixed('deep:tag');
+        $tag = $context->prefixed('deep:tag');
 
         // 1. Write
         $start = hrtime(true);
-        $bar = $ctx->createProgressBar($items);
-        $store = $ctx->getStore();
+        $bar = $context->createProgressBar($items);
+        $store = $context->getStore();
 
         $chunkSize = 100;
 
         for ($i = 0; $i < $items; ++$i) {
-            $store->tags([$tag])->put($ctx->prefixed("deep:{$i}"), 'value', 3600);
+            $store->tags([$tag])->put($context->prefixed("deep:{$i}"), 'value', 3600);
 
             if ($i % $chunkSize === 0) {
                 $bar->advance($chunkSize);
-                $ctx->checkMemoryUsage();
+                $context->checkMemoryUsage();
             }
         }
 
         $bar->finish();
-        $ctx->line('');
+        $context->line('');
 
         // 2. Flush
-        $ctx->line('  Flushing deep tag...');
+        $context->line('  Flushing deep tag...');
         $start = hrtime(true);
         $store->tags([$tag])->flush();
         $flushTime = (hrtime(true) - $start) / 1e9;

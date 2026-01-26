@@ -113,13 +113,9 @@ class DoctorCommand extends Command
         $this->info("Testing cache store: <fg=cyan>{$storeName}</> ({$tagMode} mode)");
         $this->newLine();
 
-        // Create context for functional checks
-        $config = $this->app->get(ConfigInterface::class);
-        $connectionName = $config->get("cache.stores.{$storeName}.connection", 'default');
-
         // Get the Redis connection from the store's context
         $context = $store->getContext();
-        $redis = $context->withConnection(fn (RedisConnection $conn) => $conn);
+        $redis = $context->withConnection(fn (RedisConnection $connection) => $connection);
 
         $doctorContext = new DoctorContext(
             cache: $repository,
@@ -154,7 +150,7 @@ class DoctorCommand extends Command
     {
         // Get connection for version checks
         $context = $store->getContext();
-        $redis = $context->withConnection(fn (RedisConnection $conn) => $conn);
+        $redis = $context->withConnection(fn (RedisConnection $connection) => $connection);
 
         return [
             new PhpRedisCheck(),
@@ -317,14 +313,13 @@ class DoctorCommand extends Command
             $storeName = $this->option('store') ?: $this->detectRedisStore();
 
             if ($storeName) {
-                $connectionName = $config->get("cache.stores.{$storeName}.connection", 'default');
                 $repository = $this->app->get(CacheContract::class)->store($storeName);
                 $store = $repository->getStore();
 
                 if ($store instanceof RedisStore) {
                     $context = $store->getContext();
                     $info = $context->withConnection(
-                        fn (RedisConnection $conn) => $conn->info('server')
+                        fn (RedisConnection $connection) => $connection->info('server')
                     );
 
                     if (isset($info['valkey_version'])) {
@@ -403,7 +398,7 @@ class DoctorCommand extends Command
                     fn ($m) => str_starts_with($m, self::TEST_PREFIX)
                 );
                 if (! empty($testMembers)) {
-                    $context->redis->zRem($registryKey, ...$testMembers);
+                    $context->redis->zrem($registryKey, ...$testMembers);
                 }
                 // If registry is now empty, delete it
                 if ($context->redis->zCard($registryKey) === 0) {
@@ -467,7 +462,7 @@ class DoctorCommand extends Command
     private function flushKeysByPattern(RedisStore $store, string $pattern): void
     {
         $store->getContext()->withConnection(
-            fn (RedisConnection $conn) => $conn->flushByPattern($pattern)
+            fn (RedisConnection $connection) => $connection->flushByPattern($pattern)
         );
     }
 }

@@ -34,7 +34,7 @@ class Many
             return [];
         }
 
-        return $this->context->withConnection(function (RedisConnection $conn) use ($keys) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($keys) {
             $prefix = $this->context->prefix();
 
             $prefixedKeys = array_map(
@@ -42,11 +42,11 @@ class Many
                 $keys
             );
 
-            $values = $conn->mget($prefixedKeys);
+            $values = $connection->mget($prefixedKeys);
             $results = [];
 
             foreach ($values as $index => $value) {
-                $results[$keys[$index]] = $this->serialization->unserialize($conn, $value);
+                $results[$keys[$index]] = $this->serialization->unserialize($connection, $value);
             }
 
             return $results;

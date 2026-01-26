@@ -35,14 +35,14 @@ class Add
      */
     public function execute(string $key, mixed $value, int $seconds): bool
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $seconds) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds) {
             // SET key value EX seconds NX
             // - EX: Set expiration in seconds
             // - NX: Only set if key does Not eXist
             // Returns OK if set, null/false if key already exists
-            $result = $conn->set(
+            $result = $connection->set(
                 $this->context->prefix() . $key,
-                $this->serialization->serialize($conn, $value),
+                $this->serialization->serialize($connection, $value),
                 ['EX' => max(1, $seconds), 'NX']
             );
 

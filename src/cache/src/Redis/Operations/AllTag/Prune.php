@@ -47,7 +47,7 @@ class Prune
      */
     public function execute(int $scanCount = self::DEFAULT_SCAN_COUNT): array
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($scanCount) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($scanCount) {
             $pattern = $this->context->tagScanPattern();
             $optPrefix = $this->context->optPrefix();
             $prefix = $this->context->prefix();
@@ -62,23 +62,23 @@ class Prune
             ];
 
             // Use SafeScan to handle OPT_PREFIX correctly
-            $safeScan = new SafeScan($conn, $optPrefix);
+            $safeScan = new SafeScan($connection, $optPrefix);
 
             foreach ($safeScan->execute($pattern, $scanCount) as $tagKey) {
                 ++$stats['tags_scanned'];
 
                 // Step 1: Remove TTL-expired entries (stale by time)
-                $staleRemoved = $conn->zRemRangeByScore($tagKey, '0', (string) $now);
+                $staleRemoved = $connection->zRemRangeByScore($tagKey, '0', (string) $now);
                 $stats['stale_entries_removed'] += is_int($staleRemoved) ? $staleRemoved : 0;
 
                 // Step 2: Remove orphaned entries (cache key doesn't exist)
-                $orphanResult = $this->removeOrphanedEntries($conn, $tagKey, $prefix, $scanCount);
+                $orphanResult = $this->removeOrphanedEntries($connection, $tagKey, $prefix, $scanCount);
                 $stats['entries_checked'] += $orphanResult['checked'];
                 $stats['orphans_removed'] += $orphanResult['removed'];
 
                 // Step 3: Delete if empty
-                if ($conn->zCard($tagKey) === 0) {
-                    $conn->del($tagKey);
+                if ($connection->zCard($tagKey) === 0) {
+                    $connection->del($tagKey);
                     ++$stats['empty_sets_deleted'];
                 }
 
@@ -99,14 +99,14 @@ class Prune
      * @return array{checked: int, removed: int}
      */
     private function removeOrphanedEntries(
-        RedisConnection $conn,
+        RedisConnection $connection,
         string $tagKey,
         string $prefix,
         int $scanCount,
     ): array {
         $checked = 0;
         $removed = 0;
-        $isCluster = $conn->isCluster();
+        $isCluster = $connection->isCluster();
 
         // phpredis 6.1.0+ uses null as initial cursor, older versions use 0
         $iterator = match (true) {
@@ -116,7 +116,7 @@ class Prune
 
         do {
             // ZSCAN returns [member => score, ...] array
-            $members = $conn->zScan($tagKey, $iterator, '*', $scanCount);
+            $members = $connection->zScan($tagKey, $iterator, '*', $scanCount);
 
             if ($members === false || ! is_array($members) || empty($members)) {
                 break;
@@ -128,7 +128,7 @@ class Prune
             // Check which keys exist:
             // - Standard Redis: pipeline() batches commands with less overhead
             // - Cluster: multi() handles cross-slot commands (pipeline not supported)
-            $batch = $isCluster ? $conn->multi() : $conn->pipeline();
+            $batch = $isCluster ? $connection->multi() : $connection->pipeline();
 
             foreach ($memberKeys as $key) {
                 $batch->exists($prefix . $key);
@@ -148,7 +148,7 @@ class Prune
 
             // Remove orphaned members from the sorted set
             if (! empty($orphanedMembers)) {
-                $conn->zRem($tagKey, ...$orphanedMembers);
+                $connection->zrem($tagKey, ...$orphanedMembers);
                 $removed += count($orphanedMembers);
             }
         } while ($iterator > 0);

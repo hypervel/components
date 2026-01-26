@@ -147,7 +147,7 @@ class StoreContext
     public function isCluster(): bool
     {
         return $this->withConnection(
-            fn (RedisConnection $conn) => $conn->isCluster()
+            fn (RedisConnection $connection) => $connection->isCluster()
         );
     }
 
@@ -157,7 +157,7 @@ class StoreContext
     public function optPrefix(): string
     {
         return $this->withConnection(
-            fn (RedisConnection $conn) => (string) $conn->getOption(Redis::OPT_PREFIX)
+            fn (RedisConnection $connection) => (string) $connection->getOption(Redis::OPT_PREFIX)
         );
     }
 

@@ -387,8 +387,8 @@ class RedisTest extends TestCase
 
         $redis = $this->createRedis($connection);
 
-        $result = $redis->withConnection(function (RedisConnection $conn) {
-            $client = $conn->client();
+        $result = $redis->withConnection(function (RedisConnection $connection) {
+            $client = $connection->client();
             $evalResult = $client->evalSha('sha123', ['key'], 1);
 
             if ($evalResult === false) {

@@ -52,22 +52,22 @@ class Forever
      */
     private function executeCluster(string $key, mixed $value, array $tags): bool
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $tags) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tags) {
             $prefix = $this->context->prefix();
 
             // Get old tags to handle replacement correctly (remove from old, add to new)
             $tagsKey = $this->context->reverseIndexKey($key);
-            $oldTags = $conn->smembers($tagsKey);
+            $oldTags = $connection->smembers($tagsKey);
 
             // Store the actual cache value without expiration
-            $conn->set(
+            $connection->set(
                 $prefix . $key,
-                $this->serialization->serialize($conn, $value)
+                $this->serialization->serialize($connection, $value)
             );
 
             // Store reverse index of tags for this key
             // Use multi() as these keys are in the same slot
-            $multi = $conn->multi();
+            $multi = $connection->multi();
             $multi->del($tagsKey);
 
             if (! empty($tags)) {
@@ -81,7 +81,7 @@ class Forever
 
             foreach ($tagsToRemove as $tag) {
                 $tag = (string) $tag;
-                $conn->hdel($this->context->tagHashKey($tag), $key);
+                $connection->hdel($this->context->tagHashKey($tag), $key);
             }
 
             // Calculate expiry for Registry (Year 9999)
@@ -91,7 +91,7 @@ class Forever
             // 1. Add to each tag's hash without expiration (Cross-slot, sequential)
             foreach ($tags as $tag) {
                 $tag = (string) $tag;
-                $conn->hSet($this->context->tagHashKey($tag), $key, StoreContext::TAG_FIELD_VALUE);
+                $connection->hSet($this->context->tagHashKey($tag), $key, StoreContext::TAG_FIELD_VALUE);
                 // No HEXPIRE for forever items
             }
 
@@ -105,7 +105,7 @@ class Forever
                 }
 
                 // Update Registry: ZADD with GT (Greater Than) to only extend expiry
-                $conn->zadd($registryKey, ['GT'], ...$zaddArgs);
+                $connection->zadd($registryKey, ['GT'], ...$zaddArgs);
             }
 
             return true;
@@ -117,7 +117,7 @@ class Forever
      */
     private function executeUsingLua(string $key, mixed $value, array $tags): bool
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $tags) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tags) {
             $prefix = $this->context->prefix();
 
             $keys = [
@@ -126,7 +126,7 @@ class Forever
             ];
 
             $args = [
-                $this->serialization->serializeForLua($conn, $value), // ARGV[1]
+                $this->serialization->serializeForLua($connection, $value), // ARGV[1]
                 $this->context->fullTagPrefix(),             // ARGV[2]
                 $this->context->fullRegistryKey(),           // ARGV[3]
                 $key,                                        // ARGV[4]
@@ -134,7 +134,7 @@ class Forever
                 ...$tags,                                    // ARGV[6...]
             ];
 
-            $conn->evalWithShaCache($this->storeForeverWithTagsScript(), $keys, $args);
+            $connection->evalWithShaCache($this->storeForeverWithTagsScript(), $keys, $args);
 
             return true;
         });

@@ -37,23 +37,23 @@ class Remember
      */
     public function execute(string $key, int $seconds, Closure $callback): mixed
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $seconds, $callback) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $seconds, $callback) {
             $prefixedKey = $this->context->prefix() . $key;
 
             // Try to get the cached value
-            $value = $conn->get($prefixedKey);
+            $value = $connection->get($prefixedKey);
 
             if ($value !== false && $value !== null) {
-                return $this->serialization->unserialize($conn, $value);
+                return $this->serialization->unserialize($connection, $value);
             }
 
             // Cache miss - execute callback and store result
             $value = $callback();
 
-            $conn->setex(
+            $connection->setex(
                 $prefixedKey,
                 max(1, $seconds),
-                $this->serialization->serialize($conn, $value)
+                $this->serialization->serialize($connection, $value)
             );
 
             return $value;

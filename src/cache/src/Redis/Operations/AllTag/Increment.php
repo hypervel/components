@@ -50,10 +50,10 @@ class Increment
      */
     private function executePipeline(string $key, int $value, array $tagIds): int|false
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $tagIds) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tagIds) {
             $prefix = $this->context->prefix();
 
-            $pipeline = $conn->pipeline();
+            $pipeline = $connection->pipeline();
 
             // ZADD NX to each tag's sorted set (only add if not exists)
             foreach ($tagIds as $tagId) {
@@ -79,16 +79,16 @@ class Increment
      */
     private function executeCluster(string $key, int $value, array $tagIds): int|false
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $tagIds) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tagIds) {
             $prefix = $this->context->prefix();
 
             // ZADD NX to each tag's sorted set (sequential - cross-slot)
             foreach ($tagIds as $tagId) {
-                $conn->zadd($prefix . $tagId, ['NX'], self::FOREVER_SCORE, $key);
+                $connection->zadd($prefix . $tagId, ['NX'], self::FOREVER_SCORE, $key);
             }
 
             // INCRBY for the value
-            return $conn->incrBy($prefix . $key, $value);
+            return $connection->incrBy($prefix . $key, $value);
         });
     }
 }

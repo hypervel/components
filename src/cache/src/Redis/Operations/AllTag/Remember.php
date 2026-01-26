@@ -58,15 +58,15 @@ class Remember
      */
     private function executePipeline(string $key, int $seconds, Closure $callback, array $tagIds): array
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $seconds, $callback, $tagIds) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $seconds, $callback, $tagIds) {
             $prefix = $this->context->prefix();
             $prefixedKey = $prefix . $key;
 
             // Try to get the cached value
-            $value = $conn->get($prefixedKey);
+            $value = $connection->get($prefixedKey);
 
             if ($value !== false && $value !== null) {
-                return [$this->serialization->unserialize($conn, $value), true];
+                return [$this->serialization->unserialize($connection, $value), true];
             }
 
             // Cache miss - execute callback
@@ -74,9 +74,9 @@ class Remember
 
             // Now store with tag tracking using pipeline
             $score = now()->addSeconds($seconds)->getTimestamp();
-            $serialized = $this->serialization->serialize($conn, $value);
+            $serialized = $this->serialization->serialize($connection, $value);
 
-            $pipeline = $conn->pipeline();
+            $pipeline = $connection->pipeline();
 
             // ZADD to each tag's sorted set
             foreach ($tagIds as $tagId) {
@@ -102,15 +102,15 @@ class Remember
      */
     private function executeCluster(string $key, int $seconds, Closure $callback, array $tagIds): array
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $seconds, $callback, $tagIds) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $seconds, $callback, $tagIds) {
             $prefix = $this->context->prefix();
             $prefixedKey = $prefix . $key;
 
             // Try to get the cached value
-            $value = $conn->get($prefixedKey);
+            $value = $connection->get($prefixedKey);
 
             if ($value !== false && $value !== null) {
-                return [$this->serialization->unserialize($conn, $value), true];
+                return [$this->serialization->unserialize($connection, $value), true];
             }
 
             // Cache miss - execute callback
@@ -118,15 +118,15 @@ class Remember
 
             // Now store with tag tracking using sequential commands
             $score = now()->addSeconds($seconds)->getTimestamp();
-            $serialized = $this->serialization->serialize($conn, $value);
+            $serialized = $this->serialization->serialize($connection, $value);
 
             // ZADD to each tag's sorted set (sequential - cross-slot)
             foreach ($tagIds as $tagId) {
-                $conn->zadd($prefix . $tagId, $score, $key);
+                $connection->zadd($prefix . $tagId, $score, $key);
             }
 
             // SETEX for the cache value
-            $conn->setex($prefixedKey, max(1, $seconds), $serialized);
+            $connection->setex($prefixedKey, max(1, $seconds), $serialized);
 
             return [$value, false];
         });

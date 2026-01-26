@@ -21,30 +21,30 @@ final class LargeDatasetCheck implements CheckInterface
         return 'Large Dataset Operations';
     }
 
-    public function run(DoctorContext $ctx): CheckResult
+    public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult();
         $count = self::ITEM_COUNT;
-        $tag = $ctx->prefixed('large-set');
+        $tag = $context->prefixed('large-set');
 
         // Bulk insert
         $startTime = microtime(true);
 
         for ($i = 0; $i < $count; ++$i) {
-            $ctx->cache->tags([$tag])->put($ctx->prefixed("large:item{$i}"), "value{$i}", 60);
+            $context->cache->tags([$tag])->put($context->prefixed("large:item{$i}"), "value{$i}", 60);
         }
 
         $insertTime = microtime(true) - $startTime;
 
-        $firstKey = $ctx->prefixed('large:item0');
-        $lastKey = $ctx->prefixed('large:item' . ($count - 1));
+        $firstKey = $context->prefixed('large:item0');
+        $lastKey = $context->prefixed('large:item' . ($count - 1));
 
-        if ($ctx->isAnyMode()) {
-            $firstValue = $ctx->cache->get($firstKey);
-            $lastValue = $ctx->cache->get($lastKey);
+        if ($context->isAnyMode()) {
+            $firstValue = $context->cache->get($firstKey);
+            $lastValue = $context->cache->get($lastKey);
         } else {
-            $firstValue = $ctx->cache->tags([$tag])->get($firstKey);
-            $lastValue = $ctx->cache->tags([$tag])->get($lastKey);
+            $firstValue = $context->cache->tags([$tag])->get($firstKey);
+            $lastValue = $context->cache->tags([$tag])->get($lastKey);
         }
 
         $result->assert(
@@ -54,15 +54,15 @@ final class LargeDatasetCheck implements CheckInterface
 
         // Bulk flush
         $startTime = microtime(true);
-        $ctx->cache->tags([$tag])->flush();
+        $context->cache->tags([$tag])->flush();
         $flushTime = microtime(true) - $startTime;
 
-        if ($ctx->isAnyMode()) {
-            $firstAfterFlush = $ctx->cache->get($firstKey);
-            $lastAfterFlush = $ctx->cache->get($lastKey);
+        if ($context->isAnyMode()) {
+            $firstAfterFlush = $context->cache->get($firstKey);
+            $lastAfterFlush = $context->cache->get($lastKey);
         } else {
-            $firstAfterFlush = $ctx->cache->tags([$tag])->get($firstKey);
-            $lastAfterFlush = $ctx->cache->tags([$tag])->get($lastKey);
+            $firstAfterFlush = $context->cache->tags([$tag])->get($firstKey);
+            $lastAfterFlush = $context->cache->tags([$tag])->get($lastKey);
         }
 
         $result->assert(

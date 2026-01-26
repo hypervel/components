@@ -56,7 +56,7 @@ class Flush
      */
     private function executeCluster(array $tags): bool
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($tags) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($tags) {
             // Collect all keys from all tags
             $keyGenerator = function () use ($tags) {
                 foreach ($tags as $tag) {
@@ -76,14 +76,14 @@ class Flush
                 ++$bufferSize;
 
                 if ($bufferSize >= self::CHUNK_SIZE) {
-                    $this->processChunkCluster($conn, array_keys($buffer));
+                    $this->processChunkCluster($connection, array_keys($buffer));
                     $buffer = [];
                     $bufferSize = 0;
                 }
             }
 
             if ($bufferSize > 0) {
-                $this->processChunkCluster($conn, array_keys($buffer));
+                $this->processChunkCluster($connection, array_keys($buffer));
             }
 
             // Delete the tag hashes themselves and remove from registry
@@ -91,8 +91,8 @@ class Flush
 
             foreach ($tags as $tag) {
                 $tag = (string) $tag;
-                $conn->del($this->context->tagHashKey($tag));
-                $conn->zrem($registryKey, $tag);
+                $connection->del($this->context->tagHashKey($tag));
+                $connection->zrem($registryKey, $tag);
             }
 
             return true;
@@ -104,7 +104,7 @@ class Flush
      */
     private function executeUsingPipeline(array $tags): bool
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($tags) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($tags) {
             // Collect all keys from all tags
             $keyGenerator = function () use ($tags) {
                 foreach ($tags as $tag) {
@@ -124,19 +124,19 @@ class Flush
                 ++$bufferSize;
 
                 if ($bufferSize >= self::CHUNK_SIZE) {
-                    $this->processChunkPipeline($conn, array_keys($buffer));
+                    $this->processChunkPipeline($connection, array_keys($buffer));
                     $buffer = [];
                     $bufferSize = 0;
                 }
             }
 
             if ($bufferSize > 0) {
-                $this->processChunkPipeline($conn, array_keys($buffer));
+                $this->processChunkPipeline($connection, array_keys($buffer));
             }
 
             // Delete the tag hashes themselves and remove from registry
             $registryKey = $this->context->registryKey();
-            $pipeline = $conn->pipeline();
+            $pipeline = $connection->pipeline();
 
             foreach ($tags as $tag) {
                 $tag = (string) $tag;
@@ -155,7 +155,7 @@ class Flush
      *
      * @param array<int, string> $keys Array of cache keys (without prefix)
      */
-    private function processChunkCluster(RedisConnection $conn, array $keys): void
+    private function processChunkCluster(RedisConnection $connection, array $keys): void
     {
         $prefix = $this->context->prefix();
 
@@ -172,11 +172,11 @@ class Flush
         );
 
         if (! empty($reverseIndexKeys)) {
-            $conn->del(...$reverseIndexKeys);
+            $connection->del(...$reverseIndexKeys);
         }
 
         if (! empty($prefixedChunk)) {
-            $conn->unlink(...$prefixedChunk);
+            $connection->unlink(...$prefixedChunk);
         }
     }
 
@@ -185,7 +185,7 @@ class Flush
      *
      * @param array<int, string> $keys Array of cache keys (without prefix)
      */
-    private function processChunkPipeline(RedisConnection $conn, array $keys): void
+    private function processChunkPipeline(RedisConnection $connection, array $keys): void
     {
         $prefix = $this->context->prefix();
 
@@ -201,7 +201,7 @@ class Flush
             $keys
         );
 
-        $pipeline = $conn->pipeline();
+        $pipeline = $connection->pipeline();
 
         if (! empty($reverseIndexKeys)) {
             $pipeline->del(...$reverseIndexKeys);

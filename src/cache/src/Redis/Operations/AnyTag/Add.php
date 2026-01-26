@@ -52,13 +52,13 @@ class Add
      */
     private function executeCluster(string $key, mixed $value, int $seconds, array $tags): bool
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $seconds, $tags) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tags) {
             $prefix = $this->context->prefix();
 
             // First try to add the key with NX flag
-            $added = $conn->set(
+            $added = $connection->set(
                 $prefix . $key,
-                $this->serialization->serialize($conn, $value),
+                $this->serialization->serialize($connection, $value),
                 ['EX' => max(1, $seconds), 'NX']
             );
 
@@ -75,7 +75,7 @@ class Add
 
             if (! empty($tags)) {
                 // Use multi() for reverse index updates (same slot)
-                $multi = $conn->multi();
+                $multi = $connection->multi();
                 $multi->sadd($tagsKey, ...$tags);
                 $multi->expire($tagsKey, max(1, $seconds));
                 $multi->exec();
@@ -89,7 +89,7 @@ class Add
             // 1. Update Tag Hashes (Cross-slot, must be sequential)
             foreach ($tags as $tag) {
                 $tag = (string) $tag;
-                $conn->hsetex($this->context->tagHashKey($tag), [$key => StoreContext::TAG_FIELD_VALUE], ['EX' => $seconds]);
+                $connection->hsetex($this->context->tagHashKey($tag), [$key => StoreContext::TAG_FIELD_VALUE], ['EX' => $seconds]);
             }
 
             // 2. Update Registry (Same slot, single command optimization)
@@ -102,7 +102,7 @@ class Add
                 }
 
                 // Update Registry: ZADD with GT (Greater Than) to only extend expiry
-                $conn->zadd($registryKey, ['GT'], ...$zaddArgs);
+                $connection->zadd($registryKey, ['GT'], ...$zaddArgs);
             }
 
             return true;
@@ -114,7 +114,7 @@ class Add
      */
     private function executeUsingLua(string $key, mixed $value, int $seconds, array $tags): bool
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $seconds, $tags) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $seconds, $tags) {
             $prefix = $this->context->prefix();
 
             $keys = [
@@ -123,7 +123,7 @@ class Add
             ];
 
             $args = [
-                $this->serialization->serializeForLua($conn, $value), // ARGV[1]
+                $this->serialization->serializeForLua($connection, $value), // ARGV[1]
                 max(1, $seconds),                            // ARGV[2]
                 $this->context->fullTagPrefix(),             // ARGV[3]
                 $this->context->fullRegistryKey(),           // ARGV[4]
@@ -133,7 +133,7 @@ class Add
                 ...$tags,                                    // ARGV[8...]
             ];
 
-            $result = $conn->evalWithShaCache($this->addWithTagsScript(), $keys, $args);
+            $result = $connection->evalWithShaCache($this->addWithTagsScript(), $keys, $args);
 
             return (bool) $result;
         });

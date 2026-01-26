@@ -42,12 +42,12 @@ class GetEntries
         return new LazyCollection(function () use ($context, $prefix, $tagIds, $defaultCursorValue) {
             foreach ($tagIds as $tagId) {
                 // Collect all entries for this tag within one connection hold
-                $tagEntries = $context->withConnection(function (RedisConnection $conn) use ($prefix, $tagId, $defaultCursorValue) {
+                $tagEntries = $context->withConnection(function (RedisConnection $connection) use ($prefix, $tagId, $defaultCursorValue) {
                     $cursor = $defaultCursorValue;
                     $allEntries = [];
 
                     do {
-                        $entries = $conn->zScan(
+                        $entries = $connection->zscan(
                             $prefix . $tagId,
                             $cursor,
                             '*',

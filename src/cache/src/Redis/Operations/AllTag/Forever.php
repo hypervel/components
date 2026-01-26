@@ -49,11 +49,11 @@ class Forever
      */
     private function executePipeline(string $key, mixed $value, array $tagIds): bool
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $tagIds) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tagIds) {
             $prefix = $this->context->prefix();
-            $serialized = $this->serialization->serialize($conn, $value);
+            $serialized = $this->serialization->serialize($connection, $value);
 
-            $pipeline = $conn->pipeline();
+            $pipeline = $connection->pipeline();
 
             // ZADD to each tag's sorted set with score -1 (forever)
             foreach ($tagIds as $tagId) {
@@ -75,17 +75,17 @@ class Forever
      */
     private function executeCluster(string $key, mixed $value, array $tagIds): bool
     {
-        return $this->context->withConnection(function (RedisConnection $conn) use ($key, $value, $tagIds) {
+        return $this->context->withConnection(function (RedisConnection $connection) use ($key, $value, $tagIds) {
             $prefix = $this->context->prefix();
-            $serialized = $this->serialization->serialize($conn, $value);
+            $serialized = $this->serialization->serialize($connection, $value);
 
             // ZADD to each tag's sorted set (sequential - cross-slot)
             foreach ($tagIds as $tagId) {
-                $conn->zadd($prefix . $tagId, self::FOREVER_SCORE, $key);
+                $connection->zadd($prefix . $tagId, self::FOREVER_SCORE, $key);
             }
 
             // SET for the cache value (no expiration)
-            return (bool) $conn->set($prefix . $key, $serialized);
+            return (bool) $connection->set($prefix . $key, $serialized);
         });
     }
 }
