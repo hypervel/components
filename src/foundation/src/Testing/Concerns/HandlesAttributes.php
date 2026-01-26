@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Contracts\Attributes\Actionable;
 use Hypervel\Foundation\Testing\Contracts\Attributes\Invokable;
 use Hypervel\Foundation\Testing\Features\FeaturesCollection;

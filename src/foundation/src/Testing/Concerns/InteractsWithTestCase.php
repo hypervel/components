@@ -19,7 +19,7 @@ use Hypervel\Support\Collection;
 /**
  * Provides test case lifecycle and attribute caching functionality.
  *
- * @property null|\Hypervel\Foundation\Contracts\Application $app
+ * @property null|\Hypervel\Contracts\Foundation\Application $app
  */
 trait InteractsWithTestCase
 {

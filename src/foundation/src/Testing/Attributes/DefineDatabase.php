@@ -6,7 +6,7 @@ namespace Hypervel\Foundation\Testing\Attributes;
 
 use Attribute;
 use Closure;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Contracts\Attributes\Actionable;
 use Hypervel\Foundation\Testing\Contracts\Attributes\AfterEach;
 use Hypervel\Foundation\Testing\Contracts\Attributes\BeforeEach;

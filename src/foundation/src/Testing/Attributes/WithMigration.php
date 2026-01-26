@@ -6,7 +6,7 @@ namespace Hypervel\Foundation\Testing\Attributes;
 
 use Attribute;
 use Hyperf\Database\Migrations\Migrator;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Contracts\Attributes\Invokable;
 
 /**

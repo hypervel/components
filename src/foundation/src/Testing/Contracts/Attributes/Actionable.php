@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Contracts\Attributes;
 
 use Closure;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 
 /**
  * Interface for attributes that handle actions via a callback.
