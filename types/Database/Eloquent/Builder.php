@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Types\Builder;
 
 use Hypervel\Database\Eloquent\Builder;
@@ -224,7 +226,6 @@ function test(
     assertType('Hypervel\Types\Builder\CommentBuilder', $comment->newQuery()->foo());
     assertType('Hypervel\Types\Builder\Comment', $comment->newQuery()->create(['name' => 'John']));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->pipe(function () {
-        //
     }));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->pipe(fn () => null));
     assertType('Hypervel\Database\Eloquent\Builder<Hypervel\Types\Builder\User>', $query->pipe(fn ($query) => $query));

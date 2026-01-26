@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Types\Relations;
 
 use Hypervel\Database\Eloquent\Model;
@@ -41,7 +43,7 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
     assertType('Hypervel\Types\Relations\Post|false', $user->posts()->save(new Post()));
     assertType('Hypervel\Types\Relations\Post|false', $user->posts()->saveQuietly(new Post()));
 
-    assertType("Hypervel\Database\Eloquent\Relations\BelongsToMany<Hypervel\Types\Relations\Role, Hypervel\Types\Relations\User, Hypervel\Database\Eloquent\Relations\Pivot, 'pivot'>", $user->roles());
+    assertType("Hypervel\\Database\\Eloquent\\Relations\\BelongsToMany<Hypervel\\Types\\Relations\\Role, Hypervel\\Types\\Relations\\User, Hypervel\\Database\\Eloquent\\Relations\\Pivot, 'pivot'>", $user->roles());
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->getResults());
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->find([1]));
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Role&object{pivot: Hypervel\Database\Eloquent\Relations\Pivot}>', $user->roles()->findMany([1, 2, 3]));
@@ -122,7 +124,7 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
     assertType('Hypervel\Types\Relations\Comment', $comment->commentable()->associate(new Post()));
     assertType('Hypervel\Types\Relations\Comment', $comment->commentable()->dissociate());
 
-    assertType("Hypervel\Database\Eloquent\Relations\MorphToMany<Hypervel\Types\Relations\Tag, Hypervel\Types\Relations\Post, Hypervel\Database\Eloquent\Relations\MorphPivot, 'pivot'>", $post->tags());
+    assertType("Hypervel\\Database\\Eloquent\\Relations\\MorphToMany<Hypervel\\Types\\Relations\\Tag, Hypervel\\Types\\Relations\\Post, Hypervel\\Database\\Eloquent\\Relations\\MorphPivot, 'pivot'>", $post->tags());
     assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Tag&object{pivot: Hypervel\Database\Eloquent\Relations\MorphPivot}>', $post->tags()->getResults());
 
     assertType('42', Relation::noConstraints(fn () => 42));

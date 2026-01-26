@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Hypervel\Database\Eloquent\Factories\Factory;
 
 use function PHPStan\Testing\assertType;

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Types\Model;
 
 use Hypervel\Database\Eloquent\Attributes\CollectedBy;

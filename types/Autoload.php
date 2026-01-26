@@ -13,8 +13,10 @@ use Hypervel\Notifications\HasDatabaseNotifications;
 class User extends Authenticatable
 {
     use HasDatabaseNotifications;
+
     /** @use HasFactory<UserFactory> */
     use HasFactory;
+
     use MassPrunable;
     use SoftDeletes;
 

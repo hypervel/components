@@ -1,13 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Hypervel\Types\Query\Builder;
 
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Query\Builder;
+use User;
 
 use function PHPStan\Testing\assertType;
 
-/** @param \Hypervel\Database\Eloquent\Builder<\User> $userQuery */
+/** @param \Hypervel\Database\Eloquent\Builder<User> $userQuery */
 function test(Builder $query, EloquentBuilder $userQuery): void
 {
     assertType('stdClass|null', $query->first());
@@ -61,7 +64,6 @@ function test(Builder $query, EloquentBuilder $userQuery): void
         assertType('int', $page);
     });
     assertType('Hypervel\Database\Query\Builder', $query->pipe(function () {
-        //
     }));
     assertType('Hypervel\Database\Query\Builder', $query->pipe(fn () => null));
     assertType('Hypervel\Database\Query\Builder', $query->pipe(fn ($query) => $query));

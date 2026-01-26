@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use function PHPStan\Testing\assertType;
 
 assertType("'foo'", value('foo', 42));

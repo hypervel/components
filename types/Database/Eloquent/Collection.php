@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use function PHPStan\Testing\assertType;
 
 $collection = User::all();
@@ -95,7 +97,7 @@ assertType('bool', $collection->contains('string', '=', 'string'));
 assertType('array<int, (int|string)>', $collection->modelKeys());
 
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->merge($collection));
-assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->merge([new User]));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->merge([new User()]));
 
 assertType(
     'Hypervel\Support\Collection<int, User>',
@@ -103,7 +105,7 @@ assertType(
         assertType('User', $user);
         assertType('int', $int);
 
-        return new User;
+        return new User();
     })
 );
 
@@ -113,13 +115,13 @@ assertType(
         assertType('User', $user);
         assertType('int', $int);
 
-        return [new User];
+        return [new User()];
     })
 );
 assertType(
     'Hypervel\Support\Collection<string, User>',
     $collection->mapWithKeys(function ($user, $int) {
-        return ['string' => new User];
+        return ['string' => new User()];
     })
 );
 
@@ -137,10 +139,10 @@ assertType(
 );
 
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->diff($collection));
-assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->diff([new User]));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->diff([new User()]));
 
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->intersect($collection));
-assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->intersect([new User]));
+assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->intersect([new User()]));
 
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->unique());
 assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->unique(function ($user, $int) {
@@ -171,7 +173,7 @@ assertType('Hypervel\Database\Eloquent\Collection<int, User>', $collection->uniq
 
 assertType('array<User>', $collection->getDictionary());
 assertType('array<User>', $collection->getDictionary($collection));
-assertType('array<User>', $collection->getDictionary([new User]));
+assertType('array<User>', $collection->getDictionary([new User()]));
 
 assertType('Hypervel\Support\Collection<(int|string), mixed>', $collection->pluck('string'));
 assertType('Hypervel\Support\Collection<(int|string), mixed>', $collection->pluck(['string']));

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Pagination\Paginator;
