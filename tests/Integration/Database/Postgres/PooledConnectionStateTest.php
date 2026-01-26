@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Integration\Postgres;
+namespace Hypervel\Tests\Integration\Database\Postgres;
 
 use Hypervel\Database\Connection;
 use Hypervel\Database\Pool\PooledConnection;
@@ -20,10 +20,8 @@ use function Hypervel\Coroutine\run;
  *
  * @internal
  * @coversNothing
- * @group integration
- * @group pgsql-integration
  */
-class PooledConnectionStateTest extends PostgresIntegrationTestCase
+class PooledConnectionStateTest extends PostgresTestCase
 {
     /**
      * Helper to get a PooledConnection directly from the pool.
@@ -31,7 +29,7 @@ class PooledConnectionStateTest extends PostgresIntegrationTestCase
     protected function getPooledConnection(): PooledConnection
     {
         $factory = $this->app->get(PoolFactory::class);
-        $pool = $factory->getPool($this->getDatabaseDriver());
+        $pool = $factory->getPool($this->driver);
 
         return $pool->get();
     }

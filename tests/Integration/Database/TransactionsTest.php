@@ -2,23 +2,42 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Integration;
+namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
 use RuntimeException;
 
 /**
  * @internal
  * @coversNothing
- * @group integration
  */
-class TransactionsTest extends IntegrationTestCase
+class TransactionsTest extends DatabaseTestCase
 {
+    protected function afterRefreshingDatabase(): void
+    {
+        Schema::create('tx_accounts', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->decimal('balance', 10, 2)->default(0);
+            $table->timestamps();
+        });
+
+        Schema::create('tx_transfers', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('from_account_id')->constrained('tx_accounts');
+            $table->foreignId('to_account_id')->constrained('tx_accounts');
+            $table->decimal('amount', 10, 2);
+            $table->timestamps();
+        });
+    }
+
     protected function conn(): ConnectionInterface
     {
-        return DB::connection($this->getDatabaseDriver());
+        return DB::connection($this->driver);
     }
 
     public function testBasicTransaction(): void

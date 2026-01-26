@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Integration;
+namespace Hypervel\Tests\Integration\Database;
 
 use Hypervel\Coroutine\Channel;
 use Hypervel\Coroutine\WaitGroup;
@@ -10,6 +10,7 @@ use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use RuntimeException;
@@ -26,10 +27,19 @@ use function Hypervel\Coroutine\run;
  *
  * @internal
  * @coversNothing
- * @group integration
  */
-class ConnectionCoroutineSafetyTest extends IntegrationTestCase
+class ConnectionCoroutineSafetyTest extends DatabaseTestCase
 {
+    protected function afterRefreshingDatabase(): void
+    {
+        Schema::create('tmp_users', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->timestamps();
+        });
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -274,7 +284,7 @@ class ConnectionCoroutineSafetyTest extends IntegrationTestCase
         $capturedQuery = null;
 
         /** @var Connection $connection */
-        $connection = DB::connection($this->getDatabaseDriver());
+        $connection = DB::connection($this->driver);
         $connection->beforeExecuting(function ($query) use (&$called, &$capturedQuery) {
             $called = true;
             $capturedQuery = $query;
@@ -289,7 +299,7 @@ class ConnectionCoroutineSafetyTest extends IntegrationTestCase
     public function testClearBeforeExecutingCallbacksExists(): void
     {
         /** @var Connection $connection */
-        $connection = DB::connection($this->getDatabaseDriver());
+        $connection = DB::connection($this->driver);
 
         $called = false;
         $connection->beforeExecuting(function () use (&$called) {
@@ -307,7 +317,7 @@ class ConnectionCoroutineSafetyTest extends IntegrationTestCase
     public function testConnectionTracksErrorCount(): void
     {
         /** @var Connection $connection */
-        $connection = DB::connection($this->getDatabaseDriver());
+        $connection = DB::connection($this->driver);
 
         $this->assertTrue(method_exists($connection, 'getErrorCount'));
 
@@ -325,7 +335,7 @@ class ConnectionCoroutineSafetyTest extends IntegrationTestCase
     public function testPooledConnectionHasEventDispatcher(): void
     {
         /** @var Connection $connection */
-        $connection = DB::connection($this->getDatabaseDriver());
+        $connection = DB::connection($this->driver);
 
         $dispatcher = $connection->getEventDispatcher();
         $this->assertNotNull($dispatcher, 'Pooled connection should have event dispatcher configured');
@@ -334,7 +344,7 @@ class ConnectionCoroutineSafetyTest extends IntegrationTestCase
     public function testPooledConnectionHasTransactionManager(): void
     {
         /** @var Connection $connection */
-        $connection = DB::connection($this->getDatabaseDriver());
+        $connection = DB::connection($this->driver);
 
         $manager = $connection->getTransactionManager();
         $this->assertNotNull($manager, 'Pooled connection should have transaction manager configured');

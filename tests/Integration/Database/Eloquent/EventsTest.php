@@ -2,18 +2,29 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Integration\Eloquent;
+namespace Hypervel\Tests\Integration\Database\Eloquent;
 
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Tests\Database\Integration\IntegrationTestCase;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
  * @coversNothing
- * @group integration
  */
-class EventsTest extends IntegrationTestCase
+class EventsTest extends DatabaseTestCase
 {
+    protected function afterRefreshingDatabase(): void
+    {
+        Schema::create('tmp_users', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->timestamps();
+        });
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

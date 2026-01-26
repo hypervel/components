@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Integration\Eloquent;
+namespace Hypervel\Tests\Integration\Database\Eloquent;
 
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
@@ -12,15 +12,63 @@ use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Database\Eloquent\Relations\MorphMany;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
-use Hypervel\Tests\Database\Integration\IntegrationTestCase;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
  * @coversNothing
- * @group integration
  */
-class RelationsTest extends IntegrationTestCase
+class RelationsTest extends DatabaseTestCase
 {
+    protected function afterRefreshingDatabase(): void
+    {
+        Schema::create('rel_users', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->timestamps();
+        });
+
+        Schema::create('rel_profiles', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->nullable()->constrained('rel_users')->onDelete('cascade');
+            $table->string('bio')->nullable();
+            $table->string('avatar')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('rel_posts', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('user_id')->constrained('rel_users')->onDelete('cascade');
+            $table->string('title');
+            $table->text('body');
+            $table->timestamps();
+        });
+
+        Schema::create('rel_tags', function (Blueprint $table) {
+            $table->id();
+            $table->string('name')->unique();
+            $table->timestamps();
+        });
+
+        Schema::create('rel_post_tag', function (Blueprint $table) {
+            $table->id();
+            $table->foreignId('post_id')->constrained('rel_posts')->onDelete('cascade');
+            $table->foreignId('tag_id')->constrained('rel_tags')->onDelete('cascade');
+            $table->timestamps();
+        });
+
+        Schema::create('rel_comments', function (Blueprint $table) {
+            $table->id();
+            $table->morphs('commentable');
+            $table->foreignId('user_id')->constrained('rel_users')->onDelete('cascade');
+            $table->text('body');
+            $table->timestamps();
+        });
+    }
+
     public function testHasOneRelation(): void
     {
         $user = RelUser::create(['name' => 'John', 'email' => 'john@example.com']);

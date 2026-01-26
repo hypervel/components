@@ -2,24 +2,38 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Integration\Query;
+namespace Hypervel\Tests\Integration\Database\Query;
 
 use Hypervel\Database\Query\Builder;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
-use Hypervel\Tests\Database\Integration\IntegrationTestCase;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
  * @coversNothing
- * @group integration
  */
-class QueryBuilderTest extends IntegrationTestCase
+class QueryBuilderTest extends DatabaseTestCase
 {
+    protected function afterRefreshingDatabase(): void
+    {
+        Schema::create('qb_products', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('category')->nullable();
+            $table->decimal('price', 10, 2);
+            $table->integer('stock')->default(0);
+            $table->boolean('active')->default(true);
+            $table->timestamps();
+        });
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
 
-        DB::connection($this->getDatabaseDriver())->table('qb_products')->insert([
+        DB::table('qb_products')->insert([
             ['name' => 'Widget A', 'category' => 'widgets', 'price' => 19.99, 'stock' => 100, 'active' => true, 'created_at' => now(), 'updated_at' => now()],
             ['name' => 'Widget B', 'category' => 'widgets', 'price' => 29.99, 'stock' => 50, 'active' => true, 'created_at' => now(), 'updated_at' => now()],
             ['name' => 'Gadget X', 'category' => 'gadgets', 'price' => 99.99, 'stock' => 25, 'active' => true, 'created_at' => now(), 'updated_at' => now()],
@@ -30,7 +44,7 @@ class QueryBuilderTest extends IntegrationTestCase
 
     protected function table(): Builder
     {
-        return DB::connection($this->getDatabaseDriver())->table('qb_products');
+        return DB::table('qb_products');
     }
 
     public function testSelectAll(): void
@@ -339,7 +353,7 @@ class QueryBuilderTest extends IntegrationTestCase
     public function testGroupBy(): void
     {
         $categories = $this->table()
-            ->select('category', DB::connection($this->getDatabaseDriver())->raw('COUNT(*) as count'))
+            ->select('category', DB::connection($this->driver)->raw('COUNT(*) as count'))
             ->groupBy('category')
             ->get();
 
@@ -349,7 +363,7 @@ class QueryBuilderTest extends IntegrationTestCase
     public function testHaving(): void
     {
         $categories = $this->table()
-            ->select('category', DB::connection($this->getDatabaseDriver())->raw('SUM(stock) as total_stock'))
+            ->select('category', DB::connection($this->driver)->raw('SUM(stock) as total_stock'))
             ->groupBy('category')
             ->havingRaw('SUM(stock) > ?', [50])
             ->get();

@@ -196,9 +196,29 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
 
     /**
      * Ensure callback is executed in coroutine.
+     *
+     * Exceptions are captured and re-thrown outside the coroutine context
+     * so they propagate correctly to PHPUnit (e.g., for markTestSkipped).
      */
     protected function runInCoroutine(callable $callback): void
     {
-        Coroutine::inCoroutine() ? $callback() : run($callback);
+        if (Coroutine::inCoroutine()) {
+            $callback();
+            return;
+        }
+
+        $exception = null;
+
+        run(function () use ($callback, &$exception) {
+            try {
+                $callback();
+            } catch (Throwable $e) {
+                $exception = $e;
+            }
+        });
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 }

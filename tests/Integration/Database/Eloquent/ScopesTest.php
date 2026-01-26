@@ -2,20 +2,41 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Integration\Eloquent;
+namespace Hypervel\Tests\Integration\Database\Eloquent;
 
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Scope;
-use Hypervel\Tests\Database\Integration\IntegrationTestCase;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
  * @coversNothing
- * @group integration
  */
-class ScopesTest extends IntegrationTestCase
+class ScopesTest extends DatabaseTestCase
 {
+    protected function afterRefreshingDatabase(): void
+    {
+        Schema::create('scope_articles', function (Blueprint $table) {
+            $table->id();
+            $table->string('title');
+            $table->string('status')->default('draft');
+            $table->string('category')->nullable();
+            $table->integer('views')->default(0);
+            $table->boolean('is_featured')->default(false);
+            $table->foreignId('author_id')->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('scope_authors', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->timestamps();
+        });
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

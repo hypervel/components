@@ -2,20 +2,32 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Integration\Eloquent;
+namespace Hypervel\Tests\Integration\Database\Eloquent;
 
 use Carbon\CarbonInterface;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
-use Hypervel\Tests\Database\Integration\IntegrationTestCase;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
  * @coversNothing
- * @group integration
  */
-class SoftDeletesTest extends IntegrationTestCase
+class SoftDeletesTest extends DatabaseTestCase
 {
+    protected function afterRefreshingDatabase(): void
+    {
+        Schema::create('soft_posts', function (Blueprint $table) {
+            $table->id();
+            $table->string('title');
+            $table->text('body');
+            $table->softDeletes();
+            $table->timestamps();
+        });
+    }
+
     public function testSoftDeleteSetsDeletedAt(): void
     {
         $post = SoftPost::create(['title' => 'Test Post', 'body' => 'Test Body']);

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Integration;
+namespace Hypervel\Tests\Integration\Database\Sqlite;
 
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Context\Context;
@@ -31,7 +31,6 @@ use function Hypervel\Coroutine\run;
  *
  * @internal
  * @coversNothing
- * @group integration
  */
 class PoolConnectionManagementTest extends TestCase
 {

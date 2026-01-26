@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Integration\Eloquent;
+namespace Hypervel\Tests\Integration\Database\Eloquent;
 
 use ArrayObject;
 use Carbon\Carbon;
@@ -10,16 +10,36 @@ use Carbon\CarbonInterface;
 use Hypervel\Database\Eloquent\Casts\AsArrayObject;
 use Hypervel\Database\Eloquent\Casts\AsCollection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Collection;
-use Hypervel\Tests\Database\Integration\IntegrationTestCase;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
  * @coversNothing
- * @group integration
  */
-class CastsTest extends IntegrationTestCase
+class CastsTest extends DatabaseTestCase
 {
+    protected function afterRefreshingDatabase(): void
+    {
+        Schema::create('cast_models', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->integer('age')->nullable();
+            $table->decimal('price', 10, 2)->nullable();
+            $table->boolean('is_active')->default(false);
+            $table->json('metadata')->nullable();
+            $table->json('settings')->nullable();
+            $table->json('tags')->nullable();
+            $table->timestamp('published_at')->nullable();
+            $table->date('birth_date')->nullable();
+            $table->text('content')->nullable();
+            $table->string('status')->nullable();
+            $table->timestamps();
+        });
+    }
+
     public function testIntegerCast(): void
     {
         $model = CastModel::create(['name' => 'Test', 'age' => '25']);
