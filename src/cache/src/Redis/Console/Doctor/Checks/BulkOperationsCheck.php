@@ -19,57 +19,57 @@ final class BulkOperationsCheck implements CheckInterface
         return 'Bulk Operations (putMany/many)';
     }
 
-    public function run(DoctorContext $ctx): CheckResult
+    public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult();
 
         // putMany without tags
-        $ctx->cache->putMany([
-            $ctx->prefixed('bulk:1') => 'value1',
-            $ctx->prefixed('bulk:2') => 'value2',
-            $ctx->prefixed('bulk:3') => 'value3',
+        $context->cache->putMany([
+            $context->prefixed('bulk:1') => 'value1',
+            $context->prefixed('bulk:2') => 'value2',
+            $context->prefixed('bulk:3') => 'value3',
         ], 60);
 
         $result->assert(
-            $ctx->cache->get($ctx->prefixed('bulk:1')) === 'value1'
-            && $ctx->cache->get($ctx->prefixed('bulk:2')) === 'value2'
-            && $ctx->cache->get($ctx->prefixed('bulk:3')) === 'value3',
+            $context->cache->get($context->prefixed('bulk:1')) === 'value1'
+            && $context->cache->get($context->prefixed('bulk:2')) === 'value2'
+            && $context->cache->get($context->prefixed('bulk:3')) === 'value3',
             'putMany() stores multiple items'
         );
 
         // many()
-        $values = $ctx->cache->many([
-            $ctx->prefixed('bulk:1'),
-            $ctx->prefixed('bulk:2'),
-            $ctx->prefixed('bulk:nonexistent'),
+        $values = $context->cache->many([
+            $context->prefixed('bulk:1'),
+            $context->prefixed('bulk:2'),
+            $context->prefixed('bulk:nonexistent'),
         ]);
         $result->assert(
-            $values[$ctx->prefixed('bulk:1')] === 'value1'
-            && $values[$ctx->prefixed('bulk:2')] === 'value2'
-            && $values[$ctx->prefixed('bulk:nonexistent')] === null,
+            $values[$context->prefixed('bulk:1')] === 'value1'
+            && $values[$context->prefixed('bulk:2')] === 'value2'
+            && $values[$context->prefixed('bulk:nonexistent')] === null,
             'many() retrieves multiple items (null for missing)'
         );
 
         // putMany with tags
-        $bulkTag = $ctx->prefixed('bulk');
-        $taggedKey1 = $ctx->prefixed('bulk:tagged1');
-        $taggedKey2 = $ctx->prefixed('bulk:tagged2');
+        $bulkTag = $context->prefixed('bulk');
+        $taggedKey1 = $context->prefixed('bulk:tagged1');
+        $taggedKey2 = $context->prefixed('bulk:tagged2');
 
-        $ctx->cache->tags([$bulkTag])->putMany([
+        $context->cache->tags([$bulkTag])->putMany([
             $taggedKey1 => 'tagged1',
             $taggedKey2 => 'tagged2',
         ], 60);
 
-        if ($ctx->isAnyMode()) {
+        if ($context->isAnyMode()) {
             $result->assert(
-                $ctx->redis->hExists($ctx->tagHashKey($bulkTag), $taggedKey1) === true
-                && $ctx->redis->hExists($ctx->tagHashKey($bulkTag), $taggedKey2) === true,
+                $context->redis->hExists($context->tagHashKey($bulkTag), $taggedKey1) === true
+                && $context->redis->hExists($context->tagHashKey($bulkTag), $taggedKey2) === true,
                 'putMany() with tags adds all items to tag hash (any mode)'
             );
         } else {
             // Verify all mode sorted set contains entries
-            $tagSetKey = $ctx->tagHashKey($bulkTag);
-            $entryCount = $ctx->redis->zCard($tagSetKey);
+            $tagSetKey = $context->tagHashKey($bulkTag);
+            $entryCount = $context->redis->zCard($tagSetKey);
             $result->assert(
                 $entryCount >= 2,
                 'putMany() with tags adds entries to tag ZSET (all mode)'
@@ -77,17 +77,17 @@ final class BulkOperationsCheck implements CheckInterface
         }
 
         // Flush putMany tags
-        $ctx->cache->tags([$bulkTag])->flush();
+        $context->cache->tags([$bulkTag])->flush();
 
-        if ($ctx->isAnyMode()) {
+        if ($context->isAnyMode()) {
             $result->assert(
-                $ctx->cache->get($taggedKey1) === null && $ctx->cache->get($taggedKey2) === null,
+                $context->cache->get($taggedKey1) === null && $context->cache->get($taggedKey2) === null,
                 'flush() removes items added via putMany()'
             );
         } else {
             $result->assert(
-                $ctx->cache->tags([$bulkTag])->get($taggedKey1) === null
-                && $ctx->cache->tags([$bulkTag])->get($taggedKey2) === null,
+                $context->cache->tags([$bulkTag])->get($taggedKey1) === null
+                && $context->cache->tags([$bulkTag])->get($taggedKey2) === null,
                 'flush() removes items added via putMany()'
             );
         }

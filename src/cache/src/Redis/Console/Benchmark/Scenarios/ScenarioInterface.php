@@ -20,5 +20,5 @@ interface ScenarioInterface
     /**
      * Run the scenario and return results.
      */
-    public function run(BenchmarkContext $ctx): ScenarioResult;
+    public function run(BenchmarkContext $context): ScenarioResult;
 }

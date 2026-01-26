@@ -20,68 +20,68 @@ final class SharedTagFlushCheck implements CheckInterface
         return 'Shared Tag Flush (Orphan Prevention)';
     }
 
-    public function run(DoctorContext $ctx): CheckResult
+    public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult();
 
-        $tagA = $ctx->prefixed('tagA-' . bin2hex(random_bytes(4)));
-        $tagB = $ctx->prefixed('tagB-' . bin2hex(random_bytes(4)));
-        $key = $ctx->prefixed('shared:' . bin2hex(random_bytes(4)));
+        $tagA = $context->prefixed('tagA-' . bin2hex(random_bytes(4)));
+        $tagB = $context->prefixed('tagB-' . bin2hex(random_bytes(4)));
+        $key = $context->prefixed('shared:' . bin2hex(random_bytes(4)));
         $value = 'value-' . bin2hex(random_bytes(4));
 
         $tags = [$tagA, $tagB];
 
         // Store item with both tags
-        $ctx->cache->tags($tags)->put($key, $value, 60);
+        $context->cache->tags($tags)->put($key, $value, 60);
 
         // Verify item was stored
-        if ($ctx->isAnyMode()) {
+        if ($context->isAnyMode()) {
             // Any mode: direct get works
             $result->assert(
-                $ctx->cache->get($key) === $value,
+                $context->cache->get($key) === $value,
                 'Item with shared tags is stored'
             );
-            $this->testAnyMode($ctx, $result, $tagA, $tagB, $key);
+            $this->testAnyMode($context, $result, $tagA, $tagB, $key);
         } else {
             // All mode: must use tagged get
             $result->assert(
-                $ctx->cache->tags($tags)->get($key) === $value,
+                $context->cache->tags($tags)->get($key) === $value,
                 'Item with shared tags is stored'
             );
-            $this->testAllMode($ctx, $result, $tagA, $tagB, $key, $tags);
+            $this->testAllMode($context, $result, $tagA, $tagB, $key, $tags);
         }
 
         return $result;
     }
 
     private function testAnyMode(
-        DoctorContext $ctx,
+        DoctorContext $context,
         CheckResult $result,
         string $tagA,
         string $tagB,
         string $key,
     ): void {
         // Verify in both tag hashes
-        $tagAKey = $ctx->tagHashKey($tagA);
-        $tagBKey = $ctx->tagHashKey($tagB);
+        $tagAKey = $context->tagHashKey($tagA);
+        $tagBKey = $context->tagHashKey($tagB);
 
         $result->assert(
-            $ctx->redis->hExists($tagAKey, $key) && $ctx->redis->hExists($tagBKey, $key),
+            $context->redis->hExists($tagAKey, $key) && $context->redis->hExists($tagBKey, $key),
             'Key exists in both tag hashes (any mode)'
         );
 
         // Flush Tag A
-        $ctx->cache->tags([$tagA])->flush();
+        $context->cache->tags([$tagA])->flush();
 
         $result->assert(
-            $ctx->cache->get($key) === null,
+            $context->cache->get($key) === null,
             'Shared tag flush removes item (any mode)'
         );
 
         // In lazy mode (Hypervel default), orphans remain in Tag B hash
         // They will be cleaned by the scheduled prune command
         $result->assert(
-            $ctx->redis->hExists($tagBKey, $key),
+            $context->redis->hExists($tagBKey, $key),
             'Orphaned field exists in shared tag (lazy cleanup - will be cleaned by prune command)'
         );
     }
@@ -90,7 +90,7 @@ final class SharedTagFlushCheck implements CheckInterface
      * @param array<string> $tags
      */
     private function testAllMode(
-        DoctorContext $ctx,
+        DoctorContext $context,
         CheckResult $result,
         string $tagA,
         string $tagB,
@@ -98,11 +98,11 @@ final class SharedTagFlushCheck implements CheckInterface
         array $tags,
     ): void {
         // Verify both tag ZSETs contain entries before flush
-        $tagASetKey = $ctx->tagHashKey($tagA);
-        $tagBSetKey = $ctx->tagHashKey($tagB);
+        $tagASetKey = $context->tagHashKey($tagA);
+        $tagBSetKey = $context->tagHashKey($tagB);
 
-        $tagACount = $ctx->redis->zCard($tagASetKey);
-        $tagBCount = $ctx->redis->zCard($tagBSetKey);
+        $tagACount = $context->redis->zCard($tagASetKey);
+        $tagBCount = $context->redis->zCard($tagBSetKey);
 
         $result->assert(
             $tagACount > 0 && $tagBCount > 0,
@@ -110,16 +110,16 @@ final class SharedTagFlushCheck implements CheckInterface
         );
 
         // Flush Tag A
-        $ctx->cache->tags([$tagA])->flush();
+        $context->cache->tags([$tagA])->flush();
 
         $result->assert(
-            $ctx->cache->tags($tags)->get($key) === null,
+            $context->cache->tags($tags)->get($key) === null,
             'Shared tag flush removes item (all mode)'
         );
 
         // In all mode, the cache key is deleted when any tag is flushed
         // Orphaned entries remain in Tag B's ZSET until prune is run
-        $tagBCountAfter = $ctx->redis->zCard($tagBSetKey);
+        $tagBCountAfter = $context->redis->zCard($tagBSetKey);
 
         $result->assert(
             $tagBCountAfter > 0,

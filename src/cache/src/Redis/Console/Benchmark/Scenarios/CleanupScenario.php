@@ -23,29 +23,29 @@ class CleanupScenario implements ScenarioInterface
     /**
      * Run cleanup command performance benchmark.
      */
-    public function run(BenchmarkContext $ctx): ScenarioResult
+    public function run(BenchmarkContext $context): ScenarioResult
     {
         // Reduce items slightly for cleanup test
-        $adjustedItems = max(100, (int) ($ctx->items / 2));
+        $adjustedItems = max(100, (int) ($context->items / 2));
 
-        $ctx->newLine();
-        $ctx->line("  Running Cleanup Scenario ({$adjustedItems} items, shared tags)...");
-        $ctx->cleanup();
+        $context->newLine();
+        $context->line("  Running Cleanup Scenario ({$adjustedItems} items, shared tags)...");
+        $context->cleanup();
 
-        $mainTag = $ctx->prefixed('cleanup:main');
+        $mainTag = $context->prefixed('cleanup:main');
         $sharedTags = [
-            $ctx->prefixed('cleanup:shared:1'),
-            $ctx->prefixed('cleanup:shared:2'),
-            $ctx->prefixed('cleanup:shared:3'),
+            $context->prefixed('cleanup:shared:1'),
+            $context->prefixed('cleanup:shared:2'),
+            $context->prefixed('cleanup:shared:3'),
         ];
         $allTags = array_merge([$mainTag], $sharedTags);
 
         // 1. Write items with shared tags
-        $bar = $ctx->createProgressBar($adjustedItems);
-        $store = $ctx->getStore();
+        $bar = $context->createProgressBar($adjustedItems);
+        $store = $context->getStore();
 
         for ($i = 0; $i < $adjustedItems; ++$i) {
-            $store->tags($allTags)->put($ctx->prefixed("cleanup:{$i}"), 'value', 3600);
+            $store->tags($allTags)->put($context->prefixed("cleanup:{$i}"), 'value', 3600);
 
             if ($i % 100 === 0) {
                 $bar->advance(100);
@@ -53,18 +53,18 @@ class CleanupScenario implements ScenarioInterface
         }
 
         $bar->finish();
-        $ctx->line('');
+        $context->line('');
 
         // 2. Flush main tag (creates orphans in shared tags in any mode)
-        $ctx->line('  Flushing main tag...');
+        $context->line('  Flushing main tag...');
         $store->tags([$mainTag])->flush();
 
         // 3. Run Cleanup
-        $ctx->line('  Running cleanup command...');
-        $ctx->newLine();
+        $context->line('  Running cleanup command...');
+        $context->newLine();
         $start = hrtime(true);
 
-        $ctx->call('cache:prune-redis-stale-tags', ['store' => $ctx->storeName]);
+        $context->call('cache:prune-redis-stale-tags', ['store' => $context->storeName]);
 
         $cleanupTime = (hrtime(true) - $start) / 1e9;
 

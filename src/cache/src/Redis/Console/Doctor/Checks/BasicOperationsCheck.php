@@ -19,53 +19,53 @@ final class BasicOperationsCheck implements CheckInterface
         return 'Basic Cache Operations';
     }
 
-    public function run(DoctorContext $ctx): CheckResult
+    public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult();
 
         // Put and get
-        $ctx->cache->put($ctx->prefixed('basic:key1'), 'value1', 60);
+        $context->cache->put($context->prefixed('basic:key1'), 'value1', 60);
         $result->assert(
-            $ctx->cache->get($ctx->prefixed('basic:key1')) === 'value1',
+            $context->cache->get($context->prefixed('basic:key1')) === 'value1',
             'put() and get() string value'
         );
 
         // Has
         $result->assert(
-            $ctx->cache->has($ctx->prefixed('basic:key1')) === true,
+            $context->cache->has($context->prefixed('basic:key1')) === true,
             'has() returns true for existing key'
         );
 
         // Missing
         $result->assert(
-            $ctx->cache->missing($ctx->prefixed('basic:nonexistent')) === true,
+            $context->cache->missing($context->prefixed('basic:nonexistent')) === true,
             'missing() returns true for non-existent key'
         );
 
         // Forget
-        $ctx->cache->forget($ctx->prefixed('basic:key1'));
+        $context->cache->forget($context->prefixed('basic:key1'));
         $result->assert(
-            $ctx->cache->get($ctx->prefixed('basic:key1')) === null,
+            $context->cache->get($context->prefixed('basic:key1')) === null,
             'forget() removes key'
         );
 
         // Pull
-        $ctx->cache->put($ctx->prefixed('basic:pull'), 'pulled', 60);
-        $value = $ctx->cache->pull($ctx->prefixed('basic:pull'));
+        $context->cache->put($context->prefixed('basic:pull'), 'pulled', 60);
+        $value = $context->cache->pull($context->prefixed('basic:pull'));
         $result->assert(
-            $value === 'pulled' && $ctx->cache->get($ctx->prefixed('basic:pull')) === null,
+            $value === 'pulled' && $context->cache->get($context->prefixed('basic:pull')) === null,
             'pull() retrieves and removes key'
         );
 
         // Remember
-        $value = $ctx->cache->remember($ctx->prefixed('basic:remember'), 60, fn (): string => 'remembered');
+        $value = $context->cache->remember($context->prefixed('basic:remember'), 60, fn (): string => 'remembered');
         $result->assert(
-            $value === 'remembered' && $ctx->cache->get($ctx->prefixed('basic:remember')) === 'remembered', // @phpstan-ignore identical.alwaysTrue (diagnostic assertion)
+            $value === 'remembered' && $context->cache->get($context->prefixed('basic:remember')) === 'remembered', // @phpstan-ignore identical.alwaysTrue (diagnostic assertion)
             'remember() stores and returns closure result'
         );
 
         // RememberForever
-        $value = $ctx->cache->rememberForever($ctx->prefixed('basic:forever'), fn (): string => 'permanent');
+        $value = $context->cache->rememberForever($context->prefixed('basic:forever'), fn (): string => 'permanent');
         $result->assert(
             $value === 'permanent', // @phpstan-ignore identical.alwaysTrue (diagnostic assertion)
             'rememberForever() stores without expiration'

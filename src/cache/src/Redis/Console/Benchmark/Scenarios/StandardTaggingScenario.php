@@ -23,82 +23,82 @@ class StandardTaggingScenario implements ScenarioInterface
     /**
      * Run standard tagging benchmark with write and flush operations.
      */
-    public function run(BenchmarkContext $ctx): ScenarioResult
+    public function run(BenchmarkContext $context): ScenarioResult
     {
-        $items = $ctx->items;
-        $tagsPerItem = $ctx->tagsPerItem;
+        $items = $context->items;
+        $tagsPerItem = $context->tagsPerItem;
 
-        $ctx->newLine();
-        $ctx->line("  Running Standard Tagging Scenario ({$items} items, {$tagsPerItem} tags/item)...");
-        $ctx->cleanup();
+        $context->newLine();
+        $context->line("  Running Standard Tagging Scenario ({$items} items, {$tagsPerItem} tags/item)...");
+        $context->cleanup();
 
         // Build tags array
         $tags = [];
 
         for ($i = 0; $i < $tagsPerItem; ++$i) {
-            $tags[] = $ctx->prefixed("tag:{$i}");
+            $tags[] = $context->prefixed("tag:{$i}");
         }
 
         // 1. Write
-        $ctx->line('  Testing put() with tags...');
+        $context->line('  Testing put() with tags...');
         $start = hrtime(true);
-        $bar = $ctx->createProgressBar($items);
+        $bar = $context->createProgressBar($items);
 
-        $store = $ctx->getStore();
+        $store = $context->getStore();
         $chunkSize = 100;
 
         for ($i = 0; $i < $items; ++$i) {
-            $store->tags($tags)->put($ctx->prefixed("item:{$i}"), 'value', 3600);
+            $store->tags($tags)->put($context->prefixed("item:{$i}"), 'value', 3600);
 
             if ($i % $chunkSize === 0) {
                 $bar->advance($chunkSize);
-                $ctx->checkMemoryUsage();
+                $context->checkMemoryUsage();
             }
         }
 
         $bar->finish();
-        $ctx->line('');
+        $context->line('');
 
         $writeTime = (hrtime(true) - $start) / 1e9;
         $writeRate = $items / $writeTime;
 
         // 2. Flush (Flush one tag, which removes all $items items since all share this tag)
-        $ctx->line("  Flushing {$items} items via 1 tag...");
+        $context->line("  Flushing {$items} items via 1 tag...");
         $start = hrtime(true);
         $store->tags([$tags[0]])->flush();
         $flushTime = (hrtime(true) - $start) / 1e9;
 
         // 3. Add Performance (add)
-        $ctx->cleanup();
-        $ctx->line('  Testing add() with tags...');
+        $context->cleanup();
+        $context->line('  Testing add() with tags...');
         $start = hrtime(true);
-        $bar = $ctx->createProgressBar($items);
+        $bar = $context->createProgressBar($items);
 
         for ($i = 0; $i < $items; ++$i) {
-            $store->tags($tags)->add($ctx->prefixed("item:add:{$i}"), 'value', 3600);
+            $store->tags($tags)->add($context->prefixed("item:add:{$i}"), 'value', 3600);
 
             if ($i % $chunkSize === 0) {
                 $bar->advance($chunkSize);
-                $ctx->checkMemoryUsage();
+                $context->checkMemoryUsage();
             }
         }
 
         $bar->finish();
-        $ctx->line('');
+        $context->line('');
 
         $addTime = (hrtime(true) - $start) / 1e9;
         $addRate = $items / $addTime;
 
         // 4. Remember Performance (cache miss + store with tags)
-        $ctx->cleanup();
-        $ctx->line('  Testing remember() with tags...');
+        $context->cleanup();
+        $context->line('  Testing remember() with tags...');
         $rememberItems = min(1000, (int) ($items / 10));
         $start = hrtime(true);
-        $bar = $ctx->createProgressBar($rememberItems);
+        $bar = $context->createProgressBar($rememberItems);
         $rememberChunk = 10;
 
         for ($i = 0; $i < $rememberItems; ++$i) {
-            $store->tags($tags)->remember($ctx->prefixed("item:remember:{$i}"), 3600, function (): string {
+            $store->tags($tags)->remember($context->prefixed("item:remember:{$i}"), 3600, function (): string {
                 return 'computed_value';
             });
 
@@ -108,22 +108,22 @@ class StandardTaggingScenario implements ScenarioInterface
         }
 
         $bar->finish();
-        $ctx->line('');
+        $context->line('');
 
         $rememberTime = (hrtime(true) - $start) / 1e9;
         $rememberRate = $rememberItems / $rememberTime;
 
         // 5. Bulk Write Performance (putMany)
-        $ctx->cleanup();
-        $ctx->line('  Testing putMany() with tags...');
+        $context->cleanup();
+        $context->line('  Testing putMany() with tags...');
         $bulkChunkSize = 100;
         $start = hrtime(true);
-        $bar = $ctx->createProgressBar($items);
+        $bar = $context->createProgressBar($items);
 
         $buffer = [];
 
         for ($i = 0; $i < $items; ++$i) {
-            $buffer[$ctx->prefixed("item:bulk:{$i}")] = 'value';
+            $buffer[$context->prefixed("item:bulk:{$i}")] = 'value';
 
             if (count($buffer) >= $bulkChunkSize) {
                 $store->tags($tags)->putMany($buffer, 3600);
@@ -138,7 +138,7 @@ class StandardTaggingScenario implements ScenarioInterface
         }
 
         $bar->finish();
-        $ctx->line('');
+        $context->line('');
 
         $putManyTime = (hrtime(true) - $start) / 1e9;
         $putManyRate = $items / $putManyTime;

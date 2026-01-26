@@ -29,47 +29,47 @@ final class ExpirationCheck implements CheckInterface
         return 'Expiration Tests';
     }
 
-    public function run(DoctorContext $ctx): CheckResult
+    public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult();
 
-        $tag = $ctx->prefixed('expire-' . Str::random(8));
-        $key = $ctx->prefixed('expire:' . Str::random(8));
+        $tag = $context->prefixed('expire-' . Str::random(8));
+        $key = $context->prefixed('expire:' . Str::random(8));
 
         // Put with 1 second TTL
-        $ctx->cache->tags([$tag])->put($key, 'val', 1);
+        $context->cache->tags([$tag])->put($key, 'val', 1);
 
         $this->output?->writeln('  <fg=gray>Waiting 2 seconds for expiration...</>');
         sleep(2);
 
-        if ($ctx->isAnyMode()) {
+        if ($context->isAnyMode()) {
             // Any mode: direct get works
             $result->assert(
-                $ctx->cache->get($key) === null,
+                $context->cache->get($key) === null,
                 'Item expired after TTL'
             );
-            $this->testAnyModeExpiration($ctx, $result, $tag, $key);
+            $this->testAnyModeExpiration($context, $result, $tag, $key);
         } else {
             // All mode: must use tagged get
             $result->assert(
-                $ctx->cache->tags([$tag])->get($key) === null,
+                $context->cache->tags([$tag])->get($key) === null,
                 'Item expired after TTL'
             );
-            $this->testAllModeExpiration($ctx, $result, $tag, $key);
+            $this->testAllModeExpiration($context, $result, $tag, $key);
         }
 
         return $result;
     }
 
     private function testAnyModeExpiration(
-        DoctorContext $ctx,
+        DoctorContext $context,
         CheckResult $result,
         string $tag,
         string $key,
     ): void {
         // Check hash field cleanup
-        $connection = $ctx->store->connection();
-        $tagKey = $ctx->tagHashKey($tag);
+        $connection = $context->store->connection();
+        $tagKey = $context->tagHashKey($tag);
 
         $result->assert(
             ! $connection->hExists($tagKey, $key),
@@ -78,20 +78,20 @@ final class ExpirationCheck implements CheckInterface
     }
 
     private function testAllModeExpiration(
-        DoctorContext $ctx,
+        DoctorContext $context,
         CheckResult $result,
         string $tag,
         string $key,
     ): void {
         // In all mode, the ZSET entry remains until flushStale() is called
         // The cache key has expired (Redis TTL), but the ZSET entry is stale
-        $tagSetKey = $ctx->tagHashKey($tag);
+        $tagSetKey = $context->tagHashKey($tag);
 
         // Compute the namespaced key using central source of truth
-        $namespacedKey = $ctx->namespacedKey([$tag], $key);
+        $namespacedKey = $context->namespacedKey([$tag], $key);
 
         // Check ZSET entry exists (stale but present)
-        $score = $ctx->redis->zScore($tagSetKey, $namespacedKey);
+        $score = $context->redis->zScore($tagSetKey, $namespacedKey);
         $staleEntryExists = $score !== false;
 
         $result->assert(
@@ -101,11 +101,11 @@ final class ExpirationCheck implements CheckInterface
 
         // Run cleanup to remove stale entries
         /** @var \Hypervel\Cache\Redis\AllTaggedCache $taggedCache */
-        $taggedCache = $ctx->cache->tags([$tag]);
+        $taggedCache = $context->cache->tags([$tag]);
         $taggedCache->flushStale();
 
         // Now the ZSET entry should be gone
-        $scoreAfterCleanup = $ctx->redis->zScore($tagSetKey, $namespacedKey);
+        $scoreAfterCleanup = $context->redis->zScore($tagSetKey, $namespacedKey);
         $result->assert(
             $scoreAfterCleanup === false,
             'ZSET entry removed after flushStale() cleanup'

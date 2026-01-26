@@ -19,21 +19,21 @@ final class SequentialOperationsCheck implements CheckInterface
         return 'Sequential Rapid Operations';
     }
 
-    public function run(DoctorContext $ctx): CheckResult
+    public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult();
 
         // Rapid writes to same key
-        $rapidTag = $ctx->prefixed('rapid');
-        $rapidKey = $ctx->prefixed('concurrent:key');
+        $rapidTag = $context->prefixed('rapid');
+        $rapidKey = $context->prefixed('concurrent:key');
         for ($i = 0; $i < 10; ++$i) {
-            $ctx->cache->tags([$rapidTag])->put($rapidKey, "value{$i}", 60);
+            $context->cache->tags([$rapidTag])->put($rapidKey, "value{$i}", 60);
         }
 
-        if ($ctx->isAnyMode()) {
-            $rapidValue = $ctx->cache->get($rapidKey);
+        if ($context->isAnyMode()) {
+            $rapidValue = $context->cache->get($rapidKey);
         } else {
-            $rapidValue = $ctx->cache->tags([$rapidTag])->get($rapidKey);
+            $rapidValue = $context->cache->tags([$rapidTag])->get($rapidKey);
         }
         $result->assert(
             $rapidValue === 'value9',
@@ -41,23 +41,23 @@ final class SequentialOperationsCheck implements CheckInterface
         );
 
         // Multiple increments
-        $ctx->cache->put($ctx->prefixed('concurrent:counter'), 0, 60);
+        $context->cache->put($context->prefixed('concurrent:counter'), 0, 60);
 
         for ($i = 0; $i < 50; ++$i) {
-            $ctx->cache->increment($ctx->prefixed('concurrent:counter'));
+            $context->cache->increment($context->prefixed('concurrent:counter'));
         }
 
         $result->assert(
-            $ctx->cache->get($ctx->prefixed('concurrent:counter')) === '50',
+            $context->cache->get($context->prefixed('concurrent:counter')) === '50',
             'Multiple increments all applied correctly'
         );
 
         // Race condition: add operations
-        $ctx->cache->forget($ctx->prefixed('concurrent:add'));
+        $context->cache->forget($context->prefixed('concurrent:add'));
         $results = [];
 
         for ($i = 0; $i < 5; ++$i) {
-            $results[] = $ctx->cache->add($ctx->prefixed('concurrent:add'), "value{$i}", 60);
+            $results[] = $context->cache->add($context->prefixed('concurrent:add'), "value{$i}", 60);
         }
 
         $result->assert(
@@ -66,15 +66,15 @@ final class SequentialOperationsCheck implements CheckInterface
         );
 
         // Overlapping tag operations
-        $overlapTags = [$ctx->prefixed('overlap1'), $ctx->prefixed('overlap2')];
-        $overlapKey = $ctx->prefixed('concurrent:overlap');
-        $ctx->cache->tags($overlapTags)->put($overlapKey, 'value', 60);
-        $ctx->cache->tags([$ctx->prefixed('overlap1')])->flush();
+        $overlapTags = [$context->prefixed('overlap1'), $context->prefixed('overlap2')];
+        $overlapKey = $context->prefixed('concurrent:overlap');
+        $context->cache->tags($overlapTags)->put($overlapKey, 'value', 60);
+        $context->cache->tags([$context->prefixed('overlap1')])->flush();
 
-        if ($ctx->isAnyMode()) {
-            $overlapValue = $ctx->cache->get($overlapKey);
+        if ($context->isAnyMode()) {
+            $overlapValue = $context->cache->get($overlapKey);
         } else {
-            $overlapValue = $ctx->cache->tags($overlapTags)->get($overlapKey);
+            $overlapValue = $context->cache->tags($overlapTags)->get($overlapKey);
         }
         $result->assert(
             $overlapValue === null,

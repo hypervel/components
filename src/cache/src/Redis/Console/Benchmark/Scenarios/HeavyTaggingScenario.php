@@ -23,48 +23,48 @@ class HeavyTaggingScenario implements ScenarioInterface
     /**
      * Run heavy tagging benchmark with many tags per item.
      */
-    public function run(BenchmarkContext $ctx): ScenarioResult
+    public function run(BenchmarkContext $context): ScenarioResult
     {
-        $tagsPerItem = $ctx->heavyTags;
+        $tagsPerItem = $context->heavyTags;
 
         // Reduce items for heavy tagging to keep benchmark time reasonable
-        $adjustedItems = max(100, (int) ($ctx->items / 5));
+        $adjustedItems = max(100, (int) ($context->items / 5));
 
-        $ctx->newLine();
-        $ctx->line("  Running Heavy Tagging Scenario ({$adjustedItems} items, {$tagsPerItem} tags/item)...");
-        $ctx->cleanup();
+        $context->newLine();
+        $context->line("  Running Heavy Tagging Scenario ({$adjustedItems} items, {$tagsPerItem} tags/item)...");
+        $context->cleanup();
 
         // Build tags array
         $tags = [];
 
         for ($i = 0; $i < $tagsPerItem; ++$i) {
-            $tags[] = $ctx->prefixed("heavy:tag:{$i}");
+            $tags[] = $context->prefixed("heavy:tag:{$i}");
         }
 
         // 1. Write
         $start = hrtime(true);
-        $bar = $ctx->createProgressBar($adjustedItems);
-        $store = $ctx->getStore();
+        $bar = $context->createProgressBar($adjustedItems);
+        $store = $context->getStore();
 
         $chunkSize = 10;
 
         for ($i = 0; $i < $adjustedItems; ++$i) {
-            $store->tags($tags)->put($ctx->prefixed("heavy:{$i}"), 'value', 3600);
+            $store->tags($tags)->put($context->prefixed("heavy:{$i}"), 'value', 3600);
 
             if ($i % $chunkSize === 0) {
                 $bar->advance($chunkSize);
-                $ctx->checkMemoryUsage();
+                $context->checkMemoryUsage();
             }
         }
 
         $bar->finish();
-        $ctx->line('');
+        $context->line('');
 
         $writeTime = (hrtime(true) - $start) / 1e9;
         $writeRate = $adjustedItems / $writeTime;
 
         // 2. Flush (Flush one tag)
-        $ctx->line('  Flushing heavy items by single tag...');
+        $context->line('  Flushing heavy items by single tag...');
         $start = hrtime(true);
         $store->tags([$tags[0]])->flush();
         $flushTime = (hrtime(true) - $start) / 1e9;

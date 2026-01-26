@@ -22,45 +22,45 @@ final class TaggedOperationsCheck implements CheckInterface
         return 'Tagged Cache Operations';
     }
 
-    public function run(DoctorContext $ctx): CheckResult
+    public function run(DoctorContext $context): CheckResult
     {
         $result = new CheckResult();
 
         // Single tag put
-        $tag = $ctx->prefixed('products');
-        $key = $ctx->prefixed('tag:product1');
-        $ctx->cache->tags([$tag])->put($key, 'Product 1', 60);
+        $tag = $context->prefixed('products');
+        $key = $context->prefixed('tag:product1');
+        $context->cache->tags([$tag])->put($key, 'Product 1', 60);
 
-        if ($ctx->isAnyMode()) {
+        if ($context->isAnyMode()) {
             // Any mode: key is stored without namespace modification
             // Can be retrieved directly without tags
             $result->assert(
-                $ctx->cache->get($key) === 'Product 1',
+                $context->cache->get($key) === 'Product 1',
                 'Tagged item can be retrieved without tags (direct get)'
             );
-            $this->testAnyMode($ctx, $result, $tag, $key);
+            $this->testAnyMode($context, $result, $tag, $key);
         } else {
             // All mode: key is namespaced with sha1 of tags
             // Direct get without tags will NOT find the item
             $result->assert(
-                $ctx->cache->get($key) === null,
+                $context->cache->get($key) === null,
                 'Tagged item NOT retrievable without tags (namespace differs)'
             );
-            $this->testAllMode($ctx, $result, $tag, $key);
+            $this->testAllMode($context, $result, $tag, $key);
         }
 
         // Tag flush (common to both modes)
-        $ctx->cache->tags([$tag])->flush();
+        $context->cache->tags([$tag])->flush();
 
-        if ($ctx->isAnyMode()) {
+        if ($context->isAnyMode()) {
             $result->assert(
-                $ctx->cache->get($key) === null,
+                $context->cache->get($key) === null,
                 'flush() removes tagged items'
             );
         } else {
             // In all mode, use tagged get to verify flush worked
             $result->assert(
-                $ctx->cache->tags([$tag])->get($key) === null,
+                $context->cache->tags([$tag])->get($key) === null,
                 'flush() removes tagged items'
             );
         }
@@ -68,19 +68,19 @@ final class TaggedOperationsCheck implements CheckInterface
         return $result;
     }
 
-    private function testAnyMode(DoctorContext $ctx, CheckResult $result, string $tag, string $key): void
+    private function testAnyMode(DoctorContext $context, CheckResult $result, string $tag, string $key): void
     {
         // Verify hash structure exists
-        $tagKey = $ctx->tagHashKey($tag);
+        $tagKey = $context->tagHashKey($tag);
         $result->assert(
-            $ctx->redis->hExists($tagKey, $key) === true,
+            $context->redis->hExists($tagKey, $key) === true,
             'Tag hash contains the cache key (any mode)'
         );
 
         // Verify get() on tagged cache throws
         $threw = false;
         try {
-            $ctx->cache->tags([$tag])->get($key);
+            $context->cache->tags([$tag])->get($key);
         } catch (BadMethodCallException) {
             $threw = true;
         }
@@ -90,10 +90,10 @@ final class TaggedOperationsCheck implements CheckInterface
         );
     }
 
-    private function testAllMode(DoctorContext $ctx, CheckResult $result, string $tag, string $key): void
+    private function testAllMode(DoctorContext $context, CheckResult $result, string $tag, string $key): void
     {
         // In all mode, get() on tagged cache works
-        $value = $ctx->cache->tags([$tag])->get($key);
+        $value = $context->cache->tags([$tag])->get($key);
         $result->assert(
             $value === 'Product 1',
             'Tagged get() returns value (all mode)'
@@ -101,8 +101,8 @@ final class TaggedOperationsCheck implements CheckInterface
 
         // Verify tag sorted set structure exists
         // Tag key format: {prefix}tag:{tagName}:entries
-        $tagSetKey = $ctx->tagHashKey($tag);
-        $members = $ctx->redis->zRange($tagSetKey, 0, -1);
+        $tagSetKey = $context->tagHashKey($tag);
+        $members = $context->redis->zRange($tagSetKey, 0, -1);
         $result->assert(
             is_array($members) && count($members) > 0,
             'Tag ZSET contains entries (all mode)'
