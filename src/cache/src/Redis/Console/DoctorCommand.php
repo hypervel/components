@@ -6,6 +6,7 @@ namespace Hypervel\Cache\Redis\Console;
 
 use Exception;
 use Hyperf\Command\Command;
+use Hyperf\Command\Concerns\Prohibitable;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Cache\Contracts\Factory as CacheContract;
 use Hypervel\Cache\Redis\Console\Concerns\DetectsRedisStore;
@@ -44,6 +45,7 @@ class DoctorCommand extends Command
 {
     use DetectsRedisStore;
     use HasLaravelStyleCommand;
+    use Prohibitable;
 
     /**
      * The console command name.
@@ -73,6 +75,10 @@ class DoctorCommand extends Command
      */
     public function handle(): int
     {
+        if ($this->isProhibited()) {
+            return self::FAILURE;
+        }
+
         $this->displayHeader();
         $this->displaySystemInformation();
 
