@@ -7,7 +7,7 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Redis\Redis as RedisClient;
 
 /**
- * @method static \Hypervel\Redis\RedisProxy connection(string $name = 'default')
+ * @method static \Hypervel\Redis\RedisProxy connection(\UnitEnum|string $name = 'default')
  * @method static mixed withConnection(callable $callback)
  * @method static void release()
  * @method static \Hypervel\Redis\RedisConnection shouldTransform(bool $shouldTransform = true)
