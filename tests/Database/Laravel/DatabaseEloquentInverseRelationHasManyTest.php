@@ -1,15 +1,17 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Factories\Factory;
+use Hypervel\Database\Eloquent\Factories\HasFactory;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentInverseRelationHasManyTest extends TestCase
@@ -21,6 +23,8 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
      */
     protected function setUp(): void
     {
+        parent::setUp();
+
         $db = new DB;
 
         $db->addConnection([
@@ -239,10 +243,11 @@ class HasManyInverseUserModel extends Model
 {
     use HasFactory;
 
-    protected $table = 'test_users';
-    protected $fillable = ['id'];
+    protected ?string $table = 'test_users';
 
-    protected static function newFactory()
+    protected array $fillable = ['id'];
+
+    protected static function newFactory(): HasManyInverseUserModelFactory
     {
         return new HasManyInverseUserModelFactory();
     }
@@ -265,14 +270,14 @@ class HasManyInverseUserModel extends Model
 
 class HasManyInverseUserModelFactory extends Factory
 {
-    protected $model = HasManyInverseUserModel::class;
+    protected ?string $model = HasManyInverseUserModel::class;
 
-    public function definition()
+    public function definition(): array
     {
         return [];
     }
 
-    public function withPosts(int $count = 3)
+    public function withPosts(int $count = 3): static
     {
         return $this->afterCreating(function (HasManyInverseUserModel $model) use ($count) {
             HasManyInversePostModel::factory()->recycle($model)->count($count)->create();
@@ -284,10 +289,11 @@ class HasManyInversePostModel extends Model
 {
     use HasFactory;
 
-    protected $table = 'test_posts';
-    protected $fillable = ['id', 'user_id'];
+    protected ?string $table = 'test_posts';
 
-    protected static function newFactory()
+    protected array $fillable = ['id', 'user_id'];
+
+    protected static function newFactory(): HasManyInversePostModelFactory
     {
         return new HasManyInversePostModelFactory();
     }
@@ -300,9 +306,9 @@ class HasManyInversePostModel extends Model
 
 class HasManyInversePostModelFactory extends Factory
 {
-    protected $model = HasManyInversePostModel::class;
+    protected ?string $model = HasManyInversePostModel::class;
 
-    public function definition()
+    public function definition(): array
     {
         return [
             'user_id' => HasManyInverseUserModel::factory(),

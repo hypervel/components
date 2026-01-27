@@ -1,14 +1,16 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Database\Eloquent\Relations\MorphOne;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Factories\Factory;
+use Hypervel\Database\Eloquent\Factories\HasFactory;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\Relations\MorphOne;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentInverseRelationMorphOneTest extends TestCase
@@ -20,6 +22,8 @@ class DatabaseEloquentInverseRelationMorphOneTest extends TestCase
      */
     protected function setUp(): void
     {
+        parent::setUp();
+
         $db = new DB;
 
         $db->addConnection([
@@ -217,10 +221,11 @@ class MorphOneInversePostModel extends Model
 {
     use HasFactory;
 
-    protected $table = 'test_posts';
-    protected $fillable = ['id'];
+    protected ?string $table = 'test_posts';
 
-    protected static function newFactory()
+    protected array $fillable = ['id'];
+
+    protected static function newFactory(): MorphOneInversePostModelFactory
     {
         return new MorphOneInversePostModelFactory();
     }
@@ -238,9 +243,9 @@ class MorphOneInversePostModel extends Model
 
 class MorphOneInversePostModelFactory extends Factory
 {
-    protected $model = MorphOneInversePostModel::class;
+    protected ?string $model = MorphOneInversePostModel::class;
 
-    public function definition()
+    public function definition(): array
     {
         return [];
     }
@@ -250,10 +255,11 @@ class MorphOneInverseImageModel extends Model
 {
     use HasFactory;
 
-    protected $table = 'test_images';
-    protected $fillable = ['id', 'imageable_type', 'imageable_id'];
+    protected ?string $table = 'test_images';
 
-    protected static function newFactory()
+    protected array $fillable = ['id', 'imageable_type', 'imageable_id'];
+
+    protected static function newFactory(): MorphOneInverseImageModelFactory
     {
         return new MorphOneInverseImageModelFactory();
     }
@@ -266,9 +272,9 @@ class MorphOneInverseImageModel extends Model
 
 class MorphOneInverseImageModelFactory extends Factory
 {
-    protected $model = MorphOneInverseImageModel::class;
+    protected ?string $model = MorphOneInverseImageModel::class;
 
-    public function definition()
+    public function definition(): array
     {
         return [
             'imageable_type' => MorphOneInversePostModel::class,

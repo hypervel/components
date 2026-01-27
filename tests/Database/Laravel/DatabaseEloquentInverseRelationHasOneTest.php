@@ -1,14 +1,16 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasOne;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Factories\Factory;
+use Hypervel\Database\Eloquent\Factories\HasFactory;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentInverseRelationHasOneTest extends TestCase
@@ -20,6 +22,8 @@ class DatabaseEloquentInverseRelationHasOneTest extends TestCase
      */
     protected function setUp(): void
     {
+        parent::setUp();
+
         $db = new DB;
 
         $db->addConnection([
@@ -192,11 +196,11 @@ class HasOneInverseParentModel extends Model
 {
     use HasFactory;
 
-    protected $table = 'test_parent';
+    protected ?string $table = 'test_parent';
 
-    protected $fillable = ['id'];
+    protected array $fillable = ['id'];
 
-    protected static function newFactory()
+    protected static function newFactory(): HasOneInverseParentModelFactory
     {
         return new HasOneInverseParentModelFactory();
     }
@@ -209,9 +213,9 @@ class HasOneInverseParentModel extends Model
 
 class HasOneInverseParentModelFactory extends Factory
 {
-    protected $model = HasOneInverseParentModel::class;
+    protected ?string $model = HasOneInverseParentModel::class;
 
-    public function definition()
+    public function definition(): array
     {
         return [];
     }
@@ -221,10 +225,11 @@ class HasOneInverseChildModel extends Model
 {
     use HasFactory;
 
-    protected $table = 'test_child';
-    protected $fillable = ['id', 'parent_id'];
+    protected ?string $table = 'test_child';
 
-    protected static function newFactory()
+    protected array $fillable = ['id', 'parent_id'];
+
+    protected static function newFactory(): HasOneInverseChildModelFactory
     {
         return new HasOneInverseChildModelFactory();
     }
@@ -237,9 +242,9 @@ class HasOneInverseChildModel extends Model
 
 class HasOneInverseChildModelFactory extends Factory
 {
-    protected $model = HasOneInverseChildModel::class;
+    protected ?string $model = HasOneInverseChildModel::class;
 
-    public function definition()
+    public function definition(): array
     {
         return [
             'parent_id' => HasOneInverseParentModel::factory(),

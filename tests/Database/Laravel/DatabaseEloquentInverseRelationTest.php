@@ -1,15 +1,17 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\RelationNotFoundException;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\Concerns\SupportsInverseRelations;
-use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Support\Stringable;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\RelationNotFoundException;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Relations\Concerns\SupportsInverseRelations;
+use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Support\Stringable;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Hypervel\Tests\TestCase;
@@ -299,10 +301,11 @@ class DatabaseEloquentInverseRelationTest extends TestCase
 
 class HasInverseRelationParentStub extends Model
 {
-    protected static $unguarded = true;
-    protected $primaryKey = 'id';
+    protected static bool $unguarded = true;
 
-    public function getForeignKey()
+    protected string $primaryKey = 'id';
+
+    public function getForeignKey(): string
     {
         return 'parent_stub_id';
     }
@@ -310,10 +313,11 @@ class HasInverseRelationParentStub extends Model
 
 class HasInverseRelationRelatedStub extends Model
 {
-    protected static $unguarded = true;
-    protected $primaryKey = 'id';
+    protected static bool $unguarded = true;
 
-    public function getForeignKey()
+    protected string $primaryKey = 'id';
+
+    public function getForeignKey(): string
     {
         return 'child_stub_id';
     }
@@ -337,33 +341,33 @@ class HasInverseRelationStub extends Relation
         $this->foreignKey ??= (new Stringable(class_basename($parent)))->snake()->finish('_id')->toString();
     }
 
-    public function getForeignKeyName()
+    public function getForeignKeyName(): ?string
     {
         return $this->foreignKey;
     }
 
     // None of these methods will actually be called - they're just needed to fill out `Relation`
-    public function match(array $models, Collection $results, $relation)
+    public function match(array $models, Collection $results, $relation): array
     {
         return $models;
     }
 
-    public function initRelation(array $models, $relation)
+    public function initRelation(array $models, $relation): array
     {
         return $models;
     }
 
-    public function getResults()
+    public function getResults(): mixed
     {
         return $this->query->get();
     }
 
-    public function addConstraints()
+    public function addConstraints(): void
     {
         //
     }
 
-    public function addEagerConstraints(array $models)
+    public function addEagerConstraints(array $models): void
     {
         //
     }
@@ -383,4 +387,12 @@ class HasInverseRelationStub extends Relation
     {
         return $this->applyInverseRelationToCollection($models, $parent);
     }
+}
+
+/**
+ * Local stub for HasOneInverseChildModel (originally from DatabaseEloquentInverseRelationHasOneTest).
+ */
+class HasOneInverseChildModel extends Model
+{
+    protected ?string $table = 'test_child';
 }

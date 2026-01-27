@@ -1,15 +1,17 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Database\Eloquent\Relations\MorphMany;
-use Illuminate\Database\Eloquent\Relations\MorphOne;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Factories\Factory;
+use Hypervel\Database\Eloquent\Factories\HasFactory;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\Relations\MorphMany;
+use Hypervel\Database\Eloquent\Relations\MorphOne;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
@@ -21,6 +23,8 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
      */
     protected function setUp(): void
     {
+        parent::setUp();
+
         $db = new DB;
 
         $db->addConnection([
@@ -295,10 +299,11 @@ class MorphManyInversePostModel extends Model
 {
     use HasFactory;
 
-    protected $table = 'test_posts';
-    protected $fillable = ['id'];
+    protected ?string $table = 'test_posts';
 
-    protected static function newFactory()
+    protected array $fillable = ['id'];
+
+    protected static function newFactory(): MorphManyInversePostModelFactory
     {
         return new MorphManyInversePostModelFactory();
     }
@@ -331,14 +336,14 @@ class MorphManyInversePostModel extends Model
 
 class MorphManyInversePostModelFactory extends Factory
 {
-    protected $model = MorphManyInversePostModel::class;
+    protected ?string $model = MorphManyInversePostModel::class;
 
-    public function definition()
+    public function definition(): array
     {
         return [];
     }
 
-    public function withComments(int $count = 3)
+    public function withComments(int $count = 3): static
     {
         return $this->afterCreating(function (MorphManyInversePostModel $model) use ($count) {
             MorphManyInverseCommentModel::factory()->recycle($model)->count($count)->create();
@@ -350,10 +355,11 @@ class MorphManyInverseCommentModel extends Model
 {
     use HasFactory;
 
-    protected $table = 'test_comments';
-    protected $fillable = ['id', 'commentable_type', 'commentable_id'];
+    protected ?string $table = 'test_comments';
 
-    protected static function newFactory()
+    protected array $fillable = ['id', 'commentable_type', 'commentable_id'];
+
+    protected static function newFactory(): MorphManyInverseCommentModelFactory
     {
         return new MorphManyInverseCommentModelFactory();
     }
@@ -366,9 +372,9 @@ class MorphManyInverseCommentModel extends Model
 
 class MorphManyInverseCommentModelFactory extends Factory
 {
-    protected $model = MorphManyInverseCommentModel::class;
+    protected ?string $model = MorphManyInverseCommentModel::class;
 
-    public function definition()
+    public function definition(): array
     {
         return [
             'commentable_type' => MorphManyInversePostModel::class,

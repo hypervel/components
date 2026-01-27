@@ -1,11 +1,13 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Database\Eloquent\Relations\Relation;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentIntegrationWithTablePrefixTest extends TestCase
@@ -17,6 +19,8 @@ class DatabaseEloquentIntegrationWithTablePrefixTest extends TestCase
      */
     protected function setUp(): void
     {
+        parent::setUp();
+
         $db = new DB;
 
         $db->addConnection([
@@ -163,4 +167,11 @@ class DatabaseEloquentIntegrationWithTablePrefixTest extends TestCase
     {
         return $this->connection($connection)->getSchemaBuilder();
     }
+}
+
+class EloquentTestUser extends Eloquent
+{
+    protected ?string $table = 'users';
+
+    protected array $guarded = [];
 }
