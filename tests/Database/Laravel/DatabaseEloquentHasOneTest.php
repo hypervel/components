@@ -1,15 +1,17 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Contracts\Database\Query\Expression;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Query\Builder as BaseBuilder;
-use Mockery as m;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Contracts\Database\Query\Expression;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasOne;
+use Hypervel\Database\Query\Builder as BaseBuilder;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 
 class DatabaseEloquentHasOneTest extends TestCase
 {
@@ -25,13 +27,12 @@ class DatabaseEloquentHasOneTest extends TestCase
 
         $this->builder->shouldReceive('first')->once()->andReturnNull();
 
-        $newModel = new EloquentHasOneModelStub;
+        // Use andReturnSelf() to satisfy static return type of newInstance()
+        $this->related->shouldReceive('newInstance')->once()->andReturnSelf();
+        $this->related->shouldReceive('setAttribute')->with('foreign_key', 1)->once()->andReturnSelf();
 
-        $this->related->shouldReceive('newInstance')->once()->andReturn($newModel);
-
-        $this->assertSame($newModel, $relation->getResults());
-
-        $this->assertSame(1, $newModel->getAttribute('foreign_key'));
+        $result = $relation->getResults();
+        $this->assertSame($this->related, $result);
     }
 
     public function testHasOneWithDynamicDefault()
@@ -42,15 +43,13 @@ class DatabaseEloquentHasOneTest extends TestCase
 
         $this->builder->shouldReceive('first')->once()->andReturnNull();
 
-        $newModel = new EloquentHasOneModelStub;
+        // Use andReturnSelf() to satisfy static return type of newInstance()
+        $this->related->shouldReceive('newInstance')->once()->andReturnSelf();
+        $this->related->shouldReceive('setAttribute')->with('foreign_key', 1)->once()->andReturnSelf();
 
-        $this->related->shouldReceive('newInstance')->once()->andReturn($newModel);
-
-        $this->assertSame($newModel, $relation->getResults());
-
-        $this->assertSame('taylor', $newModel->username);
-
-        $this->assertSame(1, $newModel->getAttribute('foreign_key'));
+        $result = $relation->getResults();
+        $this->assertSame($this->related, $result);
+        $this->assertSame('taylor', $result->username);
     }
 
     public function testHasOneWithDynamicDefaultUseParentModel()
@@ -61,15 +60,13 @@ class DatabaseEloquentHasOneTest extends TestCase
 
         $this->builder->shouldReceive('first')->once()->andReturnNull();
 
-        $newModel = new EloquentHasOneModelStub;
+        // Use andReturnSelf() to satisfy static return type of newInstance()
+        $this->related->shouldReceive('newInstance')->once()->andReturnSelf();
+        $this->related->shouldReceive('setAttribute')->with('foreign_key', 1)->once()->andReturnSelf();
 
-        $this->related->shouldReceive('newInstance')->once()->andReturn($newModel);
-
-        $this->assertSame($newModel, $relation->getResults());
-
-        $this->assertSame('taylor', $newModel->username);
-
-        $this->assertSame(1, $newModel->getAttribute('foreign_key'));
+        $result = $relation->getResults();
+        $this->assertSame($this->related, $result);
+        $this->assertSame('taylor', $result->username);
     }
 
     public function testHasOneWithArrayDefault()
@@ -80,26 +77,24 @@ class DatabaseEloquentHasOneTest extends TestCase
 
         $this->builder->shouldReceive('first')->once()->andReturnNull();
 
-        $newModel = new EloquentHasOneModelStub;
+        // Use andReturnSelf() to satisfy static return type of newInstance()
+        $this->related->shouldReceive('newInstance')->once()->andReturnSelf();
+        $this->related->shouldReceive('setAttribute')->with('foreign_key', 1)->once()->andReturnSelf();
 
-        $this->related->shouldReceive('newInstance')->once()->andReturn($newModel);
-
-        $this->assertSame($newModel, $relation->getResults());
-
-        $this->assertSame('taylor', $newModel->username);
-
-        $this->assertSame(1, $newModel->getAttribute('foreign_key'));
+        $result = $relation->getResults();
+        $this->assertSame($this->related, $result);
+        $this->assertSame('taylor', $result->username);
     }
 
     public function testMakeMethodDoesNotSaveNewModel()
     {
         $relation = $this->getRelation();
-        $instance = $this->getMockBuilder(Model::class)->onlyMethods(['save', 'newInstance', 'setAttribute'])->getMock();
-        $relation->getRelated()->shouldReceive('newInstance')->with(['name' => 'taylor'])->andReturn($instance);
-        $instance->expects($this->once())->method('setAttribute')->with('foreign_key', 1);
-        $instance->expects($this->never())->method('save');
+        // Use andReturnSelf() to satisfy static return type of newInstance()
+        $this->related->shouldReceive('newInstance')->once()->with(['name' => 'taylor'])->andReturnSelf();
+        $this->related->shouldReceive('setAttribute')->once()->with('foreign_key', 1)->andReturnSelf();
+        $this->related->shouldReceive('save')->never();
 
-        $this->assertEquals($instance, $relation->make(['name' => 'taylor']));
+        $this->assertEquals($this->related, $relation->make(['name' => 'taylor']));
     }
 
     public function testSaveMethodSetsForeignKeyOnModel()
@@ -116,12 +111,12 @@ class DatabaseEloquentHasOneTest extends TestCase
     public function testCreateMethodProperlyCreatesNewModel()
     {
         $relation = $this->getRelation();
-        $created = $this->getMockBuilder(Model::class)->onlyMethods(['save', 'getKey', 'setAttribute'])->getMock();
-        $created->expects($this->once())->method('save')->willReturn(true);
-        $relation->getRelated()->shouldReceive('newInstance')->once()->with(['name' => 'taylor'])->andReturn($created);
-        $created->expects($this->once())->method('setAttribute')->with('foreign_key', 1);
+        // Use andReturnSelf() to satisfy static return type of newInstance()
+        $this->related->shouldReceive('newInstance')->once()->with(['name' => 'taylor'])->andReturnSelf();
+        $this->related->shouldReceive('setAttribute')->once()->with('foreign_key', 1)->andReturnSelf();
+        $this->related->shouldReceive('save')->once()->andReturn(true);
 
-        $this->assertEquals($created, $relation->create(['name' => 'taylor']));
+        $this->assertEquals($this->related, $relation->create(['name' => 'taylor']));
     }
 
     public function testForceCreateMethodProperlyCreatesNewModel()
@@ -210,8 +205,10 @@ class DatabaseEloquentHasOneTest extends TestCase
 
         $builder->shouldReceive('select')->once()->with(m::type(Expression::class))->andReturnSelf();
         $relation->getParent()->shouldReceive('qualifyColumn')->andReturn('table.id');
-        $builder->shouldReceive('whereColumn')->once()->with('table.id', '=', 'table.foreign_key')->andReturn($baseQuery);
-        $baseQuery->shouldReceive('setBindings')->once()->with([], 'select');
+        // Return $builder (Eloquent Builder) to satisfy return type
+        $builder->shouldReceive('whereColumn')->once()->with('table.id', '=', 'table.foreign_key')->andReturnSelf();
+        // setBindings is called on the Eloquent Builder, which forwards to base query
+        $builder->shouldReceive('setBindings')->once()->with([], 'select')->andReturnSelf();
 
         $relation->getRelationExistenceCountQuery($builder, $builder);
     }
@@ -321,7 +318,8 @@ class DatabaseEloquentHasOneTest extends TestCase
         $this->builder = m::mock(Builder::class);
         $this->builder->shouldReceive('whereNotNull')->with('table.foreign_key');
         $this->builder->shouldReceive('where')->with('table.foreign_key', '=', 1);
-        $this->related = m::mock(Model::class);
+        // Use partial mock so real Model methods work (setAttribute, forceFill, etc.)
+        $this->related = m::mock(Model::class)->makePartial();
         $this->builder->shouldReceive('getModel')->andReturn($this->related);
         $this->parent = m::mock(Model::class);
         $this->parent->shouldReceive('getAttribute')->with('id')->andReturn(1);
@@ -336,5 +334,5 @@ class DatabaseEloquentHasOneTest extends TestCase
 
 class EloquentHasOneModelStub extends Model
 {
-    public $foreign_key = 'foreign.value';
+    public mixed $foreign_key = 'foreign.value';
 }

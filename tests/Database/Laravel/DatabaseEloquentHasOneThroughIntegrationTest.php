@@ -1,17 +1,21 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Database\Eloquent\SoftDeletes;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
 {
     protected function setUp(): void
     {
+        parent::setUp();
+
         $db = new DB;
 
         $db->addConnection([
@@ -133,7 +137,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
     public function testFirstOrFailThrowsAnException()
     {
         $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Illuminate\Tests\Database\HasOneThroughTestContract].');
+        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\HasOneThroughTestContract].');
 
         HasOneThroughTestPosition::create(['id' => 1, 'name' => 'President', 'shortname' => 'ps'])
             ->user()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'position_short' => 'ps']);
@@ -378,8 +382,8 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
  */
 class HasOneThroughTestUser extends Eloquent
 {
-    protected $table = 'users';
-    protected $guarded = [];
+    protected ?string $table = 'users';
+    protected array $guarded = [];
 
     public function contract()
     {
@@ -392,8 +396,8 @@ class HasOneThroughTestUser extends Eloquent
  */
 class HasOneThroughTestContract extends Eloquent
 {
-    protected $table = 'contracts';
-    protected $guarded = [];
+    protected ?string $table = 'contracts';
+    protected array $guarded = [];
 
     public function owner()
     {
@@ -403,8 +407,8 @@ class HasOneThroughTestContract extends Eloquent
 
 class HasOneThroughTestPosition extends Eloquent
 {
-    protected $table = 'positions';
-    protected $guarded = [];
+    protected ?string $table = 'positions';
+    protected array $guarded = [];
 
     public function contract()
     {
@@ -422,8 +426,8 @@ class HasOneThroughTestPosition extends Eloquent
  */
 class HasOneThroughDefaultTestUser extends Eloquent
 {
-    protected $table = 'users_default';
-    protected $guarded = [];
+    protected ?string $table = 'users_default';
+    protected array $guarded = [];
 
     public function contract()
     {
@@ -436,8 +440,8 @@ class HasOneThroughDefaultTestUser extends Eloquent
  */
 class HasOneThroughDefaultTestContract extends Eloquent
 {
-    protected $table = 'contracts_default';
-    protected $guarded = [];
+    protected ?string $table = 'contracts_default';
+    protected array $guarded = [];
 
     public function owner()
     {
@@ -447,8 +451,8 @@ class HasOneThroughDefaultTestContract extends Eloquent
 
 class HasOneThroughDefaultTestPosition extends Eloquent
 {
-    protected $table = 'positions_default';
-    protected $guarded = [];
+    protected ?string $table = 'positions_default';
+    protected array $guarded = [];
 
     public function contract()
     {
@@ -463,8 +467,8 @@ class HasOneThroughDefaultTestPosition extends Eloquent
 
 class HasOneThroughIntermediateTestPosition extends Eloquent
 {
-    protected $table = 'positions';
-    protected $guarded = [];
+    protected ?string $table = 'positions';
+    protected array $guarded = [];
 
     public function contract()
     {
@@ -481,8 +485,8 @@ class HasOneThroughSoftDeletesTestUser extends Eloquent
 {
     use SoftDeletes;
 
-    protected $table = 'users';
-    protected $guarded = [];
+    protected ?string $table = 'users';
+    protected array $guarded = [];
 
     public function contract()
     {
@@ -495,8 +499,8 @@ class HasOneThroughSoftDeletesTestUser extends Eloquent
  */
 class HasOneThroughSoftDeletesTestContract extends Eloquent
 {
-    protected $table = 'contracts';
-    protected $guarded = [];
+    protected ?string $table = 'contracts';
+    protected array $guarded = [];
 
     public function owner()
     {
@@ -506,8 +510,8 @@ class HasOneThroughSoftDeletesTestContract extends Eloquent
 
 class HasOneThroughSoftDeletesTestPosition extends Eloquent
 {
-    protected $table = 'positions';
-    protected $guarded = [];
+    protected ?string $table = 'positions';
+    protected array $guarded = [];
 
     public function contract()
     {
