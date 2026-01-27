@@ -1,16 +1,18 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Connection;
-use Illuminate\Database\ConnectionResolverInterface;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\Pivot;
-use Illuminate\Database\Query\Grammars\Grammar;
-use Illuminate\Database\Query\Processors\Processor;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Query\Grammars\Grammar;
+use Hypervel\Database\Query\Processors\Processor;
 use Mockery as m;
-use Hypervel\Tests\TestCase;
-use stdClass;
+use Hypervel\Testbench\TestCase;
 
 class DatabaseEloquentPivotTest extends TestCase
 {
@@ -119,9 +121,9 @@ class DatabaseEloquentPivotTest extends TestCase
         $pivot->setPivotKeys('foreign', 'other');
         $pivot->foreign = 'foreign.value';
         $pivot->other = 'other.value';
-        $query = m::mock(stdClass::class);
+        $query = m::mock(Builder::class);
         $query->shouldReceive('where')->once()->with(['foreign' => 'foreign.value', 'other' => 'other.value'])->andReturn($query);
-        $query->shouldReceive('delete')->once()->andReturn(true);
+        $query->shouldReceive('delete')->once()->andReturn(1);
         $pivot->expects($this->once())->method('newQueryWithoutRelationships')->willReturn($query);
 
         $rowsAffected = $pivot->delete();
@@ -162,7 +164,8 @@ class DatabaseEloquentPivotTest extends TestCase
     {
         $original = new Pivot;
 
-        $original->pivotParent = 'foo';
+        $parentModel = m::mock(Model::class);
+        $original->pivotParent = $parentModel;
         $original->setRelation('bar', 'baz');
 
         $this->assertSame('baz', $original->getRelation('bar'));
@@ -171,7 +174,7 @@ class DatabaseEloquentPivotTest extends TestCase
 
         $this->assertInstanceOf(Pivot::class, $pivot);
         $this->assertNotSame($pivot, $original);
-        $this->assertSame('foo', $original->pivotParent);
+        $this->assertSame($parentModel, $original->pivotParent);
         $this->assertNull($pivot->pivotParent);
         $this->assertTrue($original->relationLoaded('bar'));
         $this->assertFalse($pivot->relationLoaded('bar'));
@@ -186,7 +189,7 @@ class DatabaseEloquentPivotTest extends TestCase
 
 class DatabaseEloquentPivotTestDateStub extends Pivot
 {
-    public function getDates()
+    public function getDates(): array
     {
         return [];
     }
@@ -211,7 +214,7 @@ class DatabaseEloquentPivotTestMutatorStub extends Pivot
 
 class DatabaseEloquentPivotTestJsonCastStub extends Pivot
 {
-    protected $casts = [
+    protected array $casts = [
         'foo' => 'json',
     ];
 }
