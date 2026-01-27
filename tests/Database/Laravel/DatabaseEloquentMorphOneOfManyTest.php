@@ -1,15 +1,19 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Model as Eloquent;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentMorphOneOfManyTest extends TestCase
 {
     protected function setUp(): void
     {
+        parent::setUp();
+
         $db = new DB;
 
         $db->addConnection([
@@ -25,10 +29,8 @@ class DatabaseEloquentMorphOneOfManyTest extends TestCase
 
     /**
      * Setup the database schema.
-     *
-     * @return void
      */
-    public function createSchema()
+    public function createSchema(): void
     {
         $this->schema()->create('products', function ($table) {
             $table->increments('id');
@@ -44,8 +46,6 @@ class DatabaseEloquentMorphOneOfManyTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -200,20 +200,16 @@ class DatabaseEloquentMorphOneOfManyTest extends TestCase
 
     /**
      * Get a database connection instance.
-     *
-     * @return \Illuminate\Database\Connection
      */
-    protected function connection()
+    protected function connection(): \Hypervel\Database\Connection
     {
         return Eloquent::getConnectionResolver()->connection();
     }
 
     /**
      * Get a schema builder instance.
-     *
-     * @return \Illuminate\Database\Schema\Builder
      */
-    protected function schema()
+    protected function schema(): \Hypervel\Database\Schema\Builder
     {
         return $this->connection()->getSchemaBuilder();
     }
@@ -224,9 +220,11 @@ class DatabaseEloquentMorphOneOfManyTest extends TestCase
  */
 class MorphOneOfManyTestProduct extends Eloquent
 {
-    protected $table = 'products';
-    protected $guarded = [];
-    public $timestamps = false;
+    protected ?string $table = 'products';
+
+    protected array $guarded = [];
+
+    public bool $timestamps = false;
 
     public function states()
     {
@@ -251,8 +249,11 @@ class MorphOneOfManyTestProduct extends Eloquent
 
 class MorphOneOfManyTestState extends Eloquent
 {
-    protected $table = 'states';
-    protected $guarded = [];
-    public $timestamps = false;
-    protected $fillable = ['state', 'type'];
+    protected ?string $table = 'states';
+
+    protected array $guarded = [];
+
+    public bool $timestamps = false;
+
+    protected array $fillable = ['state', 'type'];
 }

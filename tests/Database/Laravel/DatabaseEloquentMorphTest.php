@@ -1,16 +1,18 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel;
 
 use Exception;
 use Foo\Bar\EloquentModelNamespacedStub;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphMany;
-use Illuminate\Database\Eloquent\Relations\MorphOne;
-use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Database\Query\Builder as QueryBuilder;
-use Illuminate\Database\UniqueConstraintViolationException;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphMany;
+use Hypervel\Database\Eloquent\Relations\MorphOne;
+use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Database\Query\Builder as QueryBuilder;
+use Hypervel\Database\UniqueConstraintViolationException;
 use Mockery as m;
 use Hypervel\Tests\TestCase;
 
@@ -77,7 +79,7 @@ class DatabaseEloquentMorphTest extends TestCase
             ],
             ['email'],
             ['name']
-        );
+        )->andReturn(1);
 
         $relation->upsert(
             ['email' => 'foo3', 'name' => 'bar'],
@@ -92,7 +94,7 @@ class DatabaseEloquentMorphTest extends TestCase
             ],
             ['email'],
             ['name']
-        );
+        )->andReturn(2);
 
         $relation->upsert(
             [
