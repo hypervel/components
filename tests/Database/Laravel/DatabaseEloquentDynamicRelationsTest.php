@@ -1,14 +1,16 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Query\Builder as Query;
-use Illuminate\Tests\Database\DynamicRelationModel2 as Related;
-use Hypervel\Tests\TestCase;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Relations\HasOne;
+use Hypervel\Database\Query\Builder as Query;
+use Hypervel\Tests\Database\Laravel\DynamicRelationModel2 as Related;
+use Hypervel\Testbench\TestCase;
 
 class DatabaseEloquentDynamicRelationsTest extends TestCase
 {
@@ -96,12 +98,12 @@ class DynamicRelationModel extends Model
 
 class DynamicRelationModel2 extends Model
 {
-    public function getResults()
+    public function getResults(): void
     {
         //
     }
 
-    public function newQuery()
+    public function newQuery(): Builder
     {
         $query = new class extends Query
         {
@@ -111,7 +113,7 @@ class DynamicRelationModel2 extends Model
             }
         };
 
-        return new Builder($query);
+        return (new Builder($query))->setModel($this);
     }
 }
 
