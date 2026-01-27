@@ -77,6 +77,8 @@ trait HasEvents
      * Register observers with the model.
      *
      * @param array<class-string>|class-string|object $classes
+     *
+     * @throws InvalidArgumentException
      */
     public static function observe(object|array|string $classes): void
     {
@@ -91,6 +93,8 @@ trait HasEvents
      * Register a single observer with the model.
      *
      * @param class-string|object $class
+     *
+     * @throws InvalidArgumentException
      */
     protected function registerObserver(object|string $class): void
     {
