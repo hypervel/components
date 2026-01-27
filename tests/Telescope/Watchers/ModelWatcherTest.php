@@ -26,10 +26,10 @@ class ModelWatcherTest extends FeatureTestCase
             ->set('telescope.watchers', [
                 ModelWatcher::class => [
                     'enabled' => true,
-                    'events' => [
-                        \Hypervel\Database\Eloquent\Events\Created::class,
-                        \Hypervel\Database\Eloquent\Events\Updated::class,
-                        \Hypervel\Database\Eloquent\Events\Retrieved::class,
+                    'actions' => [
+                        'created',
+                        'updated',
+                        'retrieved',
                     ],
                     'hydrations' => true,
                 ],

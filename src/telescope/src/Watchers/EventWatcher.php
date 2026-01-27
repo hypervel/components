@@ -115,15 +115,12 @@ class EventWatcher extends Watcher
     }
 
     /**
-     * Determine if the event was fired internally by Laravel.
+     * Determine if the event was fired internally by the framework.
      */
     protected function eventIsFiredByTheFramework(string $eventName): bool
     {
-        if (in_array($eventName, ModelWatcher::MODEL_EVENTS)) {
-            return true;
-        }
-
         $prefixes = [
+            'eloquent.', // Model events (e.g., "eloquent.created: App\Models\User")
             'Hypervel',
             'Hyperf',
             'FriendsOfHyperf',
