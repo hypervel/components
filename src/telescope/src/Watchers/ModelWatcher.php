@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Watchers;
 
 use Hyperf\Context\Context;
-use Hypervel\Database\Eloquent\Events\ModelEvent;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
 use Hypervel\Telescope\FormatModel;
@@ -19,13 +18,18 @@ class ModelWatcher extends Watcher
 {
     public const HYDRATIONS = 'telescope.watcher.model.hydrations';
 
-    public const MODEL_EVENTS = [
-        \Hypervel\Database\Eloquent\Events\Created::class,
-        \Hypervel\Database\Eloquent\Events\Deleted::class,
-        \Hypervel\Database\Eloquent\Events\ForceDeleted::class,
-        \Hypervel\Database\Eloquent\Events\Restored::class,
-        \Hypervel\Database\Eloquent\Events\Retrieved::class,
-        \Hypervel\Database\Eloquent\Events\Updated::class,
+    /**
+     * The model events to watch.
+     *
+     * @var list<string>
+     */
+    public const MODEL_ACTIONS = [
+        'created',
+        'deleted',
+        'forceDeleted',
+        'restored',
+        'retrieved',
+        'updated',
     ];
 
     /**
@@ -39,7 +43,7 @@ class ModelWatcher extends Watcher
     public function register(ContainerInterface $app): void
     {
         $app->get(EventDispatcherInterface::class)
-            ->listen($this->options['events'] ?? static::MODEL_EVENTS, [$this, 'recordAction']);
+            ->listen('eloquent.*', [$this, 'recordAction']);
 
         Telescope::afterStoring(function () {
             $this->flushHydrations();
@@ -48,28 +52,48 @@ class ModelWatcher extends Watcher
 
     /**
      * Record an action.
+     *
+     * @param string $eventName The event name (e.g., "eloquent.created: App\Models\User")
+     * @param Model $model The model instance
      */
-    public function recordAction(ModelEvent $event): void
+    public function recordAction(string $eventName, Model $model): void
     {
-        if (! Telescope::isRecording() || ! $this->shouldRecord($event)) {
+        $action = $this->extractAction($eventName);
+
+        if (! Telescope::isRecording() || ! $this->shouldRecord($action, $model)) {
             return;
         }
 
-        if ($event->method === 'retrieved') {
-            $this->recordHydrations($event->model);
+        if ($action === 'retrieved') {
+            $this->recordHydrations($model);
 
             return;
         }
 
-        $modelClass = FormatModel::given($event->model);
+        $modelClass = FormatModel::given($model);
 
-        $changes = $event->model->getChanges();
+        $changes = $model->getChanges();
 
         Telescope::recordModelEvent(IncomingEntry::make(array_filter([
-            'action' => $event->method,
+            'action' => $action,
             'model' => $modelClass,
             'changes' => empty($changes) ? null : $changes,
         ]))->tags([$modelClass]));
+    }
+
+    /**
+     * Extract the action name from the event name.
+     *
+     * @param string $eventName Event name like "eloquent.created: App\Models\User"
+     */
+    protected function extractAction(string $eventName): string
+    {
+        // Extract "created" from "eloquent.created: App\Models\User"
+        if (preg_match('/^eloquent\.([a-zA-Z]+):/', $eventName, $matches)) {
+            return $matches[1];
+        }
+
+        return '';
     }
 
     public function getHyDrations(): array
@@ -135,9 +159,14 @@ class ModelWatcher extends Watcher
     /**
      * Determine if the Eloquent event should be recorded.
      */
-    private function shouldRecord(ModelEvent $event): bool
+    private function shouldRecord(string $action, Model $model): bool
     {
-        return in_array(get_class($event), static::MODEL_EVENTS);
+        if (! in_array($action, $this->options['actions'] ?? static::MODEL_ACTIONS)) {
+            return false;
+        }
+
+        return Collection::make($this->options['ignore'] ?? [EntryModel::class])
+            ->every(fn ($class) => ! $model instanceof $class);
     }
 
     /**
