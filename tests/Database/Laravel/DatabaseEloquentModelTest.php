@@ -755,7 +755,7 @@ class DatabaseEloquentModelTest extends TestCase
     public function testWithMethodCallsQueryBuilderCorrectly()
     {
         $result = EloquentModelWithStub::with('foo', 'bar');
-        $this->assertSame('foo', $result);
+        $this->assertInstanceOf(Builder::class, $result);
     }
 
     public function testWithoutMethodRemovesEagerLoadedRelationshipCorrectly()
@@ -812,7 +812,7 @@ class DatabaseEloquentModelTest extends TestCase
     public function testWithMethodCallsQueryBuilderCorrectlyWithArray()
     {
         $result = EloquentModelWithStub::with(['foo', 'bar']);
-        $this->assertSame('foo', $result);
+        $this->assertInstanceOf(Builder::class, $result);
     }
 
     public function testUpdateProcess()
@@ -3829,7 +3829,7 @@ class EloquentModelWithStub extends Model
     public function newQuery(): Builder
     {
         $mock = m::mock(Builder::class);
-        $mock->shouldReceive('with')->once()->with(['foo', 'bar'])->andReturn('foo');
+        $mock->shouldReceive('with')->once()->with(['foo', 'bar'])->andReturnSelf();
 
         return $mock;
     }
