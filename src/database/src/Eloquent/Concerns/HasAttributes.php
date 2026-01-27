@@ -1419,7 +1419,7 @@ trait HasAttributes
      */
     public function fromDateTime(mixed $value): ?string
     {
-        return empty($value) ? $value : $this->asDateTime($value)->format(
+        return ($value === null || $value === '') ? $value : $this->asDateTime($value)->format(
             $this->getDateFormat()
         );
     }
