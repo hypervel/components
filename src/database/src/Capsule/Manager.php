@@ -8,7 +8,8 @@ use Closure;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\DatabaseManager;
@@ -73,7 +74,7 @@ class Manager
     /**
      * Get a connection instance from the global manager.
      */
-    public static function connection(?string $connection = null): \Hypervel\Database\Connection
+    public static function connection(?string $connection = null): ConnectionInterface
     {
         return static::$instance->getConnection($connection);
     }
@@ -99,7 +100,7 @@ class Manager
     /**
      * Get a registered connection instance.
      */
-    public function getConnection(?string $name = null): \Hypervel\Database\Connection
+    public function getConnection(?string $name = null): ConnectionInterface
     {
         return $this->manager->connection($name);
     }

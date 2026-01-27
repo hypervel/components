@@ -65,7 +65,7 @@ trait HasEvents
         return (new Collection($reflectionClass->getAttributes(ObservedBy::class)))
             ->map(fn ($attribute) => $attribute->getArguments())
             ->flatten()
-            ->when($isEloquentGrandchild, function (Collection $attributes) {
+            ->when($isEloquentGrandchild, function (Collection $attributes) { // @phpstan-ignore argument.type (when() callback type inference)
                 // @phpstan-ignore staticMethod.nonObject ($isEloquentGrandchild guarantees parent exists and is Model subclass)
                 return (new Collection(get_parent_class(static::class)::resolveObserveAttributes()))
                     ->merge($attributes);

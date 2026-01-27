@@ -40,7 +40,7 @@ class StatusCommand extends BaseCommand
             $batches = $this->migrator->getRepository()->getMigrationBatches();
 
             $migrations = $this->getStatusFor($ran, $batches)
-                ->when($this->option('pending') !== false, fn ($collection) => $collection->filter(function ($migration) {
+                ->when($this->option('pending') !== false, fn ($collection) => $collection->filter(function ($migration) { // @phpstan-ignore argument.type (when() callback type inference)
                     return (new Stringable($migration[1]))->contains('Pending');
                 }));
 
