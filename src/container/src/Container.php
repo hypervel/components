@@ -259,6 +259,17 @@ class Container extends HyperfContainer implements ContainerContract, ArrayAcces
     }
 
     /**
+     * Register a shared binding in the container.
+     *
+     * @temporary This is an alias for bind() until Laravel's container is ported.
+     *            In Hyperf/Swoole, all bindings are singletons by default.
+     */
+    public function singleton(string $abstract, mixed $concrete = null): void
+    {
+        $this->bind($abstract, $concrete);
+    }
+
+    /**
      * Determine if the container has a method binding.
      */
     public function hasMethodBinding(string $method): bool

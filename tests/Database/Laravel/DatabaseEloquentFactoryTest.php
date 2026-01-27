@@ -1,32 +1,44 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel;
 
 use BadMethodCallException;
 use Carbon\Carbon;
 use Faker\Generator;
-use Illuminate\Container\Container;
-use Illuminate\Contracts\Foundation\Application;
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Attributes\UseFactory;
-use Illuminate\Database\Eloquent\Casts\Attribute;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Factories\CrossJoinSequence;
-use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Factories\Sequence;
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Str;
-use Illuminate\Tests\Database\Fixtures\Models\Money\Price;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Attributes\UseFactory;
+use Hypervel\Database\Eloquent\Casts\Attribute;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Factories\CrossJoinSequence;
+use Hypervel\Database\Eloquent\Factories\Factory;
+use Hypervel\Database\Eloquent\Factories\HasFactory;
+use Hypervel\Database\Eloquent\Factories\Sequence;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Support\Str;
+use Hypervel\Tests\Database\Laravel\Fixtures\Models\Money\Price;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
-use Hypervel\Tests\TestCase;
 use ReflectionClass;
 
+/**
+ * TODO(laravel-container-port): This test requires Laravel's container to be ported.
+ * It relies on Container::setInstance(null) and other Laravel-specific container behaviors
+ * that differ from Hyperf's container. Once Laravel's container is ported, remove the
+ * markTestSkipped() call in setUp() and this test should work.
+ */
 class DatabaseEloquentFactoryTest extends TestCase
 {
     protected function setUp(): void
     {
+        $this->markTestSkipped(
+            'Requires Laravel container port - uses Container::setInstance(null) and other Laravel-specific container behaviors'
+        );
+
         $container = Container::getInstance();
         $container->singleton(Generator::class, function ($app, $parameters) {
             return \Faker\Factory::create('en_US');
@@ -625,9 +637,9 @@ class DatabaseEloquentFactoryTest extends TestCase
     public function test_resolve_nested_model_name_from_factory()
     {
         Container::getInstance()->instance(Application::class, $app = m::mock(Application::class));
-        $app->shouldReceive('getNamespace')->andReturn('Illuminate\\Tests\\Database\\Fixtures\\');
+        $app->shouldReceive('getNamespace')->andReturn('Hypervel\\Tests\\Database\\Laravel\\Fixtures\\');
 
-        Factory::useNamespace('Illuminate\\Tests\\Database\\Fixtures\\Factories\\');
+        Factory::useNamespace('Hypervel\\Tests\\Database\\Laravel\\Fixtures\\Factories\\');
 
         $factory = Price::factory();
 
@@ -1027,7 +1039,7 @@ class DatabaseEloquentFactoryTest extends TestCase
     /**
      * Get a database connection instance.
      *
-     * @return \Illuminate\Database\ConnectionInterface
+     * @return \Hypervel\Database\ConnectionInterface
      */
     protected function connection()
     {
@@ -1037,7 +1049,7 @@ class DatabaseEloquentFactoryTest extends TestCase
     /**
      * Get a schema builder instance.
      *
-     * @return \Illuminate\Database\Schema\Builder
+     * @return \Hypervel\Database\Schema\Builder
      */
     protected function schema()
     {
@@ -1047,9 +1059,9 @@ class DatabaseEloquentFactoryTest extends TestCase
 
 class FactoryTestUserFactory extends Factory
 {
-    protected $model = FactoryTestUser::class;
+    protected ?string $model = FactoryTestUser::class;
 
-    public function definition()
+    public function definition(): array
     {
         return [
             'name' => $this->faker->name(),
@@ -1062,10 +1074,10 @@ class FactoryTestUser extends Eloquent
 {
     use HasFactory;
 
-    protected $table = 'users';
-    protected $hidden = ['options'];
-    protected $withCount = ['posts'];
-    protected $with = ['posts'];
+    protected ?string $table = 'users';
+    protected array $hidden = ['options'];
+    protected array $withCount = ['posts'];
+    protected array $with = ['posts'];
 
     public function posts()
     {
@@ -1100,9 +1112,9 @@ class FactoryTestUser extends Eloquent
 
 class FactoryTestPostFactory extends Factory
 {
-    protected $model = FactoryTestPost::class;
+    protected ?string $model = FactoryTestPost::class;
 
-    public function definition()
+    public function definition(): array
     {
         return [
             'user_id' => FactoryTestUserFactory::new(),
@@ -1115,9 +1127,9 @@ class FactoryTestPost extends Eloquent
 {
     use SoftDeletes;
 
-    protected $table = 'posts';
+    protected ?string $table = 'posts';
 
-    protected $appends = ['upper_case_name'];
+    protected array $appends = ['upper_case_name'];
 
     public function upperCaseName(): Attribute
     {
@@ -1152,9 +1164,9 @@ class FactoryTestPost extends Eloquent
 
 class FactoryTestCommentFactory extends Factory
 {
-    protected $model = FactoryTestComment::class;
+    protected ?string $model = FactoryTestComment::class;
 
-    public function definition()
+    public function definition(): array
     {
         return [
             'commentable_id' => FactoryTestPostFactory::new(),
@@ -1176,7 +1188,7 @@ class FactoryTestComment extends Eloquent
 {
     use SoftDeletes;
 
-    protected $table = 'comments';
+    protected ?string $table = 'comments';
 
     public function commentable()
     {
@@ -1186,9 +1198,9 @@ class FactoryTestComment extends Eloquent
 
 class FactoryTestRoleFactory extends Factory
 {
-    protected $model = FactoryTestRole::class;
+    protected ?string $model = FactoryTestRole::class;
 
-    public function definition()
+    public function definition(): array
     {
         return [
             'name' => $this->faker->name(),
@@ -1198,9 +1210,9 @@ class FactoryTestRoleFactory extends Factory
 
 class FactoryTestRole extends Eloquent
 {
-    protected $table = 'roles';
+    protected ?string $table = 'roles';
 
-    protected $touches = ['users'];
+    protected array $touches = ['users'];
 
     public function users()
     {
@@ -1210,12 +1222,12 @@ class FactoryTestRole extends Eloquent
 
 class FactoryTestGuessModelFactory extends Factory
 {
-    protected static function appNamespace()
+    protected static function appNamespace(): string
     {
         return __NAMESPACE__.'\\';
     }
 
-    public function definition()
+    public function definition(): array
     {
         return [
             'name' => $this->faker->name(),
@@ -1232,7 +1244,7 @@ class FactoryTestGuessModel extends Eloquent
 
 class FactoryTestUseFactoryAttributeFactory extends Factory
 {
-    public function definition()
+    public function definition(): array
     {
         return [
             'name' => $this->faker->name(),
@@ -1248,9 +1260,9 @@ class FactoryTestUseFactoryAttribute extends Eloquent
 
 class FactoryTestUserWithArray extends Eloquent
 {
-    protected $table = 'users';
+    protected ?string $table = 'users';
 
-    protected function casts()
+    protected function casts(): array
     {
         return ['options' => 'array'];
     }
@@ -1258,9 +1270,9 @@ class FactoryTestUserWithArray extends Eloquent
 
 class FactoryTestUserWithArrayFactory extends Factory
 {
-    protected $model = FactoryTestUserWithArray::class;
+    protected ?string $model = FactoryTestUserWithArray::class;
 
-    public function definition()
+    public function definition(): array
     {
         return [
             'name' => 'killer mike',

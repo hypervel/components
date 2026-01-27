@@ -13,7 +13,7 @@ class Price extends Model
     /** @use HasFactory<PriceFactory> */
     use HasFactory;
 
-    protected $table = 'prices';
+    protected ?string $table = 'prices';
 
     protected static string $factory = PriceFactory::class;
 }
