@@ -8,7 +8,7 @@ use Carbon\CarbonInterval;
 use Hypervel\Console\Contracts\CommandMutex;
 use Hypervel\Contracts\Cache\Factory as Cache;
 use Hypervel\Contracts\Cache\LockProvider;
-use Hypervel\Support\Traits\InteractsWithTime;
+use Hypervel\Support\InteractsWithTime;
 
 class CacheCommandMutex implements CommandMutex
 {

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Validation\Rules;
 
 use Hypervel\Support\Arr;
-use Hypervel\Support\Traits\Conditionable;
+use Hypervel\Conditionable\Traits\Conditionable;
 use Stringable;
 
 class Numeric implements Stringable

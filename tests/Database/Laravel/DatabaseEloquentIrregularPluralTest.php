@@ -1,16 +1,20 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Carbon;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentIrregularPluralTest extends TestCase
 {
     protected function setUp(): void
     {
+        parent::setUp();
+
         $db = new DB;
 
         $db->addConnection([
@@ -116,7 +120,7 @@ class DatabaseEloquentIrregularPluralTest extends TestCase
 
 class IrregularPluralHuman extends Model
 {
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function irregularPluralTokens()
     {
@@ -136,20 +140,20 @@ class IrregularPluralHuman extends Model
 
 class IrregularPluralToken extends Model
 {
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $touches = [
+    protected array $touches = [
         'irregularPluralHumans',
     ];
 }
 
 class IrregularPluralMotto extends Model
 {
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
     public function irregularPluralHumans()
     {

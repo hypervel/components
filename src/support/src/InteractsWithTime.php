@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Support\Traits;
+namespace Hypervel\Support;
 
 use Carbon\CarbonInterval;
 use DateInterval;

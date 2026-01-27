@@ -10,7 +10,7 @@ use Hypervel\HttpClient\PendingRequest as ClientPendingRequest;
 use Hypervel\HttpClient\Request;
 use Hypervel\Support\Facades\Http;
 use Hypervel\Support\Pipeline;
-use Hypervel\Support\Traits\Conditionable;
+use Hypervel\Conditionable\Traits\Conditionable;
 use InvalidArgumentException;
 use JsonSerializable;
 use Throwable;

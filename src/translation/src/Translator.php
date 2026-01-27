@@ -13,7 +13,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\NamespacedItemResolver;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
-use Hypervel\Support\Traits\ReflectsClosures;
+use Hypervel\Reflection\Traits\ReflectsClosures;
 use InvalidArgumentException;
 
 use function Hypervel\Support\enum_value;

@@ -9,7 +9,7 @@ use Hypervel\Contracts\Validation\Rule;
 use Hypervel\Contracts\Validation\Validator;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Traits\Conditionable;
+use Hypervel\Conditionable\Traits\Conditionable;
 use TypeError;
 use UnitEnum;
 

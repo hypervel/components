@@ -23,7 +23,7 @@ use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Database\Schema\Builder as SchemaBuilder;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Traits\InteractsWithTime;
+use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
 use PDO;
 use PDOStatement;

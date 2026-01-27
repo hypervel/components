@@ -36,7 +36,7 @@ use Hypervel\Session\TokenMismatchException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Auth;
 use Hypervel\Support\Reflector;
-use Hypervel\Support\Traits\ReflectsClosures;
+use Hypervel\Reflection\Traits\ReflectsClosures;
 use Hypervel\Validation\ValidationException;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;

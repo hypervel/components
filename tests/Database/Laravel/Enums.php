@@ -40,7 +40,7 @@ enum ArrayableStatus: string implements Arrayable
         };
     }
 
-    public function toArray()
+    public function toArray(): array
     {
         return [
             'name' => $this->name,

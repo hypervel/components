@@ -7,7 +7,7 @@ namespace Hypervel\Queue\Console;
 use Hyperf\Command\Command;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
-use Hypervel\Support\Traits\InteractsWithTime;
+use Hypervel\Support\InteractsWithTime;
 
 class RestartCommand extends Command
 {

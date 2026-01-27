@@ -1,9 +1,11 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Model;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentLocalScopesTest extends TestCase
@@ -91,7 +93,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
 
 class EloquentLocalScopesTestModel extends Model
 {
-    protected $table = 'table';
+    protected ?string $table = 'table';
 
     public function scopeActive($query)
     {

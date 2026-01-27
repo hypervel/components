@@ -10,7 +10,7 @@ use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
-use Hypervel\Support\Traits\InteractsWithTime;
+use Hypervel\Support\InteractsWithTime;
 
 class TerminateCommand extends Command
 {

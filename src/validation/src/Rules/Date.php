@@ -6,7 +6,7 @@ namespace Hypervel\Validation\Rules;
 
 use DateTimeInterface;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Traits\Conditionable;
+use Hypervel\Conditionable\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
 use Stringable;
 

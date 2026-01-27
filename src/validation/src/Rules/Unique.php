@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Validation\Rules;
 
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Support\Traits\Conditionable;
+use Hypervel\Conditionable\Traits\Conditionable;
 use Stringable;
 
 class Unique implements Stringable

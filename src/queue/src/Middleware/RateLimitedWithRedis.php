@@ -8,7 +8,7 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Redis\RedisFactory;
 use Hypervel\Redis\Limiters\DurationLimiter;
-use Hypervel\Support\Traits\InteractsWithTime;
+use Hypervel\Support\InteractsWithTime;
 
 class RateLimitedWithRedis extends RateLimited
 {

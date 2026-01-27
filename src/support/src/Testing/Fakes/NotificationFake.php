@@ -13,7 +13,7 @@ use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
-use Hypervel\Support\Traits\ReflectsClosures;
+use Hypervel\Reflection\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
 
 class NotificationFake implements Fake, NotificationDispatcher, NotificationFactory

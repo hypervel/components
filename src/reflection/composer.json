@@ -1,0 +1,41 @@
+{
+    "name": "hypervel/reflection",
+    "type": "library",
+    "description": "The Hypervel Reflection package.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "reflection",
+        "hypervel"
+    ],
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Reflection\\": "src/"
+        },
+        "files": [
+            "src/helpers.php"
+        ]
+    },
+    "require": {
+        "php": "^8.2",
+        "hypervel/support": "self.version"
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.3-dev"
+        }
+    }
+}

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Support;
+namespace Hypervel\Conditionable;
 
 class HigherOrderWhenProxy
 {

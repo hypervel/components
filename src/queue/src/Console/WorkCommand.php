@@ -18,7 +18,7 @@ use Hypervel\Queue\WorkerOptions;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
-use Hypervel\Support\Traits\InteractsWithTime;
+use Hypervel\Support\InteractsWithTime;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Terminal;

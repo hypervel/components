@@ -12,7 +12,7 @@ use Hypervel\Cookie\Cookie;
 use Hypervel\Foundation\Http\Middleware\Concerns\ExcludesPaths;
 use Hypervel\Session\TokenMismatchException;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Traits\InteractsWithTime;
+use Hypervel\Support\InteractsWithTime;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;

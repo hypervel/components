@@ -14,7 +14,7 @@ use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\QueryException;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Traits\InteractsWithTime;
+use Hypervel\Support\InteractsWithTime;
 use Psr\Container\ContainerInterface;
 use SessionHandlerInterface;
 

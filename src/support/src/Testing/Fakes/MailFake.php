@@ -18,7 +18,7 @@ use Hypervel\Mail\PendingMail;
 use Hypervel\Mail\SentMessage;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Traits\ReflectsClosures;
+use Hypervel\Reflection\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
 
 class MailFake implements Factory, Fake, Mailer, MailQueue

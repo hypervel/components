@@ -25,7 +25,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Traits\Macroable;
-use Hypervel\Support\Traits\ReflectsClosures;
+use Hypervel\Reflection\Traits\ReflectsClosures;
 use Hypervel\Support\Traits\Tappable;
 use LogicException;
 use Psr\Http\Client\ClientExceptionInterface;

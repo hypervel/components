@@ -8,7 +8,7 @@ use DateInterval;
 use DateTimeInterface;
 use Hyperf\Context\ApplicationContext;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
-use Hypervel\Support\Traits\InteractsWithTime;
+use Hypervel\Support\InteractsWithTime;
 
 class WithoutOverlapping
 {

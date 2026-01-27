@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Exceptions;
 
-use Hypervel\Support\Traits\ReflectsClosures;
+use Hypervel\Reflection\Traits\ReflectsClosures;
 use Throwable;
 
 class ReportableHandler

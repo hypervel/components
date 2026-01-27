@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Support\Traits;
+namespace Hypervel\Conditionable\Traits;
 
 use Closure;
-use Hypervel\Support\HigherOrderWhenProxy;
+use Hypervel\Conditionable\HigherOrderWhenProxy;
 
 trait Conditionable
 {

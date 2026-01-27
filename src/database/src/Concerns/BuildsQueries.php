@@ -17,7 +17,7 @@ use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Str;
-use Hypervel\Support\Traits\Conditionable;
+use Hypervel\Conditionable\Traits\Conditionable;
 use InvalidArgumentException;
 use RuntimeException;
 
