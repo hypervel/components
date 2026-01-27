@@ -1,12 +1,14 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\Pivot;
-use Mockery as m;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 
 class DatabaseEloquentCollectionQueueableTest extends TestCase
 {
