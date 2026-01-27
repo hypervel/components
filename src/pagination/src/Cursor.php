@@ -28,7 +28,7 @@ class Cursor implements Arrayable
      *
      * @throws UnexpectedValueException
      */
-    public function parameter(string $parameterName): ?string
+    public function parameter(string $parameterName): string|int|null
     {
         if (! array_key_exists($parameterName, $this->parameters)) {
             throw new UnexpectedValueException("Unable to find parameter [{$parameterName}] in pagination item.");
@@ -41,7 +41,7 @@ class Cursor implements Arrayable
      * Get the given parameters from the cursor.
      *
      * @param array<int, string> $parameterNames
-     * @return array<int, null|string>
+     * @return array<int, string|int|null>
      */
     public function parameters(array $parameterNames): array
     {

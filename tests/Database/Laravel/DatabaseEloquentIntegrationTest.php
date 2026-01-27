@@ -1,34 +1,34 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel;
 
 use DateTimeInterface;
 use Exception;
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Database\Eloquent\Relations\MorphPivot;
-use Illuminate\Database\Eloquent\Relations\Pivot;
-use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Illuminate\Database\QueryException;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Database\UniqueConstraintViolationException;
-use Illuminate\Pagination\AbstractPaginator as Paginator;
-use Illuminate\Pagination\Cursor;
-use Illuminate\Pagination\CursorPaginator;
-use Illuminate\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Date;
-use Illuminate\Support\Str;
-use Illuminate\Tests\Integration\Database\Fixtures\Post;
-use Illuminate\Tests\Integration\Database\Fixtures\User;
-use Hypervel\Tests\TestCase;
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Concerns\HasUuids;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\Eloquent\Relations\MorphPivot;
+use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Eloquent\SoftDeletingScope;
+use Hypervel\Database\QueryException;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Database\UniqueConstraintViolationException;
+use Hypervel\Pagination\AbstractPaginator as Paginator;
+use Hypervel\Pagination\Cursor;
+use Hypervel\Pagination\CursorPaginator;
+use Hypervel\Pagination\LengthAwarePaginator;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Str;
+use Hypervel\Testbench\TestCase;
 
 class DatabaseEloquentIntegrationTest extends TestCase
 {
@@ -39,6 +39,8 @@ class DatabaseEloquentIntegrationTest extends TestCase
      */
     protected function setUp(): void
     {
+        parent::setUp();
+
         $db = new DB;
 
         $db->addConnection([
@@ -2732,9 +2734,9 @@ class DatabaseEloquentIntegrationTest extends TestCase
  */
 class EloquentTestUser extends Eloquent
 {
-    protected $table = 'users';
-    protected $casts = ['birthday' => 'datetime'];
-    protected $guarded = [];
+    protected ?string $table = 'users';
+    protected array $casts = ['birthday' => 'datetime'];
+    protected array $guarded = [];
 
     public function friends()
     {
@@ -2791,25 +2793,25 @@ class EloquentTestUserWithCustomFriendPivot extends EloquentTestUser
 
 class EloquentTestUserWithSpaceInColumnName extends EloquentTestUser
 {
-    protected $table = 'users_with_space_in_column_name';
+    protected ?string $table = 'users_with_space_in_column_name';
 }
 
 class EloquentTestNonIncrementing extends Eloquent
 {
-    protected $table = 'non_incrementing_users';
-    protected $guarded = [];
-    public $incrementing = false;
-    public $timestamps = false;
+    protected ?string $table = 'non_incrementing_users';
+    protected array $guarded = [];
+    public bool $incrementing = false;
+    public bool $timestamps = false;
 }
 
 class EloquentTestNonIncrementingSecond extends EloquentTestNonIncrementing
 {
-    protected $connection = 'second_connection';
+    protected \UnitEnum|string|null $connection = 'second_connection';
 }
 
 class EloquentTestUserWithGlobalScope extends EloquentTestUser
 {
-    public static function boot()
+    public static function boot(): void
     {
         parent::boot();
 
@@ -2821,7 +2823,7 @@ class EloquentTestUserWithGlobalScope extends EloquentTestUser
 
 class EloquentTestUserWithOmittingGlobalScope extends EloquentTestUser
 {
-    public static function boot()
+    public static function boot(): void
     {
         parent::boot();
 
@@ -2835,11 +2837,11 @@ class EloquentTestUserWithGlobalScopeRemovingOtherScope extends Eloquent
 {
     use SoftDeletes;
 
-    protected $table = 'soft_deleted_users';
+    protected ?string $table = 'soft_deleted_users';
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public static function boot()
+    public static function boot(): void
     {
         static::addGlobalScope(function ($builder) {
             $builder->withoutGlobalScope(SoftDeletingScope::class);
@@ -2851,15 +2853,15 @@ class EloquentTestUserWithGlobalScopeRemovingOtherScope extends Eloquent
 
 class EloquentTestUniqueUser extends Eloquent
 {
-    protected $table = 'unique_users';
-    protected $casts = ['birthday' => 'datetime'];
-    protected $guarded = [];
+    protected ?string $table = 'unique_users';
+    protected array $casts = ['birthday' => 'datetime'];
+    protected array $guarded = [];
 }
 
 class EloquentTestPost extends Eloquent
 {
-    protected $table = 'posts';
-    protected $guarded = [];
+    protected ?string $table = 'posts';
+    protected array $guarded = [];
 
     public function user()
     {
@@ -2889,20 +2891,20 @@ class EloquentTestPost extends Eloquent
 
 class EloquentTestTag extends Eloquent
 {
-    protected $table = 'tags';
-    protected $guarded = [];
+    protected ?string $table = 'tags';
+    protected array $guarded = [];
 }
 
 class EloquentTestFriendLevel extends Eloquent
 {
-    protected $table = 'friend_levels';
-    protected $guarded = [];
+    protected ?string $table = 'friend_levels';
+    protected array $guarded = [];
 }
 
 class EloquentTestPhoto extends Eloquent
 {
-    protected $table = 'photos';
-    protected $guarded = [];
+    protected ?string $table = 'photos';
+    protected array $guarded = [];
 
     public function imageable()
     {
@@ -2912,14 +2914,14 @@ class EloquentTestPhoto extends Eloquent
 
 class EloquentTestUserWithStringCastId extends EloquentTestUser
 {
-    protected $casts = [
+    protected array $casts = [
         'id' => 'string',
     ];
 }
 
 class EloquentTestUserWithCustomDateSerialization extends EloquentTestUser
 {
-    protected function serializeDate(DateTimeInterface $date)
+    protected function serializeDate(DateTimeInterface $date): string
     {
         return $date->format('d-m-y');
     }
@@ -2927,9 +2929,9 @@ class EloquentTestUserWithCustomDateSerialization extends EloquentTestUser
 
 class EloquentTestOrder extends Eloquent
 {
-    protected $guarded = [];
-    protected $table = 'test_orders';
-    protected $with = ['item'];
+    protected array $guarded = [];
+    protected ?string $table = 'test_orders';
+    protected array $with = ['item'];
 
     public function item()
     {
@@ -2939,26 +2941,26 @@ class EloquentTestOrder extends Eloquent
 
 class EloquentTestItem extends Eloquent
 {
-    protected $guarded = [];
-    protected $table = 'test_items';
-    protected $connection = 'second_connection';
+    protected array $guarded = [];
+    protected ?string $table = 'test_items';
+    protected \UnitEnum|string|null $connection = 'second_connection';
 }
 
 class EloquentTestWithJSON extends Eloquent
 {
-    protected $guarded = [];
-    protected $table = 'with_json';
-    public $timestamps = false;
-    protected $casts = [
+    protected array $guarded = [];
+    protected ?string $table = 'with_json';
+    public bool $timestamps = false;
+    protected array $casts = [
         'json' => 'array',
     ];
 }
 
 class EloquentTestFriendPivot extends Pivot
 {
-    protected $table = 'friends';
-    protected $guarded = [];
-    public $timestamps = false;
+    protected ?string $table = 'friends';
+    protected array $guarded = [];
+    public bool $timestamps = false;
 
     public function user()
     {
@@ -2978,16 +2980,16 @@ class EloquentTestFriendPivot extends Pivot
 
 class EloquentTouchingUser extends Eloquent
 {
-    protected $table = 'users';
-    protected $guarded = [];
+    protected ?string $table = 'users';
+    protected array $guarded = [];
 }
 
 class EloquentTouchingPost extends Eloquent
 {
-    protected $table = 'posts';
-    protected $guarded = [];
+    protected ?string $table = 'posts';
+    protected array $guarded = [];
 
-    protected $touches = [
+    protected array $touches = [
         'user',
     ];
 
@@ -2999,10 +3001,10 @@ class EloquentTouchingPost extends Eloquent
 
 class EloquentTouchingComment extends Eloquent
 {
-    protected $table = 'comments';
-    protected $guarded = [];
+    protected ?string $table = 'comments';
+    protected array $guarded = [];
 
-    protected $touches = [
+    protected array $touches = [
         'post',
     ];
 
@@ -3014,10 +3016,10 @@ class EloquentTouchingComment extends Eloquent
 
 class EloquentTouchingCategory extends Eloquent
 {
-    protected $table = 'categories';
-    protected $guarded = [];
+    protected ?string $table = 'categories';
+    protected array $guarded = [];
 
-    protected $touches = [
+    protected array $touches = [
         'parent',
         'children',
     ];
@@ -3035,11 +3037,11 @@ class EloquentTouchingCategory extends Eloquent
 
 class EloquentTestAchievement extends Eloquent
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $table = 'achievements';
-    protected $guarded = [];
-    protected $attributes = ['status' => null];
+    protected ?string $table = 'achievements';
+    protected array $guarded = [];
+    protected array $attributes = ['status' => null];
 
     public function eloquentTestUsers()
     {
@@ -3051,11 +3053,16 @@ class ModelWithUniqueStringIds extends Eloquent
 {
     use HasUuids;
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $table = 'users_having_uuids';
+    protected ?string $table = 'users_having_uuids';
 
-    protected function casts()
+    protected array $attributes = [
+        'role' => IntBackedRole::User,
+        'role_string' => StringBackedRole::User,
+    ];
+
+    protected function casts(): array
     {
         return [
             'role' => IntBackedRole::class,
@@ -3063,12 +3070,7 @@ class ModelWithUniqueStringIds extends Eloquent
         ];
     }
 
-    protected $attributes = [
-        'role' => IntBackedRole::User,
-        'role_string' => StringBackedRole::User,
-    ];
-
-    public function uniqueIds()
+    public function uniqueIds(): array
     {
         return ['uuid'];
     }
@@ -3084,4 +3086,18 @@ enum StringBackedRole: string
 {
     case User = 'user';
     case Admin = 'admin';
+}
+
+/**
+ * Local stubs for User and Post (originally from Laravel's Integration\Database\Fixtures)
+ * Used for isIgnoringTouch() / withoutTouching() tests.
+ */
+class User extends Eloquent
+{
+    protected array $guarded = [];
+}
+
+class Post extends Eloquent
+{
+    protected array $guarded = [];
 }

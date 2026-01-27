@@ -1510,7 +1510,7 @@ class Str
     /**
      * Generate a UUID (version 7).
      */
-    public static function uuid7(?DateTimeInterface $time = null): UuidInterface
+    public static function uuid7(?DateTimeInterface $time = null): UuidInterface|string
     {
         return static::$uuidFactory
             ? call_user_func(static::$uuidFactory)
