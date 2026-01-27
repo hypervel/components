@@ -433,6 +433,26 @@ trait ValidatesAttributes
     }
 
     /**
+     * Validate an attribute does not contain a list of values.
+     *
+     * @param array<int, int|string> $parameters
+     */
+    public function validateDoesntContain(string $attribute, mixed $value, mixed $parameters): bool
+    {
+        if (! is_array($value)) {
+            return false;
+        }
+
+        foreach ($parameters as $parameter) {
+            if (in_array($parameter, $value)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Validate that the password of the currently authenticated user matches the given value.
      *
      * @param array<int, int|string> $parameters

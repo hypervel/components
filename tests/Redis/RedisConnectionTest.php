@@ -8,11 +8,14 @@ use Hyperf\Contract\PoolInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\Pool\PoolOption;
+use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Tests\Redis\Stubs\RedisConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery;
 use Psr\Container\ContainerInterface;
+use Redis;
+use RedisCluster;
 
 /**
  * @internal
@@ -489,6 +492,390 @@ class RedisConnectionTest extends TestCase
         $result = $connection->__call('zunionstore', ['output', ['set1', 'set2']]);
 
         $this->assertEquals(5, $result);
+    }
+
+    public function testGetTransformsFalseToNull(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('get')
+            ->with('key')
+            ->once()
+            ->andReturn(false);
+
+        $result = $connection->__call('get', ['key']);
+
+        $this->assertNull($result);
+    }
+
+    public function testSetWithoutOptions(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('set')
+            ->with('key', 'value', null)
+            ->once()
+            ->andReturn(true);
+
+        $result = $connection->__call('set', ['key', 'value']);
+
+        $this->assertTrue($result);
+    }
+
+    public function testSetnxReturnsZeroOnFailure(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('setNx')
+            ->with('key', 'value')
+            ->once()
+            ->andReturn(false);
+
+        $result = $connection->__call('setnx', ['key', 'value']);
+
+        $this->assertEquals(0, $result);
+    }
+
+    public function testHmsetWithAlternatingKeyValuePairs(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('hMSet')
+            ->with('hash', ['field1' => 'value1', 'field2' => 'value2'])
+            ->once()
+            ->andReturn(true);
+
+        // Laravel style: key, value, key, value
+        $result = $connection->__call('hmset', ['hash', 'field1', 'value1', 'field2', 'value2']);
+
+        $this->assertTrue($result);
+    }
+
+    public function testZaddWithScoreMemberPairs(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('zAdd')
+            ->with('zset', [], 1.0, 'member1', 2.0, 'member2')
+            ->once()
+            ->andReturn(2);
+
+        $result = $connection->__call('zadd', ['zset', 1.0, 'member1', 2.0, 'member2']);
+
+        $this->assertEquals(2, $result);
+    }
+
+    public function testZrangebyscoreWithListLimitPassesThrough(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('zRangeByScore')
+            ->with('zset', '-inf', '+inf', ['limit' => [5, 20]])
+            ->once()
+            ->andReturn(['member1']);
+
+        // Already in list format - passes through
+        $result = $connection->__call('zrangebyscore', ['zset', '-inf', '+inf', ['limit' => [5, 20]]]);
+
+        $this->assertEquals(['member1'], $result);
+    }
+
+    public function testZrevrangebyscoreWithLimitOption(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('zRevRangeByScore')
+            ->with('zset', '+inf', '-inf', ['limit' => [0, 5]])
+            ->once()
+            ->andReturn(['member2', 'member1']);
+
+        $result = $connection->__call('zrevrangebyscore', ['zset', '+inf', '-inf', ['limit' => ['offset' => 0, 'count' => 5]]]);
+
+        $this->assertEquals(['member2', 'member1'], $result);
+    }
+
+    public function testZinterstoreDefaultsAggregate(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('zinterstore')
+            ->with('output', ['set1', 'set2'], null, 'sum')
+            ->once()
+            ->andReturn(2);
+
+        $result = $connection->__call('zinterstore', ['output', ['set1', 'set2']]);
+
+        $this->assertEquals(2, $result);
+    }
+
+    public function testCallWithoutTransformPassesDirectly(): void
+    {
+        $connection = $this->mockRedisConnection(transform: false);
+
+        // Without transform, get() returns false (not null)
+        $connection->getConnection()
+            ->shouldReceive('get')
+            ->with('key')
+            ->once()
+            ->andReturn(false);
+
+        $result = $connection->__call('get', ['key']);
+
+        $this->assertFalse($result);
+    }
+
+    public function testSerializedReturnsTrueWhenSerializerConfigured(): void
+    {
+        $connection = $this->mockRedisConnection();
+
+        $connection->getConnection()
+            ->shouldReceive('getOption')
+            ->with(Redis::OPT_SERIALIZER)
+            ->andReturn(Redis::SERIALIZER_PHP);
+
+        $this->assertTrue($connection->serialized());
+    }
+
+    public function testSerializedReturnsFalseWhenNoSerializer(): void
+    {
+        $connection = $this->mockRedisConnection();
+
+        $connection->getConnection()
+            ->shouldReceive('getOption')
+            ->with(Redis::OPT_SERIALIZER)
+            ->andReturn(Redis::SERIALIZER_NONE);
+
+        $this->assertFalse($connection->serialized());
+    }
+
+    public function testCompressedReturnsTrueWhenCompressionConfigured(): void
+    {
+        if (! defined('Redis::COMPRESSION_LZF')) {
+            $this->markTestSkipped('Redis::COMPRESSION_LZF is not defined.');
+        }
+
+        $connection = $this->mockRedisConnection();
+
+        $connection->getConnection()
+            ->shouldReceive('getOption')
+            ->with(Redis::OPT_COMPRESSION)
+            ->andReturn(Redis::COMPRESSION_LZF);
+
+        $this->assertTrue($connection->compressed());
+    }
+
+    public function testCompressedReturnsFalseWhenNoCompression(): void
+    {
+        $connection = $this->mockRedisConnection();
+
+        $connection->getConnection()
+            ->shouldReceive('getOption')
+            ->with(Redis::OPT_COMPRESSION)
+            ->andReturn(Redis::COMPRESSION_NONE);
+
+        $this->assertFalse($connection->compressed());
+    }
+
+    public function testIsClusterReturnsFalseForStandardRedis(): void
+    {
+        $connection = $this->mockRedisConnection();
+
+        // Default stub uses a Redis mock, so isCluster() should return false
+        $this->assertFalse($connection->isCluster());
+    }
+
+    public function testIsClusterReturnsTrueForRedisCluster(): void
+    {
+        $connection = $this->mockRedisConnection();
+
+        // Set a RedisCluster mock as the active connection
+        $clusterMock = Mockery::mock(RedisCluster::class)->shouldIgnoreMissing();
+        $connection->setActiveConnection($clusterMock);
+
+        $this->assertTrue($connection->isCluster());
+    }
+
+    public function testPackReturnsEmptyArrayForEmptyInput(): void
+    {
+        $connection = $this->mockRedisConnection();
+
+        $result = $connection->pack([]);
+
+        $this->assertSame([], $result);
+    }
+
+    public function testPackUsesNativePackMethod(): void
+    {
+        $connection = $this->mockRedisConnection();
+
+        $connection->getConnection()
+            ->shouldReceive('_pack')
+            ->with('value1')
+            ->once()
+            ->andReturn('packed1');
+        $connection->getConnection()
+            ->shouldReceive('_pack')
+            ->with('value2')
+            ->once()
+            ->andReturn('packed2');
+
+        $result = $connection->pack(['value1', 'value2']);
+
+        $this->assertSame(['packed1', 'packed2'], $result);
+    }
+
+    public function testPackPreservesArrayKeys(): void
+    {
+        $connection = $this->mockRedisConnection();
+
+        $connection->getConnection()
+            ->shouldReceive('_pack')
+            ->with('value1')
+            ->once()
+            ->andReturn('packed1');
+        $connection->getConnection()
+            ->shouldReceive('_pack')
+            ->with('value2')
+            ->once()
+            ->andReturn('packed2');
+
+        $result = $connection->pack(['key1' => 'value1', 'key2' => 'value2']);
+
+        $this->assertSame([
+            'key1' => 'packed1',
+            'key2' => 'packed2',
+        ], $result);
+    }
+
+    public function testEvalWithShaCacheSucceedsOnFirstTry(): void
+    {
+        $connection = $this->mockRedisConnection();
+        $script = 'return KEYS[1]';
+        $sha = sha1($script);
+
+        $connection->getConnection()
+            ->shouldReceive('evalSha')
+            ->with($sha, ['mykey', 'arg1', 'arg2'], 1)
+            ->once()
+            ->andReturn('mykey');
+
+        $result = $connection->evalWithShaCache($script, ['mykey'], ['arg1', 'arg2']);
+
+        $this->assertEquals('mykey', $result);
+    }
+
+    public function testEvalWithShaCacheThrowsOnNonNoscriptError(): void
+    {
+        $connection = $this->mockRedisConnection();
+        $script = 'invalid lua syntax';
+        $sha = sha1($script);
+
+        $redisConnection = $connection->getConnection();
+
+        $redisConnection->shouldReceive('evalSha')
+            ->with($sha, ['mykey'], 1)
+            ->once()
+            ->andReturn(false);
+
+        $redisConnection->shouldReceive('getLastError')
+            ->once()
+            ->andReturn('ERR Error compiling script');
+
+        $this->expectException(LuaScriptException::class);
+        $this->expectExceptionMessage('Lua script execution failed: ERR Error compiling script');
+
+        $connection->evalWithShaCache($script, ['mykey']);
+    }
+
+    public function testEvalWithShaCacheReturnsLegitimatelyFalseResult(): void
+    {
+        $connection = $this->mockRedisConnection();
+        $script = 'return false';
+        $sha = sha1($script);
+
+        $redisConnection = $connection->getConnection();
+
+        // Script returns false legitimately (no error)
+        $redisConnection->shouldReceive('evalSha')
+            ->with($sha, [], 0)
+            ->once()
+            ->andReturn(false);
+
+        $redisConnection->shouldReceive('getLastError')
+            ->once()
+            ->andReturn(null); // No error - script legitimately returned false
+
+        $result = $connection->evalWithShaCache($script);
+
+        $this->assertFalse($result);
+    }
+
+    public function testEvalWithShaCacheWorksWithNoKeysOrArgs(): void
+    {
+        $connection = $this->mockRedisConnection();
+        $script = 'return 42';
+        $sha = sha1($script);
+
+        $connection->getConnection()
+            ->shouldReceive('evalSha')
+            ->with($sha, [], 0)
+            ->once()
+            ->andReturn(42);
+
+        $result = $connection->evalWithShaCache($script);
+
+        $this->assertEquals(42, $result);
+    }
+
+    public function testEvalWithShaCacheWorksWithMultipleKeysAndArgs(): void
+    {
+        $connection = $this->mockRedisConnection();
+        $script = 'return {KEYS[1], KEYS[2], ARGV[1], ARGV[2]}';
+        $sha = sha1($script);
+
+        $connection->getConnection()
+            ->shouldReceive('evalSha')
+            ->with($sha, ['key1', 'key2', 'arg1', 'arg2'], 2)
+            ->once()
+            ->andReturn(['key1', 'key2', 'arg1', 'arg2']);
+
+        $result = $connection->evalWithShaCache($script, ['key1', 'key2'], ['arg1', 'arg2']);
+
+        $this->assertEquals(['key1', 'key2', 'arg1', 'arg2'], $result);
+    }
+
+    public function testEvalWithShaCacheClearsLastErrorBeforeEvalSha(): void
+    {
+        $connection = $this->mockRedisConnection();
+        $script = 'return "ok"';
+        $sha = sha1($script);
+
+        $redisConnection = $connection->getConnection();
+
+        // Verify clearLastError is called before evalSha using ordered expectations
+        $redisConnection->shouldReceive('clearLastError')
+            ->once()
+            ->globally()
+            ->ordered();
+
+        $redisConnection->shouldReceive('evalSha')
+            ->with($sha, [], 0)
+            ->once()
+            ->globally()
+            ->ordered()
+            ->andReturn('ok');
+
+        $result = $connection->evalWithShaCache($script);
+
+        $this->assertEquals('ok', $result);
     }
 
     protected function mockRedisConnection(?ContainerInterface $container = null, ?PoolInterface $pool = null, array $options = [], bool $transform = false): RedisConnection

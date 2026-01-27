@@ -36,7 +36,8 @@ class Post extends Model
  * @template TKey of array-key
  * @template TModel of Post
  *
- * @extends Collection<TKey, TModel> */
+ * @extends Collection<TKey, TModel>
+ */
 class Posts extends Collection
 {
 }

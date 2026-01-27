@@ -192,6 +192,23 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
      */
     protected function runInCoroutine(callable $callback): void
     {
-        Coroutine::inCoroutine() ? $callback() : run($callback);
+        if (Coroutine::inCoroutine()) {
+            $callback();
+            return;
+        }
+
+        $exception = null;
+
+        run(function () use ($callback, &$exception) {
+            try {
+                $callback();
+            } catch (Throwable $e) {
+                $exception = $e;
+            }
+        });
+
+        if ($exception !== null) {
+            throw $exception;
+        }
     }
 }

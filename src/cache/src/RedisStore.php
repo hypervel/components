@@ -4,13 +4,42 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
+use Closure;
+use Hyperf\Redis\Pool\PoolFactory;
 use Hyperf\Redis\RedisFactory;
 use Hyperf\Redis\RedisProxy;
 use Hypervel\Cache\Contracts\LockProvider;
+use Hypervel\Cache\Redis\AllTaggedCache;
+use Hypervel\Cache\Redis\AllTagSet;
+use Hypervel\Cache\Redis\AnyTaggedCache;
+use Hypervel\Cache\Redis\AnyTagSet;
+use Hypervel\Cache\Redis\Exceptions\RedisCacheException;
+use Hypervel\Cache\Redis\Operations\Add;
+use Hypervel\Cache\Redis\Operations\AllTagOperations;
+use Hypervel\Cache\Redis\Operations\AnyTagOperations;
+use Hypervel\Cache\Redis\Operations\Decrement;
+use Hypervel\Cache\Redis\Operations\Flush;
+use Hypervel\Cache\Redis\Operations\Forever;
+use Hypervel\Cache\Redis\Operations\Forget;
+use Hypervel\Cache\Redis\Operations\Get;
+use Hypervel\Cache\Redis\Operations\Increment;
+use Hypervel\Cache\Redis\Operations\Many;
+use Hypervel\Cache\Redis\Operations\Put;
+use Hypervel\Cache\Redis\Operations\PutMany;
+use Hypervel\Cache\Redis\Operations\Remember;
+use Hypervel\Cache\Redis\Operations\RememberForever;
+use Hypervel\Cache\Redis\Support\Serialization;
+use Hypervel\Cache\Redis\Support\StoreContext;
+use Hypervel\Cache\Redis\TagMode;
 
 class RedisStore extends TaggableStore implements LockProvider
 {
     protected RedisFactory $factory;
+
+    /**
+     * The pool factory instance (lazy-loaded if not provided).
+     */
+    protected ?PoolFactory $poolFactory = null;
 
     /**
      * A string that should be prepended to keys.
@@ -28,11 +57,65 @@ class RedisStore extends TaggableStore implements LockProvider
     protected string $lockConnection;
 
     /**
+     * The tag mode (All or Any).
+     */
+    protected TagMode $tagMode = TagMode::All;
+
+    /**
+     * Cached StoreContext instance.
+     */
+    private ?StoreContext $context = null;
+
+    /**
+     * Cached Serialization instance.
+     */
+    private ?Serialization $serialization = null;
+
+    /**
+     * Cached shared operation instances.
+     */
+    private ?Get $getOperation = null;
+
+    private ?Many $manyOperation = null;
+
+    private ?Put $putOperation = null;
+
+    private ?PutMany $putManyOperation = null;
+
+    private ?Add $addOperation = null;
+
+    private ?Forever $foreverOperation = null;
+
+    private ?Forget $forgetOperation = null;
+
+    private ?Increment $incrementOperation = null;
+
+    private ?Decrement $decrementOperation = null;
+
+    private ?Flush $flushOperation = null;
+
+    private ?Remember $rememberOperation = null;
+
+    private ?RememberForever $rememberForeverOperation = null;
+
+    /**
+     * Cached tag operation containers.
+     */
+    private ?AnyTagOperations $anyTagOperations = null;
+
+    private ?AllTagOperations $allTagOperations = null;
+
+    /**
      * Create a new Redis store.
      */
-    public function __construct(RedisFactory $factory, string $prefix = '', string $connection = 'default')
-    {
+    public function __construct(
+        RedisFactory $factory,
+        string $prefix = '',
+        string $connection = 'default',
+        ?PoolFactory $poolFactory = null,
+    ) {
         $this->factory = $factory;
+        $this->poolFactory = $poolFactory;
         $this->setPrefix($prefix);
         $this->setConnection($connection);
     }
@@ -42,9 +125,7 @@ class RedisStore extends TaggableStore implements LockProvider
      */
     public function get(string $key): mixed
     {
-        $value = $this->connection()->get($this->prefix . $key);
-
-        return $this->unserialize($value);
+        return $this->getGetOperation()->execute($key);
     }
 
     /**
@@ -53,17 +134,7 @@ class RedisStore extends TaggableStore implements LockProvider
      */
     public function many(array $keys): array
     {
-        $results = [];
-
-        $values = $this->connection()->mget(array_map(function ($key) {
-            return $this->prefix . $key;
-        }, $keys));
-
-        foreach ($values as $index => $value) {
-            $results[$keys[$index]] = $this->unserialize($value);
-        }
-
-        return $results;
+        return $this->getManyOperation()->execute($keys);
     }
 
     /**
@@ -71,11 +142,7 @@ class RedisStore extends TaggableStore implements LockProvider
      */
     public function put(string $key, mixed $value, int $seconds): bool
     {
-        return (bool) $this->connection()->setex(
-            $this->prefix . $key,
-            (int) max(1, $seconds),
-            $this->serialize($value)
-        );
+        return $this->getPutOperation()->execute($key, $value, $seconds);
     }
 
     /**
@@ -83,19 +150,7 @@ class RedisStore extends TaggableStore implements LockProvider
      */
     public function putMany(array $values, int $seconds): bool
     {
-        $this->connection()->multi();
-
-        $manyResult = null;
-
-        foreach ($values as $key => $value) {
-            $result = $this->put($key, $value, $seconds);
-
-            $manyResult = is_null($manyResult) ? $result : $result && $manyResult;
-        }
-
-        $this->connection()->exec();
-
-        return $manyResult ?: false;
+        return $this->getPutManyOperation()->execute($values, $seconds);
     }
 
     /**
@@ -103,17 +158,7 @@ class RedisStore extends TaggableStore implements LockProvider
      */
     public function add(string $key, mixed $value, int $seconds): bool
     {
-        $lua = "return redis.call('exists',KEYS[1])<1 and redis.call('setex',KEYS[1],ARGV[2],ARGV[1])";
-
-        return (bool) $this->connection()->eval(
-            $lua,
-            [
-                $this->prefix . $key,
-                $this->serialize($value),
-                (int) max(1, $seconds),
-            ],
-            1
-        );
+        return $this->getAddOperation()->execute($key, $value, $seconds);
     }
 
     /**
@@ -121,7 +166,7 @@ class RedisStore extends TaggableStore implements LockProvider
      */
     public function increment(string $key, int $value = 1): int
     {
-        return $this->connection()->incrby($this->prefix . $key, $value);
+        return $this->getIncrementOperation()->execute($key, $value);
     }
 
     /**
@@ -129,7 +174,7 @@ class RedisStore extends TaggableStore implements LockProvider
      */
     public function decrement(string $key, int $value = 1): int
     {
-        return $this->connection()->decrby($this->prefix . $key, $value);
+        return $this->getDecrementOperation()->execute($key, $value);
     }
 
     /**
@@ -137,7 +182,7 @@ class RedisStore extends TaggableStore implements LockProvider
      */
     public function forever(string $key, mixed $value): bool
     {
-        return (bool) $this->connection()->set($this->prefix . $key, $this->serialize($value));
+        return $this->getForeverOperation()->execute($key, $value);
     }
 
     /**
@@ -161,7 +206,7 @@ class RedisStore extends TaggableStore implements LockProvider
      */
     public function forget(string $key): bool
     {
-        return (bool) $this->connection()->del($this->prefix . $key);
+        return $this->getForgetOperation()->execute($key);
     }
 
     /**
@@ -169,20 +214,102 @@ class RedisStore extends TaggableStore implements LockProvider
      */
     public function flush(): bool
     {
-        $this->connection()->flushdb();
+        return $this->getFlushOperation()->execute();
+    }
 
-        return true;
+    /**
+     * Get an item from the cache, or execute the given Closure and store the result.
+     *
+     * Optimized to use a single connection for both GET and SET operations,
+     * avoiding double pool overhead for cache misses.
+     *
+     * @param Closure(): mixed $callback
+     */
+    public function remember(string $key, int $seconds, Closure $callback): mixed
+    {
+        return $this->getRememberOperation()->execute($key, $seconds, $callback);
+    }
+
+    /**
+     * Get an item from the cache, or execute the given Closure and store the result forever.
+     *
+     * Optimized to use a single connection for both GET and SET operations,
+     * avoiding double pool overhead for cache misses.
+     *
+     * @param Closure(): mixed $callback
+     * @return array{0: mixed, 1: bool} Tuple of [value, wasHit]
+     */
+    public function rememberForever(string $key, Closure $callback): array
+    {
+        return $this->getRememberForeverOperation()->execute($key, $callback);
+    }
+
+    /**
+     * Get the any tag operations container.
+     *
+     * Use this to access all any-mode tagged cache operations.
+     */
+    public function anyTagOps(): AnyTagOperations
+    {
+        return $this->anyTagOperations ??= new AnyTagOperations(
+            $this->getContext(),
+            $this->getSerialization()
+        );
+    }
+
+    /**
+     * Get the all tag operations container.
+     *
+     * Use this to access all all-mode tagged cache operations.
+     */
+    public function allTagOps(): AllTagOperations
+    {
+        return $this->allTagOperations ??= new AllTagOperations(
+            $this->getContext(),
+            $this->getSerialization()
+        );
     }
 
     /**
      * Begin executing a new tags operation.
      */
-    public function tags(mixed $names): RedisTaggedCache
+    public function tags(mixed $names): AllTaggedCache|AnyTaggedCache
     {
-        return new RedisTaggedCache(
+        $names = is_array($names) ? $names : func_get_args();
+
+        if ($this->tagMode === TagMode::Any) {
+            return new AnyTaggedCache(
+                $this,
+                new AnyTagSet($this, $names)
+            );
+        }
+
+        return new AllTaggedCache(
             $this,
-            new RedisTagSet($this, is_array($names) ? $names : func_get_args())
+            new AllTagSet($this, $names)
         );
+    }
+
+    /**
+     * Set the tag mode.
+     */
+    public function setTagMode(TagMode|string $mode): static
+    {
+        $this->tagMode = $mode instanceof TagMode
+            ? $mode
+            : TagMode::fromConfig($mode);
+
+        $this->clearCachedInstances();
+
+        return $this;
+    }
+
+    /**
+     * Get the tag mode.
+     */
+    public function getTagMode(): TagMode
+    {
+        return $this->tagMode;
     }
 
     /**
@@ -207,6 +334,7 @@ class RedisStore extends TaggableStore implements LockProvider
     public function setConnection(string $connection): void
     {
         $this->connection = $connection;
+        $this->clearCachedInstances();
     }
 
     /**
@@ -240,26 +368,194 @@ class RedisStore extends TaggableStore implements LockProvider
      */
     public function setPrefix(string $prefix): void
     {
-        $this->prefix = ! empty($prefix) ? $prefix . ':' : '';
+        $this->prefix = $prefix;
+        $this->clearCachedInstances();
+    }
+
+    /**
+     * Get the StoreContext instance.
+     */
+    public function getContext(): StoreContext
+    {
+        return $this->context ??= new StoreContext(
+            $this->connection,
+            $this->prefix,
+            $this->tagMode,
+        );
+    }
+
+    /**
+     * Get the Serialization instance.
+     */
+    public function getSerialization(): Serialization
+    {
+        return $this->serialization ??= new Serialization();
+    }
+
+    /**
+     * Get the PoolFactory instance, lazily resolving if not provided.
+     */
+    protected function getPoolFactory(): PoolFactory
+    {
+        return $this->poolFactory ??= $this->resolvePoolFactory();
     }
 
     /**
      * Serialize the value.
+     *
+     * @deprecated Use Serialization::serialize() with a RedisConnection instead.
+     *
+     * This method is intentionally disabled to prevent an N+1 pool checkout bug.
+     * If serialization methods acquire their own connection, batch operations like
+     * putMany(1000) would checkout 1001 connections (1 for the operation + 1000
+     * for serialization) instead of 1, causing massive performance degradation.
+     *
+     * @throws RedisCacheException Always throws - use Serialization::serialize() instead
      */
-    protected function serialize(mixed $value): mixed
+    protected function serialize(mixed $value): never
     {
-        // is_nan() doesn't work in strict mode; NaN is the only value where $v !== $v
-        return is_numeric($value) && ! in_array($value, [INF, -INF]) && ($value === $value) ? $value : serialize($value); // @phpstan-ignore identical.alwaysTrue
+        throw new RedisCacheException(
+            'RedisStore::serialize() is disabled to prevent N+1 pool checkout bugs. '
+            . 'Use Serialization::serialize($conn, $value) inside a withConnection() callback instead.'
+        );
     }
 
     /**
      * Unserialize the value.
+     *
+     * @deprecated Use Serialization::unserialize() with a RedisConnection instead.
+     *
+     * This method is intentionally disabled to prevent an N+1 pool checkout bug.
+     * If serialization methods acquire their own connection, batch operations like
+     * many(1000) would checkout 1001 connections (1 for the operation + 1000
+     * for unserialization) instead of 1, causing massive performance degradation.
+     *
+     * @throws RedisCacheException Always throws - use Serialization::unserialize() instead
      */
-    protected function unserialize(mixed $value): mixed
+    protected function unserialize(mixed $value): never
     {
-        if ($value === null || $value === false) {
-            return null;
-        }
-        return is_numeric($value) ? $value : unserialize((string) $value);
+        throw new RedisCacheException(
+            'RedisStore::unserialize() is disabled to prevent N+1 pool checkout bugs. '
+            . 'Use Serialization::unserialize($conn, $value) inside a withConnection() callback instead.'
+        );
+    }
+
+    /**
+     * Resolve the PoolFactory from the container.
+     */
+    private function resolvePoolFactory(): PoolFactory
+    {
+        return \Hyperf\Support\make(PoolFactory::class);
+    }
+
+    /**
+     * Clear all cached instances when connection or prefix changes.
+     */
+    private function clearCachedInstances(): void
+    {
+        $this->context = null;
+        $this->serialization = null;
+
+        // Shared operations
+        $this->getOperation = null;
+        $this->manyOperation = null;
+        $this->putOperation = null;
+        $this->putManyOperation = null;
+        $this->addOperation = null;
+        $this->foreverOperation = null;
+        $this->forgetOperation = null;
+        $this->incrementOperation = null;
+        $this->decrementOperation = null;
+        $this->flushOperation = null;
+        $this->rememberOperation = null;
+        $this->rememberForeverOperation = null;
+
+        // Tag operation containers
+        $this->anyTagOperations = null;
+        $this->allTagOperations = null;
+    }
+
+    private function getGetOperation(): Get
+    {
+        return $this->getOperation ??= new Get(
+            $this->getContext(),
+            $this->getSerialization()
+        );
+    }
+
+    private function getManyOperation(): Many
+    {
+        return $this->manyOperation ??= new Many(
+            $this->getContext(),
+            $this->getSerialization()
+        );
+    }
+
+    private function getPutOperation(): Put
+    {
+        return $this->putOperation ??= new Put(
+            $this->getContext(),
+            $this->getSerialization()
+        );
+    }
+
+    private function getPutManyOperation(): PutMany
+    {
+        return $this->putManyOperation ??= new PutMany(
+            $this->getContext(),
+            $this->getSerialization()
+        );
+    }
+
+    private function getAddOperation(): Add
+    {
+        return $this->addOperation ??= new Add(
+            $this->getContext(),
+            $this->getSerialization()
+        );
+    }
+
+    private function getForeverOperation(): Forever
+    {
+        return $this->foreverOperation ??= new Forever(
+            $this->getContext(),
+            $this->getSerialization()
+        );
+    }
+
+    private function getForgetOperation(): Forget
+    {
+        return $this->forgetOperation ??= new Forget($this->getContext());
+    }
+
+    private function getIncrementOperation(): Increment
+    {
+        return $this->incrementOperation ??= new Increment($this->getContext());
+    }
+
+    private function getDecrementOperation(): Decrement
+    {
+        return $this->decrementOperation ??= new Decrement($this->getContext());
+    }
+
+    private function getFlushOperation(): Flush
+    {
+        return $this->flushOperation ??= new Flush($this->getContext());
+    }
+
+    private function getRememberOperation(): Remember
+    {
+        return $this->rememberOperation ??= new Remember(
+            $this->getContext(),
+            $this->getSerialization()
+        );
+    }
+
+    private function getRememberForeverOperation(): RememberForever
+    {
+        return $this->rememberForeverOperation ??= new RememberForever(
+            $this->getContext(),
+            $this->getSerialization()
+        );
     }
 }

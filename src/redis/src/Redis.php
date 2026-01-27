@@ -9,6 +9,7 @@ use Hyperf\Redis\Exception\InvalidRedisConnectionException;
 use Hyperf\Redis\Pool\PoolFactory;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
+use Hypervel\Redis\Traits\MultiExec;
 use Throwable;
 use UnitEnum;
 
@@ -19,6 +20,8 @@ use function Hypervel\Support\enum_value;
  */
 class Redis
 {
+    use MultiExec;
+
     protected string $poolName = 'default';
 
     public function __construct(
@@ -108,8 +111,11 @@ class Redis
 
     /**
      * Get a connection from coroutine context, or from redis connection pool.
+     *
+     * @param bool $hasContextConnection Whether a connection exists in coroutine context
+     * @param bool $transform Whether to enable Laravel-style result transformation
      */
-    protected function getConnection(bool $hasContextConnection): RedisConnection
+    protected function getConnection(bool $hasContextConnection, bool $transform = true): RedisConnection
     {
         $connection = $hasContextConnection
             ? Context::get($this->getContextKey())
@@ -122,7 +128,7 @@ class Redis
             throw new InvalidRedisConnectionException('The connection is not a valid RedisConnection.');
         }
 
-        return $connection->shouldTransform(true);
+        return $connection->shouldTransform($transform);
     }
 
     /**
@@ -134,6 +140,35 @@ class Redis
     }
 
     /**
+     * Execute callback with a pinned connection from the pool.
+     *
+     * Use this for operations requiring multiple commands on the same connection
+     * (e.g., evalSha + getLastError, multi-step Lua operations). The connection
+     * is automatically returned to the pool after the callback completes.
+     *
+     * If a connection is already stored in coroutine context (e.g., from an
+     * active multi/pipeline), that connection is reused and not released.
+     *
+     * @template T
+     * @param callable(RedisConnection): T $callback
+     * @param bool $transform Whether to enable Laravel-style result transformation (default: true)
+     * @return T
+     */
+    public function withConnection(callable $callback, bool $transform = true): mixed
+    {
+        $hasContextConnection = Context::has($this->getContextKey());
+        $connection = $this->getConnection($hasContextConnection, $transform);
+
+        try {
+            return $callback($connection);
+        } finally {
+            if (! $hasContextConnection) {
+                $connection->release();
+            }
+        }
+    }
+
+    /**
      * Get a Redis connection by name.
      */
     public function connection(UnitEnum|string $name = 'default'): RedisProxy
@@ -141,5 +176,30 @@ class Redis
         return ApplicationContext::getContainer()
             ->get(RedisFactory::class)
             ->get(enum_value($name));
+    }
+
+    /**
+     * Flush (delete) all Redis keys matching a pattern.
+     *
+     * Use this for standalone/one-off flush operations. It handles the connection
+     * lifecycle automatically (get from pool, flush, release). Uses the default
+     * connection, or specify one via Redis::connection($name)->flushByPattern().
+     *
+     * If you already have a connection (e.g., inside withConnection()), call
+     * $connection->flushByPattern() directly to avoid redundant pool operations.
+     *
+     * Uses SCAN to iterate keys efficiently and deletes them in batches.
+     * Correctly handles OPT_PREFIX to avoid the double-prefixing bug.
+     *
+     * @param string $pattern The pattern to match (e.g., "cache:test:*").
+     *                        Should NOT include OPT_PREFIX - it's handled automatically.
+     * @return int Number of keys deleted
+     */
+    public function flushByPattern(string $pattern): int
+    {
+        return $this->withConnection(
+            fn (RedisConnection $connection) => $connection->flushByPattern($pattern),
+            transform: false
+        );
     }
 }
