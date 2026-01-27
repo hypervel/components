@@ -102,7 +102,10 @@
         ],
         "psr-4": {
             "Hypervel\\Tests\\": "tests/"
-        }
+        },
+        "classmap": [
+            "tests/Validation/Enums.php"
+        ]
     },
     "require": {
         "php": ">=8.2",
