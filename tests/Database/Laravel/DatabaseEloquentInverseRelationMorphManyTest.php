@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Model as Eloquent;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
 {

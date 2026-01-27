@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\Laravel;
 
 use Hypervel\Database\Concerns\BuildsQueries;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseConcernsBuildsQueriesTraitTest extends TestCase
 {

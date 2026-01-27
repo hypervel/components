@@ -5,7 +5,7 @@ namespace Illuminate\Tests\Database;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Query\Grammars\MySqlGrammar;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseMySqlQueryGrammarTest extends TestCase
 {

@@ -7,7 +7,7 @@ use Illuminate\Database\Query\Processors\MySqlProcessor;
 use Illuminate\Database\Schema\Grammars\MySqlGrammar;
 use Illuminate\Database\Schema\MySqlBuilder;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseMySQLSchemaBuilderTest extends TestCase
 {

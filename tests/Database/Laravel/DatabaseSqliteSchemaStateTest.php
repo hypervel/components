@@ -7,7 +7,7 @@ use Illuminate\Database\SQLiteConnection;
 use Illuminate\Filesystem\Filesystem;
 use Mockery as m;
 use PDO;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 use Symfony\Component\Process\Process;
 
 class DatabaseSqliteSchemaStateTest extends TestCase

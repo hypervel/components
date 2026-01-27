@@ -6,7 +6,7 @@ use Illuminate\Database\Connection;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\Grammars\PostgresGrammar;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabasePostgresQueryGrammarTest extends TestCase
 {

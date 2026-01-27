@@ -6,7 +6,7 @@ use Illuminate\Database\Connection;
 use Illuminate\Database\Schema\Grammars\MariaDbGrammar;
 use Illuminate\Database\Schema\MariaDbBuilder;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseMariaDbBuilderTest extends TestCase
 {

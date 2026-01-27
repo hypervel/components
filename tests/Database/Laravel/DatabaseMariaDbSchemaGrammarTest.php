@@ -10,7 +10,7 @@ use Illuminate\Database\Schema\Grammars\MariaDbGrammar;
 use Illuminate\Database\Schema\MariaDbBuilder;
 use Illuminate\Tests\Database\Fixtures\Enums\Foo;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseMariaDbSchemaGrammarTest extends TestCase
 {

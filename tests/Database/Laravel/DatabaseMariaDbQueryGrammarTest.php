@@ -5,7 +5,7 @@ namespace Database;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Query\Grammars\MariaDbGrammar;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseMariaDbQueryGrammarTest extends TestCase
 {

@@ -12,7 +12,7 @@ use PDO;
 use PDOStatement;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 use stdClass;
 
 class DatabaseConnectorTest extends TestCase

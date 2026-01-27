@@ -9,7 +9,7 @@ use Hypervel\Database\Eloquent\Concerns\HasAttributes;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseConcernsHasAttributesTest extends TestCase
 {

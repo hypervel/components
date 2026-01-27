@@ -12,7 +12,7 @@ use Illuminate\Database\Schema\Grammars\SQLiteGrammar;
 use Illuminate\Database\Schema\SQLiteBuilder;
 use Illuminate\Tests\Database\Fixtures\Enums\Foo;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 use RuntimeException;
 
 class DatabaseSQLiteSchemaGrammarTest extends TestCase

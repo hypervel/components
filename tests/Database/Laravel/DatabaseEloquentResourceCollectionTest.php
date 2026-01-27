@@ -11,7 +11,7 @@ use Illuminate\Tests\Database\Fixtures\Models\EloquentResourceTestResourceModelW
 use Illuminate\Tests\Database\Fixtures\Resources\EloquentResourceCollectionTestResource;
 use Illuminate\Tests\Database\Fixtures\Resources\EloquentResourceTestJsonResource;
 use Illuminate\Tests\Database\Fixtures\Resources\EloquentResourceTestJsonResourceCollection;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentResourceCollectionTest extends TestCase
 {

@@ -7,7 +7,7 @@ use Illuminate\Database\Query\Builder;
 use Illuminate\Database\Query\Processors\Processor;
 use Mockery as m;
 use PDO;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseProcessorTest extends TestCase
 {

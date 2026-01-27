@@ -7,7 +7,7 @@ use Generator;
 use Illuminate\Database\MySqlConnection;
 use Illuminate\Database\Schema\MySqlSchemaState;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 use ReflectionMethod;
 use Symfony\Component\Process\Process;
 

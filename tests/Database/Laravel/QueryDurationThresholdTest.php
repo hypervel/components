@@ -8,7 +8,7 @@ use Illuminate\Events\Dispatcher;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 use PDO;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class QueryDurationThresholdTest extends TestCase
 {

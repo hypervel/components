@@ -29,7 +29,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Tests\Database\Fixtures\Enums\Bar;
 use InvalidArgumentException;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 use RuntimeException;
 use stdClass;
 

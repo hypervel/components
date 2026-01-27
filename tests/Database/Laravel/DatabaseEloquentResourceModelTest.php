@@ -6,7 +6,7 @@ use Illuminate\Tests\Database\Fixtures\Models\EloquentResourceTestResourceModel;
 use Illuminate\Tests\Database\Fixtures\Models\EloquentResourceTestResourceModelWithGuessableResource;
 use Illuminate\Tests\Database\Fixtures\Models\EloquentResourceTestResourceModelWithUseResourceAttribute;
 use Illuminate\Tests\Database\Fixtures\Resources\EloquentResourceTestJsonResource;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentResourceModelTest extends TestCase
 {

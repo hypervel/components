@@ -3,7 +3,7 @@
 namespace Illuminate\Tests\Database;
 
 use Illuminate\Database\Query\Processors\SQLiteProcessor;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseSQLiteProcessorTest extends TestCase
 {

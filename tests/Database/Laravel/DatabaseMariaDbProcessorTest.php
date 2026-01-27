@@ -3,7 +3,7 @@
 namespace Database;
 
 use Illuminate\Database\Query\Processors\MariaDbProcessor;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseMariaDbProcessorTest extends TestCase
 {

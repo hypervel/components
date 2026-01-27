@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model as Eloquent;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
 use Illuminate\Database\Query\Expression;
 use Illuminate\Database\Schema\Blueprint;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentBelongsToManyExpressionTest extends TestCase
 {

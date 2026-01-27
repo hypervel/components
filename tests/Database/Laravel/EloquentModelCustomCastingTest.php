@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Model as Eloquent;
 use Illuminate\Database\Schema\Blueprint;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Group;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 #[Group('integration')]
 class EloquentModelCustomCastingTest extends TestCase

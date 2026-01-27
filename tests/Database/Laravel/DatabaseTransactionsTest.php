@@ -6,7 +6,7 @@ use Exception;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Database\DatabaseTransactionsManager;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 use Throwable;
 
 class DatabaseTransactionsTest extends TestCase

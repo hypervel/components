@@ -7,7 +7,7 @@ use Illuminate\Database\Query\Processors\Processor;
 use Illuminate\Database\Schema\Builder;
 use Illuminate\Database\Schema\Grammars\Grammar;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 use stdClass;
 
 class DatabaseSchemaBuilderTest extends TestCase

@@ -14,7 +14,7 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
 use Mockery as m;
 use PDO;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 {

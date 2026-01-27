@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Casts\AsBinary;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\BinaryCodec;
 use InvalidArgumentException;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 use Ramsey\Uuid\Uuid;
 use Symfony\Component\Uid\Ulid;
 

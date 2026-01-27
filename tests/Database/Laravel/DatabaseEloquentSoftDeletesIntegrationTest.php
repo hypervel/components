@@ -14,7 +14,7 @@ use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Carbon;
 use Mockery as m;
 use Mockery\MockInterface;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
 {

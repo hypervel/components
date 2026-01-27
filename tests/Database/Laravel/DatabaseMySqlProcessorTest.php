@@ -3,7 +3,7 @@
 namespace Illuminate\Tests\Database;
 
 use Illuminate\Database\Query\Processors\MySqlProcessor;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseMySqlProcessorTest extends TestCase
 {

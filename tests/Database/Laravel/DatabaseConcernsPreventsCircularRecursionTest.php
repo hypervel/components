@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Database\Laravel;
 
 use Hypervel\Database\Eloquent\Concerns\PreventsCircularRecursion;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
 {

@@ -3,7 +3,7 @@
 namespace Illuminate\Tests\Database;
 
 use Illuminate\Database\DatabaseTransactionsManager;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseTransactionsManagerTest extends TestCase
 {

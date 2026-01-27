@@ -6,7 +6,7 @@ use Generator;
 use Illuminate\Database\MariaDbConnection;
 use Illuminate\Database\Schema\MariaDbSchemaState;
 use PHPUnit\Framework\Attributes\DataProvider;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 use ReflectionMethod;
 
 class DatabaseMariaDbSchemaStateTest extends TestCase

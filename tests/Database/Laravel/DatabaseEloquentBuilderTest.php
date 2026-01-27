@@ -22,7 +22,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection as BaseCollection;
 use Mockery as m;
 use PDO;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 use stdClass;
 
 class DatabaseEloquentBuilderTest extends TestCase

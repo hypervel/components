@@ -57,7 +57,7 @@ use InvalidArgumentException;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 use ReflectionClass;
 use stdClass;
 use Stringable as NativeStringable;

@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Database\Laravel;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Schema\Grammars\Grammar;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseAbstractSchemaGrammarTest extends TestCase
 {

@@ -3,7 +3,7 @@
 namespace Illuminate\Tests\Database;
 
 use Illuminate\Database\Console\Migrations\TableGuesser;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class TableGuesserTest extends TestCase
 {

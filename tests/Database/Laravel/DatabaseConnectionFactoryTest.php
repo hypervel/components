@@ -10,7 +10,7 @@ use Hypervel\Database\Connectors\ConnectionFactory;
 use InvalidArgumentException;
 use Mockery as m;
 use PDO;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 use ReflectionProperty;
 
 class DatabaseConnectionFactoryTest extends TestCase

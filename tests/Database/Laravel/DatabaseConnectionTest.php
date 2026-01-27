@@ -1,28 +1,31 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel;
 
 use DateTime;
 use ErrorException;
 use Exception;
-use Illuminate\Contracts\Events\Dispatcher;
-use Illuminate\Database\Connection;
-use Illuminate\Database\Events\QueryExecuted;
-use Illuminate\Database\Events\TransactionBeginning;
-use Illuminate\Database\Events\TransactionCommitted;
-use Illuminate\Database\Events\TransactionCommitting;
-use Illuminate\Database\Events\TransactionRolledBack;
-use Illuminate\Database\MultipleColumnsSelectedException;
-use Illuminate\Database\Query\Builder as BaseBuilder;
-use Illuminate\Database\Query\Grammars\Grammar;
-use Illuminate\Database\Query\Processors\Processor;
-use Illuminate\Database\QueryException;
-use Illuminate\Database\Schema\Builder;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Database\Connection;
+use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Database\Events\TransactionBeginning;
+use Hypervel\Database\Events\TransactionCommitted;
+use Hypervel\Database\Events\TransactionCommitting;
+use Hypervel\Database\Events\TransactionRolledBack;
+use Hypervel\Database\MultipleColumnsSelectedException;
+use Hypervel\Database\Query\Builder as BaseBuilder;
+use Hypervel\Database\Query\Grammars\Grammar;
+use Hypervel\Database\Query\Processors\Processor;
+use Hypervel\Database\Schema\Grammars\Grammar as SchemaGrammar;
+use Hypervel\Database\QueryException;
+use Hypervel\Database\Schema\Builder;
 use Mockery as m;
 use PDO;
 use PDOException;
 use PDOStatement;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Testbench\TestCase;
 use ReflectionClass;
 use stdClass;
 
@@ -31,7 +34,7 @@ class DatabaseConnectionTest extends TestCase
     public function testSettingDefaultCallsGetDefaultGrammar()
     {
         $connection = $this->getMockConnection();
-        $mock = m::mock(stdClass::class);
+        $mock = m::mock(Grammar::class);
         $connection->expects($this->once())->method('getDefaultQueryGrammar')->willReturn($mock);
         $connection->useDefaultQueryGrammar();
         $this->assertEquals($mock, $connection->getQueryGrammar());
@@ -40,7 +43,7 @@ class DatabaseConnectionTest extends TestCase
     public function testSettingDefaultCallsGetDefaultPostProcessor()
     {
         $connection = $this->getMockConnection();
-        $mock = m::mock(stdClass::class);
+        $mock = m::mock(Processor::class);
         $connection->expects($this->once())->method('getDefaultPostProcessor')->willReturn($mock);
         $connection->useDefaultPostProcessor();
         $this->assertEquals($mock, $connection->getPostProcessor());
@@ -131,25 +134,25 @@ class DatabaseConnectionTest extends TestCase
     public function testInsertCallsTheStatementMethod()
     {
         $connection = $this->getMockConnection(['statement']);
-        $connection->expects($this->once())->method('statement')->with($this->equalTo('foo'), $this->equalTo(['bar']))->willReturn('baz');
+        $connection->expects($this->once())->method('statement')->with($this->equalTo('foo'), $this->equalTo(['bar']))->willReturn(true);
         $results = $connection->insert('foo', ['bar']);
-        $this->assertSame('baz', $results);
+        $this->assertTrue($results);
     }
 
     public function testUpdateCallsTheAffectingStatementMethod()
     {
         $connection = $this->getMockConnection(['affectingStatement']);
-        $connection->expects($this->once())->method('affectingStatement')->with($this->equalTo('foo'), $this->equalTo(['bar']))->willReturn('baz');
+        $connection->expects($this->once())->method('affectingStatement')->with($this->equalTo('foo'), $this->equalTo(['bar']))->willReturn(42);
         $results = $connection->update('foo', ['bar']);
-        $this->assertSame('baz', $results);
+        $this->assertSame(42, $results);
     }
 
     public function testDeleteCallsTheAffectingStatementMethod()
     {
         $connection = $this->getMockConnection(['affectingStatement']);
-        $connection->expects($this->once())->method('affectingStatement')->with($this->equalTo('foo'), $this->equalTo(['bar']))->willReturn(true);
+        $connection->expects($this->once())->method('affectingStatement')->with($this->equalTo('foo'), $this->equalTo(['bar']))->willReturn(1);
         $results = $connection->delete('foo', ['bar']);
-        $this->assertTrue($results);
+        $this->assertSame(1, $results);
     }
 
     public function testStatementProperlyCallsPDO()
@@ -368,7 +371,7 @@ class DatabaseConnectionTest extends TestCase
     public function testOnLostConnectionPDOIsNotSwappedWithinATransaction()
     {
         $this->expectException(QueryException::class);
-        $this->expectExceptionMessage('server has gone away (Connection: , Host: , Port: , Database: , SQL: foo)');
+        $this->expectExceptionMessage('server has gone away (Connection: test, Host: , Port: , Database: , SQL: foo)');
 
         $pdo = m::mock(PDO::class);
         $pdo->shouldReceive('beginTransaction')->once();
@@ -376,7 +379,7 @@ class DatabaseConnectionTest extends TestCase
         $pdo->shouldReceive('prepare')->once()->andReturn($statement);
         $statement->shouldReceive('execute')->once()->andThrow(new PDOException('server has gone away'));
 
-        $connection = new Connection($pdo);
+        $connection = new Connection($pdo, '', '', ['name' => 'test', 'driver' => 'mysql']);
         $connection->beginTransaction();
         $connection->statement('foo');
     }
@@ -391,7 +394,7 @@ class DatabaseConnectionTest extends TestCase
 
         $pdo->shouldReceive('prepare')->twice()->andReturn($statement);
 
-        $connection = new Connection($pdo);
+        $connection = new Connection($pdo, '', '', ['name' => 'test', 'driver' => 'mysql']);
 
         $called = false;
 
@@ -420,7 +423,7 @@ class DatabaseConnectionTest extends TestCase
     public function testRunMethodNeverRetriesIfWithinTransaction()
     {
         $this->expectException(QueryException::class);
-        $this->expectExceptionMessage('(Connection: conn, SQL: ) (Connection: , Host: , Port: , Database: , SQL: )');
+        $this->expectExceptionMessage('(Connection: conn, SQL: ) (Connection: test, Host: , Port: , Database: , SQL: )');
 
         $method = (new ReflectionClass(Connection::class))->getMethod('run');
 
@@ -494,6 +497,9 @@ class DatabaseConnectionTest extends TestCase
     public function testPretendOnlyLogsQueries()
     {
         $connection = $this->getMockConnection();
+        $grammar = m::mock(Grammar::class);
+        $grammar->shouldReceive('substituteBindingsIntoRawSql')->andReturnUsing(fn ($query) => $query);
+        $connection->setQueryGrammar($grammar);
         $queries = $connection->pretend(function ($connection) {
             $connection->select('foo bar', ['baz']);
         });
@@ -739,7 +745,8 @@ class DatabaseConnectionTest extends TestCase
     {
         $pdo = $pdo ?: new DatabaseConnectionTestMockPDO;
         $defaults = ['getDefaultQueryGrammar', 'getDefaultPostProcessor', 'getDefaultSchemaGrammar'];
-        $connection = $this->getMockBuilder(Connection::class)->onlyMethods(array_merge($defaults, $methods))->setConstructorArgs([$pdo])->getMock();
+        $connection = $this->getMockBuilder(Connection::class)->onlyMethods(array_merge($defaults, $methods))->setConstructorArgs([$pdo, 'test_db', '', ['name' => 'test', 'driver' => 'mysql']])->getMock();
+        $connection->method('getDefaultSchemaGrammar')->willReturn(m::mock(SchemaGrammar::class));
         $connection->enableQueryLog();
 
         return $connection;

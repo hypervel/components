@@ -28,7 +28,7 @@ use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Str;
 use Illuminate\Tests\Integration\Database\Fixtures\Post;
 use Illuminate\Tests\Integration\Database\Fixtures\User;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentIntegrationTest extends TestCase
 {

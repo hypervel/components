@@ -8,7 +8,7 @@ use Hypervel\Database\ClassMorphViolationException;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Eloquent\Relations\Relation;
-use PHPUnit\Framework\TestCase;
+use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentStrictMorphsTest extends TestCase
 {
