@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Laravel\stubs;
 
-use Hypervel\Database\Eloquent\Contracts\CastsAttributes;
+use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Database\Eloquent\Model;
 
 class TestCast implements CastsAttributes

@@ -12,7 +12,7 @@ use Foo\Bar\EloquentModelNamespacedStub;
 use Hypervel\Contracts\Database\Eloquent\Castable;
 use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
 use Hypervel\Contracts\Database\Eloquent\CastsInboundAttributes;
-use Hypervel\Contracts\Events\Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\ConnectionResolverInterface as Resolver;
@@ -59,7 +59,7 @@ use InvalidArgumentException;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\TestWith;
-use Hypervel\Tests\TestCase;
+use Hypervel\Testbench\TestCase;
 use ReflectionClass;
 use stdClass;
 use Stringable as NativeStringable;
@@ -1048,7 +1048,7 @@ class DatabaseEloquentModelTest extends TestCase
 
     public function testFromDateTimeMilliseconds()
     {
-        $model = $this->getMockBuilder('Illuminate\Tests\Database\EloquentDateModelStub')->onlyMethods(['getDateFormat'])->getMock();
+        $model = $this->getMockBuilder('Hypervel\Tests\Database\Laravel\EloquentDateModelStub')->onlyMethods(['getDateFormat'])->getMock();
         $model->expects($this->any())->method('getDateFormat')->willReturn('Y-m-d H:s.vi');
         $model->setRawAttributes([
             'created_at' => '2012-12-04 22:59.32130',
@@ -2215,8 +2215,8 @@ class DatabaseEloquentModelTest extends TestCase
     public function testModelObserversCanBeAttachedToModels()
     {
         EloquentModelStub::setEventDispatcher($events = m::mock(Dispatcher::class));
-        $events->shouldReceive('listen')->once()->with('eloquent.creating: Illuminate\Tests\Database\EloquentModelStub', EloquentTestObserverStub::class.'@creating');
-        $events->shouldReceive('listen')->once()->with('eloquent.saved: Illuminate\Tests\Database\EloquentModelStub', EloquentTestObserverStub::class.'@saved');
+        $events->shouldReceive('listen')->once()->with('eloquent.creating: Hypervel\Tests\Database\Laravel\EloquentModelStub', EloquentTestObserverStub::class.'@creating');
+        $events->shouldReceive('listen')->once()->with('eloquent.saved: Hypervel\Tests\Database\Laravel\EloquentModelStub', EloquentTestObserverStub::class.'@saved');
         $events->shouldReceive('forget');
         EloquentModelStub::observe(new EloquentTestObserverStub);
         EloquentModelStub::flushEventListeners();
@@ -2225,8 +2225,8 @@ class DatabaseEloquentModelTest extends TestCase
     public function testModelObserversCanBeAttachedToModelsWithString()
     {
         EloquentModelStub::setEventDispatcher($events = m::mock(Dispatcher::class));
-        $events->shouldReceive('listen')->once()->with('eloquent.creating: Illuminate\Tests\Database\EloquentModelStub', EloquentTestObserverStub::class.'@creating');
-        $events->shouldReceive('listen')->once()->with('eloquent.saved: Illuminate\Tests\Database\EloquentModelStub', EloquentTestObserverStub::class.'@saved');
+        $events->shouldReceive('listen')->once()->with('eloquent.creating: Hypervel\Tests\Database\Laravel\EloquentModelStub', EloquentTestObserverStub::class.'@creating');
+        $events->shouldReceive('listen')->once()->with('eloquent.saved: Hypervel\Tests\Database\Laravel\EloquentModelStub', EloquentTestObserverStub::class.'@saved');
         $events->shouldReceive('forget');
         EloquentModelStub::observe(EloquentTestObserverStub::class);
         EloquentModelStub::flushEventListeners();
@@ -2235,8 +2235,8 @@ class DatabaseEloquentModelTest extends TestCase
     public function testModelObserversCanBeAttachedToModelsThroughAnArray()
     {
         EloquentModelStub::setEventDispatcher($events = m::mock(Dispatcher::class));
-        $events->shouldReceive('listen')->once()->with('eloquent.creating: Illuminate\Tests\Database\EloquentModelStub', EloquentTestObserverStub::class.'@creating');
-        $events->shouldReceive('listen')->once()->with('eloquent.saved: Illuminate\Tests\Database\EloquentModelStub', EloquentTestObserverStub::class.'@saved');
+        $events->shouldReceive('listen')->once()->with('eloquent.creating: Hypervel\Tests\Database\Laravel\EloquentModelStub', EloquentTestObserverStub::class.'@creating');
+        $events->shouldReceive('listen')->once()->with('eloquent.saved: Hypervel\Tests\Database\Laravel\EloquentModelStub', EloquentTestObserverStub::class.'@saved');
         $events->shouldReceive('forget');
         EloquentModelStub::observe([EloquentTestObserverStub::class]);
         EloquentModelStub::flushEventListeners();
@@ -2246,8 +2246,8 @@ class DatabaseEloquentModelTest extends TestCase
     {
         EloquentModelWithObserveAttributeStub::setEventDispatcher($events = m::mock(Dispatcher::class));
         $events->shouldReceive('dispatch');
-        $events->shouldReceive('listen')->once()->with('eloquent.creating: Illuminate\Tests\Database\EloquentModelWithObserveAttributeStub', EloquentTestObserverStub::class.'@creating');
-        $events->shouldReceive('listen')->once()->with('eloquent.saved: Illuminate\Tests\Database\EloquentModelWithObserveAttributeStub', EloquentTestObserverStub::class.'@saved');
+        $events->shouldReceive('listen')->once()->with('eloquent.creating: Hypervel\Tests\Database\Laravel\EloquentModelWithObserveAttributeStub', EloquentTestObserverStub::class.'@creating');
+        $events->shouldReceive('listen')->once()->with('eloquent.saved: Hypervel\Tests\Database\Laravel\EloquentModelWithObserveAttributeStub', EloquentTestObserverStub::class.'@saved');
         $events->shouldReceive('forget');
         EloquentModelWithObserveAttributeStub::flushEventListeners();
     }
@@ -2256,8 +2256,8 @@ class DatabaseEloquentModelTest extends TestCase
     {
         EloquentModelWithObserveAttributeUsingArrayStub::setEventDispatcher($events = m::mock(Dispatcher::class));
         $events->shouldReceive('dispatch');
-        $events->shouldReceive('listen')->once()->with('eloquent.creating: Illuminate\Tests\Database\EloquentModelWithObserveAttributeUsingArrayStub', EloquentTestObserverStub::class.'@creating');
-        $events->shouldReceive('listen')->once()->with('eloquent.saved: Illuminate\Tests\Database\EloquentModelWithObserveAttributeUsingArrayStub', EloquentTestObserverStub::class.'@saved');
+        $events->shouldReceive('listen')->once()->with('eloquent.creating: Hypervel\Tests\Database\Laravel\EloquentModelWithObserveAttributeUsingArrayStub', EloquentTestObserverStub::class.'@creating');
+        $events->shouldReceive('listen')->once()->with('eloquent.saved: Hypervel\Tests\Database\Laravel\EloquentModelWithObserveAttributeUsingArrayStub', EloquentTestObserverStub::class.'@saved');
         $events->shouldReceive('forget');
         EloquentModelWithObserveAttributeUsingArrayStub::flushEventListeners();
     }
@@ -2266,12 +2266,12 @@ class DatabaseEloquentModelTest extends TestCase
     {
         EloquentModelWithObserveAttributeGrandchildStub::setEventDispatcher($events = m::mock(Dispatcher::class));
         $events->shouldReceive('dispatch');
-        $events->shouldReceive('listen')->once()->with('eloquent.creating: Illuminate\Tests\Database\EloquentModelWithObserveAttributeGrandchildStub', EloquentTestObserverStub::class.'@creating');
-        $events->shouldReceive('listen')->once()->with('eloquent.saved: Illuminate\Tests\Database\EloquentModelWithObserveAttributeGrandchildStub', EloquentTestObserverStub::class.'@saved');
-        $events->shouldReceive('listen')->once()->with('eloquent.creating: Illuminate\Tests\Database\EloquentModelWithObserveAttributeGrandchildStub', EloquentTestAnotherObserverStub::class.'@creating');
-        $events->shouldReceive('listen')->once()->with('eloquent.saved: Illuminate\Tests\Database\EloquentModelWithObserveAttributeGrandchildStub', EloquentTestAnotherObserverStub::class.'@saved');
-        $events->shouldReceive('listen')->once()->with('eloquent.creating: Illuminate\Tests\Database\EloquentModelWithObserveAttributeGrandchildStub', EloquentTestThirdObserverStub::class.'@creating');
-        $events->shouldReceive('listen')->once()->with('eloquent.saved: Illuminate\Tests\Database\EloquentModelWithObserveAttributeGrandchildStub', EloquentTestThirdObserverStub::class.'@saved');
+        $events->shouldReceive('listen')->once()->with('eloquent.creating: Hypervel\Tests\Database\Laravel\EloquentModelWithObserveAttributeGrandchildStub', EloquentTestObserverStub::class.'@creating');
+        $events->shouldReceive('listen')->once()->with('eloquent.saved: Hypervel\Tests\Database\Laravel\EloquentModelWithObserveAttributeGrandchildStub', EloquentTestObserverStub::class.'@saved');
+        $events->shouldReceive('listen')->once()->with('eloquent.creating: Hypervel\Tests\Database\Laravel\EloquentModelWithObserveAttributeGrandchildStub', EloquentTestAnotherObserverStub::class.'@creating');
+        $events->shouldReceive('listen')->once()->with('eloquent.saved: Hypervel\Tests\Database\Laravel\EloquentModelWithObserveAttributeGrandchildStub', EloquentTestAnotherObserverStub::class.'@saved');
+        $events->shouldReceive('listen')->once()->with('eloquent.creating: Hypervel\Tests\Database\Laravel\EloquentModelWithObserveAttributeGrandchildStub', EloquentTestThirdObserverStub::class.'@creating');
+        $events->shouldReceive('listen')->once()->with('eloquent.saved: Hypervel\Tests\Database\Laravel\EloquentModelWithObserveAttributeGrandchildStub', EloquentTestThirdObserverStub::class.'@saved');
         $events->shouldReceive('forget');
         EloquentModelWithObserveAttributeGrandchildStub::flushEventListeners();
     }
@@ -2291,11 +2291,11 @@ class DatabaseEloquentModelTest extends TestCase
     public function testModelObserversCanBeAttachedToModelsThroughCallingObserveMethodOnlyOnce()
     {
         EloquentModelStub::setEventDispatcher($events = m::mock(Dispatcher::class));
-        $events->shouldReceive('listen')->once()->with('eloquent.creating: Illuminate\Tests\Database\EloquentModelStub', EloquentTestObserverStub::class.'@creating');
-        $events->shouldReceive('listen')->once()->with('eloquent.saved: Illuminate\Tests\Database\EloquentModelStub', EloquentTestObserverStub::class.'@saved');
+        $events->shouldReceive('listen')->once()->with('eloquent.creating: Hypervel\Tests\Database\Laravel\EloquentModelStub', EloquentTestObserverStub::class.'@creating');
+        $events->shouldReceive('listen')->once()->with('eloquent.saved: Hypervel\Tests\Database\Laravel\EloquentModelStub', EloquentTestObserverStub::class.'@saved');
 
-        $events->shouldReceive('listen')->once()->with('eloquent.creating: Illuminate\Tests\Database\EloquentModelStub', EloquentTestAnotherObserverStub::class.'@creating');
-        $events->shouldReceive('listen')->once()->with('eloquent.saved: Illuminate\Tests\Database\EloquentModelStub', EloquentTestAnotherObserverStub::class.'@saved');
+        $events->shouldReceive('listen')->once()->with('eloquent.creating: Hypervel\Tests\Database\Laravel\EloquentModelStub', EloquentTestAnotherObserverStub::class.'@creating');
+        $events->shouldReceive('listen')->once()->with('eloquent.saved: Hypervel\Tests\Database\Laravel\EloquentModelStub', EloquentTestAnotherObserverStub::class.'@saved');
 
         $events->shouldReceive('forget');
 
@@ -2310,8 +2310,8 @@ class DatabaseEloquentModelTest extends TestCase
     public function testWithoutEventDispatcher()
     {
         EloquentModelSaveStub::setEventDispatcher($events = m::mock(Dispatcher::class));
-        $events->shouldReceive('listen')->once()->with('eloquent.creating: Illuminate\Tests\Database\EloquentModelSaveStub', EloquentTestObserverStub::class.'@creating');
-        $events->shouldReceive('listen')->once()->with('eloquent.saved: Illuminate\Tests\Database\EloquentModelSaveStub', EloquentTestObserverStub::class.'@saved');
+        $events->shouldReceive('listen')->once()->with('eloquent.creating: Hypervel\Tests\Database\Laravel\EloquentModelSaveStub', EloquentTestObserverStub::class.'@creating');
+        $events->shouldReceive('listen')->once()->with('eloquent.saved: Hypervel\Tests\Database\Laravel\EloquentModelSaveStub', EloquentTestObserverStub::class.'@saved');
         $events->shouldNotReceive('until');
         $events->shouldNotReceive('dispatch');
         $events->shouldReceive('forget');
@@ -2329,8 +2329,8 @@ class DatabaseEloquentModelTest extends TestCase
             $model->save();
         });
 
-        $events->shouldReceive('until')->once()->with('eloquent.saving: Illuminate\Tests\Database\EloquentModelSaveStub', $model);
-        $events->shouldReceive('dispatch')->once()->with('eloquent.saved: Illuminate\Tests\Database\EloquentModelSaveStub', $model);
+        $events->shouldReceive('until')->once()->with('eloquent.saving: Hypervel\Tests\Database\Laravel\EloquentModelSaveStub', $model);
+        $events->shouldReceive('dispatch')->once()->with('eloquent.saved: Hypervel\Tests\Database\Laravel\EloquentModelSaveStub', $model);
 
         $model->last_name = 'Otwell';
         $model->save();
@@ -2385,7 +2385,7 @@ class DatabaseEloquentModelTest extends TestCase
     public function testGetModelAttributeMethodThrowsExceptionIfNotRelation()
     {
         $this->expectException(LogicException::class);
-        $this->expectExceptionMessage('Illuminate\Tests\Database\EloquentModelStub::incorrectRelationStub must return a relationship instance.');
+        $this->expectExceptionMessage('Hypervel\Tests\Database\Laravel\EloquentModelStub::incorrectRelationStub must return a relationship instance.');
 
         $model = new EloquentModelStub;
         $model->incorrectRelationStub;
@@ -2790,7 +2790,7 @@ class DatabaseEloquentModelTest extends TestCase
     public function testModelAttributeCastingFailsOnUnencodableData()
     {
         $this->expectException(JsonEncodingException::class);
-        $this->expectExceptionMessage('Unable to encode attribute [objectAttribute] for model [Illuminate\Tests\Database\EloquentModelCastingStub] to JSON: Malformed UTF-8 characters, possibly incorrectly encoded.');
+        $this->expectExceptionMessage('Unable to encode attribute [objectAttribute] for model [Hypervel\Tests\Database\Laravel\EloquentModelCastingStub] to JSON: Malformed UTF-8 characters, possibly incorrectly encoded.');
 
         $model = new EloquentModelCastingStub;
         $model->objectAttribute = ['foo' => "b\xF8r"];
@@ -2804,7 +2804,7 @@ class DatabaseEloquentModelTest extends TestCase
     public function testModelJsonCastingFailsOnUnencodableData()
     {
         $this->expectException(JsonEncodingException::class);
-        $this->expectExceptionMessage('Unable to encode attribute [jsonAttribute] for model [Illuminate\Tests\Database\EloquentModelCastingStub] to JSON: Malformed UTF-8 characters, possibly incorrectly encoded.');
+        $this->expectExceptionMessage('Unable to encode attribute [jsonAttribute] for model [Hypervel\Tests\Database\Laravel\EloquentModelCastingStub] to JSON: Malformed UTF-8 characters, possibly incorrectly encoded.');
 
         $model = new EloquentModelCastingStub;
         $model->jsonAttribute = ['foo' => "b\xF8r"];
@@ -2815,7 +2815,7 @@ class DatabaseEloquentModelTest extends TestCase
     public function testModelAttributeCastingFailsOnUnencodableDataWithUnicode()
     {
         $this->expectException(JsonEncodingException::class);
-        $this->expectExceptionMessage('Unable to encode attribute [jsonAttributeWithUnicode] for model [Illuminate\Tests\Database\EloquentModelCastingStub] to JSON: Malformed UTF-8 characters, possibly incorrectly encoded.');
+        $this->expectExceptionMessage('Unable to encode attribute [jsonAttributeWithUnicode] for model [Hypervel\Tests\Database\Laravel\EloquentModelCastingStub] to JSON: Malformed UTF-8 characters, possibly incorrectly encoded.');
 
         $model = new EloquentModelCastingStub;
         $model->jsonAttributeWithUnicode = ['foo' => "b\xF8r"];
@@ -3532,7 +3532,7 @@ class DatabaseEloquentModelTest extends TestCase
     {
         $model = new EloquentModelWithUseEloquentBuilderAttributeStub();
 
-        $query = $this->createMock(\Illuminate\Database\Query\Builder::class);
+        $query = $this->createMock(BaseBuilder::class);
         $eloquentBuilder = $model->newEloquentBuilder($query);
 
         $this->assertInstanceOf(CustomBuilder::class, $eloquentBuilder);
@@ -3542,7 +3542,7 @@ class DatabaseEloquentModelTest extends TestCase
     {
         $model = new EloquentModelWithoutUseEloquentBuilderAttributeStub();
 
-        $query = $this->createMock(\Illuminate\Database\Query\Builder::class);
+        $query = $this->createMock(BaseBuilder::class);
         $eloquentBuilder = $model->newEloquentBuilder($query);
 
         $this->assertNotInstanceOf(CustomBuilder::class, $eloquentBuilder);
@@ -3553,7 +3553,7 @@ class CustomBuilder extends Builder
 {
 }
 
-#[\Illuminate\Database\Eloquent\Attributes\UseEloquentBuilder(CustomBuilder::class)]
+#[\Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder(CustomBuilder::class)]
 class EloquentModelWithUseEloquentBuilderAttributeStub extends Model
 {
 }
@@ -4274,11 +4274,11 @@ class Address implements Castable
 
 class EloquentModelWithRecursiveRelationshipsStub extends Model
 {
-    public $fillable = ['id', 'parent_id'];
+    public array $fillable = ['id', 'parent_id'];
 
     protected static \WeakMap $recursionDetectionCache;
 
-    public function getQueueableRelations()
+    public function getQueueableRelations(): array
     {
         try {
             $this->stepIn();
@@ -4289,7 +4289,7 @@ class EloquentModelWithRecursiveRelationshipsStub extends Model
         }
     }
 
-    public function push()
+    public function push(): bool
     {
         try {
             $this->stepIn();
@@ -4300,12 +4300,12 @@ class EloquentModelWithRecursiveRelationshipsStub extends Model
         }
     }
 
-    public function save(array $options = [])
+    public function save(array $options = []): bool
     {
         return true;
     }
 
-    public function relationsToArray()
+    public function relationsToArray(): array
     {
         try {
             $this->stepIn();
@@ -4366,7 +4366,7 @@ class EloquentModelWithRecursiveRelationshipsStub extends Model
 
 class EloquentModelWithMutators extends Model
 {
-    public $attributes = [
+    public array $attributes = [
         'first_name' => null,
         'last_name' => null,
         'address_line_one' => null,
@@ -4407,7 +4407,7 @@ class CustomEloquentCollection extends Collection
 
 class EloquentModelWithUseFactoryAttributeFactory extends Factory
 {
-    public function definition()
+    public function definition(): array
     {
         return [];
     }
