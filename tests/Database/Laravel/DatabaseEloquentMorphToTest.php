@@ -1,11 +1,18 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
-use Illuminate\Tests\Database\stubs\TestEnum;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Query\Builder as QueryBuilder;
+use Hypervel\Database\Query\Grammars\Grammar;
+use Hypervel\Database\Query\Processors\Processor;
+use Hypervel\Tests\Database\Laravel\stubs\TestEnum;
 use Mockery as m;
 use Hypervel\Tests\TestCase;
 
@@ -14,6 +21,18 @@ class DatabaseEloquentMorphToTest extends TestCase
     protected $builder;
 
     protected $related;
+
+    protected function addMockConnection(Model $model): void
+    {
+        $model->setConnectionResolver($resolver = m::mock(ConnectionResolverInterface::class));
+        $resolver->shouldReceive('connection')->andReturn($connection = m::mock(Connection::class));
+        $connection->shouldReceive('getQueryGrammar')->andReturn($grammar = m::mock(Grammar::class));
+        $grammar->shouldReceive('getBitwiseOperators')->andReturn([]);
+        $connection->shouldReceive('getPostProcessor')->andReturn($processor = m::mock(Processor::class));
+        $connection->shouldReceive('query')->andReturnUsing(function () use ($connection, $grammar, $processor) {
+            return new QueryBuilder($connection, $grammar, $processor);
+        });
+    }
 
     public function testLookupDictionaryIsProperlyConstructedForEnums()
     {
@@ -70,6 +89,8 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testMorphToWithDefault()
     {
+        $this->addMockConnection(new EloquentMorphToModelStub);
+
         $relation = $this->getRelation()->withDefault();
 
         $this->builder->shouldReceive('first')->once()->andReturnNull();
@@ -81,6 +102,8 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testMorphToWithDynamicDefault()
     {
+        $this->addMockConnection(new EloquentMorphToModelStub);
+
         $relation = $this->getRelation()->withDefault(function ($newModel) {
             $newModel->username = 'taylor';
         });
@@ -99,6 +122,8 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testMorphToWithArrayDefault()
     {
+        $this->addMockConnection(new EloquentMorphToModelStub);
+
         $relation = $this->getRelation()->withDefault(['username' => 'taylor']);
 
         $this->builder->shouldReceive('first')->once()->andReturnNull();
@@ -135,6 +160,8 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testMorphToWithSpecifiedClassDefault()
     {
+        $this->addMockConnection(new EloquentMorphToRelatedStub);
+
         $parent = new EloquentMorphToModelStub;
         $parent->relation_type = EloquentMorphToRelatedStub::class;
 
@@ -386,9 +413,9 @@ class DatabaseEloquentMorphToTest extends TestCase
 
 class EloquentMorphToModelStub extends Model
 {
-    public $foreign_key = 'foreign.value';
+    public string $foreign_key = 'foreign.value';
 
-    public $table = 'eloquent_morph_to_model_stubs';
+    protected ?string $table = 'eloquent_morph_to_model_stubs';
 
     public function relation()
     {
@@ -398,5 +425,5 @@ class EloquentMorphToModelStub extends Model
 
 class EloquentMorphToRelatedStub extends Model
 {
-    public $table = 'eloquent_morph_to_related_stubs';
+    protected ?string $table = 'eloquent_morph_to_related_stubs';
 }

@@ -386,7 +386,7 @@ trait HasRelationships
      *
      * @return \Hypervel\Database\Eloquent\Relations\MorphTo<\Hypervel\Database\Eloquent\Model, $this>
      */
-    protected function morphInstanceTo(string $target, string $name, string $type, string $id, ?string $ownerKey): MorphTo
+    protected function morphInstanceTo(string|int $target, string $name, string $type, string $id, ?string $ownerKey): MorphTo
     {
         $instance = $this->newRelatedInstance(
             static::getActualClassNameForMorph($target)
@@ -420,9 +420,9 @@ trait HasRelationships
     /**
      * Retrieve the actual class name for a given morph class.
      */
-    public static function getActualClassNameForMorph(string $class): string
+    public static function getActualClassNameForMorph(string|int $class): string
     {
-        return Arr::get(Relation::morphMap() ?: [], $class, $class);
+        return Arr::get(Relation::morphMap() ?: [], $class, (string) $class);
     }
 
     /**
