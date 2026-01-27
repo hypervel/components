@@ -22,10 +22,12 @@ use Hypervel\Cache\RedisStore;
 class PrefixHandlingIntegrationTest extends RedisCacheIntegrationTestCase
 {
     /**
-     * Create a store with specific cache prefix.
+     * Create a store with specific cache prefix (uses any tag mode).
      */
     private function createStoreWithPrefix(string $cachePrefix): RedisStore
     {
+        $this->skipIfAnyTagModeUnsupported();
+
         $factory = $this->app->get(RedisFactory::class);
         $store = new RedisStore($factory, $cachePrefix, 'default');
         $store->setTagMode(TagMode::Any);
@@ -335,10 +337,12 @@ class PrefixHandlingIntegrationTest extends RedisCacheIntegrationTestCase
     // =========================================================================
 
     /**
-     * Create a store with specific OPT_PREFIX and cache prefix.
+     * Create a store with specific OPT_PREFIX and cache prefix (uses any tag mode).
      */
     private function createStoreWithPrefixes(string $optPrefix, string $cachePrefix): RedisStore
     {
+        $this->skipIfAnyTagModeUnsupported();
+
         $connectionName = $this->createRedisConnectionWithPrefix($optPrefix);
         $factory = $this->app->get(RedisFactory::class);
         $store = new RedisStore($factory, $cachePrefix, $connectionName);

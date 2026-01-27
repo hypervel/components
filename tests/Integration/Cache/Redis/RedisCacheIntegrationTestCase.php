@@ -79,19 +79,29 @@ abstract class RedisCacheIntegrationTestCase extends TestCase
     }
 
     /**
-     * Minimum phpredis version required for any mode.
+     * Minimum phpredis version required for any tag mode.
      */
     private const PHPREDIS_MIN_VERSION = '6.3.0';
 
     /**
-     * Minimum Redis version required for any mode.
+     * Minimum Redis version required for any tag mode.
      */
     private const REDIS_MIN_VERSION = '8.0.0';
 
     /**
-     * Minimum Valkey version required for any mode.
+     * Minimum Valkey version required for any tag mode.
      */
     private const VALKEY_MIN_VERSION = '9.0.0';
+
+    /**
+     * Cached result of any tag mode support check (null = not checked yet).
+     */
+    private static ?bool $anyTagModeSupported = null;
+
+    /**
+     * Cached skip reason when any tag mode is not supported.
+     */
+    private static string $anyTagModeSkipReason = '';
 
     /**
      * Set the tag mode on the store.
@@ -104,27 +114,43 @@ abstract class RedisCacheIntegrationTestCase extends TestCase
         $mode = $mode instanceof TagMode ? $mode : TagMode::from($mode);
 
         if ($mode === TagMode::Any) {
-            $this->skipIfAnyModeUnsupported();
+            $this->skipIfAnyTagModeUnsupported();
         }
 
         $this->store()->setTagMode($mode);
     }
 
     /**
-     * Skip the test if any mode requirements are not met.
+     * Skip the test if any tag mode requirements are not met.
      *
-     * Any mode requires:
+     * Any tag mode requires:
      * - phpredis >= 6.3.0 (for HSETEX support)
      * - Redis >= 8.0.0 OR Valkey >= 9.0.0 (for HEXPIRE command)
+     *
+     * The check is performed once per process and cached for performance.
      */
-    protected function skipIfAnyModeUnsupported(): void
+    protected function skipIfAnyTagModeUnsupported(): void
+    {
+        if (self::$anyTagModeSupported === null) {
+            self::$anyTagModeSupported = $this->checkAnyTagModeSupport();
+        }
+
+        if (! self::$anyTagModeSupported) {
+            $this->markTestSkipped(self::$anyTagModeSkipReason);
+        }
+    }
+
+    /**
+     * Check if the environment supports any tag mode.
+     */
+    private function checkAnyTagModeSupport(): bool
     {
         // Check phpredis version
         $phpredisVersion = phpversion('redis') ?: '0';
         if (version_compare($phpredisVersion, self::PHPREDIS_MIN_VERSION, '<')) {
-            $this->markTestSkipped(
-                'Any mode requires phpredis >= ' . self::PHPREDIS_MIN_VERSION . " (installed: {$phpredisVersion})"
-            );
+            self::$anyTagModeSkipReason = 'Any tag mode requires phpredis >= ' . self::PHPREDIS_MIN_VERSION . " (installed: {$phpredisVersion})";
+
+            return false;
         }
 
         // Check Redis/Valkey version
@@ -132,17 +158,19 @@ abstract class RedisCacheIntegrationTestCase extends TestCase
 
         if (isset($info['valkey_version'])) {
             if (version_compare($info['valkey_version'], self::VALKEY_MIN_VERSION, '<')) {
-                $this->markTestSkipped(
-                    'Any mode requires Valkey >= ' . self::VALKEY_MIN_VERSION . " (installed: {$info['valkey_version']})"
-                );
+                self::$anyTagModeSkipReason = 'Any tag mode requires Valkey >= ' . self::VALKEY_MIN_VERSION . " (installed: {$info['valkey_version']})";
+
+                return false;
             }
         } elseif (isset($info['redis_version'])) {
             if (version_compare($info['redis_version'], self::REDIS_MIN_VERSION, '<')) {
-                $this->markTestSkipped(
-                    'Any mode requires Redis >= ' . self::REDIS_MIN_VERSION . " (installed: {$info['redis_version']})"
-                );
+                self::$anyTagModeSkipReason = 'Any tag mode requires Redis >= ' . self::REDIS_MIN_VERSION . " (installed: {$info['redis_version']})";
+
+                return false;
             }
         }
+
+        return true;
     }
 
     /**
