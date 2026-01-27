@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Integration;
+namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Support\Facades\Cache;
@@ -14,9 +14,6 @@ use Redis;
  * Verifies that tag data structures are created correctly:
  * - All mode: ZSET with timestamp scores
  * - Any mode: HASH with field expiration, reverse index SET, registry ZSET
- *
- * @group integration
- * @group redis-integration
  *
  * @internal
  * @coversNothing

@@ -2,22 +2,27 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Integration;
+namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Cache\Contracts\Repository;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\Redis;
-use Hypervel\Tests\Support\RedisIntegrationTestCase;
+use Hypervel\Testbench\TestCase;
 use Redis as PhpRedis;
 
 /**
- * Base test case for Cache + Redis integration tests.
+ * Base test case for Redis Cache integration tests.
  *
- * Extends the generic Redis integration test case and adds
- * cache-specific configuration (sets Redis as the cache driver).
+ * Uses InteractsWithRedis trait which auto-handles:
+ * - Parallel-safe key prefixes via TEST_TOKEN
+ * - Auto-skip if Redis unavailable
+ * - Key flushing in setUp/tearDown
  *
  * Provides helper methods for:
  * - Switching between tag modes (all/any)
@@ -25,21 +30,22 @@ use Redis as PhpRedis;
  * - Computing tag hash keys for each mode
  * - Common assertions for tag structures
  *
- * NOTE: Concrete test classes extending this MUST add @group integration
- * and @group redis-integration for proper test filtering in CI.
- *
  * @internal
  * @coversNothing
  */
-abstract class RedisCacheIntegrationTestCase extends RedisIntegrationTestCase
+abstract class RedisCacheIntegrationTestCase extends TestCase
 {
-    /**
-     * Configure cache to use Redis as the default driver.
-     */
-    protected function configurePackage(): void
-    {
-        $config = $this->app->get(ConfigInterface::class);
+    use InteractsWithRedis;
+    use RunTestsInCoroutine;
 
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        $config = $app->get(ConfigInterface::class);
+
+        // Configure Redis (prefix comes from REDIS_PREFIX env var set by bootstrap)
+        $this->configureRedisForTesting($config);
+
+        // Set Redis as cache driver
         $config->set('cache.default', 'redis');
     }
 
@@ -90,7 +96,7 @@ abstract class RedisCacheIntegrationTestCase extends RedisIntegrationTestCase
     }
 
     /**
-     * Get the cache prefix (includes test prefix from parent).
+     * Get the cache prefix (includes test prefix).
      */
     protected function getCachePrefix(): string
     {

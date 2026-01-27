@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Integration;
+namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Support\Facades\Cache;
@@ -15,9 +15,6 @@ use Hypervel\Support\Facades\Cache;
  * - Prune command removes orphaned entries
  * - Prune preserves valid entries
  * - Prune deletes empty tag structures
- *
- * @group integration
- * @group redis-integration
  *
  * @internal
  * @coversNothing

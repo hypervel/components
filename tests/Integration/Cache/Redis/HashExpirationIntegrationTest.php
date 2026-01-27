@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Integration;
+namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Support\Facades\Cache;
@@ -18,9 +18,6 @@ use Hypervel\Support\Facades\Cache;
  * - Updating item updates field expiration
  *
  * NOTE: These tests require Redis 8.0+ with HSETEX/HTTL support.
- *
- * @group integration
- * @group redis-integration
  *
  * @internal
  * @coversNothing

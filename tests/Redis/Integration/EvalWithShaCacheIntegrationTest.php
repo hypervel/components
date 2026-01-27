@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis\Integration;
 
+use Hyperf\Contract\ConfigInterface;
+use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Support\Facades\Redis;
-use Hypervel\Tests\Support\RedisIntegrationTestCase;
+use Hypervel\Testbench\TestCase;
 
 /**
  * Integration tests for RedisConnection::evalWithShaCache().
@@ -22,8 +26,17 @@ use Hypervel\Tests\Support\RedisIntegrationTestCase;
  * @internal
  * @coversNothing
  */
-class EvalWithShaCacheIntegrationTest extends RedisIntegrationTestCase
+class EvalWithShaCacheIntegrationTest extends TestCase
 {
+    use InteractsWithRedis;
+    use RunTestsInCoroutine;
+
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        $config = $app->get(ConfigInterface::class);
+        $this->configureRedisForTesting($config);
+    }
+
     public function testEvalWithShaCacheExecutesScript(): void
     {
         $result = Redis::withConnection(function ($connection) {
@@ -63,8 +76,9 @@ class EvalWithShaCacheIntegrationTest extends RedisIntegrationTestCase
             );
         });
 
-        // Keys are prefixed by OPT_PREFIX (testPrefix), args are not
-        $this->assertEquals([$this->testPrefix . 'key1', $this->testPrefix . 'key2', 'arg1', 'arg2'], $result);
+        // Keys are prefixed by OPT_PREFIX (redisTestPrefix), args are not
+        $prefix = $this->getRedisTestPrefix();
+        $this->assertEquals([$prefix . 'key1', $prefix . 'key2', 'arg1', 'arg2'], $result);
     }
 
     public function testEvalWithShaCacheUsesScriptCaching(): void

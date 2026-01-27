@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Integration;
+namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Support\Facades\Cache;
@@ -13,9 +13,6 @@ use stdClass;
  *
  * Tests core cache functionality (put, get, forget, has, add, increment, decrement, forever)
  * for both tag modes to verify they work correctly against real Redis.
- *
- * @group integration
- * @group redis-integration
  *
  * @internal
  * @coversNothing

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Integration;
+namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Cache\Redis\TagMode;
@@ -17,9 +17,6 @@ use Redis;
  * - Any mode: {prefix}_any:tag:{name}:entries (HASH), {prefix}{key}:_any:tags (SET), {prefix}_any:tag:registry (ZSET)
  *
  * Also verifies collision prevention when tags have special names.
- *
- * @group integration
- * @group redis-integration
  *
  * @internal
  * @coversNothing

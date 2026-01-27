@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Integration;
+namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Support\Facades\Cache;
@@ -14,9 +14,6 @@ use Throwable;
  * Tests tag flush behavior for both modes:
  * - All mode: Items must be accessed with same tags they were stored with
  * - Any mode: Union flush - flushing ANY matching tag removes the item
- *
- * @group integration
- * @group redis-integration
  *
  * @internal
  * @coversNothing

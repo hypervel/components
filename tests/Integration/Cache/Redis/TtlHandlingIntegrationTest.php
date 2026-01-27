@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Integration;
+namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Carbon\Carbon;
 use DateInterval;
@@ -19,9 +19,6 @@ use Hypervel\Support\Facades\Cache;
  * - Very short TTL (1s)
  * - Large TTL (1 year)
  * - Forever (no expiration)
- *
- * @group integration
- * @group redis-integration
  *
  * @internal
  * @coversNothing

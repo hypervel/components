@@ -1,0 +1,94 @@
+name: redis
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  redis_8:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      redis:
+        image: redis:8
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    container:
+      image: phpswoole/swoole:6.0.2-php8.4
+
+    strategy:
+      fail-fast: true
+
+    name: Redis 8
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: /root/.composer/cache
+          key: composer-8.4-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-8.4-
+
+      - name: Install dependencies
+        run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
+
+      - name: Execute Redis Cache integration tests
+        env:
+          REDIS_HOST: redis
+          REDIS_PORT: 6379
+          REDIS_DB: 8
+        run: vendor/bin/phpunit tests/Integration/Cache/Redis
+
+  valkey_9:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    services:
+      valkey:
+        image: valkey/valkey:8
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "valkey-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    container:
+      image: phpswoole/swoole:6.0.2-php8.4
+
+    strategy:
+      fail-fast: true
+
+    name: Valkey 8
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: /root/.composer/cache
+          key: composer-8.4-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-8.4-
+
+      - name: Install dependencies
+        run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
+
+      - name: Execute Redis Cache integration tests
+        env:
+          REDIS_HOST: valkey
+          REDIS_PORT: 6379
+          REDIS_DB: 8
+        run: vendor/bin/phpunit tests/Integration/Cache/Redis

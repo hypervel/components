@@ -2,11 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Integration;
+namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Support\Facades\Cache;
-use Hypervel\Support\Facades\Redis;
 
 /**
  * Integration tests for tag consistency and integrity.
@@ -19,9 +18,6 @@ use Hypervel\Support\Facades\Redis;
  *
  * NOTE: Hypervel uses LAZY cleanup mode only. Orphaned entries are left
  * behind after flush and cleaned up by the prune command.
- *
- * @group integration
- * @group redis-integration
  *
  * @internal
  * @coversNothing

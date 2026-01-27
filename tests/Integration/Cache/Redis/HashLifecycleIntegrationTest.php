@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Integration;
+namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Support\Facades\Cache;
@@ -16,9 +16,6 @@ use Hypervel\Support\Facades\Cache;
  * - This reduces the need for aggressive cleanup of expired tag hashes
  *
  * NOTE: These tests require Redis 8.0+ with HSETEX support.
- *
- * @group integration
- * @group redis-integration
  *
  * @internal
  * @coversNothing

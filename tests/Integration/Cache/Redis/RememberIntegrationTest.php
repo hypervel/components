@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Integration;
+namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Support\Facades\Cache;
@@ -17,9 +17,6 @@ use RuntimeException;
  * - Multiple tags
  * - Exception propagation
  * - Edge case return values (null, false, empty string, zero)
- *
- * @group integration
- * @group redis-integration
  *
  * @internal
  * @coversNothing

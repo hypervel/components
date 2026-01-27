@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Integration;
+namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hyperf\Redis\RedisFactory;
 use Hypervel\Cache\Redis\AnyTaggedCache;
@@ -15,9 +15,6 @@ use Hypervel\Cache\RedisStore;
  *
  * Tests that cache operations work correctly with various cache prefixes
  * and that different prefixes provide proper isolation.
- *
- * @group integration
- * @group redis-integration
  *
  * @internal
  * @coversNothing
@@ -342,7 +339,7 @@ class PrefixHandlingIntegrationTest extends RedisCacheIntegrationTestCase
      */
     private function createStoreWithPrefixes(string $optPrefix, string $cachePrefix): RedisStore
     {
-        $connectionName = $this->createConnectionWithOptPrefix($optPrefix);
+        $connectionName = $this->createRedisConnectionWithPrefix($optPrefix);
         $factory = $this->app->get(RedisFactory::class);
         $store = new RedisStore($factory, $cachePrefix, $connectionName);
         $store->setTagMode(TagMode::Any);

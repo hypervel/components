@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Integration;
+namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Support\Facades\Cache;
@@ -19,9 +19,6 @@ use Hypervel\Support\Facades\Cache;
  * - Keys resembling Redis commands
  * - Binary data
  * - Empty arrays
- *
- * @group integration
- * @group redis-integration
  *
  * @internal
  * @coversNothing

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Integration;
+namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hypervel\Cache\Redis\AnyTaggedCache;
 use Hypervel\Cache\Redis\AnyTagSet;
@@ -51,9 +51,6 @@ class ClusterModeRedisStore extends RedisStore
  * - Operations must use sequential commands or multi() instead
  *
  * We test against real single-instance Redis with isCluster() mocked to true.
- *
- * @group integration
- * @group redis-integration
  *
  * @internal
  * @coversNothing

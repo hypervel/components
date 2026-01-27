@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Integration;
+namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hyperf\Coroutine\Parallel;
 use Hypervel\Cache\Redis\TagMode;
@@ -13,9 +13,6 @@ use Hypervel\Support\Facades\Cache;
  *
  * Tests verify that rapid sequential operations behave correctly,
  * simulating concurrent access patterns.
- *
- * @group integration
- * @group redis-integration
  *
  * @internal
  * @coversNothing

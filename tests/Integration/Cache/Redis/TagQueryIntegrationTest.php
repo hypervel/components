@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Integration;
+namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Generator;
 use Hypervel\Cache\Redis\TagMode;
@@ -18,9 +18,6 @@ use Hypervel\Support\Facades\Cache;
  * - Deduplication of items with multiple tags
  * - Chunking for large datasets
  * - Handling of expired/missing keys
- *
- * @group integration
- * @group redis-integration
  *
  * @internal
  * @coversNothing

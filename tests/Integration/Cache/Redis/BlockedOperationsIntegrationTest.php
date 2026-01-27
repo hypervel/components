@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Cache\Redis\Integration;
+namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use BadMethodCallException;
 use Hypervel\Cache\Redis\TagMode;
@@ -21,9 +21,6 @@ use Hypervel\Support\Facades\Cache;
  * - has() via tags
  * - pull() via tags
  * - forget() via tags
- *
- * @group integration
- * @group redis-integration
  *
  * @internal
  * @coversNothing
