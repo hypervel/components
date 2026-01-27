@@ -1,12 +1,14 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Attributes\ScopedBy;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Scope;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Attributes\ScopedBy;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Scope;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentGlobalScopesTest extends TestCase
@@ -171,9 +173,9 @@ class DatabaseEloquentGlobalScopesTest extends TestCase
 
 class EloquentClosureGlobalScopesTestModel extends Model
 {
-    protected $table = 'table';
+    protected ?string $table = 'table';
 
-    public static function boot()
+    public static function boot(): void
     {
         static::addGlobalScope(function ($query) {
             $query->orderBy('name');
@@ -199,7 +201,7 @@ class EloquentClosureGlobalScopesTestModel extends Model
 
 class EloquentGlobalScopesWithRelationModel extends EloquentClosureGlobalScopesTestModel
 {
-    protected $table = 'table2';
+    protected ?string $table = 'table2';
 
     public function related()
     {
@@ -209,7 +211,7 @@ class EloquentGlobalScopesWithRelationModel extends EloquentClosureGlobalScopesT
 
 class EloquentClosureGlobalScopesWithOrTestModel extends EloquentClosureGlobalScopesTestModel
 {
-    public static function boot()
+    public static function boot(): void
     {
         static::addGlobalScope('or_scope', function ($query) {
             $query->where('email', 'taylor@gmail.com')->orWhere('email', 'someone@else.com');
@@ -225,9 +227,9 @@ class EloquentClosureGlobalScopesWithOrTestModel extends EloquentClosureGlobalSc
 
 class EloquentGlobalScopesTestModel extends Model
 {
-    protected $table = 'table';
+    protected ?string $table = 'table';
 
-    public static function boot()
+    public static function boot(): void
     {
         static::addGlobalScope(new ActiveScope);
 
@@ -237,9 +239,9 @@ class EloquentGlobalScopesTestModel extends Model
 
 class EloquentClassNameGlobalScopesTestModel extends Model
 {
-    protected $table = 'table';
+    protected ?string $table = 'table';
 
-    public static function boot()
+    public static function boot(): void
     {
         static::addGlobalScope(ActiveScope::class);
 
@@ -249,9 +251,9 @@ class EloquentClassNameGlobalScopesTestModel extends Model
 
 class EloquentGlobalScopesArrayTestModel extends Model
 {
-    protected $table = 'table';
+    protected ?string $table = 'table';
 
-    public static function boot()
+    public static function boot(): void
     {
         static::addGlobalScopes([
             'active_scope' => new ActiveScope,
@@ -265,14 +267,14 @@ class EloquentGlobalScopesArrayTestModel extends Model
 #[ScopedBy(ActiveScope::class)]
 class EloquentGlobalScopeInAttributeTestModel extends Model
 {
-    protected $table = 'table';
+    protected ?string $table = 'table';
 }
 
 class ActiveScope implements Scope
 {
-    public function apply(Builder $builder, Model $model)
+    public function apply(Builder $builder, Model $model): void
     {
-        return $builder->where('active', 1);
+        $builder->where('active', 1);
     }
 }
 
@@ -286,5 +288,5 @@ class EloquentGlobalScopeInInheritedAttributeTestModel extends Model
 {
     use EloquentGlobalScopeInInheritedAttributeTestTrait;
 
-    protected $table = 'table';
+    protected ?string $table = 'table';
 }
