@@ -1,22 +1,27 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel;
 
 use Exception;
-use Illuminate\Database\Connection;
-use Illuminate\Database\ConnectionResolverInterface;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Query\Builder;
-use Illuminate\Database\UniqueConstraintViolationException;
-use Illuminate\Support\Carbon;
+use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Database\Query\Expression;
+use Hypervel\Database\UniqueConstraintViolationException;
+use Hypervel\Support\Carbon;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PDO;
-use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 {
     protected function setUp(): void
     {
+        parent::setUp();
+
         Carbon::setTestNow('2023-01-01 00:00:00');
     }
 
@@ -322,13 +327,13 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
         $model->getConnection()
             ->expects('raw')
             ->with('"count" + 1')
-            ->andReturn('2');
+            ->andReturn(new Expression('2'));
 
         $model->getConnection()
             ->expects('update')
             ->with(
-                'update "table" set "count" = ?, "updated_at" = ? where "id" = ?',
-                ['2', '2023-01-01 00:00:00', 123],
+                'update "table" set "count" = 2, "updated_at" = ? where "id" = ?',
+                ['2023-01-01 00:00:00', 123],
             )
             ->andReturn(1);
 
@@ -393,13 +398,13 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
         $model->getConnection()
             ->expects('raw')
             ->with('"count" + 2')
-            ->andReturn('3');
+            ->andReturn(new Expression('3'));
 
         $model->getConnection()
             ->expects('update')
             ->with(
-                'update "table" set "count" = ?, "val" = ?, "updated_at" = ? where "id" = ?',
-                ['3', 'baz', '2023-01-01 00:00:00', 123],
+                'update "table" set "count" = 3, "val" = ?, "updated_at" = ? where "id" = ?',
+                ['baz', '2023-01-01 00:00:00', 123],
             )
             ->andReturn(1);
 
@@ -449,13 +454,13 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
         $model->getConnection()
             ->expects('raw')
             ->with('"count" + 1')
-            ->andReturn('2');
+            ->andReturn(new Expression('2'));
 
         $model->getConnection()
             ->expects('update')
             ->with(
-                'update "table" set "count" = ?, "updated_at" = ? where "id" = ?',
-                ['2', '2023-01-01 00:00:00', 123],
+                'update "table" set "count" = 2, "updated_at" = ? where "id" = ?',
+                ['2023-01-01 00:00:00', 123],
             )
             ->andReturn(1);
 
@@ -472,8 +477,8 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
     protected function mockConnectionForModel(Model $model, string $database, array $lastInsertIds = []): void
     {
-        $grammarClass = 'Illuminate\Database\Query\Grammars\\'.$database.'Grammar';
-        $processorClass = 'Illuminate\Database\Query\Processors\\'.$database.'Processor';
+        $grammarClass = 'Hypervel\Database\Query\Grammars\\'.$database.'Grammar';
+        $processorClass = 'Hypervel\Database\Query\Processors\\'.$database.'Processor';
         $processor = new $processorClass;
         $connection = m::mock(Connection::class, ['getPostProcessor' => $processor]);
         $grammar = new $grammarClass($connection);
@@ -498,6 +503,6 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
 class EloquentBuilderCreateOrFirstTestModel extends Model
 {
-    protected $table = 'table';
-    protected $guarded = [];
+    protected ?string $table = 'table';
+    protected array $guarded = [];
 }
