@@ -5,8 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\Laravel;
 
 use Hypervel\Database\Eloquent\Concerns\PreventsCircularRecursion;
-use Mockery as m;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 
 class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
 {
@@ -263,4 +264,8 @@ class PreventsCircularRecursionWithRecursiveMethod
             $this->instanceStack,
         );
     }
+}
+
+class TestModel extends Model
+{
 }

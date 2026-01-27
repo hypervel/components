@@ -1,10 +1,12 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Database\Query\Expression;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Query\Expression;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentBelongsToManyAggregateTest extends TestCase

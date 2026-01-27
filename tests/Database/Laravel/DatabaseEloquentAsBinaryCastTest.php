@@ -1,12 +1,14 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Eloquent\Casts\AsBinary;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\BinaryCodec;
-use InvalidArgumentException;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Eloquent\Casts\AsBinary;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\BinaryCodec;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Ramsey\Uuid\Uuid;
 use Symfony\Component\Uid\Ulid;
 
@@ -111,7 +113,7 @@ class DatabaseEloquentAsBinaryCastTest extends TestCase
 
 class AsBinaryTestModel extends Model
 {
-    protected $guarded = [];
+    protected array $guarded = [];
 
     protected function casts(): array
     {
