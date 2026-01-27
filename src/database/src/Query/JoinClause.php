@@ -46,7 +46,7 @@ class JoinClause extends Builder
     /**
      * Create a new join clause instance.
      */
-    public function __construct(Builder $parentQuery, string $type, string $table)
+    public function __construct(Builder $parentQuery, string $type, ExpressionContract|string $table)
     {
         $this->type = $type;
         $this->table = $table;

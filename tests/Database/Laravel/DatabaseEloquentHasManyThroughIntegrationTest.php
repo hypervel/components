@@ -1,19 +1,23 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Collection;
-use Illuminate\Support\LazyCollection;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Support\Collection;
+use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
 {
     protected function setUp(): void
     {
+        parent::setUp();
+
         $db = new DB;
 
         $db->addConnection([
@@ -172,7 +176,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     public function testFirstOrFailThrowsAnException()
     {
         $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Illuminate\Tests\Database\HasManyThroughTestPost].');
+        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\HasManyThroughTestPost].');
 
         HasManyThroughTestCountry::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us']);
@@ -183,7 +187,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     public function testFindOrFailThrowsAnException()
     {
         $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Illuminate\Tests\Database\HasManyThroughTestPost] 1');
+        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\HasManyThroughTestPost] 1');
 
         HasManyThroughTestCountry::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us']);
@@ -194,7 +198,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     public function testFindOrFailWithManyThrowsAnException()
     {
         $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Illuminate\Tests\Database\HasManyThroughTestPost] 1, 2');
+        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\HasManyThroughTestPost] 1, 2');
 
         HasManyThroughTestCountry::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
@@ -206,7 +210,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     public function testFindOrFailWithManyUsingCollectionThrowsAnException()
     {
         $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Illuminate\Tests\Database\HasManyThroughTestPost] 1, 2');
+        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\HasManyThroughTestPost] 1, 2');
 
         HasManyThroughTestCountry::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
@@ -605,8 +609,8 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
  */
 class HasManyThroughTestUser extends Eloquent
 {
-    protected $table = 'users';
-    protected $guarded = [];
+    protected ?string $table = 'users';
+    protected array $guarded = [];
 
     public function posts()
     {
@@ -619,8 +623,8 @@ class HasManyThroughTestUser extends Eloquent
  */
 class HasManyThroughTestPost extends Eloquent
 {
-    protected $table = 'posts';
-    protected $guarded = [];
+    protected ?string $table = 'posts';
+    protected array $guarded = [];
 
     public function owner()
     {
@@ -630,8 +634,8 @@ class HasManyThroughTestPost extends Eloquent
 
 class HasManyThroughTestCountry extends Eloquent
 {
-    protected $table = 'countries';
-    protected $guarded = [];
+    protected ?string $table = 'countries';
+    protected array $guarded = [];
 
     public function posts()
     {
@@ -649,8 +653,8 @@ class HasManyThroughTestCountry extends Eloquent
  */
 class HasManyThroughDefaultTestUser extends Eloquent
 {
-    protected $table = 'users_default';
-    protected $guarded = [];
+    protected ?string $table = 'users_default';
+    protected array $guarded = [];
 
     public function posts()
     {
@@ -663,8 +667,8 @@ class HasManyThroughDefaultTestUser extends Eloquent
  */
 class HasManyThroughDefaultTestPost extends Eloquent
 {
-    protected $table = 'posts_default';
-    protected $guarded = [];
+    protected ?string $table = 'posts_default';
+    protected array $guarded = [];
 
     public function owner()
     {
@@ -674,8 +678,8 @@ class HasManyThroughDefaultTestPost extends Eloquent
 
 class HasManyThroughDefaultTestCountry extends Eloquent
 {
-    protected $table = 'countries_default';
-    protected $guarded = [];
+    protected ?string $table = 'countries_default';
+    protected array $guarded = [];
 
     public function posts()
     {
@@ -690,8 +694,8 @@ class HasManyThroughDefaultTestCountry extends Eloquent
 
 class HasManyThroughIntermediateTestCountry extends Eloquent
 {
-    protected $table = 'countries';
-    protected $guarded = [];
+    protected ?string $table = 'countries';
+    protected array $guarded = [];
 
     public function posts()
     {
@@ -708,8 +712,8 @@ class HasManyThroughSoftDeletesTestUser extends Eloquent
 {
     use SoftDeletes;
 
-    protected $table = 'users';
-    protected $guarded = [];
+    protected ?string $table = 'users';
+    protected array $guarded = [];
 
     public function posts()
     {
@@ -722,8 +726,8 @@ class HasManyThroughSoftDeletesTestUser extends Eloquent
  */
 class HasManyThroughSoftDeletesTestPost extends Eloquent
 {
-    protected $table = 'posts';
-    protected $guarded = [];
+    protected ?string $table = 'posts';
+    protected array $guarded = [];
 
     public function owner()
     {
@@ -733,8 +737,8 @@ class HasManyThroughSoftDeletesTestPost extends Eloquent
 
 class HasManyThroughSoftDeletesTestCountry extends Eloquent
 {
-    protected $table = 'countries';
-    protected $guarded = [];
+    protected ?string $table = 'countries';
+    protected array $guarded = [];
 
     public function posts()
     {

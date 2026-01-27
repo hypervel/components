@@ -1,17 +1,21 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use InvalidArgumentException;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 
 class DatabaseEloquentHasOneOfManyTest extends TestCase
 {
     protected function setUp(): void
     {
+        parent::setUp();
+
         $db = new DB;
 
         $db->addConnection([
@@ -542,9 +546,9 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
  */
 class HasOneOfManyTestUser extends Eloquent
 {
-    protected $table = 'users';
-    protected $guarded = [];
-    public $timestamps = false;
+    protected ?string $table = 'users';
+    protected array $guarded = [];
+    public bool $timestamps = false;
 
     public function logins()
     {
@@ -671,33 +675,33 @@ class HasOneOfManyTestModel extends Eloquent
 
 class HasOneOfManyTestLogin extends Eloquent
 {
-    protected $table = 'logins';
-    protected $guarded = [];
-    public $timestamps = false;
+    protected ?string $table = 'logins';
+    protected array $guarded = [];
+    public bool $timestamps = false;
 }
 
 class HasOneOfManyTestLoginWithSoftDeletes extends Eloquent
 {
     use SoftDeletes;
 
-    protected $table = 'logins';
-    protected $guarded = [];
-    public $timestamps = false;
+    protected ?string $table = 'logins';
+    protected array $guarded = [];
+    public bool $timestamps = false;
 }
 
 class HasOneOfManyTestState extends Eloquent
 {
-    protected $table = 'states';
-    protected $guarded = [];
-    public $timestamps = true;
-    protected $fillable = ['type', 'state', 'updated_at'];
+    protected ?string $table = 'states';
+    protected array $guarded = [];
+    public bool $timestamps = true;
+    protected array $fillable = ['type', 'state', 'updated_at'];
 }
 
 class HasOneOfManyTestPrice extends Eloquent
 {
-    protected $table = 'prices';
-    protected $guarded = [];
-    public $timestamps = false;
-    protected $fillable = ['published_at'];
-    protected $casts = ['published_at' => 'datetime'];
+    protected ?string $table = 'prices';
+    protected array $guarded = [];
+    public bool $timestamps = false;
+    protected array $fillable = ['published_at'];
+    protected array $casts = ['published_at' => 'datetime'];
 }
