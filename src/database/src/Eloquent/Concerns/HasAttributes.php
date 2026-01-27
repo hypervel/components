@@ -948,8 +948,15 @@ trait HasAttributes
     /**
      * Set a given attribute on the model.
      */
-    public function setAttribute(string $key, mixed $value): mixed
+    public function setAttribute(string|int $key, mixed $value): mixed
     {
+        // Numeric keys cannot have mutators or casts, so store directly.
+        if (is_int($key)) {
+            $this->attributes[$key] = $value;
+
+            return $this;
+        }
+
         // First we will check for the presence of a mutator for the set operation
         // which simply lets the developers tweak the attribute as it is set on
         // this model, such as "json_encoding" a listing of data for storage.
