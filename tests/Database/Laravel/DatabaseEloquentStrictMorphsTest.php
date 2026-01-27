@@ -1,11 +1,13 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\ClassMorphViolationException;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\Pivot;
-use Illuminate\Database\Eloquent\Relations\Relation;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\ClassMorphViolationException;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use PHPUnit\Framework\TestCase;
 
 class DatabaseEloquentStrictMorphsTest extends TestCase

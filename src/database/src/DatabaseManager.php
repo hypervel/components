@@ -9,7 +9,7 @@ use Hypervel\Context\Context;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Pool\PoolFactory;
-use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -66,7 +66,7 @@ class DatabaseManager implements ConnectionResolverInterface
      * Create a new database manager instance.
      */
     public function __construct(
-        protected Application $app,
+        protected ContainerContract $app,
         protected ConnectionFactory $factory
     ) {
         $this->reconnector = function ($connection) {
@@ -87,6 +87,31 @@ class DatabaseManager implements ConnectionResolverInterface
     {
         return $this->app->get(ConnectionResolverInterface::class)
             ->connection(enum_value($name) ?? $this->getDefaultConnection());
+    }
+
+    /**
+     * Resolve a connection directly without using the connection pool.
+     *
+     * This method is used by SimpleConnectionResolver for testing and Capsule
+     * environments where connection pooling is not needed. It manages connections
+     * in the $connections array like Laravel's original DatabaseManager.
+     *
+     * @internal For use by SimpleConnectionResolver only
+     */
+    public function resolveConnectionDirectly(string $name): ConnectionInterface
+    {
+        [$database, $type] = $this->parseConnectionName($name);
+
+        if (! isset($this->connections[$name])) {
+            $this->connections[$name] = $this->configure(
+                $this->makeConnection($database),
+                $type
+            );
+
+            $this->dispatchConnectionEstablishedEvent($this->connections[$name]);
+        }
+
+        return $this->connections[$name];
     }
 
     /**

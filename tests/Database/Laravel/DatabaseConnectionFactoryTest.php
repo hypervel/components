@@ -1,10 +1,12 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Container\Container;
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Connectors\ConnectionFactory;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Container\Container;
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Connectors\ConnectionFactory;
 use InvalidArgumentException;
 use Mockery as m;
 use PDO;
@@ -135,11 +137,12 @@ class DatabaseConnectionFactoryTest extends TestCase
 
     public function testCustomConnectorsCanBeResolvedViaContainer()
     {
+        $connector = m::mock(\Hypervel\Database\Connectors\ConnectorInterface::class);
         $factory = new ConnectionFactory($container = m::mock(Container::class));
         $container->shouldReceive('bound')->once()->with('db.connector.foo')->andReturn(true);
-        $container->shouldReceive('make')->once()->with('db.connector.foo')->andReturn('connector');
+        $container->shouldReceive('get')->once()->with('db.connector.foo')->andReturn($connector);
 
-        $this->assertSame('connector', $factory->createConnector(['driver' => 'foo']));
+        $this->assertSame($connector, $factory->createConnector(['driver' => 'foo']));
     }
 
     public function testSqliteForeignKeyConstraints()
