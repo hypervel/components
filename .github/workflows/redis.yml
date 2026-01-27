@@ -42,12 +42,14 @@ jobs:
       - name: Install dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
-      - name: Execute Redis Cache integration tests
+      - name: Execute Redis integration tests
         env:
           REDIS_HOST: redis
           REDIS_PORT: 6379
           REDIS_DB: 8
-        run: vendor/bin/phpunit tests/Integration/Cache/Redis
+        run: |
+          vendor/bin/phpunit tests/Integration/Cache/Redis
+          vendor/bin/phpunit tests/Redis/Integration
 
   valkey_9:
     runs-on: ubuntu-latest
@@ -55,7 +57,7 @@ jobs:
 
     services:
       valkey:
-        image: valkey/valkey:8
+        image: valkey/valkey:9
         ports:
           - 6379:6379
         options: >-
@@ -70,7 +72,7 @@ jobs:
     strategy:
       fail-fast: true
 
-    name: Valkey 8
+    name: Valkey 9
 
     steps:
       - name: Checkout code
@@ -86,9 +88,11 @@ jobs:
       - name: Install dependencies
         run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
-      - name: Execute Redis Cache integration tests
+      - name: Execute Redis integration tests
         env:
           REDIS_HOST: valkey
           REDIS_PORT: 6379
           REDIS_DB: 8
-        run: vendor/bin/phpunit tests/Integration/Cache/Redis
+        run: |
+          vendor/bin/phpunit tests/Integration/Cache/Redis
+          vendor/bin/phpunit tests/Redis/Integration
