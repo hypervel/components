@@ -1513,7 +1513,7 @@ class Builder implements BuilderContract
      */
     public function hasNamedScope($scope)
     {
-        return $this->model->hasNamedScope($scope);
+        return $this->model && $this->model->hasNamedScope($scope); // @phpstan-ignore booleanAnd.leftAlwaysTrue (model can be null before setModel() is called)
     }
 
     /**
