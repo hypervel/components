@@ -4,62 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Eloquent\Concerns;
 
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Eloquent\Attributes\ObservedBy;
-use Hypervel\Database\Eloquent\Events\Booted;
-use Hypervel\Database\Eloquent\Events\Booting;
-use Hypervel\Database\Eloquent\Events\Created;
-use Hypervel\Database\Eloquent\Events\Creating;
-use Hypervel\Database\Eloquent\Events\Deleted;
-use Hypervel\Database\Eloquent\Events\Deleting;
-use Hypervel\Database\Eloquent\Events\ForceDeleted;
-use Hypervel\Database\Eloquent\Events\ForceDeleting;
-use Hypervel\Database\Eloquent\Events\ModelEvent;
-use Hypervel\Database\Eloquent\Events\Replicating;
-use Hypervel\Database\Eloquent\Events\Restored;
-use Hypervel\Database\Eloquent\Events\Restoring;
-use Hypervel\Database\Eloquent\Events\Retrieved;
-use Hypervel\Database\Eloquent\Events\Saved;
-use Hypervel\Database\Eloquent\Events\Saving;
-use Hypervel\Database\Eloquent\Events\Trashed;
-use Hypervel\Database\Eloquent\Events\Updated;
-use Hypervel\Database\Eloquent\Events\Updating;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Database\Eloquent\ModelListener;
 use Hypervel\Event\NullDispatcher;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use InvalidArgumentException;
 use ReflectionClass;
 
 trait HasEvents
 {
-    /**
-     * Mapping of event names to their corresponding event classes.
-     *
-     * @var array<string, class-string<ModelEvent>>
-     */
-    protected static array $modelEventClasses = [
-        'booting' => Booting::class,
-        'booted' => Booted::class,
-        'retrieved' => Retrieved::class,
-        'creating' => Creating::class,
-        'created' => Created::class,
-        'updating' => Updating::class,
-        'updated' => Updated::class,
-        'saving' => Saving::class,
-        'saved' => Saved::class,
-        'deleting' => Deleting::class,
-        'deleted' => Deleted::class,
-        'restoring' => Restoring::class,
-        'restored' => Restored::class,
-        'trashed' => Trashed::class,
-        'forceDeleting' => ForceDeleting::class,
-        'forceDeleted' => ForceDeleted::class,
-        'replicating' => Replicating::class,
-    ];
-
     /**
      * The event map for the model.
      *
@@ -124,11 +80,51 @@ trait HasEvents
      */
     public static function observe(object|array|string $classes): void
     {
-        $listener = static::getModelListener();
+        $instance = new static();
 
         foreach (Arr::wrap($classes) as $class) {
-            $listener->registerObserver(static::class, $class);
+            $instance->registerObserver($class);
         }
+    }
+
+    /**
+     * Register a single observer with the model.
+     *
+     * @param class-string|object $class
+     */
+    protected function registerObserver(object|string $class): void
+    {
+        $className = $this->resolveObserverClassName($class);
+
+        // When registering a model observer, we will spin through the possible events
+        // and determine if this observer has that method. If it does, we will hook
+        // it into the model's event system, making it convenient to watch these.
+        foreach ($this->getObservableEvents() as $event) {
+            if (method_exists($class, $event)) {
+                static::registerModelEvent($event, $className . '@' . $event);
+            }
+        }
+    }
+
+    /**
+     * Resolve the observer's class name from an object or string.
+     *
+     * @param class-string|object $class
+     * @return class-string
+     *
+     * @throws InvalidArgumentException
+     */
+    private function resolveObserverClassName(object|string $class): string
+    {
+        if (is_object($class)) {
+            return $class::class;
+        }
+
+        if (class_exists($class)) {
+            return $class;
+        }
+
+        throw new InvalidArgumentException('Unable to find observer: ' . $class);
     }
 
     /**
@@ -188,32 +184,16 @@ trait HasEvents
     }
 
     /**
-     * Get the event class for the given event name.
-     *
-     * @return null|class-string<ModelEvent>
-     */
-    protected static function getModelEventClass(string $event): ?string
-    {
-        return static::$modelEventClasses[$event] ?? null;
-    }
-
-    /**
-     * Register a model event callback.
+     * Register a model event with the dispatcher.
      *
      * @param array|callable|class-string|\Hypervel\Event\QueuedClosure $callback
      */
     protected static function registerModelEvent(string $event, mixed $callback): void
     {
-        $eventClass = static::getModelEventClass($event);
+        if (isset(static::$dispatcher)) {
+            $name = static::class;
 
-        if ($eventClass !== null) {
-            // Standard model event - register via ModelListener for efficient routing
-            static::getModelListener()->register(static::class, $event, $callback);
-        } else {
-            // Custom observable event - use string-based events via dispatcher
-            if (isset(static::$dispatcher)) {
-                static::$dispatcher->listen("eloquent.{$event}: " . static::class, $callback);
-            }
+            static::$dispatcher->listen("eloquent.{$event}: {$name}", $callback);
         }
     }
 
@@ -226,9 +206,11 @@ trait HasEvents
             return true;
         }
 
+        // First, we will get the proper method to call on the event dispatcher, and then we
+        // will attempt to fire a custom, object based event for the given event. If that
+        // returns a result we can return that result, or we'll call the string events.
         $method = $halt ? 'until' : 'dispatch';
 
-        // First, check if user has defined a custom event class in $dispatchesEvents
         $result = $this->filterModelEventResults(
             $this->fireCustomModelEvent($event, $method)
         );
@@ -237,20 +219,7 @@ trait HasEvents
             return false;
         }
 
-        if (! empty($result)) {
-            return $result;
-        }
-
-        // Fire our class-based event (ModelListener will route to callbacks)
-        $eventClass = static::getModelEventClass($event);
-
-        if ($eventClass !== null) {
-            $eventInstance = new $eventClass($this);
-            return static::$dispatcher->{$method}($eventInstance);
-        }
-
-        // Fallback to string-based for custom observable events
-        return static::$dispatcher->{$method}(
+        return ! empty($result) ? $result : static::$dispatcher->{$method}(
             "eloquent.{$event}: " . static::class,
             $this
         );
@@ -399,15 +368,10 @@ trait HasEvents
 
         $instance = new static();
 
-        // Clear from ModelListener
-        static::getModelListener()->clear(static::class);
-
-        // Clear custom observable events from dispatcher
-        foreach ($instance->observables as $event) {
+        foreach ($instance->getObservableEvents() as $event) {
             static::$dispatcher->forget("eloquent.{$event}: " . static::class);
         }
 
-        // Clear custom dispatchesEvents from dispatcher
         foreach ($instance->dispatchesEvents as $event) {
             static::$dispatcher->forget($event);
         }
@@ -478,13 +442,5 @@ trait HasEvents
     public static function eventsDisabled(): bool
     {
         return (bool) Context::get(self::EVENTS_DISABLED_CONTEXT_KEY, false);
-    }
-
-    /**
-     * Get the model listener instance.
-     */
-    protected static function getModelListener(): ModelListener
-    {
-        return ApplicationContext::getContainer()->get(ModelListener::class);
     }
 }
