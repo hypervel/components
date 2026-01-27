@@ -20,7 +20,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Hypervel\\Conditionable\\": "src/"
+            "Hypervel\\Support\\": "src/"
         }
     },
     "require": {

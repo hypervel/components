@@ -21,7 +21,7 @@ use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
-use Hypervel\Reflection\Traits\ReflectsClosures;
+use Hypervel\Support\Traits\ReflectsClosures;
 use Illuminate\Events\CallQueuedListener;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\StoppableEventInterface;

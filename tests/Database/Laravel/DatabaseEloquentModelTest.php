@@ -3603,11 +3603,11 @@ class EloquentTestThirdObserverStub
 
 class EloquentModelStub extends Model
 {
-    public $connection;
-    public $scopesCalled = [];
-    protected $table = 'stub';
-    protected $guarded = [];
-    protected $casts = ['castedFloat' => 'float'];
+    public \UnitEnum|string|null $connection = null;
+    public array $scopesCalled = [];
+    protected ?string $table = 'stub';
+    protected array $guarded = [];
+    protected array $casts = ['castedFloat' => 'float'];
 
     public function getListItemsAttribute($value)
     {
@@ -3679,7 +3679,7 @@ class EloquentModelStub extends Model
         return 'foo';
     }
 
-    public function getDates()
+    public function getDates(): array
     {
         return [];
     }
@@ -3727,12 +3727,12 @@ class EloquentModelStubWithTrait extends EloquentModelStub
 
 class EloquentModelCamelStub extends EloquentModelStub
 {
-    public static $snakeAttributes = false;
+    public static bool $snakeAttributes = false;
 }
 
 class EloquentDateModelStub extends EloquentModelStub
 {
-    public function getDates()
+    public function getDates(): array
     {
         return ['created_at', 'updated_at'];
     }
@@ -3740,10 +3740,10 @@ class EloquentDateModelStub extends EloquentModelStub
 
 class EloquentModelSaveStub extends Model
 {
-    protected $table = 'save_stub';
-    protected $guarded = [];
+    protected ?string $table = 'save_stub';
+    protected array $guarded = [];
 
-    public function save(array $options = [])
+    public function save(array $options = []): bool
     {
         if ($this->fireModelEvent('saving') === false) {
             return false;
@@ -3752,14 +3752,18 @@ class EloquentModelSaveStub extends Model
         $_SERVER['__eloquent.saved'] = true;
 
         $this->fireModelEvent('saved', false);
+
+        return true;
     }
 
-    public function setIncrementing($value)
+    public function setIncrementing(bool $value): static
     {
         $this->incrementing = $value;
+
+        return $this;
     }
 
-    public function getConnection()
+    public function getConnection(): Connection
     {
         $mock = m::mock(Connection::class);
         $mock->shouldReceive('getQueryGrammar')->andReturn($grammar = m::mock(Grammar::class));
@@ -3777,12 +3781,12 @@ class EloquentModelSaveStub extends Model
 
 class EloquentKeyTypeModelStub extends EloquentModelStub
 {
-    protected $keyType = 'string';
+    protected string $keyType = 'string';
 }
 
 class EloquentModelFindWithWritePdoStub extends Model
 {
-    public function newQuery()
+    public function newQuery(): Builder
     {
         $mock = m::mock(Builder::class);
         $mock->shouldReceive('useWritePdo')->once()->andReturnSelf();
@@ -3794,11 +3798,11 @@ class EloquentModelFindWithWritePdoStub extends Model
 
 class EloquentModelDestroyStub extends Model
 {
-    protected $fillable = [
+    protected array $fillable = [
         'id',
     ];
 
-    public function newQuery()
+    public function newQuery(): Builder
     {
         $mock = m::mock(Builder::class);
         $mock->shouldReceive('whereIn')->once()->with('id', [1, 2, 3])->andReturn($mock);
@@ -3811,7 +3815,7 @@ class EloquentModelDestroyStub extends Model
 
 class EloquentModelEmptyDestroyStub extends Model
 {
-    public function newQuery()
+    public function newQuery(): Builder
     {
         $mock = m::mock(Builder::class);
         $mock->shouldReceive('whereIn')->never();
@@ -3822,7 +3826,7 @@ class EloquentModelEmptyDestroyStub extends Model
 
 class EloquentModelWithStub extends Model
 {
-    public function newQuery()
+    public function newQuery(): Builder
     {
         $mock = m::mock(Builder::class);
         $mock->shouldReceive('with')->once()->with(['foo', 'bar'])->andReturn('foo');
@@ -3841,9 +3845,9 @@ class EloquentModelWithWhereHasStub extends Model
 
 class EloquentModelWithoutRelationStub extends Model
 {
-    public $with = ['foo'];
+    public array $with = ['foo'];
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function getEagerLoads()
     {
@@ -3872,7 +3876,7 @@ class EloquentModelBootingTestStub extends Model
 
 class EloquentModelAppendsStub extends Model
 {
-    protected $appends = ['is_admin', 'camelCased', 'StudlyCased'];
+    protected array $appends = ['is_admin', 'camelCased', 'StudlyCased'];
 
     public function getIsAdminAttribute()
     {
@@ -3935,7 +3939,7 @@ class EloquentModelGetMutatorsStub extends Model
 
 class EloquentModelCastingStub extends Model
 {
-    protected $casts = [
+    protected array $casts = [
         'floatAttribute' => 'float',
         'boolAttribute' => 'bool',
         'objectAttribute' => 'object',
@@ -3988,7 +3992,7 @@ class EloquentModelCastingStub extends Model
         return $this->attributes['jsonAttributeWithUnicode'];
     }
 
-    protected function serializeDate(DateTimeInterface $date)
+    protected function serializeDate(DateTimeInterface $date): string
     {
         return $date->format('Y-m-d H:i:s');
     }
@@ -3996,15 +4000,15 @@ class EloquentModelCastingStub extends Model
 
 class EloquentModelEnumCastingStub extends Model
 {
-    protected $casts = ['enumAttribute' => StringStatus::class];
+    protected array $casts = ['enumAttribute' => StringStatus::class];
 }
 
 class EloquentModelDynamicHiddenStub extends Model
 {
-    protected $table = 'stub';
-    protected $guarded = [];
+    protected ?string $table = 'stub';
+    protected array $guarded = [];
 
-    public function getHidden()
+    public function getHidden(): array
     {
         return ['age', 'id'];
     }
@@ -4012,22 +4016,22 @@ class EloquentModelDynamicHiddenStub extends Model
 
 class EloquentModelVisibleStub extends Model
 {
-    protected $table = 'stub';
-    protected $visible = ['foo'];
+    protected ?string $table = 'stub';
+    protected array $visible = ['foo'];
 }
 
 class EloquentModelHiddenStub extends Model
 {
-    protected $table = 'stub';
-    protected $hidden = ['foo'];
+    protected ?string $table = 'stub';
+    protected array $hidden = ['foo'];
 }
 
 class EloquentModelDynamicVisibleStub extends Model
 {
-    protected $table = 'stub';
-    protected $guarded = [];
+    protected ?string $table = 'stub';
+    protected array $guarded = [];
 
-    public function getVisible()
+    public function getVisible(): array
     {
         return ['name', 'id'];
     }
@@ -4035,9 +4039,9 @@ class EloquentModelDynamicVisibleStub extends Model
 
 class EloquentModelNonIncrementingStub extends Model
 {
-    protected $table = 'stub';
-    protected $guarded = [];
-    public $incrementing = false;
+    protected ?string $table = 'stub';
+    protected array $guarded = [];
+    public bool $incrementing = false;
 }
 
 class EloquentNoConnectionModelStub extends EloquentModelStub
@@ -4047,17 +4051,17 @@ class EloquentNoConnectionModelStub extends EloquentModelStub
 
 class EloquentDifferentConnectionModelStub extends EloquentModelStub
 {
-    public $connection = 'different_connection';
+    public \UnitEnum|string|null $connection = 'different_connection';
 }
 
 class EloquentPrimaryUuidModelStub extends EloquentModelStub
 {
     use HasUuids;
 
-    public $incrementing = false;
-    protected $keyType = 'string';
+    public bool $incrementing = false;
+    protected string $keyType = 'string';
 
-    public function getKeyName()
+    public function getKeyName(): string
     {
         return 'uuid';
     }
@@ -4067,12 +4071,12 @@ class EloquentNonPrimaryUuidModelStub extends EloquentModelStub
 {
     use HasUuids;
 
-    public function getKeyName()
+    public function getKeyName(): string
     {
         return 'id';
     }
 
-    public function uniqueIds()
+    public function uniqueIds(): array
     {
         return ['uuid'];
     }
@@ -4082,10 +4086,10 @@ class EloquentPrimaryUlidModelStub extends EloquentModelStub
 {
     use HasUlids;
 
-    public $incrementing = false;
-    protected $keyType = 'string';
+    public bool $incrementing = false;
+    protected string $keyType = 'string';
 
-    public function getKeyName()
+    public function getKeyName(): string
     {
         return 'ulid';
     }
@@ -4095,12 +4099,12 @@ class EloquentNonPrimaryUlidModelStub extends EloquentModelStub
 {
     use HasUlids;
 
-    public function getKeyName()
+    public function getKeyName(): string
     {
         return 'id';
     }
 
-    public function uniqueIds()
+    public function uniqueIds(): array
     {
         return ['ulid'];
     }
@@ -4143,26 +4147,26 @@ class EloquentModelSavingEventStub
 
 class EloquentModelEventObjectStub extends Model
 {
-    protected $dispatchesEvents = [
+    protected array $dispatchesEvents = [
         'saving' => EloquentModelSavingEventStub::class,
     ];
 }
 
 class EloquentModelWithoutTimestamps extends Model
 {
-    protected $table = 'stub';
-    public $timestamps = false;
+    protected ?string $table = 'stub';
+    public bool $timestamps = false;
 }
 
 class EloquentModelWithUpdatedAtNull extends Model
 {
-    protected $table = 'stub';
+    protected ?string $table = 'stub';
     const UPDATED_AT = null;
 }
 
 class UnsavedModel extends Model
 {
-    protected $casts = ['name' => Uppercase::class];
+    protected array $casts = ['name' => Uppercase::class];
 }
 
 class Uppercase implements CastsInboundAttributes
@@ -4180,14 +4184,14 @@ class CustomCollection extends BaseCollection
 
 class EloquentModelWithPrimitiveCasts extends Model
 {
-    public $fillable = ['id'];
+    public array $fillable = ['id'];
 
-    public $casts = [
+    public array $casts = [
         'backed_enum' => CastableBackedEnum::class,
         'address' => Address::class,
     ];
 
-    public $attributes = [
+    public array $attributes = [
         'address_line_one' => null,
         'address_line_two' => null,
     ];

@@ -13,7 +13,7 @@ use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Contracts\Validation\ValidatorAwareRule;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Validator;
-use Hypervel\Conditionable\Traits\Conditionable;
+use Hypervel\Support\Traits\Conditionable;
 use InvalidArgumentException;
 
 class Password implements Rule, DataAwareRule, ValidatorAwareRule

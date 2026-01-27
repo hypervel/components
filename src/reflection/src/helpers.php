@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Hypervel\Reflection\Traits\ReflectsClosures;
+use Hypervel\Support\Traits\ReflectsClosures;
 
 if (! function_exists('lazy')) {
     /**

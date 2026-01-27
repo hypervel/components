@@ -15,7 +15,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Enumerable;
 use Hypervel\Support\Str;
 use Hypervel\Support\StrCache;
-use Hypervel\Conditionable\Traits\Conditionable;
+use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\Macroable;
 use Throwable;

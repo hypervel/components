@@ -8,7 +8,7 @@ use ArrayAccess;
 use Closure;
 use Countable;
 use Hypervel\Support\Facades\Date;
-use Hypervel\Conditionable\Traits\Conditionable;
+use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Dumpable;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\Tappable;

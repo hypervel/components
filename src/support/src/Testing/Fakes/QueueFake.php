@@ -14,7 +14,7 @@ use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\CallQueuedClosure;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Support\Collection;
-use Hypervel\Reflection\Traits\ReflectsClosures;
+use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
 use Psr\Container\ContainerInterface;
 

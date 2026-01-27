@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Reflection\Traits;
+namespace Hypervel\Support\Traits;
 
 use Closure;
 use Hypervel\Support\Collection;

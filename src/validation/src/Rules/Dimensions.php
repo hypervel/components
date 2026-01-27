@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
-use Hypervel\Conditionable\Traits\Conditionable;
+use Hypervel\Support\Traits\Conditionable;
 use Stringable;
 
 class Dimensions implements Stringable
