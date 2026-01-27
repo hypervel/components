@@ -229,23 +229,33 @@ class ModelInspector
     /**
      * Get the observers watching this model.
      *
-     * @return BaseCollection<int, array{event: string, observer: array<int, class-string>}>
+     * @return BaseCollection<int, array{event: string, observer: array<int, string>}>
      */
     protected function getObservers(Model $model): BaseCollection
     {
-        $modelListener = $this->app->get(ModelListener::class);
-        $observers = $modelListener->getObservers($model::class);
+        $listeners = $this->app->make('events')->getRawListeners();
+
+        // Get the Eloquent observers for this model...
+        $listeners = array_filter($listeners, function ($v, $key) use ($model) {
+            return Str::startsWith($key, 'eloquent.') && Str::endsWith($key, $model::class);
+        }, ARRAY_FILTER_USE_BOTH);
+
+        // Format listeners Eloquent verb => Observer methods...
+        $extractVerb = function ($key) {
+            preg_match('/eloquent\.([a-zA-Z]+): /', $key, $matches);
+
+            return $matches[1] ?? '?';
+        };
 
         $formatted = [];
 
-        foreach ($observers as $event => $observerClasses) {
+        foreach ($listeners as $key => $observerMethods) {
             $formatted[] = [
-                'event' => $event,
-                'observer' => $observerClasses,
+                'event' => $extractVerb($key),
+                'observer' => array_map(fn ($obs) => is_string($obs) ? $obs : 'Closure', $observerMethods),
             ];
         }
 
-        // @phpstan-ignore return.type (list<T> is equivalent to array<int, T>)
         return new BaseCollection($formatted);
     }
 
