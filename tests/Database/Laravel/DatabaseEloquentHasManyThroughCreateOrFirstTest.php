@@ -2,24 +2,26 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Database;
+namespace Hypervel\Tests\Database\Laravel;
 
 use Exception;
-use Illuminate\Database\Connection;
-use Illuminate\Database\ConnectionResolverInterface;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasManyThrough;
-use Illuminate\Database\Query\Builder;
-use Illuminate\Database\UniqueConstraintViolationException;
-use Illuminate\Support\Carbon;
+use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasManyThrough;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Database\UniqueConstraintViolationException;
+use Hypervel\Support\Carbon;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PDO;
-use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 {
     protected function setUp(): void
     {
+        parent::setUp();
+
         Carbon::setTestNow('2023-01-01 00:00:00');
     }
 
@@ -371,8 +373,8 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 
     protected function mockConnectionForModel(Model $model, string $database, array $lastInsertIds = []): void
     {
-        $grammarClass = 'Illuminate\Database\Query\Grammars\\'.$database.'Grammar';
-        $processorClass = 'Illuminate\Database\Query\Processors\\'.$database.'Processor';
+        $grammarClass = 'Hypervel\Database\Query\Grammars\\'.$database.'Grammar';
+        $processorClass = 'Hypervel\Database\Query\Processors\\'.$database.'Processor';
         $processor = new $processorClass;
         $connection = m::mock(Connection::class, ['getPostProcessor' => $processor]);
         $grammar = new $grammarClass($connection);
@@ -401,8 +403,8 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
  */
 class HasManyThroughCreateOrFirstTestChildModel extends Model
 {
-    protected $table = 'child';
-    protected $guarded = [];
+    protected ?string $table = 'child';
+    protected array $guarded = [];
 }
 
 /**
@@ -411,8 +413,8 @@ class HasManyThroughCreateOrFirstTestChildModel extends Model
  */
 class HasManyThroughCreateOrFirstTestPivotModel extends Model
 {
-    protected $table = 'pivot';
-    protected $guarded = [];
+    protected ?string $table = 'pivot';
+    protected array $guarded = [];
 }
 
 /**
@@ -420,8 +422,8 @@ class HasManyThroughCreateOrFirstTestPivotModel extends Model
  */
 class HasManyThroughCreateOrFirstTestParentModel extends Model
 {
-    protected $table = 'parent';
-    protected $guarded = [];
+    protected ?string $table = 'parent';
+    protected array $guarded = [];
 
     public function children(): HasManyThrough
     {

@@ -1,16 +1,18 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel;
 
 use Exception;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Query\Builder as QueryBuilder;
-use Illuminate\Database\UniqueConstraintViolationException;
-use Mockery as m;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Query\Builder as QueryBuilder;
+use Hypervel\Database\UniqueConstraintViolationException;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 use stdClass;
 
 class DatabaseEloquentHasManyTest extends TestCase
@@ -19,7 +21,7 @@ class DatabaseEloquentHasManyTest extends TestCase
     {
         $relation = $this->getRelation();
         $instance = $this->expectNewModel($relation, ['name' => 'taylor']);
-        $instance->expects($this->never())->method('save');
+        $instance->shouldReceive('save')->never();
 
         $this->assertEquals($instance, $relation->make(['name' => 'taylor']));
     }
@@ -31,18 +33,21 @@ class DatabaseEloquentHasManyTest extends TestCase
             'colin' => ['name' => 'colin'],
         ];
 
-        $relation = $this->getRelation();
-        $relation->getRelated()->shouldReceive('newCollection')->once()->andReturn(new Collection);
-
-        $taylor = $this->expectNewModel($relation, ['name' => 'taylor']);
-        $taylor->expects($this->never())->method('save');
-        $colin = $this->expectNewModel($relation, ['name' => 'colin']);
-        $colin->expects($this->never())->method('save');
+        // Use concrete stub to properly test distinct instances and save() behavior
+        EloquentHasManyRelatedStub::resetState();
+        $relation = $this->getRelationWithConcreteRelated();
 
         $instances = $relation->makeMany($records);
+
         $this->assertInstanceOf(Collection::class, $instances);
-        $this->assertEquals($taylor, $instances[0]);
-        $this->assertEquals($colin, $instances[1]);
+        $this->assertCount(2, $instances);
+        // Verify distinct instances were created (not the same object)
+        $this->assertNotSame($instances[0], $instances[1]);
+        // Verify save() was never called
+        $this->assertFalse(EloquentHasManyRelatedStub::$saveCalled);
+        // Verify foreign key was set on each instance
+        $this->assertEquals(1, $instances[0]->getAttribute('foreign_key'));
+        $this->assertEquals(1, $instances[1]->getAttribute('foreign_key'));
     }
 
     public function testCreateMethodProperlyCreatesNewModel()
@@ -65,10 +70,10 @@ class DatabaseEloquentHasManyTest extends TestCase
     public function testFindOrNewMethodFindsModel()
     {
         $relation = $this->getRelation();
-        $relation->getQuery()->shouldReceive('find')->once()->with('foo', ['*'])->andReturn($model = m::mock(stdClass::class));
+        $relation->getQuery()->shouldReceive('find')->once()->with('foo', ['*'])->andReturn($model = m::mock(Model::class));
         $model->shouldReceive('setAttribute')->never();
 
-        $this->assertInstanceOf(stdClass::class, $relation->findOrNew('foo'));
+        $this->assertInstanceOf(Model::class, $relation->findOrNew('foo'));
     }
 
     public function testFindOrNewMethodReturnsNewModelWithForeignKeySet()
@@ -85,21 +90,21 @@ class DatabaseEloquentHasManyTest extends TestCase
     {
         $relation = $this->getRelation();
         $relation->getQuery()->shouldReceive('where')->once()->with(['foo'])->andReturn($relation->getQuery());
-        $relation->getQuery()->shouldReceive('first')->once()->with()->andReturn($model = m::mock(stdClass::class));
+        $relation->getQuery()->shouldReceive('first')->once()->with()->andReturn($model = m::mock(Model::class));
         $model->shouldReceive('setAttribute')->never();
 
-        $this->assertInstanceOf(stdClass::class, $relation->firstOrNew(['foo']));
+        $this->assertInstanceOf(Model::class, $relation->firstOrNew(['foo']));
     }
 
     public function testFirstOrNewMethodWithValuesFindsFirstModel()
     {
         $relation = $this->getRelation();
         $relation->getQuery()->shouldReceive('where')->once()->with(['foo' => 'bar'])->andReturn($relation->getQuery());
-        $relation->getQuery()->shouldReceive('first')->once()->with()->andReturn($model = m::mock(stdClass::class));
+        $relation->getQuery()->shouldReceive('first')->once()->with()->andReturn($model = m::mock(Model::class));
         $relation->getRelated()->shouldReceive('newInstance')->never();
         $model->shouldReceive('setAttribute')->never();
 
-        $this->assertInstanceOf(stdClass::class, $relation->firstOrNew(['foo' => 'bar'], ['baz' => 'qux']));
+        $this->assertInstanceOf(Model::class, $relation->firstOrNew(['foo' => 'bar'], ['baz' => 'qux']));
     }
 
     public function testFirstOrNewMethodReturnsNewModelWithForeignKeySet()
@@ -126,24 +131,24 @@ class DatabaseEloquentHasManyTest extends TestCase
     {
         $relation = $this->getRelation();
         $relation->getQuery()->shouldReceive('where')->once()->with(['foo'])->andReturn($relation->getQuery());
-        $relation->getQuery()->shouldReceive('first')->once()->with()->andReturn($model = m::mock(stdClass::class));
+        $relation->getQuery()->shouldReceive('first')->once()->with()->andReturn($model = m::mock(Model::class));
         $relation->getRelated()->shouldReceive('newInstance')->never();
         $model->shouldReceive('setAttribute')->never();
         $model->shouldReceive('save')->never();
 
-        $this->assertInstanceOf(stdClass::class, $relation->firstOrCreate(['foo']));
+        $this->assertInstanceOf(Model::class, $relation->firstOrCreate(['foo']));
     }
 
     public function testFirstOrCreateMethodWithValuesFindsFirstModel()
     {
         $relation = $this->getRelation();
         $relation->getQuery()->shouldReceive('where')->once()->with(['foo' => 'bar'])->andReturn($relation->getQuery());
-        $relation->getQuery()->shouldReceive('first')->once()->with()->andReturn($model = m::mock(stdClass::class));
+        $relation->getQuery()->shouldReceive('first')->once()->with()->andReturn($model = m::mock(Model::class));
         $relation->getRelated()->shouldReceive('newInstance')->never();
         $model->shouldReceive('setAttribute')->never();
         $model->shouldReceive('save')->never();
 
-        $this->assertInstanceOf(stdClass::class, $relation->firstOrCreate(['foo' => 'bar'], ['baz' => 'qux']));
+        $this->assertInstanceOf(Model::class, $relation->firstOrCreate(['foo' => 'bar'], ['baz' => 'qux']));
     }
 
     public function testFirstOrCreateMethodCreatesNewModelWithForeignKeySet()
@@ -184,9 +189,9 @@ class DatabaseEloquentHasManyTest extends TestCase
         });
         $relation->getQuery()->shouldReceive('useWritePdo')->once()->andReturn($relation->getQuery());
         $relation->getQuery()->shouldReceive('where')->once()->with(['foo' => 'bar'])->andReturn($relation->getQuery());
-        $relation->getQuery()->shouldReceive('first')->once()->with()->andReturn($model = m::mock(stdClass::class));
+        $relation->getQuery()->shouldReceive('first')->once()->with()->andReturn($model = m::mock(Model::class));
 
-        $this->assertInstanceOf(stdClass::class, $found = $relation->createOrFirst(['foo' => 'bar'], ['baz' => 'qux']));
+        $this->assertInstanceOf(Model::class, $found = $relation->createOrFirst(['foo' => 'bar'], ['baz' => 'qux']));
         $this->assertSame($model, $found);
     }
 
@@ -221,14 +226,14 @@ class DatabaseEloquentHasManyTest extends TestCase
     {
         $relation = $this->getRelation();
         $relation->getQuery()->shouldReceive('where')->once()->with(['foo'])->andReturn($relation->getQuery());
-        $relation->getQuery()->shouldReceive('first')->once()->with()->andReturn($model = m::mock(stdClass::class));
+        $relation->getQuery()->shouldReceive('first')->once()->with()->andReturn($model = m::mock(Model::class));
         $relation->getRelated()->shouldReceive('newInstance')->never();
 
         $model->wasRecentlyCreated = false;
         $model->shouldReceive('fill')->once()->with(['bar'])->andReturn($model);
         $model->shouldReceive('save')->once();
 
-        $this->assertInstanceOf(stdClass::class, $relation->updateOrCreate(['foo'], ['bar']));
+        $this->assertInstanceOf(Model::class, $relation->updateOrCreate(['foo'], ['bar']));
     }
 
     public function testUpdateOrCreateMethodCreatesNewModelWithForeignKeySet()
@@ -258,7 +263,7 @@ class DatabaseEloquentHasManyTest extends TestCase
             ],
             ['email'],
             ['name']
-        );
+        )->andReturn(1);
 
         $relation->upsert(
             ['email' => 'foo3', 'name' => 'bar'],
@@ -273,7 +278,7 @@ class DatabaseEloquentHasManyTest extends TestCase
             ],
             ['email'],
             ['name']
-        );
+        )->andReturn(2);
 
         $relation->upsert(
             [
@@ -390,21 +395,44 @@ class DatabaseEloquentHasManyTest extends TestCase
         return new HasMany($builder, $parent, 'table.foreign_key', 'id');
     }
 
+    protected function getRelationWithConcreteRelated(): HasMany
+    {
+        $queryBuilder = m::mock(QueryBuilder::class);
+        $builder = m::mock(Builder::class, [$queryBuilder]);
+        $builder->shouldReceive('whereNotNull')->with('table.foreign_key');
+        $builder->shouldReceive('where')->with('table.foreign_key', '=', 1);
+
+        // Use concrete stub instead of mock
+        $related = new EloquentHasManyRelatedStub;
+        $builder->shouldReceive('getModel')->andReturn($related);
+
+        $parent = m::mock(Model::class);
+        $parent->shouldReceive('getAttribute')->with('id')->andReturn(1);
+        $parent->shouldReceive('getCreatedAtColumn')->andReturn('created_at');
+        $parent->shouldReceive('getUpdatedAtColumn')->andReturn('updated_at');
+
+        return new HasMany($builder, $parent, 'table.foreign_key', 'id');
+    }
+
     protected function expectNewModel($relation, $attributes = null)
     {
-        $model = $this->getMockBuilder(Model::class)->onlyMethods(['setAttribute', 'save'])->getMock();
-        $relation->getRelated()->shouldReceive('newInstance')->with($attributes)->andReturn($model);
-        $model->expects($this->once())->method('setAttribute')->with('foreign_key', 1);
+        // Use andReturnSelf() to satisfy static return type of newInstance()
+        $related = $relation->getRelated();
+        $related->shouldReceive('newInstance')->once()->with($attributes)->andReturnSelf();
+        $related->shouldReceive('setAttribute')->once()->with('foreign_key', 1)->andReturnSelf();
 
-        return $model;
+        return $related;
     }
 
     protected function expectCreatedModel($relation, $attributes)
     {
-        $model = $this->expectNewModel($relation, $attributes);
-        $model->expects($this->once())->method('save');
+        // Use andReturnSelf() to satisfy static return type of newInstance()
+        $related = $relation->getRelated();
+        $related->shouldReceive('newInstance')->once()->with($attributes)->andReturnSelf();
+        $related->shouldReceive('setAttribute')->once()->with('foreign_key', 1)->andReturnSelf();
+        $related->shouldReceive('save')->once()->andReturn(true);
 
-        return $model;
+        return $related;
     }
 
     protected function expectForceCreatedModel($relation, $attributes)
@@ -422,5 +450,40 @@ class DatabaseEloquentHasManyTest extends TestCase
 
 class EloquentHasManyModelStub extends Model
 {
-    public $foreign_key = 'foreign.value';
+    public string|int $foreign_key = 'foreign.value';
+}
+
+/**
+ * Concrete test stub that tracks save() calls and returns distinct instances from newInstance().
+ * Used to test makeMany() behavior where we need to verify distinct instances are created.
+ */
+class EloquentHasManyRelatedStub extends Model
+{
+    public static bool $saveCalled = false;
+
+    public static function resetState(): void
+    {
+        static::$saveCalled = false;
+    }
+
+    public function newInstance(mixed $attributes = [], mixed $exists = false): static
+    {
+        $instance = new static;
+        $instance->exists = $exists;
+        $instance->setRawAttributes((array) $attributes, true);
+
+        return $instance;
+    }
+
+    public function save(array $options = []): bool
+    {
+        static::$saveCalled = true;
+
+        return true;
+    }
+
+    public function newCollection(array $models = []): Collection
+    {
+        return new Collection($models);
+    }
 }

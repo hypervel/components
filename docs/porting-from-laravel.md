@@ -82,6 +82,36 @@ $this->assertSame('taylor', $result->username);
 
 This is a testing-only issue - the strict types are correct and an improvement. In production code, you never mock Models and call `newInstance()`.
 
+**When `andReturnSelf()` isn't enough:**
+
+If a test needs to verify distinct instances (e.g., `makeMany()` returns different objects), use a concrete test stub instead of mocks:
+
+```php
+class EloquentHasManyRelatedStub extends Model
+{
+    public static bool $saveCalled = false;
+
+    public function newInstance(mixed $attributes = [], mixed $exists = false): static
+    {
+        $instance = new static;
+        $instance->setRawAttributes((array) $attributes, true);
+        return $instance;
+    }
+
+    public function save(array $options = []): bool
+    {
+        static::$saveCalled = true;
+        return true;
+    }
+}
+
+// Test verifies real behavior, not mock expectations
+$this->assertNotSame($instances[0], $instances[1]);
+$this->assertFalse(EloquentHasManyRelatedStub::$saveCalled);
+```
+
+Concrete stubs are the correct approach here - they test actual behavior rather than just verifying mocks were called correctly.
+
 ### Missing Dependencies
 
 Some test files reference classes defined in other test files. Laravel gets away with this due to test suite load order. Make tests self-contained by defining required classes locally:

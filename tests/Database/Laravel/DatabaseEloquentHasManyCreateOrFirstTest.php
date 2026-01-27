@@ -1,23 +1,27 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel;
 
 use Exception;
-use Illuminate\Database\Connection;
-use Illuminate\Database\ConnectionResolverInterface;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Query\Builder;
-use Illuminate\Database\UniqueConstraintViolationException;
-use Illuminate\Support\Carbon;
+use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Database\UniqueConstraintViolationException;
+use Hypervel\Support\Carbon;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PDO;
-use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 {
     protected function setUp(): void
     {
+        parent::setUp();
+
         Carbon::setTestNow('2023-01-01 00:00:00');
     }
 
@@ -319,8 +323,8 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     protected function mockConnectionForModel(Model $model, string $database, array $lastInsertIds = []): void
     {
-        $grammarClass = 'Illuminate\Database\Query\Grammars\\'.$database.'Grammar';
-        $processorClass = 'Illuminate\Database\Query\Processors\\'.$database.'Processor';
+        $grammarClass = 'Hypervel\Database\Query\Grammars\\'.$database.'Grammar';
+        $processorClass = 'Hypervel\Database\Query\Processors\\'.$database.'Processor';
         $processor = new $processorClass;
         $connection = m::mock(Connection::class, ['getPostProcessor' => $processor]);
         $grammar = new $grammarClass($connection);
@@ -348,8 +352,8 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
  */
 class HasManyCreateOrFirstTestParentModel extends Model
 {
-    protected $table = 'parent_table';
-    protected $guarded = [];
+    protected ?string $table = 'parent_table';
+    protected array $guarded = [];
 
     public function children(): HasMany
     {
@@ -363,6 +367,6 @@ class HasManyCreateOrFirstTestParentModel extends Model
  */
 class HasManyCreateOrFirstTestChildModel extends Model
 {
-    protected $table = 'child_table';
-    protected $guarded = [];
+    protected ?string $table = 'child_table';
+    protected array $guarded = [];
 }
