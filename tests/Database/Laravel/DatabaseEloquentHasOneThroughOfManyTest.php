@@ -1,24 +1,28 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Connection;
-use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasManyThrough;
-use Illuminate\Database\Eloquent\Relations\HasOneThrough;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Schema\Builder;
-use InvalidArgumentException;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Connection;
+use Hypervel\Database\Eloquent\Factories\Factory;
+use Hypervel\Database\Eloquent\Factories\HasFactory;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Relations\HasManyThrough;
+use Hypervel\Database\Eloquent\Relations\HasOneThrough;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 
 class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 {
     protected function setUp(): void
     {
+        parent::setUp();
+
         $db = new DB;
         $db->addConnection(['driver' => 'sqlite', 'database' => ':memory:']);
         $db->bootEloquent();
@@ -531,9 +535,10 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 class HasOneThroughOfManyTestUser extends Eloquent
 {
     use HasFactory;
-    protected $table = 'users';
-    protected $guarded = [];
-    public $timestamps = false;
+
+    protected ?string $table = 'users';
+    protected array $guarded = [];
+    public bool $timestamps = false;
     protected static string $factory = HasOneThroughOfManyTestUserFactory::class;
 
     public function intermediates(): HasMany
@@ -670,9 +675,10 @@ class HasOneThroughOfManyTestUser extends Eloquent
 class HasOneThroughOfManyTestIntermediate extends Eloquent
 {
     use HasFactory;
-    protected $table = 'intermediates';
-    protected $guarded = [];
-    public $timestamps = false;
+
+    protected ?string $table = 'intermediates';
+    protected array $guarded = [];
+    public bool $timestamps = false;
     protected static string $factory = HasOneThroughOfManyTestIntermediateFactory::class;
 
     public function logins(): HasMany
@@ -706,40 +712,40 @@ class HasOneThroughOfManyTestModel extends Eloquent
 
 class HasOneThroughOfManyTestLogin extends Eloquent
 {
-    protected $table = 'logins';
-    protected $guarded = [];
-    public $timestamps = false;
+    protected ?string $table = 'logins';
+    protected array $guarded = [];
+    public bool $timestamps = false;
 }
 
 class HasOneThroughOfManyTestLoginWithSoftDeletes extends Eloquent
 {
     use SoftDeletes;
 
-    protected $table = 'logins';
-    protected $guarded = [];
-    public $timestamps = false;
+    protected ?string $table = 'logins';
+    protected array $guarded = [];
+    public bool $timestamps = false;
 }
 
 class HasOneThroughOfManyTestState extends Eloquent
 {
-    protected $table = 'states';
-    protected $guarded = [];
-    public $timestamps = true;
-    protected $fillable = ['type', 'state', 'updated_at'];
+    protected ?string $table = 'states';
+    protected array $guarded = [];
+    public bool $timestamps = true;
+    protected array $fillable = ['type', 'state', 'updated_at'];
 }
 
 class HasOneThroughOfManyTestPrice extends Eloquent
 {
-    protected $table = 'prices';
-    protected $guarded = [];
-    public $timestamps = false;
-    protected $fillable = ['published_at'];
-    protected $casts = ['published_at' => 'datetime'];
+    protected ?string $table = 'prices';
+    protected array $guarded = [];
+    public bool $timestamps = false;
+    protected array $fillable = ['published_at'];
+    protected array $casts = ['published_at' => 'datetime'];
 }
 
 class HasOneThroughOfManyTestUserFactory extends Factory
 {
-    protected $model = HasOneThroughOfManyTestUser::class;
+    protected ?string $model = HasOneThroughOfManyTestUser::class;
 
     public function definition(): array
     {
@@ -749,7 +755,7 @@ class HasOneThroughOfManyTestUserFactory extends Factory
 
 class HasOneThroughOfManyTestIntermediateFactory extends Factory
 {
-    protected $model = HasOneThroughOfManyTestIntermediate::class;
+    protected ?string $model = HasOneThroughOfManyTestIntermediate::class;
 
     public function definition(): array
     {
