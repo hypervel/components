@@ -1,14 +1,16 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Tests\Database\Fixtures\Enums\Bar;
-use Mockery as m;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Tests\Database\Laravel\Fixtures\Enums\Bar;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 
 class DatabaseEloquentBelongsToTest extends TestCase
 {
@@ -18,47 +20,46 @@ class DatabaseEloquentBelongsToTest extends TestCase
 
     public function testBelongsToWithDefault()
     {
-        $relation = $this->getRelation()->withDefault();
+        // Use partial mock so newInstance() can return self (satisfies static return type)
+        // while still having real Model behavior for attribute handling
+        $relation = $this->getRelationWithPartialMock()->withDefault();
 
         $this->builder->shouldReceive('first')->once()->andReturnNull();
+        $this->related->shouldReceive('newInstance')->once()->andReturnSelf();
 
-        $newModel = new EloquentBelongsToModelStub;
+        $result = $relation->getResults();
 
-        $this->related->shouldReceive('newInstance')->once()->andReturn($newModel);
-
-        $this->assertSame($newModel, $relation->getResults());
+        $this->assertSame($this->related, $result);
     }
 
     public function testBelongsToWithDynamicDefault()
     {
-        $relation = $this->getRelation()->withDefault(function ($newModel) {
+        $relation = $this->getRelationWithPartialMock()->withDefault(function ($newModel) {
             $newModel->username = 'taylor';
         });
 
         $this->builder->shouldReceive('first')->once()->andReturnNull();
+        $this->related->shouldReceive('newInstance')->once()->andReturnSelf();
 
-        $newModel = new EloquentBelongsToModelStub;
+        $result = $relation->getResults();
 
-        $this->related->shouldReceive('newInstance')->once()->andReturn($newModel);
-
-        $this->assertSame($newModel, $relation->getResults());
-
-        $this->assertSame('taylor', $newModel->username);
+        $this->assertSame($this->related, $result);
+        // Partial mock has real Model attribute behavior, so this actually tests the callback worked
+        $this->assertSame('taylor', $result->username);
     }
 
     public function testBelongsToWithArrayDefault()
     {
-        $relation = $this->getRelation()->withDefault(['username' => 'taylor']);
+        $relation = $this->getRelationWithPartialMock()->withDefault(['username' => 'taylor']);
 
         $this->builder->shouldReceive('first')->once()->andReturnNull();
+        $this->related->shouldReceive('newInstance')->once()->andReturnSelf();
 
-        $newModel = new EloquentBelongsToModelStub;
+        $result = $relation->getResults();
 
-        $this->related->shouldReceive('newInstance')->once()->andReturn($newModel);
-
-        $this->assertSame($newModel, $relation->getResults());
-
-        $this->assertSame('taylor', $newModel->username);
+        $this->assertSame($this->related, $result);
+        // Partial mock has real Model attribute behavior, so this actually tests forceFill worked
+        $this->assertSame('taylor', $result->username);
     }
 
     public function testEagerConstraintsAreProperlyAdded()
@@ -107,17 +108,17 @@ class DatabaseEloquentBelongsToTest extends TestCase
 
         $result1 = new class extends Model
         {
-            protected $attributes = ['id' => 1];
+            protected array $attributes = ['id' => 1];
         };
 
         $result2 = new class extends Model
         {
-            protected $attributes = ['id' => 2];
+            protected array $attributes = ['id' => 2];
         };
 
         $result3 = new class extends Model
         {
-            protected $attributes = ['id' => 3];
+            protected array $attributes = ['id' => 3];
 
             public function __toString()
             {
@@ -127,11 +128,11 @@ class DatabaseEloquentBelongsToTest extends TestCase
 
         $result4 = new class extends Model
         {
-            protected $casts = [
+            protected array $casts = [
                 'id' => Bar::class,
             ];
 
-            protected $attributes = ['id' => 5];
+            protected array $attributes = ['id' => 5];
         };
 
         $model1 = new EloquentBelongsToModelStub;
@@ -405,6 +406,28 @@ class DatabaseEloquentBelongsToTest extends TestCase
 
         return new BelongsTo($this->builder, $parent, 'foreign_key', 'id', 'relation');
     }
+
+    /**
+     * Get relation with a partial mock for the related model.
+     *
+     * Used for withDefault tests that need real Model attribute behavior.
+     * The partial mock satisfies strict `static` return types on newInstance()
+     * while retaining real __set/__get behavior for attribute assertions.
+     */
+    protected function getRelationWithPartialMock($parent = null)
+    {
+        $this->builder = m::mock(Builder::class);
+        $this->builder->shouldReceive('where')->with('relation.id', '=', 'foreign.value');
+        $this->related = m::mock(EloquentBelongsToModelStub::class)->makePartial();
+        $this->related->shouldReceive('getKeyType')->andReturn('int');
+        $this->related->shouldReceive('getKeyName')->andReturn('id');
+        $this->related->shouldReceive('getTable')->andReturn('relation');
+        $this->related->shouldReceive('qualifyColumn')->andReturnUsing(fn (string $column) => "relation.{$column}");
+        $this->builder->shouldReceive('getModel')->andReturn($this->related);
+        $parent = $parent ?: new EloquentBelongsToModelStub;
+
+        return new BelongsTo($this->builder, $parent, 'foreign_key', 'id', 'relation');
+    }
 }
 
 class EloquentBelongsToModelStub extends Model
@@ -429,11 +452,11 @@ class MissingEloquentBelongsToModelStub extends Model
 
 class EloquentBelongsToModelStubWithBackedEnumCast extends Model
 {
-    protected $casts = [
+    protected array $casts = [
         'foreign_key' => Bar::class,
     ];
 
-    public $attributes = [
+    protected array $attributes = [
         'foreign_key' => 5,
     ];
 }

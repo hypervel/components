@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Database;
+namespace Hypervel\Tests\Database\Laravel;
 
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Query\Grammars\Grammar;
-use Mockery as m;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 use stdClass;
 
 class DatabaseEloquentBelongsToManyWithoutTouchingTest extends TestCase
@@ -48,8 +48,8 @@ class DatabaseEloquentBelongsToManyWithoutTouchingTest extends TestCase
 
 class User extends Model
 {
-    protected $table = 'users';
-    protected $fillable = ['id', 'email'];
+    protected ?string $table = 'users';
+    protected array $fillable = ['id', 'email'];
 
     public function articles(): BelongsToMany
     {
@@ -59,9 +59,9 @@ class User extends Model
 
 class Article extends Model
 {
-    protected $table = 'articles';
-    protected $fillable = ['id', 'title'];
-    protected $touches = ['user'];
+    protected ?string $table = 'articles';
+    protected array $fillable = ['id', 'title'];
+    protected array $touches = ['user'];
 
     public function users(): BelongsToMany
     {
