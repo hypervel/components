@@ -1,20 +1,20 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Support\Collection as BaseCollection;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Support\Collection as BaseCollection;
+use Hypervel\Tests\TestCase;
 use LogicException;
 use Mockery as m;
-use Hypervel\Tests\TestCase;
 use stdClass;
-
-use function Orchestra\Testbench\phpunit_version_compare;
 
 class DatabaseEloquentCollectionTest extends TestCase
 {
@@ -258,7 +258,7 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertCount(2, $c->findOrFail([1, 2]));
 
         $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Illuminate\Tests\Database\TestEloquentCollectionModel] 3');
+        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\TestEloquentCollectionModel] 3');
 
         $c->findOrFail([1, 2, 3]);
     }
@@ -270,7 +270,7 @@ class DatabaseEloquentCollectionTest extends TestCase
         $c = new Collection([$model]);
 
         $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Illuminate\Tests\Database\TestEloquentCollectionModel] 2');
+        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\TestEloquentCollectionModel] 2');
 
         $c->findOrFail(2);
     }
@@ -744,11 +744,7 @@ class DatabaseEloquentCollectionTest extends TestCase
         $user->articles->loadExists('comments');
         $commentsExists = $user->articles->pluck('comments_exists')->toArray();
 
-        if (phpunit_version_compare('11.5.0', '<')) {
-            $this->assertContainsOnly('bool', $commentsExists);
-        } else {
-            $this->assertContainsOnlyBool($commentsExists);
-        }
+        $this->assertContainsOnly('bool', $commentsExists);
     }
 
     public function testWithNonScalarKey()
@@ -812,7 +808,7 @@ class DatabaseEloquentCollectionTest extends TestCase
     /**
      * Get a database connection instance.
      *
-     * @return \Illuminate\Database\ConnectionInterface
+     * @return \Hypervel\Database\ConnectionInterface
      */
     protected function connection()
     {
@@ -822,7 +818,7 @@ class DatabaseEloquentCollectionTest extends TestCase
     /**
      * Get a schema builder instance.
      *
-     * @return \Illuminate\Database\Schema\Builder
+     * @return \Hypervel\Database\Schema\Builder
      */
     protected function schema()
     {
@@ -832,10 +828,10 @@ class DatabaseEloquentCollectionTest extends TestCase
 
 class TestEloquentCollectionModel extends Model
 {
-    protected $visible = ['visible'];
-    protected $hidden = ['hidden'];
+    protected array $visible = ['visible'];
+    protected array $hidden = ['hidden'];
 
-    public function getTestAttribute()
+    public function getTestAttribute(): string
     {
         return 'test';
     }
@@ -843,9 +839,9 @@ class TestEloquentCollectionModel extends Model
 
 class EloquentTestUserModel extends Model
 {
-    protected $table = 'users';
-    protected $guarded = [];
-    public $timestamps = false;
+    protected ?string $table = 'users';
+    protected array $guarded = [];
+    public bool $timestamps = false;
 
     public function articles()
     {
@@ -855,9 +851,9 @@ class EloquentTestUserModel extends Model
 
 class EloquentTestArticleModel extends Model
 {
-    protected $table = 'articles';
-    protected $guarded = [];
-    public $timestamps = false;
+    protected ?string $table = 'articles';
+    protected array $guarded = [];
+    public bool $timestamps = false;
 
     public function comments()
     {
@@ -867,9 +863,9 @@ class EloquentTestArticleModel extends Model
 
 class EloquentTestCommentModel extends Model
 {
-    protected $table = 'comments';
-    protected $guarded = [];
-    public $timestamps = false;
+    protected ?string $table = 'comments';
+    protected array $guarded = [];
+    public bool $timestamps = false;
 }
 
 class EloquentTestKey
@@ -878,7 +874,7 @@ class EloquentTestKey
     {
     }
 
-    public function __toString()
+    public function __toString(): string
     {
         return $this->key;
     }
@@ -886,17 +882,17 @@ class EloquentTestKey
 
 class EloquentAppendingTestUserModel extends Model
 {
-    protected $table = 'users';
-    protected $guarded = [];
-    public $timestamps = false;
-    protected $appends = ['appended_field'];
+    protected ?string $table = 'users';
+    protected array $guarded = [];
+    public bool $timestamps = false;
+    protected array $appends = ['appended_field'];
 
-    public function getAppendedFieldAttribute()
+    public function getAppendedFieldAttribute(): string
     {
         return 'hello';
     }
 
-    public function getOtherAppendedFieldAttribute()
+    public function getOtherAppendedFieldAttribute(): string
     {
         return 'bye';
     }
