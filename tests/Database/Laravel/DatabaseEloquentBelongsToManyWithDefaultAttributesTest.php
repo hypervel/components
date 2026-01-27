@@ -1,13 +1,16 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Query\Grammars\Grammar;
-use Mockery as m;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Query\Builder as QueryBuilder;
+use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 use stdClass;
 
 class DatabaseEloquentBelongsToManyWithDefaultAttributesTest extends TestCase
@@ -23,7 +26,7 @@ class DatabaseEloquentBelongsToManyWithDefaultAttributesTest extends TestCase
         $relation = $this->getMockBuilder(BelongsToMany::class)->onlyMethods(['touchIfTouching'])->setConstructorArgs($this->getRelationArguments())->getMock();
         $relation->withPivotValue(['is_admin' => 1]);
 
-        $query = m::mock(stdClass::class);
+        $query = m::mock(QueryBuilder::class);
         $query->shouldReceive('from')->once()->with('club_user')->andReturn($query);
         $query->shouldReceive('insert')->once()->with([['club_id' => 1, 'user_id' => 1, 'is_admin' => 1]])->andReturn(true);
         $relation->getQuery()->getQuery()->shouldReceive('newQuery')->once()->andReturn($query);
@@ -48,8 +51,8 @@ class DatabaseEloquentBelongsToManyWithDefaultAttributesTest extends TestCase
         $related->shouldReceive('qualifyColumn')->with('id')->andReturn('users.id');
 
         $builder->shouldReceive('join')->once()->with('club_user', 'users.id', '=', 'club_user.user_id');
-        $builder->shouldReceive('where')->once()->with('club_user.club_id', '=', 1);
-        $builder->shouldReceive('where')->once()->with('club_user.is_admin', '=', 1, 'and');
+        $builder->shouldReceive('where')->once()->with('club_user.club_id', '=', 1)->andReturnSelf();
+        $builder->shouldReceive('where')->once()->with('club_user.is_admin', '=', 1, 'and')->andReturnSelf();
 
         $builder->shouldReceive('getQuery')->andReturn($mockQueryBuilder = m::mock(stdClass::class));
         $mockQueryBuilder->shouldReceive('getGrammar')->andReturn(m::mock(Grammar::class, ['isExpression' => false]));
