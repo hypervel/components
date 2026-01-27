@@ -1,11 +1,13 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\MorphToMany;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentBelongsToManyWithAttributesTest extends TestCase
@@ -211,8 +213,8 @@ class DatabaseEloquentBelongsToManyWithAttributesTest extends TestCase
 
 class ManyToManyWithAttributesPost extends Model
 {
-    protected $guarded = [];
-    protected $table = 'with_attributes_posts';
+    protected array $guarded = [];
+    protected ?string $table = 'with_attributes_posts';
 
     public function tags(): BelongsToMany
     {
@@ -247,8 +249,8 @@ class ManyToManyWithAttributesPost extends Model
 
 class ManyToManyWithAttributesTag extends Model
 {
-    protected $guarded = [];
-    protected $table = 'with_attributes_tags';
+    protected array $guarded = [];
+    protected ?string $table = 'with_attributes_tags';
 
     public function morphedPosts(): MorphToMany
     {

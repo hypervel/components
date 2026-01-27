@@ -1,11 +1,13 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Database\Eloquent\Relations\Pivot as EloquentPivot;
-use Illuminate\Support\Carbon;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\Relations\Pivot as EloquentPivot;
+use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentBelongsToManySyncTouchesParentTest extends TestCase
@@ -127,10 +129,10 @@ class DatabaseEloquentBelongsToManySyncTouchesParentTest extends TestCase
 
 class DatabaseEloquentBelongsToManySyncTouchesParentTestTestArticle extends Eloquent
 {
-    protected $table = 'articles';
-    protected $keyType = 'string';
-    public $incrementing = false;
-    protected $fillable = ['id', 'title'];
+    protected ?string $table = 'articles';
+    protected string $keyType = 'string';
+    public bool $incrementing = false;
+    protected array $fillable = ['id', 'title'];
 
     public function users()
     {
@@ -143,9 +145,9 @@ class DatabaseEloquentBelongsToManySyncTouchesParentTestTestArticle extends Eloq
 
 class DatabaseEloquentBelongsToManySyncTouchesParentTestTestArticleUser extends EloquentPivot
 {
-    protected $table = 'article_user';
-    protected $fillable = ['article_id', 'user_id'];
-    protected $touches = ['article'];
+    protected ?string $table = 'article_user';
+    protected array $fillable = ['article_id', 'user_id'];
+    protected array $touches = ['article'];
 
     public function article()
     {
@@ -160,10 +162,10 @@ class DatabaseEloquentBelongsToManySyncTouchesParentTestTestArticleUser extends 
 
 class DatabaseEloquentBelongsToManySyncTouchesParentTestTestUser extends Eloquent
 {
-    protected $table = 'users';
-    protected $keyType = 'string';
-    public $incrementing = false;
-    protected $fillable = ['id', 'email'];
+    protected ?string $table = 'users';
+    protected string $keyType = 'string';
+    public bool $incrementing = false;
+    protected array $fillable = ['id', 'email'];
 
     public function articles()
     {
