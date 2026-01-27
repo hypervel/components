@@ -20,12 +20,11 @@ use Redis as PhpRedis;
  * Base test case for Redis Cache integration tests.
  *
  * Uses InteractsWithRedis trait which auto-handles:
- * - Parallel-safe key prefixes via TEST_TOKEN
  * - Auto-skip if Redis unavailable
- * - Key flushing in setUp/tearDown
+ * - Database flushing in setUp/tearDown
  *
  * Provides helper methods for:
- * - Switching between tag modes (all/any)
+ * - Switching between tag modes (all/any) with auto-skip for unsupported environments
  * - Accessing raw Redis client for verification
  * - Computing tag hash keys for each mode
  * - Common assertions for tag structures
@@ -80,11 +79,70 @@ abstract class RedisCacheIntegrationTestCase extends TestCase
     }
 
     /**
+     * Minimum phpredis version required for any mode.
+     */
+    private const PHPREDIS_MIN_VERSION = '6.3.0';
+
+    /**
+     * Minimum Redis version required for any mode.
+     */
+    private const REDIS_MIN_VERSION = '8.0.0';
+
+    /**
+     * Minimum Valkey version required for any mode.
+     */
+    private const VALKEY_MIN_VERSION = '9.0.0';
+
+    /**
      * Set the tag mode on the store.
+     *
+     * When setting to Any mode, checks version requirements and skips
+     * the test if phpredis < 6.3.0 or Redis < 8.0 / Valkey < 9.0.
      */
     protected function setTagMode(TagMode|string $mode): void
     {
+        $mode = $mode instanceof TagMode ? $mode : TagMode::from($mode);
+
+        if ($mode === TagMode::Any) {
+            $this->skipIfAnyModeUnsupported();
+        }
+
         $this->store()->setTagMode($mode);
+    }
+
+    /**
+     * Skip the test if any mode requirements are not met.
+     *
+     * Any mode requires:
+     * - phpredis >= 6.3.0 (for HSETEX support)
+     * - Redis >= 8.0.0 OR Valkey >= 9.0.0 (for HEXPIRE command)
+     */
+    protected function skipIfAnyModeUnsupported(): void
+    {
+        // Check phpredis version
+        $phpredisVersion = phpversion('redis') ?: '0';
+        if (version_compare($phpredisVersion, self::PHPREDIS_MIN_VERSION, '<')) {
+            $this->markTestSkipped(
+                'Any mode requires phpredis >= ' . self::PHPREDIS_MIN_VERSION . " (installed: {$phpredisVersion})"
+            );
+        }
+
+        // Check Redis/Valkey version
+        $info = $this->redis()->info('server');
+
+        if (isset($info['valkey_version'])) {
+            if (version_compare($info['valkey_version'], self::VALKEY_MIN_VERSION, '<')) {
+                $this->markTestSkipped(
+                    'Any mode requires Valkey >= ' . self::VALKEY_MIN_VERSION . " (installed: {$info['valkey_version']})"
+                );
+            }
+        } elseif (isset($info['redis_version'])) {
+            if (version_compare($info['redis_version'], self::REDIS_MIN_VERSION, '<')) {
+                $this->markTestSkipped(
+                    'Any mode requires Redis >= ' . self::REDIS_MIN_VERSION . " (installed: {$info['redis_version']})"
+                );
+            }
+        }
     }
 
     /**
