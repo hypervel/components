@@ -22,21 +22,6 @@ jobs:
 
     name: PHP ${{ matrix.php }} (swoole-${{ matrix.swoole }})
 
-    services:
-      redis:
-        image: redis:8
-        ports:
-          - 6379:6379
-        options: --health-cmd "redis-cli ping" --health-interval 10s --health-timeout 5s --health-retries 5
-      mysql:
-        image: mysql:8
-        env:
-          MYSQL_ALLOW_EMPTY_PASSWORD: yes
-          MYSQL_DATABASE: testing
-        ports:
-          - 3306:3306
-        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-timeout=5s --health-retries=3
-
     container:
       image: phpswoole/swoole:${{ matrix.swoole }}-php${{ matrix.php }}
 
@@ -56,15 +41,6 @@ jobs:
             COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
 
       - name: Execute tests
-        env:
-          REDIS_HOST: redis
-          REDIS_PORT: 6379
-          REDIS_DB: 8
-          DB_CONNECTION: mysql
-          DB_HOST: mysql
-          DB_PORT: 3306
-          DB_DATABASE: testing
-          DB_USERNAME: root
         run: |
             PHP_CS_FIXER_IGNORE_ENV=1 vendor/bin/php-cs-fixer fix --dry-run --diff
             vendor/bin/phpunit -c phpunit.xml.dist
