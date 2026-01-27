@@ -2,25 +2,27 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Database;
+namespace Hypervel\Tests\Database\Laravel;
 
 use Exception;
-use Illuminate\Database\Connection;
-use Illuminate\Database\ConnectionResolverInterface;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Query\Builder as BaseBuilder;
-use Illuminate\Database\UniqueConstraintViolationException;
-use Illuminate\Support\Carbon;
+use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Query\Builder as BaseBuilder;
+use Hypervel\Database\UniqueConstraintViolationException;
+use Hypervel\Support\Carbon;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PDO;
-use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 {
     protected function setUp(): void
     {
+        parent::setUp();
+
         Carbon::setTestNow('2023-01-01 00:00:00');
     }
 
@@ -449,8 +451,8 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
     protected function mockConnectionForModels(array $models, string $database, array $lastInsertIds = []): void
     {
-        $grammarClass = 'Illuminate\Database\Query\Grammars\\'.$database.'Grammar';
-        $processorClass = 'Illuminate\Database\Query\Processors\\'.$database.'Processor';
+        $grammarClass = 'Hypervel\Database\Query\Grammars\\'.$database.'Grammar';
+        $processorClass = 'Hypervel\Database\Query\Processors\\'.$database.'Processor';
         $processor = new $processorClass;
         $connection = m::mock(Connection::class, ['getPostProcessor' => $processor]);
         $grammar = new $grammarClass($connection);
@@ -481,8 +483,8 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
  */
 class BelongsToManyCreateOrFirstTestRelatedModel extends Model
 {
-    protected $table = 'related_table';
-    protected $guarded = [];
+    protected ?string $table = 'related_table';
+    protected array $guarded = [];
 }
 
 /**
@@ -490,8 +492,8 @@ class BelongsToManyCreateOrFirstTestRelatedModel extends Model
  */
 class BelongsToManyCreateOrFirstTestSourceModel extends Model
 {
-    protected $table = 'source_table';
-    protected $guarded = [];
+    protected ?string $table = 'source_table';
+    protected array $guarded = [];
 
     public function related(): BelongsToMany
     {

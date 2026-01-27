@@ -166,9 +166,9 @@ class DatabaseEloquentBelongsToManyAggregateTest extends TestCase
 
 class BelongsToManyAggregateTestTestOrder extends Eloquent
 {
-    protected $table = 'orders';
-    protected $fillable = ['id'];
-    public $timestamps = false;
+    protected ?string $table = 'orders';
+    protected array $fillable = ['id'];
+    public bool $timestamps = false;
 
     public function products()
     {
@@ -180,16 +180,16 @@ class BelongsToManyAggregateTestTestOrder extends Eloquent
 
 class BelongsToManyAggregateTestTestProduct extends Eloquent
 {
-    protected $table = 'products';
-    protected $fillable = ['id'];
-    public $timestamps = false;
+    protected ?string $table = 'products';
+    protected array $fillable = ['id'];
+    public bool $timestamps = false;
 }
 
 class BelongsToManyAggregateTestTestTransaction extends Eloquent
 {
-    protected $table = 'transactions';
-    protected $fillable = ['id', 'value'];
-    public $timestamps = false;
+    protected ?string $table = 'transactions';
+    protected array $fillable = ['id', 'value'];
+    public bool $timestamps = false;
 
     public function allocatedTo()
     {
