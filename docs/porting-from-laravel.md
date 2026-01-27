@@ -62,6 +62,26 @@ $builder->shouldReceive('where')->with(...);
 $builder->shouldReceive('where')->with(...)->andReturnSelf();
 ```
 
+**Mocking methods with `static` return type:**
+
+Methods like `newInstance()` have `static` return type, meaning they must return the same class (or subclass) as the object they're called on. Mockery creates proxy subclasses, so returning the parent class fails:
+
+```php
+// FAILS - mock is Mockery_1_MyModel, returning MyModel fails static type
+$this->related = m::mock(MyModel::class);
+$this->related->shouldReceive('newInstance')->andReturn(new MyModel);
+
+// WORKS - use partial mock and andReturnSelf()
+$this->related = m::mock(MyModel::class)->makePartial();
+$this->related->shouldReceive('newInstance')->andReturnSelf();
+
+// Test attributes on the mock itself (partial mock has real Model behavior)
+$result = $relation->getResults();
+$this->assertSame('taylor', $result->username);
+```
+
+This is a testing-only issue - the strict types are correct and an improvement. In production code, you never mock Models and call `newInstance()`.
+
 ### Missing Dependencies
 
 Some test files reference classes defined in other test files. Laravel gets away with this due to test suite load order. Make tests self-contained by defining required classes locally:
