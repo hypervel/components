@@ -1,13 +1,15 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel;
 
 use Exception;
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Database\Eloquent\Relations\MorphToMany;
-use Illuminate\Database\Query\Expression;
-use Illuminate\Database\Schema\Blueprint;
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\Relations\MorphToMany;
+use Hypervel\Database\Query\Expression;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentBelongsToManyExpressionTest extends TestCase
@@ -154,13 +156,13 @@ class DatabaseEloquentBelongsToManyExpressionTest extends TestCase
 
 class DatabaseEloquentBelongsToManyExpressionTestTestPost extends Eloquent
 {
-    protected $table = 'posts';
-    protected $fillable = ['id'];
-    public $timestamps = false;
+    protected ?string $table = 'posts';
+    protected array $fillable = ['id'];
+    public bool $timestamps = false;
 
     public function tags(): MorphToMany
     {
-        return  $this->morphToMany(
+        return $this->morphToMany(
             DatabaseEloquentBelongsToManyExpressionTestTestTag::class,
             'taggable',
             'taggables',
@@ -174,7 +176,7 @@ class DatabaseEloquentBelongsToManyExpressionTestTestPost extends Eloquent
 
 class DatabaseEloquentBelongsToManyExpressionTestTestTag extends Eloquent
 {
-    protected $table = 'tags';
-    protected $fillable = ['id'];
-    public $timestamps = false;
+    protected ?string $table = 'tags';
+    protected array $fillable = ['id'];
+    public bool $timestamps = false;
 }

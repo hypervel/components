@@ -1,9 +1,11 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Model as Eloquent;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentBelongsToManyEachByIdTest extends TestCase
@@ -116,9 +118,9 @@ class DatabaseEloquentBelongsToManyEachByIdTest extends TestCase
 
 class BelongsToManyEachByIdTestTestUser extends Eloquent
 {
-    protected $table = 'users';
-    protected $fillable = ['id', 'email'];
-    public $timestamps = false;
+    protected ?string $table = 'users';
+    protected array $fillable = ['id', 'email'];
+    public bool $timestamps = false;
 
     public function articles()
     {
@@ -128,9 +130,9 @@ class BelongsToManyEachByIdTestTestUser extends Eloquent
 
 class BelongsToManyEachByIdTestTestArticle extends Eloquent
 {
-    protected $table = 'articles';
-    protected $keyType = 'string';
-    public $incrementing = false;
-    public $timestamps = false;
-    protected $fillable = ['id', 'title'];
+    protected ?string $table = 'articles';
+    protected string $keyType = 'string';
+    public bool $incrementing = false;
+    public bool $timestamps = false;
+    protected array $fillable = ['id', 'title'];
 }
