@@ -230,6 +230,8 @@ class ModelInspector
      * Get the observers watching this model.
      *
      * @return BaseCollection<int, array{event: string, observer: array<int, string>}>
+     *
+     * @throws \Hypervel\Container\BindingResolutionException
      */
     protected function getObservers(Model $model): BaseCollection
     {
