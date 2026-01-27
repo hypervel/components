@@ -21,7 +21,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: phpswoole/swoole:6.0.2-php8.4
+      image: phpswoole/swoole:6.1.4-php8.4
 
     strategy:
       fail-fast: true
@@ -65,7 +65,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: phpswoole/swoole:6.0.2-php8.4
+      image: phpswoole/swoole:6.1.4-php8.4
 
     strategy:
       fail-fast: true
