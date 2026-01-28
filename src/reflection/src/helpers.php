@@ -34,6 +34,7 @@ if (! function_exists('lazy')) {
 
         $reflectionClass = new ReflectionClass($class);
 
+        // @phpstan-ignore method.notFound (PHP 8.4+)
         $instance = $reflectionClass->newLazyGhost(function ($instance) use ($callback) {
             $result = $callback($instance);
 
@@ -43,6 +44,7 @@ if (! function_exists('lazy')) {
         }, $options);
 
         foreach ($eager as $property => $value) {
+            // @phpstan-ignore method.notFound (PHP 8.4+)
             $reflectionClass->getProperty($property)->setRawValueWithoutLazyInitialization($instance, $value);
         }
 
@@ -80,6 +82,7 @@ if (! function_exists('proxy')) {
 
         $reflectionClass = new ReflectionClass($class);
 
+        // @phpstan-ignore method.notFound (PHP 8.4+)
         $proxy = $reflectionClass->newLazyProxy(function () use ($callback, $eager, &$proxy) {
             $instance = $callback($proxy, $eager);
 
@@ -87,6 +90,7 @@ if (! function_exists('proxy')) {
         }, $options);
 
         foreach ($eager as $property => $value) {
+            // @phpstan-ignore method.notFound (PHP 8.4+)
             $reflectionClass->getProperty($property)->setRawValueWithoutLazyInitialization($proxy, $value);
         }
 
