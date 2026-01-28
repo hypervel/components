@@ -1,13 +1,15 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Schema\SqliteSchemaState;
-use Illuminate\Database\SQLiteConnection;
-use Illuminate\Filesystem\Filesystem;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Schema\SqliteSchemaState;
+use Hypervel\Database\SQLiteConnection;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PDO;
-use Hypervel\Tests\TestCase;
 use Symfony\Component\Process\Process;
 
 class DatabaseSqliteSchemaStateTest extends TestCase
@@ -20,14 +22,16 @@ class DatabaseSqliteSchemaStateTest extends TestCase
         $connection->shouldReceive('getDatabaseName')->andReturn($config['database']);
 
         $process = m::spy(Process::class);
-        $processFactory = m::spy(function () use ($process) {
+        $factoryCalledWith = null;
+        $processFactory = function (...$args) use ($process, &$factoryCalledWith) {
+            $factoryCalledWith = $args;
             return $process;
-        });
+        };
 
         $schemaState = new SqliteSchemaState($connection, null, $processFactory);
         $schemaState->load('database/schema/sqlite-schema.dump');
 
-        $processFactory->shouldHaveBeenCalled()->with('sqlite3 "${:LARAVEL_LOAD_DATABASE}" < "${:LARAVEL_LOAD_PATH}"');
+        $this->assertSame('sqlite3 "${:LARAVEL_LOAD_DATABASE}" < "${:LARAVEL_LOAD_PATH}"', $factoryCalledWith[0]);
 
         $process->shouldHaveReceived('mustRun')->with(null, [
             'LARAVEL_LOAD_DATABASE' => 'database/database.sqlite',
