@@ -1,12 +1,14 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Connection;
-use Illuminate\Database\Query\Builder;
-use Illuminate\Database\Query\Grammars\PostgresGrammar;
-use Mockery as m;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Connection;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Database\Query\Grammars\PostgresGrammar;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 
 class DatabasePostgresQueryGrammarTest extends TestCase
 {

@@ -1,8 +1,10 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Query\Processors\PostgresProcessor;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Query\Processors\PostgresProcessor;
 use Hypervel\Tests\TestCase;
 
 class DatabasePostgresProcessorTest extends TestCase

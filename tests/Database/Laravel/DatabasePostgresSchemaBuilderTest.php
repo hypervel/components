@@ -1,13 +1,15 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Connection;
-use Illuminate\Database\Query\Processors\PostgresProcessor;
-use Illuminate\Database\Schema\Grammars\PostgresGrammar;
-use Illuminate\Database\Schema\PostgresBuilder;
-use Mockery as m;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Connection;
+use Hypervel\Database\Query\Processors\PostgresProcessor;
+use Hypervel\Database\Schema\Grammars\PostgresGrammar;
+use Hypervel\Database\Schema\PostgresBuilder;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 
 class DatabasePostgresSchemaBuilderTest extends TestCase
 {
