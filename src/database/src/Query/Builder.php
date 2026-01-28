@@ -118,7 +118,7 @@ class Builder implements BuilderContract
     /**
      * The table which the query is targeting.
      */
-    public Expression|string $from;
+    public Expression|string|null $from = null;
 
     /**
      * The index hint for the query.
@@ -1227,10 +1227,19 @@ class Builder implements BuilderContract
 
     /**
      * Add a "where between" statement using columns to the query.
+     *
+     * @param  \Hypervel\Database\Query\Builder|\Hypervel\Database\Eloquent\Builder<*>|\Hypervel\Contracts\Database\Query\Expression|string  $column
      */
-    public function whereBetweenColumns(ExpressionContract|string $column, array $values, string $boolean = 'and', bool $not = false): static
+    public function whereBetweenColumns(self|EloquentBuilder|ExpressionContract|string $column, array $values, string $boolean = 'and', bool $not = false): static
     {
         $type = 'betweenColumns';
+
+        if ($this->isQueryable($column)) {
+            [$sub, $bindings] = $this->createSub($column);
+
+            return $this->addBinding($bindings, 'where')
+                ->whereBetweenColumns(new Expression('(' . $sub . ')'), $values, $boolean, $not);
+        }
 
         $this->wheres[] = compact('type', 'column', 'values', 'boolean', 'not');
 
@@ -1340,7 +1349,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not null" clause to the query.
      */
-    public function orWhereNotNull(ExpressionContract|string $column): static
+    public function orWhereNotNull(array|ExpressionContract|string $column): static
     {
         return $this->whereNotNull($column, 'or');
     }
@@ -1348,7 +1357,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where date" statement to the query.
      */
-    public function whereDate(ExpressionContract|string $column, DateTimeInterface|string|null $operator, DateTimeInterface|string|null $value = null, string $boolean = 'and'): static
+    public function whereDate(ExpressionContract|string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): static
     {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value,
@@ -1375,7 +1384,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where date" statement to the query.
      */
-    public function orWhereDate(ExpressionContract|string $column, DateTimeInterface|string|null $operator, DateTimeInterface|string|null $value = null): static
+    public function orWhereDate(ExpressionContract|string $column, mixed $operator, mixed $value = null): static
     {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value,
@@ -1389,7 +1398,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where time" statement to the query.
      */
-    public function whereTime(ExpressionContract|string $column, DateTimeInterface|string|null $operator, DateTimeInterface|string|null $value = null, string $boolean = 'and'): static
+    public function whereTime(ExpressionContract|string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): static
     {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value,
@@ -1416,7 +1425,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where time" statement to the query.
      */
-    public function orWhereTime(ExpressionContract|string $column, DateTimeInterface|string|null $operator, DateTimeInterface|string|null $value = null): static
+    public function orWhereTime(ExpressionContract|string $column, mixed $operator, mixed $value = null): static
     {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value,
@@ -1430,7 +1439,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where day" statement to the query.
      */
-    public function whereDay(ExpressionContract|string $column, DateTimeInterface|string|int|null $operator, DateTimeInterface|string|int|null $value = null, string $boolean = 'and'): static
+    public function whereDay(ExpressionContract|string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): static
     {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value,
@@ -1461,7 +1470,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where day" statement to the query.
      */
-    public function orWhereDay(ExpressionContract|string $column, DateTimeInterface|string|int|null $operator, DateTimeInterface|string|int|null $value = null): static
+    public function orWhereDay(ExpressionContract|string $column, mixed $operator, mixed $value = null): static
     {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value,
@@ -1475,7 +1484,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where month" statement to the query.
      */
-    public function whereMonth(ExpressionContract|string $column, DateTimeInterface|string|int|null $operator, DateTimeInterface|string|int|null $value = null, string $boolean = 'and'): static
+    public function whereMonth(ExpressionContract|string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): static
     {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value,
@@ -1506,7 +1515,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where month" statement to the query.
      */
-    public function orWhereMonth(ExpressionContract|string $column, DateTimeInterface|string|int|null $operator, DateTimeInterface|string|int|null $value = null): static
+    public function orWhereMonth(ExpressionContract|string $column, mixed $operator, mixed $value = null): static
     {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value,
@@ -1520,7 +1529,7 @@ class Builder implements BuilderContract
     /**
      * Add a "where year" statement to the query.
      */
-    public function whereYear(ExpressionContract|string $column, DateTimeInterface|string|int|null $operator, DateTimeInterface|string|int|null $value = null, string $boolean = 'and'): static
+    public function whereYear(ExpressionContract|string $column, mixed $operator, mixed $value = null, string $boolean = 'and'): static
     {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value,
@@ -1547,7 +1556,7 @@ class Builder implements BuilderContract
     /**
      * Add an "or where year" statement to the query.
      */
-    public function orWhereYear(ExpressionContract|string $column, DateTimeInterface|string|int|null $operator, DateTimeInterface|string|int|null $value = null): static
+    public function orWhereYear(ExpressionContract|string $column, mixed $operator, mixed $value = null): static
     {
         [$value, $operator] = $this->prepareValueAndOperator(
             $value,
@@ -2397,11 +2406,11 @@ class Builder implements BuilderContract
     /**
      * Set the "offset" value of the query.
      */
-    public function offset(int $value): static
+    public function offset(?int $value): static
     {
         $property = $this->unions ? 'unionOffset' : 'offset';
 
-        $this->{$property} = max(0, $value);
+        $this->{$property} = max(0, (int) $value);
 
         return $this;
     }
@@ -2417,11 +2426,11 @@ class Builder implements BuilderContract
     /**
      * Set the "limit" value of the query.
      */
-    public function limit(int $value): static
+    public function limit(?int $value): static
     {
         $property = $this->unions ? 'unionLimit' : 'limit';
 
-        if ($value >= 0) {
+        if (is_null($value) || $value >= 0) {
             $this->{$property} = $value;
         }
 

@@ -53,12 +53,15 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->getProcessor()->shouldReceive('processSelect');
         $builder->getConnection()->shouldReceive('select')->once()->andReturnUsing(function ($sql) {
             $this->assertSame('select * from "users"', $sql);
+            return [];
         });
         $builder->getConnection()->shouldReceive('select')->once()->andReturnUsing(function ($sql) {
             $this->assertSame('select "foo", "bar" from "users"', $sql);
+            return [];
         });
         $builder->getConnection()->shouldReceive('select')->once()->andReturnUsing(function ($sql) {
             $this->assertSame('select "baz" from "users"', $sql);
+            return [];
         });
 
         $builder->from('users')->get();
@@ -2187,7 +2190,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->select('*')->from('users')->having(
             new class() implements ConditionExpression
             {
-                public function getValue(\Illuminate\Database\Grammar $grammar)
+                public function getValue(\Hypervel\Database\Grammar $grammar): string|int|float
                 {
                     return '1 = 1';
                 }
@@ -6110,7 +6113,7 @@ SQL;
         $builder->select('*')->from('orders')->where(
             new class() implements ConditionExpression
             {
-                public function getValue(\Illuminate\Database\Grammar $grammar)
+                public function getValue(\Hypervel\Database\Grammar $grammar): string|int|float
                 {
                     return '1 = 1';
                 }

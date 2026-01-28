@@ -72,7 +72,7 @@ abstract class Grammar
     /**
      * Wrap a value in keyword identifiers.
      */
-    public function wrap(Expression|string $value): string
+    public function wrap(Expression|string $value): string|int|float
     {
         if ($this->isExpression($value)) {
             return $this->getValue($value);
