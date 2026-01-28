@@ -1,8 +1,10 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Console\Migrations\TableGuesser;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Console\Migrations\TableGuesser;
 use Hypervel\Tests\TestCase;
 
 class TableGuesserTest extends TestCase
