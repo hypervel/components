@@ -1,24 +1,27 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel;
 
 use Exception;
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\DatabaseTransactionsManager;
-use Mockery as m;
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 use Throwable;
 
 class DatabaseTransactionsTest extends TestCase
 {
+    use RunTestsInCoroutine;
+
     /**
      * Setup the database schema.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -35,7 +38,7 @@ class DatabaseTransactionsTest extends TestCase
         $this->createSchema();
     }
 
-    protected function createSchema()
+    protected function createSchema(): void
     {
         foreach (['default', 'second_connection'] as $connection) {
             $this->schema($connection)->create('users', function ($table) {
@@ -48,8 +51,6 @@ class DatabaseTransactionsTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -62,7 +63,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testTransactionIsRecordedAndCommitted()
     {
-        $transactionManager = m::mock(new DatabaseTransactionsManager);
+        $transactionManager = m::mock(new DatabaseTransactionsManager());
         $transactionManager->shouldReceive('begin')->once()->with('default', 1);
         $transactionManager->shouldReceive('commit')->once()->with('default', 1, 0);
 
@@ -81,7 +82,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testTransactionIsRecordedAndCommittedUsingTheSeparateMethods()
     {
-        $transactionManager = m::mock(new DatabaseTransactionsManager);
+        $transactionManager = m::mock(new DatabaseTransactionsManager());
         $transactionManager->shouldReceive('begin')->once()->with('default', 1);
         $transactionManager->shouldReceive('commit')->once()->with('default', 1, 0);
 
@@ -100,7 +101,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testNestedTransactionIsRecordedAndCommitted()
     {
-        $transactionManager = m::mock(new DatabaseTransactionsManager);
+        $transactionManager = m::mock(new DatabaseTransactionsManager());
         $transactionManager->shouldReceive('begin')->once()->with('default', 1);
         $transactionManager->shouldReceive('begin')->once()->with('default', 2);
         $transactionManager->shouldReceive('commit')->once()->with('default', 2, 1);
@@ -127,7 +128,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testNestedTransactionIsRecordeForDifferentConnectionsdAndCommitted()
     {
-        $transactionManager = m::mock(new DatabaseTransactionsManager);
+        $transactionManager = m::mock(new DatabaseTransactionsManager());
         $transactionManager->shouldReceive('begin')->once()->with('default', 1);
         $transactionManager->shouldReceive('begin')->once()->with('second_connection', 1);
         $transactionManager->shouldReceive('begin')->once()->with('second_connection', 2);
@@ -163,7 +164,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testTransactionIsRolledBack()
     {
-        $transactionManager = m::mock(new DatabaseTransactionsManager);
+        $transactionManager = m::mock(new DatabaseTransactionsManager());
         $transactionManager->shouldReceive('begin')->once()->with('default', 1);
         $transactionManager->shouldReceive('rollback')->once()->with('default', 0);
         $transactionManager->shouldNotReceive('commit');
@@ -180,7 +181,7 @@ class DatabaseTransactionsTest extends TestCase
                     'value' => 2,
                 ]);
 
-                throw new Exception;
+                throw new Exception();
             });
         } catch (Throwable) {
         }
@@ -188,7 +189,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testTransactionIsRolledBackUsingSeparateMethods()
     {
-        $transactionManager = m::mock(new DatabaseTransactionsManager);
+        $transactionManager = m::mock(new DatabaseTransactionsManager());
         $transactionManager->shouldReceive('begin')->once()->with('default', 1);
         $transactionManager->shouldReceive('rollback')->once()->with('default', 0);
         $transactionManager->shouldNotReceive('commit', 1, 0);
@@ -210,7 +211,7 @@ class DatabaseTransactionsTest extends TestCase
 
     public function testNestedTransactionsAreRolledBack()
     {
-        $transactionManager = m::mock(new DatabaseTransactionsManager);
+        $transactionManager = m::mock(new DatabaseTransactionsManager());
         $transactionManager->shouldReceive('begin')->once()->with('default', 1);
         $transactionManager->shouldReceive('begin')->once()->with('default', 2);
         $transactionManager->shouldReceive('rollback')->once()->with('default', 1);
@@ -234,7 +235,7 @@ class DatabaseTransactionsTest extends TestCase
                         'value' => 2,
                     ]);
 
-                    throw new Exception;
+                    throw new Exception();
                 });
             });
         } catch (Throwable) {
@@ -243,15 +244,13 @@ class DatabaseTransactionsTest extends TestCase
 
     /**
      * Get a schema builder instance.
-     *
-     * @return \Illuminate\Database\Schema\Builder
      */
-    protected function schema($connection = 'default')
+    protected function schema(string $connection = 'default'): \Hypervel\Database\Schema\Builder
     {
         return $this->connection($connection)->getSchemaBuilder();
     }
 
-    public function connection($name = 'default')
+    public function connection(string $name = 'default'): \Hypervel\Database\Connection
     {
         return DB::connection($name);
     }
