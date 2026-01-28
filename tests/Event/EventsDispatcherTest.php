@@ -38,7 +38,7 @@ class EventsDispatcherTest extends TestCase
         unset($_SERVER['__event.test']);
 
         $d = $this->getEventDispatcher();
-        $d->listen('foo', function ($event, $foo) {
+        $d->listen('foo', function ($foo) {
             $_SERVER['__event.test'] = $foo;
         });
 
@@ -46,7 +46,7 @@ class EventsDispatcherTest extends TestCase
         $this->assertSame('bar', $_SERVER['__event.test']);
 
         // we can still add listeners after the event has fired
-        $d->listen('foo', function ($event, $foo) {
+        $d->listen('foo', function ($foo) {
             $_SERVER['__event.test'] .= $foo;
         });
 
@@ -58,7 +58,7 @@ class EventsDispatcherTest extends TestCase
     {
         unset($_SERVER['__event.test']);
         $d = $this->getEventDispatcher();
-        $d->listen('foo', function ($event, $foo) {
+        $d->listen('foo', function ($foo) {
             $_SERVER['__event.test'] = $foo;
         });
 
@@ -77,10 +77,10 @@ class EventsDispatcherTest extends TestCase
     {
         $_SERVER['__event.test'] = [];
         $d = $this->getEventDispatcher();
-        $d->listen('foo', function ($event, $value) {
+        $d->listen('foo', function ($value) {
             $_SERVER['__event.test'][] = $value;
         });
-        $d->listen('bar', function ($event, $value) {
+        $d->listen('bar', function ($value) {
             $_SERVER['__event.test'][] = $value;
         });
         $d->defer(function () use ($d) {
@@ -96,7 +96,7 @@ class EventsDispatcherTest extends TestCase
     {
         $_SERVER['__event.test'] = [];
         $d = $this->getEventDispatcher();
-        $d->listen('foo', function ($event, $foo) {
+        $d->listen('foo', function ($foo) {
             $_SERVER['__event.test'][] = $foo;
         });
 
@@ -120,11 +120,11 @@ class EventsDispatcherTest extends TestCase
         $_SERVER['__event.test'] = [];
         $d = $this->getEventDispatcher();
 
-        $d->listen('foo', function ($event, $foo) {
+        $d->listen('foo', function ($foo) {
             $_SERVER['__event.test'][] = $foo;
         });
 
-        $d->listen('bar', function ($event, $bar) {
+        $d->listen('bar', function ($bar) {
             $_SERVER['__event.test'][] = $bar;
         });
 
@@ -143,11 +143,11 @@ class EventsDispatcherTest extends TestCase
         $_SERVER['__event.test'] = [];
         $d = $this->getEventDispatcher();
 
-        $d->listen('foo', function ($event, $foo) {
+        $d->listen('foo', function ($foo) {
             $_SERVER['__event.test'][] = $foo;
         });
 
-        $d->listen('bar', function ($event, $bar) {
+        $d->listen('bar', function ($bar) {
             $_SERVER['__event.test'][] = $bar;
         });
 
@@ -229,10 +229,10 @@ class EventsDispatcherTest extends TestCase
         unset($_SERVER['__event.test']);
 
         $d = $this->getEventDispatcher();
-        $d->listen('foo', function ($event, $foo) {
+        $d->listen('foo', function ($foo) {
             return $foo;
         });
-        $d->listen('foo', function ($event, $foo) {
+        $d->listen('foo', function ($foo) {
             $_SERVER['__event.test'] = $foo;
 
             return false;
@@ -309,17 +309,17 @@ class EventsDispatcherTest extends TestCase
         unset($_SERVER['__event.test']);
 
         $d = $this->getEventDispatcher();
-        $d->listen('update', function ($event, $name) {
+        $d->listen('update', function ($name) {
             $_SERVER['__event.test'] = $name;
         });
         $d->push('update', ['name' => 'taylor']);
-        $d->listen('update', function ($event, $name) {
+        $d->listen('update', function ($name) {
             $_SERVER['__event.test'] .= '_' . $name;
         });
 
         $this->assertFalse(isset($_SERVER['__event.test']));
         $d->flush('update');
-        $d->listen('update', function ($event, $name) {
+        $d->listen('update', function ($name) {
             $_SERVER['__event.test'] .= $name;
         });
         $this->assertSame('taylor_taylor', $_SERVER['__event.test']);
@@ -331,7 +331,7 @@ class EventsDispatcherTest extends TestCase
 
         $d = $this->getEventDispatcher();
         $d->push('update', ['name' => 'taylor']);
-        $d->listen('update', function ($event, $name) {
+        $d->listen('update', function ($name) {
             $_SERVER['__event.test'] = $name;
         });
 
@@ -347,7 +347,7 @@ class EventsDispatcherTest extends TestCase
         $d = $this->getEventDispatcher();
         $d->push('update', ['name' => 'taylor ']);
         $d->push('update', ['name' => 'otwell']);
-        $d->listen('update', function ($event, $name) {
+        $d->listen('update', function ($name) {
             $_SERVER['__event.test'] .= $name;
         });
 
@@ -361,7 +361,7 @@ class EventsDispatcherTest extends TestCase
 
         $d = $this->getEventDispatcher();
         $d->push(ExampleEvent::class, $e = new ExampleEvent());
-        $d->listen(ExampleEvent::class, function ($event, $payload) {
+        $d->listen(ExampleEvent::class, function ($payload) {
             $_SERVER['__event.test'] = $payload;
         });
 
@@ -829,7 +829,7 @@ class EventsDispatcherTest extends TestCase
         $d->setTransactionManagerResolver(fn () => $transactionResolver);
 
         $listenerTriggered = false;
-        $d->listen(AfterCommitEvent::class, function ($event, $foo) use (&$listenerTriggered) {
+        $d->listen(AfterCommitEvent::class, function ($foo) use (&$listenerTriggered) {
             $listenerTriggered = true;
         });
 
@@ -873,7 +873,7 @@ class TestListenerInvoke
         $_SERVER['__event.test'][] = '__construct';
     }
 
-    public function __invoke($event, $payload)
+    public function __invoke($payload)
     {
         $_SERVER['__event.test'][] = '__invoke_' . $payload;
 
@@ -899,14 +899,14 @@ class AfterCommitEvent implements ShouldDispatchAfterCommit
 
 class TestEventListener
 {
-    public function onFooEvent($event, $foo, $bar)
+    public function onFooEvent($foo, $bar)
     {
         $_SERVER['__event.test'] = $foo;
 
         return 'baz';
     }
 
-    public function handle($event, $foo, $bar)
+    public function handle($foo, $bar)
     {
         $_SERVER['__event.test'] = $bar;
 

@@ -162,6 +162,15 @@ class EventDispatcher implements EventDispatcherContract
             $this->broadcastEvent($event);
         }
 
+        // For object events, the event object itself is the payload (Laravel behavior)
+        // The original $payload is ignored for object events
+        if (is_object($event)) {
+            $payload = [$event];
+        } else {
+            // Wrap payload in array like Laravel does
+            $payload = Arr::wrap($payload);
+        }
+
         foreach ($this->getListeners($event) as $listener) {
             $response = $listener($event, $payload);
 
@@ -234,34 +243,34 @@ class EventDispatcher implements EventDispatcherContract
     /**
      * Create a callable for a class based listener.
      */
-    protected function makeListener(array|Closure|string $listener): Closure
+    protected function makeListener(array|Closure|string $listener, bool $wildcard = false): Closure
     {
         if (is_string($listener) || (is_array($listener) && ((isset($listener[0]) && is_string($listener[0])) || is_callable($listener)))) {
-            return $this->createClassListener($listener);
+            return $this->createClassListener($listener, $wildcard);
         }
 
-        return function ($event, $payload) use ($listener) {
-            if (is_array($payload)) {
-                return $listener($event, ...array_values($payload));
+        return function ($event, $payload) use ($listener, $wildcard) {
+            if ($wildcard) {
+                return $listener($event, $payload);
             }
 
-            return $listener($event, $payload);
+            return $listener(...array_values($payload));
         };
     }
 
     /**
      * Create a class based listener.
      */
-    protected function createClassListener(array|string $listener): Closure
+    protected function createClassListener(array|string $listener, bool $wildcard = false): Closure
     {
-        return function (object|string $event, mixed $payload) use ($listener) {
+        return function (object|string $event, mixed $payload) use ($listener, $wildcard) {
             $callable = $this->createClassCallable($listener);
 
-            if (is_array($payload)) {
-                return $callable($event, ...array_values($payload));
+            if ($wildcard) {
+                return $callable($event, $payload);
             }
 
-            return $callable($event, $payload);
+            return $callable(...array_values($payload));
         };
     }
 
@@ -473,17 +482,17 @@ class EventDispatcher implements EventDispatcherContract
         [$listener, $job] = $this->createListenerAndJob($class, $method, $arguments);
 
         $connection = $this->resolveQueue()->connection(method_exists($listener, 'viaConnection')
-            ? (isset($arguments[1]) ? $listener->viaConnection($arguments[1]) : $listener->viaConnection())
+            ? (isset($arguments[0]) ? $listener->viaConnection($arguments[0]) : $listener->viaConnection())
             : $listener->connection ?? null);
 
         $queue = method_exists($listener, 'viaQueue')
-            ? (isset($arguments[1]) ? $listener->viaQueue($arguments[1]) : $listener->viaQueue())
+            ? (isset($arguments[0]) ? $listener->viaQueue($arguments[0]) : $listener->viaQueue())
             : $listener->queue ?? null;
 
         $queue = is_null($queue) ? null : enum_value($queue);
 
         $delay = method_exists($listener, 'withDelay')
-            ? (isset($arguments[1]) ? $listener->withDelay($arguments[1]) : $listener->withDelay())
+            ? (isset($arguments[0]) ? $listener->withDelay($arguments[0]) : $listener->withDelay())
             : $listener->delay ?? null;
 
         is_null($delay)
@@ -527,7 +536,6 @@ class EventDispatcher implements EventDispatcherContract
             $job->failOnTimeout = $listener->failOnTimeout ?? false;
             $job->tries = $listener->tries ?? null;
 
-            unset($data[0]);
             $job->through(array_merge(
                 method_exists($listener, 'middleware') ? $listener->middleware(...$data) : [],
                 $listener->middleware ?? []
