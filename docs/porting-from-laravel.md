@@ -20,6 +20,26 @@ Two TestCase options:
 
 Always call `parent::setUp()` in your setUp method.
 
+### Coroutine-Dependent Code
+
+Code that uses `Context` for state (like `DatabaseTransactionsManager`) requires tests to run in coroutines. Without this, Context state persists across tests since they share the non-coroutine context.
+
+**Add the `RunTestsInCoroutine` trait:**
+```php
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+
+class MyTest extends TestCase
+{
+    use RunTestsInCoroutine;
+}
+```
+
+Each test runs in a fresh coroutine. Context is automatically destroyed when the coroutine ends—no manual cleanup needed.
+
+**Optional hooks** (define if needed):
+- `setUpInCoroutine()` - runs inside the coroutine before the test
+- `tearDownInCoroutine()` - runs inside the coroutine after the test
+
 ### Namespace Changes
 
 - Change `Illuminate\` to `Hypervel\`

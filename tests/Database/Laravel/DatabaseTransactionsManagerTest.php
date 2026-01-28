@@ -1,12 +1,16 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\DatabaseTransactionsManager;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\DatabaseTransactionsManager;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 
 class DatabaseTransactionsManagerTest extends TestCase
 {
+    use RunTestsInCoroutine;
     public function testBeginningTransactions()
     {
         $manager = new DatabaseTransactionsManager;
