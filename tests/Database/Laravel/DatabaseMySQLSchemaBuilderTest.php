@@ -1,13 +1,15 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Connection;
-use Illuminate\Database\Query\Processors\MySqlProcessor;
-use Illuminate\Database\Schema\Grammars\MySqlGrammar;
-use Illuminate\Database\Schema\MySqlBuilder;
-use Mockery as m;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Connection;
+use Hypervel\Database\Query\Processors\MySqlProcessor;
+use Hypervel\Database\Schema\Grammars\MySqlGrammar;
+use Hypervel\Database\Schema\MySqlBuilder;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 
 class DatabaseMySQLSchemaBuilderTest extends TestCase
 {

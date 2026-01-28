@@ -1,13 +1,15 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel;
 
 use Exception;
 use Generator;
-use Illuminate\Database\MySqlConnection;
-use Illuminate\Database\Schema\MySqlSchemaState;
-use PHPUnit\Framework\Attributes\DataProvider;
+use Hypervel\Database\MySqlConnection;
+use Hypervel\Database\Schema\MySqlSchemaState;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use Symfony\Component\Process\Process;
 
@@ -113,7 +115,7 @@ class DatabaseMySqlSchemaStateTest extends TestCase
             $this->throwException(new Exception('column-statistics'))
         );
 
-        $mockOutput = $this->createMock(\stdClass::class);
+        $mockOutput = null;
         $mockVariables = [];
 
         $schemaState = $this->getMockBuilder(MySqlSchemaState::class)
