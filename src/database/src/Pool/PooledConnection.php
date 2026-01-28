@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Database\Pool;
 
 use Hyperf\Contract\ConnectionInterface as PoolConnectionInterface;
-use Hyperf\Contract\PoolInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Connection;
@@ -46,7 +45,7 @@ class PooledConnection implements PoolConnectionInterface
 
     public function __construct(
         protected ContainerInterface $container,
-        protected PoolInterface $pool,
+        protected DbPool $pool,
         protected array $config
     ) {
         $this->factory = $container->get(ConnectionFactory::class);
@@ -95,7 +94,19 @@ class PooledConnection implements PoolConnectionInterface
     {
         $this->close();
 
-        $this->connection = $this->factory->make($this->config, $this->config['name'] ?? null);
+        $sharedPdo = $this->pool->getSharedPdo();
+
+        if ($sharedPdo !== null) {
+            // In-memory SQLite: use shared PDO so all pool slots see same data
+            $this->connection = $this->factory->makeFromPdo(
+                $sharedPdo,
+                $this->config,
+                $this->config['name'] ?? null
+            );
+        } else {
+            // Normal path: factory creates fresh connection with new PDO
+            $this->connection = $this->factory->make($this->config, $this->config['name'] ?? null);
+        }
 
         // Configure event dispatcher for query events
         if ($this->container->has(Dispatcher::class)) {
@@ -152,7 +163,11 @@ class PooledConnection implements PoolConnectionInterface
     public function close(): bool
     {
         if ($this->connection instanceof Connection) {
-            $this->connection->disconnect();
+            // Only disconnect if NOT using shared PDO.
+            // Shared PDO is owned by the pool, not individual connections.
+            if ($this->pool->getSharedPdo() === null) {
+                $this->connection->disconnect();
+            }
         }
 
         $this->connection = null;

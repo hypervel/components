@@ -15,7 +15,6 @@ use Hypervel\Database\Console\Migrations\StatusCommand;
 use Hypervel\Database\Console\SeedCommand;
 use Hypervel\Database\Console\WipeCommand;
 use Hypervel\Database\Listeners\RegisterConnectionResolverListener;
-use Hypervel\Database\Listeners\RegisterSQLiteConnectionListener;
 use Hypervel\Database\Listeners\UnsetContextInTaskWorkerListener;
 use Hypervel\Database\Migrations\DatabaseMigrationRepositoryFactory;
 use Hypervel\Database\Migrations\MigrationRepositoryInterface;
@@ -31,7 +30,6 @@ class ConfigProvider
             ],
             'listeners' => [
                 RegisterConnectionResolverListener::class,
-                RegisterSQLiteConnectionListener::class,
                 UnsetContextInTaskWorkerListener::class,
             ],
             'commands' => [

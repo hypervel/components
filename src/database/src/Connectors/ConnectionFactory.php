@@ -41,6 +41,36 @@ class ConnectionFactory
     }
 
     /**
+     * Create a connection instance using an existing PDO.
+     *
+     * Used by connection pooling for in-memory SQLite where all pool slots
+     * must share the same PDO instance to see the same data.
+     */
+    public function makeFromPdo(PDO $pdo, array $config, ?string $name = null): Connection
+    {
+        $config = $this->parseConfig($config, $name);
+
+        $connection = $this->createConnection(
+            $config['driver'],
+            $pdo,
+            $config['database'],
+            $config['prefix'],
+            $config
+        );
+
+        // If read/write config exists, use the same shared PDO for reads.
+        // For in-memory SQLite, read replicas don't make sense anyway.
+        // Match the normal read/write path by also setting readPdoConfig.
+        if (isset($config['read'])) {
+            $connection
+                ->setReadPdo($pdo)
+                ->setReadPdoConfig($this->getReadConfig($config));
+        }
+
+        return $connection;
+    }
+
+    /**
      * Parse and prepare the database configuration.
      */
     protected function parseConfig(array $config, ?string $name): array

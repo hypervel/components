@@ -6,10 +6,12 @@ namespace Hypervel\Database\Pool;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\ConnectionInterface;
+use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Pool\Frequency;
 use Hypervel\Pool\Pool;
 use Hypervel\Support\Arr;
 use InvalidArgumentException;
+use PDO;
 use Psr\Container\ContainerInterface;
 
 /**
@@ -17,10 +19,22 @@ use Psr\Container\ContainerInterface;
  *
  * Extends the base Pool to create PooledConnection instances that wrap
  * our Laravel-ported Connection class.
+ *
+ * For in-memory SQLite databases, manages a shared PDO instance so all
+ * pool slots see the same data (otherwise each slot would get an empty database).
  */
 class DbPool extends Pool
 {
     protected array $config;
+
+    /**
+     * Shared PDO for in-memory SQLite databases.
+     *
+     * When using connection pooling with in-memory SQLite (:memory:), all pool
+     * slots must share the same PDO instance. Otherwise, each pooled connection
+     * would get its own empty in-memory database, causing "table not found" errors.
+     */
+    protected ?PDO $sharedInMemoryPdo = null;
 
     public function __construct(
         ContainerInterface $container,
@@ -43,6 +57,12 @@ class DbPool extends Pool
         $this->frequency = new Frequency($this);
 
         parent::__construct($container, $poolOptions);
+
+        // For in-memory SQLite, pre-create a shared PDO so all pool slots
+        // see the same database. This must happen after parent::__construct.
+        if ($this->isInMemorySqlite()) {
+            $this->sharedInMemoryPdo = $this->createSharedPdo();
+        }
     }
 
     /**
@@ -54,10 +74,58 @@ class DbPool extends Pool
     }
 
     /**
+     * Get the shared PDO for in-memory SQLite, or null for other drivers.
+     */
+    public function getSharedPdo(): ?PDO
+    {
+        return $this->sharedInMemoryPdo;
+    }
+
+    /**
      * Create a new pooled connection.
      */
     protected function createConnection(): ConnectionInterface
     {
         return new PooledConnection($this->container, $this, $this->config);
+    }
+
+    /**
+     * Create the shared PDO for in-memory SQLite via the factory.
+     *
+     * Uses the normal factory pipeline to get all config parsing, driver
+     * extensions, and connection setup. We then extract the PDO and let
+     * the Connection object be garbage collected.
+     */
+    protected function createSharedPdo(): PDO
+    {
+        $factory = $this->container->get(ConnectionFactory::class);
+        $connection = $factory->make($this->config, $this->name);
+
+        return $connection->getPdo();
+    }
+
+    /**
+     * Check if this pool is for an in-memory SQLite database.
+     */
+    protected function isInMemorySqlite(): bool
+    {
+        if (($this->config['driver'] ?? '') !== 'sqlite') {
+            return false;
+        }
+
+        $database = $this->config['database'] ?? '';
+
+        return $database === ':memory:'
+            || str_contains($database, '?mode=memory')
+            || str_contains($database, '&mode=memory');
+    }
+
+    /**
+     * Flush all connections and clear the shared in-memory PDO.
+     */
+    public function flushAll(): void
+    {
+        parent::flushAll();
+        $this->sharedInMemoryPdo = null;
     }
 }
