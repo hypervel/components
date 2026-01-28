@@ -12,11 +12,15 @@ use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentBelongsToManyExpressionTest extends TestCase
 {
     protected function setUp(): void
     {
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -82,26 +86,24 @@ class DatabaseEloquentBelongsToManyExpressionTest extends TestCase
 
     /**
      * Setup the database schema.
-     *
-     * @return void
      */
     public function createSchema()
     {
         $this->schema()->create('posts', fn (Blueprint $t) => $t->id());
         $this->schema()->create('tags', fn (Blueprint $t) => $t->id());
-        $this->schema()->create('taggables', function (Blueprint $t) {
-            $t->unsignedBigInteger('tag_id');
-            $t->unsignedBigInteger('taggable_id');
-            $t->string('type', 10);
-            $t->string('taggable_type');
-        }
+        $this->schema()->create(
+            'taggables',
+            function (Blueprint $t) {
+                $t->unsignedBigInteger('tag_id');
+                $t->unsignedBigInteger('taggable_id');
+                $t->string('type', 10);
+                $t->string('taggable_type');
+            }
         );
     }
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -157,7 +159,9 @@ class DatabaseEloquentBelongsToManyExpressionTest extends TestCase
 class DatabaseEloquentBelongsToManyExpressionTestTestPost extends Eloquent
 {
     protected ?string $table = 'posts';
+
     protected array $fillable = ['id'];
+
     public bool $timestamps = false;
 
     public function tags(): MorphToMany
@@ -177,6 +181,8 @@ class DatabaseEloquentBelongsToManyExpressionTestTestPost extends Eloquent
 class DatabaseEloquentBelongsToManyExpressionTestTestTag extends Eloquent
 {
     protected ?string $table = 'tags';
+
     protected array $fillable = ['id'];
+
     public bool $timestamps = false;
 }

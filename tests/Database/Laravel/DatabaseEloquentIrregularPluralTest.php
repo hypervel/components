@@ -9,13 +9,17 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentIrregularPluralTest extends TestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
 
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -77,7 +81,7 @@ class DatabaseEloquentIrregularPluralTest extends TestCase
 
     public function testItPluralizesTheTableName()
     {
-        $model = new IrregularPluralHuman;
+        $model = new IrregularPluralHuman();
 
         $this->assertSame('irregular_plural_humans', $model->getTable());
     }

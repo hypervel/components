@@ -10,11 +10,15 @@ use Hypervel\Database\Eloquent\Relations\Pivot as EloquentPivot;
 use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentBelongsToManySyncTouchesParentTest extends TestCase
 {
     protected function setUp(): void
     {
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -29,8 +33,6 @@ class DatabaseEloquentBelongsToManySyncTouchesParentTest extends TestCase
 
     /**
      * Setup the database schema.
-     *
-     * @return void
      */
     public function createSchema()
     {
@@ -59,8 +61,6 @@ class DatabaseEloquentBelongsToManySyncTouchesParentTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -130,8 +130,11 @@ class DatabaseEloquentBelongsToManySyncTouchesParentTest extends TestCase
 class DatabaseEloquentBelongsToManySyncTouchesParentTestTestArticle extends Eloquent
 {
     protected ?string $table = 'articles';
+
     protected string $keyType = 'string';
+
     public bool $incrementing = false;
+
     protected array $fillable = ['id', 'title'];
 
     public function users()
@@ -146,7 +149,9 @@ class DatabaseEloquentBelongsToManySyncTouchesParentTestTestArticle extends Eloq
 class DatabaseEloquentBelongsToManySyncTouchesParentTestTestArticleUser extends EloquentPivot
 {
     protected ?string $table = 'article_user';
+
     protected array $fillable = ['article_id', 'user_id'];
+
     protected array $touches = ['article'];
 
     public function article()
@@ -163,8 +168,11 @@ class DatabaseEloquentBelongsToManySyncTouchesParentTestTestArticleUser extends 
 class DatabaseEloquentBelongsToManySyncTouchesParentTestTestUser extends Eloquent
 {
     protected ?string $table = 'users';
+
     protected string $keyType = 'string';
+
     public bool $incrementing = false;
+
     protected array $fillable = ['id', 'email'];
 
     public function articles()

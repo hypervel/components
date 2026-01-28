@@ -6,9 +6,13 @@ namespace Hypervel\Tests\Database\Laravel;
 
 use Hypervel\Database\Connection;
 use Hypervel\Database\Schema\Grammars\Grammar;
-use Mockery as m;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseAbstractSchemaGrammarTest extends TestCase
 {
     public function testCreateDatabase()

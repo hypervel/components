@@ -9,7 +9,12 @@ use Hypervel\Tests\Database\Laravel\Fixtures\Models\EloquentResourceTestResource
 use Hypervel\Tests\Database\Laravel\Fixtures\Models\EloquentResourceTestResourceModelWithUseResourceAttribute;
 use Hypervel\Tests\Database\Laravel\Fixtures\Resources\EloquentResourceTestJsonResource;
 use Hypervel\Tests\TestCase;
+use LogicException;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentResourceModelTest extends TestCase
 {
     public function testItCanTransformToExplicitResource()
@@ -23,7 +28,7 @@ class DatabaseEloquentResourceModelTest extends TestCase
 
     public function testItThrowsExceptionWhenResourceCannotBeFound()
     {
-        $this->expectException(\LogicException::class);
+        $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Database\Laravel\Fixtures\Models\EloquentResourceTestResourceModel].');
 
         $model = new EloquentResourceTestResourceModel();

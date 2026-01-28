@@ -41,7 +41,7 @@ class Cursor implements Arrayable
      * Get the given parameters from the cursor.
      *
      * @param array<int, string> $parameterNames
-     * @return array<int, string|int|null>
+     * @return array<int, null|int|string>
      */
     public function parameters(array $parameterNames): array
     {

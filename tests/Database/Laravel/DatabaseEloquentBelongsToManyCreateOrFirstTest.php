@@ -17,6 +17,10 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PDO;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 {
     protected function setUp(): void
@@ -286,8 +290,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodFallsBackToCreateOrFirst(): void
     {
-        $source = new class() extends BelongsToManyCreateOrFirstTestSourceModel
-        {
+        $source = new class extends BelongsToManyCreateOrFirstTestSourceModel {
             protected function newBelongsToMany(Builder $query, Model $parent, $table, $foreignPivotKey, $relatedPivotKey, $parentKey, $relatedKey, $relationName = null): BelongsToMany
             {
                 $relation = m::mock(BelongsToMany::class)->makePartial();
@@ -357,8 +360,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodCreatesNewRelated(): void
     {
-        $source = new class() extends BelongsToManyCreateOrFirstTestSourceModel
-        {
+        $source = new class extends BelongsToManyCreateOrFirstTestSourceModel {
             protected function newBelongsToMany(Builder $query, Model $parent, $table, $foreignPivotKey, $relatedPivotKey, $parentKey, $relatedKey, $relationName = null): BelongsToMany
             {
                 $relation = m::mock(BelongsToMany::class)->makePartial();
@@ -399,8 +401,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodUpdatesExistingRelated(): void
     {
-        $source = new class() extends BelongsToManyCreateOrFirstTestSourceModel
-        {
+        $source = new class extends BelongsToManyCreateOrFirstTestSourceModel {
             protected function newBelongsToMany(Builder $query, Model $parent, $table, $foreignPivotKey, $relatedPivotKey, $parentKey, $relatedKey, $relationName = null): BelongsToMany
             {
                 $relation = m::mock(BelongsToMany::class)->makePartial();
@@ -451,9 +452,9 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
     protected function mockConnectionForModels(array $models, string $database, array $lastInsertIds = []): void
     {
-        $grammarClass = 'Hypervel\Database\Query\Grammars\\'.$database.'Grammar';
-        $processorClass = 'Hypervel\Database\Query\Processors\\'.$database.'Processor';
-        $processor = new $processorClass;
+        $grammarClass = 'Hypervel\Database\Query\Grammars\\' . $database . 'Grammar';
+        $processorClass = 'Hypervel\Database\Query\Processors\\' . $database . 'Processor';
+        $processor = new $processorClass();
         $connection = m::mock(Connection::class, ['getPostProcessor' => $processor]);
         $grammar = new $grammarClass($connection);
         $connection->shouldReceive('getQueryGrammar')->andReturn($grammar);
@@ -484,6 +485,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 class BelongsToManyCreateOrFirstTestRelatedModel extends Model
 {
     protected ?string $table = 'related_table';
+
     protected array $guarded = [];
 }
 
@@ -493,6 +495,7 @@ class BelongsToManyCreateOrFirstTestRelatedModel extends Model
 class BelongsToManyCreateOrFirstTestSourceModel extends Model
 {
     protected ?string $table = 'source_table';
+
     protected array $guarded = [];
 
     public function related(): BelongsToMany

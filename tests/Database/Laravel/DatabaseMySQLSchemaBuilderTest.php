@@ -11,6 +11,10 @@ use Hypervel\Database\Schema\MySqlBuilder;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseMySQLSchemaBuilderTest extends TestCase
 {
     public function testHasTable()

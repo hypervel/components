@@ -20,14 +20,18 @@ use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Database\Query\Builder as BaseBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
-use Mockery as m;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentRelationshipsTest extends TestCase
 {
     public function testStandardRelationships()
     {
-        $post = new RelationshipsPost;
+        $post = new RelationshipsPost();
 
         $this->assertInstanceOf(HasOne::class, $post->attachment());
         $this->assertInstanceOf(BelongsTo::class, $post->author());
@@ -43,7 +47,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
 
     public function testOverriddenRelationships()
     {
-        $post = new RelationshipsCustomPost;
+        $post = new RelationshipsCustomPost();
 
         $this->assertInstanceOf(CustomHasOne::class, $post->attachment());
         $this->assertInstanceOf(CustomBelongsTo::class, $post->author());
@@ -60,11 +64,11 @@ class DatabaseEloquentRelationshipsTest extends TestCase
     public function testAlwaysUnsetBelongsToRelationWhenReceivedModelId()
     {
         // create users
-        $user1 = (new FakeRelationship)->forceFill(['id' => 1]);
-        $user2 = (new FakeRelationship)->forceFill(['id' => 2]);
+        $user1 = (new FakeRelationship())->forceFill(['id' => 1]);
+        $user2 = (new FakeRelationship())->forceFill(['id' => 2]);
 
         // sync user 1 using Model
-        $post = new RelationshipsPost;
+        $post = new RelationshipsPost();
         $post->author()->associate($user1);
         $post->syncOriginal();
 
@@ -142,8 +146,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
     public function testStringyHasThroughApi()
     {
         $fluent = (new FluentMechanic())->owner();
-        $stringy = (new class extends FluentMechanic
-        {
+        $stringy = (new class extends FluentMechanic {
             public function owner()
             {
                 return $this->through('car')->has('owner');
@@ -171,8 +174,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
         $this->assertSame('cars.mechanic_id', $fluent->getQualifiedFirstKeyName());
 
         $fluent = (new FluentProject())->deployments();
-        $stringy = (new class extends FluentProject
-        {
+        $stringy = (new class extends FluentProject {
             public function deployments()
             {
                 return $this->through('environments')->has('deployments');
@@ -203,8 +205,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
     public function testHigherOrderHasThroughApi()
     {
         $fluent = (new FluentMechanic())->owner();
-        $higher = (new class extends FluentMechanic
-        {
+        $higher = (new class extends FluentMechanic {
             public function owner()
             {
                 return $this->throughCar()->hasOwner();
@@ -232,8 +233,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
         $this->assertSame('cars.mechanic_id', $fluent->getQualifiedFirstKeyName());
 
         $fluent = (new FluentProject())->deployments();
-        $higher = (new class extends FluentProject
-        {
+        $higher = (new class extends FluentProject {
             public function deployments()
             {
                 return $this->throughEnvironments()->hasDeployments();
@@ -282,7 +282,6 @@ class MockedConnectionModel extends Model
 
 class FakeRelationship extends MockedConnectionModel
 {
-    //
 }
 
 class RelationshipsPost extends MockedConnectionModel
@@ -414,8 +413,18 @@ class RelationshipsCustomPost extends RelationshipsPost
         ?string $relationName = null,
         bool $inverse = false
     ): MorphToMany {
-        return new CustomMorphToMany($query, $parent, $name, $table, $foreignPivotKey, $relatedPivotKey, $parentKey, $relatedKey,
-            $relationName, $inverse);
+        return new CustomMorphToMany(
+            $query,
+            $parent,
+            $name,
+            $table,
+            $foreignPivotKey,
+            $relatedPivotKey,
+            $parentKey,
+            $relatedKey,
+            $relationName,
+            $inverse
+        );
     }
 
     protected function newMorphTo(Builder $query, Model $parent, string $foreignKey, ?string $ownerKey, string $type, string $relation): MorphTo
@@ -426,52 +435,42 @@ class RelationshipsCustomPost extends RelationshipsPost
 
 class CustomHasOne extends HasOne
 {
-    //
 }
 
 class CustomBelongsTo extends BelongsTo
 {
-    //
 }
 
 class CustomHasMany extends HasMany
 {
-    //
 }
 
 class CustomMorphOne extends MorphOne
 {
-    //
 }
 
 class CustomMorphMany extends MorphMany
 {
-    //
 }
 
 class CustomBelongsToMany extends BelongsToMany
 {
-    //
 }
 
 class CustomHasManyThrough extends HasManyThrough
 {
-    //
 }
 
 class CustomHasOneThrough extends HasOneThrough
 {
-    //
 }
 
 class CustomMorphToMany extends MorphToMany
 {
-    //
 }
 
 class CustomMorphTo extends MorphTo
 {
-    //
 }
 
 class Car extends MockedConnectionModel
@@ -484,7 +483,6 @@ class Car extends MockedConnectionModel
 
 class Owner extends MockedConnectionModel
 {
-    //
 }
 
 class FluentMechanic extends MockedConnectionModel
@@ -569,10 +567,8 @@ class Environment extends MockedConnectionModel
 
 class MetaData extends MockedConnectionModel
 {
-    //
 }
 
 class Deployment extends MockedConnectionModel
 {
-    //
 }

@@ -14,18 +14,20 @@ use Hypervel\Database\Eloquent\Relations\MorphOne;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
 {
     /**
      * Setup the database schema.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
         parent::setUp();
 
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -53,8 +55,6 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -244,7 +244,7 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
     public function testMorphManyInverseRelationIsProperlySetToParentWhenSavingMany()
     {
         $post = MorphManyInversePostModel::create();
-        $comments = array_fill(0, 3, new MorphManyInverseCommentModel);
+        $comments = array_fill(0, 3, new MorphManyInverseCommentModel());
 
         $post->comments()->saveMany($comments);
 
@@ -272,6 +272,7 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
 
     /**
      * Helpers...
+     * @param mixed $connection
      */
 
     /**
@@ -287,6 +288,7 @@ class DatabaseEloquentInverseRelationMorphManyTest extends TestCase
     /**
      * Get a schema builder instance.
      *
+     * @param mixed $connection
      * @return \Illuminate\Database\Schema\Builder
      */
     protected function schema($connection = 'default')

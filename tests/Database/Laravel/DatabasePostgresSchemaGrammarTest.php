@@ -17,6 +17,10 @@ use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabasePostgresSchemaGrammarTest extends TestCase
 {
     public function testBasicCreateTable()
@@ -906,6 +910,34 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
         $this->assertSame("alter table \"users\" add column \"created_at\" {$type} {$with} time zone not null", $statements[0]);
     }
 
+    /** @return list<array{method: string, type: string, user: null|int, grammar: null|false|int, expected: null|int}> */
+    public static function datetimeAndPrecisionProvider(): array
+    {
+        $methods = [
+            ['method' => 'datetime', 'type' => 'timestamp'],
+            ['method' => 'datetimeTz', 'type' => 'timestamp'],
+            ['method' => 'timestamp', 'type' => 'timestamp'],
+            ['method' => 'timestampTz', 'type' => 'timestamp'],
+            ['method' => 'time', 'type' => 'time'],
+            ['method' => 'timeTz', 'type' => 'time'],
+        ];
+        $precisions = [
+            'user can override grammar default' => ['userPrecision' => 1, 'grammarPrecision' => null, 'expected' => 1],
+            'fallback to grammar default' => ['userPrecision' => null, 'grammarPrecision' => 5, 'expected' => 5],
+            'fallback to database default' => ['userPrecision' => null, 'grammarPrecision' => null, 'expected' => null],
+        ];
+
+        $result = [];
+
+        foreach ($methods as $datetime) {
+            foreach ($precisions as $precision) {
+                $result[] = array_merge($datetime, $precision);
+            }
+        }
+
+        return $result;
+    }
+
     #[TestWith(['timestamps'])]
     #[TestWith(['timestampsTz'])]
     public function testAddingTimestamps(string $method)
@@ -1349,34 +1381,6 @@ class DatabasePostgresSchemaGrammarTest extends TestCase
     public function getBuilder()
     {
         return mock(PostgresBuilder::class);
-    }
-
-    /** @return list<array{method: string, type: string, user: int|null, grammar: false|int|null, expected: int|null}> */
-    public static function datetimeAndPrecisionProvider(): array
-    {
-        $methods = [
-            ['method' => 'datetime', 'type' => 'timestamp'],
-            ['method' => 'datetimeTz', 'type' => 'timestamp'],
-            ['method' => 'timestamp', 'type' => 'timestamp'],
-            ['method' => 'timestampTz', 'type' => 'timestamp'],
-            ['method' => 'time', 'type' => 'time'],
-            ['method' => 'timeTz', 'type' => 'time'],
-        ];
-        $precisions = [
-            'user can override grammar default' => ['userPrecision' => 1, 'grammarPrecision' => null, 'expected' => 1],
-            'fallback to grammar default' => ['userPrecision' => null, 'grammarPrecision' => 5, 'expected' => 5],
-            'fallback to database default' => ['userPrecision' => null, 'grammarPrecision' => null, 'expected' => null],
-        ];
-
-        $result = [];
-
-        foreach ($methods as $datetime) {
-            foreach ($precisions as $precision) {
-                $result[] = array_merge($datetime, $precision);
-            }
-        }
-
-        return $result;
     }
 
     public function testGrammarsAreMacroable()

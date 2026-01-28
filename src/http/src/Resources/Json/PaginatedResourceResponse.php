@@ -7,13 +7,14 @@ namespace Hypervel\Http\Resources\Json;
 use Hypervel\Http\JsonResponse;
 use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
+use Override;
 
 class PaginatedResourceResponse extends ResourceResponse
 {
     /**
      * Create an HTTP response that represents the object.
      */
-    #[\Override]
+    #[Override]
     public function toResponse(Request $request): JsonResponse
     {
         return tap(response()->json(
@@ -32,7 +33,8 @@ class PaginatedResourceResponse extends ResourceResponse
             $response->original = $this->resource->resource->map(function ($item) {
                 if (is_array($item)) {
                     return Arr::get($item, 'resource');
-                } elseif (is_object($item)) {
+                }
+                if (is_object($item)) {
                     return $item->resource ?? null;
                 }
 
@@ -55,8 +57,8 @@ class PaginatedResourceResponse extends ResourceResponse
             'meta' => $this->meta($paginated),
         ];
 
-        if (method_exists($this->resource, 'paginationInformation') ||
-            $this->resource->hasMacro('paginationInformation')) {
+        if (method_exists($this->resource, 'paginationInformation')
+            || $this->resource->hasMacro('paginationInformation')) {
             return $this->resource->paginationInformation($request, $paginated, $default);
         }
 

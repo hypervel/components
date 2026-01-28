@@ -13,9 +13,13 @@ use Hypervel\Database\Eloquent\Relations\MorphOne;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\UniqueConstraintViolationException;
-use Mockery as m;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentMorphTest extends TestCase
 {
     protected function tearDown(): void
@@ -38,9 +42,9 @@ class DatabaseEloquentMorphTest extends TestCase
         $relation->getQuery()->shouldReceive('whereIn')->once()->with('table.morph_id', [1, 2]);
         $relation->getQuery()->shouldReceive('where')->once()->with('table.morph_type', get_class($relation->getParent()));
 
-        $model1 = new EloquentMorphResetModelStub;
+        $model1 = new EloquentMorphResetModelStub();
         $model1->id = 1;
-        $model2 = new EloquentMorphResetModelStub;
+        $model2 = new EloquentMorphResetModelStub();
         $model2->id = 2;
         $relation->addEagerConstraints([$model1, $model2]);
     }
@@ -62,9 +66,9 @@ class DatabaseEloquentMorphTest extends TestCase
         $relation->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('table.morph_id', [1, 2]);
         $relation->getQuery()->shouldReceive('where')->once()->with('table.morph_type', get_class($relation->getParent()));
 
-        $model1 = new EloquentMorphResetModelStub;
+        $model1 = new EloquentMorphResetModelStub();
         $model1->id = 1;
-        $model2 = new EloquentMorphResetModelStub;
+        $model2 = new EloquentMorphResetModelStub();
         $model2->id = 2;
         $relation->addEagerConstraints([$model1, $model2]);
     }
@@ -514,7 +518,7 @@ class DatabaseEloquentMorphTest extends TestCase
 
     protected function getNamespacedRelation($alias)
     {
-        require_once __DIR__.'/stubs/EloquentModelNamespacedStub.php';
+        require_once __DIR__ . '/stubs/EloquentModelNamespacedStub.php';
 
         Relation::morphMap([
             $alias => EloquentModelNamespacedStub::class,
@@ -536,5 +540,4 @@ class DatabaseEloquentMorphTest extends TestCase
 
 class EloquentMorphResetModelStub extends Model
 {
-    //
 }

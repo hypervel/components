@@ -8,9 +8,14 @@ use Generator;
 use Hypervel\Database\MariaDbConnection;
 use Hypervel\Database\Schema\MariaDbSchemaState;
 use Hypervel\Tests\TestCase;
+use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseMariaDbSchemaStateTest extends TestCase
 {
     #[DataProvider('provider')]
@@ -65,7 +70,7 @@ class DatabaseMariaDbSchemaStateTest extends TestCase
                 'username' => 'root',
                 'database' => 'forge',
                 'options' => [
-                    PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : \PDO::MYSQL_ATTR_SSL_CA => 'ssl.ca',
+                    PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA => 'ssl.ca',
                 ],
             ],
         ];

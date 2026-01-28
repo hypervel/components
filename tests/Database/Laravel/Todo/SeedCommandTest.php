@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Laravel\Todo;
 
+use Hypervel\Tests\TestCase;
 use Illuminate\Console\Command;
 use Illuminate\Console\OutputStyle;
 use Illuminate\Console\View\Components\Factory;
@@ -17,10 +18,13 @@ use Illuminate\Database\Seeder;
 use Illuminate\Events\NullDispatcher;
 use Illuminate\Testing\Assert;
 use Mockery as m;
-use Hypervel\Tests\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class SeedCommandTest extends TestCase
 {
     protected function setUp(): void
@@ -34,7 +38,7 @@ class SeedCommandTest extends TestCase
     public function testHandle()
     {
         $input = new ArrayInput(['--force' => true, '--database' => 'sqlite']);
-        $output = new NullOutput;
+        $output = new NullOutput();
         $outputStyle = new OutputStyle($input, $output);
 
         $seeder = m::mock(Seeder::class);
@@ -75,7 +79,7 @@ class SeedCommandTest extends TestCase
             '--database' => 'sqlite',
             '--class' => UserWithoutModelEventsSeeder::class,
         ]);
-        $output = new NullOutput;
+        $output = new NullOutput();
         $outputStyle = new OutputStyle($input, $output);
 
         $instance = new UserWithoutModelEventsSeeder();
@@ -117,7 +121,7 @@ class SeedCommandTest extends TestCase
     public function testProhibitable()
     {
         $input = new ArrayInput([]);
-        $output = new NullOutput;
+        $output = new NullOutput();
         $outputStyle = new OutputStyle($input, $output);
 
         $resolver = m::mock(ConnectionResolverInterface::class);

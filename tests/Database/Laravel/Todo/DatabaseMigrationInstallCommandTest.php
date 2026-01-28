@@ -4,14 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Laravel\Todo;
 
+use Hypervel\Tests\TestCase;
 use Illuminate\Database\Console\Migrations\InstallCommand;
 use Illuminate\Database\Migrations\MigrationRepositoryInterface;
 use Illuminate\Foundation\Application;
 use Mockery as m;
-use Hypervel\Tests\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseMigrationInstallCommandTest extends TestCase
 {
     protected function setUp(): void
@@ -25,7 +29,7 @@ class DatabaseMigrationInstallCommandTest extends TestCase
     public function testFireCallsRepositoryToInstall()
     {
         $command = new InstallCommand($repo = m::mock(MigrationRepositoryInterface::class));
-        $command->setLaravel(new Application);
+        $command->setLaravel(new Application());
         $repo->shouldReceive('setSource')->once()->with('foo');
         $repo->shouldReceive('createRepository')->once();
         $repo->shouldReceive('repositoryExists')->once()->andReturn(false);
@@ -36,7 +40,7 @@ class DatabaseMigrationInstallCommandTest extends TestCase
     public function testFireCallsRepositoryToInstallExists()
     {
         $command = new InstallCommand($repo = m::mock(MigrationRepositoryInterface::class));
-        $command->setLaravel(new Application);
+        $command->setLaravel(new Application());
         $repo->shouldReceive('setSource')->once()->with('foo');
         $repo->shouldReceive('repositoryExists')->once()->andReturn(true);
 
@@ -45,6 +49,6 @@ class DatabaseMigrationInstallCommandTest extends TestCase
 
     protected function runCommand($command, $options = [])
     {
-        return $command->run(new ArrayInput($options), new NullOutput);
+        return $command->run(new ArrayInput($options), new NullOutput());
     }
 }

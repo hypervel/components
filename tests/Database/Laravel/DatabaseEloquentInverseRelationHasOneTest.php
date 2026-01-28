@@ -13,18 +13,20 @@ use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentInverseRelationHasOneTest extends TestCase
 {
     /**
      * Setup the database schema.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
         parent::setUp();
 
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -52,8 +54,6 @@ class DatabaseEloquentInverseRelationHasOneTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -169,6 +169,7 @@ class DatabaseEloquentInverseRelationHasOneTest extends TestCase
 
     /**
      * Helpers...
+     * @param mixed $connection
      */
 
     /**
@@ -184,6 +185,7 @@ class DatabaseEloquentInverseRelationHasOneTest extends TestCase
     /**
      * Get a schema builder instance.
      *
+     * @param mixed $connection
      * @return \Illuminate\Database\Schema\Builder
      */
     protected function schema($connection = 'default')

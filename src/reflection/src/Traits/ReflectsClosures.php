@@ -72,7 +72,7 @@ trait ReflectsClosures
     /**
      * Get the class names / types of the parameters of the given Closure.
      *
-     * @return array<string, string|null>
+     * @return array<string, null|string>
      */
     protected function closureParameterTypes(Closure $closure): array
     {

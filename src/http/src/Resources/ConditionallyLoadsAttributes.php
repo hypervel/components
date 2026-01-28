@@ -17,7 +17,7 @@ trait ConditionallyLoadsAttributes
         $index = -1;
 
         foreach ($data as $key => $value) {
-            $index++;
+            ++$index;
 
             if (is_array($value)) {
                 $data[$key] = $this->filter($value);
@@ -27,7 +27,9 @@ trait ConditionallyLoadsAttributes
 
             if (is_numeric($key) && $value instanceof MergeValue) {
                 return $this->mergeData(
-                    $data, $index, $this->filter($value->data),
+                    $data,
+                    $index,
+                    $this->filter($value->data),
                     array_values($value->data) === $value->data
                 );
             }
@@ -52,9 +54,9 @@ trait ConditionallyLoadsAttributes
             ));
         }
 
-        return $this->removeMissingValues(array_slice($data, 0, $index, true) +
-                $merge +
-                $this->filter(array_slice($data, $index + 1, null, true)));
+        return $this->removeMissingValues(array_slice($data, 0, $index, true)
+                + $merge
+                + $this->filter(array_slice($data, $index + 1, null, true)));
     }
 
     /**
@@ -65,10 +67,10 @@ trait ConditionallyLoadsAttributes
         $numericKeys = true;
 
         foreach ($data as $key => $value) {
-            if (($value instanceof PotentiallyMissing && $value->isMissing()) ||
-                ($value instanceof self &&
-                $value->resource instanceof PotentiallyMissing &&
-                $value->isMissing())) { /* @phpstan-ignore method.notFound (delegated via __call) */
+            if (($value instanceof PotentiallyMissing && $value->isMissing())
+                || ($value instanceof self
+                && $value->resource instanceof PotentiallyMissing
+                && $value->isMissing())) { /* @phpstan-ignore method.notFound (delegated via __call) */
                 unset($data[$key]);
             } else {
                 $numericKeys = $numericKeys && is_numeric($key);
@@ -85,12 +87,12 @@ trait ConditionallyLoadsAttributes
     /**
      * Retrieve a value if the given "condition" is truthy.
      *
-     * @param  bool  $condition
-     * @param  mixed  $value
-     * @param  mixed  $default
+     * @param bool $condition
+     * @param mixed $value
+     * @param mixed $default
      * @return MissingValue|mixed
      */
-    protected function when($condition, $value, $default = new MissingValue)
+    protected function when($condition, $value, $default = new MissingValue())
     {
         if ($condition) {
             return value($value);
@@ -102,12 +104,12 @@ trait ConditionallyLoadsAttributes
     /**
      * Retrieve a value if the given "condition" is falsy.
      *
-     * @param  bool  $condition
-     * @param  mixed  $value
-     * @param  mixed  $default
+     * @param bool $condition
+     * @param mixed $value
+     * @param mixed $default
      * @return MissingValue|mixed
      */
-    public function unless($condition, $value, $default = new MissingValue)
+    public function unless($condition, $value, $default = new MissingValue())
     {
         $arguments = func_num_args() === 2 ? [$value] : [$value, $default];
 
@@ -117,7 +119,7 @@ trait ConditionallyLoadsAttributes
     /**
      * Merge a value into the array.
      *
-     * @param  mixed  $value
+     * @param mixed $value
      * @return MergeValue|mixed
      */
     protected function merge($value)
@@ -128,12 +130,12 @@ trait ConditionallyLoadsAttributes
     /**
      * Merge a value if the given condition is truthy.
      *
-     * @param  bool  $condition
-     * @param  mixed  $value
-     * @param  mixed  $default
+     * @param bool $condition
+     * @param mixed $value
+     * @param mixed $default
      * @return MergeValue|mixed
      */
-    protected function mergeWhen($condition, $value, $default = new MissingValue)
+    protected function mergeWhen($condition, $value, $default = new MissingValue())
     {
         if ($condition) {
             return new MergeValue(value($value));
@@ -145,12 +147,12 @@ trait ConditionallyLoadsAttributes
     /**
      * Merge a value unless the given condition is truthy.
      *
-     * @param  bool  $condition
-     * @param  mixed  $value
-     * @param  mixed  $default
+     * @param bool $condition
+     * @param mixed $value
+     * @param mixed $default
      * @return MergeValue|mixed
      */
-    protected function mergeUnless($condition, $value, $default = new MissingValue)
+    protected function mergeUnless($condition, $value, $default = new MissingValue())
     {
         $arguments = func_num_args() === 2 ? [$value] : [$value, $default];
 
@@ -170,12 +172,12 @@ trait ConditionallyLoadsAttributes
     /**
      * Retrieve an attribute if it exists on the resource.
      *
-     * @param  string  $attribute
-     * @param  mixed  $value
-     * @param  mixed  $default
+     * @param string $attribute
+     * @param mixed $value
+     * @param mixed $default
      * @return MissingValue|mixed
      */
-    public function whenHas($attribute, $value = null, $default = new MissingValue)
+    public function whenHas($attribute, $value = null, $default = new MissingValue())
     {
         if (! array_key_exists($attribute, $this->resource->getAttributes())) {
             return value($default);
@@ -189,11 +191,11 @@ trait ConditionallyLoadsAttributes
     /**
      * Retrieve a model attribute if it is null.
      *
-     * @param  mixed  $value
-     * @param  mixed  $default
+     * @param mixed $value
+     * @param mixed $default
      * @return MissingValue|mixed
      */
-    protected function whenNull($value, $default = new MissingValue)
+    protected function whenNull($value, $default = new MissingValue())
     {
         $arguments = func_num_args() == 1 ? [$value] : [$value, $default];
 
@@ -203,11 +205,11 @@ trait ConditionallyLoadsAttributes
     /**
      * Retrieve a model attribute if it is not null.
      *
-     * @param  mixed  $value
-     * @param  mixed  $default
+     * @param mixed $value
+     * @param mixed $default
      * @return MissingValue|mixed
      */
-    protected function whenNotNull($value, $default = new MissingValue)
+    protected function whenNotNull($value, $default = new MissingValue())
     {
         $arguments = func_num_args() == 1 ? [$value] : [$value, $default];
 
@@ -217,15 +219,15 @@ trait ConditionallyLoadsAttributes
     /**
      * Retrieve an accessor when it has been appended.
      *
-     * @param  string  $attribute
-     * @param  mixed  $value
-     * @param  mixed  $default
+     * @param string $attribute
+     * @param mixed $value
+     * @param mixed $default
      * @return MissingValue|mixed
      */
-    protected function whenAppended($attribute, $value = null, $default = new MissingValue)
+    protected function whenAppended($attribute, $value = null, $default = new MissingValue())
     {
         if ($this->resource->hasAppended($attribute)) {
-            return func_num_args() >= 2 ? value($value) : $this->resource->$attribute;
+            return func_num_args() >= 2 ? value($value) : $this->resource->{$attribute};
         }
 
         return func_num_args() === 3 ? value($default) : $default;
@@ -234,12 +236,12 @@ trait ConditionallyLoadsAttributes
     /**
      * Retrieve a relationship if it has been loaded.
      *
-     * @param  string  $relationship
-     * @param  mixed  $value
-     * @param  mixed  $default
+     * @param string $relationship
+     * @param mixed $value
+     * @param mixed $default
      * @return MissingValue|mixed
      */
-    protected function whenLoaded($relationship, $value = null, $default = new MissingValue)
+    protected function whenLoaded($relationship, $value = null, $default = new MissingValue())
     {
         if (! $this->resource->relationLoaded($relationship)) {
             return value($default);
@@ -265,12 +267,12 @@ trait ConditionallyLoadsAttributes
     /**
      * Retrieve a relationship count if it exists.
      *
-     * @param  string  $relationship
-     * @param  mixed  $value
-     * @param  mixed  $default
+     * @param string $relationship
+     * @param mixed $value
+     * @param mixed $default
      * @return MissingValue|mixed
      */
-    public function whenCounted($relationship, $value = null, $default = new MissingValue)
+    public function whenCounted($relationship, $value = null, $default = new MissingValue())
     {
         $attribute = (new Stringable($relationship))->snake()->finish('_count')->value();
 
@@ -296,14 +298,14 @@ trait ConditionallyLoadsAttributes
     /**
      * Retrieve a relationship aggregated value if it exists.
      *
-     * @param  string  $relationship
-     * @param  string  $column
-     * @param  string  $aggregate
-     * @param  mixed  $value
-     * @param  mixed  $default
+     * @param string $relationship
+     * @param string $column
+     * @param string $aggregate
+     * @param mixed $value
+     * @param mixed $default
      * @return MissingValue|mixed
      */
-    public function whenAggregated($relationship, $column, $aggregate, $value = null, $default = new MissingValue)
+    public function whenAggregated($relationship, $column, $aggregate, $value = null, $default = new MissingValue())
     {
         $attribute = (new Stringable($relationship))->snake()->append('_')->append($aggregate)->append('_')->finish($column)->value();
 
@@ -329,12 +331,12 @@ trait ConditionallyLoadsAttributes
     /**
      * Retrieve a relationship existence check if it exists.
      *
-     * @param  string  $relationship
-     * @param  mixed  $value
-     * @param  mixed  $default
+     * @param string $relationship
+     * @param mixed $value
+     * @param mixed $default
      * @return MissingValue|mixed
      */
-    public function whenExistsLoaded($relationship, $value = null, $default = new MissingValue)
+    public function whenExistsLoaded($relationship, $value = null, $default = new MissingValue())
     {
         $attribute = (new Stringable($relationship))->snake()->finish('_exists')->value();
 
@@ -356,12 +358,12 @@ trait ConditionallyLoadsAttributes
     /**
      * Execute a callback if the given pivot table has been loaded.
      *
-     * @param  string  $table
-     * @param  mixed  $value
-     * @param  mixed  $default
+     * @param string $table
+     * @param mixed $value
+     * @param mixed $default
      * @return MissingValue|mixed
      */
-    protected function whenPivotLoaded($table, $value, $default = new MissingValue)
+    protected function whenPivotLoaded($table, $value, $default = new MissingValue())
     {
         return $this->whenPivotLoadedAs('pivot', ...func_get_args());
     }
@@ -369,13 +371,13 @@ trait ConditionallyLoadsAttributes
     /**
      * Execute a callback if the given pivot table with a custom accessor has been loaded.
      *
-     * @param  string  $accessor
-     * @param  string  $table
-     * @param  mixed  $value
-     * @param  mixed  $default
+     * @param string $accessor
+     * @param string $table
+     * @param mixed $value
+     * @param mixed $default
      * @return MissingValue|mixed
      */
-    protected function whenPivotLoadedAs($accessor, $table, $value, $default = new MissingValue)
+    protected function whenPivotLoadedAs($accessor, $table, $value, $default = new MissingValue())
     {
         return $this->when(
             $this->hasPivotLoadedAs($accessor, $table),
@@ -397,23 +399,24 @@ trait ConditionallyLoadsAttributes
      */
     protected function hasPivotLoadedAs(string $accessor, string $table): bool
     {
-        return isset($this->resource->$accessor) &&
-            ($this->resource->$accessor instanceof $table ||
-                $this->resource->$accessor->getTable() === $table);
+        return isset($this->resource->{$accessor})
+            && ($this->resource->{$accessor} instanceof $table
+                || $this->resource->{$accessor}->getTable() === $table);
     }
 
     /**
      * Transform the given value if it is present.
      *
-     * @param  mixed  $value
-     * @param  callable  $callback
-     * @param  mixed  $default
+     * @param mixed $value
+     * @param mixed $default
      * @return mixed
      */
-    protected function transform($value, callable $callback, $default = new MissingValue)
+    protected function transform($value, callable $callback, $default = new MissingValue())
     {
         return transform(
-            $value, $callback, $default
+            $value,
+            $callback,
+            $default
         );
     }
 }

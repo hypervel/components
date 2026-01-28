@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Laravel\Todo;
 
+use Hypervel\Tests\TestCase;
 use Illuminate\Console\CommandMutex;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\Console\Migrations\MigrateCommand;
@@ -11,11 +12,14 @@ use Illuminate\Database\Events\SchemaLoaded;
 use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Foundation\Application;
 use Mockery as m;
-use Hypervel\Tests\TestCase;
 use stdClass;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseMigrationMigrateCommandTest extends TestCase
 {
     protected function setUp(): void
@@ -38,7 +42,7 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
             return $callback();
         });
         $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('run')->once()->with([__DIR__.DIRECTORY_SEPARATOR.'migrations'], ['pretend' => false, 'step' => false]);
+        $migrator->shouldReceive('run')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => false]);
         $migrator->shouldReceive('getNotes')->andReturn([]);
         $migrator->shouldReceive('repositoryExists')->once()->andReturn(true);
 
@@ -61,14 +65,14 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
         $migrator->shouldReceive('deleteRepository')->once();
         $connection->shouldReceive('getSchemaState')->andReturn($schemaState = m::mock(stdClass::class));
         $schemaState->shouldReceive('handleOutputUsing')->andReturnSelf();
-        $schemaState->shouldReceive('load')->once()->with(__DIR__.'/stubs/schema.sql');
+        $schemaState->shouldReceive('load')->once()->with(__DIR__ . '/stubs/schema.sql');
         $dispatcher->shouldReceive('dispatch')->once()->with(m::type(SchemaLoaded::class));
         $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('run')->once()->with([__DIR__.DIRECTORY_SEPARATOR.'migrations'], ['pretend' => false, 'step' => false]);
+        $migrator->shouldReceive('run')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => false]);
         $migrator->shouldReceive('getNotes')->andReturn([]);
         $migrator->shouldReceive('repositoryExists')->once()->andReturn(true);
 
-        $this->runCommand($command, ['--schema-path' => __DIR__.'/stubs/schema.sql']);
+        $this->runCommand($command, ['--schema-path' => __DIR__ . '/stubs/schema.sql']);
     }
 
     public function testMigrationRepositoryCreatedWhenNecessary()
@@ -84,7 +88,7 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
             return $callback();
         });
         $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('run')->once()->with([__DIR__.DIRECTORY_SEPARATOR.'migrations'], ['pretend' => false, 'step' => false]);
+        $migrator->shouldReceive('run')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => false]);
         $migrator->shouldReceive('repositoryExists')->once()->andReturn(false);
         $command->expects($this->once())->method('callSilent')->with($this->equalTo('migrate:install'), $this->equalTo([]));
 
@@ -103,7 +107,7 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
             return $callback();
         });
         $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('run')->once()->with([__DIR__.DIRECTORY_SEPARATOR.'migrations'], ['pretend' => true, 'step' => false]);
+        $migrator->shouldReceive('run')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => true, 'step' => false]);
         $migrator->shouldReceive('repositoryExists')->once()->andReturn(true);
 
         $this->runCommand($command, ['--pretend' => true]);
@@ -121,7 +125,7 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
             return $callback();
         });
         $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('run')->once()->with([__DIR__.DIRECTORY_SEPARATOR.'migrations'], ['pretend' => false, 'step' => false]);
+        $migrator->shouldReceive('run')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => false]);
         $migrator->shouldReceive('repositoryExists')->once()->andReturn(true);
 
         $this->runCommand($command, ['--database' => 'foo']);
@@ -139,7 +143,7 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
             return $callback();
         });
         $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('run')->once()->with([__DIR__.DIRECTORY_SEPARATOR.'migrations'], ['pretend' => false, 'step' => true]);
+        $migrator->shouldReceive('run')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], ['pretend' => false, 'step' => true]);
         $migrator->shouldReceive('repositoryExists')->once()->andReturn(true);
 
         $this->runCommand($command, ['--step' => true]);
@@ -147,7 +151,7 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
 
     protected function runCommand($command, $input = [])
     {
-        return $command->run(new ArrayInput($input), new NullOutput);
+        return $command->run(new ArrayInput($input), new NullOutput());
     }
 }
 

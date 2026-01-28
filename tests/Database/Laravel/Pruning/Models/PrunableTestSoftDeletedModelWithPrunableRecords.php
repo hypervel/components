@@ -10,9 +10,11 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 
 class PrunableTestSoftDeletedModelWithPrunableRecords extends Model
 {
-    use MassPrunable, SoftDeletes;
+    use MassPrunable;
+    use SoftDeletes;
 
     protected $table = 'prunables';
+
     protected $connection = 'default';
 
     public function prunable()

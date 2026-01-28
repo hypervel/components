@@ -18,13 +18,18 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Group;
+use stdClass;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 #[Group('integration')]
 class EloquentModelCustomCastingTest extends TestCase
 {
     protected function setUp(): void
     {
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -39,8 +44,6 @@ class EloquentModelCustomCastingTest extends TestCase
 
     /**
      * Setup the database schema.
-     *
-     * @return void
      */
     public function createSchema()
     {
@@ -72,8 +75,6 @@ class EloquentModelCustomCastingTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -204,7 +205,7 @@ class EloquentModelCustomCastingTest extends TestCase
         $model->save();
 
         // Inverse title and content this would result in a different JSON string when json_encode is used
-        $document = new \stdClass();
+        $document = new stdClass();
         $document->title = 'hello world';
         $document->content = 'content';
         $model->document = $document;
@@ -262,10 +263,10 @@ class AddressCast implements CastsAttributes
     /**
      * Cast the given value.
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $key
-     * @param  mixed  $value
-     * @param  array  $attributes
+     * @param \Illuminate\Database\Eloquent\Model $model
+     * @param string $key
+     * @param mixed $value
+     * @param array $attributes
      * @return \Illuminate\Tests\Integration\Database\AddressModel
      */
     public function get($model, $key, $value, $attributes)
@@ -279,10 +280,10 @@ class AddressCast implements CastsAttributes
     /**
      * Prepare the given value for storage.
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $key
-     * @param  AddressModel  $value
-     * @param  array  $attributes
+     * @param \Illuminate\Database\Eloquent\Model $model
+     * @param string $key
+     * @param AddressModel $value
+     * @param array $attributes
      * @return array
      */
     public function set($model, $key, $value, $attributes)
@@ -303,11 +304,11 @@ class GMPCast implements CastsAttributes, SerializesCastableAttributes
     /**
      * Cast the given value.
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $key
-     * @param  string  $value
-     * @param  array  $attributes
-     * @return string|null
+     * @param \Illuminate\Database\Eloquent\Model $model
+     * @param string $key
+     * @param string $value
+     * @param array $attributes
+     * @return null|string
      */
     public function get($model, $key, $value, $attributes)
     {
@@ -317,10 +318,10 @@ class GMPCast implements CastsAttributes, SerializesCastableAttributes
     /**
      * Prepare the given value for storage.
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $key
-     * @param  string|null  $value
-     * @param  array  $attributes
+     * @param \Illuminate\Database\Eloquent\Model $model
+     * @param string $key
+     * @param null|string $value
+     * @param array $attributes
      * @return string
      */
     public function set($model, $key, $value, $attributes)
@@ -342,11 +343,11 @@ class NonNullableString implements CastsAttributes
     /**
      * Cast the given value.
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $key
-     * @param  string  $value
-     * @param  array  $attributes
-     * @return string|null
+     * @param \Illuminate\Database\Eloquent\Model $model
+     * @param string $key
+     * @param string $value
+     * @param array $attributes
+     * @return null|string
      */
     public function get($model, $key, $value, $attributes)
     {
@@ -356,10 +357,10 @@ class NonNullableString implements CastsAttributes
     /**
      * Prepare the given value for storage.
      *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $key
-     * @param  string|null  $value
-     * @param  array  $attributes
+     * @param \Illuminate\Database\Eloquent\Model $model
+     * @param string $key
+     * @param null|string $value
+     * @param array $attributes
      * @return string
      */
     public function set($model, $key, $value, $attributes)
@@ -432,16 +433,16 @@ class EuroCaster implements CastsAttributes
 
     public function increment($model, $key, $value, $attributes)
     {
-        $model->$key = new Euro((string) BigNumber::of($model->$key->value)->plus($value->value)->toScale(2));
+        $model->{$key} = new Euro((string) BigNumber::of($model->{$key}->value)->plus($value->value)->toScale(2));
 
-        return $model->$key;
+        return $model->{$key};
     }
 
     public function decrement($model, $key, $value, $attributes)
     {
-        $model->$key = new Euro((string) BigNumber::of($model->$key->value)->subtract($value->value)->toScale(2));
+        $model->{$key} = new Euro((string) BigNumber::of($model->{$key}->value)->subtract($value->value)->toScale(2));
 
-        return $model->$key;
+        return $model->{$key};
     }
 }
 
@@ -496,7 +497,6 @@ class AddressDto
 {
     public function __construct(public string $lineOne, public string $lineTwo)
     {
-        //
     }
 }
 

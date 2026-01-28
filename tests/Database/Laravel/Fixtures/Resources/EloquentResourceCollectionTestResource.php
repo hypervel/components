@@ -8,5 +8,4 @@ use Hypervel\Http\Resources\Json\JsonResource;
 
 class EloquentResourceCollectionTestResource extends JsonResource
 {
-    //
 }

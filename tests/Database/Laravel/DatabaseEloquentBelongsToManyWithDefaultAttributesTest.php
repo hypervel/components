@@ -13,6 +13,10 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use stdClass;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentBelongsToManyWithDefaultAttributesTest extends TestCase
 {
     public function testWithPivotValueMethodSetsWhereConditionsForFetching()

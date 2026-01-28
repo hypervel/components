@@ -10,6 +10,10 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use stdClass;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseSoftDeletingTraitTest extends TestCase
 {
     public function testDeleteSetsSoftDeletedColumn()
@@ -61,13 +65,15 @@ class DatabaseSoftDeletingTraitStub
     use SoftDeletes;
 
     public $deleted_at;
+
     public $updated_at;
+
     public $timestamps = true;
+
     public $exists = false;
 
     public function newQuery()
     {
-        //
     }
 
     public function getKey()
@@ -92,7 +98,6 @@ class DatabaseSoftDeletingTraitStub
 
     public function fireModelEvent()
     {
-        //
     }
 
     public function freshTimestamp()

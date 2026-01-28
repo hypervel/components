@@ -81,9 +81,9 @@ class ResourceResponse implements Responsable
      */
     protected function haveAdditionalInformationAndDataIsUnwrapped(array $data, array $with, array $additional): bool
     {
-        return (! empty($with) || ! empty($additional)) &&
-               (! $this->wrapper() ||
-                ! array_key_exists($this->wrapper(), $data));
+        return (! empty($with) || ! empty($additional))
+               && (! $this->wrapper()
+                || ! array_key_exists($this->wrapper(), $data));
     }
 
     /**
@@ -99,7 +99,7 @@ class ResourceResponse implements Responsable
      */
     protected function calculateStatus(): int
     {
-        return $this->resource->resource instanceof Model &&
-               $this->resource->resource->wasRecentlyCreated ? 201 : 200;
+        return $this->resource->resource instanceof Model
+               && $this->resource->resource->wasRecentlyCreated ? 201 : 200;
     }
 }

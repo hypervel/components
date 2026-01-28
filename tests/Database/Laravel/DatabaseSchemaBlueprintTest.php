@@ -13,6 +13,10 @@ use Hypervel\Tests\Database\Laravel\Fixtures\Models\User;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseSchemaBlueprintTest extends TestCase
 {
     protected function tearDown(): void
@@ -654,8 +658,8 @@ class DatabaseSchemaBlueprintTest extends TestCase
             ->getMock();
 
         $grammar ??= 'MySql';
-        $grammarClass = 'Hypervel\Database\Schema\Grammars\\'.$grammar.'Grammar';
-        $builderClass = 'Hypervel\Database\Schema\\'.$grammar.'Builder';
+        $grammarClass = 'Hypervel\Database\Schema\Grammars\\' . $grammar . 'Grammar';
+        $builderClass = 'Hypervel\Database\Schema\\' . $grammar . 'Builder';
 
         $connection->shouldReceive('getSchemaGrammar')->andReturn(new $grammarClass($connection));
         $connection->shouldReceive('getSchemaBuilder')->andReturn(m::mock($builderClass));

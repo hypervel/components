@@ -13,18 +13,20 @@ use Hypervel\Database\Eloquent\Relations\MorphOne;
 use Hypervel\Database\Eloquent\Relations\MorphTo;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentInverseRelationMorphOneTest extends TestCase
 {
     /**
      * Setup the database schema.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
         parent::setUp();
 
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -52,8 +54,6 @@ class DatabaseEloquentInverseRelationMorphOneTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -194,6 +194,7 @@ class DatabaseEloquentInverseRelationMorphOneTest extends TestCase
 
     /**
      * Helpers...
+     * @param mixed $connection
      */
 
     /**
@@ -209,6 +210,7 @@ class DatabaseEloquentInverseRelationMorphOneTest extends TestCase
     /**
      * Get a schema builder instance.
      *
+     * @param mixed $connection
      * @return \Illuminate\Database\Schema\Builder
      */
     protected function schema($connection = 'default')

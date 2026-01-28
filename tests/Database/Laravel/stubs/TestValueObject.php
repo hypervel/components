@@ -7,11 +7,12 @@ namespace Hypervel\Tests\Database\Laravel\stubs;
 class TestValueObject
 {
     private string $myPropertyA;
+
     private string $myPropertyB;
 
     public static function make(?array $test): self
     {
-        $self = new self;
+        $self = new self();
         if (! empty($test['myPropertyA'])) {
             $self->myPropertyA = $test['myPropertyA'];
         }

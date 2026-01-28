@@ -33,7 +33,7 @@ trait DelegatesToResource
     /**
      * Retrieve the model for a bound value.
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public function resolveRouteBinding(mixed $value, ?string $field = null)
     {
@@ -43,7 +43,7 @@ trait DelegatesToResource
     /**
      * Retrieve the model for a bound value.
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public function resolveChildRouteBinding(string $childType, mixed $value, ?string $field = null)
     {
@@ -53,8 +53,7 @@ trait DelegatesToResource
     /**
      * Determine if the given attribute exists.
      *
-     * @param  mixed  $offset
-     * @return bool
+     * @param mixed $offset
      */
     public function offsetExists($offset): bool
     {
@@ -64,8 +63,7 @@ trait DelegatesToResource
     /**
      * Get the value for a given offset.
      *
-     * @param  mixed  $offset
-     * @return mixed
+     * @param mixed $offset
      */
     public function offsetGet($offset): mixed
     {
@@ -75,9 +73,8 @@ trait DelegatesToResource
     /**
      * Set the value for a given offset.
      *
-     * @param  mixed  $offset
-     * @param  mixed  $value
-     * @return void
+     * @param mixed $offset
+     * @param mixed $value
      */
     public function offsetSet($offset, $value): void
     {
@@ -87,8 +84,7 @@ trait DelegatesToResource
     /**
      * Unset the value for a given offset.
      *
-     * @param  mixed  $offset
-     * @return void
+     * @param mixed $offset
      */
     public function offsetUnset($offset): void
     {

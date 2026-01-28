@@ -11,6 +11,10 @@ use Hypervel\Database\Schema\PostgresBuilder;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabasePostgresSchemaBuilderTest extends TestCase
 {
     public function testHasTable()

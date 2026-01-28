@@ -15,11 +15,15 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use stdClass;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseSoftDeletingScopeTest extends TestCase
 {
     public function testApplyingScopeToABuilder()
     {
-        $scope = m::mock(SoftDeletingScope::class.'[extend]');
+        $scope = m::mock(SoftDeletingScope::class . '[extend]');
         $builder = m::mock(EloquentBuilder::class);
         $model = m::mock(Model::class);
         $model->shouldReceive('getQualifiedDeletedAtColumn')->once()->andReturn('table.deleted_at');
@@ -35,7 +39,7 @@ class DatabaseSoftDeletingScopeTest extends TestCase
             m::mock(Grammar::class),
             m::mock(Processor::class)
         ));
-        $scope = new SoftDeletingScope;
+        $scope = new SoftDeletingScope();
         $scope->extend($builder);
         $callback = $builder->getMacro('restore');
         $givenBuilder = m::mock(EloquentBuilder::class);
@@ -55,7 +59,7 @@ class DatabaseSoftDeletingScopeTest extends TestCase
             m::mock(Processor::class)
         ));
 
-        $scope = new SoftDeletingScope;
+        $scope = new SoftDeletingScope();
         $scope->extend($builder);
         $callback = $builder->getMacro('restoreOrCreate');
         $givenBuilder = m::mock(EloquentBuilder::class);
@@ -77,7 +81,7 @@ class DatabaseSoftDeletingScopeTest extends TestCase
             m::mock(Processor::class)
         ));
 
-        $scope = new SoftDeletingScope;
+        $scope = new SoftDeletingScope();
         $scope->extend($builder);
         $callback = $builder->getMacro('createOrRestore');
         $givenBuilder = m::mock(EloquentBuilder::class);
@@ -98,7 +102,7 @@ class DatabaseSoftDeletingScopeTest extends TestCase
             m::mock(Grammar::class),
             m::mock(Processor::class)
         ));
-        $scope = m::mock(SoftDeletingScope::class.'[remove]');
+        $scope = m::mock(SoftDeletingScope::class . '[remove]');
         $scope->extend($builder);
         $callback = $builder->getMacro('withTrashed');
         $givenBuilder = m::mock(EloquentBuilder::class);
@@ -118,7 +122,7 @@ class DatabaseSoftDeletingScopeTest extends TestCase
         ));
         $model = m::mock(Model::class);
         $model->makePartial();
-        $scope = m::mock(SoftDeletingScope::class.'[remove]');
+        $scope = m::mock(SoftDeletingScope::class . '[remove]');
         $scope->extend($builder);
         $callback = $builder->getMacro('onlyTrashed');
         $givenBuilder = m::mock(EloquentBuilder::class);
@@ -141,7 +145,7 @@ class DatabaseSoftDeletingScopeTest extends TestCase
         ));
         $model = m::mock(Model::class);
         $model->makePartial();
-        $scope = m::mock(SoftDeletingScope::class.'[remove]');
+        $scope = m::mock(SoftDeletingScope::class . '[remove]');
         $scope->extend($builder);
         $callback = $builder->getMacro('withoutTrashed');
         $givenBuilder = m::mock(EloquentBuilder::class);

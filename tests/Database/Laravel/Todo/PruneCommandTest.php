@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\Laravel\Todo;
 
 use Closure;
+use Hypervel\Tests\TestCase;
 use Illuminate\Contracts\Events\Dispatcher as DispatcherContract;
 use Illuminate\Database\Capsule\Manager as DB;
 use Illuminate\Database\Console\PruneCommand;
@@ -13,11 +14,15 @@ use Illuminate\Database\Events\ModelPruningStarting;
 use Illuminate\Database\Events\ModelsPruned;
 use Illuminate\Events\Dispatcher;
 use Illuminate\Foundation\Application;
+use InvalidArgumentException;
 use Mockery as m;
-use Hypervel\Tests\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\BufferedOutput;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class PruneCommandTest extends TestCase
 {
     protected function setUp(): void
@@ -27,15 +32,15 @@ class PruneCommandTest extends TestCase
         // TODO: Port once illuminate/console package is ported
         $this->markTestSkipped('Requires illuminate/console package to be ported first.');
 
-        Application::setInstance($container = new Application(__DIR__.'/Pruning'));
+        Application::setInstance($container = new Application(__DIR__ . '/Pruning'));
 
         Closure::bind(
-            fn () => $this->namespace = 'Illuminate\\Tests\\Database\\Pruning\\',
+            fn () => $this->namespace = 'Illuminate\Tests\Database\Pruning\\',
             $container,
             Application::class,
         )();
 
-        $container->useAppPath(__DIR__.'/Pruning');
+        $container->useAppPath(__DIR__ . '/Pruning');
 
         $container->singleton(DispatcherContract::class, function () {
             return new Dispatcher();
@@ -46,7 +51,7 @@ class PruneCommandTest extends TestCase
 
     public function testPrunableModelAndExceptWithEachOther(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The --models and --except options cannot be combined.');
 
         $this->artisan([
@@ -94,7 +99,7 @@ class PruneCommandTest extends TestCase
 
     public function testPrunableSoftDeletedModelWithPrunableRecords()
     {
-        $db = new DB;
+        $db = new DB();
         $db->addConnection([
             'driver' => 'sqlite',
             'database' => ':memory:',
@@ -173,7 +178,7 @@ class PruneCommandTest extends TestCase
 
     public function testTheCommandMayBePretended()
     {
-        $db = new DB;
+        $db = new DB();
         $db->addConnection([
             'driver' => 'sqlite',
             'database' => ':memory:',
@@ -207,7 +212,7 @@ class PruneCommandTest extends TestCase
 
     public function testTheCommandMayBePretendedOnSoftDeletedModel()
     {
-        $db = new DB;
+        $db = new DB();
         $db->addConnection([
             'driver' => 'sqlite',
             'database' => ':memory:',
@@ -243,14 +248,14 @@ class PruneCommandTest extends TestCase
         $dispatcher = m::mock(DispatcherContract::class);
 
         $dispatcher->shouldReceive('dispatch')->once()->withArgs(function ($event) {
-            return get_class($event) === ModelPruningStarting::class &&
-                $event->models === [Pruning\Models\PrunableTestModelWithPrunableRecords::class];
+            return get_class($event) === ModelPruningStarting::class
+                && $event->models === [Pruning\Models\PrunableTestModelWithPrunableRecords::class];
         });
         $dispatcher->shouldReceive('listen')->once()->with(ModelsPruned::class, m::type(Closure::class));
         $dispatcher->shouldReceive('dispatch')->twice()->with(m::type(ModelsPruned::class));
         $dispatcher->shouldReceive('dispatch')->once()->withArgs(function ($event) {
-            return get_class($event) === ModelPruningFinished::class &&
-                $event->models === [Pruning\Models\PrunableTestModelWithPrunableRecords::class];
+            return get_class($event) === ModelPruningFinished::class
+                && $event->models === [Pruning\Models\PrunableTestModelWithPrunableRecords::class];
         });
         $dispatcher->shouldReceive('forget')->once()->with(ModelsPruned::class);
 
@@ -262,7 +267,7 @@ class PruneCommandTest extends TestCase
     protected function artisan($arguments)
     {
         $input = new ArrayInput($arguments);
-        $output = new BufferedOutput;
+        $output = new BufferedOutput();
 
         tap(new PruneCommand())
             ->setLaravel(Application::getInstance())

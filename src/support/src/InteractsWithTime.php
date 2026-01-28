@@ -7,7 +7,6 @@ namespace Hypervel\Support;
 use Carbon\CarbonInterval;
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Support\Carbon;
 
 trait InteractsWithTime
 {

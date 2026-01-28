@@ -9,8 +9,13 @@ use Hypervel\Database\Query\Processors\PostgresProcessor;
 use Hypervel\Database\Schema\Grammars\PostgresGrammar;
 use Hypervel\Database\Schema\PostgresBuilder;
 use Hypervel\Tests\TestCase;
+use InvalidArgumentException;
 use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabasePostgresBuilderTest extends TestCase
 {
     public function testCreateDatabase()
@@ -122,7 +127,7 @@ class DatabasePostgresBuilderTest extends TestCase
 
     public function testHasTableWhenDatabaseAndSchemaQualifiedAndSearchPathMismatches()
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $connection = $this->getConnection();
         $grammar = m::mock(PostgresGrammar::class);
@@ -204,7 +209,7 @@ class DatabasePostgresBuilderTest extends TestCase
 
     public function testGetColumnWhenDatabaseAndSchemaQualifiedAndSearchPathMismatches()
     {
-        $this->expectException(\InvalidArgumentException::class);
+        $this->expectException(InvalidArgumentException::class);
 
         $connection = $this->getConnection();
         $connection->shouldReceive('getConfig')->with('search_path')->andReturn('public');
@@ -291,6 +296,6 @@ class DatabasePostgresBuilderTest extends TestCase
 
     protected function getGrammar()
     {
-        return new PostgresGrammar;
+        return new PostgresGrammar();
     }
 }

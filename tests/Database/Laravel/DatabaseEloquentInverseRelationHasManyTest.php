@@ -14,18 +14,20 @@ use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\Relations\HasOne;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentInverseRelationHasManyTest extends TestCase
 {
     /**
      * Setup the database schema.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
         parent::setUp();
 
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -53,8 +55,6 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -187,7 +187,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
     {
         $user = HasManyInverseUserModel::create();
 
-        $posts = array_fill(0, 3, new HasManyInversePostModel);
+        $posts = array_fill(0, 3, new HasManyInversePostModel());
 
         $user->posts()->saveMany($posts);
 
@@ -216,6 +216,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
 
     /**
      * Helpers...
+     * @param mixed $connection
      */
 
     /**
@@ -231,6 +232,7 @@ class DatabaseEloquentInverseRelationHasManyTest extends TestCase
     /**
      * Get a schema builder instance.
      *
+     * @param mixed $connection
      * @return \Illuminate\Database\Schema\Builder
      */
     protected function schema($connection = 'default')

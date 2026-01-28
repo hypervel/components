@@ -82,7 +82,7 @@ class Manager
     /**
      * Get a fluent query builder instance.
      *
-     * @param Closure|Builder|string $table
+     * @param Builder|Closure|string $table
      */
     public static function table($table, ?string $as = null, ?string $connection = null): Builder
     {
@@ -175,6 +175,6 @@ class Manager
      */
     public static function __callStatic(string $method, array $parameters): mixed
     {
-        return static::connection()->$method(...$parameters);
+        return static::connection()->{$method}(...$parameters);
     }
 }

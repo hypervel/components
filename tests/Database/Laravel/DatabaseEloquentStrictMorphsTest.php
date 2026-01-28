@@ -10,6 +10,10 @@ use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentStrictMorphsTest extends TestCase
 {
     protected function setUp(): void
@@ -23,14 +27,14 @@ class DatabaseEloquentStrictMorphsTest extends TestCase
     {
         $this->expectException(ClassMorphViolationException::class);
 
-        $model = new StrictMorphsTestModel;
+        $model = new StrictMorphsTestModel();
 
         $model->getMorphClass();
     }
 
     public function testStrictModeDoesNotThrowExceptionWhenMorphMap()
     {
-        $model = new StrictMorphsTestModel;
+        $model = new StrictMorphsTestModel();
 
         Relation::morphMap([
             'test' => StrictMorphsTestModel::class,
@@ -42,7 +46,7 @@ class DatabaseEloquentStrictMorphsTest extends TestCase
 
     public function testMapsCanBeEnforcedInOneMethod()
     {
-        $model = new StrictMorphsTestModel;
+        $model = new StrictMorphsTestModel();
 
         Relation::requireMorphMap(false);
 

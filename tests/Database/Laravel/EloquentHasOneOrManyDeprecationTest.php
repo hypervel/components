@@ -13,21 +13,25 @@ use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentHasOneOrManyDeprecationTest extends TestCase
 {
     public function testHasManyMatchWithNullLocalKey(): void
     {
         $relation = $this->getHasManyRelation();
 
-        $result1 = new HasOneOrManyDeprecationModelStub;
+        $result1 = new HasOneOrManyDeprecationModelStub();
         $result1->foreign_key = 1;
 
-        $result2 = new HasOneOrManyDeprecationModelStub;
+        $result2 = new HasOneOrManyDeprecationModelStub();
         $result2->foreign_key = '';
 
-        $model1 = new HasOneOrManyDeprecationModelStub;
+        $model1 = new HasOneOrManyDeprecationModelStub();
         $model1->id = 1;
-        $model2 = new HasOneOrManyDeprecationModelStub;
+        $model2 = new HasOneOrManyDeprecationModelStub();
         $model2->id = null;
 
         $relation->getRelated()->shouldReceive('newCollection')->andReturnUsing(function ($array) {
@@ -44,12 +48,12 @@ class EloquentHasOneOrManyDeprecationTest extends TestCase
     {
         $relation = $this->getHasOneRelation();
 
-        $result1 = new HasOneOrManyDeprecationModelStub;
+        $result1 = new HasOneOrManyDeprecationModelStub();
         $result1->foreign_key = 1;
 
-        $model1 = new HasOneOrManyDeprecationModelStub;
+        $model1 = new HasOneOrManyDeprecationModelStub();
         $model1->id = 1;
-        $model2 = new HasOneOrManyDeprecationModelStub;
+        $model2 = new HasOneOrManyDeprecationModelStub();
         $model2->id = null;
 
         $models = $relation->match([$model1, $model2], new Collection([$result1]), 'foo');

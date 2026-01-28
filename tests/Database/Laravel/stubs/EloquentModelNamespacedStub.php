@@ -8,5 +8,4 @@ use Hypervel\Database\Eloquent\Model;
 
 class EloquentModelNamespacedStub extends Model
 {
-    //
 }

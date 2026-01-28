@@ -20,8 +20,8 @@ use Hypervel\Database\Eloquent\Factories\Sequence;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Support\Str;
-use Hypervel\Tests\Database\Laravel\Fixtures\Models\Money\Price;
 use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Database\Laravel\Fixtures\Models\Money\Price;
 use Mockery as m;
 use ReflectionClass;
 
@@ -30,6 +30,8 @@ use ReflectionClass;
  * It relies on Container::setInstance(null) and other Laravel-specific container behaviors
  * that differ from Hyperf's container. Once Laravel's container is ported, remove the
  * markTestSkipped() call in setUp() and this test should work.
+ * @internal
+ * @coversNothing
  */
 class DatabaseEloquentFactoryTest extends TestCase
 {
@@ -46,7 +48,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $container->instance(Application::class, $app = m::mock(Application::class));
         $app->shouldReceive('getNamespace')->andReturn('App\\');
 
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -62,8 +64,6 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     /**
      * Setup the database schema.
-     *
-     * @return void
      */
     public function createSchema()
     {
@@ -107,8 +107,6 @@ class DatabaseEloquentFactoryTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -119,7 +117,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_basic_model_can_be_created()
+    public function testBasicModelCanBeCreated()
     {
         $user = FactoryTestUserFactory::new()->create();
         $this->assertInstanceOf(Eloquent::class, $user);
@@ -174,33 +172,33 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertCount(10, $users);
     }
 
-    public function test_expanded_closure_attributes_are_resolved_and_passed_to_closures()
+    public function testExpandedClosureAttributesAreResolvedAndPassedToClosures()
     {
         $user = FactoryTestUserFactory::new()->create([
             'name' => function () {
                 return 'taylor';
             },
             'options' => function ($attributes) {
-                return $attributes['name'].'-options';
+                return $attributes['name'] . '-options';
             },
         ]);
 
         $this->assertSame('taylor-options', $user->options);
     }
 
-    public function test_expanded_closure_attribute_returning_a_factory_is_resolved()
+    public function testExpandedClosureAttributeReturningAFactoryIsResolved()
     {
         $post = FactoryTestPostFactory::new()->create([
             'title' => 'post',
             'user_id' => fn ($attributes) => FactoryTestUserFactory::new([
-                'options' => $attributes['title'].'-options',
+                'options' => $attributes['title'] . '-options',
             ]),
         ]);
 
         $this->assertEquals('post-options', $post->user->options);
     }
 
-    public function test_make_creates_unpersisted_model_instance()
+    public function testMakeCreatesUnpersistedModelInstance()
     {
         $user = FactoryTestUserFactory::new()->makeOne();
         $this->assertInstanceOf(Eloquent::class, $user);
@@ -212,7 +210,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertCount(0, FactoryTestUser::all());
     }
 
-    public function test_basic_model_attributes_can_be_created()
+    public function testBasicModelAttributesCanBeCreated()
     {
         $user = FactoryTestUserFactory::new()->raw();
         $this->assertIsArray($user);
@@ -222,7 +220,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertSame('Taylor Otwell', $user['name']);
     }
 
-    public function test_expanded_model_attributes_can_be_created()
+    public function testExpandedModelAttributesCanBeCreated()
     {
         $post = FactoryTestPostFactory::new()->raw();
         $this->assertIsArray($post);
@@ -233,7 +231,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertSame('Test Title', $post['title']);
     }
 
-    public function test_lazy_model_attributes_can_be_created()
+    public function testLazyModelAttributesCanBeCreated()
     {
         $userFunction = FactoryTestUserFactory::new()->lazy();
         $this->assertIsCallable($userFunction);
@@ -247,7 +245,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertSame('Taylor Otwell', $user->name);
     }
 
-    public function test_multiple_model_attributes_can_be_created()
+    public function testMultipleModelAttributesCanBeCreated()
     {
         $posts = FactoryTestPostFactory::times(10)->raw();
         $this->assertIsArray($posts);
@@ -255,7 +253,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertCount(10, $posts);
     }
 
-    public function test_after_creating_and_making_callbacks_are_called()
+    public function testAfterCreatingAndMakingCallbacksAreCalled()
     {
         $user = FactoryTestUserFactory::new()
             ->afterMaking(function ($user) {
@@ -272,7 +270,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         unset($_SERVER['__test.user.making'], $_SERVER['__test.user.creating']);
     }
 
-    public function test_has_many_relationship()
+    public function testHasManyRelationship()
     {
         $users = FactoryTestUserFactory::times(10)
             ->has(
@@ -303,7 +301,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         unset($_SERVER['__test.post.creating-post'], $_SERVER['__test.post.creating-user'], $_SERVER['__test.post.state-user']);
     }
 
-    public function test_belongs_to_relationship()
+    public function testBelongsToRelationship()
     {
         $posts = FactoryTestPostFactory::times(3)
             ->for(FactoryTestUserFactory::new(['name' => 'Taylor Otwell']), 'user')
@@ -317,7 +315,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertCount(3, FactoryTestPost::all());
     }
 
-    public function test_belongs_to_relationship_with_existing_model_instance()
+    public function testBelongsToRelationshipWithExistingModelInstance()
     {
         $user = FactoryTestUserFactory::new(['name' => 'Taylor Otwell'])->create();
         $posts = FactoryTestPostFactory::times(3)
@@ -332,7 +330,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertCount(3, FactoryTestPost::all());
     }
 
-    public function test_belongs_to_relationship_with_existing_model_instance_with_relationship_name_implied_from_model()
+    public function testBelongsToRelationshipWithExistingModelInstanceWithRelationshipNameImpliedFromModel()
     {
         $user = FactoryTestUserFactory::new(['name' => 'Taylor Otwell'])->create();
         $posts = FactoryTestPostFactory::times(3)
@@ -347,7 +345,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertCount(3, FactoryTestPost::all());
     }
 
-    public function test_morph_to_relationship()
+    public function testMorphToRelationship()
     {
         $posts = FactoryTestCommentFactory::times(3)
             ->for(FactoryTestPostFactory::new(['title' => 'Test Title']), 'commentable')
@@ -360,7 +358,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertCount(3, FactoryTestComment::all());
     }
 
-    public function test_morph_to_relationship_with_existing_model_instance()
+    public function testMorphToRelationshipWithExistingModelInstance()
     {
         $post = FactoryTestPostFactory::new(['title' => 'Test Title'])->create();
         $posts = FactoryTestCommentFactory::times(3)
@@ -374,7 +372,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertCount(3, FactoryTestComment::all());
     }
 
-    public function test_belongs_to_many_relationship()
+    public function testBelongsToManyRelationship()
     {
         $users = FactoryTestUserFactory::times(3)
             ->hasAttached(
@@ -400,7 +398,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         unset($_SERVER['__test.role.creating-role'], $_SERVER['__test.role.creating-user']);
     }
 
-    public function test_belongs_to_many_relationship_related_models_set_on_instance_when_touching_owner()
+    public function testBelongsToManyRelationshipRelatedModelsSetOnInstanceWhenTouchingOwner()
     {
         $user = FactoryTestUserFactory::new()->create();
         $role = FactoryTestRoleFactory::new()->hasAttached($user, [], 'users')->create();
@@ -408,7 +406,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertCount(1, $role->users);
     }
 
-    public function test_relation_can_be_loaded_before_model_is_created()
+    public function testRelationCanBeLoadedBeforeModelIsCreated()
     {
         $user = FactoryTestUserFactory::new(['name' => 'Taylor Otwell'])->createOne();
 
@@ -426,7 +424,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertCount(1, FactoryTestPost::all());
     }
 
-    public function test_belongs_to_many_relationship_with_existing_model_instances()
+    public function testBelongsToManyRelationshipWithExistingModelInstances()
     {
         $roles = FactoryTestRoleFactory::times(3)
             ->afterCreating(function ($role) {
@@ -449,7 +447,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         unset($_SERVER['__test.role.creating-role']);
     }
 
-    public function test_belongs_to_many_relationship_with_existing_model_instances_using_array()
+    public function testBelongsToManyRelationshipWithExistingModelInstancesUsingArray()
     {
         $roles = FactoryTestRoleFactory::times(3)
             ->afterCreating(function ($role) {
@@ -472,7 +470,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         unset($_SERVER['__test.role.creating-role']);
     }
 
-    public function test_belongs_to_many_relationship_with_existing_model_instances_with_relationship_name_implied_from_model()
+    public function testBelongsToManyRelationshipWithExistingModelInstancesWithRelationshipNameImpliedFromModel()
     {
         $roles = FactoryTestRoleFactory::times(3)
             ->afterCreating(function ($role) {
@@ -495,7 +493,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         unset($_SERVER['__test.role.creating-role']);
     }
 
-    public function test_sequences()
+    public function testSequences()
     {
         $users = FactoryTestUserFactory::times(2)->sequence(
             ['name' => 'Taylor Otwell'],
@@ -524,14 +522,14 @@ class DatabaseEloquentFactoryTest extends TestCase
         }));
 
         $users = FactoryTestUserFactory::times(2)->sequence(function ($sequence) {
-            return ['name' => 'index: '.$sequence->index];
+            return ['name' => 'index: ' . $sequence->index];
         })->create();
 
         $this->assertSame('index: 0', $users[0]->name);
         $this->assertSame('index: 1', $users[1]->name);
     }
 
-    public function test_counted_sequence()
+    public function testCountedSequence()
     {
         $factory = FactoryTestUserFactory::new()->forEachSequence(
             ['name' => 'Taylor Otwell'],
@@ -546,7 +544,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertSame(3, $value);
     }
 
-    public function test_sequence_with_has_many_relationship()
+    public function testSequenceWithHasManyRelationship()
     {
         $users = FactoryTestUserFactory::times(2)
             ->sequence(
@@ -557,7 +555,7 @@ class DatabaseEloquentFactoryTest extends TestCase
                 FactoryTestPostFactory::times(3)
                     ->state(['title' => 'Post'])
                     ->sequence(function ($sequence, $attributes, $user) {
-                        return ['title' => $user->name.' '.$attributes['title'].' '.($sequence->index % 3 + 1)];
+                        return ['title' => $user->name . ' ' . $attributes['title'] . ' ' . ($sequence->index % 3 + 1)];
                     }),
                 'posts'
             )
@@ -579,7 +577,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         );
     }
 
-    public function test_cross_join_sequences()
+    public function testCrossJoinSequences()
     {
         $assert = function ($users) {
             $assertions = [
@@ -618,15 +616,15 @@ class DatabaseEloquentFactoryTest extends TestCase
         $assert($usersByMethod);
     }
 
-    public function test_resolve_nested_model_factories()
+    public function testResolveNestedModelFactories()
     {
         Factory::useNamespace('Factories\\');
 
         $resolves = [
-            'App\\Foo' => 'Factories\\FooFactory',
-            'App\\Models\\Foo' => 'Factories\\FooFactory',
-            'App\\Models\\Nested\\Foo' => 'Factories\\Nested\\FooFactory',
-            'App\\Models\\Really\\Nested\\Foo' => 'Factories\\Really\\Nested\\FooFactory',
+            'App\Foo' => 'Factories\FooFactory',
+            'App\Models\Foo' => 'Factories\FooFactory',
+            'App\Models\Nested\Foo' => 'Factories\Nested\FooFactory',
+            'App\Models\Really\Nested\Foo' => 'Factories\Really\Nested\FooFactory',
         ];
 
         foreach ($resolves as $model => $factory) {
@@ -634,19 +632,19 @@ class DatabaseEloquentFactoryTest extends TestCase
         }
     }
 
-    public function test_resolve_nested_model_name_from_factory()
+    public function testResolveNestedModelNameFromFactory()
     {
         Container::getInstance()->instance(Application::class, $app = m::mock(Application::class));
-        $app->shouldReceive('getNamespace')->andReturn('Hypervel\\Tests\\Database\\Laravel\\Fixtures\\');
+        $app->shouldReceive('getNamespace')->andReturn('Hypervel\Tests\Database\Laravel\Fixtures\\');
 
-        Factory::useNamespace('Hypervel\\Tests\\Database\\Laravel\\Fixtures\\Factories\\');
+        Factory::useNamespace('Hypervel\Tests\Database\Laravel\Fixtures\Factories\\');
 
         $factory = Price::factory();
 
         $this->assertSame(Price::class, $factory->modelName());
     }
 
-    public function test_resolve_non_app_nested_model_factories()
+    public function testResolveNonAppNestedModelFactories()
     {
         Container::getInstance()->instance(Application::class, $app = m::mock(Application::class));
         $app->shouldReceive('getNamespace')->andReturn('Foo\\');
@@ -654,10 +652,10 @@ class DatabaseEloquentFactoryTest extends TestCase
         Factory::useNamespace('Factories\\');
 
         $resolves = [
-            'Foo\\Bar' => 'Factories\\BarFactory',
-            'Foo\\Models\\Bar' => 'Factories\\BarFactory',
-            'Foo\\Models\\Nested\\Bar' => 'Factories\\Nested\\BarFactory',
-            'Foo\\Models\\Really\\Nested\\Bar' => 'Factories\\Really\\Nested\\BarFactory',
+            'Foo\Bar' => 'Factories\BarFactory',
+            'Foo\Models\Bar' => 'Factories\BarFactory',
+            'Foo\Models\Nested\Bar' => 'Factories\Nested\BarFactory',
+            'Foo\Models\Really\Nested\Bar' => 'Factories\Really\Nested\BarFactory',
         ];
 
         foreach ($resolves as $model => $factory) {
@@ -665,19 +663,19 @@ class DatabaseEloquentFactoryTest extends TestCase
         }
     }
 
-    public function test_model_has_factory()
+    public function testModelHasFactory()
     {
         Factory::guessFactoryNamesUsing(function ($model) {
-            return $model.'Factory';
+            return $model . 'Factory';
         });
 
         $this->assertInstanceOf(FactoryTestUserFactory::class, FactoryTestUser::factory());
     }
 
-    public function test_dynamic_has_and_for_methods()
+    public function testDynamicHasAndForMethods()
     {
         Factory::guessFactoryNamesUsing(function ($model) {
-            return $model.'Factory';
+            return $model . 'Factory';
         });
 
         $user = FactoryTestUserFactory::new()->hasPosts(3)->create();
@@ -694,7 +692,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertCount(2, $post->comments);
     }
 
-    public function test_can_be_macroable()
+    public function testCanBeMacroable()
     {
         $factory = FactoryTestUserFactory::new();
         $factory->macro('getFoo', function () {
@@ -704,7 +702,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertSame('Hello World', $factory->getFoo());
     }
 
-    public function test_factory_can_conditionally_execute_code()
+    public function testFactoryCanConditionallyExecuteCode()
     {
         FactoryTestUserFactory::new()
             ->when(true, function () {
@@ -721,7 +719,7 @@ class DatabaseEloquentFactoryTest extends TestCase
             });
     }
 
-    public function test_dynamic_trashed_state_for_softdeletes_models()
+    public function testDynamicTrashedStateForSoftdeletesModels()
     {
         $now = Carbon::create(2020, 6, 7, 8, 9);
         Carbon::setTestNow($now);
@@ -737,7 +735,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_dynamic_trashed_state_respects_existing_state()
+    public function testDynamicTrashedStateRespectsExistingState()
     {
         $now = Carbon::create(2020, 6, 7, 8, 9);
         Carbon::setTestNow($now);
@@ -748,16 +746,16 @@ class DatabaseEloquentFactoryTest extends TestCase
         Carbon::setTestNow();
     }
 
-    public function test_dynamic_trashed_state_throws_exception_when_not_a_softdeletes_model()
+    public function testDynamicTrashedStateThrowsExceptionWhenNotASoftdeletesModel()
     {
         $this->expectException(BadMethodCallException::class);
         FactoryTestUserFactory::new()->trashed()->create();
     }
 
-    public function test_model_instances_can_be_used_in_place_of_nested_factories()
+    public function testModelInstancesCanBeUsedInPlaceOfNestedFactories()
     {
         Factory::guessFactoryNamesUsing(function ($model) {
-            return $model.'Factory';
+            return $model . 'Factory';
         });
 
         $user = FactoryTestUserFactory::new()->create();
@@ -772,10 +770,10 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertEquals($user->id, $post->comments[1]->user_id);
     }
 
-    public function test_for_method_recycles_models()
+    public function testForMethodRecyclesModels()
     {
         Factory::guessFactoryNamesUsing(function ($model) {
-            return $model.'Factory';
+            return $model . 'Factory';
         });
 
         $user = FactoryTestUserFactory::new()->create();
@@ -787,10 +785,10 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertSame(1, FactoryTestUser::count());
     }
 
-    public function test_has_method_does_not_reassign_the_parent()
+    public function testHasMethodDoesNotReassignTheParent()
     {
         Factory::guessFactoryNamesUsing(function ($model) {
-            return $model.'Factory';
+            return $model . 'Factory';
         });
 
         $post = FactoryTestPostFactory::new()->create();
@@ -803,10 +801,10 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertSame(2, FactoryTestPost::count());
     }
 
-    public function test_multiple_models_can_be_provided_to_recycle()
+    public function testMultipleModelsCanBeProvidedToRecycle()
     {
         Factory::guessFactoryNamesUsing(function ($model) {
-            return $model.'Factory';
+            return $model . 'Factory';
         });
 
         $users = FactoryTestUserFactory::new()->count(3)->create();
@@ -821,10 +819,10 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertSame(3, FactoryTestUser::count());
     }
 
-    public function test_recycled_models_can_be_combined_with_multiple_calls()
+    public function testRecycledModelsCanBeCombinedWithMultipleCalls()
     {
         Factory::guessFactoryNamesUsing(function ($model) {
-            return $model.'Factory';
+            return $model . 'Factory';
         });
 
         $users = FactoryTestUserFactory::new()
@@ -854,10 +852,10 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertSame(3, FactoryTestPost::count());
     }
 
-    public function test_no_models_can_be_provided_to_recycle()
+    public function testNoModelsCanBeProvidedToRecycle()
     {
         Factory::guessFactoryNamesUsing(function ($model) {
-            return $model.'Factory';
+            return $model . 'Factory';
         });
 
         $posts = FactoryTestPostFactory::new()
@@ -869,7 +867,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertSame(2, FactoryTestUser::count());
     }
 
-    public function test_can_disable_relationships()
+    public function testCanDisableRelationships()
     {
         $post = FactoryTestPostFactory::new()
             ->withoutParents()
@@ -878,7 +876,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertNull($post->user_id);
     }
 
-    public function test_can_disable_relationships_explicitly_by_model_name()
+    public function testCanDisableRelationshipsExplicitlyByModelName()
     {
         $comment = FactoryTestCommentFactory::new()
             ->withoutParents([FactoryTestUser::class])
@@ -888,7 +886,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertNotNull($comment->commentable->id);
     }
 
-    public function test_can_disable_relationships_explicitly_by_attribute_name()
+    public function testCanDisableRelationshipsExplicitlyByAttributeName()
     {
         $comment = FactoryTestCommentFactory::new()
             ->withoutParents(['user_id'])
@@ -898,7 +896,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertNotNull($comment->commentable->id);
     }
 
-    public function test_can_disable_relationships_explicitly_by_both_attribute_name_and_model_name()
+    public function testCanDisableRelationshipsExplicitlyByBothAttributeNameAndModelName()
     {
         $comment = FactoryTestCommentFactory::new()
             ->withoutParents(['user_id', FactoryTestPost::class])
@@ -908,7 +906,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertNull($comment->commentable->id);
     }
 
-    public function test_can_default_to_without_parents()
+    public function testCanDefaultToWithoutParents()
     {
         FactoryTestPostFactory::dontExpandRelationshipsByDefault();
 
@@ -920,16 +918,16 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertNotNull($postWithParents->user_id);
     }
 
-    public function test_factory_model_names_correct()
+    public function testFactoryModelNamesCorrect()
     {
         $this->assertEquals(FactoryTestUseFactoryAttribute::factory()->modelName(), FactoryTestUseFactoryAttribute::class);
         $this->assertEquals(FactoryTestGuessModel::factory()->modelName(), FactoryTestGuessModel::class);
     }
 
-    public function test_factory_global_model_resolver()
+    public function testFactoryGlobalModelResolver()
     {
         Factory::guessModelNamesUsing(function ($factory) {
-            return __NAMESPACE__.'\\'.Str::replaceLast('Factory', '', class_basename($factory::class));
+            return __NAMESPACE__ . '\\' . Str::replaceLast('Factory', '', class_basename($factory::class));
         });
 
         $this->assertEquals(FactoryTestGuessModel::factory()->modelName(), FactoryTestGuessModel::class);
@@ -939,63 +937,63 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertEquals(FactoryTestGuessModelFactory::new()->modelName(), FactoryTestGuessModel::class);
     }
 
-    public function test_factory_model_has_many_relationship_has_pending_attributes()
+    public function testFactoryModelHasManyRelationshipHasPendingAttributes()
     {
         FactoryTestUser::factory()->has(new FactoryTestPostFactory(), 'postsWithFooBarBazAsTitle')->create();
 
         $this->assertEquals('foo bar baz', FactoryTestPost::first()->title);
     }
 
-    public function test_factory_model_has_many_relationship_has_pending_attributes_override()
+    public function testFactoryModelHasManyRelationshipHasPendingAttributesOverride()
     {
         FactoryTestUser::factory()->has((new FactoryTestPostFactory())->state(['title' => 'other title']), 'postsWithFooBarBazAsTitle')->create();
 
         $this->assertEquals('other title', FactoryTestPost::first()->title);
     }
 
-    public function test_factory_model_has_one_relationship_has_pending_attributes()
+    public function testFactoryModelHasOneRelationshipHasPendingAttributes()
     {
         FactoryTestUser::factory()->has(new FactoryTestPostFactory(), 'postWithFooBarBazAsTitle')->create();
 
         $this->assertEquals('foo bar baz', FactoryTestPost::first()->title);
     }
 
-    public function test_factory_model_has_one_relationship_has_pending_attributes_override()
+    public function testFactoryModelHasOneRelationshipHasPendingAttributesOverride()
     {
         FactoryTestUser::factory()->has((new FactoryTestPostFactory())->state(['title' => 'other title']), 'postWithFooBarBazAsTitle')->create();
 
         $this->assertEquals('other title', FactoryTestPost::first()->title);
     }
 
-    public function test_factory_model_belongs_to_many_relationship_has_pending_attributes()
+    public function testFactoryModelBelongsToManyRelationshipHasPendingAttributes()
     {
         FactoryTestUser::factory()->has(new FactoryTestRoleFactory(), 'rolesWithFooBarBazAsName')->create();
 
         $this->assertEquals('foo bar baz', FactoryTestRole::first()->name);
     }
 
-    public function test_factory_model_belongs_to_many_relationship_has_pending_attributes_override()
+    public function testFactoryModelBelongsToManyRelationshipHasPendingAttributesOverride()
     {
         FactoryTestUser::factory()->has((new FactoryTestRoleFactory())->state(['name' => 'other name']), 'rolesWithFooBarBazAsName')->create();
 
         $this->assertEquals('other name', FactoryTestRole::first()->name);
     }
 
-    public function test_factory_model_morph_many_relationship_has_pending_attributes()
+    public function testFactoryModelMorphManyRelationshipHasPendingAttributes()
     {
         (new FactoryTestPostFactory())->has(new FactoryTestCommentFactory(), 'commentsWithFooBarBazAsBody')->create();
 
         $this->assertEquals('foo bar baz', FactoryTestComment::first()->body);
     }
 
-    public function test_factory_model_morph_many_relationship_has_pending_attributes_override()
+    public function testFactoryModelMorphManyRelationshipHasPendingAttributesOverride()
     {
         (new FactoryTestPostFactory())->has((new FactoryTestCommentFactory())->state(['body' => 'other body']), 'commentsWithFooBarBazAsBody')->create();
 
         $this->assertEquals('other body', FactoryTestComment::first()->body);
     }
 
-    public function test_factory_can_insert()
+    public function testFactoryCanInsert()
     {
         (new FactoryTestPostFactory())
             ->count(5)
@@ -1015,7 +1013,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertCount(1, $users->where('name', 'shaedrich'));
     }
 
-    public function test_factory_can_insert_with_hidden()
+    public function testFactoryCanInsertWithHidden()
     {
         (new FactoryTestUserFactory())->forEachSequence(['name' => Name::Taylor, 'options' => 'abc'])->insert();
         $user = DB::table('users')->sole();
@@ -1024,7 +1022,7 @@ class DatabaseEloquentFactoryTest extends TestCase
         $this->assertEquals('abc', $userModel->options);
     }
 
-    public function test_factory_can_insert_with_array_casts()
+    public function testFactoryCanInsertWithArrayCasts()
     {
         (new FactoryTestUserWithArrayFactory())->count(2)->insert();
         $users = DB::table('users')->get();
@@ -1075,8 +1073,11 @@ class FactoryTestUser extends Eloquent
     use HasFactory;
 
     protected ?string $table = 'users';
+
     protected array $hidden = ['options'];
+
     protected array $withCount = ['posts'];
+
     protected array $with = ['posts'];
 
     public function posts()
@@ -1224,7 +1225,7 @@ class FactoryTestGuessModelFactory extends Factory
 {
     protected static function appNamespace(): string
     {
-        return __NAMESPACE__.'\\';
+        return __NAMESPACE__ . '\\';
     }
 
     public function definition(): array

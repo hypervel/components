@@ -10,11 +10,15 @@ use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentBelongsToManyWithAttributesTest extends TestCase
 {
     protected function setUp(): void
     {
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -178,8 +182,6 @@ class DatabaseEloquentBelongsToManyWithAttributesTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -193,6 +195,7 @@ class DatabaseEloquentBelongsToManyWithAttributesTest extends TestCase
     /**
      * Get a database connection instance.
      *
+     * @param mixed $connection
      * @return \Illuminate\Database\Connection
      */
     protected function connection($connection = 'default')
@@ -203,6 +206,7 @@ class DatabaseEloquentBelongsToManyWithAttributesTest extends TestCase
     /**
      * Get a schema builder instance.
      *
+     * @param mixed $connection
      * @return \Illuminate\Database\Schema\Builder
      */
     protected function schema($connection = 'default')
@@ -214,6 +218,7 @@ class DatabaseEloquentBelongsToManyWithAttributesTest extends TestCase
 class ManyToManyWithAttributesPost extends Model
 {
     protected array $guarded = [];
+
     protected ?string $table = 'with_attributes_posts';
 
     public function tags(): BelongsToMany
@@ -250,6 +255,7 @@ class ManyToManyWithAttributesPost extends Model
 class ManyToManyWithAttributesTag extends Model
 {
     protected array $guarded = [];
+
     protected ?string $table = 'with_attributes_tags';
 
     public function morphedPosts(): MorphToMany

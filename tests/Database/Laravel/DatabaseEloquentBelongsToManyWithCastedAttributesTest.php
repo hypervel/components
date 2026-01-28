@@ -13,6 +13,10 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use stdClass;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentBelongsToManyWithCastedAttributesTest extends TestCase
 {
     public function testModelsAreProperlyMatchedToParents()
@@ -40,8 +44,7 @@ class DatabaseEloquentBelongsToManyWithCastedAttributesTest extends TestCase
 
         $result1 = (object) [
             'pivot' => (object) [
-                'foreign_key' => new class
-                {
+                'foreign_key' => new class {
                     public function __toString()
                     {
                         return '1';
@@ -71,7 +74,7 @@ class DatabaseEloquentBelongsToManyWithCastedAttributesTest extends TestCase
 
         return new BelongsToMany(
             $builder,
-            new EloquentBelongsToManyModelStub,
+            new EloquentBelongsToManyModelStub(),
             'relation',
             'foreign_key',
             'id',

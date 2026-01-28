@@ -9,10 +9,15 @@ use Generator;
 use Hypervel\Database\MySqlConnection;
 use Hypervel\Database\Schema\MySqlSchemaState;
 use Hypervel\Tests\TestCase;
+use PDO;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 use Symfony\Component\Process\Process;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseMySqlSchemaStateTest extends TestCase
 {
     #[DataProvider('provider')]
@@ -67,7 +72,7 @@ class DatabaseMySqlSchemaStateTest extends TestCase
                 'username' => 'root',
                 'database' => 'forge',
                 'options' => [
-                    PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : \PDO::MYSQL_ATTR_SSL_CA => 'ssl.ca',
+                    PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : PDO::MYSQL_ATTR_SSL_CA => 'ssl.ca',
                 ],
             ],
         ];

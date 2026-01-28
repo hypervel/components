@@ -12,7 +12,6 @@ if (! function_exists('lazy')) {
      *
      * @param class-string<TValue>|(Closure(TValue): mixed) $class
      * @param (Closure(TValue): mixed)|int $callback
-     * @param int $options
      * @param array<string, mixed> $eager
      * @return TValue
      */
@@ -20,8 +19,7 @@ if (! function_exists('lazy')) {
     {
         static $closureReflector;
 
-        $closureReflector ??= new class
-        {
+        $closureReflector ??= new class {
             use ReflectsClosures;
 
             public function typeFromParameter(Closure $callback): string
@@ -60,7 +58,6 @@ if (! function_exists('proxy')) {
      *
      * @param class-string<TValue>|(Closure(TValue): TValue) $class
      * @param (Closure(TValue): TValue)|int $callback
-     * @param int $options
      * @param array<string, mixed> $eager
      * @return TValue
      */
@@ -68,8 +65,7 @@ if (! function_exists('proxy')) {
     {
         static $closureReflector;
 
-        $closureReflector ??= new class
-        {
+        $closureReflector ??= new class {
             use ReflectsClosures;
 
             public function get(Closure $callback): string

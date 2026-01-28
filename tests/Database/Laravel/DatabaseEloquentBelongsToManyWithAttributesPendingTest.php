@@ -10,11 +10,15 @@ use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentBelongsToManyWithAttributesPendingTest extends TestCase
 {
     protected function setUp(): void
     {
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -171,8 +175,6 @@ class DatabaseEloquentBelongsToManyWithAttributesPendingTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -186,6 +188,7 @@ class DatabaseEloquentBelongsToManyWithAttributesPendingTest extends TestCase
     /**
      * Get a database connection instance.
      *
+     * @param mixed $connection
      * @return \Illuminate\Database\Connection
      */
     protected function connection($connection = 'default')
@@ -196,6 +199,7 @@ class DatabaseEloquentBelongsToManyWithAttributesPendingTest extends TestCase
     /**
      * Get a schema builder instance.
      *
+     * @param mixed $connection
      * @return \Illuminate\Database\Schema\Builder
      */
     protected function schema($connection = 'default')
@@ -207,6 +211,7 @@ class DatabaseEloquentBelongsToManyWithAttributesPendingTest extends TestCase
 class ManyToManyPendingAttributesPost extends Model
 {
     protected array $guarded = [];
+
     protected ?string $table = 'pending_attributes_posts';
 
     public function tags(): BelongsToMany
@@ -243,6 +248,7 @@ class ManyToManyPendingAttributesPost extends Model
 class ManyToManyPendingAttributesTag extends Model
 {
     protected array $guarded = [];
+
     protected ?string $table = 'pending_attributes_tags';
 
     public function morphedPosts(): MorphToMany

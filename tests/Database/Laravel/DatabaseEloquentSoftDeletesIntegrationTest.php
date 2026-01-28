@@ -14,17 +14,21 @@ use Hypervel\Database\Query\Builder;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Carbon;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
-use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
 
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -39,8 +43,6 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
 
     /**
      * Setup the database schema.
-     *
-     * @return void
      */
     public function createSchema()
     {
@@ -90,8 +92,6 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -225,8 +225,7 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
 
     public function testForceDeleteDoesntUpdateExistsPropertyIfFailed()
     {
-        $user = new class() extends SoftDeletesTestUser
-        {
+        $user = new class extends SoftDeletesTestUser {
             public bool $exists = true;
 
             public function newModelQuery(): \Hypervel\Database\Eloquent\Builder
@@ -401,7 +400,7 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     public function testUpdateModelAfterSoftDeleting()
     {
@@ -417,7 +416,7 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     public function testRestoreAfterSoftDelete()
     {
@@ -432,7 +431,7 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     public function testSoftDeleteAfterRestoring()
     {
@@ -687,7 +686,7 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
 
     public function testSoftDeleteIsAppliedToNewQuery()
     {
-        $query = (new SoftDeletesTestUser)->newQuery();
+        $query = (new SoftDeletesTestUser())->newQuery();
         $this->assertSame('select * from "users" where "users"."deleted_at" is null', $query->toSql());
     }
 

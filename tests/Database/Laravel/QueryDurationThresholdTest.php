@@ -12,6 +12,10 @@ use Hypervel\Support\Carbon;
 use Hypervel\Testbench\TestCase;
 use PDO;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class QueryDurationThresholdTest extends TestCase
 {
     /**
@@ -32,7 +36,7 @@ class QueryDurationThresholdTest extends TestCase
         $connection->setEventDispatcher($this->app->make(Dispatcher::class));
         $called = 0;
         $connection->whenQueryingForLongerThan(CarbonInterval::milliseconds(1.1), function () use (&$called) {
-            $called++;
+            ++$called;
         });
 
         $connection->logQuery('xxxx', [], 1.0);
@@ -49,7 +53,7 @@ class QueryDurationThresholdTest extends TestCase
         $connection->setEventDispatcher($this->app->make(Dispatcher::class));
         $called = 0;
         $connection->whenQueryingForLongerThan(CarbonInterval::milliseconds(1), function () use (&$called) {
-            $called++;
+            ++$called;
         });
 
         $connection->logQuery('xxxx', [], 1);
@@ -67,7 +71,7 @@ class QueryDurationThresholdTest extends TestCase
         $connection->setEventDispatcher($this->app->make(Dispatcher::class));
         $called = 0;
         $connection->whenQueryingForLongerThan($this->now->addMilliseconds(1), function () use (&$called) {
-            $called++;
+            ++$called;
         });
 
         $connection->logQuery('xxxx', [], 1);
@@ -190,7 +194,7 @@ class QueryDurationThresholdTest extends TestCase
         $connection->setEventDispatcher($this->app->make(Dispatcher::class));
         $called = 0;
         $connection->whenQueryingForLongerThan(CarbonInterval::milliseconds(1), function () use (&$called) {
-            $called++;
+            ++$called;
         });
 
         $connection->logQuery('xxxx', [], 1);

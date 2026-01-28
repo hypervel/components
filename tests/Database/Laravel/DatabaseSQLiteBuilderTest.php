@@ -11,6 +11,10 @@ use Hypervel\Support\Facades\File;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseSQLiteBuilderTest extends TestCase
 {
     public function testCreateDatabase()

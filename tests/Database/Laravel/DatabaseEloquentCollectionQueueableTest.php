@@ -4,12 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Laravel;
 
+use Exception;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentCollectionQueueableTest extends TestCase
 {
     public function testSerializesPivotsEntitiesId()
@@ -39,7 +44,7 @@ class DatabaseEloquentCollectionQueueableTest extends TestCase
     }
 
     /**
-     * @throws \Exception
+     * @throws Exception
      */
     public function testJsonSerializationOfCollectionQueueableIdsWorks()
     {

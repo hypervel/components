@@ -7,19 +7,23 @@ namespace Hypervel\Tests\Database\Laravel;
 use Hypervel\Container\Container;
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Connectors\ConnectionFactory;
+use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use PDO;
-use Hypervel\Tests\TestCase;
 use ReflectionProperty;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseConnectionFactoryTest extends TestCase
 {
     protected $db;
 
     protected function setUp(): void
     {
-        $this->db = new DB;
+        $this->db = new DB();
 
         $this->db->addConnection([
             'driver' => 'sqlite',

@@ -12,13 +12,17 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\LazyCollection;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
 
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -33,8 +37,6 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
 
     /**
      * Setup the database schema.
-     *
-     * @return void
      */
     public function createSchema()
     {
@@ -66,8 +68,6 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -361,7 +361,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $count = 0;
 
         $country->posts()->chunkById(2, function ($collection) use (&$i, &$count) {
-            $i++;
+            ++$i;
             $count += $collection->count();
         });
 
@@ -462,7 +462,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $i = 0;
 
         $country->posts()->lazyById(2)->each(function ($post) use (&$i, &$count) {
-            $i++;
+            ++$i;
 
             $this->assertEquals([
                 'id',
@@ -610,6 +610,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
 class HasManyThroughTestUser extends Eloquent
 {
     protected ?string $table = 'users';
+
     protected array $guarded = [];
 
     public function posts()
@@ -624,6 +625,7 @@ class HasManyThroughTestUser extends Eloquent
 class HasManyThroughTestPost extends Eloquent
 {
     protected ?string $table = 'posts';
+
     protected array $guarded = [];
 
     public function owner()
@@ -635,6 +637,7 @@ class HasManyThroughTestPost extends Eloquent
 class HasManyThroughTestCountry extends Eloquent
 {
     protected ?string $table = 'countries';
+
     protected array $guarded = [];
 
     public function posts()
@@ -654,6 +657,7 @@ class HasManyThroughTestCountry extends Eloquent
 class HasManyThroughDefaultTestUser extends Eloquent
 {
     protected ?string $table = 'users_default';
+
     protected array $guarded = [];
 
     public function posts()
@@ -668,6 +672,7 @@ class HasManyThroughDefaultTestUser extends Eloquent
 class HasManyThroughDefaultTestPost extends Eloquent
 {
     protected ?string $table = 'posts_default';
+
     protected array $guarded = [];
 
     public function owner()
@@ -679,6 +684,7 @@ class HasManyThroughDefaultTestPost extends Eloquent
 class HasManyThroughDefaultTestCountry extends Eloquent
 {
     protected ?string $table = 'countries_default';
+
     protected array $guarded = [];
 
     public function posts()
@@ -695,6 +701,7 @@ class HasManyThroughDefaultTestCountry extends Eloquent
 class HasManyThroughIntermediateTestCountry extends Eloquent
 {
     protected ?string $table = 'countries';
+
     protected array $guarded = [];
 
     public function posts()
@@ -713,6 +720,7 @@ class HasManyThroughSoftDeletesTestUser extends Eloquent
     use SoftDeletes;
 
     protected ?string $table = 'users';
+
     protected array $guarded = [];
 
     public function posts()
@@ -727,6 +735,7 @@ class HasManyThroughSoftDeletesTestUser extends Eloquent
 class HasManyThroughSoftDeletesTestPost extends Eloquent
 {
     protected ?string $table = 'posts';
+
     protected array $guarded = [];
 
     public function owner()
@@ -738,6 +747,7 @@ class HasManyThroughSoftDeletesTestPost extends Eloquent
 class HasManyThroughSoftDeletesTestCountry extends Eloquent
 {
     protected ?string $table = 'countries';
+
     protected array $guarded = [];
 
     public function posts()

@@ -9,11 +9,15 @@ use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentBelongsToManyChunkByIdTest extends TestCase
 {
     protected function setUp(): void
     {
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -28,8 +32,6 @@ class DatabaseEloquentBelongsToManyChunkByIdTest extends TestCase
 
     /**
      * Setup the database schema.
-     *
-     * @return void
      */
     public function createSchema()
     {
@@ -60,7 +62,7 @@ class DatabaseEloquentBelongsToManyChunkByIdTest extends TestCase
         $i = 0;
 
         $user->articles()->chunkById(1, function (Collection $collection) use (&$i) {
-            $i++;
+            ++$i;
             $this->assertEquals($i, $collection->first()->id);
         });
 
@@ -76,7 +78,7 @@ class DatabaseEloquentBelongsToManyChunkByIdTest extends TestCase
 
         $user->articles()->chunkByIdDesc(1, function (Collection $collection) use (&$i) {
             $this->assertEquals(3 - $i, $collection->first()->id);
-            $i++;
+            ++$i;
         });
 
         $this->assertSame(3, $i);
@@ -84,8 +86,6 @@ class DatabaseEloquentBelongsToManyChunkByIdTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -135,7 +135,9 @@ class DatabaseEloquentBelongsToManyChunkByIdTest extends TestCase
 class BelongsToManyChunkByIdTestTestUser extends Eloquent
 {
     protected ?string $table = 'users';
+
     protected array $fillable = ['id', 'email'];
+
     public bool $timestamps = false;
 
     public function articles()
@@ -147,8 +149,12 @@ class BelongsToManyChunkByIdTestTestUser extends Eloquent
 class BelongsToManyChunkByIdTestTestArticle extends Eloquent
 {
     protected ?string $table = 'articles';
+
     protected string $keyType = 'string';
+
     public bool $incrementing = false;
+
     public bool $timestamps = false;
+
     protected array $fillable = ['id', 'title'];
 }

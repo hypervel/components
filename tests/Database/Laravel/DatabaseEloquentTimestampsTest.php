@@ -10,13 +10,17 @@ use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentTimestampsTest extends TestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
 
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -31,8 +35,6 @@ class DatabaseEloquentTimestampsTest extends TestCase
 
     /**
      * Setup the database schema.
-     *
-     * @return void
      */
     public function createSchema()
     {
@@ -57,8 +59,6 @@ class DatabaseEloquentTimestampsTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -168,7 +168,6 @@ class DatabaseEloquentTimestampsTest extends TestCase
             });
             $this->fail();
         } catch (RuntimeException) {
-            //
         }
 
         $this->assertTrue($user->timestamps);

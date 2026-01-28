@@ -13,13 +13,16 @@ use Mockery as m;
 use PDO;
 use PDOStatement;
 use PHPUnit\Framework\Attributes\DataProvider;
-use stdClass;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseConnectorTest extends TestCase
 {
     public function testOptionResolution()
     {
-        $connector = new Connector;
+        $connector = new Connector();
         $connector->setDefaultOptions([0 => 'foo', 1 => 'bar']);
         $this->assertEquals([0 => 'baz', 1 => 'bar', 2 => 'boom'], $connector->getOptions(['options' => [0 => 'baz', 2 => 'boom']]));
     }
@@ -81,8 +84,8 @@ class DatabaseConnectorTest extends TestCase
     }
 
     /**
-     * @param  string  $searchPath
-     * @param  string  $expectedSql
+     * @param string $searchPath
+     * @param string $expectedSql
      */
     #[DataProvider('provideSearchPaths')]
     public function testPostgresSearchPathIsSet($searchPath, $expectedSql)
@@ -280,7 +283,7 @@ class DatabaseConnectorTest extends TestCase
 
     public function testSQLiteFileDatabasesMayBeConnectedTo()
     {
-        $dsn = 'sqlite:'.__DIR__;
+        $dsn = 'sqlite:' . __DIR__;
         $config = ['database' => __DIR__];
         $connector = $this->getMockBuilder(SQLiteConnector::class)->onlyMethods(['createConnection', 'getOptions'])->getMock();
         $connection = m::mock(PDO::class);

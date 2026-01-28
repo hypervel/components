@@ -8,11 +8,15 @@ use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentBelongsToManyLazyByIdTest extends TestCase
 {
     protected function setUp(): void
     {
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -27,8 +31,6 @@ class DatabaseEloquentBelongsToManyLazyByIdTest extends TestCase
 
     /**
      * Setup the database schema.
-     *
-     * @return void
      */
     public function createSchema()
     {
@@ -58,7 +60,7 @@ class DatabaseEloquentBelongsToManyLazyByIdTest extends TestCase
         $i = 0;
 
         $user->articles()->lazyById(1)->each(function ($model) use (&$i) {
-            $i++;
+            ++$i;
             $this->assertEquals($i, $model->aid);
         });
 
@@ -67,8 +69,6 @@ class DatabaseEloquentBelongsToManyLazyByIdTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -118,7 +118,9 @@ class DatabaseEloquentBelongsToManyLazyByIdTest extends TestCase
 class BelongsToManyLazyByIdTestTestUser extends Eloquent
 {
     protected ?string $table = 'users';
+
     protected array $fillable = ['id', 'email'];
+
     public bool $timestamps = false;
 
     public function articles()
@@ -130,9 +132,14 @@ class BelongsToManyLazyByIdTestTestUser extends Eloquent
 class BelongsToManyLazyByIdTestTestArticle extends Eloquent
 {
     protected string $primaryKey = 'aid';
+
     protected ?string $table = 'articles';
+
     protected string $keyType = 'string';
+
     public bool $incrementing = false;
+
     public bool $timestamps = false;
+
     protected array $fillable = ['aid', 'title'];
 }

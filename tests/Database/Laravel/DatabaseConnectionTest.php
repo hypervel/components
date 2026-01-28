@@ -18,17 +18,20 @@ use Hypervel\Database\MultipleColumnsSelectedException;
 use Hypervel\Database\Query\Builder as BaseBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
-use Hypervel\Database\Schema\Grammars\Grammar as SchemaGrammar;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Builder;
+use Hypervel\Database\Schema\Grammars\Grammar as SchemaGrammar;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PDO;
 use PDOException;
 use PDOStatement;
-use Hypervel\Testbench\TestCase;
 use ReflectionClass;
-use stdClass;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseConnectionTest extends TestCase
 {
     public function testSettingDefaultCallsGetDefaultGrammar()
@@ -193,7 +196,7 @@ class DatabaseConnectionTest extends TestCase
     public function testTransactionLevelNotIncrementedOnTransactionException()
     {
         $pdo = $this->createMock(DatabaseConnectionTestMockPDO::class);
-        $pdo->expects($this->once())->method('beginTransaction')->will($this->throwException(new Exception));
+        $pdo->expects($this->once())->method('beginTransaction')->will($this->throwException(new Exception()));
         $connection = $this->getMockConnection([], $pdo);
         try {
             $connection->beginTransaction();
@@ -229,7 +232,7 @@ class DatabaseConnectionTest extends TestCase
     {
         $pdo = $this->createMock(DatabaseConnectionTestMockPDO::class);
         $pdo->expects($this->once())->method('beginTransaction');
-        $pdo->expects($this->once())->method('exec')->will($this->throwException(new Exception));
+        $pdo->expects($this->once())->method('exec')->will($this->throwException(new Exception()));
         $connection = $this->getMockConnection(['reconnect'], $pdo);
         $queryGrammar = $this->createMock(Grammar::class);
         $queryGrammar->expects($this->once())->method('compileSavepoint')->willReturn('trans1');
@@ -416,7 +419,7 @@ class DatabaseConnectionTest extends TestCase
         $mock->expects($this->once())->method('tryAgainIfCausedByLostConnection');
 
         $method->invokeArgs($mock, ['', [], function () {
-            throw new QueryException('', '', [], new Exception);
+            throw new QueryException('', '', [], new Exception());
         }]);
     }
 
@@ -434,7 +437,7 @@ class DatabaseConnectionTest extends TestCase
         $mock->beginTransaction();
 
         $method->invokeArgs($mock, ['', [], function () {
-            throw new QueryException('conn', '', [], new Exception);
+            throw new QueryException('conn', '', [], new Exception());
         }]);
     }
 
@@ -724,7 +727,7 @@ class DatabaseConnectionTest extends TestCase
             'database' => 'read_db',
         ];
 
-        $connection->setReadPdo(new DatabaseConnectionTestMockPDO);
+        $connection->setReadPdo(new DatabaseConnectionTestMockPDO());
         $connection->setReadPdoConfig($readConfig);
 
         try {
@@ -743,7 +746,7 @@ class DatabaseConnectionTest extends TestCase
 
     protected function getMockConnection($methods = [], $pdo = null)
     {
-        $pdo = $pdo ?: new DatabaseConnectionTestMockPDO;
+        $pdo = $pdo ?: new DatabaseConnectionTestMockPDO();
         $defaults = ['getDefaultQueryGrammar', 'getDefaultPostProcessor', 'getDefaultSchemaGrammar'];
         $connection = $this->getMockBuilder(Connection::class)->onlyMethods(array_merge($defaults, $methods))->setConstructorArgs([$pdo, 'test_db', '', ['name' => 'test', 'driver' => 'mysql']])->getMock();
         $connection->method('getDefaultSchemaGrammar')->willReturn(m::mock(SchemaGrammar::class));
@@ -757,7 +760,6 @@ class DatabaseConnectionTestMockPDO extends PDO
 {
     public function __construct()
     {
-        //
     }
 }
 
@@ -767,8 +769,8 @@ class DatabaseConnectionTestMockPDOException extends PDOException
      * Overrides Exception::__construct, which casts $code to integer, so that we can create
      * an exception with a string $code consistent with the real PDOException behavior.
      *
-     * @param  string|null  $message
-     * @param  string|null  $code
+     * @param null|string $message
+     * @param null|string $code
      */
     public function __construct($message = null, $code = null)
     {

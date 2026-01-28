@@ -10,18 +10,20 @@ use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentIntegrationWithTablePrefixTest extends TestCase
 {
     /**
      * Bootstrap Eloquent.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
         parent::setUp();
 
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -67,8 +69,6 @@ class DatabaseEloquentIntegrationWithTablePrefixTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -146,6 +146,7 @@ class DatabaseEloquentIntegrationWithTablePrefixTest extends TestCase
 
     /**
      * Helpers...
+     * @param mixed $connection
      */
 
     /**
@@ -161,6 +162,7 @@ class DatabaseEloquentIntegrationWithTablePrefixTest extends TestCase
     /**
      * Get a schema builder instance.
      *
+     * @param mixed $connection
      * @return \Illuminate\Database\Schema\Builder
      */
     protected function schema($connection = 'default')

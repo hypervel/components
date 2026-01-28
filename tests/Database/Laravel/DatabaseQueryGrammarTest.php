@@ -12,6 +12,10 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionClass;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseQueryGrammarTest extends TestCase
 {
     public function testWhereRawReturnsStringWhenExpressionPassed()
@@ -52,7 +56,7 @@ class DatabaseQueryGrammarTest extends TestCase
             ['sql' => new Expression('length("name") desc')], // mimics orderByRaw(DB::raw(...))
         ];
 
-        $ref = new \ReflectionClass($grammar);
+        $ref = new ReflectionClass($grammar);
         $method = $ref->getMethod('compileOrders'); // protected
         $sql = $method->invoke($grammar, $builder, $orders);
 
@@ -69,7 +73,7 @@ class DatabaseQueryGrammarTest extends TestCase
             ['sql' => new Expression('field(status, ?, ?) asc')],
         ];
 
-        $ref = new \ReflectionClass($grammar);
+        $ref = new ReflectionClass($grammar);
         $method = $ref->getMethod('compileOrders');
         $sql = $method->invoke($grammar, $builder, $orders);
 

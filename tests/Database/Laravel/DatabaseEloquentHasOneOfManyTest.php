@@ -10,13 +10,17 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentHasOneOfManyTest extends TestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
 
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -31,8 +35,6 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     /**
      * Setup the database schema.
-     *
-     * @return void
      */
     public function createSchema()
     {
@@ -63,8 +65,6 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -547,7 +547,9 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 class HasOneOfManyTestUser extends Eloquent
 {
     protected ?string $table = 'users';
+
     protected array $guarded = [];
+
     public bool $timestamps = false;
 
     public function logins()
@@ -676,7 +678,9 @@ class HasOneOfManyTestModel extends Eloquent
 class HasOneOfManyTestLogin extends Eloquent
 {
     protected ?string $table = 'logins';
+
     protected array $guarded = [];
+
     public bool $timestamps = false;
 }
 
@@ -685,23 +689,32 @@ class HasOneOfManyTestLoginWithSoftDeletes extends Eloquent
     use SoftDeletes;
 
     protected ?string $table = 'logins';
+
     protected array $guarded = [];
+
     public bool $timestamps = false;
 }
 
 class HasOneOfManyTestState extends Eloquent
 {
     protected ?string $table = 'states';
+
     protected array $guarded = [];
+
     public bool $timestamps = true;
+
     protected array $fillable = ['type', 'state', 'updated_at'];
 }
 
 class HasOneOfManyTestPrice extends Eloquent
 {
     protected ?string $table = 'prices';
+
     protected array $guarded = [];
+
     public bool $timestamps = false;
+
     protected array $fillable = ['published_at'];
+
     protected array $casts = ['published_at' => 'datetime'];
 }

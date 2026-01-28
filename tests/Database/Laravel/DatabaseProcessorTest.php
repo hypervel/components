@@ -11,6 +11,10 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PDO;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseProcessorTest extends TestCase
 {
     public function testInsertGetIdProcessing()
@@ -22,7 +26,7 @@ class DatabaseProcessorTest extends TestCase
         $connection->shouldReceive('getPdo')->once()->andReturn($pdo);
         $builder = m::mock(Builder::class);
         $builder->shouldReceive('getConnection')->andReturn($connection);
-        $processor = new Processor;
+        $processor = new Processor();
         $result = $processor->processInsertGetId($builder, 'sql', ['foo'], 'id');
         $this->assertSame(1, $result);
     }
@@ -32,7 +36,6 @@ class ProcessorTestPDOStub extends PDO
 {
     public function __construct()
     {
-        //
     }
 
     public function lastInsertId($sequence = null): string|false

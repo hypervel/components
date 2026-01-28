@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Laravel;
 
+use DateTime;
 use DateTimeInterface;
 use Exception;
 use Hypervel\Database\Capsule\Manager as DB;
@@ -29,19 +30,22 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
+use UnitEnum;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentIntegrationTest extends TestCase
 {
     /**
      * Setup the database schema.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
         parent::setUp();
 
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -191,8 +195,6 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -731,7 +733,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
                 $this->assertSame('Third', $users[0]->name);
             }
 
-            $chunks++;
+            ++$chunks;
         });
 
         $this->assertEquals(2, $chunks);
@@ -756,7 +758,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
                 $this->fail('Should only have had one page.');
             }
 
-            $chunks++;
+            ++$chunks;
         });
 
         $this->assertEquals(1, $chunks);
@@ -784,7 +786,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
                 $this->fail('Should have had two pages.');
             }
 
-            $chunks++;
+            ++$chunks;
         });
 
         $this->assertEquals(2, $chunks);
@@ -809,7 +811,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
                 $this->fail('Should only have had one page.');
             }
 
-            $chunks++;
+            ++$chunks;
         });
 
         $this->assertEquals(1, $chunks);
@@ -826,7 +828,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $chunks = 0;
 
         EloquentTestUser::query()->orderBy('id', 'asc')->offset(3)->chunk(2, function () use (&$chunks) {
-            $chunks++;
+            ++$chunks;
         });
 
         $this->assertEquals(0, $chunks);
@@ -858,7 +860,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
                 $this->fail('Should only have had two pages.');
             }
 
-            $chunks++;
+            ++$chunks;
         });
 
         $this->assertEquals(2, $chunks);
@@ -883,7 +885,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
                 $this->fail('Should only have had one page.');
             }
 
-            $chunks++;
+            ++$chunks;
         });
 
         $this->assertEquals(1, $chunks);
@@ -908,7 +910,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
                 $this->fail('Should only have had one page.');
             }
 
-            $chunks++;
+            ++$chunks;
         });
 
         $this->assertEquals(1, $chunks);
@@ -940,7 +942,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
                 $this->fail('Should only have had two pages.');
             }
 
-            $chunks++;
+            ++$chunks;
         });
 
         $this->assertEquals(2, $chunks);
@@ -962,7 +964,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
             } else {
                 $this->assertSame(' Third', $users[0]->name);
             }
-            $i++;
+            ++$i;
         }, 'name');
         $this->assertEquals(2, $i);
     }
@@ -979,7 +981,10 @@ class DatabaseEloquentIntegrationTest extends TestCase
         EloquentTestNonIncrementingSecond::query()->eachById(
             function (EloquentTestNonIncrementingSecond $user, $i) use (&$users) {
                 $users[] = [$user->name, $i];
-            }, 2, 'name');
+            },
+            2,
+            'name'
+        );
         $this->assertSame([[' First', 0], [' Second', 1], [' Third', 2]], $users);
     }
 
@@ -1470,7 +1475,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
     public function testHasOnMorphToRelationship()
     {
         $post = EloquentTestPost::create(['name' => 'Morph Post', 'user_id' => 1]);
-        (new EloquentTestPhoto)->imageable()->associate($post)->fill(['name' => 'Morph Photo'])->save();
+        (new EloquentTestPhoto())->imageable()->associate($post)->fill(['name' => 'Morph Photo'])->save();
 
         $photos = EloquentTestPhoto::has('imageable')->get();
 
@@ -1707,7 +1712,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testEmptyMorphToRelationship()
     {
-        $photo = new EloquentTestPhoto;
+        $photo = new EloquentTestPhoto();
 
         $this->assertNull($photo->imageable);
     }
@@ -1788,7 +1793,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
                 $this->connection()->transaction(function () use ($user) {
                     $user->email = 'otwell@laravel.com';
                     $user->save();
-                    throw new Exception;
+                    throw new Exception();
                 });
             } catch (Exception) {
                 // ignore the exception
@@ -1835,7 +1840,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testToArrayIncludesDefaultFormattedTimestamps()
     {
-        $model = new EloquentTestUser;
+        $model = new EloquentTestUser();
 
         $model->setRawAttributes([
             'created_at' => '2012-12-04',
@@ -1850,7 +1855,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testToArrayIncludesCustomFormattedTimestamps()
     {
-        $model = new EloquentTestUserWithCustomDateSerialization;
+        $model = new EloquentTestUserWithCustomDateSerialization();
 
         $model->setRawAttributes([
             'created_at' => '2012-12-04',
@@ -2098,7 +2103,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testTimestampsUsingDefaultDateFormat()
     {
-        $model = new EloquentTestUser;
+        $model = new EloquentTestUser();
         $model->setDateFormat('Y-m-d H:i:s'); // Default MySQL/PostgreSQL/SQLite date format
         $model->setRawAttributes([
             'created_at' => '2017-11-14 08:23:19',
@@ -2109,7 +2114,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testTimestampsUsingDefaultSqlServerDateFormat()
     {
-        $model = new EloquentTestUser;
+        $model = new EloquentTestUser();
         $model->setDateFormat('Y-m-d H:i:s.v'); // Default SQL Server date format
         $model->setRawAttributes([
             'created_at' => '2017-11-14 08:23:19.000',
@@ -2123,7 +2128,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
     public function testTimestampsUsingCustomDateFormat()
     {
         // Simulating using custom precisions with timestamps(4)
-        $model = new EloquentTestUser;
+        $model = new EloquentTestUser();
         $model->setDateFormat('Y-m-d H:i:s.u'); // Custom date format
         $model->setRawAttributes([
             'created_at' => '2017-11-14 08:23:19.0000',
@@ -2137,7 +2142,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testTimestampsUsingOldSqlServerDateFormat()
     {
-        $model = new EloquentTestUser;
+        $model = new EloquentTestUser();
         $model->setDateFormat('Y-m-d H:i:s.000'); // Old SQL Server date format
         $model->setRawAttributes([
             'created_at' => '2017-11-14 08:23:19.000',
@@ -2148,7 +2153,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testTimestampsUsingOldSqlServerDateFormatFallbackToDefaultParsing()
     {
-        $model = new EloquentTestUser;
+        $model = new EloquentTestUser();
         $model->setDateFormat('Y-m-d H:i:s.000'); // Old SQL Server date format
         $model->setRawAttributes([
             'updated_at' => '2017-11-14 08:23:19.734',
@@ -2165,8 +2170,8 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     public function testSpecialFormats()
     {
-        $model = new EloquentTestUser;
-        $model->setDateFormat('!Y-d-m \\Y');
+        $model = new EloquentTestUser();
+        $model->setDateFormat('!Y-d-m \Y');
         $model->setRawAttributes([
             'updated_at' => '2017-05-11 Y',
         ]);
@@ -2588,8 +2593,8 @@ class DatabaseEloquentIntegrationTest extends TestCase
         $this->assertEquals(Carbon::parse('2025-02-19T11:41:13'), $tim->updated_at);
 
         $this->assertNull($users[0]->birthday);
-        $this->assertInstanceOf(\DateTime::class, $users[1]->birthday);
-        $this->assertInstanceOf(\DateTime::class, $users[2]->birthday);
+        $this->assertInstanceOf(DateTime::class, $users[1]->birthday);
+        $this->assertInstanceOf(DateTime::class, $users[2]->birthday);
         $this->assertEquals('1987-11-01', $users[2]->birthday->format('Y-m-d'));
 
         DB::flushQueryLog();
@@ -2706,6 +2711,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
 
     /**
      * Helpers...
+     * @param mixed $connection
      */
 
     /**
@@ -2721,6 +2727,7 @@ class DatabaseEloquentIntegrationTest extends TestCase
     /**
      * Get a schema builder instance.
      *
+     * @param mixed $connection
      * @return \Illuminate\Database\Schema\Builder
      */
     protected function schema($connection = 'default')
@@ -2735,7 +2742,9 @@ class DatabaseEloquentIntegrationTest extends TestCase
 class EloquentTestUser extends Eloquent
 {
     protected ?string $table = 'users';
+
     protected array $casts = ['birthday' => 'datetime'];
+
     protected array $guarded = [];
 
     public function friends()
@@ -2799,14 +2808,17 @@ class EloquentTestUserWithSpaceInColumnName extends EloquentTestUser
 class EloquentTestNonIncrementing extends Eloquent
 {
     protected ?string $table = 'non_incrementing_users';
+
     protected array $guarded = [];
+
     public bool $incrementing = false;
+
     public bool $timestamps = false;
 }
 
 class EloquentTestNonIncrementingSecond extends EloquentTestNonIncrementing
 {
-    protected \UnitEnum|string|null $connection = 'second_connection';
+    protected UnitEnum|string|null $connection = 'second_connection';
 }
 
 class EloquentTestUserWithGlobalScope extends EloquentTestUser
@@ -2854,13 +2866,16 @@ class EloquentTestUserWithGlobalScopeRemovingOtherScope extends Eloquent
 class EloquentTestUniqueUser extends Eloquent
 {
     protected ?string $table = 'unique_users';
+
     protected array $casts = ['birthday' => 'datetime'];
+
     protected array $guarded = [];
 }
 
 class EloquentTestPost extends Eloquent
 {
     protected ?string $table = 'posts';
+
     protected array $guarded = [];
 
     public function user()
@@ -2892,18 +2907,21 @@ class EloquentTestPost extends Eloquent
 class EloquentTestTag extends Eloquent
 {
     protected ?string $table = 'tags';
+
     protected array $guarded = [];
 }
 
 class EloquentTestFriendLevel extends Eloquent
 {
     protected ?string $table = 'friend_levels';
+
     protected array $guarded = [];
 }
 
 class EloquentTestPhoto extends Eloquent
 {
     protected ?string $table = 'photos';
+
     protected array $guarded = [];
 
     public function imageable()
@@ -2930,7 +2948,9 @@ class EloquentTestUserWithCustomDateSerialization extends EloquentTestUser
 class EloquentTestOrder extends Eloquent
 {
     protected array $guarded = [];
+
     protected ?string $table = 'test_orders';
+
     protected array $with = ['item'];
 
     public function item()
@@ -2942,15 +2962,20 @@ class EloquentTestOrder extends Eloquent
 class EloquentTestItem extends Eloquent
 {
     protected array $guarded = [];
+
     protected ?string $table = 'test_items';
-    protected \UnitEnum|string|null $connection = 'second_connection';
+
+    protected UnitEnum|string|null $connection = 'second_connection';
 }
 
 class EloquentTestWithJSON extends Eloquent
 {
     protected array $guarded = [];
+
     protected ?string $table = 'with_json';
+
     public bool $timestamps = false;
+
     protected array $casts = [
         'json' => 'array',
     ];
@@ -2959,7 +2984,9 @@ class EloquentTestWithJSON extends Eloquent
 class EloquentTestFriendPivot extends Pivot
 {
     protected ?string $table = 'friends';
+
     protected array $guarded = [];
+
     public bool $timestamps = false;
 
     public function user()
@@ -2981,12 +3008,14 @@ class EloquentTestFriendPivot extends Pivot
 class EloquentTouchingUser extends Eloquent
 {
     protected ?string $table = 'users';
+
     protected array $guarded = [];
 }
 
 class EloquentTouchingPost extends Eloquent
 {
     protected ?string $table = 'posts';
+
     protected array $guarded = [];
 
     protected array $touches = [
@@ -3002,6 +3031,7 @@ class EloquentTouchingPost extends Eloquent
 class EloquentTouchingComment extends Eloquent
 {
     protected ?string $table = 'comments';
+
     protected array $guarded = [];
 
     protected array $touches = [
@@ -3017,6 +3047,7 @@ class EloquentTouchingComment extends Eloquent
 class EloquentTouchingCategory extends Eloquent
 {
     protected ?string $table = 'categories';
+
     protected array $guarded = [];
 
     protected array $touches = [
@@ -3040,7 +3071,9 @@ class EloquentTestAchievement extends Eloquent
     public bool $timestamps = false;
 
     protected ?string $table = 'achievements';
+
     protected array $guarded = [];
+
     protected array $attributes = ['status' => null];
 
     public function eloquentTestUsers()

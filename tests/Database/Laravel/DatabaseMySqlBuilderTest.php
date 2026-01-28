@@ -10,6 +10,10 @@ use Hypervel\Database\Schema\MySqlBuilder;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseMySqlBuilderTest extends TestCase
 {
     public function testCreateDatabase()

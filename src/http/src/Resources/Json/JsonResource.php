@@ -19,7 +19,8 @@ use JsonSerializable;
 
 class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRoutable
 {
-    use ConditionallyLoadsAttributes, DelegatesToResource;
+    use ConditionallyLoadsAttributes;
+    use DelegatesToResource;
 
     /**
      * The resource instance.
@@ -105,8 +106,6 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
 
     /**
      * Transform the resource into an array.
-     *
-     * @return array|Arrayable|JsonSerializable
      */
     public function toAttributes(Request $request): array|Arrayable|JsonSerializable
     {
@@ -119,8 +118,6 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
 
     /**
      * Resolve the resource data to an array.
-     *
-     * @return array|Arrayable|JsonSerializable
      */
     public function resolveResourceData(Request $request): array|Arrayable|JsonSerializable
     {
@@ -129,8 +126,6 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
 
     /**
      * Transform the resource into an array.
-     *
-     * @return array|Arrayable|JsonSerializable
      */
     public function toArray(Request $request): array|Arrayable|JsonSerializable
     {
@@ -200,7 +195,6 @@ class JsonResource implements ArrayAccess, JsonSerializable, Responsable, UrlRou
      */
     public function withResponse(Request $request, JsonResponse $response): void
     {
-        //
     }
 
     /**

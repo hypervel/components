@@ -16,6 +16,10 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PDO;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 {
     protected function setUp(): void
@@ -477,9 +481,9 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
     protected function mockConnectionForModel(Model $model, string $database, array $lastInsertIds = []): void
     {
-        $grammarClass = 'Hypervel\Database\Query\Grammars\\'.$database.'Grammar';
-        $processorClass = 'Hypervel\Database\Query\Processors\\'.$database.'Processor';
-        $processor = new $processorClass;
+        $grammarClass = 'Hypervel\Database\Query\Grammars\\' . $database . 'Grammar';
+        $processorClass = 'Hypervel\Database\Query\Processors\\' . $database . 'Processor';
+        $processor = new $processorClass();
         $connection = m::mock(Connection::class, ['getPostProcessor' => $processor]);
         $grammar = new $grammarClass($connection);
         $connection->shouldReceive('getQueryGrammar')->andReturn($grammar);
@@ -504,5 +508,6 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 class EloquentBuilderCreateOrFirstTestModel extends Model
 {
     protected ?string $table = 'table';
+
     protected array $guarded = [];
 }

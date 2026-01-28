@@ -10,13 +10,17 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentWithAttributesPendingTest extends TestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
 
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -28,7 +32,7 @@ class DatabaseEloquentWithAttributesPendingTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->schema()->dropIfExists((new PendingAttributesModel)->getTable());
+        $this->schema()->dropIfExists((new PendingAttributesModel())->getTable());
 
         parent::tearDown();
     }
@@ -43,7 +47,7 @@ class DatabaseEloquentWithAttributesPendingTest extends TestCase
 
         $model = $query->make();
 
-        $this->assertSame($value, $model->$key);
+        $this->assertSame($value, $model->{$key});
     }
 
     public function testDoesNotAddWheres(): void
@@ -109,7 +113,7 @@ class DatabaseEloquentWithAttributesPendingTest extends TestCase
 
     protected function bootTable(): void
     {
-        $this->schema()->create((new PendingAttributesModel)->getTable(), function ($table) {
+        $this->schema()->create((new PendingAttributesModel())->getTable(), function ($table) {
             $table->id();
             $table->boolean('is_admin');
             $table->string('first_name');

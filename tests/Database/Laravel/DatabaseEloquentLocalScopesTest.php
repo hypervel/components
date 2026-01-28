@@ -8,13 +8,17 @@ use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentLocalScopesTest extends TestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
 
-        tap(new DB)->addConnection([
+        tap(new DB())->addConnection([
             'driver' => 'sqlite',
             'database' => ':memory:',
         ])->bootEloquent();
@@ -29,7 +33,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
 
     public function testCanCheckExistenceOfLocalScope()
     {
-        $model = new EloquentLocalScopesTestModel;
+        $model = new EloquentLocalScopesTestModel();
 
         $this->assertTrue($model->hasNamedScope('active'));
         $this->assertTrue($model->hasNamedScope('type'));
@@ -39,7 +43,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
 
     public function testLocalScopeIsApplied()
     {
-        $model = new EloquentLocalScopesTestModel;
+        $model = new EloquentLocalScopesTestModel();
         $query = $model->newQuery()->active();
 
         $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
@@ -48,7 +52,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
 
     public function testDynamicLocalScopeIsApplied()
     {
-        $model = new EloquentLocalScopesTestModel;
+        $model = new EloquentLocalScopesTestModel();
         $query = $model->newQuery()->type('foo');
 
         $this->assertSame('select * from "table" where "type" = ?', $query->toSql());
@@ -57,7 +61,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
 
     public function testLocalScopesCanChained()
     {
-        $model = new EloquentLocalScopesTestModel;
+        $model = new EloquentLocalScopesTestModel();
         $query = $model->newQuery()->active()->type('foo');
 
         $this->assertSame('select * from "table" where "active" = ? and "type" = ?', $query->toSql());
@@ -66,7 +70,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
 
     public function testLocalScopeNestingDoesntDoubleFirstWhereClauseNegation()
     {
-        $model = new EloquentLocalScopesTestModel;
+        $model = new EloquentLocalScopesTestModel();
         $query = $model
             ->newQuery()
             ->whereNot('firstWhere', true)
@@ -79,7 +83,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
 
     public function testLocalScopeNestingGroupsOrNotWhereClause()
     {
-        $model = new EloquentLocalScopesTestModel;
+        $model = new EloquentLocalScopesTestModel();
         $query = $model
             ->newQuery()
             ->where('firstWhere', true)

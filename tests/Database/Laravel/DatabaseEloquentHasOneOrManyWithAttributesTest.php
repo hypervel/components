@@ -8,13 +8,17 @@ use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
 
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -30,7 +34,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedWithAttributesModel;
+        $parent = new RelatedWithAttributesModel();
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -40,7 +44,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $relatedModel = $relationship->make();
 
         $this->assertSame($parentId, $relatedModel->parent_id);
-        $this->assertSame($value, $relatedModel->$key);
+        $this->assertSame($value, $relatedModel->{$key});
     }
 
     public function testHasOneAddsAttributes(): void
@@ -49,7 +53,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedWithAttributesModel;
+        $parent = new RelatedWithAttributesModel();
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -59,7 +63,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $relatedModel = $relationship->make();
 
         $this->assertSame($parentId, $relatedModel->parent_id);
-        $this->assertSame($value, $relatedModel->$key);
+        $this->assertSame($value, $relatedModel->{$key});
     }
 
     public function testMorphManyAddsAttributes(): void
@@ -68,7 +72,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedWithAttributesModel;
+        $parent = new RelatedWithAttributesModel();
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -79,7 +83,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
 
         $this->assertSame($parentId, $relatedModel->relatable_id);
         $this->assertSame($parent::class, $relatedModel->relatable_type);
-        $this->assertSame($value, $relatedModel->$key);
+        $this->assertSame($value, $relatedModel->{$key});
     }
 
     public function testMorphOneAddsAttributes(): void
@@ -88,7 +92,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedWithAttributesModel;
+        $parent = new RelatedWithAttributesModel();
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -99,7 +103,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
 
         $this->assertSame($parentId, $relatedModel->relatable_id);
         $this->assertSame($parent::class, $relatedModel->relatable_type);
-        $this->assertSame($value, $relatedModel->$key);
+        $this->assertSame($value, $relatedModel->{$key});
     }
 
     public function testWithAttributesCanBeOverridden(): void
@@ -108,7 +112,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $defaultValue = 'a value';
         $value = 'the value';
 
-        $parent = new RelatedWithAttributesModel;
+        $parent = new RelatedWithAttributesModel();
 
         $relationship = $parent
             ->hasMany(RelatedWithAttributesModel::class, 'relatable')
@@ -116,7 +120,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
 
         $relatedModel = $relationship->make([$key => $value]);
 
-        $this->assertSame($value, $relatedModel->$key);
+        $this->assertSame($value, $relatedModel->{$key});
     }
 
     public function testQueryingDoesNotBreakWither(): void
@@ -125,7 +129,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedWithAttributesModel;
+        $parent = new RelatedWithAttributesModel();
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -136,12 +140,12 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $relatedModel = $relationship->make();
 
         $this->assertSame($parentId, $relatedModel->parent_id);
-        $this->assertSame($value, $relatedModel->$key);
+        $this->assertSame($value, $relatedModel->{$key});
     }
 
     public function testAttributesCanBeAppended(): void
     {
-        $parent = new RelatedWithAttributesModel;
+        $parent = new RelatedWithAttributesModel();
 
         $relationship = $parent
             ->hasMany(RelatedWithAttributesModel::class, 'parent_id')
@@ -161,7 +165,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
 
     public function testSingleAttributeApi(): void
     {
-        $parent = new RelatedWithAttributesModel;
+        $parent = new RelatedWithAttributesModel();
         $key = 'attr';
         $value = 'Value';
 
@@ -171,7 +175,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
 
         $relatedModel = $relationship->make();
 
-        $this->assertSame($value, $relatedModel->$key);
+        $this->assertSame($value, $relatedModel->{$key});
     }
 
     public function testWheresAreSet(): void
@@ -180,7 +184,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedWithAttributesModel;
+        $parent = new RelatedWithAttributesModel();
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -191,7 +195,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
 
         $this->assertContains([
             'type' => 'Basic',
-            'column' => 'related_with_attributes_models.'.$key,
+            'column' => 'related_with_attributes_models.' . $key,
             'operator' => '=',
             'value' => $value,
             'boolean' => 'and',
@@ -212,7 +216,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $parentId = 123;
         $key = 'a key';
 
-        $parent = new RelatedWithAttributesModel;
+        $parent = new RelatedWithAttributesModel();
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -222,11 +226,11 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $wheres = $relationship->toBase()->wheres;
         $relatedModel = $relationship->make();
 
-        $this->assertNull($relatedModel->$key);
+        $this->assertNull($relatedModel->{$key});
 
         $this->assertContains([
             'type' => 'Null',
-            'column' => 'related_with_attributes_models.'.$key,
+            'column' => 'related_with_attributes_models.' . $key,
             'boolean' => 'and',
         ], $wheres);
     }
@@ -237,7 +241,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedWithAttributesModel;
+        $parent = new RelatedWithAttributesModel();
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -248,7 +252,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $relatedModel = $relationship->make();
 
         $this->assertSame($parentId, $relatedModel->parent_id);
-        $this->assertSame($value, $relatedModel->$key);
+        $this->assertSame($value, $relatedModel->{$key});
     }
 
     public function testOneKeepsAttributesFromMorphMany(): void
@@ -257,7 +261,7 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
         $key = 'a key';
         $value = 'the value';
 
-        $parent = new RelatedWithAttributesModel;
+        $parent = new RelatedWithAttributesModel();
         $parent->id = $parentId;
 
         $relationship = $parent
@@ -269,14 +273,14 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
 
         $this->assertSame($parentId, $relatedModel->relatable_id);
         $this->assertSame($parent::class, $relatedModel->relatable_type);
-        $this->assertSame($value, $relatedModel->$key);
+        $this->assertSame($value, $relatedModel->{$key});
     }
 
     public function testHasManyAddsCastedAttributes(): void
     {
         $parentId = 123;
 
-        $parent = new RelatedWithAttributesModel;
+        $parent = new RelatedWithAttributesModel();
         $parent->id = $parentId;
 
         $relationship = $parent

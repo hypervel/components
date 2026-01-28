@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Http\Resources;
 
+use ArrayIterator;
 use Hypervel\Http\Resources\Json\JsonResource;
 use Hypervel\Pagination\AbstractCursorPaginator;
 use Hypervel\Pagination\AbstractPaginator;
@@ -11,6 +12,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use LogicException;
 use ReflectionClass;
+use ReflectionException;
 use Traversable;
 
 trait CollectsResources
@@ -18,7 +20,7 @@ trait CollectsResources
     /**
      * Map the given collection resource into its individual resources.
      *
-     * @param  mixed  $resource
+     * @param mixed $resource
      * @return mixed
      */
     protected function collectResource($resource)
@@ -45,7 +47,7 @@ trait CollectsResources
     /**
      * Get the resource that this resource collects.
      *
-     * @return class-string<JsonResource>|null
+     * @return null|class-string<JsonResource>
      */
     protected function collects(): ?string
     {
@@ -53,9 +55,9 @@ trait CollectsResources
 
         if ($this->collects) {
             $collects = $this->collects;
-        } elseif (str_ends_with(class_basename($this), 'Collection') &&
-            (class_exists($class = Str::replaceLast('Collection', '', get_class($this))) ||
-             class_exists($class = Str::replaceLast('Collection', 'Resource', get_class($this))))) {
+        } elseif (str_ends_with(class_basename($this), 'Collection')
+            && (class_exists($class = Str::replaceLast('Collection', '', get_class($this)))
+             || class_exists($class = Str::replaceLast('Collection', 'Resource', get_class($this))))) {
             $collects = $class;
         }
 
@@ -63,13 +65,13 @@ trait CollectsResources
             return $collects;
         }
 
-        throw new LogicException('Resource collections must collect instances of '.JsonResource::class.'.');
+        throw new LogicException('Resource collections must collect instances of ' . JsonResource::class . '.');
     }
 
     /**
      * Get the JSON serialization options that should be applied to the resource response.
      *
-     * @throws \ReflectionException
+     * @throws ReflectionException
      */
     public function jsonOptions(): int
     {
@@ -87,7 +89,7 @@ trait CollectsResources
     /**
      * Get an iterator for the resource collection.
      *
-     * @return \ArrayIterator
+     * @return ArrayIterator
      */
     public function getIterator(): Traversable
     {

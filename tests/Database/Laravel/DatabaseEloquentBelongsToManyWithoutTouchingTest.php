@@ -12,6 +12,10 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use stdClass;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentBelongsToManyWithoutTouchingTest extends TestCase
 {
     public function testItWillNotTouchRelatedModelsWhenUpdatingChild(): void
@@ -49,6 +53,7 @@ class DatabaseEloquentBelongsToManyWithoutTouchingTest extends TestCase
 class BelongsToManyWithoutTouchingUser extends Model
 {
     protected ?string $table = 'users';
+
     protected array $fillable = ['id', 'email'];
 
     public function articles(): BelongsToMany
@@ -60,7 +65,9 @@ class BelongsToManyWithoutTouchingUser extends Model
 class BelongsToManyWithoutTouchingArticle extends Model
 {
     protected ?string $table = 'articles';
+
     protected array $fillable = ['id', 'title'];
+
     protected array $touches = ['user'];
 
     public function users(): BelongsToMany

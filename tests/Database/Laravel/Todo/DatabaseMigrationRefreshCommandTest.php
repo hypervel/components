@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Laravel\Todo;
 
+use Hypervel\Tests\TestCase;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\Console\Migrations\MigrateCommand;
 use Illuminate\Database\Console\Migrations\RefreshCommand;
@@ -12,11 +13,14 @@ use Illuminate\Database\Console\Migrations\RollbackCommand;
 use Illuminate\Database\Events\DatabaseRefreshed;
 use Illuminate\Foundation\Application;
 use Mockery as m;
-use Hypervel\Tests\TestCase;
 use Symfony\Component\Console\Application as ConsoleApplication;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseMigrationRefreshCommandTest extends TestCase
 {
     protected function setUp(): void
@@ -36,7 +40,7 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
 
     public function testRefreshCommandCallsCommandsWithProperArguments()
     {
-        $command = new RefreshCommand;
+        $command = new RefreshCommand();
 
         $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);
         $dispatcher = $app->instance(Dispatcher::class, $events = m::mock());
@@ -61,7 +65,7 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
 
     public function testRefreshCommandCallsCommandsWithStep()
     {
-        $command = new RefreshCommand;
+        $command = new RefreshCommand();
 
         $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);
         $dispatcher = $app->instance(Dispatcher::class, $events = m::mock());
@@ -86,7 +90,7 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
 
     public function testRefreshCommandExitsWhenProhibited()
     {
-        $command = new RefreshCommand;
+        $command = new RefreshCommand();
 
         $app = new ApplicationDatabaseRefreshStub(['path.database' => __DIR__]);
         $dispatcher = $app->instance(Dispatcher::class, $events = m::mock());
@@ -107,14 +111,14 @@ class DatabaseMigrationRefreshCommandTest extends TestCase
 
     protected function runCommand($command, $input = [])
     {
-        return $command->run(new ArrayInput($input), new NullOutput);
+        return $command->run(new ArrayInput($input), new NullOutput());
     }
 }
 
 class InputMatcher extends m\Matcher\MatcherAbstract
 {
     /**
-     * @param  \Symfony\Component\Console\Input\ArrayInput  $actual
+     * @param \Symfony\Component\Console\Input\ArrayInput $actual
      * @return bool
      */
     public function match(&$actual)

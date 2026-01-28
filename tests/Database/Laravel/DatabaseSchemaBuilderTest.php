@@ -10,8 +10,11 @@ use Hypervel\Database\Schema\Builder;
 use Hypervel\Database\Schema\Grammars\Grammar;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use stdClass;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseSchemaBuilderTest extends TestCase
 {
     public function testCreateDatabase()

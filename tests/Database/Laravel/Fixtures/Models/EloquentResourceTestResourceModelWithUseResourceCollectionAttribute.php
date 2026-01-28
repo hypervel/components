@@ -11,5 +11,4 @@ use Hypervel\Tests\Database\Laravel\Fixtures\Resources\EloquentResourceTestJsonR
 #[UseResourceCollection(EloquentResourceTestJsonResourceCollection::class)]
 class EloquentResourceTestResourceModelWithUseResourceCollectionAttribute extends Model
 {
-    //
 }

@@ -13,6 +13,7 @@ class PrunableTestModelWithPrunableRecords extends Model
     use MassPrunable;
 
     protected $table = 'prunables';
+
     protected $connection = 'default';
 
     public function pruneAll()

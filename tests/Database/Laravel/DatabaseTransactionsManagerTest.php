@@ -8,12 +8,17 @@ use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseTransactionsManagerTest extends TestCase
 {
     use RunTestsInCoroutine;
+
     public function testBeginningTransactions()
     {
-        $manager = new DatabaseTransactionsManager;
+        $manager = new DatabaseTransactionsManager();
 
         $manager->begin('default', 1);
         $manager->begin('default', 2);
@@ -30,7 +35,7 @@ class DatabaseTransactionsManagerTest extends TestCase
 
     public function testRollingBackTransactions()
     {
-        $manager = new DatabaseTransactionsManager;
+        $manager = new DatabaseTransactionsManager();
 
         $manager->begin('default', 1);
         $manager->begin('default', 2);
@@ -49,7 +54,7 @@ class DatabaseTransactionsManagerTest extends TestCase
 
     public function testRollingBackTransactionsAllTheWay()
     {
-        $manager = new DatabaseTransactionsManager;
+        $manager = new DatabaseTransactionsManager();
 
         $manager->begin('default', 1);
         $manager->begin('default', 2);
@@ -65,7 +70,7 @@ class DatabaseTransactionsManagerTest extends TestCase
 
     public function testCommittingTransactions()
     {
-        $manager = new DatabaseTransactionsManager;
+        $manager = new DatabaseTransactionsManager();
 
         $manager->begin('default', 1);
         $manager->begin('default', 2);
@@ -94,7 +99,7 @@ class DatabaseTransactionsManagerTest extends TestCase
     {
         $callbacks = [];
 
-        $manager = new DatabaseTransactionsManager;
+        $manager = new DatabaseTransactionsManager();
 
         $manager->begin('default', 1);
 
@@ -115,7 +120,7 @@ class DatabaseTransactionsManagerTest extends TestCase
 
     public function testCallbacksRunInFifoOrder()
     {
-        $manager = new DatabaseTransactionsManager;
+        $manager = new DatabaseTransactionsManager();
 
         $order = [];
 
@@ -142,7 +147,7 @@ class DatabaseTransactionsManagerTest extends TestCase
     {
         $callbacks = [];
 
-        $manager = new DatabaseTransactionsManager;
+        $manager = new DatabaseTransactionsManager();
 
         $manager->begin('default', 1);
 
@@ -170,7 +175,7 @@ class DatabaseTransactionsManagerTest extends TestCase
     {
         $callbacks = [];
 
-        $manager = new DatabaseTransactionsManager;
+        $manager = new DatabaseTransactionsManager();
 
         $manager->begin('default', 1);
 
@@ -196,7 +201,7 @@ class DatabaseTransactionsManagerTest extends TestCase
     {
         $callbacks = [];
 
-        $manager = new DatabaseTransactionsManager;
+        $manager = new DatabaseTransactionsManager();
 
         $manager->addCallback(function () use (&$callbacks) {
             $callbacks[] = ['default', 1];
@@ -210,7 +215,7 @@ class DatabaseTransactionsManagerTest extends TestCase
     {
         $callbacks = [];
 
-        $manager = new DatabaseTransactionsManager;
+        $manager = new DatabaseTransactionsManager();
 
         $manager->begin('default', 1);
 
@@ -233,7 +238,7 @@ class DatabaseTransactionsManagerTest extends TestCase
     {
         $callbacks = [];
 
-        $manager = new DatabaseTransactionsManager;
+        $manager = new DatabaseTransactionsManager();
 
         $manager->begin('default', 1);
 
@@ -261,7 +266,7 @@ class DatabaseTransactionsManagerTest extends TestCase
     {
         $callbacks = [];
 
-        $manager = new DatabaseTransactionsManager;
+        $manager = new DatabaseTransactionsManager();
 
         $manager->begin('default', 1);
 
@@ -287,7 +292,7 @@ class DatabaseTransactionsManagerTest extends TestCase
     {
         $callbacks = [];
 
-        $manager = new DatabaseTransactionsManager;
+        $manager = new DatabaseTransactionsManager();
 
         $manager->addCallbackForRollback(function () use (&$callbacks) {
             $callbacks[] = ['default', 1];
@@ -298,7 +303,7 @@ class DatabaseTransactionsManagerTest extends TestCase
 
     public function testStageTransactions()
     {
-        $manager = new DatabaseTransactionsManager;
+        $manager = new DatabaseTransactionsManager();
 
         $manager->begin('default', 1);
         $manager->begin('admin', 1);
@@ -327,7 +332,7 @@ class DatabaseTransactionsManagerTest extends TestCase
 
     public function testStageTransactionsOnlyStagesTheTransactionsAtOrAboveTheGivenLevel()
     {
-        $manager = new DatabaseTransactionsManager;
+        $manager = new DatabaseTransactionsManager();
 
         $manager->begin('default', 1);
         $manager->begin('default', 2);

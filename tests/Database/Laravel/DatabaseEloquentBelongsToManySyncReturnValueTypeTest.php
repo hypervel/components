@@ -8,11 +8,15 @@ use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentBelongsToManySyncReturnValueTypeTest extends TestCase
 {
     protected function setUp(): void
     {
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -27,8 +31,6 @@ class DatabaseEloquentBelongsToManySyncReturnValueTypeTest extends TestCase
 
     /**
      * Setup the database schema.
-     *
-     * @return void
      */
     public function createSchema()
     {
@@ -55,8 +57,6 @@ class DatabaseEloquentBelongsToManySyncReturnValueTypeTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -90,7 +90,7 @@ class DatabaseEloquentBelongsToManySyncReturnValueTypeTest extends TestCase
         $changes = $user->articles()->sync($articleIDs);
 
         collect($changes['attached'])->map(function ($id) {
-            $this->assertSame(gettype($id), (new BelongsToManySyncTestTestArticle)->getKeyType());
+            $this->assertSame(gettype($id), (new BelongsToManySyncTestTestArticle())->getKeyType());
         });
 
         $user->articles->each(function (BelongsToManySyncTestTestArticle $article) {
@@ -108,7 +108,7 @@ class DatabaseEloquentBelongsToManySyncReturnValueTypeTest extends TestCase
         $changes = $user->articles()->syncWithPivotValues($articleIDs, ['visible' => true]);
 
         collect($changes['attached'])->each(function ($id) {
-            $this->assertSame(gettype($id), (new BelongsToManySyncTestTestArticle)->getKeyType());
+            $this->assertSame(gettype($id), (new BelongsToManySyncTestTestArticle())->getKeyType());
         });
 
         $user->articles->each(function (BelongsToManySyncTestTestArticle $article) {
@@ -140,7 +140,9 @@ class DatabaseEloquentBelongsToManySyncReturnValueTypeTest extends TestCase
 class BelongsToManySyncTestTestUser extends Eloquent
 {
     protected ?string $table = 'users';
+
     protected array $fillable = ['id', 'email'];
+
     public bool $timestamps = false;
 
     public function articles()
@@ -152,8 +154,12 @@ class BelongsToManySyncTestTestUser extends Eloquent
 class BelongsToManySyncTestTestArticle extends Eloquent
 {
     protected ?string $table = 'articles';
+
     protected string $keyType = 'string';
+
     public bool $incrementing = false;
+
     public bool $timestamps = false;
+
     protected array $fillable = ['id', 'title'];
 }

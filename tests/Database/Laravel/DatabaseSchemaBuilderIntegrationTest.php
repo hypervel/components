@@ -8,6 +8,10 @@ use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseSchemaBuilderIntegrationTest extends TestCase
 {
     protected DB $db;

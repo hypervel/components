@@ -14,7 +14,12 @@ use Hypervel\Tests\Database\Laravel\Fixtures\Resources\EloquentResourceCollectio
 use Hypervel\Tests\Database\Laravel\Fixtures\Resources\EloquentResourceTestJsonResource;
 use Hypervel\Tests\Database\Laravel\Fixtures\Resources\EloquentResourceTestJsonResourceCollection;
 use Hypervel\Tests\TestCase;
+use LogicException;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentResourceCollectionTest extends TestCase
 {
     public function testItCanTransformToExplicitResource()
@@ -30,7 +35,7 @@ class DatabaseEloquentResourceCollectionTest extends TestCase
 
     public function testItThrowsExceptionWhenResourceCannotBeFound()
     {
-        $this->expectException(\LogicException::class);
+        $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Database\Laravel\Fixtures\Models\EloquentResourceCollectionTestModel].');
 
         $collection = new Collection([

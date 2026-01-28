@@ -7,11 +7,15 @@ namespace Hypervel\Tests\Database\Laravel;
 use Hypervel\Database\Query\Processors\MySqlProcessor;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseMySqlProcessorTest extends TestCase
 {
     public function testProcessColumns()
     {
-        $processor = new MySqlProcessor;
+        $processor = new MySqlProcessor();
         $listing = [
             ['name' => 'id', 'type_name' => 'bigint', 'type' => 'bigint', 'collation' => 'collate', 'nullable' => 'YES', 'default' => '', 'extra' => 'auto_increment', 'comment' => 'bar', 'expression' => null],
             ['name' => 'name', 'type_name' => 'varchar', 'type' => 'varchar(100)', 'collation' => 'collate', 'nullable' => 'NO', 'default' => 'foo', 'extra' => '', 'comment' => '', 'expression' => null],

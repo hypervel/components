@@ -11,6 +11,7 @@ use Hypervel\Http\Resources\CollectsResources;
 use Hypervel\Pagination\AbstractCursorPaginator;
 use Hypervel\Pagination\AbstractPaginator;
 use IteratorAggregate;
+use Override;
 
 class ResourceCollection extends JsonResource implements Countable, IteratorAggregate
 {
@@ -79,7 +80,7 @@ class ResourceCollection extends JsonResource implements Countable, IteratorAggr
     /**
      * Transform the resource into a JSON array.
      */
-    #[\Override]
+    #[Override]
     public function toArray(Request $request): array
     {
         if ($this->collection->first() instanceof JsonResource) {
@@ -92,7 +93,7 @@ class ResourceCollection extends JsonResource implements Countable, IteratorAggr
     /**
      * Create an HTTP response that represents the object.
      */
-    #[\Override]
+    #[Override]
     public function toResponse(Request $request): JsonResponse
     {
         if ($this->resource instanceof AbstractPaginator || $this->resource instanceof AbstractCursorPaginator) {

@@ -9,6 +9,10 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
 {
     protected function setUp(): void
@@ -201,15 +205,17 @@ class PreventsCircularRecursionWithRecursiveMethod
     }
 
     public static int $globalStack = 0;
+
     public int $instanceStack = 0;
+
     public int $defaultStack = 0;
 
     public function callStack(): int
     {
         return $this->withoutRecursion(
             function () {
-                static::$globalStack++;
-                $this->instanceStack++;
+                ++static::$globalStack;
+                ++$this->instanceStack;
 
                 return $this->callStack();
             },
@@ -221,8 +227,8 @@ class PreventsCircularRecursionWithRecursiveMethod
     {
         return $this->withoutRecursion(
             function () {
-                static::$globalStack++;
-                $this->instanceStack++;
+                ++static::$globalStack;
+                ++$this->instanceStack;
 
                 return $this->callCallableDefaultStack();
             },
@@ -237,8 +243,8 @@ class PreventsCircularRecursionWithRecursiveMethod
     {
         return $this->withoutRecursion(
             function () {
-                static::$globalStack++;
-                $this->instanceStack++;
+                ++static::$globalStack;
+                ++$this->instanceStack;
 
                 return [
                     $this->callCallableDefaultStackRepeatedly(),

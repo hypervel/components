@@ -7,12 +7,15 @@ namespace Hypervel\Tests\Database\Laravel;
 use Hypervel\Database\Concerns\BuildsQueries;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseConcernsBuildsQueriesTraitTest extends TestCase
 {
     public function testTapCallbackInstance()
     {
-        $mock = new class
-        {
+        $mock = new class {
             use BuildsQueries;
         };
 

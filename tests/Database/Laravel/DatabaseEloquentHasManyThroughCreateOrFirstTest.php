@@ -16,6 +16,10 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PDO;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 {
     protected function setUp(): void
@@ -373,9 +377,9 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 
     protected function mockConnectionForModel(Model $model, string $database, array $lastInsertIds = []): void
     {
-        $grammarClass = 'Hypervel\Database\Query\Grammars\\'.$database.'Grammar';
-        $processorClass = 'Hypervel\Database\Query\Processors\\'.$database.'Processor';
-        $processor = new $processorClass;
+        $grammarClass = 'Hypervel\Database\Query\Grammars\\' . $database . 'Grammar';
+        $processorClass = 'Hypervel\Database\Query\Processors\\' . $database . 'Processor';
+        $processor = new $processorClass();
         $connection = m::mock(Connection::class, ['getPostProcessor' => $processor]);
         $grammar = new $grammarClass($connection);
         $connection->shouldReceive('getQueryGrammar')->andReturn($grammar);
@@ -404,6 +408,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 class HasManyThroughCreateOrFirstTestChildModel extends Model
 {
     protected ?string $table = 'child';
+
     protected array $guarded = [];
 }
 
@@ -414,6 +419,7 @@ class HasManyThroughCreateOrFirstTestChildModel extends Model
 class HasManyThroughCreateOrFirstTestPivotModel extends Model
 {
     protected ?string $table = 'pivot';
+
     protected array $guarded = [];
 }
 
@@ -423,6 +429,7 @@ class HasManyThroughCreateOrFirstTestPivotModel extends Model
 class HasManyThroughCreateOrFirstTestParentModel extends Model
 {
     protected ?string $table = 'parent';
+
     protected array $guarded = [];
 
     public function children(): HasManyThrough

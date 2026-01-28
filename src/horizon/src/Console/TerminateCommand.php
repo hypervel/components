@@ -9,8 +9,8 @@ use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Horizon\Contracts\MasterSupervisorRepository;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Support\Arr;
-use Hypervel\Support\Str;
 use Hypervel\Support\InteractsWithTime;
+use Hypervel\Support\Str;
 
 class TerminateCommand extends Command
 {

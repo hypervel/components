@@ -12,8 +12,11 @@ use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use stdClass;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentMorphToManyTest extends TestCase
 {
     public function testEagerConstraintsAreProperlyAdded(): void
@@ -23,9 +26,9 @@ class DatabaseEloquentMorphToManyTest extends TestCase
         $relation->getParent()->shouldReceive('getKeyType')->once()->andReturn('int');
         $relation->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('taggables.taggable_id', [1, 2]);
         $relation->getQuery()->shouldReceive('where')->once()->with('taggables.taggable_type', get_class($relation->getParent()));
-        $model1 = new EloquentMorphToManyModelStub;
+        $model1 = new EloquentMorphToManyModelStub();
         $model1->id = 1;
-        $model2 = new EloquentMorphToManyModelStub;
+        $model2 = new EloquentMorphToManyModelStub();
         $model2->id = 2;
         $relation->addEagerConstraints([$model1, $model2]);
     }

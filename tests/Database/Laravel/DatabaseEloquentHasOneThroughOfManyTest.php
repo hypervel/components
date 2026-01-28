@@ -17,13 +17,17 @@ use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
 
-        $db = new DB;
+        $db = new DB();
         $db->addConnection(['driver' => 'sqlite', 'database' => ':memory:']);
         $db->bootEloquent();
         $db->setAsGlobal();
@@ -537,8 +541,11 @@ class HasOneThroughOfManyTestUser extends Eloquent
     use HasFactory;
 
     protected ?string $table = 'users';
+
     protected array $guarded = [];
+
     public bool $timestamps = false;
+
     protected static string $factory = HasOneThroughOfManyTestUserFactory::class;
 
     public function intermediates(): HasMany
@@ -677,8 +684,11 @@ class HasOneThroughOfManyTestIntermediate extends Eloquent
     use HasFactory;
 
     protected ?string $table = 'intermediates';
+
     protected array $guarded = [];
+
     public bool $timestamps = false;
+
     protected static string $factory = HasOneThroughOfManyTestIntermediateFactory::class;
 
     public function logins(): HasMany
@@ -713,7 +723,9 @@ class HasOneThroughOfManyTestModel extends Eloquent
 class HasOneThroughOfManyTestLogin extends Eloquent
 {
     protected ?string $table = 'logins';
+
     protected array $guarded = [];
+
     public bool $timestamps = false;
 }
 
@@ -722,24 +734,33 @@ class HasOneThroughOfManyTestLoginWithSoftDeletes extends Eloquent
     use SoftDeletes;
 
     protected ?string $table = 'logins';
+
     protected array $guarded = [];
+
     public bool $timestamps = false;
 }
 
 class HasOneThroughOfManyTestState extends Eloquent
 {
     protected ?string $table = 'states';
+
     protected array $guarded = [];
+
     public bool $timestamps = true;
+
     protected array $fillable = ['type', 'state', 'updated_at'];
 }
 
 class HasOneThroughOfManyTestPrice extends Eloquent
 {
     protected ?string $table = 'prices';
+
     protected array $guarded = [];
+
     public bool $timestamps = false;
+
     protected array $fillable = ['published_at'];
+
     protected array $casts = ['published_at' => 'datetime'];
 }
 

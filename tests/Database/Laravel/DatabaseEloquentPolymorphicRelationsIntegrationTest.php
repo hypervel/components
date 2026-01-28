@@ -9,6 +9,10 @@ use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentPolymorphicRelationsIntegrationTest extends TestCase
 {
     /**
@@ -18,7 +22,7 @@ class DatabaseEloquentPolymorphicRelationsIntegrationTest extends TestCase
     {
         parent::setUp();
 
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -119,7 +123,7 @@ class DatabaseEloquentPolymorphicRelationsIntegrationTest extends TestCase
         $post->tags()->chunkById(2, function ($tags) use (&$iterations, &$count) {
             $this->assertInstanceOf(EloquentManyToManyPolymorphicTestTag::class, $tags->first());
             $count += $tags->count();
-            $iterations++;
+            ++$iterations;
         });
 
         $this->assertEquals(2, $iterations);

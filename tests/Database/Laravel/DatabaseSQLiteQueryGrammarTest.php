@@ -9,6 +9,10 @@ use Hypervel\Database\Query\Grammars\SQLiteGrammar;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseSQLiteQueryGrammarTest extends TestCase
 {
     public function testToRawSql()

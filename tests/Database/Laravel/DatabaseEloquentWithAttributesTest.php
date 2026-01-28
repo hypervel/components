@@ -10,13 +10,17 @@ use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Builder;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentWithAttributesTest extends TestCase
 {
     protected function setUp(): void
     {
         parent::setUp();
 
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -28,7 +32,7 @@ class DatabaseEloquentWithAttributesTest extends TestCase
 
     protected function tearDown(): void
     {
-        $this->schema()->dropIfExists((new WithAttributesModel)->getTable());
+        $this->schema()->dropIfExists((new WithAttributesModel())->getTable());
 
         parent::tearDown();
     }
@@ -43,7 +47,7 @@ class DatabaseEloquentWithAttributesTest extends TestCase
 
         $model = $query->make();
 
-        $this->assertSame($value, $model->$key);
+        $this->assertSame($value, $model->{$key});
     }
 
     public function testAddsWheres(): void
@@ -58,7 +62,7 @@ class DatabaseEloquentWithAttributesTest extends TestCase
 
         $this->assertContains([
             'type' => 'Basic',
-            'column' => 'with_attributes_models.'.$key,
+            'column' => 'with_attributes_models.' . $key,
             'operator' => '=',
             'value' => $value,
             'boolean' => 'and',
@@ -114,7 +118,7 @@ class DatabaseEloquentWithAttributesTest extends TestCase
 
     protected function bootTable(): void
     {
-        $this->schema()->create((new WithAttributesModel)->getTable(), function ($table) {
+        $this->schema()->create((new WithAttributesModel())->getTable(), function ($table) {
             $table->id();
             $table->boolean('is_admin');
             $table->string('first_name');

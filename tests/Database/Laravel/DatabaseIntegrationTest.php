@@ -10,6 +10,10 @@ use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseIntegrationTest extends TestCase
 {
     protected array $listeners = [];
@@ -31,7 +35,7 @@ class DatabaseIntegrationTest extends TestCase
             }
         });
 
-        $db = new DB;
+        $db = new DB();
         $db->addConnection([
             'driver' => 'sqlite',
             'database' => ':memory:',

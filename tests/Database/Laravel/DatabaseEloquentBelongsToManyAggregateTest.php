@@ -9,11 +9,15 @@ use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Query\Expression;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentBelongsToManyAggregateTest extends TestCase
 {
     protected function setUp(): void
     {
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -61,8 +65,6 @@ class DatabaseEloquentBelongsToManyAggregateTest extends TestCase
 
     /**
      * Setup the database schema.
-     *
-     * @return void
      */
     public function createSchema()
     {
@@ -98,8 +100,6 @@ class DatabaseEloquentBelongsToManyAggregateTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -167,7 +167,9 @@ class DatabaseEloquentBelongsToManyAggregateTest extends TestCase
 class BelongsToManyAggregateTestTestOrder extends Eloquent
 {
     protected ?string $table = 'orders';
+
     protected array $fillable = ['id'];
+
     public bool $timestamps = false;
 
     public function products()
@@ -181,14 +183,18 @@ class BelongsToManyAggregateTestTestOrder extends Eloquent
 class BelongsToManyAggregateTestTestProduct extends Eloquent
 {
     protected ?string $table = 'products';
+
     protected array $fillable = ['id'];
+
     public bool $timestamps = false;
 }
 
 class BelongsToManyAggregateTestTestTransaction extends Eloquent
 {
     protected ?string $table = 'transactions';
+
     protected array $fillable = ['id', 'value'];
+
     public bool $timestamps = false;
 
     public function allocatedTo()

@@ -13,6 +13,10 @@ use Hypervel\Database\Query\Builder as BaseBuilder;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentHasOneTest extends TestCase
 {
     protected $builder;
@@ -149,9 +153,9 @@ class DatabaseEloquentHasOneTest extends TestCase
         $relation->getParent()->shouldReceive('getKeyName')->once()->andReturn('id');
         $relation->getParent()->shouldReceive('getKeyType')->once()->andReturn('int');
         $relation->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('table.foreign_key', [1, 2]);
-        $model1 = new EloquentHasOneModelStub;
+        $model1 = new EloquentHasOneModelStub();
         $model1->id = 1;
-        $model2 = new EloquentHasOneModelStub;
+        $model2 = new EloquentHasOneModelStub();
         $model2->id = 2;
         $relation->addEagerConstraints([$model1, $model2]);
     }
@@ -160,26 +164,25 @@ class DatabaseEloquentHasOneTest extends TestCase
     {
         $relation = $this->getRelation();
 
-        $result1 = new EloquentHasOneModelStub;
+        $result1 = new EloquentHasOneModelStub();
         $result1->foreign_key = 1;
-        $result2 = new EloquentHasOneModelStub;
+        $result2 = new EloquentHasOneModelStub();
         $result2->foreign_key = 2;
-        $result3 = new EloquentHasOneModelStub;
-        $result3->foreign_key = new class
-        {
+        $result3 = new EloquentHasOneModelStub();
+        $result3->foreign_key = new class {
             public function __toString()
             {
                 return '4';
             }
         };
 
-        $model1 = new EloquentHasOneModelStub;
+        $model1 = new EloquentHasOneModelStub();
         $model1->id = 1;
-        $model2 = new EloquentHasOneModelStub;
+        $model2 = new EloquentHasOneModelStub();
         $model2->id = 2;
-        $model3 = new EloquentHasOneModelStub;
+        $model3 = new EloquentHasOneModelStub();
         $model3->id = 3;
-        $model4 = new EloquentHasOneModelStub;
+        $model4 = new EloquentHasOneModelStub();
         $model4->id = 4;
 
         $models = $relation->match([$model1, $model2, $model3, $model4], new Collection([$result1, $result2, $result3]), 'foo');

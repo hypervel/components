@@ -8,9 +8,13 @@ use Hypervel\Database\Eloquent\Casts\Attribute;
 use Hypervel\Database\Eloquent\Concerns\HasAttributes;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
-use Mockery as m;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseConcernsHasAttributesTest extends TestCase
 {
     public function testWithoutConstructor()

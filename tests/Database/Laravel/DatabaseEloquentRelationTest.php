@@ -17,15 +17,19 @@ use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Database\Query\Processors\Processor;
 use Hypervel\Support\Carbon;
-use Mockery as m;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentRelationTest extends TestCase
 {
     public function testSetRelationFail()
     {
-        $parent = new EloquentRelationResetModelStub;
-        $relation = new EloquentRelationResetModelStub;
+        $parent = new EloquentRelationResetModelStub();
+        $relation = new EloquentRelationResetModelStub();
         $parent->setRelation('test', $relation);
         $parent->setRelation('foo', 'bar');
         $this->assertArrayNotHasKey('foo', $parent->toArray());
@@ -33,8 +37,8 @@ class DatabaseEloquentRelationTest extends TestCase
 
     public function testUnsetExistingRelation()
     {
-        $parent = new EloquentRelationResetModelStub;
-        $relation = new EloquentRelationResetModelStub;
+        $parent = new EloquentRelationResetModelStub();
+        $relation = new EloquentRelationResetModelStub();
         $parent->setRelation('foo', $relation);
         $parent->unsetRelation('foo');
         $this->assertFalse($parent->relationLoaded('foo'));
@@ -203,7 +207,7 @@ class DatabaseEloquentRelationTest extends TestCase
                 $this->assertTrue($related::isIgnoringTouch());
                 $this->assertTrue($relatedChild::isIgnoringTouch());
 
-                throw new Exception;
+                throw new Exception();
             });
 
             $this->fail('Exception was not thrown');
@@ -247,7 +251,7 @@ class DatabaseEloquentRelationTest extends TestCase
 
     public function testWithoutRelations()
     {
-        $original = new EloquentNoTouchingModelStub;
+        $original = new EloquentNoTouchingModelStub();
 
         $original->setRelation('foo', 'baz');
 
@@ -272,7 +276,7 @@ class DatabaseEloquentRelationTest extends TestCase
             return 'foo';
         });
 
-        $model = new EloquentRelationResetModelStub;
+        $model = new EloquentRelationResetModelStub();
         $model->setConnectionResolver($resolver = m::mock(ConnectionResolverInterface::class));
         $resolver->shouldReceive('connection')->andReturn($connection = m::mock(Connection::class));
         $connection->shouldReceive('getQueryGrammar')->andReturn($grammar = m::mock(Grammar::class));
@@ -290,7 +294,7 @@ class DatabaseEloquentRelationTest extends TestCase
 
     public function testIsRelationIgnoresAttribute()
     {
-        $model = new EloquentRelationAndAttributeModelStub;
+        $model = new EloquentRelationAndAttributeModelStub();
 
         $this->assertTrue($model->isRelation('parent'));
         $this->assertFalse($model->isRelation('field'));
@@ -313,12 +317,10 @@ class EloquentRelationStub extends Relation
 {
     public function addConstraints(): void
     {
-        //
     }
 
     public function addEagerConstraints(array $models): void
     {
-        //
     }
 
     public function initRelation(array $models, string $relation): array
@@ -348,7 +350,6 @@ class EloquentNoTouchingModelStub extends Model
 
 class EloquentNoTouchingChildModelStub extends EloquentNoTouchingModelStub
 {
-    //
 }
 
 class EloquentNoTouchingAnotherModelStub extends Model

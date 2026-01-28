@@ -9,6 +9,10 @@ use Hypervel\Database\Query\Grammars\MariaDbGrammar;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseMariaDbQueryGrammarTest extends TestCase
 {
     public function testToRawSql()

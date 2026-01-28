@@ -5,14 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Database\Laravel\Todo;
 
 use Closure;
+use Hypervel\Tests\TestCase;
 use Illuminate\Database\Console\Migrations\ResetCommand;
 use Illuminate\Database\Migrations\Migrator;
 use Illuminate\Foundation\Application;
 use Mockery as m;
-use Hypervel\Tests\TestCase;
 use Symfony\Component\Console\Input\ArrayInput;
 use Symfony\Component\Console\Output\NullOutput;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseMigrationResetCommandTest extends TestCase
 {
     protected function setUp(): void
@@ -42,7 +46,7 @@ class DatabaseMigrationResetCommandTest extends TestCase
         });
         $migrator->shouldReceive('repositoryExists')->once()->andReturn(true);
         $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('reset')->once()->with([__DIR__.DIRECTORY_SEPARATOR.'migrations'], false);
+        $migrator->shouldReceive('reset')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], false);
 
         $this->runCommand($command);
     }
@@ -59,7 +63,7 @@ class DatabaseMigrationResetCommandTest extends TestCase
         });
         $migrator->shouldReceive('repositoryExists')->once()->andReturn(true);
         $migrator->shouldReceive('setOutput')->once()->andReturn($migrator);
-        $migrator->shouldReceive('reset')->once()->with([__DIR__.DIRECTORY_SEPARATOR.'migrations'], true);
+        $migrator->shouldReceive('reset')->once()->with([__DIR__ . DIRECTORY_SEPARATOR . 'migrations'], true);
 
         $this->runCommand($command, ['--pretend' => true, '--database' => 'foo']);
     }
@@ -83,7 +87,7 @@ class DatabaseMigrationResetCommandTest extends TestCase
 
     protected function runCommand($command, $input = [])
     {
-        return $command->run(new ArrayInput($input), new NullOutput);
+        return $command->run(new ArrayInput($input), new NullOutput());
     }
 }
 

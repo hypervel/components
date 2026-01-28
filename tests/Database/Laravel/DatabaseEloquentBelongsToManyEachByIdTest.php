@@ -8,11 +8,15 @@ use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Tests\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentBelongsToManyEachByIdTest extends TestCase
 {
     protected function setUp(): void
     {
-        $db = new DB;
+        $db = new DB();
 
         $db->addConnection([
             'driver' => 'sqlite',
@@ -27,8 +31,6 @@ class DatabaseEloquentBelongsToManyEachByIdTest extends TestCase
 
     /**
      * Setup the database schema.
-     *
-     * @return void
      */
     public function createSchema()
     {
@@ -59,7 +61,7 @@ class DatabaseEloquentBelongsToManyEachByIdTest extends TestCase
         $i = 0;
 
         $user->articles()->eachById(function (BelongsToManyEachByIdTestTestArticle $model) use (&$i) {
-            $i++;
+            ++$i;
             $this->assertEquals($i, $model->id);
         });
 
@@ -68,8 +70,6 @@ class DatabaseEloquentBelongsToManyEachByIdTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -119,7 +119,9 @@ class DatabaseEloquentBelongsToManyEachByIdTest extends TestCase
 class BelongsToManyEachByIdTestTestUser extends Eloquent
 {
     protected ?string $table = 'users';
+
     protected array $fillable = ['id', 'email'];
+
     public bool $timestamps = false;
 
     public function articles()
@@ -131,8 +133,12 @@ class BelongsToManyEachByIdTestTestUser extends Eloquent
 class BelongsToManyEachByIdTestTestArticle extends Eloquent
 {
     protected ?string $table = 'articles';
+
     protected string $keyType = 'string';
+
     public bool $incrementing = false;
+
     public bool $timestamps = false;
+
     protected array $fillable = ['id', 'title'];
 }

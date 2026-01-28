@@ -12,6 +12,10 @@ use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PDOException;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseQueryExceptionTest extends TestCase
 {
     public function testIfItEmbedsBindingsIntoSql()
