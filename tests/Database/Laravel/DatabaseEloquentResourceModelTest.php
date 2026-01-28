@@ -1,11 +1,13 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Tests\Database\Fixtures\Models\EloquentResourceTestResourceModel;
-use Illuminate\Tests\Database\Fixtures\Models\EloquentResourceTestResourceModelWithGuessableResource;
-use Illuminate\Tests\Database\Fixtures\Models\EloquentResourceTestResourceModelWithUseResourceAttribute;
-use Illuminate\Tests\Database\Fixtures\Resources\EloquentResourceTestJsonResource;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Tests\Database\Laravel\Fixtures\Models\EloquentResourceTestResourceModel;
+use Hypervel\Tests\Database\Laravel\Fixtures\Models\EloquentResourceTestResourceModelWithGuessableResource;
+use Hypervel\Tests\Database\Laravel\Fixtures\Models\EloquentResourceTestResourceModelWithUseResourceAttribute;
+use Hypervel\Tests\Database\Laravel\Fixtures\Resources\EloquentResourceTestJsonResource;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentResourceModelTest extends TestCase
@@ -22,7 +24,7 @@ class DatabaseEloquentResourceModelTest extends TestCase
     public function testItThrowsExceptionWhenResourceCannotBeFound()
     {
         $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage('Failed to find resource class for model [Illuminate\Tests\Database\Fixtures\Models\EloquentResourceTestResourceModel].');
+        $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Database\Laravel\Fixtures\Models\EloquentResourceTestResourceModel].');
 
         $model = new EloquentResourceTestResourceModel();
         $model->toResource();
@@ -32,7 +34,7 @@ class DatabaseEloquentResourceModelTest extends TestCase
     {
         $model = new EloquentResourceTestResourceModelWithGuessableResource();
 
-        class_alias(EloquentResourceTestJsonResource::class, 'Illuminate\Tests\Database\Fixtures\Http\Resources\EloquentResourceTestResourceModelWithGuessableResourceResource');
+        class_alias(EloquentResourceTestJsonResource::class, 'Hypervel\Tests\Database\Laravel\Fixtures\Http\Resources\EloquentResourceTestResourceModelWithGuessableResourceResource');
 
         $resource = $model->toResource();
 
@@ -44,7 +46,7 @@ class DatabaseEloquentResourceModelTest extends TestCase
     {
         $model = new EloquentResourceTestResourceModelWithGuessableResource();
 
-        class_alias(EloquentResourceTestJsonResource::class, 'Illuminate\Tests\Database\Fixtures\Http\Resources\EloquentResourceTestResourceModelWithGuessableResource');
+        class_alias(EloquentResourceTestJsonResource::class, 'Hypervel\Tests\Database\Laravel\Fixtures\Http\Resources\EloquentResourceTestResourceModelWithGuessableResource');
 
         $resource = $model->toResource();
 
@@ -56,8 +58,8 @@ class DatabaseEloquentResourceModelTest extends TestCase
     {
         $model = new EloquentResourceTestResourceModel();
         $this->assertEquals([
-            'Illuminate\Tests\Database\Fixtures\Http\Resources\EloquentResourceTestResourceModelResource',
-            'Illuminate\Tests\Database\Fixtures\Http\Resources\EloquentResourceTestResourceModel',
+            'Hypervel\Tests\Database\Laravel\Fixtures\Http\Resources\EloquentResourceTestResourceModelResource',
+            'Hypervel\Tests\Database\Laravel\Fixtures\Http\Resources\EloquentResourceTestResourceModel',
         ], $model::guessResourceName());
     }
 
