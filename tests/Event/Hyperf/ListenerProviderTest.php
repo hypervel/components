@@ -23,9 +23,11 @@ class ListenerProviderTest extends TestCase
         $provider->on('NotExistEvent', [new AlphaListener(), 'process']);
 
         $it = $provider->getListenersForEvent(new Alpha());
-        [$class, $method] = $it->current();
+        $listenerData = $it->current();
+        [$class, $method] = $listenerData['listener'];
         $this->assertInstanceOf(AlphaListener::class, $class);
         $this->assertSame('process', $method);
+        $this->assertFalse($listenerData['isWildcard']);
         $this->assertNull($it->next());
 
         $it = $provider->getListenersForEvent(new Beta());

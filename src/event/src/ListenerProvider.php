@@ -19,6 +19,8 @@ class ListenerProvider implements ListenerProviderContract
 
     /**
      * Get all of the listeners for a given event name.
+     *
+     * @return iterable<array{listener: mixed, isWildcard: bool}>
      */
     public function getListenersForEvent(object|string $event): iterable
     {
@@ -30,12 +32,14 @@ class ListenerProvider implements ListenerProviderContract
         } else {
             $listeners = $this->getListenersUsingCondition(
                 $this->listeners,
-                fn ($_, $key) => is_string($event) ? $event === $key : $event instanceof $key
+                fn ($_, $key) => is_string($event) ? $event === $key : $event instanceof $key,
+                isWildcard: false
             );
 
             $wildcards = $this->getListenersUsingCondition(
                 $this->wildcards,
-                fn ($_, $key) => Str::is($key, $eventName)
+                fn ($_, $key) => Str::is($key, $eventName),
+                isWildcard: true
             );
 
             $listeners = $listeners->merge($wildcards)->toArray();
@@ -121,24 +125,27 @@ class ListenerProvider implements ListenerProviderContract
 
     /**
      * Get listeners using condition.
+     *
+     * @return Collection<int, array{listener: mixed, isWildcard: bool}>
      */
-    protected function getListenersUsingCondition(array $listeners, callable $filter): Collection
+    protected function getListenersUsingCondition(array $listeners, callable $filter, bool $isWildcard = false): Collection
     {
         return collect($listeners)
             ->filter($filter)
             ->flatten(1)
-            ->map(function ($listener, $index) {
+            ->map(function ($listener, $index) use ($isWildcard) {
                 return [
                     'listener' => $listener->listener,
                     'priority' => $listener->priority,
                     'index' => $index,
+                    'isWildcard' => $isWildcard,
                 ];
             })
             ->sortBy([
                 ['priority', 'desc'],
                 ['index', 'asc'],
             ])
-            ->pluck('listener');
+            ->map(fn ($item) => ['listener' => $item['listener'], 'isWildcard' => $item['isWildcard']]);
     }
 
     /**

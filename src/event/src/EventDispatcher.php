@@ -171,8 +171,11 @@ class EventDispatcher implements EventDispatcherContract
             $payload = Arr::wrap($payload);
         }
 
+        // Wildcard listeners need the event name (string), not the event object
+        $eventName = is_object($event) ? get_class($event) : $event;
+
         foreach ($this->getListeners($event) as $listener) {
-            $response = $listener($event, $payload);
+            $response = $listener($eventName, $payload);
 
             $this->dump($listener, $event);
 
@@ -233,8 +236,11 @@ class EventDispatcher implements EventDispatcherContract
     {
         $listeners = [];
 
-        foreach ($this->listeners->getListenersForEvent($eventName) as $listener) {
-            $listeners[] = $this->makeListener($listener);
+        foreach ($this->listeners->getListenersForEvent($eventName) as $listenerData) {
+            $listeners[] = $this->makeListener(
+                $listenerData['listener'],
+                $listenerData['isWildcard']
+            );
         }
 
         return $listeners;
@@ -251,7 +257,7 @@ class EventDispatcher implements EventDispatcherContract
 
         return function ($event, $payload) use ($listener, $wildcard) {
             if ($wildcard) {
-                return $listener($event, $payload);
+                return $listener($event, ...array_values($payload));
             }
 
             return $listener(...array_values($payload));
@@ -267,7 +273,7 @@ class EventDispatcher implements EventDispatcherContract
             $callable = $this->createClassCallable($listener);
 
             if ($wildcard) {
-                return $callable($event, $payload);
+                return $callable($event, ...array_values($payload));
             }
 
             return $callable(...array_values($payload));

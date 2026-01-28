@@ -57,8 +57,15 @@ class EventWatcher extends Watcher
      */
     protected function extractPayload(object|string $event, array $payload): array
     {
+        // For object events: the event object itself contains the payload properties
+        // Wildcard listeners receive (eventName, eventObject) so check payload[0]
         if (is_object($event) && empty($payload)) {
             return ExtractProperties::from($event);
+        }
+
+        // For wildcard listeners with object events, the event object is in payload[0]
+        if (is_string($event) && count($payload) === 1 && is_object($payload[0])) {
+            return ExtractProperties::from($payload[0]);
         }
 
         return Collection::make($payload)->map(function ($value) {
