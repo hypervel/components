@@ -100,7 +100,7 @@
     "autoload-dev": {
         "files": [
             "tests/Database/Laravel/stubs/MigrationCreatorFakeMigration.php"
-        ],
+        ],        
         "psr-4": {
             "Hypervel\\Tests\\": "tests/"
         },
@@ -247,7 +247,10 @@
         "symfony/yaml": "^7.3"
     },
     "config": {
-        "sort-packages": true
+        "sort-packages": true,
+        "audit": {
+            "ignore": ["PKSA-z3gr-8qht-p93v"]
+        }
     },
     "extra": {
         "hyperf": {
