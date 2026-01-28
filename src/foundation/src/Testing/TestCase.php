@@ -124,7 +124,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         if (! $this->app->bound(FakerGenerator::class)) {
             $this->app->bind(
                 FakerGenerator::class,
-                fn () => \Faker\Factory::create($this->app->make('config')->get('app.faker_locale', 'en_US'))
+                fn ($app) => \Faker\Factory::create($app->make('config')->get('app.faker_locale', 'en_US'))
             );
         }
     }
