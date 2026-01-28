@@ -930,7 +930,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param array<string, mixed> $extra
      */
-    public function increment(string $column, float|int $amount = 1, array $extra = []): int
+    public function increment(string $column, mixed $amount = 1, array $extra = []): int
     {
         return $this->incrementOrDecrement($column, $amount, $extra, 'increment');
     }
@@ -940,7 +940,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param array<string, mixed> $extra
      */
-    public function decrement(string $column, float|int $amount = 1, array $extra = []): int
+    public function decrement(string $column, mixed $amount = 1, array $extra = []): int
     {
         return $this->incrementOrDecrement($column, $amount, $extra, 'decrement');
     }
@@ -950,7 +950,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      *
      * @param array<string, mixed> $extra
      */
-    protected function incrementOrDecrement(string $column, float|int $amount, array $extra, string $method): int|false
+    protected function incrementOrDecrement(string $column, mixed $amount, array $extra, string $method): int|false
     {
         if (! $this->exists) {
             return $this->newQueryWithoutRelationships()->{$method}($column, $amount, $extra);

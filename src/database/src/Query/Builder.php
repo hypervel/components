@@ -3491,8 +3491,12 @@ class Builder implements BuilderContract
      *
      * @throws InvalidArgumentException
      */
-    public function increment(string $column, float|int $amount = 1, array $extra = []): int
+    public function increment(string $column, mixed $amount = 1, array $extra = []): int
     {
+        if (! is_numeric($amount)) {
+            throw new \InvalidArgumentException('Non-numeric value passed to increment method.');
+        }
+
         return $this->incrementEach([$column => $amount], $extra);
     }
 
@@ -3521,8 +3525,12 @@ class Builder implements BuilderContract
      *
      * @throws InvalidArgumentException
      */
-    public function decrement(string $column, float|int $amount = 1, array $extra = []): int
+    public function decrement(string $column, mixed $amount = 1, array $extra = []): int
     {
+        if (! is_numeric($amount)) {
+            throw new \InvalidArgumentException('Non-numeric value passed to decrement method.');
+        }
+
         return $this->decrementEach([$column => $amount], $extra);
     }
 

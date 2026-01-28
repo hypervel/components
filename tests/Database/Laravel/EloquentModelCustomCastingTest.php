@@ -1,21 +1,23 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel;
 
 use Brick\Math\BigNumber;
 use GMP;
-use Illuminate\Contracts\Database\Eloquent\Castable;
-use Illuminate\Contracts\Database\Eloquent\CastsAttributes;
-use Illuminate\Contracts\Database\Eloquent\ComparesCastableAttributes;
-use Illuminate\Contracts\Database\Eloquent\SerializesCastableAttributes;
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\MassAssignmentException;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Database\Schema\Blueprint;
+use Hypervel\Contracts\Database\Eloquent\Castable;
+use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Contracts\Database\Eloquent\ComparesCastableAttributes;
+use Hypervel\Contracts\Database\Eloquent\SerializesCastableAttributes;
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\MassAssignmentException;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Group;
-use Hypervel\Tests\TestCase;
 
 #[Group('integration')]
 class EloquentModelCustomCastingTest extends TestCase
@@ -327,14 +329,8 @@ class GMPCast implements CastsAttributes, SerializesCastableAttributes
 
     /**
      * Serialize the attribute when converting the model to an array.
-     *
-     * @param  \Illuminate\Database\Eloquent\Model  $model
-     * @param  string  $key
-     * @param  mixed  $value
-     * @param  array  $attributes
-     * @return mixed
      */
-    public function serialize($model, string $key, $value, array $attributes)
+    public function serialize(Model $model, string $key, mixed $value, array $attributes): mixed
     {
         return gmp_strval($value, 10);
     }
@@ -376,20 +372,11 @@ class NonNullableString implements CastsAttributes
  */
 class CustomCasts extends Eloquent
 {
-    /**
-     * @var string
-     */
-    protected $table = 'casting_table';
+    protected ?string $table = 'casting_table';
 
-    /**
-     * @var string[]
-     */
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    /**
-     * @var array
-     */
-    protected $casts = [
+    protected array $casts = [
         'address' => AddressCast::class,
         'amount' => GMPCast::class,
         'string_field' => NonNullableString::class,
@@ -459,26 +446,29 @@ class EuroCaster implements CastsAttributes
 
 class Member extends Model
 {
-    public $timestamps = false;
-    protected $casts = [
+    public bool $timestamps = false;
+
+    protected array $casts = [
         'amount' => Euro::class,
     ];
 }
 
 class Document extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $casts = [
+    protected array $casts = [
         'document' => StructuredDocumentCaster::class,
     ];
 }
 
 class Person extends Model
 {
-    protected $guarded = ['id'];
-    public $timestamps = false;
-    protected $casts = [
+    protected array $guarded = ['id'];
+
+    public bool $timestamps = false;
+
+    protected array $casts = [
         'address' => AsAddress::class,
     ];
 }
@@ -495,9 +485,9 @@ class StructuredDocumentCaster implements CastsAttributes, ComparesCastableAttri
         return json_encode($value);
     }
 
-    public function compare($model, $key, $value1, $value2)
+    public function compare(Model $model, string $key, mixed $firstValue, mixed $secondValue): bool
     {
-        return json_decode($value1) == json_decode($value2);
+        return json_decode($firstValue) == json_decode($secondValue);
     }
 }
 
