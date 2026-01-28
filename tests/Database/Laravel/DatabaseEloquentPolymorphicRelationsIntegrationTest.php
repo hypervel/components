@@ -1,21 +1,23 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Database\Eloquent\Relations\Relation;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentPolymorphicRelationsIntegrationTest extends TestCase
 {
     /**
      * Bootstrap Eloquent.
-     *
-     * @return void
      */
     protected function setUp(): void
     {
+        parent::setUp();
+
         $db = new DB;
 
         $db->addConnection([
@@ -29,7 +31,7 @@ class DatabaseEloquentPolymorphicRelationsIntegrationTest extends TestCase
         $this->createSchema();
     }
 
-    protected function createSchema()
+    protected function createSchema(): void
     {
         $this->schema('default')->create('posts', function ($table) {
             $table->increments('id');
@@ -55,8 +57,6 @@ class DatabaseEloquentPolymorphicRelationsIntegrationTest extends TestCase
 
     /**
      * Tear down the database schema.
-     *
-     * @return void
      */
     protected function tearDown(): void
     {
@@ -127,25 +127,17 @@ class DatabaseEloquentPolymorphicRelationsIntegrationTest extends TestCase
     }
 
     /**
-     * Helpers...
-     */
-
-    /**
      * Get a database connection instance.
-     *
-     * @return \Illuminate\Database\Connection
      */
-    protected function connection($connection = 'default')
+    protected function connection(string $connection = 'default'): \Hypervel\Database\Connection
     {
         return Eloquent::getConnectionResolver()->connection($connection);
     }
 
     /**
      * Get a schema builder instance.
-     *
-     * @return \Illuminate\Database\Schema\Builder
      */
-    protected function schema($connection = 'default')
+    protected function schema(string $connection = 'default'): \Hypervel\Database\Schema\Builder
     {
         return $this->connection($connection)->getSchemaBuilder();
     }
@@ -156,8 +148,9 @@ class DatabaseEloquentPolymorphicRelationsIntegrationTest extends TestCase
  */
 class EloquentManyToManyPolymorphicTestPost extends Eloquent
 {
-    protected $table = 'posts';
-    protected $guarded = [];
+    protected ?string $table = 'posts';
+
+    protected array $guarded = [];
 
     public function tags()
     {
@@ -167,8 +160,9 @@ class EloquentManyToManyPolymorphicTestPost extends Eloquent
 
 class EloquentManyToManyPolymorphicTestImage extends Eloquent
 {
-    protected $table = 'images';
-    protected $guarded = [];
+    protected ?string $table = 'images';
+
+    protected array $guarded = [];
 
     public function tags()
     {
@@ -178,8 +172,9 @@ class EloquentManyToManyPolymorphicTestImage extends Eloquent
 
 class EloquentManyToManyPolymorphicTestTag extends Eloquent
 {
-    protected $table = 'tags';
-    protected $guarded = [];
+    protected ?string $table = 'tags';
+
+    protected array $guarded = [];
 
     public function posts()
     {

@@ -1,23 +1,25 @@
 <?php
 
-namespace Illuminate\Tests\Database\EloquentRelationshipsTest;
+declare(strict_types=1);
 
-use Illuminate\Database\Connection;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasManyThrough;
-use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\Relations\HasOneThrough;
-use Illuminate\Database\Eloquent\Relations\MorphMany;
-use Illuminate\Database\Eloquent\Relations\MorphOne;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
-use Illuminate\Database\Eloquent\Relations\MorphToMany;
-use Illuminate\Database\Query\Builder as BaseBuilder;
-use Illuminate\Database\Query\Grammars\Grammar;
-use Illuminate\Database\Query\Processors\Processor;
+namespace Hypervel\Tests\Database\Laravel\EloquentRelationshipsTest;
+
+use Hypervel\Database\Connection;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Relations\HasManyThrough;
+use Hypervel\Database\Eloquent\Relations\HasOne;
+use Hypervel\Database\Eloquent\Relations\HasOneThrough;
+use Hypervel\Database\Eloquent\Relations\MorphMany;
+use Hypervel\Database\Eloquent\Relations\MorphOne;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Eloquent\Relations\MorphToMany;
+use Hypervel\Database\Query\Builder as BaseBuilder;
+use Hypervel\Database\Query\Grammars\Grammar;
+use Hypervel\Database\Query\Processors\Processor;
 use Mockery as m;
 use Hypervel\Tests\TestCase;
 
@@ -147,7 +149,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
                 return $this->through('car')->has('owner');
             }
 
-            public function getTable()
+            public function getTable(): string
             {
                 return 'stringy_mechanics';
             }
@@ -176,7 +178,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
                 return $this->through('environments')->has('deployments');
             }
 
-            public function getTable()
+            public function getTable(): string
             {
                 return 'stringy_projects';
             }
@@ -208,7 +210,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
                 return $this->throughCar()->hasOwner();
             }
 
-            public function getTable()
+            public function getTable(): string
             {
                 return 'higher_mechanics';
             }
@@ -237,7 +239,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
                 return $this->throughEnvironments()->hasDeployments();
             }
 
-            public function getTable()
+            public function getTable(): string
             {
                 return 'higher_projects';
             }
@@ -260,12 +262,30 @@ class DatabaseEloquentRelationshipsTest extends TestCase
     }
 }
 
-class FakeRelationship extends Model
+class MockedConnectionModel extends Model
+{
+    public function getConnection(): Connection
+    {
+        $mock = m::mock(Connection::class);
+        $mock->shouldReceive('getQueryGrammar')->andReturn($grammar = m::mock(Grammar::class));
+        $grammar->shouldReceive('getBitwiseOperators')->andReturn([]);
+        $grammar->shouldReceive('isExpression')->andReturn(false);
+        $mock->shouldReceive('getPostProcessor')->andReturn($processor = m::mock(Processor::class));
+        $mock->shouldReceive('getName')->andReturn('name');
+        $mock->shouldReceive('query')->andReturnUsing(function () use ($mock, $grammar, $processor) {
+            return new BaseBuilder($mock, $grammar, $processor);
+        });
+
+        return $mock;
+    }
+}
+
+class FakeRelationship extends MockedConnectionModel
 {
     //
 }
 
-class Post extends Model
+class Post extends MockedConnectionModel
 {
     public function attachment()
     {
@@ -320,57 +340,85 @@ class Post extends Model
 
 class CustomPost extends Post
 {
-    protected function newBelongsTo(Builder $query, Model $child, $foreignKey, $ownerKey, $relation)
+    protected function newBelongsTo(Builder $query, Model $child, string $foreignKey, string $ownerKey, string $relation): BelongsTo
     {
         return new CustomBelongsTo($query, $child, $foreignKey, $ownerKey, $relation);
     }
 
-    protected function newHasMany(Builder $query, Model $parent, $foreignKey, $localKey)
+    protected function newHasMany(Builder $query, Model $parent, string $foreignKey, string $localKey): HasMany
     {
         return new CustomHasMany($query, $parent, $foreignKey, $localKey);
     }
 
-    protected function newHasOne(Builder $query, Model $parent, $foreignKey, $localKey)
+    protected function newHasOne(Builder $query, Model $parent, string $foreignKey, string $localKey): HasOne
     {
         return new CustomHasOne($query, $parent, $foreignKey, $localKey);
     }
 
-    protected function newMorphOne(Builder $query, Model $parent, $type, $id, $localKey)
+    protected function newMorphOne(Builder $query, Model $parent, string $type, string $id, string $localKey): MorphOne
     {
         return new CustomMorphOne($query, $parent, $type, $id, $localKey);
     }
 
-    protected function newMorphMany(Builder $query, Model $parent, $type, $id, $localKey)
+    protected function newMorphMany(Builder $query, Model $parent, string $type, string $id, string $localKey): MorphMany
     {
         return new CustomMorphMany($query, $parent, $type, $id, $localKey);
     }
 
-    protected function newBelongsToMany(Builder $query, Model $parent, $table, $foreignPivotKey, $relatedPivotKey,
-        $parentKey, $relatedKey, $relationName = null
-    ) {
+    protected function newBelongsToMany(
+        Builder $query,
+        Model $parent,
+        string $table,
+        string $foreignPivotKey,
+        string $relatedPivotKey,
+        string $parentKey,
+        string $relatedKey,
+        ?string $relationName = null
+    ): BelongsToMany {
         return new CustomBelongsToMany($query, $parent, $table, $foreignPivotKey, $relatedPivotKey, $parentKey, $relatedKey, $relationName);
     }
 
-    protected function newHasManyThrough(Builder $query, Model $farParent, Model $throughParent, $firstKey,
-        $secondKey, $localKey, $secondLocalKey
-    ) {
+    protected function newHasManyThrough(
+        Builder $query,
+        Model $farParent,
+        Model $throughParent,
+        string $firstKey,
+        string $secondKey,
+        string $localKey,
+        string $secondLocalKey
+    ): HasManyThrough {
         return new CustomHasManyThrough($query, $farParent, $throughParent, $firstKey, $secondKey, $localKey, $secondLocalKey);
     }
 
-    protected function newHasOneThrough(Builder $query, Model $farParent, Model $throughParent, $firstKey,
-        $secondKey, $localKey, $secondLocalKey
-    ) {
+    protected function newHasOneThrough(
+        Builder $query,
+        Model $farParent,
+        Model $throughParent,
+        string $firstKey,
+        string $secondKey,
+        string $localKey,
+        string $secondLocalKey
+    ): HasOneThrough {
         return new CustomHasOneThrough($query, $farParent, $throughParent, $firstKey, $secondKey, $localKey, $secondLocalKey);
     }
 
-    protected function newMorphToMany(Builder $query, Model $parent, $name, $table, $foreignPivotKey,
-        $relatedPivotKey, $parentKey, $relatedKey, $relationName = null, $inverse = false)
-    {
+    protected function newMorphToMany(
+        Builder $query,
+        Model $parent,
+        string $name,
+        string $table,
+        string $foreignPivotKey,
+        string $relatedPivotKey,
+        string $parentKey,
+        string $relatedKey,
+        ?string $relationName = null,
+        bool $inverse = false
+    ): MorphToMany {
         return new CustomMorphToMany($query, $parent, $name, $table, $foreignPivotKey, $relatedPivotKey, $parentKey, $relatedKey,
             $relationName, $inverse);
     }
 
-    protected function newMorphTo(Builder $query, Model $parent, $foreignKey, $ownerKey, $type, $relation)
+    protected function newMorphTo(Builder $query, Model $parent, string $foreignKey, ?string $ownerKey, string $type, string $relation): MorphTo
     {
         return new CustomMorphTo($query, $parent, $foreignKey, $ownerKey, $type, $relation);
     }
@@ -424,23 +472,6 @@ class CustomMorphToMany extends MorphToMany
 class CustomMorphTo extends MorphTo
 {
     //
-}
-
-class MockedConnectionModel extends Model
-{
-    public function getConnection()
-    {
-        $mock = m::mock(Connection::class);
-        $mock->shouldReceive('getQueryGrammar')->andReturn($grammar = m::mock(Grammar::class));
-        $grammar->shouldReceive('getBitwiseOperators')->andReturn([]);
-        $mock->shouldReceive('getPostProcessor')->andReturn($processor = m::mock(Processor::class));
-        $mock->shouldReceive('getName')->andReturn('name');
-        $mock->shouldReceive('query')->andReturnUsing(function () use ($mock, $grammar, $processor) {
-            return new BaseBuilder($mock, $grammar, $processor);
-        });
-
-        return $mock;
-    }
 }
 
 class Car extends MockedConnectionModel
