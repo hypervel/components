@@ -91,6 +91,7 @@ class FoundationExceptionHandlerTest extends TestCase
         parent::tearDown();
 
         Context::destroy('__request.root.uri');
+        Context::destroy(ServerRequestInterface::class);
     }
 
     public function testHandlerReportsExceptionAsContext()
