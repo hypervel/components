@@ -27,6 +27,7 @@ use Hypervel\Pagination\AbstractPaginator as Paginator;
 use Hypervel\Pagination\Cursor;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
+use Hypervel\Support\Collection;
 use Hypervel\Tests\Database\Laravel\Fixtures\Enums\Bar;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
@@ -3183,7 +3184,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals($expected, $builder->toSql());
         $this->assertEquals(['foo', 1, 'bar'], $builder->getRawBindings()['join']);
 
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(\TypeError::class);
         $builder = $this->getBuilder();
         $builder->from('users')->joinSub(['foo'], 'sub', 'users.id', '=', 'sub.id');
     }
@@ -3201,7 +3202,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->from('users')->leftJoinSub($this->getBuilder()->from('contacts'), 'sub', 'users.id', '=', 'sub.id');
         $this->assertSame('select * from "users" left join (select * from "contacts") as "sub" on "users"."id" = "sub"."id"', $builder->toSql());
 
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(\TypeError::class);
         $builder = $this->getBuilder();
         $builder->from('users')->leftJoinSub(['foo'], 'sub', 'users.id', '=', 'sub.id');
     }
@@ -3212,7 +3213,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->from('users')->rightJoinSub($this->getBuilder()->from('contacts'), 'sub', 'users.id', '=', 'sub.id');
         $this->assertSame('select * from "users" right join (select * from "contacts") as "sub" on "users"."id" = "sub"."id"', $builder->toSql());
 
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(\TypeError::class);
         $builder = $this->getBuilder();
         $builder->from('users')->rightJoinSub(['foo'], 'sub', 'users.id', '=', 'sub.id');
     }
@@ -3258,7 +3259,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $this->assertEquals($expected, $builder->toSql());
         $this->assertEquals(['foo', 'bar'], $builder->getRawBindings()['join']);
 
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(\TypeError::class);
         $builder = $this->getMySqlBuilder();
         $builder->from('users')->joinLateral(['foo'], 'sub');
     }
@@ -3311,7 +3312,7 @@ class DatabaseQueryBuilderTest extends TestCase
         $builder->from('users')->leftJoinLateral($sub->from('contacts')->whereColumn('contracts.user_id', 'users.id'), 'sub');
         $this->assertSame('select * from `users` left join lateral (select * from `contacts` where `contracts`.`user_id` = `users`.`id`) as `sub` on true', $builder->toSql());
 
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(\TypeError::class);
         $builder = $this->getBuilder();
         $builder->from('users')->leftJoinLateral(['foo'], 'sub');
     }
@@ -3665,7 +3666,7 @@ class DatabaseQueryBuilderTest extends TestCase
 
     public function testInsertUsingInvalidSubquery()
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(\TypeError::class);
         $builder = $this->getBuilder();
         $builder->from('table1')->insertUsing(['foo'], ['bar']);
     }
@@ -3744,7 +3745,7 @@ class DatabaseQueryBuilderTest extends TestCase
 
     public function testMySqlInsertOrIgnoreUsingInvalidSubquery()
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(\TypeError::class);
         $builder = $this->getMySqlBuilder();
         $builder->from('table1')->insertOrIgnoreUsing(['foo'], ['bar']);
     }
@@ -3781,7 +3782,7 @@ class DatabaseQueryBuilderTest extends TestCase
 
     public function testPostgresInsertOrIgnoreUsingInvalidSubquery()
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(\TypeError::class);
         $builder = $this->getPostgresBuilder();
         $builder->from('table1')->insertOrIgnoreUsing(['foo'], ['bar']);
     }
@@ -3820,7 +3821,7 @@ class DatabaseQueryBuilderTest extends TestCase
 
     public function testSQLiteInsertOrIgnoreUsingInvalidSubquery()
     {
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(\TypeError::class);
         $builder = $this->getSQLiteBuilder();
         $builder->from('table1')->insertOrIgnoreUsing(['foo'], ['bar']);
     }
@@ -5014,7 +5015,7 @@ SQL;
         $this->assertEquals($expectedSql, $builder->toSql());
         $this->assertEquals($expectedBindings, $builder->getBindings());
 
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(\TypeError::class);
         $builder = $this->getPostgresBuilder();
         $builder->selectSub(['foo'], 'sub');
     }
@@ -5552,7 +5553,7 @@ SQL;
 
         $results = [];
 
-        $builder->shouldReceive('get')->once()->andReturn($results);
+        $builder->shouldReceive('get')->once()->andReturn(new Collection($results));
 
         CursorPaginator::currentCursorResolver(function () {
             return null;
@@ -6467,7 +6468,7 @@ SQL;
         $this->assertSame('select * from (select max(last_seen_at) as last_seen_at from "user_sessions" where "foo" = ?) as "sessions" where "bar" < ?', $builder->toSql());
         $this->assertEquals(['1', '10'], $builder->getBindings());
 
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(\TypeError::class);
         $builder = $this->getBuilder();
         $builder->fromSub(['invalid'], 'sessions')->where('bar', '<', '10');
     }
@@ -6490,7 +6491,7 @@ SQL;
         }, 'sessions');
         $this->assertSame('select * from (select max(last_seen_at) as last_seen_at from "user_sessions") as "sessions"', $builder->toSql());
 
-        $this->expectException(InvalidArgumentException::class);
+        $this->expectException(\TypeError::class);
         $builder = $this->getBuilder();
         $builder->fromSub(['invalid'], 'sessions');
     }

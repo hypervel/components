@@ -280,6 +280,16 @@ class Builder implements BuilderContract
     }
 
     /**
+     * Add an expression to the select clause.
+     */
+    public function selectExpression(ExpressionContract $expression, string $as): static
+    {
+        return $this->selectRaw(
+            '(' . $expression->getValue($this->grammar) . ') as ' . $this->grammar->wrap($as)
+        );
+    }
+
+    /**
      * Add a new "raw" select expression to the query.
      */
     public function selectRaw(string $expression, array $bindings = []): static
@@ -310,9 +320,11 @@ class Builder implements BuilderContract
     /**
      * Add a raw "from" clause to the query.
      */
-    public function fromRaw(string $expression, mixed $bindings = []): static
+    public function fromRaw(Expression|string $expression, mixed $bindings = []): static
     {
-        $this->from = new Expression($expression);
+        $this->from = $expression instanceof Expression
+            ? $expression
+            : new Expression($expression);
 
         $this->addBinding($bindings, 'from');
 
@@ -496,7 +508,7 @@ class Builder implements BuilderContract
     /**
      * Add a "join" clause to the query.
      */
-    public function join(ExpressionContract|string $table, Closure|ExpressionContract|string $first, ?string $operator = null, ExpressionContract|string|null $second = null, string $type = 'inner', bool $where = false): static
+    public function join(ExpressionContract|string $table, Closure|ExpressionContract|string $first, ?string $operator = null, mixed $second = null, string $type = 'inner', bool $where = false): static
     {
         $join = $this->newJoinClause($this, $type, $table);
 
@@ -540,7 +552,7 @@ class Builder implements BuilderContract
      *
      * @throws InvalidArgumentException
      */
-    public function joinSub(Closure|self|EloquentBuilder|string $query, string $as, Closure|ExpressionContract|string $first, ?string $operator = null, ExpressionContract|string|null $second = null, string $type = 'inner', bool $where = false): static
+    public function joinSub(Closure|self|EloquentBuilder|string $query, string $as, Closure|ExpressionContract|string $first, ?string $operator = null, mixed $second = null, string $type = 'inner', bool $where = false): static
     {
         [$query, $bindings] = $this->createSub($query);
 
@@ -1596,7 +1608,13 @@ class Builder implements BuilderContract
      */
     public function forNestedWhere(): self
     {
-        return $this->newQuery()->from($this->from);
+        $query = $this->newQuery();
+
+        if (! is_null($this->from)) {
+            $query->from($this->from);
+        }
+
+        return $query;
     }
 
     /**
@@ -2384,7 +2402,7 @@ class Builder implements BuilderContract
     /**
      * Add a raw "order by" clause to the query.
      */
-    public function orderByRaw(string $sql, array $bindings = []): static
+    public function orderByRaw(string $sql, mixed $bindings = []): static
     {
         $type = 'Raw';
 
@@ -2652,7 +2670,7 @@ class Builder implements BuilderContract
      *
      * @param array<ExpressionContract|string>|ExpressionContract|string $columns
      */
-    public function find(int|string $id, ExpressionContract|array|string $columns = ['*']): ?stdClass
+    public function find(int|string $id, ExpressionContract|array|string $columns = ['*']): object|array|null
     {
         return $this->where('id', '=', $id)->first($columns);
     }
@@ -3335,7 +3353,7 @@ class Builder implements BuilderContract
     /**
      * Insert a new record and get the value of the primary key.
      */
-    public function insertGetId(array $values, ?string $sequence = null): int
+    public function insertGetId(array $values, ?string $sequence = null): int|string
     {
         $this->applyBeforeQueryCallbacks();
 
@@ -3521,6 +3539,14 @@ class Builder implements BuilderContract
     public function incrementEach(array $columns, array $extra = []): int
     {
         foreach ($columns as $column => $amount) {
+            // @phpstan-ignore function.alreadyNarrowedType (runtime validation for user input)
+            if (! is_numeric($amount)) {
+                throw new InvalidArgumentException("Non-numeric value passed as increment amount for column: '{$column}'.");
+            // @phpstan-ignore function.alreadyNarrowedType (runtime validation for user input)
+            } elseif (! is_string($column)) {
+                throw new InvalidArgumentException('Non-associative array passed to incrementEach method.');
+            }
+
             $columns[$column] = $this->raw("{$this->grammar->wrap($column)} + {$amount}");
         }
 
@@ -3860,7 +3886,7 @@ class Builder implements BuilderContract
     {
         return tap($this->clone(), function ($clone) use ($properties) {
             foreach ($properties as $property) {
-                $clone->{$property} = null;
+                $clone->{$property} = is_array($clone->{$property}) ? [] : null;
             }
         });
     }
