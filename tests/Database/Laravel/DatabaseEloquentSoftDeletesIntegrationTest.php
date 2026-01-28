@@ -1,17 +1,19 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel;
 
 use BadMethodCallException;
 use Exception;
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
-use Illuminate\Database\Query\Builder;
-use Illuminate\Pagination\CursorPaginator;
-use Illuminate\Pagination\Paginator;
-use Illuminate\Support\Carbon;
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Eloquent\SoftDeletingScope;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Pagination\CursorPaginator;
+use Hypervel\Pagination\Paginator;
+use Hypervel\Support\Carbon;
 use Mockery as m;
 use Mockery\MockInterface;
 use Hypervel\Tests\TestCase;
@@ -225,9 +227,9 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
     {
         $user = new class() extends SoftDeletesTestUser
         {
-            public $exists = true;
+            public bool $exists = true;
 
-            public function newModelQuery()
+            public function newModelQuery(): \Hypervel\Database\Eloquent\Builder
             {
                 return m::spy(parent::newModelQuery(), function (MockInterface $mock) {
                     $mock->shouldReceive('forceDelete')->andThrow(new Exception());
@@ -1010,8 +1012,9 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
  */
 class TestUserWithoutSoftDelete extends Eloquent
 {
-    protected $table = 'users';
-    protected $guarded = [];
+    protected ?string $table = 'users';
+
+    protected array $guarded = [];
 
     public function posts()
     {
@@ -1026,8 +1029,9 @@ class SoftDeletesTestUser extends Eloquent
 {
     use SoftDeletes;
 
-    protected $table = 'users';
-    protected $guarded = [];
+    protected ?string $table = 'users';
+
+    protected array $guarded = [];
 
     public function self_referencing()
     {
@@ -1054,8 +1058,9 @@ class SoftDeletesTestUserWithTrashedPosts extends Eloquent
 {
     use SoftDeletes;
 
-    protected $table = 'users';
-    protected $guarded = [];
+    protected ?string $table = 'users';
+
+    protected array $guarded = [];
 
     public function posts()
     {
@@ -1070,8 +1075,9 @@ class SoftDeletesTestPost extends Eloquent
 {
     use SoftDeletes;
 
-    protected $table = 'posts';
-    protected $guarded = [];
+    protected ?string $table = 'posts';
+
+    protected array $guarded = [];
 
     public function comments()
     {
@@ -1084,8 +1090,9 @@ class SoftDeletesTestPost extends Eloquent
  */
 class TestCommentWithoutSoftDelete extends Eloquent
 {
-    protected $table = 'comments';
-    protected $guarded = [];
+    protected ?string $table = 'comments';
+
+    protected array $guarded = [];
 
     public function owner()
     {
@@ -1100,8 +1107,9 @@ class SoftDeletesTestComment extends Eloquent
 {
     use SoftDeletes;
 
-    protected $table = 'comments';
-    protected $guarded = [];
+    protected ?string $table = 'comments';
+
+    protected array $guarded = [];
 
     public function owner()
     {
@@ -1113,8 +1121,9 @@ class SoftDeletesTestCommentWithTrashed extends Eloquent
 {
     use SoftDeletes;
 
-    protected $table = 'comments';
-    protected $guarded = [];
+    protected ?string $table = 'comments';
+
+    protected array $guarded = [];
 
     public function owner()
     {
@@ -1129,8 +1138,9 @@ class SoftDeletesTestAddress extends Eloquent
 {
     use SoftDeletes;
 
-    protected $table = 'addresses';
-    protected $guarded = [];
+    protected ?string $table = 'addresses';
+
+    protected array $guarded = [];
 }
 
 /**
@@ -1140,8 +1150,9 @@ class SoftDeletesTestGroup extends Eloquent
 {
     use SoftDeletes;
 
-    protected $table = 'groups';
-    protected $guarded = [];
+    protected ?string $table = 'groups';
+
+    protected array $guarded = [];
 
     public function users()
     {
