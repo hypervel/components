@@ -131,3 +131,15 @@ parameters:
 
     # Generic type loss through Builder chain - firstOrFail() returns TModel but phpstan loses it
     - '#Cannot call method load\(\) on stdClass#'
+
+    # Conditionable::when() callback - PHPDoc requires 2 params but callbacks often only need 1
+    - identifier: argument.type
+      message: '#Parameter \#2 \$callback of method .*::when\(\) expects#'
+
+    # Conditionable trait - dynamic behavior with HigherOrderWhenProxy can't be fully typed
+    - identifier: return.type
+      path: src/conditionable/*
+    - identifier: arguments.count
+      path: src/conditionable/*
+    - identifier: nullCoalesce.expr
+      path: src/conditionable/*

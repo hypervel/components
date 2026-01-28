@@ -3521,7 +3521,7 @@ class Builder implements BuilderContract
     public function increment(string $column, mixed $amount = 1, array $extra = []): int
     {
         if (! is_numeric($amount)) {
-            throw new \InvalidArgumentException('Non-numeric value passed to increment method.');
+            throw new InvalidArgumentException('Non-numeric value passed to increment method.');
         }
 
         return $this->incrementEach([$column => $amount], $extra);
@@ -3542,8 +3542,9 @@ class Builder implements BuilderContract
             // @phpstan-ignore function.alreadyNarrowedType (runtime validation for user input)
             if (! is_numeric($amount)) {
                 throw new InvalidArgumentException("Non-numeric value passed as increment amount for column: '{$column}'.");
-            // @phpstan-ignore function.alreadyNarrowedType (runtime validation for user input)
-            } elseif (! is_string($column)) {
+            }
+            // @phpstan-ignore function.alreadyNarrowedType (runtime validation - user could pass indexed array)
+            if (! is_string($column)) {
                 throw new InvalidArgumentException('Non-associative array passed to incrementEach method.');
             }
 
@@ -3563,7 +3564,7 @@ class Builder implements BuilderContract
     public function decrement(string $column, mixed $amount = 1, array $extra = []): int
     {
         if (! is_numeric($amount)) {
-            throw new \InvalidArgumentException('Non-numeric value passed to decrement method.');
+            throw new InvalidArgumentException('Non-numeric value passed to decrement method.');
         }
 
         return $this->decrementEach([$column => $amount], $extra);
