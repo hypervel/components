@@ -33,8 +33,10 @@ class DbPool extends Pool
      * When using connection pooling with in-memory SQLite (:memory:), all pool
      * slots must share the same PDO instance. Otherwise, each pooled connection
      * would get its own empty in-memory database, causing "table not found" errors.
+     *
+     * This only applies to in-memory SQLite, not file-backed SQLite databases.
      */
-    protected ?PDO $sharedInMemoryPdo = null;
+    protected ?PDO $sharedInMemorySqlitePdo = null;
 
     public function __construct(
         ContainerInterface $container,
@@ -61,7 +63,7 @@ class DbPool extends Pool
         // For in-memory SQLite, pre-create a shared PDO so all pool slots
         // see the same database. This must happen after parent::__construct.
         if ($this->isInMemorySqlite()) {
-            $this->sharedInMemoryPdo = $this->createSharedPdo();
+            $this->sharedInMemorySqlitePdo = $this->createSharedInMemorySqlitePdo();
         }
     }
 
@@ -74,11 +76,11 @@ class DbPool extends Pool
     }
 
     /**
-     * Get the shared PDO for in-memory SQLite, or null for other drivers.
+     * Get the shared PDO for in-memory SQLite, or null for other drivers/configurations.
      */
-    public function getSharedPdo(): ?PDO
+    public function getSharedInMemorySqlitePdo(): ?PDO
     {
-        return $this->sharedInMemoryPdo;
+        return $this->sharedInMemorySqlitePdo;
     }
 
     /**
@@ -96,7 +98,7 @@ class DbPool extends Pool
      * extensions, and connection setup. We then extract the PDO and let
      * the Connection object be garbage collected.
      */
-    protected function createSharedPdo(): PDO
+    protected function createSharedInMemorySqlitePdo(): PDO
     {
         $factory = $this->container->get(ConnectionFactory::class);
         $connection = $factory->make($this->config, $this->name);
@@ -121,11 +123,11 @@ class DbPool extends Pool
     }
 
     /**
-     * Flush all connections and clear the shared in-memory PDO.
+     * Flush all connections and clear the shared in-memory SQLite PDO.
      */
     public function flushAll(): void
     {
         parent::flushAll();
-        $this->sharedInMemoryPdo = null;
+        $this->sharedInMemorySqlitePdo = null;
     }
 }

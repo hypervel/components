@@ -94,11 +94,11 @@ class PooledConnection implements PoolConnectionInterface
     {
         $this->close();
 
-        $sharedPdo = $this->pool->getSharedPdo();
+        $sharedPdo = $this->pool->getSharedInMemorySqlitePdo();
 
         if ($sharedPdo !== null) {
             // In-memory SQLite: use shared PDO so all pool slots see same data
-            $this->connection = $this->factory->makeFromPdo(
+            $this->connection = $this->factory->makeSqliteFromSharedPdo(
                 $sharedPdo,
                 $this->config,
                 $this->config['name'] ?? null
@@ -163,9 +163,9 @@ class PooledConnection implements PoolConnectionInterface
     public function close(): bool
     {
         if ($this->connection instanceof Connection) {
-            // Only disconnect if NOT using shared PDO.
+            // Only disconnect if NOT using shared in-memory SQLite PDO.
             // Shared PDO is owned by the pool, not individual connections.
-            if ($this->pool->getSharedPdo() === null) {
+            if ($this->pool->getSharedInMemorySqlitePdo() === null) {
                 $this->connection->disconnect();
             }
         }
@@ -235,6 +235,17 @@ class PooledConnection implements PoolConnectionInterface
      */
     protected function refresh(Connection $connection): void
     {
+        $sharedPdo = $this->pool->getSharedInMemorySqlitePdo();
+
+        if ($sharedPdo !== null) {
+            // For shared in-memory SQLite, rebind to the same PDO.
+            // Creating a fresh PDO would give us a new empty database.
+            $connection->setPdo($sharedPdo);
+            $connection->setReadPdo($sharedPdo);
+            return;
+        }
+
+        // Normal refresh path for other drivers
         $fresh = $this->factory->make($this->config, $this->config['name'] ?? null);
 
         $connection->disconnect();
