@@ -44,7 +44,7 @@ trait RunTestsInCoroutine
                 $exception = $e;
             } finally {
                 $this->invokeTearDownInCoroutine();
-                Context::destroyAll();
+                $this->cleanupTestContext();
                 Timer::clearAll();
                 CoordinatorManager::until(Constants::WORKER_EXIT)->resume();
             }
@@ -79,5 +79,23 @@ trait RunTestsInCoroutine
         if (method_exists($this, 'tearDownInCoroutine')) {
             call_user_func([$this, 'tearDownInCoroutine']);
         }
+    }
+
+    /**
+     * Clean up Context keys that cause test pollution.
+     *
+     * Only destroys specific keys known to leak between tests. Does not use
+     * Context::destroyAll() because that would destroy data needed by defer
+     * callbacks (e.g., Redis connections waiting to be released).
+     */
+    protected function cleanupTestContext(): void
+    {
+        // Transaction manager state
+        Context::destroy('__db.transactions.committed');
+        Context::destroy('__db.transactions.pending');
+        Context::destroy('__db.transactions.current');
+
+        // Model guard state
+        Context::destroy('__database.model.unguarded');
     }
 }
