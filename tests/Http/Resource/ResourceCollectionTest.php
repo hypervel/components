@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Http\Resource;
 
+use Hypervel\Http\Request;
 use Hypervel\Http\Resources\Json\ResourceCollection;
+use Mockery;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -13,6 +15,11 @@ use PHPUnit\Framework\TestCase;
  */
 class ResourceCollectionTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        Mockery::close();
+    }
+
     public function testResourceCollection()
     {
         $resourceA = new class {
@@ -28,14 +35,15 @@ class ResourceCollectionTest extends TestCase
             }
         };
 
-        $collection = (new ResourceCollection([$resourceA, $resourceB]));
+        $collection = new ResourceCollection([$resourceA, $resourceB]);
+        $request = Mockery::mock(Request::class);
 
         $this->assertSame(
             [
                 ['foo' => 'bar'],
                 ['hello' => 'world'],
             ],
-            $collection->toArray()
+            $collection->toArray($request)
         );
     }
 }

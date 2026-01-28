@@ -154,7 +154,7 @@ class Kernel extends HyperfServer implements MiddlewareContract
         ));
     }
 
-    protected function getResponseForException(Throwable $throwable): Response
+    protected function getResponseForException(Throwable $throwable): ResponseInterface
     {
         return $this->container->get(SafeCaller::class)->call(function () use ($throwable) {
             return $this->exceptionHandlerDispatcher->dispatch($throwable, $this->exceptionHandlers);
