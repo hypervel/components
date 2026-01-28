@@ -179,7 +179,7 @@ class DatabaseConcernsPreventsCircularRecursionTest extends TestCase
 
     public function testMockedModelCallToWithoutRecursionMethodWorks(): void
     {
-        $mock = m::mock(TestModel::class)->makePartial();
+        $mock = m::mock(CircularRecursionTestModel::class)->makePartial();
 
         // Model toArray method implementation
         $toArray = $mock->withoutRecursion(
@@ -266,6 +266,6 @@ class PreventsCircularRecursionWithRecursiveMethod
     }
 }
 
-class TestModel extends Model
+class CircularRecursionTestModel extends Model
 {
 }

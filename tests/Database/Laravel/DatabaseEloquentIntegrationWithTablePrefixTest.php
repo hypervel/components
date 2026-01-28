@@ -86,13 +86,13 @@ class DatabaseEloquentIntegrationWithTablePrefixTest extends TestCase
 
     public function testBasicModelHydration()
     {
-        EloquentTestUser::create(['email' => 'taylorotwell@gmail.com']);
-        EloquentTestUser::create(['email' => 'abigailotwell@gmail.com']);
+        TablePrefixEloquentTestUser::create(['email' => 'taylorotwell@gmail.com']);
+        TablePrefixEloquentTestUser::create(['email' => 'abigailotwell@gmail.com']);
 
-        $models = EloquentTestUser::fromQuery('SELECT * FROM prefix_users WHERE email = ?', ['abigailotwell@gmail.com']);
+        $models = TablePrefixEloquentTestUser::fromQuery('SELECT * FROM prefix_users WHERE email = ?', ['abigailotwell@gmail.com']);
 
         $this->assertInstanceOf(Collection::class, $models);
-        $this->assertInstanceOf(EloquentTestUser::class, $models[0]);
+        $this->assertInstanceOf(TablePrefixEloquentTestUser::class, $models[0]);
         $this->assertSame('abigailotwell@gmail.com', $models[0]->email);
         $this->assertCount(1, $models);
     }
@@ -169,7 +169,7 @@ class DatabaseEloquentIntegrationWithTablePrefixTest extends TestCase
     }
 }
 
-class EloquentTestUser extends Eloquent
+class TablePrefixEloquentTestUser extends Eloquent
 {
     protected ?string $table = 'users';
 

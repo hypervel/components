@@ -23,17 +23,17 @@ class DatabaseEloquentStrictMorphsTest extends TestCase
     {
         $this->expectException(ClassMorphViolationException::class);
 
-        $model = new TestModel;
+        $model = new StrictMorphsTestModel;
 
         $model->getMorphClass();
     }
 
     public function testStrictModeDoesNotThrowExceptionWhenMorphMap()
     {
-        $model = new TestModel;
+        $model = new StrictMorphsTestModel;
 
         Relation::morphMap([
-            'test' => TestModel::class,
+            'test' => StrictMorphsTestModel::class,
         ]);
 
         $morphName = $model->getMorphClass();
@@ -42,12 +42,12 @@ class DatabaseEloquentStrictMorphsTest extends TestCase
 
     public function testMapsCanBeEnforcedInOneMethod()
     {
-        $model = new TestModel;
+        $model = new StrictMorphsTestModel;
 
         Relation::requireMorphMap(false);
 
         Relation::enforceMorphMap([
-            'test' => TestModel::class,
+            'test' => StrictMorphsTestModel::class,
         ]);
 
         $morphName = $model->getMorphClass();
@@ -79,7 +79,7 @@ class DatabaseEloquentStrictMorphsTest extends TestCase
     }
 }
 
-class TestModel extends Model
+class StrictMorphsTestModel extends Model
 {
 }
 

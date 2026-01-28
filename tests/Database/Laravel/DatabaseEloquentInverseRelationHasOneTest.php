@@ -65,7 +65,7 @@ class DatabaseEloquentInverseRelationHasOneTest extends TestCase
 
     public function testHasOneInverseRelationIsProperlySetToParentWhenLazyLoaded()
     {
-        HasOneInverseChildModel::factory(5)->create();
+        HasOneRelationInverseChildModel::factory(5)->create();
         $models = HasOneInverseParentModel::all();
 
         foreach ($models as $parent) {
@@ -78,7 +78,7 @@ class DatabaseEloquentInverseRelationHasOneTest extends TestCase
 
     public function testHasOneInverseRelationIsProperlySetToParentWhenEagerLoaded()
     {
-        HasOneInverseChildModel::factory(5)->create();
+        HasOneRelationInverseChildModel::factory(5)->create();
 
         $models = HasOneInverseParentModel::with('child')->get();
 
@@ -133,7 +133,7 @@ class DatabaseEloquentInverseRelationHasOneTest extends TestCase
     public function testHasOneInverseRelationIsProperlySetToParentWhenSaving()
     {
         $parent = HasOneInverseParentModel::create();
-        $child = HasOneInverseChildModel::make();
+        $child = HasOneRelationInverseChildModel::make();
 
         $this->assertFalse($child->relationLoaded('parent'));
         $parent->child()->save($child);
@@ -145,7 +145,7 @@ class DatabaseEloquentInverseRelationHasOneTest extends TestCase
     public function testHasOneInverseRelationIsProperlySetToParentWhenSavingQuietly()
     {
         $parent = HasOneInverseParentModel::create();
-        $child = HasOneInverseChildModel::make();
+        $child = HasOneRelationInverseChildModel::make();
 
         $this->assertFalse($child->relationLoaded('parent'));
         $parent->child()->saveQuietly($child);
@@ -157,7 +157,7 @@ class DatabaseEloquentInverseRelationHasOneTest extends TestCase
     public function testHasOneInverseRelationIsProperlySetToParentWhenUpdating()
     {
         $parent = HasOneInverseParentModel::create();
-        $child = HasOneInverseChildModel::factory()->create();
+        $child = HasOneRelationInverseChildModel::factory()->create();
 
         $this->assertTrue($parent->isNot($child->parent));
 
@@ -207,7 +207,7 @@ class HasOneInverseParentModel extends Model
 
     public function child(): HasOne
     {
-        return $this->hasOne(HasOneInverseChildModel::class, 'parent_id')->inverse('parent');
+        return $this->hasOne(HasOneRelationInverseChildModel::class, 'parent_id')->inverse('parent');
     }
 }
 
@@ -221,7 +221,7 @@ class HasOneInverseParentModelFactory extends Factory
     }
 }
 
-class HasOneInverseChildModel extends Model
+class HasOneRelationInverseChildModel extends Model
 {
     use HasFactory;
 
@@ -229,9 +229,9 @@ class HasOneInverseChildModel extends Model
 
     protected array $fillable = ['id', 'parent_id'];
 
-    protected static function newFactory(): HasOneInverseChildModelFactory
+    protected static function newFactory(): HasOneRelationInverseChildModelFactory
     {
-        return new HasOneInverseChildModelFactory();
+        return new HasOneRelationInverseChildModelFactory();
     }
 
     public function parent(): BelongsTo
@@ -240,9 +240,9 @@ class HasOneInverseChildModel extends Model
     }
 }
 
-class HasOneInverseChildModelFactory extends Factory
+class HasOneRelationInverseChildModelFactory extends Factory
 {
-    protected ?string $model = HasOneInverseChildModel::class;
+    protected ?string $model = HasOneRelationInverseChildModel::class;
 
     public function definition(): array
     {
