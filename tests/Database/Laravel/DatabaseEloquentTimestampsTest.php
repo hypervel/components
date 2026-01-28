@@ -1,10 +1,12 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Support\Carbon;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 use RuntimeException;
 
@@ -309,29 +311,29 @@ class DatabaseEloquentTimestampsTest extends TestCase
  */
 class UserWithCreatedAndUpdated extends Eloquent
 {
-    protected $table = 'users';
+    protected ?string $table = 'users';
 
-    protected $guarded = [];
+    protected array $guarded = [];
 }
 
 class UserWithCreated extends Eloquent
 {
     public const UPDATED_AT = null;
 
-    protected $table = 'users_created_at';
+    protected ?string $table = 'users_created_at';
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected $dateFormat = 'U';
+    protected ?string $dateFormat = 'U';
 }
 
 class UserWithUpdated extends Eloquent
 {
     public const CREATED_AT = null;
 
-    protected $table = 'users_updated_at';
+    protected ?string $table = 'users_updated_at';
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected $dateFormat = 'U';
+    protected ?string $dateFormat = 'U';
 }
