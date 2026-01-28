@@ -1,16 +1,18 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Tests\Database\Fixtures\Models\EloquentResourceCollectionTestModel;
-use Illuminate\Tests\Database\Fixtures\Models\EloquentResourceTestResourceModelWithUseResourceAttribute;
-use Illuminate\Tests\Database\Fixtures\Models\EloquentResourceTestResourceModelWithUseResourceCollectionAttribute;
-use Illuminate\Tests\Database\Fixtures\Resources\EloquentResourceCollectionTestResource;
-use Illuminate\Tests\Database\Fixtures\Resources\EloquentResourceTestJsonResource;
-use Illuminate\Tests\Database\Fixtures\Resources\EloquentResourceTestJsonResourceCollection;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Http\Resources\Json\AnonymousResourceCollection;
+use Hypervel\Http\Resources\Json\JsonResource;
+use Hypervel\Tests\Database\Laravel\Fixtures\Models\EloquentResourceCollectionTestModel;
+use Hypervel\Tests\Database\Laravel\Fixtures\Models\EloquentResourceTestResourceModelWithUseResourceAttribute;
+use Hypervel\Tests\Database\Laravel\Fixtures\Models\EloquentResourceTestResourceModelWithUseResourceCollectionAttribute;
+use Hypervel\Tests\Database\Laravel\Fixtures\Resources\EloquentResourceCollectionTestResource;
+use Hypervel\Tests\Database\Laravel\Fixtures\Resources\EloquentResourceTestJsonResource;
+use Hypervel\Tests\Database\Laravel\Fixtures\Resources\EloquentResourceTestJsonResourceCollection;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentResourceCollectionTest extends TestCase
@@ -29,7 +31,7 @@ class DatabaseEloquentResourceCollectionTest extends TestCase
     public function testItThrowsExceptionWhenResourceCannotBeFound()
     {
         $this->expectException(\LogicException::class);
-        $this->expectExceptionMessage('Failed to find resource class for model [Illuminate\Tests\Database\Fixtures\Models\EloquentResourceCollectionTestModel].');
+        $this->expectExceptionMessage('Failed to find resource class for model [Hypervel\Tests\Database\Laravel\Fixtures\Models\EloquentResourceCollectionTestModel].');
 
         $collection = new Collection([
             new EloquentResourceCollectionTestModel(),
@@ -43,7 +45,7 @@ class DatabaseEloquentResourceCollectionTest extends TestCase
             new EloquentResourceCollectionTestModel(),
         ]);
 
-        class_alias(EloquentResourceCollectionTestResource::class, 'Illuminate\Tests\Database\Fixtures\Http\Resources\EloquentResourceCollectionTestModelResource');
+        class_alias(EloquentResourceCollectionTestResource::class, 'Hypervel\Tests\Database\Laravel\Fixtures\Http\Resources\EloquentResourceCollectionTestModelResource');
 
         $resource = $collection->toResourceCollection();
 
