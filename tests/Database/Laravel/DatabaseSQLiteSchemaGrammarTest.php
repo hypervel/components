@@ -1,18 +1,20 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager;
-use Illuminate\Database\Connection;
-use Illuminate\Database\Query\Expression;
-use Illuminate\Database\Query\Processors\SQLiteProcessor;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Database\Schema\ForeignIdColumnDefinition;
-use Illuminate\Database\Schema\Grammars\SQLiteGrammar;
-use Illuminate\Database\Schema\SQLiteBuilder;
-use Illuminate\Tests\Database\Fixtures\Enums\Foo;
-use Mockery as m;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager;
+use Hypervel\Database\Connection;
+use Hypervel\Database\Query\Expression;
+use Hypervel\Database\Query\Processors\SQLiteProcessor;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Database\Schema\ForeignIdColumnDefinition;
+use Hypervel\Database\Schema\Grammars\SQLiteGrammar;
+use Hypervel\Database\Schema\SQLiteBuilder;
+use Hypervel\Tests\Database\Laravel\Fixtures\Enums\Foo;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 use RuntimeException;
 
 class DatabaseSQLiteSchemaGrammarTest extends TestCase
