@@ -14,7 +14,7 @@ use function PHPStan\Testing\assertType;
 function test(Builder $query, EloquentBuilder $userQuery): void
 {
     assertType('stdClass|null', $query->first());
-    assertType('stdClass|null', $query->find(1));
+    assertType('array|object|null', $query->find(1));
     assertType('42|stdClass', $query->findOr(1, fn () => 42));
     assertType('42|stdClass', $query->findOr(1, callback: fn () => 42));
     assertType('Hypervel\Database\Query\Builder', $query->selectSub($userQuery, 'alias'));
