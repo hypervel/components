@@ -11,12 +11,7 @@ class EloquentModelUsingUlid extends Model
 {
     use HasUlids;
 
-    /**
-     * The table associated with the model.
-     *
-     * @var string
-     */
-    protected $table = 'model';
+    protected ?string $table = 'model';
 
     /**
      * Get the default foreign key name for the model.

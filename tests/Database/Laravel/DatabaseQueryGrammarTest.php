@@ -1,13 +1,15 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Connection;
-use Illuminate\Database\Query\Builder;
-use Illuminate\Database\Query\Expression;
-use Illuminate\Database\Query\Grammars\Grammar;
-use Mockery as m;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Connection;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Database\Query\Expression;
+use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 use ReflectionClass;
 
 class DatabaseQueryGrammarTest extends TestCase

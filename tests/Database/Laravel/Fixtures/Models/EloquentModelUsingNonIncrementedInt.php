@@ -8,16 +8,11 @@ use Hypervel\Database\Eloquent\Model;
 
 class EloquentModelUsingNonIncrementedInt extends Model
 {
-    protected $keyType = 'int';
+    protected string $keyType = 'int';
 
-    public $incrementing = false;
+    public bool $incrementing = false;
 
-    /**
-     * The table associated with the model.
-     *
-     * @var string
-     */
-    protected $table = 'model';
+    protected ?string $table = 'model';
 
     /**
      * Get the default foreign key name for the model.

@@ -4,9 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Database\Laravel\Fixtures\Models;
 
-use Hypervel\Auth\Authenticatable as FoundationUser;
+use Hypervel\Auth\Authenticatable;
+use Hypervel\Database\Eloquent\Model;
 
-class User extends FoundationUser
+class User extends Model
 {
-    protected $primaryKey = 'internal_id';
+    use Authenticatable;
+
+    protected string $primaryKey = 'internal_id';
 }

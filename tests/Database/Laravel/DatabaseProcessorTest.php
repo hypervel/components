@@ -1,13 +1,15 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Connection;
-use Illuminate\Database\Query\Builder;
-use Illuminate\Database\Query\Processors\Processor;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Connection;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Database\Query\Processors\Processor;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 use PDO;
-use Hypervel\Tests\TestCase;
 
 class DatabaseProcessorTest extends TestCase
 {

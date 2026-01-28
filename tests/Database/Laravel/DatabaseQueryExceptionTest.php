@@ -1,20 +1,22 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Connection;
-use Illuminate\Database\Query\Grammars\Grammar;
-use Illuminate\Database\QueryException;
-use Illuminate\Support\Facades\DB;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Connection;
+use Hypervel\Database\Query\Grammars\Grammar;
+use Hypervel\Database\QueryException;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PDOException;
-use Hypervel\Tests\TestCase;
 
 class DatabaseQueryExceptionTest extends TestCase
 {
     public function testIfItEmbedsBindingsIntoSql()
     {
-        $connection = $this->getConnection();
+        $connection = $this->getMockConnection();
 
         $sql = 'SELECT * FROM huehue WHERE a = ? and hue = ?';
         $bindings = [1, 'br'];
@@ -32,7 +34,7 @@ class DatabaseQueryExceptionTest extends TestCase
 
     public function testIfItReturnsSameSqlWhenThereAreNoBindings()
     {
-        $connection = $this->getConnection();
+        $connection = $this->getMockConnection();
 
         $sql = "SELECT * FROM huehue WHERE a = 1 and hue = 'br'";
         $bindings = [];
@@ -149,7 +151,7 @@ class DatabaseQueryExceptionTest extends TestCase
         $this->assertSame([], $exception->getConnectionDetails());
     }
 
-    protected function getConnection()
+    protected function getMockConnection()
     {
         $connection = m::mock(Connection::class);
 

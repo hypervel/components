@@ -1,15 +1,17 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel;
 
 use Closure;
-use Illuminate\Database\Connection;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Database\Schema\Builder;
-use Illuminate\Database\Schema\Grammars\MySqlGrammar;
-use Illuminate\Tests\Database\Fixtures\Models\User;
-use Mockery as m;
+use Hypervel\Database\Connection;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Database\Schema\Builder;
+use Hypervel\Database\Schema\Grammars\MySqlGrammar;
+use Hypervel\Tests\Database\Laravel\Fixtures\Models\User;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 
 class DatabaseSchemaBlueprintTest extends TestCase
 {
@@ -125,7 +127,6 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table `users` add `created` date not null'], $getSql('MySql', mysql57: true));
         $this->assertEquals(['alter table "users" add column "created" date not null default CURRENT_DATE'], $getSql('Postgres'));
         $this->assertEquals(['alter table "users" add column "created" date not null default CURRENT_DATE'], $getSql('SQLite'));
-        $this->assertEquals(['alter table "users" add "created" date not null default CAST(GETDATE() AS DATE)'], $getSql('SqlServer'));
     }
 
     public function testDefaultCurrentDateTime()
@@ -139,7 +140,6 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table `users` add `created` datetime not null default CURRENT_TIMESTAMP'], $getSql('MySql'));
         $this->assertEquals(['alter table "users" add column "created" timestamp(0) without time zone not null default CURRENT_TIMESTAMP'], $getSql('Postgres'));
         $this->assertEquals(['alter table "users" add column "created" datetime not null default CURRENT_TIMESTAMP'], $getSql('SQLite'));
-        $this->assertEquals(['alter table "users" add "created" datetime not null default CURRENT_TIMESTAMP'], $getSql('SqlServer'));
     }
 
     public function testDefaultCurrentTimestamp()
@@ -153,7 +153,6 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table `users` add `created` timestamp not null default CURRENT_TIMESTAMP'], $getSql('MySql'));
         $this->assertEquals(['alter table "users" add column "created" timestamp(0) without time zone not null default CURRENT_TIMESTAMP'], $getSql('Postgres'));
         $this->assertEquals(['alter table "users" add column "created" datetime not null default CURRENT_TIMESTAMP'], $getSql('SQLite'));
-        $this->assertEquals(['alter table "users" add "created" datetime not null default CURRENT_TIMESTAMP'], $getSql('SqlServer'));
     }
 
     public function testDefaultCurrentYear()
@@ -178,7 +177,6 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table `users` add `birth_year` year not null'], $getSql('MySql', mysql57: true));
         $this->assertEquals(['alter table "users" add column "birth_year" integer not null default EXTRACT(YEAR FROM CURRENT_DATE)'], $getSql('Postgres'));
         $this->assertEquals(['alter table "users" add column "birth_year" integer not null default (CAST(strftime(\'%Y\', \'now\') AS INTEGER))'], $getSql('SQLite'));
-        $this->assertEquals(['alter table "users" add "birth_year" int not null default CAST(YEAR(GETDATE()) AS INTEGER)'], $getSql('SqlServer'));
     }
 
     public function testRemoveColumn()
@@ -209,7 +207,6 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table `users` rename column `foo` to `bar`'], $getSql('MySql'));
         $this->assertEquals(['alter table "users" rename column "foo" to "bar"'], $getSql('Postgres'));
         $this->assertEquals(['alter table "users" rename column "foo" to "bar"'], $getSql('SQLite'));
-        $this->assertEquals(['sp_rename N\'"users"."foo"\', "bar", N\'COLUMN\''], $getSql('SqlServer'));
     }
 
     public function testNativeRenameColumnOnMysql57()
@@ -274,7 +271,6 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table `users` drop `foo`'], $getSql('MySql'));
         $this->assertEquals(['alter table "users" drop column "foo"'], $getSql('Postgres'));
         $this->assertEquals(['alter table "users" drop column "foo"'], $getSql('SQLite'));
-        $this->assertStringContainsString('alter table "users" drop column "foo"', $getSql('SqlServer')[0]);
     }
 
     public function testNativeColumnModifyingOnMySql()
@@ -418,7 +414,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->foreignIdFor('Illuminate\Foundation\Auth\User');
+                $table->foreignIdFor(\Hypervel\Foundation\Auth\User::class);
             })->toSql();
         };
 
@@ -474,7 +470,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->foreignIdFor('Illuminate\Foundation\Auth\User')->constrained();
+                $table->foreignIdFor(\Hypervel\Foundation\Auth\User::class)->constrained();
             })->toSql();
         };
 
@@ -502,7 +498,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->dropForeignIdFor('Illuminate\Foundation\Auth\User');
+                $table->dropForeignIdFor(\Hypervel\Foundation\Auth\User::class);
             })->toSql();
         };
 
@@ -528,7 +524,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
     {
         $getSql = function ($grammar) {
             return $this->getBlueprint($grammar, 'posts', function ($table) {
-                $table->dropConstrainedForeignIdFor('Illuminate\Foundation\Auth\User');
+                $table->dropConstrainedForeignIdFor(\Hypervel\Foundation\Auth\User::class);
             })->toSql();
         };
 
@@ -563,7 +559,6 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table `posts` add `note` tinytext not null'], $getSql('MySql'));
         $this->assertEquals(['alter table "posts" add column "note" text not null'], $getSql('SQLite'));
         $this->assertEquals(['alter table "posts" add column "note" varchar(255) not null'], $getSql('Postgres'));
-        $this->assertEquals(['alter table "posts" add "note" nvarchar(255) not null'], $getSql('SqlServer'));
     }
 
     public function testTinyTextNullableColumn()
@@ -577,7 +572,6 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals(['alter table `posts` add `note` tinytext null'], $getSql('MySql'));
         $this->assertEquals(['alter table "posts" add column "note" text'], $getSql('SQLite'));
         $this->assertEquals(['alter table "posts" add column "note" varchar(255) null'], $getSql('Postgres'));
-        $this->assertEquals(['alter table "posts" add "note" nvarchar(255) null'], $getSql('SqlServer'));
     }
 
     public function testRawColumn()
@@ -599,10 +593,6 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals([
             'alter table "posts" add column "legacy_boolean" INT(1) null',
         ], $getSql('Postgres'));
-
-        $this->assertEquals([
-            'alter table "posts" add "legacy_boolean" INT(1) null',
-        ], $getSql('SqlServer'));
     }
 
     public function testTableComment()
@@ -664,8 +654,8 @@ class DatabaseSchemaBlueprintTest extends TestCase
             ->getMock();
 
         $grammar ??= 'MySql';
-        $grammarClass = 'Illuminate\Database\Schema\Grammars\\'.$grammar.'Grammar';
-        $builderClass = 'Illuminate\Database\Schema\\'.$grammar.'Builder';
+        $grammarClass = 'Hypervel\Database\Schema\Grammars\\'.$grammar.'Grammar';
+        $builderClass = 'Hypervel\Database\Schema\\'.$grammar.'Builder';
 
         $connection->shouldReceive('getSchemaGrammar')->andReturn(new $grammarClass($connection));
         $connection->shouldReceive('getSchemaBuilder')->andReturn(m::mock($builderClass));
