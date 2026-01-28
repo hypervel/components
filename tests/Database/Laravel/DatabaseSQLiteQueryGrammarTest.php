@@ -1,11 +1,13 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Connection;
-use Illuminate\Database\Query\Grammars\SQLiteGrammar;
-use Mockery as m;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Connection;
+use Hypervel\Database\Query\Grammars\SQLiteGrammar;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 
 class DatabaseSQLiteQueryGrammarTest extends TestCase
 {

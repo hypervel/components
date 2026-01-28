@@ -1,15 +1,17 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Query\Processors\SQLiteProcessor;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Query\Processors\SQLiteProcessor;
 use Hypervel\Tests\TestCase;
 
 class DatabaseSQLiteProcessorTest extends TestCase
 {
     public function testProcessColumns()
     {
-        $processor = new SQLiteProcessor;
+        $processor = new SQLiteProcessor();
 
         $listing = [
             ['name' => 'id', 'type' => 'INTEGER', 'nullable' => '0', 'default' => '', 'primary' => '1', 'extra' => 1],
