@@ -1,15 +1,22 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel;
 
 use Exception;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Casts\Attribute;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Support\Carbon;
+use Hypervel\Database\Connection;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Casts\Attribute;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasOne;
+use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Database\Query\Builder as QueryBuilder;
+use Hypervel\Database\Query\Grammars\Grammar;
+use Hypervel\Database\Query\Processors\Processor;
+use Hypervel\Support\Carbon;
 use Mockery as m;
 use Hypervel\Tests\TestCase;
 
@@ -48,7 +55,7 @@ class DatabaseEloquentRelationTest extends TestCase
         $related->shouldReceive('getUpdatedAtColumn')->andReturn('updated_at');
         $now = Carbon::now();
         $related->shouldReceive('freshTimestampString')->andReturn($now);
-        $builder->shouldReceive('update')->once()->with(['updated_at' => $now]);
+        $builder->shouldReceive('update')->once()->with(['updated_at' => $now])->andReturn(1);
 
         $relation->touch();
     }
@@ -121,7 +128,7 @@ class DatabaseEloquentRelationTest extends TestCase
             $anotherRelation = new HasOne($anotherBuilder, $anotherParent, 'foreign_key', 'id');
             $now = Carbon::now();
             $anotherRelated->shouldReceive('freshTimestampString')->andReturn($now);
-            $anotherBuilder->shouldReceive('update')->once()->with(['updated_at' => $now]);
+            $anotherBuilder->shouldReceive('update')->once()->with(['updated_at' => $now])->andReturn(1);
 
             $anotherRelation->touch();
         });
@@ -266,6 +273,15 @@ class DatabaseEloquentRelationTest extends TestCase
         });
 
         $model = new EloquentRelationResetModelStub;
+        $model->setConnectionResolver($resolver = m::mock(ConnectionResolverInterface::class));
+        $resolver->shouldReceive('connection')->andReturn($connection = m::mock(Connection::class));
+        $connection->shouldReceive('getQueryGrammar')->andReturn($grammar = m::mock(Grammar::class));
+        $grammar->shouldReceive('getBitwiseOperators')->andReturn([]);
+        $connection->shouldReceive('getPostProcessor')->andReturn($processor = m::mock(Processor::class));
+        $connection->shouldReceive('query')->andReturnUsing(function () use ($connection, $grammar, $processor) {
+            return new QueryBuilder($connection, $grammar, $processor);
+        });
+
         $relation = new EloquentRelationStub($model->newQuery(), $model);
 
         $result = $relation->foo();
@@ -283,7 +299,7 @@ class DatabaseEloquentRelationTest extends TestCase
 
 class EloquentRelationResetModelStub extends Model
 {
-    protected $table = 'reset';
+    protected ?string $table = 'reset';
 
     // Override method call which would normally go through __call()
 
@@ -295,36 +311,37 @@ class EloquentRelationResetModelStub extends Model
 
 class EloquentRelationStub extends Relation
 {
-    public function addConstraints()
+    public function addConstraints(): void
     {
         //
     }
 
-    public function addEagerConstraints(array $models)
+    public function addEagerConstraints(array $models): void
     {
         //
     }
 
-    public function initRelation(array $models, $relation)
+    public function initRelation(array $models, string $relation): array
     {
-        //
+        return [];
     }
 
-    public function match(array $models, Collection $results, $relation)
+    public function match(array $models, Collection $results, string $relation): array
     {
-        //
+        return [];
     }
 
-    public function getResults()
+    public function getResults(): mixed
     {
-        //
+        return null;
     }
 }
 
 class EloquentNoTouchingModelStub extends Model
 {
-    protected $table = 'table';
-    protected $attributes = [
+    protected ?string $table = 'table';
+
+    protected array $attributes = [
         'id' => 1,
     ];
 }
@@ -336,15 +353,16 @@ class EloquentNoTouchingChildModelStub extends EloquentNoTouchingModelStub
 
 class EloquentNoTouchingAnotherModelStub extends Model
 {
-    protected $table = 'another_table';
-    protected $attributes = [
+    protected ?string $table = 'another_table';
+
+    protected array $attributes = [
         'id' => 2,
     ];
 }
 
 class EloquentRelationAndAttributeModelStub extends Model
 {
-    protected $table = 'one_more_table';
+    protected ?string $table = 'one_more_table';
 
     public function field(): Attribute
     {
