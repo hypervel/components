@@ -1,6 +1,8 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel\Todo;
 
 use Closure;
 use Illuminate\Contracts\Events\Dispatcher as DispatcherContract;
@@ -21,6 +23,9 @@ class PruneCommandTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // TODO: Port once illuminate/console package is ported
+        $this->markTestSkipped('Requires illuminate/console package to be ported first.');
 
         Application::setInstance($container = new Application(__DIR__.'/Pruning'));
 

@@ -1,6 +1,8 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel\Todo;
 
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Database\Console\Migrations\MigrateCommand;
@@ -17,6 +19,14 @@ use Symfony\Component\Console\Output\NullOutput;
 
 class DatabaseMigrationRefreshCommandTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // TODO: Port once illuminate/console package is ported
+        $this->markTestSkipped('Requires illuminate/console package to be ported first.');
+    }
+
     protected function tearDown(): void
     {
         RefreshCommand::prohibit(false);
@@ -118,17 +128,18 @@ class InputMatcher extends m\Matcher\MatcherAbstract
     }
 }
 
-class ApplicationDatabaseRefreshStub extends Application
-{
-    public function __construct(array $data = [])
-    {
-        foreach ($data as $abstract => $instance) {
-            $this->instance($abstract, $instance);
-        }
-    }
-
-    public function environment(...$environments)
-    {
-        return 'development';
-    }
-}
+// TODO: Uncomment once illuminate/console package is ported
+// class ApplicationDatabaseRefreshStub extends Application
+// {
+//     public function __construct(array $data = [])
+//     {
+//         foreach ($data as $abstract => $instance) {
+//             $this->instance($abstract, $instance);
+//         }
+//     }
+//
+//     public function environment(...$environments)
+//     {
+//         return 'development';
+//     }
+// }

@@ -1,6 +1,8 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel\Todo;
 
 use Illuminate\Console\CommandMutex;
 use Illuminate\Contracts\Events\Dispatcher;
@@ -16,6 +18,14 @@ use Symfony\Component\Console\Output\NullOutput;
 
 class DatabaseMigrationMigrateCommandTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // TODO: Port once illuminate/console package is ported
+        $this->markTestSkipped('Requires illuminate/console package to be ported first.');
+    }
+
     public function testBasicMigrationsCallMigratorWithProperArguments()
     {
         $command = new MigrateCommand($migrator = m::mock(Migrator::class), $dispatcher = m::mock(Dispatcher::class));
@@ -141,22 +151,23 @@ class DatabaseMigrationMigrateCommandTest extends TestCase
     }
 }
 
-class ApplicationDatabaseMigrationStub extends Application
-{
-    public function __construct(array $data = [])
-    {
-        $mutex = m::mock(CommandMutex::class);
-        $mutex->shouldReceive('create')->andReturn(true);
-        $mutex->shouldReceive('release')->andReturn(true);
-        $this->instance(CommandMutex::class, $mutex);
-
-        foreach ($data as $abstract => $instance) {
-            $this->instance($abstract, $instance);
-        }
-    }
-
-    public function environment(...$environments)
-    {
-        return 'development';
-    }
-}
+// TODO: Uncomment once illuminate/console package is ported
+// class ApplicationDatabaseMigrationStub extends Application
+// {
+//     public function __construct(array $data = [])
+//     {
+//         $mutex = m::mock(CommandMutex::class);
+//         $mutex->shouldReceive('create')->andReturn(true);
+//         $mutex->shouldReceive('release')->andReturn(true);
+//         $this->instance(CommandMutex::class, $mutex);
+//
+//         foreach ($data as $abstract => $instance) {
+//             $this->instance($abstract, $instance);
+//         }
+//     }
+//
+//     public function environment(...$environments)
+//     {
+//         return 'development';
+//     }
+// }

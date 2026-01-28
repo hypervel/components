@@ -1,12 +1,14 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Migrations\MigrationCreator;
-use Illuminate\Filesystem\Filesystem;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Migrations\MigrationCreator;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
-use Hypervel\Tests\TestCase;
 
 class DatabaseMigrationCreatorTest extends TestCase
 {

@@ -1,15 +1,19 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\Model;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
 {
     protected function setUp(): void
     {
+        parent::setUp();
+
         $db = new DB;
 
         $db->addConnection([
@@ -288,9 +292,9 @@ class DatabaseEloquentHasOneOrManyWithAttributesTest extends TestCase
 
 class RelatedWithAttributesModel extends Model
 {
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected $casts = [
+    protected array $casts = [
         'is_admin' => 'boolean',
     ];
 }

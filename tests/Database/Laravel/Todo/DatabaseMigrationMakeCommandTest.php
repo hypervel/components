@@ -1,6 +1,8 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel\Todo;
 
 use Illuminate\Database\Console\Migrations\MigrateMakeCommand;
 use Illuminate\Database\Migrations\MigrationCreator;
@@ -13,6 +15,14 @@ use Symfony\Component\Console\Output\NullOutput;
 
 class DatabaseMigrationMakeCommandTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // TODO: Port once illuminate/console package is ported
+        $this->markTestSkipped('Requires illuminate/console package to be ported first.');
+    }
+
     public function testBasicCreateDumpsAutoload()
     {
         $command = new MigrateMakeCommand(

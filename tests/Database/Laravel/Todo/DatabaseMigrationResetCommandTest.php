@@ -1,6 +1,8 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel\Todo;
 
 use Closure;
 use Illuminate\Database\Console\Migrations\ResetCommand;
@@ -13,6 +15,14 @@ use Symfony\Component\Console\Output\NullOutput;
 
 class DatabaseMigrationResetCommandTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // TODO: Port once illuminate/console package is ported
+        $this->markTestSkipped('Requires illuminate/console package to be ported first.');
+    }
+
     protected function tearDown(): void
     {
         ResetCommand::prohibit(false);
@@ -77,17 +87,18 @@ class DatabaseMigrationResetCommandTest extends TestCase
     }
 }
 
-class ApplicationDatabaseResetStub extends Application
-{
-    public function __construct(array $data = [])
-    {
-        foreach ($data as $abstract => $instance) {
-            $this->instance($abstract, $instance);
-        }
-    }
-
-    public function environment(...$environments)
-    {
-        return 'development';
-    }
-}
+// TODO: Uncomment once illuminate/console package is ported
+// class ApplicationDatabaseResetStub extends Application
+// {
+//     public function __construct(array $data = [])
+//     {
+//         foreach ($data as $abstract => $instance) {
+//             $this->instance($abstract, $instance);
+//         }
+//     }
+//
+//     public function environment(...$environments)
+//     {
+//         return 'development';
+//     }
+// }

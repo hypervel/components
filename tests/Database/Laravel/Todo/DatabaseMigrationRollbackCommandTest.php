@@ -1,6 +1,8 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel\Todo;
 
 use Illuminate\Database\Console\Migrations\RollbackCommand;
 use Illuminate\Database\Migrations\Migrator;
@@ -12,6 +14,14 @@ use Symfony\Component\Console\Output\NullOutput;
 
 class DatabaseMigrationRollbackCommandTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // TODO: Port once illuminate/console package is ported
+        $this->markTestSkipped('Requires illuminate/console package to be ported first.');
+    }
+
     public function testRollbackCommandCallsMigratorWithProperArguments()
     {
         $command = new RollbackCommand($migrator = m::mock(Migrator::class));
@@ -82,17 +92,18 @@ class DatabaseMigrationRollbackCommandTest extends TestCase
     }
 }
 
-class ApplicationDatabaseRollbackStub extends Application
-{
-    public function __construct(array $data = [])
-    {
-        foreach ($data as $abstract => $instance) {
-            $this->instance($abstract, $instance);
-        }
-    }
-
-    public function environment(...$environments)
-    {
-        return 'development';
-    }
-}
+// TODO: Uncomment once illuminate/console package is ported
+// class ApplicationDatabaseRollbackStub extends Application
+// {
+//     public function __construct(array $data = [])
+//     {
+//         foreach ($data as $abstract => $instance) {
+//             $this->instance($abstract, $instance);
+//         }
+//     }
+//
+//     public function environment(...$environments)
+//     {
+//         return 'development';
+//     }
+// }

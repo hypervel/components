@@ -1,6 +1,8 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel\Todo;
 
 use Illuminate\Console\Command;
 use Illuminate\Console\OutputStyle;
@@ -21,6 +23,14 @@ use Symfony\Component\Console\Output\NullOutput;
 
 class SeedCommandTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // TODO: Port once illuminate/console package is ported
+        $this->markTestSkipped('Requires illuminate/console package to be ported first.');
+    }
+
     public function testHandle()
     {
         $input = new ArrayInput(['--force' => true, '--database' => 'sqlite']);
@@ -143,12 +153,13 @@ class SeedCommandTest extends TestCase
     }
 }
 
-class UserWithoutModelEventsSeeder extends Seeder
-{
-    use WithoutModelEvents;
-
-    public function run()
-    {
-        Assert::assertInstanceOf(NullDispatcher::class, Model::getEventDispatcher());
-    }
-}
+// TODO: Uncomment once illuminate/console package is ported
+// class UserWithoutModelEventsSeeder extends Seeder
+// {
+//     use WithoutModelEvents;
+//
+//     public function run()
+//     {
+//         Assert::assertInstanceOf(NullDispatcher::class, Model::getEventDispatcher());
+//     }
+// }
