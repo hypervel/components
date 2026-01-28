@@ -425,8 +425,8 @@ class NodeTest extends TestCase
     {
         $this->expectException(BadMethodCallException::class);
 
-        $node = new Category(['title' => 'Node']);
-        $parent = new Category(['title' => 'Parent']);
+        $node = new Category(['name' => 'Node']);
+        $parent = new Category(['name' => 'Parent']);
 
         $node->appendTo($parent)->save();
     }

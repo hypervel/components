@@ -43,13 +43,11 @@ class PermissionManagerTest extends PermissionTestCase
         $this->viewPermission = Permission::create([
             'name' => 'view',
             'guard_name' => 'web',
-            'is_forbidden' => false,
         ]);
 
         $this->editPermission = Permission::create([
             'name' => 'edit',
             'guard_name' => 'web',
-            'is_forbidden' => false,
         ]);
 
         // Create test roles

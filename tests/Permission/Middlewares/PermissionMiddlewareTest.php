@@ -108,7 +108,6 @@ class PermissionMiddlewareTest extends PermissionTestCase
         Permission::create([
             'name' => 'view',
             'guard_name' => 'web',
-            'is_forbidden' => false,
         ]);
 
         $user->givePermissionTo('view');
@@ -131,7 +130,6 @@ class PermissionMiddlewareTest extends PermissionTestCase
         Permission::create([
             'name' => 'view',
             'guard_name' => 'web',
-            'is_forbidden' => false,
         ]);
 
         $user->givePermissionTo('view');
