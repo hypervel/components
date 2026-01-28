@@ -16,8 +16,8 @@ class DatabaseEloquentBelongsToManyWithoutTouchingTest extends TestCase
 {
     public function testItWillNotTouchRelatedModelsWhenUpdatingChild(): void
     {
-        /** @var Article $related */
-        $related = m::mock(Article::class)->makePartial();
+        /** @var BelongsToManyWithoutTouchingArticle $related */
+        $related = m::mock(BelongsToManyWithoutTouchingArticle::class)->makePartial();
         $related->shouldReceive('getUpdatedAtColumn')->never();
         $related->shouldReceive('freshTimestampString')->never();
 
@@ -28,7 +28,7 @@ class DatabaseEloquentBelongsToManyWithoutTouchingTest extends TestCase
 
             $builder = m::mock(Builder::class);
             $builder->shouldReceive('join');
-            $parent = m::mock(User::class);
+            $parent = m::mock(BelongsToManyWithoutTouchingUser::class);
 
             $parent->shouldReceive('getAttribute')->with('id')->andReturn(1);
             $builder->shouldReceive('getModel')->andReturn($related);
@@ -46,18 +46,18 @@ class DatabaseEloquentBelongsToManyWithoutTouchingTest extends TestCase
     }
 }
 
-class User extends Model
+class BelongsToManyWithoutTouchingUser extends Model
 {
     protected ?string $table = 'users';
     protected array $fillable = ['id', 'email'];
 
     public function articles(): BelongsToMany
     {
-        return $this->belongsToMany(Article::class, 'article_user', 'user_id', 'article_id');
+        return $this->belongsToMany(BelongsToManyWithoutTouchingArticle::class, 'article_user', 'user_id', 'article_id');
     }
 }
 
-class Article extends Model
+class BelongsToManyWithoutTouchingArticle extends Model
 {
     protected ?string $table = 'articles';
     protected array $fillable = ['id', 'title'];
@@ -65,6 +65,6 @@ class Article extends Model
 
     public function users(): BelongsToMany
     {
-        return $this->belongsToMany(User::class, 'article_user', 'article_id', 'user_id');
+        return $this->belongsToMany(BelongsToManyWithoutTouchingUser::class, 'article_user', 'article_id', 'user_id');
     }
 }

@@ -27,7 +27,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
 {
     public function testStandardRelationships()
     {
-        $post = new Post;
+        $post = new RelationshipsPost;
 
         $this->assertInstanceOf(HasOne::class, $post->attachment());
         $this->assertInstanceOf(BelongsTo::class, $post->author());
@@ -43,7 +43,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
 
     public function testOverriddenRelationships()
     {
-        $post = new CustomPost;
+        $post = new RelationshipsCustomPost;
 
         $this->assertInstanceOf(CustomHasOne::class, $post->attachment());
         $this->assertInstanceOf(CustomBelongsTo::class, $post->author());
@@ -64,7 +64,7 @@ class DatabaseEloquentRelationshipsTest extends TestCase
         $user2 = (new FakeRelationship)->forceFill(['id' => 2]);
 
         // sync user 1 using Model
-        $post = new Post;
+        $post = new RelationshipsPost;
         $post->author()->associate($user1);
         $post->syncOriginal();
 
@@ -285,7 +285,7 @@ class FakeRelationship extends MockedConnectionModel
     //
 }
 
-class Post extends MockedConnectionModel
+class RelationshipsPost extends MockedConnectionModel
 {
     public function attachment()
     {
@@ -338,7 +338,7 @@ class Post extends MockedConnectionModel
     }
 }
 
-class CustomPost extends Post
+class RelationshipsCustomPost extends RelationshipsPost
 {
     protected function newBelongsTo(Builder $query, Model $child, string $foreignKey, string $ownerKey, string $relation): BelongsTo
     {

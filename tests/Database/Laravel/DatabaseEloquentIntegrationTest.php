@@ -2433,31 +2433,31 @@ class DatabaseEloquentIntegrationTest extends TestCase
     public function testWhenBaseModelIsIgnoredAllChildModelsAreIgnored()
     {
         $this->assertFalse(Model::isIgnoringTouch());
-        $this->assertFalse(User::isIgnoringTouch());
+        $this->assertFalse(EloquentIntegrationUser::isIgnoringTouch());
 
         Model::withoutTouching(function () {
             $this->assertTrue(Model::isIgnoringTouch());
-            $this->assertTrue(User::isIgnoringTouch());
+            $this->assertTrue(EloquentIntegrationUser::isIgnoringTouch());
         });
 
-        $this->assertFalse(User::isIgnoringTouch());
+        $this->assertFalse(EloquentIntegrationUser::isIgnoringTouch());
         $this->assertFalse(Model::isIgnoringTouch());
     }
 
     public function testChildModelsAreIgnored()
     {
         $this->assertFalse(Model::isIgnoringTouch());
-        $this->assertFalse(User::isIgnoringTouch());
-        $this->assertFalse(Post::isIgnoringTouch());
+        $this->assertFalse(EloquentIntegrationUser::isIgnoringTouch());
+        $this->assertFalse(EloquentIntegrationPost::isIgnoringTouch());
 
-        User::withoutTouching(function () {
+        EloquentIntegrationUser::withoutTouching(function () {
             $this->assertFalse(Model::isIgnoringTouch());
-            $this->assertFalse(Post::isIgnoringTouch());
-            $this->assertTrue(User::isIgnoringTouch());
+            $this->assertFalse(EloquentIntegrationPost::isIgnoringTouch());
+            $this->assertTrue(EloquentIntegrationUser::isIgnoringTouch());
         });
 
-        $this->assertFalse(Post::isIgnoringTouch());
-        $this->assertFalse(User::isIgnoringTouch());
+        $this->assertFalse(EloquentIntegrationPost::isIgnoringTouch());
+        $this->assertFalse(EloquentIntegrationUser::isIgnoringTouch());
         $this->assertFalse(Model::isIgnoringTouch());
     }
 
@@ -3092,12 +3092,12 @@ enum StringBackedRole: string
  * Local stubs for User and Post (originally from Laravel's Integration\Database\Fixtures)
  * Used for isIgnoringTouch() / withoutTouching() tests.
  */
-class User extends Eloquent
+class EloquentIntegrationUser extends Eloquent
 {
     protected array $guarded = [];
 }
 
-class Post extends Eloquent
+class EloquentIntegrationPost extends Eloquent
 {
     protected array $guarded = [];
 }

@@ -80,6 +80,7 @@ class EloquentModelCustomCastingTest extends TestCase
         $this->schema()->drop('casting_table');
         $this->schema()->drop('members');
         $this->schema()->drop('documents');
+        $this->schema()->drop('people');
 
         parent::tearDown();
     }
