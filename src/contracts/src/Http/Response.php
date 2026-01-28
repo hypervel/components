@@ -7,6 +7,7 @@ namespace Hypervel\Contracts\Http;
 use Hyperf\HttpServer\Contract\ResponseInterface as HyperfResponseInterface;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
+use Hypervel\Http\JsonResponse;
 use Psr\Http\Message\ResponseInterface;
 
 interface Response extends HyperfResponseInterface
@@ -31,7 +32,7 @@ interface Response extends HyperfResponseInterface
      *
      * @param array|Arrayable|Jsonable $data
      */
-    public function json($data, int $status = 200, array $headers = []): ResponseInterface;
+    public function json($data, int $status = 200, array $headers = [], int $encodingOptions = 0): JsonResponse;
 
     /**
      * Create a file response by file path.

@@ -221,14 +221,14 @@ class Response extends HyperfResponse implements ResponseContract
      *
      * @param array|Arrayable|Jsonable $data
      */
-    public function json($data, int $status = 200, array $headers = []): ResponseInterface
+    public function json($data, int $status = 200, array $headers = [], int $encodingOptions = 0): JsonResponse
     {
         $response = parent::json($data);
         foreach ($headers as $name => $value) {
             $response = $response->withHeader($name, $value);
         }
 
-        return $response->withStatus($status);
+        return new JsonResponse($response->withStatus($status), $data, $encodingOptions);
     }
 
     /**
