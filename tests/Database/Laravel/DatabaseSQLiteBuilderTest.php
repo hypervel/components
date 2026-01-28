@@ -1,40 +1,22 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Container\Container;
-use Illuminate\Database\Connection;
-use Illuminate\Database\Schema\SQLiteBuilder;
-use Illuminate\Filesystem\Filesystem;
-use Illuminate\Support\Facades\Facade;
-use Illuminate\Support\Facades\File;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Connection;
+use Hypervel\Database\Schema\Grammars\SQLiteGrammar;
+use Hypervel\Database\Schema\SQLiteBuilder;
+use Hypervel\Support\Facades\File;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
-use Hypervel\Tests\TestCase;
 
 class DatabaseSQLiteBuilderTest extends TestCase
 {
-    protected function setUp(): void
-    {
-        $app = new Container;
-
-        Container::setInstance($app)
-            ->singleton('files', Filesystem::class);
-
-        Facade::setFacadeApplication($app);
-    }
-
-    protected function tearDown(): void
-    {
-        Container::setInstance(null);
-        Facade::setFacadeApplication(null);
-
-        parent::tearDown();
-    }
-
     public function testCreateDatabase()
     {
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getSchemaGrammar')->once();
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new SQLiteGrammar($connection));
 
         $builder = new SQLiteBuilder($connection);
 
@@ -56,7 +38,7 @@ class DatabaseSQLiteBuilderTest extends TestCase
     public function testDropDatabaseIfExists()
     {
         $connection = m::mock(Connection::class);
-        $connection->shouldReceive('getSchemaGrammar')->once();
+        $connection->shouldReceive('getSchemaGrammar')->once()->andReturn(new SQLiteGrammar($connection));
 
         $builder = new SQLiteBuilder($connection);
 
