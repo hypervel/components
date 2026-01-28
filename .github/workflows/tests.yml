@@ -29,6 +29,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Install PHP extensions
+        run: |
+          apt-get update && apt-get install -y libgmp-dev
+          docker-php-ext-install gmp
+
       - name: Cache Composer dependencies
         uses: actions/cache@v4
         with:

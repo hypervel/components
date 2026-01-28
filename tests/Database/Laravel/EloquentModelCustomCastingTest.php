@@ -18,6 +18,7 @@ use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\Group;
+use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use stdClass;
 
 /**
