@@ -1,8 +1,10 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Query\Processors\MySqlProcessor;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Query\Processors\MySqlProcessor;
 use Hypervel\Tests\TestCase;
 
 class DatabaseMySqlProcessorTest extends TestCase
