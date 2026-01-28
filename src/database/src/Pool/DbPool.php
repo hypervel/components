@@ -20,21 +20,17 @@ use Psr\Container\ContainerInterface;
  * Extends the base Pool to create PooledConnection instances that wrap
  * our Laravel-ported Connection class.
  *
- * For in-memory SQLite databases, manages a shared PDO instance so all
- * pool slots see the same data (otherwise each slot would get an empty database).
+ * For in-memory SQLite, manages a shared PDO so all pool slots see the same
+ * data. Non-pooled paths (Capsule, SimpleConnectionResolver) bypass this
+ * entirely and get isolated connections as expected.
  */
 class DbPool extends Pool
 {
     protected array $config;
 
     /**
-     * Shared PDO for in-memory SQLite databases.
-     *
-     * When using connection pooling with in-memory SQLite (:memory:), all pool
-     * slots must share the same PDO instance. Otherwise, each pooled connection
-     * would get its own empty in-memory database, causing "table not found" errors.
-     *
-     * This only applies to in-memory SQLite, not file-backed SQLite databases.
+     * Shared PDO for in-memory SQLite. All pool slots must share the same PDO
+     * instance, otherwise each would get its own empty database.
      */
     protected ?PDO $sharedInMemorySqlitePdo = null;
 
