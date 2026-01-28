@@ -44,6 +44,7 @@ trait RunTestsInCoroutine
                 $exception = $e;
             } finally {
                 $this->invokeTearDownInCoroutine();
+                Context::destroyAll();
                 Timer::clearAll();
                 CoordinatorManager::until(Constants::WORKER_EXIT)->resume();
             }
