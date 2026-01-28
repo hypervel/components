@@ -1,13 +1,15 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Console\Command;
-use Illuminate\Container\Container;
-use Illuminate\Database\Seeder;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Console\Command;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Database\Seeder;
+use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\Mock;
-use Hypervel\Tests\TestCase;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class TestSeeder extends Seeder

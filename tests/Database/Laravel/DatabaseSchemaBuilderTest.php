@@ -1,13 +1,15 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Connection;
-use Illuminate\Database\Query\Processors\Processor;
-use Illuminate\Database\Schema\Builder;
-use Illuminate\Database\Schema\Grammars\Grammar;
-use Mockery as m;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Connection;
+use Hypervel\Database\Query\Processors\Processor;
+use Hypervel\Database\Schema\Builder;
+use Hypervel\Database\Schema\Grammars\Grammar;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 use stdClass;
 
 class DatabaseSchemaBuilderTest extends TestCase
@@ -15,7 +17,7 @@ class DatabaseSchemaBuilderTest extends TestCase
     public function testCreateDatabase()
     {
         $connection = m::mock(Connection::class);
-        $grammar = m::mock(stdClass::class);
+        $grammar = m::mock(Grammar::class);
         $grammar->shouldReceive('compileCreateDatabase')->andReturn('sql');
         $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
         $connection->shouldReceive('statement')->with('sql')->andReturnTrue();
@@ -27,7 +29,7 @@ class DatabaseSchemaBuilderTest extends TestCase
     public function testDropDatabaseIfExists()
     {
         $connection = m::mock(Connection::class);
-        $grammar = m::mock(stdClass::class);
+        $grammar = m::mock(Grammar::class);
         $grammar->shouldReceive('compileDropDatabaseIfExists')->andReturn('sql');
         $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
         $connection->shouldReceive('statement')->with('sql')->andReturnTrue();
@@ -56,9 +58,9 @@ class DatabaseSchemaBuilderTest extends TestCase
     public function testTableHasColumns()
     {
         $connection = m::mock(Connection::class);
-        $grammar = m::mock(stdClass::class);
+        $grammar = m::mock(Grammar::class);
         $connection->shouldReceive('getSchemaGrammar')->andReturn($grammar);
-        $builder = m::mock(Builder::class.'[getColumnListing]', [$connection]);
+        $builder = m::mock(Builder::class . '[getColumnListing]', [$connection]);
         $builder->shouldReceive('getColumnListing')->with('users')->twice()->andReturn(['id', 'firstname']);
 
         $this->assertTrue($builder->hasColumns('users', ['id', 'firstname']));

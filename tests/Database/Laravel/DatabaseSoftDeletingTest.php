@@ -1,11 +1,13 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Carbon;
-use Hypervel\Tests\TestCase;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Support\Carbon;
+use Hypervel\Testbench\TestCase;
 
 class DatabaseSoftDeletingTest extends TestCase
 {
@@ -30,7 +32,7 @@ class DatabaseSoftDeletingTest extends TestCase
     {
         $model = new class(['deleted_at' => '2018-12-29 13:59:39']) extends SoftDeletingModel
         {
-            protected $casts = ['deleted_at' => 'bool'];
+            protected array $casts = ['deleted_at' => 'bool'];
         };
 
         $this->assertTrue($model->deleted_at);
@@ -53,7 +55,7 @@ class DatabaseSoftDeletingTest extends TestCase
     {
         $model = new class(['deleted_at' => '2018-12-29 13:59:39']) extends SoftDeletingModel
         {
-            protected $casts = ['deleted_at' => 'string'];
+            protected array $casts = ['deleted_at' => 'string'];
         };
 
         $this->assertSame('2018-12-29 13:59:39', $model->deleted_at);
@@ -64,7 +66,7 @@ class SoftDeletingModel extends Model
 {
     use SoftDeletes;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected $dateFormat = 'Y-m-d H:i:s';
+    protected ?string $dateFormat = 'Y-m-d H:i:s';
 }

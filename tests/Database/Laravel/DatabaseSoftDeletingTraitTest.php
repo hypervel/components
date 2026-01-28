@@ -1,11 +1,13 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Support\Carbon;
-use Mockery as m;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 use stdClass;
 
 class DatabaseSoftDeletingTraitTest extends TestCase
@@ -78,9 +80,9 @@ class DatabaseSoftDeletingTraitStub
         return 'id';
     }
 
-    public function save()
+    public function save(): bool
     {
-        //
+        return true;
     }
 
     public function delete()

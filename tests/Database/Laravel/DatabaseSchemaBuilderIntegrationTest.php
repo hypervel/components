@@ -1,44 +1,29 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Container\Container;
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Facade;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Tests\TestCase;
 
 class DatabaseSchemaBuilderIntegrationTest extends TestCase
 {
-    protected $db;
+    protected DB $db;
 
-    /**
-     * Bootstrap database.
-     *
-     * @return void
-     */
     protected function setUp(): void
     {
-        $this->db = $db = new DB;
+        parent::setUp();
 
-        $db->addConnection([
+        $this->db = new DB();
+
+        $this->db->addConnection([
             'driver' => 'sqlite',
             'database' => ':memory:',
         ]);
 
-        $db->setAsGlobal();
-
-        $container = new Container;
-        $container->instance('db', $db->getDatabaseManager());
-        Facade::setFacadeApplication($container);
-    }
-
-    protected function tearDown(): void
-    {
-        Facade::clearResolvedInstances();
-        Facade::setFacadeApplication(null);
-
-        parent::tearDown();
+        $this->db->setAsGlobal();
     }
 
     public function testHasColumnWithTablePrefix()
@@ -110,7 +95,7 @@ class DatabaseSchemaBuilderIntegrationTest extends TestCase
         $this->assertFalse($this->schemaBuilder()->hasColumn('pandemic_table', 'covid19'));
     }
 
-    private function schemaBuilder()
+    private function schemaBuilder(): \Hypervel\Database\Schema\Builder
     {
         return $this->db->connection()->getSchemaBuilder();
     }
