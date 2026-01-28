@@ -1,12 +1,14 @@
 <?php
 
-namespace Database;
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel;
 
 use Generator;
-use Illuminate\Database\MariaDbConnection;
-use Illuminate\Database\Schema\MariaDbSchemaState;
-use PHPUnit\Framework\Attributes\DataProvider;
+use Hypervel\Database\MariaDbConnection;
+use Hypervel\Database\Schema\MariaDbSchemaState;
 use Hypervel\Tests\TestCase;
+use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionMethod;
 
 class DatabaseMariaDbSchemaStateTest extends TestCase

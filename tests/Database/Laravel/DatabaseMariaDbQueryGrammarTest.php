@@ -1,11 +1,13 @@
 <?php
 
-namespace Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Connection;
-use Illuminate\Database\Query\Grammars\MariaDbGrammar;
-use Mockery as m;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Connection;
+use Hypervel\Database\Query\Grammars\MariaDbGrammar;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 
 class DatabaseMariaDbQueryGrammarTest extends TestCase
 {

@@ -1,8 +1,10 @@
 <?php
 
-namespace Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Query\Processors\MariaDbProcessor;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Query\Processors\MariaDbProcessor;
 use Hypervel\Tests\TestCase;
 
 class DatabaseMariaDbProcessorTest extends TestCase

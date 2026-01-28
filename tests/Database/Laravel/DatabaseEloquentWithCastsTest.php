@@ -1,11 +1,13 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Eloquent\MissingAttributeException;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Model as Eloquent;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\MissingAttributeException;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Tests\TestCase;
 
 class DatabaseEloquentWithCastsTest extends TestCase
@@ -96,7 +98,7 @@ class DatabaseEloquentWithCastsTest extends TestCase
     /**
      * Get a database connection instance.
      *
-     * @return \Illuminate\Database\Connection
+     * @return \Hypervel\Database\Connection
      */
     protected function connection()
     {
@@ -106,7 +108,7 @@ class DatabaseEloquentWithCastsTest extends TestCase
     /**
      * Get a schema builder instance.
      *
-     * @return \Illuminate\Database\Schema\Builder
+     * @return \Hypervel\Database\Schema\Builder
      */
     protected function schema()
     {
@@ -116,18 +118,18 @@ class DatabaseEloquentWithCastsTest extends TestCase
 
 class Time extends Eloquent
 {
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected $casts = [
+    protected array $casts = [
         'time' => 'datetime',
     ];
 }
 
 class UniqueTime extends Eloquent
 {
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected $casts = [
+    protected array $casts = [
         'time' => 'datetime',
     ];
 }

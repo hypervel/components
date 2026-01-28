@@ -1327,7 +1327,7 @@ class Blueprint
     /**
      * Create a new drop index command on the blueprint.
      */
-    protected function dropIndexCommand(string $command, string $type, array|string $index): Fluent
+    protected function dropIndexCommand(string $command, string $type, array|string|null $index): Fluent
     {
         $columns = [];
 

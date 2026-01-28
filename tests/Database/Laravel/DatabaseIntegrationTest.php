@@ -1,23 +1,43 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Capsule\Manager as DB;
-use Illuminate\Database\Events\QueryExecuted;
-use Illuminate\Events\Dispatcher;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 
 class DatabaseIntegrationTest extends TestCase
 {
+    protected array $listeners = [];
+
     protected function setUp(): void
     {
+        parent::setUp();
+
+        $this->listeners = [];
+
+        $dispatcher = m::mock(Dispatcher::class);
+        $dispatcher->shouldReceive('listen')->andReturnUsing(function ($event, $callback) {
+            $this->listeners[$event] = $callback;
+        });
+        $dispatcher->shouldReceive('dispatch')->andReturnUsing(function ($event) {
+            $eventClass = get_class($event);
+            if (isset($this->listeners[$eventClass])) {
+                ($this->listeners[$eventClass])($event);
+            }
+        });
+
         $db = new DB;
         $db->addConnection([
             'driver' => 'sqlite',
             'database' => ':memory:',
         ]);
         $db->setAsGlobal();
-        $db->setEventDispatcher(new Dispatcher);
+        $db->setEventDispatcher($dispatcher);
     }
 
     public function testQueryExecutedToRawSql(): void

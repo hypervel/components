@@ -31,7 +31,7 @@ class ForeignIdColumnDefinition extends ColumnDefinition
         $table ??= $this->table;
         $column ??= $this->referencesModelColumn ?? 'id';
 
-        return $this->references($column, $indexName)->on($table ?? (new Stringable($this->name))->beforeLast('_' . $column)->plural());
+        return $this->references($column, $indexName)->on($table ?? (new Stringable($this->name))->beforeLast('_' . $column)->plural()->toString());
     }
 
     /**

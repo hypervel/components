@@ -1,12 +1,14 @@
 <?php
 
-namespace Illuminate\Tests\Database;
+declare(strict_types=1);
 
-use Illuminate\Database\Connection;
-use Illuminate\Database\Schema\Grammars\MariaDbGrammar;
-use Illuminate\Database\Schema\MariaDbBuilder;
-use Mockery as m;
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Connection;
+use Hypervel\Database\Schema\Grammars\MariaDbGrammar;
+use Hypervel\Database\Schema\MariaDbBuilder;
 use Hypervel\Tests\TestCase;
+use Mockery as m;
 
 class DatabaseMariaDbBuilderTest extends TestCase
 {
