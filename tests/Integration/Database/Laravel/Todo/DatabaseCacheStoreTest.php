@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Database\Laravel;
+namespace Hypervel\Tests\Integration\Database\Laravel\Todo;
 
 use Hypervel\Database\SQLiteConnection;
 use Hypervel\Foundation\Testing\Attributes\WithMigration;
@@ -14,6 +14,13 @@ use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 #[WithMigration('cache')]
 class DatabaseCacheStoreTest extends DatabaseTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->markTestSkipped('Port after cache package is fully ported (missing forgetIfExpired, getConnection methods).');
+    }
+
     public function testValueCanStoreNewCache(): void
     {
         $store = $this->getStore();

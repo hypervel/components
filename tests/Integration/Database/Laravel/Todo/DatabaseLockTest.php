@@ -1,21 +1,31 @@
 <?php
 
-namespace Illuminate\Tests\Integration\Database;
+declare(strict_types=1);
 
-use Illuminate\Cache\DatabaseLock;
-use Illuminate\Database\Connection;
-use Illuminate\Database\Query\Builder;
-use Illuminate\Database\QueryException;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
+namespace Hypervel\Tests\Integration\Database\Laravel\Todo;
+
+use Hypervel\Cache\DatabaseLock;
+use Hypervel\Database\Connection;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Database\QueryException;
+use Hypervel\Foundation\Testing\Attributes\WithMigration;
+use Hypervel\Support\Facades\Cache;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use Mockery as m;
-use Orchestra\Testbench\Attributes\WithMigration;
 use PDOException;
 use PHPUnit\Framework\Attributes\TestWith;
 
 #[WithMigration('cache')]
 class DatabaseLockTest extends DatabaseTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->markTestSkipped('Port after cache package is fully ported (missing isOwnedBy, isOwnedByCurrentProcess, getConnectionName methods on Lock/DatabaseLock).');
+    }
+
     public function testLockCanHaveASeparateConnection()
     {
         $this->app['config']->set('cache.stores.database.lock_connection', 'test');
