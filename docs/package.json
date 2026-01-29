@@ -5,8 +5,8 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "docs:build": "vuepress build docs",
-    "docs:clean-dev": "vuepress dev docs --clean-cache",
+    "docs:build": "vuepress build",
+    "docs:clean-dev": "vuepress dev --clean-cache",
     "docs:dev": "vuepress dev",
     "docs:update-package": "pnpm dlx vp-update"
   },
