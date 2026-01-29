@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\Fixtures;
+namespace Hypervel\Tests\Integration\Database\Laravel\Fixtures;
 
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Model;
 
 class PostStringyKey extends Model
 {
-    public $table = 'my_posts';
+    protected ?string $table = 'my_posts';
 
-    public $primaryKey = 'my_id';
+    protected string $primaryKey = 'my_id';
 }

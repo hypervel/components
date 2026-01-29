@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\Fixtures;
+namespace Hypervel\Tests\Integration\Database\Laravel\Fixtures;
 
-use Illuminate\Database\Eloquent\Attributes\Scope;
-use Illuminate\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Attributes\Scope;
+use Hypervel\Database\Eloquent\Builder;
 use Override;
 
 class NamedScopeUser extends User

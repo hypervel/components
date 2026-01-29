@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentBelongsToTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentBelongsToTest;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Support\Str;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -16,7 +16,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentBelongsToTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->increments('id');
@@ -137,9 +137,9 @@ class EloquentBelongsToTest extends DatabaseTestCase
 
 class User extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function parent()
     {

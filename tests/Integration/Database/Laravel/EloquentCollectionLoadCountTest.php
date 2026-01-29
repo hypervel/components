@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace App\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -18,7 +18,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentCollectionLoadCountTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('posts', function (Blueprint $table) {
             $table->increments('id');
@@ -116,11 +116,11 @@ class Post extends Model
 {
     use SoftDeletes;
 
-    protected $attributes = [
+    protected array $attributes = [
         'some_default_value' => 100,
     ];
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
     public function comments()
     {
@@ -135,10 +135,10 @@ class Post extends Model
 
 class Comment extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 }
 
 class Like extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 }

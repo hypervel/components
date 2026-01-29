@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\Fixtures;
+namespace Hypervel\Tests\Integration\Database\Laravel\Fixtures;
 
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Model;
 
 class User extends Model
 {
-    protected $guarded = [];
+    protected array $guarded = [];
 }

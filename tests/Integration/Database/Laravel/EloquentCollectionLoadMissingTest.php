@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentCollectionLoadMissingTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentCollectionLoadMissingTest;
 
-use DB;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -16,7 +16,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentCollectionLoadMissingTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->increments('id');
@@ -249,9 +249,9 @@ class EloquentCollectionLoadMissingTest extends DatabaseTestCase
 
 class Comment extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function parent()
     {
@@ -266,9 +266,9 @@ class Comment extends Model
 
 class Post extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function comments()
     {
@@ -288,9 +288,9 @@ class Post extends Model
 
 class PostRelation extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function postSubRelations()
     {
@@ -300,9 +300,9 @@ class PostRelation extends Model
 
 class PostSubRelation extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function postSubSubRelations()
     {
@@ -312,23 +312,23 @@ class PostSubRelation extends Model
 
 class PostSubSubRelation extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 }
 
 class Revision extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 }
 
 class User extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function posts()
     {
