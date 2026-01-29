@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentHasManyThroughTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentHasManyThroughTest;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasOneThrough;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasOneThrough;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Support\Str;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -19,7 +19,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentHasManyThroughTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->increments('id');
@@ -404,11 +404,11 @@ class EloquentHasManyThroughTest extends DatabaseTestCase
 
 class User extends Model
 {
-    public $table = 'users';
+    protected ?string $table = 'users';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function teamMates()
     {
@@ -461,13 +461,13 @@ class User extends Model
 
 class UserWithGlobalScope extends Model
 {
-    public $table = 'users';
+    protected ?string $table = 'users';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public static function boot()
+    public static function boot(): void
     {
         parent::boot();
 
@@ -479,11 +479,11 @@ class UserWithGlobalScope extends Model
 
 class Team extends Model
 {
-    public $table = 'teams';
+    protected ?string $table = 'teams';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function members()
     {
@@ -510,9 +510,9 @@ class Category extends Model
 {
     use SoftDeletes;
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function subProducts()
     {
@@ -522,14 +522,14 @@ class Category extends Model
 
 class Product extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 }
 
 class Article extends Model
 {
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function user()
     {
