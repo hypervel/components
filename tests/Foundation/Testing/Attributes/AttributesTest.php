@@ -150,17 +150,51 @@ class AttributesTest extends TestCase
 
     public function testWithMigrationImplementsInvokable(): void
     {
-        $attribute = new WithMigration('/path/to/migrations');
+        $attribute = new WithMigration('laravel');
 
         $this->assertInstanceOf(Invokable::class, $attribute);
-        $this->assertSame(['/path/to/migrations'], $attribute->paths);
+        $this->assertSame(['laravel'], $attribute->types);
     }
 
-    public function testWithMigrationMultiplePaths(): void
+    public function testWithMigrationDefaultsToLaravel(): void
     {
-        $attribute = new WithMigration('/path/one', '/path/two');
+        $attribute = new WithMigration();
 
-        $this->assertSame(['/path/one', '/path/two'], $attribute->paths);
+        $this->assertSame(['laravel'], $attribute->types);
+    }
+
+    public function testWithMigrationAliasesMapToLaravel(): void
+    {
+        // cache, queue, session all map to 'laravel'
+        $cacheAttr = new WithMigration('cache');
+        $queueAttr = new WithMigration('queue');
+        $sessionAttr = new WithMigration('session');
+
+        $this->assertSame(['laravel'], $cacheAttr->types);
+        $this->assertSame(['laravel'], $queueAttr->types);
+        $this->assertSame(['laravel'], $sessionAttr->types);
+    }
+
+    public function testWithMigrationDeduplicatesTypes(): void
+    {
+        // Multiple aliases that map to 'laravel' should dedupe
+        $attribute = new WithMigration('cache', 'queue', 'session', 'laravel');
+
+        $this->assertSame(['laravel'], $attribute->types);
+    }
+
+    public function testWithMigrationPreservesLiteralPaths(): void
+    {
+        $attribute = new WithMigration('/path/to/migrations');
+
+        $this->assertSame(['/path/to/migrations'], $attribute->types);
+    }
+
+    public function testWithMigrationMixedTypesAndPaths(): void
+    {
+        $attribute = new WithMigration('cache', '/custom/path');
+
+        $this->assertSame(['laravel', '/custom/path'], $attribute->types);
     }
 
     public function testRequiresEnvImplementsActionable(): void
