@@ -626,8 +626,8 @@ class Application extends Container implements ApplicationContract
                 'url',
                 \Hypervel\Router\UrlGenerator::class,
             ],
-            \Hyperf\ViewEngine\Contract\FactoryInterface::class => ['view'],
-            \Hyperf\ViewEngine\Compiler\CompilerInterface::class => ['blade.compiler'],
+            \Hypervel\View\Contracts\Factory::class => ['view'],
+            \Hypervel\View\Compilers\CompilerInterface::class => ['blade.compiler'],
             \Hypervel\Session\Contracts\Factory::class => [
                 'session',
                 \Hypervel\Session\SessionManager::class,

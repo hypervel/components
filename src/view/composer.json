@@ -1,0 +1,50 @@
+{
+    "name": "hypervel/view",
+    "description": "The view package for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "hyperf",
+        "swoole",
+        "view",
+        "hypervel"
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "ext-tokenizer": "*",
+        "hyperf/view": "~3.1.0",
+        "hypervel/container": "^0.3",
+        "hypervel/event": "^0.3",
+        "hypervel/filesystem": "^0.3",
+        "hypervel/support": "^0.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\View\\": "src/"
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.3-dev"
+        },
+        "hypervel": {
+            "providers": [
+                "Hypervel\\View\\ViewServiceProvider"
+            ]
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev"
+}

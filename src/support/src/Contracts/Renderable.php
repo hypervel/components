@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Contracts;
 
-use Hyperf\ViewEngine\Contract\Renderable as BaseRenderable;
-
-interface Renderable extends BaseRenderable
+interface Renderable
 {
     /**
      * Get the evaluated contents of the object.
