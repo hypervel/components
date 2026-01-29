@@ -2,13 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Pagination\Cursor;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Pagination\Cursor;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -16,7 +17,7 @@ use Illuminate\Support\Facades\Schema;
  */
 class EloquentCursorPaginateTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('test_posts', function (Blueprint $table) {
             $table->increments('id');
@@ -302,12 +303,12 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
 
 class TestPost extends Model
 {
-    protected $guarded = [];
+    protected array $guarded = [];
 }
 
 class TestUser extends Model
 {
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function posts()
     {

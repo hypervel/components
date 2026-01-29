@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\Pivot;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\Schema;
  */
 class EloquentCustomPivotCastTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->increments('id');
@@ -158,16 +159,16 @@ class EloquentCustomPivotCastTest extends DatabaseTestCase
 
 class CustomPivotCastTestUser extends Model
 {
-    public $table = 'users';
+    protected ?string $table = 'users';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 }
 
 class CustomPivotCastTestProject extends Model
 {
-    public $table = 'projects';
+    protected ?string $table = 'projects';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
     public function collaborators()
     {
@@ -182,13 +183,13 @@ class CustomPivotCastTestProject extends Model
 
 class CustomPivotCastTestCollaborator extends Pivot
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $attributes = [
+    protected array $attributes = [
         'permissions' => '["create", "update"]',
     ];
 
-    protected $casts = [
+    protected array $casts = [
         'permissions' => 'json',
     ];
 }
