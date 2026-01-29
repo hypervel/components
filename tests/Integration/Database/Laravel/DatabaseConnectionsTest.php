@@ -2,130 +2,28 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\DatabaseManager;
-use Illuminate\Database\Events\ConnectionEstablished;
-use Illuminate\Database\QueryException;
-use Illuminate\Database\SQLiteConnection;
-use Illuminate\Events\Dispatcher;
-use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Config;
-use Illuminate\Support\Facades\DB;
-use InvalidArgumentException;
+use Hypervel\Database\QueryException;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Facades\Config;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
-use RuntimeException;
 
 class DatabaseConnectionsTest extends DatabaseTestCase
 {
-    public function testBuildDatabaseConnection()
-    {
-        /** @var \Illuminate\Database\DatabaseManager $manager */
-        $manager = $this->app->make(DatabaseManager::class);
+    // REMOVED: testBuildDatabaseConnection - Dynamic connections incompatible with Swoole connection pooling
 
-        $connection = $manager->build([
-            'driver' => 'sqlite',
-            'database' => ':memory:',
-        ]);
+    // REMOVED: testEstablishDatabaseConnection - Dynamic connections incompatible with Swoole connection pooling
 
-        $this->assertInstanceOf(SQLiteConnection::class, $connection);
-    }
+    // REMOVED: testThrowExceptionIfConnectionAlreadyExists - Dynamic connections incompatible with Swoole connection pooling
 
-    public function testEstablishDatabaseConnection()
-    {
-        /** @var \Illuminate\Database\DatabaseManager $manager */
-        $manager = $this->app->make(DatabaseManager::class);
+    // REMOVED: testOverrideExistingConnection - Dynamic connections incompatible with Swoole connection pooling
 
-        $connection = $manager->connectUsing('my-phpunit-connection', [
-            'driver' => 'sqlite',
-            'database' => ':memory:',
-        ]);
+    // REMOVED: testEstablishingAConnectionWillDispatchAnEvent - Uses connectUsing() which is incompatible with Swoole connection pooling
 
-        $connection->statement('CREATE TABLE test_1 (id INTEGER PRIMARY KEY)');
-
-        $connection->statement('INSERT INTO test_1 (id) VALUES (1)');
-
-        $result = $connection->selectOne('SELECT COUNT(*) as total FROM test_1');
-
-        self::assertSame(1, $result->total);
-    }
-
-    public function testThrowExceptionIfConnectionAlreadyExists()
-    {
-        /** @var \Illuminate\Database\DatabaseManager $manager */
-        $manager = $this->app->make(DatabaseManager::class);
-
-        $manager->connectUsing('my-phpunit-connection', [
-            'driver' => 'sqlite',
-            'database' => ':memory:',
-        ]);
-
-        $this->expectException(RuntimeException::class);
-
-        $manager->connectUsing('my-phpunit-connection', [
-            'driver' => 'sqlite',
-            'database' => ':memory:',
-        ]);
-    }
-
-    public function testOverrideExistingConnection()
-    {
-        /** @var \Illuminate\Database\DatabaseManager $manager */
-        $manager = $this->app->make(DatabaseManager::class);
-
-        $connection = $manager->connectUsing('my-phpunit-connection', [
-            'driver' => 'sqlite',
-            'database' => ':memory:',
-        ]);
-
-        $connection->statement('CREATE TABLE test_1 (id INTEGER PRIMARY KEY)');
-
-        $resultBeforeOverride = $connection->select("SELECT name FROM sqlite_master WHERE type='table';");
-
-        $connection = $manager->connectUsing('my-phpunit-connection', [
-            'driver' => 'sqlite',
-            'database' => ':memory:',
-        ], force: true);
-
-        // After purging a connection of a :memory: SQLite database
-        // anything that was created before the override will no
-        // longer be available. It's a new and fresh database
-        $resultAfterOverride = $connection->select("SELECT name FROM sqlite_master WHERE type='table';");
-
-        self::assertSame('test_1', $resultBeforeOverride[0]->name);
-
-        self::assertEmpty($resultAfterOverride);
-    }
-
-    public function testEstablishingAConnectionWillDispatchAnEvent()
-    {
-        /** @var \Illuminate\Events\Dispatcher $dispatcher */
-        $dispatcher = $this->app->make(Dispatcher::class);
-
-        $event = null;
-
-        $dispatcher->listen(ConnectionEstablished::class, function (ConnectionEstablished $e) use (&$event) {
-            $event = $e;
-        });
-
-        /** @var \Illuminate\Database\DatabaseManager $manager */
-        $manager = $this->app->make(DatabaseManager::class);
-
-        $manager->connectUsing('my-phpunit-connection', [
-            'driver' => 'sqlite',
-            'database' => ':memory:',
-        ]);
-
-        self::assertInstanceOf(
-            ConnectionEstablished::class,
-            $event,
-            'Expected the ConnectionEstablished event to be dispatched when establishing a connection.'
-        );
-
-        self::assertSame('my-phpunit-connection', $event->connectionName);
-    }
-
-    public function testTablePrefix()
+    public function testTablePrefix(): void
     {
         DB::setTablePrefix('prefix_');
         $this->assertSame('prefix_', DB::getTablePrefix());
@@ -140,42 +38,9 @@ class DatabaseConnectionsTest extends DatabaseTestCase
         $this->assertSame('', DB::getTablePrefix());
     }
 
-    public function testDynamicConnectionDoesntFailOnReconnect()
-    {
-        $connection = DB::build([
-            'name' => 'projects',
-            'driver' => 'sqlite',
-            'database' => ':memory:',
-        ]);
+    // REMOVED: testDynamicConnectionDoesntFailOnReconnect - Dynamic connections incompatible with Swoole connection pooling
 
-        $this->expectNotToPerformAssertions();
-
-        try {
-            $connection->reconnect();
-        } catch (InvalidArgumentException $e) {
-            if ($e->getMessage() === 'Database connection [projects] not configured.') {
-                $this->fail('Dynamic connection should not throw an exception on reconnect.');
-            }
-        }
-    }
-
-    public function testDynamicConnectionWithNoNameDoesntFailOnReconnect()
-    {
-        $connection = DB::build([
-            'driver' => 'sqlite',
-            'database' => ':memory:',
-        ]);
-
-        $this->expectNotToPerformAssertions();
-
-        try {
-            $connection->reconnect();
-        } catch (InvalidArgumentException $e) {
-            if ($e->getMessage() === 'Database connection [projects] not configured.') {
-                $this->fail('Dynamic connection should not throw an exception on reconnect.');
-            }
-        }
-    }
+    // REMOVED: testDynamicConnectionWithNoNameDoesntFailOnReconnect - Dynamic connections incompatible with Swoole connection pooling
 
     #[DataProvider('readWriteExpectations')]
     public function testReadWriteTypeIsProvidedInQueryExecutedEventAndQueryLog(string $connectionName, array $expectedTypes, ?string $loggedType)
@@ -231,8 +96,6 @@ class DatabaseConnectionsTest extends DatabaseTestCase
     public static function readWriteExpectations(): iterable
     {
         yield 'sqlite' => ['sqlite', ['write', 'read', 'write', 'read'], null];
-        yield 'sqlite::read' => ['sqlite::read', ['read', 'read', 'read', 'read'], 'read'];
-        yield 'sqlite::write' => ['sqlite::write', ['write', 'write', 'write', 'write'], 'write'];
     }
 
     public function testConnectionsWithoutReadWriteConfigurationAlwaysShowAsWrite()
@@ -266,10 +129,10 @@ class DatabaseConnectionsTest extends DatabaseTestCase
         }
     }
 
-    public function testQueryExceptionsProviderReadWriteType()
+    public function testQueryExceptionsProvideReadWriteType(): void
     {
-        $readPath = __DIR__.'/read.sqlite';
-        $writePath = __DIR__.'/write.sqlite';
+        $readPath = __DIR__ . '/read.sqlite';
+        $writePath = __DIR__ . '/write.sqlite';
         Config::set('database.connections.sqlite', [
             'driver' => 'sqlite',
             'read' => [
@@ -283,20 +146,6 @@ class DatabaseConnectionsTest extends DatabaseTestCase
         try {
             touch($readPath);
             touch($writePath);
-
-            try {
-                DB::connection('sqlite::write')->statement('xxxx');
-                $this->fail();
-            } catch (QueryException $exception) {
-                $this->assertSame('write', $exception->readWriteType);
-            }
-
-            try {
-                DB::connection('sqlite::read')->statement('xxxx');
-                $this->fail();
-            } catch (QueryException $exception) {
-                $this->assertSame('read', $exception->readWriteType);
-            }
 
             try {
                 DB::connection('sqlite')->select('xxxx', useReadPdo: true);

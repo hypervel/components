@@ -57,9 +57,9 @@ class DatabaseQueryExceptionTest extends TestCase
     public function testMessageIncludesConnectionInfo()
     {
         $pdoException = new PDOException('SQLSTATE[HY000] [2002] No such file or directory');
-        $exception = new QueryException('mysql::read', 'SELECT * FROM users', [], $pdoException, [
+        $exception = new QueryException('mysql_replica', 'SELECT * FROM users', [], $pdoException, [
             'driver' => 'mysql',
-            'name' => 'mysql::read',
+            'name' => 'mysql_replica',
             'host' => '192.168.1.10',
             'port' => '3306',
             'database' => 'laravel_db',
@@ -69,7 +69,7 @@ class DatabaseQueryExceptionTest extends TestCase
         $this->assertStringContainsString('Host: 192.168.1.10', $exception->getMessage());
         $this->assertStringContainsString('Port: 3306', $exception->getMessage());
         $this->assertStringContainsString('Database: laravel_db', $exception->getMessage());
-        $this->assertStringContainsString('Connection: mysql::read', $exception->getMessage());
+        $this->assertStringContainsString('Connection: mysql_replica', $exception->getMessage());
     }
 
     public function testMessageIncludesUnixSocket()
@@ -89,7 +89,7 @@ class DatabaseQueryExceptionTest extends TestCase
     public function testMessageHandlesArrayHosts()
     {
         $pdoException = new PDOException('SQLSTATE[HY000] [2002] No such file or directory');
-        $exception = new QueryException('mysql::read', 'SELECT * FROM users', [], $pdoException, [
+        $exception = new QueryException('mysql_replica', 'SELECT * FROM users', [], $pdoException, [
             'driver' => 'mysql',
             'host' => ['192.168.1.10', '192.168.1.11'],
             'port' => '3306',
@@ -135,13 +135,13 @@ class DatabaseQueryExceptionTest extends TestCase
         $pdoException = new PDOException('Mock error');
         $connectionInfo = [
             'driver' => 'mysql',
-            'name' => 'mysql::read',
+            'name' => 'mysql_replica',
             'host' => '192.168.1.10',
             'port' => '3306',
             'database' => 'laravel_db',
             'unix_socket' => null,
         ];
-        $exception = new QueryException('mysql::read', 'SELECT * FROM users', [], $pdoException, $connectionInfo);
+        $exception = new QueryException('mysql_replica', 'SELECT * FROM users', [], $pdoException, $connectionInfo);
 
         $this->assertSame($connectionInfo, $exception->getConnectionDetails());
     }

@@ -164,6 +164,19 @@ class TestModel extends Model
 
 Remove tests for features Hypervel doesn't support:
 - `SqlServerConnector` tests (no SQL Server support)
+- Dynamic connections (`DB::build()`, `DB::connectUsing()`) - incompatible with Swoole connection pooling
+
+### Removed Tests
+
+When removing a test that's incompatible with Hypervel, replace it with a comment **in the same position**:
+
+```php
+// REMOVED: testMethodName - Reason for removal
+```
+
+This preserves the test's location so future diffs against Laravel show intentional removals vs new tests needing porting.
+
+For tests that need work but aren't fundamentally incompatible, move them to the `Todo/` subdirectory with `markTestSkipped()` in setUp.
 
 ### Quick Checklist
 

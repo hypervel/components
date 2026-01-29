@@ -66,11 +66,6 @@ class Connection implements ConnectionInterface
     protected string $database;
 
     /**
-     * The type of the connection.
-     */
-    protected ?string $readWriteType = null;
-
-    /**
      * The table prefix for the connection.
      */
     protected string $tablePrefix = '';
@@ -731,7 +726,7 @@ class Connection implements ConnectionInterface
                 : QueryException::class;
 
             throw new $exceptionType(
-                $this->getNameWithReadWriteType(),
+                $this->getName(),
                 $query,
                 $this->prepareBindings($bindings),
                 $e,
@@ -1215,16 +1210,6 @@ class Connection implements ConnectionInterface
     }
 
     /**
-     * Get the database connection with its read / write type.
-     */
-    public function getNameWithReadWriteType(): ?string
-    {
-        $name = $this->getName() . ($this->readWriteType ? '::' . $this->readWriteType : '');
-
-        return empty($name) ? null : $name;
-    }
-
-    /**
      * Get an option from the configuration options.
      */
     public function getConfig(?string $option = null): mixed
@@ -1243,7 +1228,7 @@ class Connection implements ConnectionInterface
 
         return [
             'driver' => $this->getDriverName(),
-            'name' => $this->getNameWithReadWriteType(),
+            'name' => $this->getName(),
             'host' => $config['host'] ?? null,
             'port' => $config['port'] ?? null,
             'database' => $config['database'] ?? null,
@@ -1464,23 +1449,13 @@ class Connection implements ConnectionInterface
     }
 
     /**
-     * Set the read / write type of the connection.
-     */
-    public function setReadWriteType(?string $readWriteType): static
-    {
-        $this->readWriteType = $readWriteType;
-
-        return $this;
-    }
-
-    /**
      * Retrieve the latest read / write type used.
      *
      * @return null|'read'|'write'
      */
     protected function latestReadWriteTypeUsed(): ?string
     {
-        return $this->readWriteType ?? $this->latestPdoTypeRetrieved;
+        return $this->latestPdoTypeRetrieved;
     }
 
     /**

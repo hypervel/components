@@ -13,7 +13,6 @@ use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Pool\PoolFactory;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
-use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use PDO;
@@ -71,7 +70,7 @@ class DatabaseManager implements ConnectionResolverInterface
     ) {
         $this->reconnector = function ($connection) {
             $connection->setPdo(
-                $this->reconnect($connection->getNameWithReadWriteType())->getRawPdo()
+                $this->reconnect($connection->getName())->getRawPdo()
             );
         };
     }
@@ -100,12 +99,9 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     public function resolveConnectionDirectly(string $name): ConnectionInterface
     {
-        [$database, $type] = $this->parseConnectionName($name);
-
         if (! isset($this->connections[$name])) {
             $this->connections[$name] = $this->configure(
-                $this->makeConnection($database),
-                $type
+                $this->makeConnection($name)
             );
 
             $this->dispatchConnectionEstablishedEvent($this->connections[$name]);
@@ -148,18 +144,6 @@ class DatabaseManager implements ConnectionResolverInterface
             'Dynamic database connections via DB::connectUsing() are not supported in Hypervel. '
             . 'Configure all connections in config/databases.php instead.'
         );
-    }
-
-    /**
-     * Parse the connection into an array of the name and read / write type.
-     *
-     * @return array{0: string, 1: null|string}
-     */
-    protected function parseConnectionName(string $name): array
-    {
-        return Str::endsWith($name, ['::read', '::write'])
-            ? explode('::', $name, 2)
-            : [$name, null];
     }
 
     /**
@@ -208,13 +192,9 @@ class DatabaseManager implements ConnectionResolverInterface
     /**
      * Prepare the database connection instance.
      */
-    protected function configure(Connection $connection, ?string $type): Connection
+    protected function configure(Connection $connection): Connection
     {
-        $connection = $this->setPdoForType($connection, $type)->setReadWriteType($type);
-
-        // First we'll set the fetch mode and a few other dependencies of the database
-        // connection. This method basically just configures and prepares it to get
-        // used by the application. Once we're finished we'll return it back out.
+        // Set the event dispatcher if available.
         if ($this->app->bound('events')) {
             $connection->setEventDispatcher($this->app['events']);
         }
@@ -223,8 +203,7 @@ class DatabaseManager implements ConnectionResolverInterface
             $connection->setTransactionManager($this->app->get(DatabaseTransactionsManager::class));
         }
 
-        // Here we'll set a reconnector callback. This reconnector can be any callable
-        // so we will set a Closure to reconnect from this manager with the name of
+        // Set a reconnector callback to reconnect from this manager with the name of
         // the connection, which will allow us to reconnect from the connections.
         $connection->setReconnector($this->reconnector);
 
@@ -243,20 +222,6 @@ class DatabaseManager implements ConnectionResolverInterface
         $this->app['events']->dispatch(
             new ConnectionEstablished($connection)
         );
-    }
-
-    /**
-     * Prepare the read / write mode for database connection instance.
-     */
-    protected function setPdoForType(Connection $connection, ?string $type = null): Connection
-    {
-        if ($type === 'read') {
-            $connection->setPdo($connection->getReadPdo());
-        } elseif ($type === 'write') {
-            $connection->setReadPdo($connection->getPdo());
-        }
-
-        return $connection;
     }
 
     /**
@@ -360,11 +325,8 @@ class DatabaseManager implements ConnectionResolverInterface
      */
     protected function refreshPdoConnections(string $name): Connection
     {
-        [$database, $type] = $this->parseConnectionName($name);
-
         $fresh = $this->configure(
-            $this->makeConnection($database),
-            $type
+            $this->makeConnection($name)
         );
 
         return $this->connections[$name]
