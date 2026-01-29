@@ -2,15 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\QueryException;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\Fixtures\Post;
-use Illuminate\Tests\Integration\Database\Fixtures\PostStringyKey;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\QueryException;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Tests\Integration\Database\Laravel\Fixtures\Post;
+use Hypervel\Tests\Integration\Database\Laravel\Fixtures\PostStringyKey;
 
 /**
  * @internal
@@ -18,7 +19,7 @@ use Illuminate\Tests\Integration\Database\Fixtures\PostStringyKey;
  */
 class EloquentDeleteTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('posts', function (Blueprint $table) {
             $table->increments('id');
@@ -201,25 +202,25 @@ class EloquentDeleteTest extends DatabaseTestCase
 
 class Comment extends Model
 {
-    public $table = 'comments';
+    protected ?string $table = 'comments';
 
-    protected $fillable = ['post_id'];
+    protected array $fillable = ['post_id'];
 }
 
 class Role extends Model
 {
     use SoftDeletes;
 
-    public $table = 'roles';
+    protected ?string $table = 'roles';
 
-    protected $guarded = [];
+    protected array $guarded = [];
 }
 
 class RoleObserver
 {
-    public static $model;
+    public static ?Model $model = null;
 
-    public function forceDeleted($model)
+    public function forceDeleted(Model $model): void
     {
         static::$model = $model;
     }

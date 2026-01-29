@@ -2,14 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Relations\HasOne;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Support\Str;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -17,7 +18,7 @@ use Illuminate\Support\Str;
  */
 class EloquentHasManyTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('eloquent_has_many_test_users', function ($table) {
             $table->id();
@@ -122,9 +123,9 @@ class EloquentHasManyTest extends DatabaseTestCase
 
 class EloquentHasManyTestUser extends Model
 {
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
     public function logins(): HasMany
     {
@@ -149,12 +150,12 @@ class EloquentHasManyTestUser extends Model
 
 class EloquentHasManyTestLogin extends Model
 {
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 }
 
 class EloquentHasManyTestPost extends Model
 {
-    protected $guarded = [];
+    protected array $guarded = [];
 }
