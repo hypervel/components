@@ -12,6 +12,7 @@ use Hypervel\Database\Eloquent\Attributes\UseEloquentBuilder;
 use Hypervel\Database\Eloquent\Concerns\HasAttributes;
 use Hypervel\Database\Eloquent\Concerns\HasBootableTraits;
 use Hypervel\Database\Eloquent\Concerns\HasCallbacks;
+use Hypervel\Database\Eloquent\Concerns\HasCollection;
 use Hypervel\Database\Eloquent\Concerns\HasGlobalScopes;
 use Hypervel\Database\Eloquent\Concerns\HasLocalScopes;
 use Hypervel\Database\Eloquent\Concerns\HasObservers;
@@ -79,6 +80,7 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
     use HasAttributes;
     use HasBootableTraits;
     use HasCallbacks;
+    use HasCollection;
     use HasGlobalScopes;
     use HasLocalScopes;
     use HasObservers;
@@ -86,6 +88,16 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
     use HasRelationships;
     use HasTimestamps;
     use TransformsToResource;
+
+    /**
+     * The default collection class for this model.
+     *
+     * Override this property to use a custom collection class. Alternatively,
+     * use the #[CollectedBy] attribute for a more declarative approach.
+     *
+     * @var class-string<Collection<*, *>>
+     */
+    protected static string $collectionClass = Collection::class;
 
     /**
      * The resolved builder class names by model.
@@ -156,15 +168,6 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
 
         // @phpstan-ignore return.type (attribute stores generic Model type, but we know it's compatible with static)
         return $attributes[0]->newInstance()->builderClass;
-    }
-
-    /**
-     * @param array<array-key, static> $models
-     * @return \Hypervel\Database\Eloquent\Collection<array-key, static>
-     */
-    public function newCollection(array $models = [])
-    {
-        return new Collection($models);
     }
 
     public function broadcastChannelRoute(): string
