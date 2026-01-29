@@ -71,6 +71,42 @@ class BcryptHasher extends AbstractHasher implements HasherContract
     }
 
     /**
+     * Verifies that the configuration is less than or equal to what is configured.
+     *
+     * @internal
+     */
+    public function verifyConfiguration(string $hashedValue): bool
+    {
+        return $this->isUsingCorrectAlgorithm($hashedValue) && $this->isUsingValidOptions($hashedValue);
+    }
+
+    /**
+     * Verify the hashed value's algorithm.
+     */
+    protected function isUsingCorrectAlgorithm(string $hashedValue): bool
+    {
+        return $this->info($hashedValue)['algoName'] === 'bcrypt';
+    }
+
+    /**
+     * Verify the hashed value's options.
+     */
+    protected function isUsingValidOptions(string $hashedValue): bool
+    {
+        ['options' => $options] = $this->info($hashedValue);
+
+        if (! is_int($options['cost'] ?? null)) {
+            return false;
+        }
+
+        if ($options['cost'] > $this->rounds) {
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Set the default password work factor.
      *
      * @return $this

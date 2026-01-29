@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
 
 trait DatabaseMigrations
@@ -21,11 +22,26 @@ trait DatabaseMigrations
 
         $this->afterRefreshingDatabase();
 
+        $this->refreshModelBootedStates();
+
         $this->beforeApplicationDestroyed(function () {
             $this->command('migrate:rollback');
 
             RefreshDatabaseState::$migrated = false;
         });
+    }
+
+    /**
+     * Refresh the model booted states.
+     *
+     * Clears the static booted model tracking so that models re-register
+     * their event listeners with the current event dispatcher. This is
+     * necessary when Event::fake() creates a new EventFake, otherwise
+     * model event callbacks point to the old dispatcher.
+     */
+    protected function refreshModelBootedStates(): void
+    {
+        Model::clearBootedModels();
     }
 
     /**

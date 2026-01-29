@@ -2,18 +2,19 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Eloquent\Casts\AsArrayObject;
-use Illuminate\Database\Eloquent\Casts\AsCollection;
-use Illuminate\Database\Eloquent\Casts\AsStringable;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Fluent;
-use Illuminate\Support\Stringable;
+use Hypervel\Database\Eloquent\Casts\AsArrayObject;
+use Hypervel\Database\Eloquent\Casts\AsCollection;
+use Hypervel\Database\Eloquent\Casts\AsStringable;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\Hash;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Support\Fluent;
+use Hypervel\Support\Stringable;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -21,7 +22,7 @@ use Illuminate\Support\Stringable;
  */
 class DatabaseCustomCastsTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('test_eloquent_model_with_custom_casts', function (Blueprint $table) {
             $table->increments('id');
@@ -225,19 +226,9 @@ class DatabaseCustomCastsTest extends DatabaseTestCase
 
 class TestEloquentModelWithCustomCasts extends Model
 {
-    /**
-     * The attributes that aren't mass assignable.
-     *
-     * @var string[]
-     */
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    /**
-     * The attributes that should be cast to native types.
-     *
-     * @var array
-     */
-    protected $casts = [
+    protected array $casts = [
         'array_object' => AsArrayObject::class,
         'array_object_json' => AsArrayObject::class,
         'collection' => AsCollection::class,
@@ -248,19 +239,9 @@ class TestEloquentModelWithCustomCasts extends Model
 
 class TestEloquentModelWithCustomCastsNullable extends Model
 {
-    /**
-     * The attributes that aren't mass assignable.
-     *
-     * @var string[]
-     */
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    /**
-     * The attributes that should be cast to native types.
-     *
-     * @var array
-     */
-    protected $casts = [
+    protected array $casts = [
         'array_object' => AsArrayObject::class,
         'array_object_json' => AsArrayObject::class,
         'collection' => AsCollection::class,
@@ -270,7 +251,7 @@ class TestEloquentModelWithCustomCastsNullable extends Model
 
 class FluentWithCallback extends Fluent
 {
-    public static function make($attributes = [])
+    public static function make(iterable $attributes = []): static
     {
         return new static($attributes);
     }
