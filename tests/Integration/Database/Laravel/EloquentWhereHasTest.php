@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentWhereHasTest;
 
 use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
@@ -11,6 +13,10 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentWhereHasTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -39,12 +45,12 @@ class EloquentWhereHasTest extends DatabaseTestCase
 
         $user = User::create();
         $post = tap((new Post(['public' => true]))->user()->associate($user))->save();
-        (new Comment)->commentable()->associate($post)->save();
+        (new Comment())->commentable()->associate($post)->save();
         (new Text(['content' => 'test']))->post()->associate($post)->save();
 
         $user = User::create();
         $post = tap((new Post(['public' => false]))->user()->associate($user))->save();
-        (new Comment)->commentable()->associate($post)->save();
+        (new Comment())->commentable()->associate($post)->save();
         (new Text(['content' => 'test2']))->post()->associate($post)->save();
     }
 

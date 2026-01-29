@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentModelDateCastingTest;
 
 use Carbon\Carbon;
@@ -9,9 +11,12 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentModelDateCastingTest extends DatabaseTestCase
 {
-    /** {@inheritdoc} */
     protected function afterRefreshingDatabase()
     {
         Schema::create('test_model1', function (Blueprint $table) {
@@ -153,7 +158,9 @@ class EloquentModelDateCastingTest extends DatabaseTestCase
 class TestModel1 extends Model
 {
     public $table = 'test_model1';
+
     public $timestamps = false;
+
     protected $guarded = [];
 
     public $casts = [
@@ -167,7 +174,9 @@ class TestModel1 extends Model
 class TestModel2 extends Model
 {
     public $table = 'test_model2';
-    const UPDATED_AT = null;
+
+    public const UPDATED_AT = null;
+
     protected $guarded = [];
 
     public $casts = [

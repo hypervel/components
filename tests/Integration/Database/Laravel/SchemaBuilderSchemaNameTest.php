@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Schema\Blueprint;
@@ -8,6 +10,10 @@ use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\Attributes\RequiresDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class SchemaBuilderSchemaNameTest extends DatabaseTestCase
 {
     protected function setUp(): void
@@ -53,9 +59,9 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
 
         $connection = $app['config']->get('database.default');
 
-        $app['config']->set("database.connections.$connection.prefix_indexes", true);
+        $app['config']->set("database.connections.{$connection}.prefix_indexes", true);
         $app['config']->set('database.connections.pgsql.search_path', 'public,my_schema');
-        $app['config']->set('database.connections.without-prefix', $app['config']->get('database.connections.'.$connection));
+        $app['config']->set('database.connections.without-prefix', $app['config']->get('database.connections.' . $connection));
         $app['config']->set('database.connections.with-prefix', $app['config']->get('database.connections.without-prefix'));
         $app['config']->set('database.connections.with-prefix.prefix', 'example_');
     }
@@ -95,7 +101,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
         $tableName = $connection === 'with-prefix' ? 'example_table' : 'table';
 
         $this->assertEqualsCanonicalizing(
-            [$currentSchema.'.migrations', 'my_schema.'.$tableName],
+            [$currentSchema . '.migrations', 'my_schema.' . $tableName],
             $schema->getTableListing([$currentSchema, 'my_schema'])
         );
     }
@@ -149,7 +155,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
         $tableName = $connection === 'with-prefix' ? 'example_table' : 'table';
 
         $this->assertEqualsCanonicalizing(
-            [$currentSchema.'.migrations', $currentSchema.'.'.$tableName, 'my_schema.'.$tableName],
+            [$currentSchema . '.migrations', $currentSchema . '.' . $tableName, 'my_schema.' . $tableName],
             $schema->getTableListing([$currentSchema, 'my_schema'])
         );
 
@@ -159,7 +165,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
         $this->assertTrue($schema->hasTable('table'));
 
         $this->assertEqualsCanonicalizing(
-            [$currentSchema.'.migrations', $currentSchema.'.'.$tableName],
+            [$currentSchema . '.migrations', $currentSchema . '.' . $tableName],
             $schema->getTableListing([$currentSchema, 'my_schema'])
         );
     }
@@ -481,8 +487,8 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
         $db = DB::connection($connection);
         $schema = $db->getSchemaBuilder();
 
-        $db->statement('create view '.$db->getSchemaGrammar()->wrapTable('my_schema.view').' (name) as select 1');
-        $db->statement('create view '.$db->getSchemaGrammar()->wrapTable('my_view').' (name) as select 1');
+        $db->statement('create view ' . $db->getSchemaGrammar()->wrapTable('my_schema.view') . ' (name) as select 1');
+        $db->statement('create view ' . $db->getSchemaGrammar()->wrapTable('my_view') . ' (name) as select 1');
 
         $this->assertTrue($schema->hasView('my_schema.view'));
         $this->assertTrue($schema->hasView('my_view'));
@@ -494,12 +500,12 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
         $myViewName = $connection === 'with-prefix' ? 'example_my_view' : 'my_view';
 
         $this->assertEqualsCanonicalizing(
-            [$currentSchema.'.'.$myViewName, 'my_schema.'.$viewName],
+            [$currentSchema . '.' . $myViewName, 'my_schema.' . $viewName],
             array_column($schema->getViews([$currentSchema, 'my_schema']), 'schema_qualified_name')
         );
 
-        $db->statement('drop view '.$db->getSchemaGrammar()->wrapTable('my_schema.view'));
-        $db->statement('drop view '.$db->getSchemaGrammar()->wrapTable('my_view'));
+        $db->statement('drop view ' . $db->getSchemaGrammar()->wrapTable('my_schema.view'));
+        $db->statement('drop view ' . $db->getSchemaGrammar()->wrapTable('my_view'));
 
         $this->assertFalse($schema->hasView('my_schema.view'));
         $this->assertFalse($schema->hasView('my_view'));
@@ -526,16 +532,20 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
         $tableName = $connection === 'with-prefix' ? 'example_table' : 'table';
         $defaultSchema = $this->driver === 'pgsql' ? 'public' : 'laravel';
 
-        $this->assertEquals('comment on schema table',
+        $this->assertEquals(
+            'comment on schema table',
             $tables->first(fn ($table) => $table['name'] === $tableName && $table['schema'] === 'my_schema')['comment']
         );
-        $this->assertEquals('comment on table',
+        $this->assertEquals(
+            'comment on table',
             $tables->first(fn ($table) => $table['name'] === $tableName && $table['schema'] === $defaultSchema)['comment']
         );
-        $this->assertEquals('comment on schema column',
+        $this->assertEquals(
+            'comment on schema column',
             collect($schema->getColumns('my_schema.table'))->firstWhere('name', 'name')['comment']
         );
-        $this->assertEquals('comment on column',
+        $this->assertEquals(
+            'comment on column',
             collect($schema->getColumns('table'))->firstWhere('name', 'name')['comment']
         );
     }
@@ -566,8 +576,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
         try {
             $db->statement("create login my_user with password = 'Passw0rd'");
             $db->statement('create user my_user for login my_user');
-        } catch(\Illuminate\Database\QueryException) {
-            //
+        } catch (\Illuminate\Database\QueryException) {
         }
 
         $db->statement('grant create table to my_user');
@@ -575,8 +584,8 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
         $db->statement("alter user my_user with default_schema = my_schema execute as user='my_user'");
 
         config([
-            'database.connections.'.$connection.'.username' => 'my_user',
-            'database.connections.'.$connection.'.password' => 'Passw0rd',
+            'database.connections.' . $connection . '.username' => 'my_user',
+            'database.connections.' . $connection . '.password' => 'Passw0rd',
         ]);
 
         $this->assertEquals('my_schema', $schema->getCurrentSchemaName());

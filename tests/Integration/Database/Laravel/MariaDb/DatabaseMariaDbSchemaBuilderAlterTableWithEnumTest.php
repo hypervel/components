@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\MariaDb;
 
 use Illuminate\Database\Schema\Blueprint;
@@ -7,6 +9,10 @@ use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 #[RequiresOperatingSystem('Linux|Darwin')]
 #[RequiresPhpExtension('pdo_mysql')]
 class DatabaseMariaDbSchemaBuilderAlterTableWithEnumTest extends MariaDbTestCase

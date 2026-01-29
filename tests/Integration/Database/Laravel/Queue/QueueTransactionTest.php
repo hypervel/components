@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\Queue;
 
 use Illuminate\Foundation\Testing\DatabaseMigrations;
@@ -14,6 +16,10 @@ use Throwable;
 
 use function Orchestra\Testbench\remote;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 #[RequiresPhpExtension('pcntl')]
 #[WithMigration('laravel', 'queue')]
 #[WithConfig('queue.default', 'database')]

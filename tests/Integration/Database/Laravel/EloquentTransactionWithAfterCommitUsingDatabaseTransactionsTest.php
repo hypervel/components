@@ -1,10 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Foundation\Testing\DatabaseTransactions;
 use Orchestra\Testbench\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentTransactionWithAfterCommitUsingDatabaseTransactionsTest extends TestCase
 {
     use EloquentTransactionWithAfterCommitTests;
@@ -36,6 +42,6 @@ class EloquentTransactionWithAfterCommitUsingDatabaseTransactionsTest extends Te
     {
         $connection = $app->make('config')->get('database.default');
 
-        $this->driver = $app['config']->get("database.connections.$connection.driver");
+        $this->driver = $app['config']->get("database.connections.{$connection}.driver");
     }
 }

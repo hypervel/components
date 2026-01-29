@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentMorphToLazyEagerLoadingTest;
 
 use DB;
@@ -8,6 +10,10 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentMorphToLazyEagerLoadingTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -33,12 +39,12 @@ class EloquentMorphToLazyEagerLoadingTest extends DatabaseTestCase
 
         $user = User::create();
 
-        $post = tap((new Post)->user()->associate($user))->save();
+        $post = tap((new Post())->user()->associate($user))->save();
 
         $video = Video::create();
 
-        (new Comment)->commentable()->associate($post)->save();
-        (new Comment)->commentable()->associate($video)->save();
+        (new Comment())->commentable()->associate($post)->save();
+        (new Comment())->commentable()->associate($video)->save();
     }
 
     public function testLazyEagerLoading()
@@ -69,7 +75,9 @@ class Comment extends Model
 class Post extends Model
 {
     public $timestamps = false;
+
     protected $primaryKey = 'post_id';
+
     protected $with = ['user'];
 
     public function user()
@@ -86,5 +94,6 @@ class User extends Model
 class Video extends Model
 {
     public $timestamps = false;
+
     protected $primaryKey = 'video_id';
 }

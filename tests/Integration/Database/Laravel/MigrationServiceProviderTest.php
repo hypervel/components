@@ -1,9 +1,15 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Migrations\Migrator;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class MigrationServiceProviderTest extends DatabaseTestCase
 {
     public function testContainerCanBuildMigrator()

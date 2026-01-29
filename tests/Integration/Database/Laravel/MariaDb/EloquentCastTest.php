@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\MariaDb;
 
 use Illuminate\Contracts\Database\Eloquent\CastsAttributes;
@@ -8,6 +10,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentCastTest extends MariaDbTestCase
 {
     protected $driver = 'mariadb';

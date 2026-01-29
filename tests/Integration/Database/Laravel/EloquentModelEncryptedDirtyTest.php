@@ -1,12 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Eloquent\Casts\AsEncryptedArrayObject;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Collection;
 use Orchestra\Testbench\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentModelEncryptedDirtyTest extends TestCase
 {
     public function testDirtyAttributeBehaviorWithNoPreviousKeys()

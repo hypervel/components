@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Eloquent\Casts\AsEnumArrayObject;
@@ -12,6 +14,10 @@ use ValueError;
 
 include_once 'Enums.php';
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentModelEnumCastingTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -273,7 +279,7 @@ class EloquentModelEnumCastingTest extends DatabaseTestCase
 
     public function testAttributeCastToAnEnumCanNotBeSetToAnotherEnum(): void
     {
-        $model = new EloquentModelEnumCastingTestModel;
+        $model = new EloquentModelEnumCastingTestModel();
 
         $this->expectException(ValueError::class);
         $this->expectExceptionMessage(
@@ -285,7 +291,7 @@ class EloquentModelEnumCastingTest extends DatabaseTestCase
 
     public function testAttributeCastToAnEnumCanNotBeSetToAValueNotDefinedOnTheEnum(): void
     {
-        $model = new EloquentModelEnumCastingTestModel;
+        $model = new EloquentModelEnumCastingTestModel();
 
         $this->expectException(ValueError::class);
         $this->expectExceptionMessage(
@@ -297,7 +303,7 @@ class EloquentModelEnumCastingTest extends DatabaseTestCase
 
     public function testAnAttributeWithoutACastCanBeSetToAnEnum(): void
     {
-        $model = new EloquentModelEnumCastingTestModel;
+        $model = new EloquentModelEnumCastingTestModel();
 
         $model->non_enum_status = StringStatus::pending;
 
@@ -328,16 +334,18 @@ class EloquentModelEnumCastingTest extends DatabaseTestCase
 class EloquentModelEnumCastingTestModel extends Model
 {
     public $timestamps = false;
+
     protected $guarded = [];
+
     protected $table = 'enum_casts';
 
     public $casts = [
         'string_status' => StringStatus::class,
-        'string_status_collection' => AsEnumCollection::class.':'.StringStatus::class,
-        'string_status_array' => AsEnumArrayObject::class.':'.StringStatus::class,
+        'string_status_collection' => AsEnumCollection::class . ':' . StringStatus::class,
+        'string_status_array' => AsEnumArrayObject::class . ':' . StringStatus::class,
         'integer_status' => IntegerStatus::class,
-        'integer_status_collection' => AsEnumCollection::class.':'.IntegerStatus::class,
-        'integer_status_array' => AsEnumArrayObject::class.':'.IntegerStatus::class,
+        'integer_status_collection' => AsEnumCollection::class . ':' . IntegerStatus::class,
+        'integer_status_array' => AsEnumArrayObject::class . ':' . IntegerStatus::class,
         'arrayable_status' => ArrayableStatus::class,
     ];
 }
@@ -345,7 +353,9 @@ class EloquentModelEnumCastingTestModel extends Model
 class EloquentModelEnumCastingUniqueTestModel extends Model
 {
     public $timestamps = false;
+
     protected $guarded = [];
+
     protected $table = 'unique_enum_casts';
 
     public $casts = [

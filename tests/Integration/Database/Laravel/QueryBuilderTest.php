@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -14,6 +16,10 @@ use Orchestra\Testbench\Attributes\DefineEnvironment;
 use PDO;
 use PDOException;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class QueryBuilderTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()

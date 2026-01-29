@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentMorphManyTest;
 
 use Illuminate\Database\Eloquent\Model;
@@ -10,6 +12,10 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentMorphManyTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -38,7 +44,7 @@ class EloquentMorphManyTest extends DatabaseTestCase
         $this->assertSame('new name', $post->title);
     }
 
-    public function test_self_referencing_existence_query()
+    public function testSelfReferencingExistenceQuery()
     {
         $post = Post::create(['title' => 'foo']);
 
@@ -74,8 +80,11 @@ class EloquentMorphManyTest extends DatabaseTestCase
 class Post extends Model
 {
     public $table = 'posts';
+
     public $timestamps = true;
+
     protected $guarded = [];
+
     protected $withCount = ['comments'];
 
     public function comments()
@@ -97,7 +106,9 @@ class Post extends Model
 class Comment extends Model
 {
     public $table = 'comments';
+
     public $timestamps = true;
+
     protected $guarded = [];
 
     public function commentable()

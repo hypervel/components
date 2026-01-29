@@ -1,11 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\MySql;
 
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use RuntimeException;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 #[RequiresOperatingSystem('Linux|Darwin')]
 #[RequiresPhpExtension('pdo_mysql')]
 class EscapeTest extends MySqlTestCase
@@ -45,7 +51,7 @@ class EscapeTest extends MySqlTestCase
         $this->assertSame("'true'", $this->app['db']->escape('true'));
         $this->assertSame("'false'", $this->app['db']->escape('false'));
         $this->assertSame("'null'", $this->app['db']->escape('null'));
-        $this->assertSame("'Hello\'World'", $this->app['db']->escape("Hello'World"));
+        $this->assertSame("'Hello\\'World'", $this->app['db']->escape("Hello'World"));
     }
 
     public function testEscapeStringInvalidUtf8()

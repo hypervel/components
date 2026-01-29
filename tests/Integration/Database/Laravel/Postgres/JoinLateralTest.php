@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\Postgres;
 
 use Illuminate\Database\Schema\Blueprint;
@@ -9,6 +11,10 @@ use Illuminate\Support\Str;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystemFamily;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 #[RequiresPhpExtension('pdo_pgsql')]
 #[RequiresOperatingSystemFamily('Linux|Darwin')]
 class JoinLateralTest extends PostgresTestCase

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Contracts\Events\Dispatcher;
@@ -12,6 +14,10 @@ use Illuminate\Support\Facades\Schema;
 use LogicException;
 use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentMassPrunableTest extends DatabaseTestCase
 {
     protected function setUp(): void
@@ -65,7 +71,7 @@ class EloquentMassPrunableTest extends DatabaseTestCase
             MassPrunableTestModel::insert($chunk->all());
         });
 
-        $count = (new MassPrunableTestModel)->pruneAll();
+        $count = (new MassPrunableTestModel())->pruneAll();
 
         $this->assertEquals(1500, $count);
         $this->assertEquals(3500, MassPrunableTestModel::count());
@@ -84,7 +90,7 @@ class EloquentMassPrunableTest extends DatabaseTestCase
             MassPrunableSoftDeleteTestModel::insert($chunk->all());
         });
 
-        $count = (new MassPrunableSoftDeleteTestModel)->pruneAll();
+        $count = (new MassPrunableSoftDeleteTestModel())->pruneAll();
 
         $this->assertEquals(3000, $count);
         $this->assertEquals(0, MassPrunableSoftDeleteTestModel::count());
@@ -104,7 +110,8 @@ class MassPrunableTestModel extends Model
 
 class MassPrunableSoftDeleteTestModel extends Model
 {
-    use MassPrunable, SoftDeletes;
+    use MassPrunable;
+    use SoftDeletes;
 
     public function prunable()
     {

@@ -1,9 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
+use Exception;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseTransactionsTest extends DatabaseTestCase
 {
     protected function defineEnvironment($app)
@@ -62,9 +70,9 @@ class DatabaseTransactionsTest extends DatabaseTestCase
             try {
                 DB::transaction(function () use ($thirdObject) { // Adds a transaction 3 @ level 2
                     DB::afterCommit(fn () => $thirdObject->handle());
-                    throw new \Exception(); // This should only affect callback 3, not 1, even though both share the same transaction level.
+                    throw new Exception(); // This should only affect callback 3, not 1, even though both share the same transaction level.
                 });
-            } catch (\Exception) {
+            } catch (Exception) {
             }
         });
 
@@ -94,10 +102,9 @@ class DatabaseTransactionsTest extends DatabaseTestCase
                 DB::connection('second_connection')->transaction(function () use ($thirdObject) {
                     DB::afterCommit(fn () => $thirdObject->handle());
 
-                    throw new \Exception;
+                    throw new Exception();
                 });
-            } catch (\Exception) {
-                //
+            } catch (Exception) {
             }
         });
 
@@ -121,9 +128,9 @@ class DatabaseTransactionsTest extends DatabaseTestCase
                     $afterRollbackRan = true;
                 });
 
-                throw new \RuntimeException('rollback');
+                throw new RuntimeException('rollback');
             });
-        } catch (\RuntimeException) {
+        } catch (RuntimeException) {
             // Ignore the expected rollback exception.
         }
 
@@ -141,6 +148,6 @@ class TestObjectForTransactions
     public function handle()
     {
         $this->ran = true;
-        $this->runs++;
+        ++$this->runs;
     }
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentMorphToIsTest;
 
 use Illuminate\Database\Eloquent\Model;
@@ -7,6 +9,10 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentMorphToIsTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -23,7 +29,7 @@ class EloquentMorphToIsTest extends DatabaseTestCase
         });
 
         $post = Post::create();
-        (new Comment)->commentable()->associate($post)->save();
+        (new Comment())->commentable()->associate($post)->save();
     }
 
     public function testParentIsNotNull()
@@ -47,7 +53,7 @@ class EloquentMorphToIsTest extends DatabaseTestCase
     public function testParentIsNotAnotherModel()
     {
         $child = Comment::first();
-        $parent = new Post;
+        $parent = new Post();
         $parent->id = 2;
 
         $this->assertFalse($child->commentable()->is($parent));
@@ -97,5 +103,4 @@ class Comment extends Model
 
 class Post extends Model
 {
-    //
 }

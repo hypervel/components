@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Eloquent\Attributes\CollectedBy;
@@ -17,6 +19,10 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class ModelInspectorTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -35,7 +41,7 @@ class ModelInspectorTest extends DatabaseTestCase
         });
     }
 
-    public function test_extracts_model_data()
+    public function testExtractsModelData()
     {
         $extractor = new ModelInspector($this->app);
         $modelInfo = $extractor->inspect(ModelInspectorTestModel::class);
@@ -45,7 +51,7 @@ class ModelInspectorTest extends DatabaseTestCase
         $this->assertSame(ModelInspectorTestModelResource::class, $modelInfo['resource']);
     }
 
-    public function test_command_returns_json()
+    public function testCommandReturnsJson()
     {
         $this->withoutMockingConsoleOutput()->artisan('model:show', ['model' => ModelInspectorTestModel::class, '--json' => true]);
         $o = Artisan::output();
@@ -162,14 +168,14 @@ class ModelInspectorTest extends DatabaseTestCase
         $this->assertEqualsCanonicalizing([
             'name' => 'parentModel',
             'type' => 'BelongsTo',
-            'related' => "Illuminate\Tests\Integration\Database\ParentTestModel",
+            'related' => 'Illuminate\Tests\Integration\Database\ParentTestModel',
         ], $modelInfo['relations'][0]);
 
         $this->assertEmpty($modelInfo['events']);
         $this->assertCount(1, $modelInfo['observers']);
         $this->assertEquals('created', $modelInfo['observers'][0]['event']);
         $this->assertCount(1, $modelInfo['observers'][0]['observer']);
-        $this->assertEquals("Illuminate\Tests\Integration\Database\ModelInspectorTestModelObserver@created", $modelInfo['observers'][0]['observer'][0]);
+        $this->assertEquals('Illuminate\Tests\Integration\Database\ModelInspectorTestModelObserver@created', $modelInfo['observers'][0]['observer'][0]);
         $this->assertEquals(ModelInspectorTestModelEloquentCollection::class, $modelInfo['collection']);
         $this->assertEquals(ModelInspectorTestModelBuilder::class, $modelInfo['builder']);
     }
@@ -193,8 +199,11 @@ class ModelInspectorTestModel extends Model
     use HasUuids;
 
     protected static string $builder = ModelInspectorTestModelBuilder::class;
+
     public $table = 'model_info_extractor_test_model';
+
     protected $guarded = ['name'];
+
     protected $casts = ['nullable_date' => 'datetime', 'a_bool' => 'bool'];
 
     public function parentModel(): BelongsTo
@@ -206,6 +215,7 @@ class ModelInspectorTestModel extends Model
 class ParentTestModel extends Model
 {
     public $table = 'parent_test_models';
+
     public $timestamps = false;
 }
 

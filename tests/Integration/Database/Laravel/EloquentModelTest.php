@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Eloquent\Model;
@@ -8,6 +10,10 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentModelTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -114,10 +120,11 @@ class EloquentModelTest extends DatabaseTestCase
             $table->boolean('analyze');
         });
 
-        $model = new class extends Model
-        {
+        $model = new class extends Model {
             protected $table = 'actions';
+
             protected $guarded = ['id'];
+
             public $timestamps = false;
         };
 
@@ -140,14 +147,19 @@ class EloquentModelTest extends DatabaseTestCase
 class TestModel1 extends Model
 {
     public $table = 'test_model1';
+
     public $timestamps = false;
+
     protected $guarded = [];
+
     protected $casts = ['nullable_date' => 'datetime'];
 }
 
 class TestModel2 extends Model
 {
     public $table = 'test_model2';
+
     public $timestamps = false;
+
     protected $guarded = [];
 }

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Eloquent\Model;
@@ -8,6 +10,10 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentUpdateTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -52,7 +58,7 @@ class EloquentUpdateTest extends DatabaseTestCase
             $this->markTestSkipped('The limit keyword is not supported on MSSQL.');
         }
 
-        for ($i = 1; $i <= 10; $i++) {
+        for ($i = 1; $i <= 10; ++$i) {
             TestUpdateModel1::create();
         }
 
@@ -80,7 +86,7 @@ class EloquentUpdateTest extends DatabaseTestCase
 
         $record = TestUpdateModel2::find(1);
 
-        $this->assertSame('Engineer: Abdul', $record->job.': '.$record->name);
+        $this->assertSame('Engineer: Abdul', $record->job . ': ' . $record->name);
     }
 
     public function testSoftDeleteWithJoins()
@@ -185,7 +191,9 @@ class EloquentUpdateTest extends DatabaseTestCase
 class TestUpdateModel1 extends Model
 {
     public $table = 'test_model1';
+
     public $timestamps = false;
+
     protected $guarded = [];
 }
 
@@ -194,6 +202,7 @@ class TestUpdateModel2 extends Model
     use SoftDeletes;
 
     public $table = 'test_model2';
+
     protected $fillable = ['name'];
 }
 
@@ -202,6 +211,8 @@ class TestUpdateModel3 extends Model
     use SoftDeletes;
 
     public $table = 'test_model3';
+
     protected $fillable = ['counter'];
+
     protected $casts = ['deleted_at' => 'datetime'];
 }

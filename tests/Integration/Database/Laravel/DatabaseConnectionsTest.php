@@ -9,6 +9,10 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseConnectionsTest extends DatabaseTestCase
 {
     protected static string $readPath;

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Exception;
@@ -13,6 +15,10 @@ use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Facades\Schema;
 use LogicException;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentPrunableTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -54,7 +60,7 @@ class EloquentPrunableTest extends DatabaseTestCase
             PrunableTestModel::insert($chunk->all());
         });
 
-        $count = (new PrunableTestModel)->pruneAll();
+        $count = (new PrunableTestModel())->pruneAll();
 
         $this->assertEquals(1500, $count);
         $this->assertEquals(3500, PrunableTestModel::count());
@@ -72,7 +78,7 @@ class EloquentPrunableTest extends DatabaseTestCase
             PrunableSoftDeleteTestModel::insert($chunk->all());
         });
 
-        $count = (new PrunableSoftDeleteTestModel)->pruneAll();
+        $count = (new PrunableSoftDeleteTestModel())->pruneAll();
 
         $this->assertEquals(3000, $count);
         $this->assertEquals(0, PrunableSoftDeleteTestModel::count());
@@ -91,7 +97,7 @@ class EloquentPrunableTest extends DatabaseTestCase
             PrunableWithCustomPruneMethodTestModel::insert($chunk->all());
         });
 
-        $count = (new PrunableWithCustomPruneMethodTestModel)->pruneAll();
+        $count = (new PrunableWithCustomPruneMethodTestModel())->pruneAll();
 
         $this->assertEquals(1000, $count);
         $this->assertTrue((bool) PrunableWithCustomPruneMethodTestModel::first()->pruned);
@@ -112,7 +118,7 @@ class EloquentPrunableTest extends DatabaseTestCase
             PrunableWithException::insert($chunk->all());
         });
 
-        $count = (new PrunableWithException)->pruneAll();
+        $count = (new PrunableWithException())->pruneAll();
 
         $this->assertEquals(999, $count);
 
@@ -135,7 +141,8 @@ class PrunableTestModel extends Model
 
 class PrunableSoftDeleteTestModel extends Model
 {
-    use Prunable, SoftDeletes;
+    use Prunable;
+    use SoftDeletes;
 
     public function prunable()
     {

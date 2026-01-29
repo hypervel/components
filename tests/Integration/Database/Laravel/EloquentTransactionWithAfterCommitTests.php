@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Bus\Queueable;
@@ -10,6 +12,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Support\Facades\DB;
 use Orchestra\Testbench\Concerns\WithLaravelMigrations;
 use Orchestra\Testbench\Factories\UserFactory;
+use RuntimeException;
 
 trait EloquentTransactionWithAfterCommitTests
 {
@@ -129,10 +132,10 @@ trait EloquentTransactionWithAfterCommitTests
 
                 $this->assertSame($rootTransactionLevel + 1, DB::transactionLevel());
 
-                DB::afterCommit(fn () => throw new \RuntimeException());
+                DB::afterCommit(fn () => throw new RuntimeException());
                 DB::afterCommit(fn () => $secondObject->handle());
             });
-        }, \RuntimeException::class);
+        }, RuntimeException::class);
 
         $this->assertSame($rootTransactionLevel, DB::transactionLevel());
 
@@ -157,7 +160,7 @@ class EloquentTransactionWithAfterCommitTestsUserObserver
 
     public function created($user)
     {
-        static::$calledTimes++;
+        ++static::$calledTimes;
     }
 }
 
@@ -173,7 +176,9 @@ class EloquentTransactionWithAfterCommitTestsUserObserverUsingDispatchSync exten
 
 class EloquentTransactionWithAfterCommitTestsJob implements ShouldQueue
 {
-    use Dispatchable, InteractsWithQueue, Queueable;
+    use Dispatchable;
+    use InteractsWithQueue;
+    use Queueable;
 
     public function __construct(public string $email)
     {
@@ -199,6 +204,6 @@ class EloquentTransactionWithAfterCommitTestsTestObjectForTransactions
     public function handle()
     {
         $this->ran = true;
-        $this->runs++;
+        ++$this->runs;
     }
 }

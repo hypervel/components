@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentModelJsonCastingTest;
 
 use Illuminate\Database\Eloquent\Model;
@@ -9,6 +11,10 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 use stdClass;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentModelJsonCastingTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -47,7 +53,7 @@ class EloquentModelJsonCastingTest extends DatabaseTestCase
 
     public function testObjectsAreCastable()
     {
-        $object = new stdClass;
+        $object = new stdClass();
         $object->key1 = 'value1';
 
         /** @var \Illuminate\Tests\Integration\Database\EloquentModelJsonCastingTest\JsonCast $user */
@@ -81,7 +87,9 @@ class EloquentModelJsonCastingTest extends DatabaseTestCase
 class JsonCast extends Model
 {
     public $table = 'json_casts';
+
     public $timestamps = false;
+
     protected $guarded = [];
 
     public $casts = [

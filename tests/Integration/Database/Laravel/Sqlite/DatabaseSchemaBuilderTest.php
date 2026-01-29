@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\Sqlite;
 
 use Illuminate\Database\Query\Expression;
@@ -9,6 +11,10 @@ use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\Attributes\RequiresDatabase;
 use Orchestra\Testbench\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 #[RequiresDatabase('sqlite')]
 class DatabaseSchemaBuilderTest extends TestCase
 {
@@ -99,16 +105,20 @@ class DatabaseSchemaBuilderTest extends TestCase
 
         $foreignKeys = collect($schema->getForeignKeys('table2'));
 
-        $this->assertTrue($foreignKeys->contains(
-            fn ($fk) => $fk['foreign_table'] === 'example_table1' &&
-                $fk['foreign_columns'] === ['id'] &&
-                $fk['columns'] === ['author_id'])
+        $this->assertTrue(
+            $foreignKeys->contains(
+                fn ($fk) => $fk['foreign_table'] === 'example_table1'
+                && $fk['foreign_columns'] === ['id']
+                && $fk['columns'] === ['author_id']
+            )
         );
 
-        $this->assertTrue($foreignKeys->contains(
-            fn ($fk) => $fk['foreign_table'] === 'example_table1' &&
-                $fk['foreign_columns'] === ['id'] &&
-                $fk['columns'] === ['moderator_id'])
+        $this->assertTrue(
+            $foreignKeys->contains(
+                fn ($fk) => $fk['foreign_table'] === 'example_table1'
+                && $fk['foreign_columns'] === ['id']
+                && $fk['columns'] === ['moderator_id']
+            )
         );
     }
 
@@ -124,9 +134,9 @@ class DatabaseSchemaBuilderTest extends TestCase
         });
 
         $this->assertTrue(collect(Schema::getForeignKeys('items'))->contains(
-            fn ($fk) => $fk['foreign_table'] === 'items' &&
-                $fk['foreign_columns'] === ['id'] &&
-                $fk['columns'] === ['item_id']
+            fn ($fk) => $fk['foreign_table'] === 'items'
+                && $fk['foreign_columns'] === ['id']
+                && $fk['columns'] === ['item_id']
         ));
 
         $columns = Schema::getColumns('items');

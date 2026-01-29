@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Tests\Integration\Database\EloquentPivotWithoutTimestampTest as App;
@@ -7,6 +9,10 @@ use Orchestra\Testbench\Attributes\WithConfig;
 use Orchestra\Testbench\Attributes\WithMigration;
 use Orchestra\Testbench\Concerns\WithFixtures;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 #[WithConfig('auth.providers.users.model', App\User::class)]
 #[WithMigration]
 class EloquentPivotWithoutTimestampTest extends DatabaseTestCase

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\Sqlite;
 
 use Illuminate\Support\Facades\DB;
@@ -7,6 +9,10 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 use Orchestra\Testbench\Attributes\RequiresDatabase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 #[RequiresDatabase('sqlite')]
 class ConnectorTest extends DatabaseTestCase
 {

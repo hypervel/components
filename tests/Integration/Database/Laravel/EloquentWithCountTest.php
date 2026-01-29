@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentWithCountTest;
 
 use Illuminate\Database\Eloquent\Model;
@@ -7,6 +9,10 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentWithCountTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -75,7 +81,9 @@ class EloquentWithCountTest extends DatabaseTestCase
 class Model1 extends Model
 {
     public $table = 'one';
+
     public $timestamps = false;
+
     protected $guarded = [];
 
     public function twos()
@@ -97,8 +105,11 @@ class Model1 extends Model
 class Model2 extends Model
 {
     public $table = 'two';
+
     public $timestamps = false;
+
     protected $guarded = [];
+
     protected $withCount = ['threes'];
 
     protected static function boot()
@@ -119,7 +130,9 @@ class Model2 extends Model
 class Model3 extends Model
 {
     public $table = 'three';
+
     public $timestamps = false;
+
     protected $guarded = [];
 
     protected static function boot()
@@ -135,7 +148,9 @@ class Model3 extends Model
 class Model4 extends Model
 {
     public $table = 'four';
+
     public $timestamps = false;
+
     protected $guarded = [];
 
     protected static function boot()

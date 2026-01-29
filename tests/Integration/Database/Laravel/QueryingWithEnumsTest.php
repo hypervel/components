@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Schema\Blueprint;
@@ -8,6 +10,10 @@ use Illuminate\Support\Facades\Schema;
 
 include_once 'Enums.php';
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class QueryingWithEnumsTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()

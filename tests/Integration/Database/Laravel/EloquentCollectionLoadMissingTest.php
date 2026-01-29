@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentCollectionLoadMissingTest;
 
 use DB;
@@ -8,6 +10,10 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentCollectionLoadMissingTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -321,6 +327,7 @@ class Revision extends Model
 class User extends Model
 {
     public $timestamps = false;
+
     protected $guarded = [];
 
     public function posts()

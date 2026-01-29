@@ -1,14 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\Fixtures;
 
 use Illuminate\Database\Eloquent\Attributes\Scope;
 use Illuminate\Database\Eloquent\Builder;
+use Override;
 
 class NamedScopeUser extends User
 {
-    /** {@inheritdoc} */
-    #[\Override]
+    #[Override]
     protected function casts(): array
     {
         return [

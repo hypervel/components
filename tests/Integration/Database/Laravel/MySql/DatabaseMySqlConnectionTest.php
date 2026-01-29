@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\MySql;
 
 use Illuminate\Database\Events\QueryExecuted;
@@ -10,14 +12,21 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 #[RequiresOperatingSystem('Linux|Darwin')]
 #[RequiresPhpExtension('pdo_mysql')]
 class DatabaseMySqlConnectionTest extends MySqlTestCase
 {
-    const TABLE = 'player';
-    const FLOAT_COL = 'float_col';
-    const JSON_COL = 'json_col';
-    const FLOAT_VAL = 0.2;
+    public const TABLE = 'player';
+
+    public const FLOAT_COL = 'float_col';
+
+    public const JSON_COL = 'json_col';
+
+    public const FLOAT_VAL = 0.2;
 
     protected function afterRefreshingDatabase()
     {
@@ -37,12 +46,12 @@ class DatabaseMySqlConnectionTest extends MySqlTestCase
     #[DataProvider('floatComparisonsDataProvider')]
     public function testJsonFloatComparison($value, $operator, $shouldMatch)
     {
-        DB::table(self::TABLE)->insert([self::JSON_COL => '{"rank":'.self::FLOAT_VAL.'}']);
+        DB::table(self::TABLE)->insert([self::JSON_COL => '{"rank":' . self::FLOAT_VAL . '}']);
 
         $this->assertSame(
             $shouldMatch,
-            DB::table(self::TABLE)->where(self::JSON_COL.'->rank', $operator, $value)->exists(),
-            self::JSON_COL.'->rank should '.($shouldMatch ? '' : 'not ')."be $operator $value"
+            DB::table(self::TABLE)->where(self::JSON_COL . '->rank', $operator, $value)->exists(),
+            self::JSON_COL . '->rank should ' . ($shouldMatch ? '' : 'not ') . "be {$operator} {$value}"
         );
     }
 
@@ -73,7 +82,7 @@ class DatabaseMySqlConnectionTest extends MySqlTestCase
     {
         DB::table(self::TABLE)->insert([self::JSON_COL => json_encode($value)]);
 
-        $this->assertSame($expected, DB::table(self::TABLE)->whereNull(self::JSON_COL.'->'.$key)->exists());
+        $this->assertSame($expected, DB::table(self::TABLE)->whereNull(self::JSON_COL . '->' . $key)->exists());
     }
 
     #[DataProvider('jsonWhereNullDataProvider')]
@@ -81,7 +90,7 @@ class DatabaseMySqlConnectionTest extends MySqlTestCase
     {
         DB::table(self::TABLE)->insert([self::JSON_COL => json_encode($value)]);
 
-        $this->assertSame(! $expected, DB::table(self::TABLE)->whereNotNull(self::JSON_COL.'->'.$key)->exists());
+        $this->assertSame(! $expected, DB::table(self::TABLE)->whereNotNull(self::JSON_COL . '->' . $key)->exists());
     }
 
     public static function jsonWhereNullDataProvider()
@@ -112,8 +121,8 @@ class DatabaseMySqlConnectionTest extends MySqlTestCase
             [self::JSON_COL => '{"foo":["bar"]}'],
             [self::JSON_COL => '{"foo":["baz"]}'],
         ]);
-        $updatedCount = DB::table(self::TABLE)->where(self::JSON_COL.'->foo[0]', 'baz')->update([
-            self::JSON_COL.'->foo[0]' => 'updated',
+        $updatedCount = DB::table(self::TABLE)->where(self::JSON_COL . '->foo[0]', 'baz')->update([
+            self::JSON_COL . '->foo[0]' => 'updated',
         ]);
         $this->assertSame(1, $updatedCount);
     }

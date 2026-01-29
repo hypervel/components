@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Support\Facades\DB;
@@ -7,16 +9,18 @@ use Orchestra\Testbench\Attributes\WithConfig;
 
 use function Orchestra\Testbench\artisan;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 #[WithConfig('database.connections.second', ['driver' => 'sqlite', 'database' => ':memory:', 'foreign_key_constraints' => false])]
 class EloquentTransactionWithAfterCommitUsingRefreshDatabaseOnMultipleConnectionsTest extends EloquentTransactionWithAfterCommitUsingRefreshDatabaseTest
 {
-    /** {@inheritDoc} */
     protected function connectionsToTransact()
     {
         return [null, 'second'];
     }
 
-    /** {@inheritDoc} */
     protected function afterRefreshingDatabase()
     {
         artisan($this, 'migrate', ['--database' => 'second']);

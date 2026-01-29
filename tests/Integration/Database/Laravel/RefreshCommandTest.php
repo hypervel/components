@@ -1,10 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Support\Facades\DB;
 use Orchestra\Testbench\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class RefreshCommandTest extends TestCase
 {
     public function testRefreshWithoutRealpath()
@@ -21,7 +27,7 @@ class RefreshCommandTest extends TestCase
     public function testRefreshWithRealpath()
     {
         $options = [
-            '--path' => realpath(__DIR__.'/stubs/'),
+            '--path' => realpath(__DIR__ . '/stubs/'),
             '--realpath' => true,
         ];
 

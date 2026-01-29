@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentModelCustomEventsTest;
 
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -9,6 +11,10 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentModelCustomEventsTest extends DatabaseTestCase
 {
     protected function setUp(): void
@@ -69,14 +75,16 @@ class EloquentModelCustomEventsTest extends DatabaseTestCase
 class TestModel1 extends Model
 {
     public $dispatchesEvents = ['created' => CustomEvent::class];
+
     public $table = 'test_model1';
+
     public $timestamps = false;
+
     protected $guarded = [];
 }
 
 class CustomEvent
 {
-    //
 }
 
 trait CustomEventTrait

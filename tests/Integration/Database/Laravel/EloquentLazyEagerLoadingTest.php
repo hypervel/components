@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentLazyEagerLoadingTest;
 
 use DB;
@@ -8,6 +10,10 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentLazyEagerLoadingTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -51,8 +57,11 @@ class EloquentLazyEagerLoadingTest extends DatabaseTestCase
 class Model1 extends Model
 {
     public $table = 'one';
+
     public $timestamps = false;
+
     protected $guarded = [];
+
     protected $with = ['twos'];
 
     public function twos()
@@ -69,7 +78,9 @@ class Model1 extends Model
 class Model2 extends Model
 {
     public $table = 'two';
+
     public $timestamps = false;
+
     protected $guarded = [];
 
     public function one()
@@ -81,7 +92,9 @@ class Model2 extends Model
 class Model3 extends Model
 {
     public $table = 'three';
+
     public $timestamps = false;
+
     protected $guarded = [];
 
     public function one()

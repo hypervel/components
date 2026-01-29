@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Eloquent\Model;
@@ -8,6 +10,10 @@ use Illuminate\Pagination\Cursor;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentCursorPaginateTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -28,9 +34,9 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
 
     public function testCursorPaginationOnTopOfColumns()
     {
-        for ($i = 1; $i <= 16; $i++) {
+        for ($i = 1; $i <= 16; ++$i) {
             $posts[] = [
-                'title' => 'Title '.$i,
+                'title' => 'Title ' . $i,
             ];
         }
         TestPost::fillAndInsert($posts);
@@ -59,7 +65,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
 
     public function testPaginationWithDistinct()
     {
-        for ($i = 1; $i <= 3; $i++) {
+        for ($i = 1; $i <= 3; ++$i) {
             $posts[] = ['title' => 'Hello world'];
             $posts[] = ['title' => 'Goodbye world'];
         }
@@ -74,7 +80,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
 
     public function testPaginationWithWhereClause()
     {
-        for ($i = 1; $i <= 3; $i++) {
+        for ($i = 1; $i <= 3; ++$i) {
             $posts[] = ['title' => 'Hello world', 'user_id' => null];
             $posts[] = ['title' => 'Goodbye world', 'user_id' => 2];
         }
@@ -91,7 +97,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
     {
         TestUser::fillAndInsert([[], [], []]);
 
-        for ($i = 1; $i <= 3; $i++) {
+        for ($i = 1; $i <= 3; ++$i) {
             $posts[] = ['title' => 'Hello world', 'user_id' => null];
             $posts[] = ['title' => 'Goodbye world', 'user_id' => 2];
             $posts[] = ['title' => 'Howdy', 'user_id' => 3];
@@ -108,7 +114,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
     public function testPaginationWithWhereHasClause()
     {
         TestUser::fillAndInsert([[], [], []]);
-        for ($i = 1; $i <= 3; $i++) {
+        for ($i = 1; $i <= 3; ++$i) {
             $posts[] = ['title' => 'Hello world', 'user_id' => null];
             $posts[] = ['title' => 'Goodbye world', 'user_id' => 2];
             $posts[] = ['title' => 'Howdy', 'user_id' => 3];
@@ -127,7 +133,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
     public function testPaginationWithWhereExistsClause()
     {
         TestUser::fillAndInsert([[], [], []]);
-        for ($i = 1; $i <= 3; $i++) {
+        for ($i = 1; $i <= 3; ++$i) {
             $posts[] = ['title' => 'Hello world', 'user_id' => null];
             $posts[] = ['title' => 'Goodbye world', 'user_id' => 2];
             $posts[] = ['title' => 'Howdy', 'user_id' => 3];
@@ -148,7 +154,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
     public function testPaginationWithMultipleWhereClauses()
     {
         TestUser::fillAndInsert([[], [], [], []]);
-        for ($i = 1; $i <= 4; $i++) {
+        for ($i = 1; $i <= 4; ++$i) {
             $posts[] = ['title' => 'Hello world', 'user_id' => null];
             $posts[] = ['title' => 'Goodbye world', 'user_id' => 2];
             $posts[] = ['title' => 'Howdy', 'user_id' => 3];
@@ -256,7 +262,7 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
 
     public function testPaginationWithDistinctColumnsAndSelect()
     {
-        for ($i = 1; $i <= 3; $i++) {
+        for ($i = 1; $i <= 3; ++$i) {
             $posts[] = ['title' => 'Hello world'];
             $posts[] = ['title' => 'Goodbye world'];
         }
@@ -273,12 +279,12 @@ class EloquentCursorPaginateTest extends DatabaseTestCase
     {
         TestUser::fillAndInsert([[], [], [], [], []]);
         $users = TestUser::query()->get();
-        for ($i = 1; $i <= 5; $i++) {
+        for ($i = 1; $i <= 5; ++$i) {
             $user = $users[$i - 1];
 
-            for ($j = 1; $j <= 10; $j++) {
+            for ($j = 1; $j <= 10; ++$j) {
                 $posts[] = [
-                    'title' => 'Title '.$i,
+                    'title' => 'Title ' . $i,
                     'user_id' => $user->id,
                 ];
             }

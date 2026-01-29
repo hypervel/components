@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Closure;
@@ -16,6 +18,10 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
 use Mockery as m;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseEloquentBroadcastingTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -32,7 +38,7 @@ class DatabaseEloquentBroadcastingTest extends DatabaseTestCase
     {
         Event::fake([BroadcastableModelEventOccurred::class]);
 
-        $model = new TestEloquentBroadcastUser;
+        $model = new TestEloquentBroadcastUser();
         $model->name = 'Taylor';
         $model->save();
 
@@ -46,7 +52,7 @@ class DatabaseEloquentBroadcastingTest extends DatabaseTestCase
 
     public function testChannelRouteFormatting()
     {
-        $model = new TestEloquentBroadcastUser;
+        $model = new TestEloquentBroadcastUser();
 
         $this->assertSame('Illuminate.Tests.Integration.Database.TestEloquentBroadcastUser.{testEloquentBroadcastUser}', $model->broadcastChannelRoute());
     }
@@ -55,7 +61,7 @@ class DatabaseEloquentBroadcastingTest extends DatabaseTestCase
     {
         Event::fake([BroadcastableModelEventOccurred::class]);
 
-        $model = new SoftDeletableTestEloquentBroadcastUser;
+        $model = new SoftDeletableTestEloquentBroadcastUser();
         $model->name = 'Bean';
         $model->saveQuietly();
 
@@ -74,7 +80,7 @@ class DatabaseEloquentBroadcastingTest extends DatabaseTestCase
     {
         Event::fake([BroadcastableModelEventOccurred::class]);
 
-        $model = new TestEloquentBroadcastUserOnSpecificEventsOnly;
+        $model = new TestEloquentBroadcastUserOnSpecificEventsOnly();
         $model->name = 'James';
         $model->save();
 
@@ -100,7 +106,7 @@ class DatabaseEloquentBroadcastingTest extends DatabaseTestCase
     {
         Event::fake([BroadcastableModelEventOccurred::class]);
 
-        $model = new TestEloquentBroadcastUser;
+        $model = new TestEloquentBroadcastUser();
         $model->name = 'Mohamed';
         $model->save();
 
@@ -118,7 +124,7 @@ class DatabaseEloquentBroadcastingTest extends DatabaseTestCase
     {
         Event::fake([BroadcastableModelEventOccurred::class]);
 
-        $model = new TestEloquentBroadcastUserWithSpecificBroadcastName;
+        $model = new TestEloquentBroadcastUserWithSpecificBroadcastName();
         $model->name = 'Nuno';
         $model->save();
 
@@ -148,7 +154,7 @@ class DatabaseEloquentBroadcastingTest extends DatabaseTestCase
     {
         Event::fake([BroadcastableModelEventOccurred::class]);
 
-        $model = new TestEloquentBroadcastUser;
+        $model = new TestEloquentBroadcastUser();
         $model->name = 'Nuno';
         $model->save();
 
@@ -166,7 +172,7 @@ class DatabaseEloquentBroadcastingTest extends DatabaseTestCase
     {
         Event::fake([BroadcastableModelEventOccurred::class]);
 
-        $model = new TestEloquentBroadcastUserWithSpecificBroadcastPayload;
+        $model = new TestEloquentBroadcastUserWithSpecificBroadcastPayload();
         $model->name = 'Dries';
         $model->save();
 
@@ -218,7 +224,8 @@ class TestEloquentBroadcastUser extends Model
 
 class SoftDeletableTestEloquentBroadcastUser extends Model
 {
-    use BroadcastsEvents, SoftDeletes;
+    use BroadcastsEvents;
+    use SoftDeletes;
 
     protected $table = 'test_eloquent_broadcasting_users';
 }

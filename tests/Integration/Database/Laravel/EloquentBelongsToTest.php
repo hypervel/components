@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentBelongsToTest;
 
 use Illuminate\Database\Eloquent\Model;
@@ -8,6 +10,10 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentBelongsToTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -91,7 +97,7 @@ class EloquentBelongsToTest extends DatabaseTestCase
     public function testParentIsNotAnotherModel()
     {
         $child = User::has('parent')->first();
-        $parent = new User;
+        $parent = new User();
         $parent->id = 3;
 
         $this->assertFalse($child->parent()->is($parent));
@@ -132,6 +138,7 @@ class EloquentBelongsToTest extends DatabaseTestCase
 class User extends Model
 {
     public $timestamps = false;
+
     protected $guarded = [];
 
     public function parent()

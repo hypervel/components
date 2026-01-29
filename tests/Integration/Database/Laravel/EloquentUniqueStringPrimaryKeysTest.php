@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
@@ -9,6 +11,10 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentUniqueStringPrimaryKeysTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()

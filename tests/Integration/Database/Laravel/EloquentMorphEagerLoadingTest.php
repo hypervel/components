@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentMorphEagerLoadingTest;
 
 use Illuminate\Database\Eloquent\Model;
@@ -9,6 +11,10 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentMorphEagerLoadingTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -42,15 +48,15 @@ class EloquentMorphEagerLoadingTest extends DatabaseTestCase
         $user = User::create();
         $user2 = User::forceCreate(['deleted_at' => now()]);
 
-        $post = tap((new Post)->user()->associate($user))->save();
+        $post = tap((new Post())->user()->associate($user))->save();
 
         $video = Video::create();
 
-        (new Comment)->commentable()->associate($post)->save();
-        (new Comment)->commentable()->associate($video)->save();
+        (new Comment())->commentable()->associate($post)->save();
+        (new Comment())->commentable()->associate($video)->save();
 
-        (new Action)->target()->associate($video)->save();
-        (new Action)->target()->associate($user2)->save();
+        (new Action())->target()->associate($video)->save();
+        (new Action())->target()->associate($user2)->save();
     }
 
     public function testWithMorphLoading()
@@ -100,7 +106,7 @@ class EloquentMorphEagerLoadingTest extends DatabaseTestCase
     {
         $deletedUser = User::forceCreate(['deleted_at' => now()]);
 
-        $action = new Action;
+        $action = new Action();
         $action->target()->associate($deletedUser)->save();
 
         // model is already set via associate and not retrieved from the database
@@ -135,6 +141,7 @@ class Comment extends Model
 class Post extends Model
 {
     public $timestamps = false;
+
     protected $primaryKey = 'post_id';
 
     public function user()
@@ -153,5 +160,6 @@ class User extends Model
 class Video extends Model
 {
     public $timestamps = false;
+
     protected $primaryKey = 'video_id';
 }

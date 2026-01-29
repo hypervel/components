@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentMorphLazyEagerLoadingTest;
 
 use Illuminate\Database\Eloquent\Model;
@@ -7,6 +9,10 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentMorphLazyEagerLoadingTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -28,9 +34,9 @@ class EloquentMorphLazyEagerLoadingTest extends DatabaseTestCase
 
         $user = User::create();
 
-        $post = tap((new Post)->user()->associate($user))->save();
+        $post = tap((new Post())->user()->associate($user))->save();
 
-        (new Comment)->commentable()->associate($post)->save();
+        (new Comment())->commentable()->associate($post)->save();
     }
 
     public function testLazyEagerLoading()
@@ -59,6 +65,7 @@ class Comment extends Model
 class Post extends Model
 {
     public $timestamps = false;
+
     protected $primaryKey = 'post_id';
 
     public function user()

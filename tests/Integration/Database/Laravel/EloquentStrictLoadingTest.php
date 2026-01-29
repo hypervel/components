@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Eloquent\Collection;
@@ -10,6 +12,10 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentStrictLoadingTest extends DatabaseTestCase
 {
     protected function setUp(): void
@@ -165,7 +171,9 @@ class EloquentStrictLoadingTest extends DatabaseTestCase
 class EloquentStrictLoadingTestModel1 extends Model
 {
     public $table = 'test_model1';
+
     public $timestamps = false;
+
     protected $guarded = [];
 
     public function modelTwos()
@@ -177,7 +185,9 @@ class EloquentStrictLoadingTestModel1 extends Model
 class EloquentStrictLoadingTestModel1WithCustomHandler extends Model
 {
     public $table = 'test_model1';
+
     public $timestamps = false;
+
     protected $guarded = [];
 
     public function modelTwos()
@@ -194,8 +204,11 @@ class EloquentStrictLoadingTestModel1WithCustomHandler extends Model
 class EloquentStrictLoadingTestModel1WithLocalPreventsLazyLoading extends Model
 {
     public $table = 'test_model1';
+
     public $timestamps = false;
+
     public $preventsLazyLoading = true;
+
     protected $guarded = [];
 
     public function modelTwos()
@@ -207,7 +220,9 @@ class EloquentStrictLoadingTestModel1WithLocalPreventsLazyLoading extends Model
 class EloquentStrictLoadingTestModel2 extends Model
 {
     public $table = 'test_model2';
+
     public $timestamps = false;
+
     protected $guarded = [];
 
     public function modelThrees()
@@ -219,13 +234,16 @@ class EloquentStrictLoadingTestModel2 extends Model
 class EloquentStrictLoadingTestModel3 extends Model
 {
     public $table = 'test_model3';
+
     public $timestamps = false;
+
     protected $guarded = [];
 }
 
 class ViolatedLazyLoadingEvent
 {
     public $model;
+
     public $key;
 
     public function __construct($model, $key)

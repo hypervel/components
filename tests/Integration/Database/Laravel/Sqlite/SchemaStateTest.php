@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\Sqlite;
 
 use Illuminate\Support\Facades\DB;
@@ -10,6 +12,10 @@ use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 
 use function Orchestra\Testbench\remote;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 #[RequiresDatabase('sqlite')]
 class SchemaStateTest extends TestCase
 {

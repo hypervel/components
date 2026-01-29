@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace App\Integration\Database;
 
 use Illuminate\Database\Eloquent\Collection;
@@ -10,6 +12,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentCollectionLoadCountTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -31,9 +37,9 @@ class EloquentCollectionLoadCountTest extends DatabaseTestCase
         });
 
         $post = Post::create();
-        $post->comments()->saveMany([new Comment, new Comment]);
+        $post->comments()->saveMany([new Comment(), new Comment()]);
 
-        $post->likes()->save(new Like);
+        $post->likes()->save(new Like());
 
         Post::create();
     }

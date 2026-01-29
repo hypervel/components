@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentModelDateCastingTest;
 
 use Carbon\CarbonImmutable;
@@ -8,6 +10,10 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentModelImmutableDateCastingTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -49,7 +55,9 @@ class EloquentModelImmutableDateCastingTest extends DatabaseTestCase
 class TestModelImmutable extends Model
 {
     public $table = 'test_model_immutable';
+
     public $timestamps = false;
+
     protected $guarded = [];
 
     public $casts = [
@@ -61,7 +69,9 @@ class TestModelImmutable extends Model
 class TestModelCustomImmutable extends Model
 {
     public $table = 'test_model_immutable';
+
     public $timestamps = false;
+
     protected $guarded = [];
 
     public $casts = [

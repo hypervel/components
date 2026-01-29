@@ -10,6 +10,10 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class AfterQueryTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase(): void
@@ -356,7 +360,9 @@ class AfterQueryTest extends DatabaseTestCase
 class AfterQueryUser extends Model
 {
     protected ?string $table = 'users';
+
     protected array $guarded = [];
+
     public bool $timestamps = false;
 
     public function teamMates()
@@ -373,7 +379,9 @@ class AfterQueryUser extends Model
 class AfterQueryTeam extends Model
 {
     protected ?string $table = 'teams';
+
     protected array $guarded = [];
+
     public bool $timestamps = false;
 
     public function members()
@@ -385,6 +393,8 @@ class AfterQueryTeam extends Model
 class AfterQueryPost extends Model
 {
     protected ?string $table = 'posts';
+
     protected array $guarded = [];
+
     public bool $timestamps = false;
 }

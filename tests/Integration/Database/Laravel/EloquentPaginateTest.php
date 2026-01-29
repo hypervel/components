@@ -1,11 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentPaginateTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -25,9 +31,9 @@ class EloquentPaginateTest extends DatabaseTestCase
 
     public function testPaginationOnTopOfColumns()
     {
-        for ($i = 1; $i <= 50; $i++) {
+        for ($i = 1; $i <= 50; ++$i) {
             Post::create([
-                'title' => 'Title '.$i,
+                'title' => 'Title ' . $i,
             ]);
         }
 
@@ -36,7 +42,7 @@ class EloquentPaginateTest extends DatabaseTestCase
 
     public function testPaginationWithDistinct()
     {
-        for ($i = 1; $i <= 3; $i++) {
+        for ($i = 1; $i <= 3; ++$i) {
             Post::create(['title' => 'Hello world']);
             Post::create(['title' => 'Goodbye world']);
         }
@@ -51,7 +57,7 @@ class EloquentPaginateTest extends DatabaseTestCase
     public function testPaginationWithDistinctAndSelect()
     {
         // This is the 'broken' behaviour, but this test is added to show backwards compatibility.
-        for ($i = 1; $i <= 3; $i++) {
+        for ($i = 1; $i <= 3; ++$i) {
             Post::create(['title' => 'Hello world']);
             Post::create(['title' => 'Goodbye world']);
         }
@@ -65,7 +71,7 @@ class EloquentPaginateTest extends DatabaseTestCase
 
     public function testPaginationWithDistinctColumnsAndSelect()
     {
-        for ($i = 1; $i <= 3; $i++) {
+        for ($i = 1; $i <= 3; ++$i) {
             Post::create(['title' => 'Hello world']);
             Post::create(['title' => 'Goodbye world']);
         }
@@ -79,11 +85,11 @@ class EloquentPaginateTest extends DatabaseTestCase
 
     public function testPaginationWithDistinctColumnsAndSelectAndJoin()
     {
-        for ($i = 1; $i <= 5; $i++) {
+        for ($i = 1; $i <= 5; ++$i) {
             $user = User::create();
-            for ($j = 1; $j <= 10; $j++) {
+            for ($j = 1; $j <= 10; ++$j) {
                 Post::create([
-                    'title' => 'Title '.$i,
+                    'title' => 'Title ' . $i,
                     'user_id' => $user->id,
                 ]);
             }

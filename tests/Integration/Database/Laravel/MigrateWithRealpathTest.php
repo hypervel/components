@@ -1,10 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class MigrateWithRealpathTest extends TestCase
 {
     protected function setUp(): void
@@ -16,7 +22,7 @@ class MigrateWithRealpathTest extends TestCase
         }
 
         $options = [
-            '--path' => realpath(__DIR__.'/stubs/'),
+            '--path' => realpath(__DIR__ . '/stubs/'),
             '--realpath' => true,
         ];
 

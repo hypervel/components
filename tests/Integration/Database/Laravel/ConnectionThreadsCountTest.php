@@ -7,6 +7,10 @@ namespace Hypervel\Tests\Integration\Database\Laravel;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class ConnectionThreadsCountTest extends DatabaseTestCase
 {
     public function testGetThreadsCount()

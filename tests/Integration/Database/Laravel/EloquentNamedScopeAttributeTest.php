@@ -1,11 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Orchestra\Testbench\Attributes\WithMigration;
 use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 #[WithMigration]
 class EloquentNamedScopeAttributeTest extends TestCase
 {
@@ -22,7 +28,7 @@ class EloquentNamedScopeAttributeTest extends TestCase
     }
 
     #[DataProvider('scopeDataProvider')]
-    public function test_it_can_query_named_scoped_from_the_query_builder(string $methodName)
+    public function testItCanQueryNamedScopedFromTheQueryBuilder(string $methodName)
     {
         $query = Fixtures\NamedScopeUser::query()->{$methodName}(true);
 
@@ -30,7 +36,7 @@ class EloquentNamedScopeAttributeTest extends TestCase
     }
 
     #[DataProvider('scopeDataProvider')]
-    public function test_it_can_query_named_scoped_from_static_query(string $methodName)
+    public function testItCanQueryNamedScopedFromStaticQuery(string $methodName)
     {
         $query = Fixtures\NamedScopeUser::{$methodName}(true);
 

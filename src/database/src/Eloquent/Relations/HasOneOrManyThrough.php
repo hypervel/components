@@ -9,11 +9,11 @@ use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Support\Collection as BaseCollection;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\UniqueConstraintViolationException;
+use Hypervel\Support\Collection as BaseCollection;
 
 /**
  * @template TRelatedModel of \Hypervel\Database\Eloquent\Model

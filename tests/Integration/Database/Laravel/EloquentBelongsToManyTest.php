@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentBelongsToManyTest;
 
 use Illuminate\Database\Eloquent\Collection;
@@ -14,6 +16,10 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentBelongsToManyTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -411,7 +417,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals($tag2->name, $post->tags()->find($tag2->id)->name);
         $this->assertCount(0, $post->tags()->findMany([]));
         $this->assertCount(2, $post->tags()->findMany([$tag->id, $tag2->id]));
-        $this->assertCount(0, $post->tags()->findMany(new Collection));
+        $this->assertCount(0, $post->tags()->findMany(new Collection()));
         $this->assertCount(2, $post->tags()->findMany(new Collection([$tag->id, $tag2->id])));
     }
 
@@ -453,7 +459,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
         $this->assertEquals($tag2->name, $post->tags()->find($tag2->id)->name);
         $this->assertCount(0, $post->tags()->findMany([]));
         $this->assertCount(2, $post->tags()->findMany([$tag->id, $tag2->id]));
-        $this->assertCount(0, $post->tags()->findMany(new Collection));
+        $this->assertCount(0, $post->tags()->findMany(new Collection()));
         $this->assertCount(2, $post->tags()->findMany(new Collection([$tag->id, $tag2->id])));
     }
 
@@ -1437,7 +1443,9 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
 class User extends Model
 {
     public $table = 'users';
+
     public $timestamps = true;
+
     protected $guarded = [];
 
     protected static function boot()
@@ -1504,8 +1512,11 @@ class TagStringPrimaryKey extends Model
 class Post extends Model
 {
     public $table = 'posts';
+
     public $timestamps = true;
+
     protected $guarded = [];
+
     protected $touches = ['touchingTags'];
 
     protected static function boot()
@@ -1594,7 +1605,9 @@ class Post extends Model
 class Tag extends Model
 {
     public $table = 'tags';
+
     public $timestamps = true;
+
     protected $fillable = ['name', 'type'];
 
     public function posts()
@@ -1606,7 +1619,9 @@ class Tag extends Model
 class UniqueTag extends Model
 {
     public $table = 'unique_tags';
+
     public $timestamps = true;
+
     protected $fillable = ['name', 'type'];
 
     public function posts()
@@ -1618,8 +1633,11 @@ class UniqueTag extends Model
 class TouchingTag extends Model
 {
     public $table = 'tags';
+
     public $timestamps = true;
+
     protected $guarded = [];
+
     protected $touches = ['posts'];
 
     public function posts()
@@ -1631,7 +1649,9 @@ class TouchingTag extends Model
 class TagWithCustomPivot extends Model
 {
     public $table = 'tags';
+
     public $timestamps = true;
+
     protected $guarded = [];
 
     public function posts()
@@ -1658,7 +1678,9 @@ class PostTagPivot extends Pivot
 class TagWithGlobalScope extends Model
 {
     public $table = 'tags';
+
     public $timestamps = true;
+
     protected $guarded = [];
 
     public static function boot()

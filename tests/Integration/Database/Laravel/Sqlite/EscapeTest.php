@@ -1,11 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\Sqlite;
 
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 use Orchestra\Testbench\Attributes\RequiresDatabase;
 use RuntimeException;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 #[RequiresDatabase('sqlite')]
 class EscapeTest extends DatabaseTestCase
 {

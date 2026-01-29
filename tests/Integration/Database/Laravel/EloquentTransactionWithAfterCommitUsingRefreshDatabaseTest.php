@@ -1,10 +1,16 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Orchestra\Testbench\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentTransactionWithAfterCommitUsingRefreshDatabaseTest extends TestCase
 {
     use EloquentTransactionWithAfterCommitTests;
@@ -17,7 +23,6 @@ class EloquentTransactionWithAfterCommitUsingRefreshDatabaseTest extends TestCas
      */
     protected $driver;
 
-    /** {@inheritDoc} */
     protected function setUp(): void
     {
         $this->beforeApplicationDestroyed(function () {
@@ -29,11 +34,10 @@ class EloquentTransactionWithAfterCommitUsingRefreshDatabaseTest extends TestCas
         parent::setUp();
     }
 
-    /** {@inheritDoc} */
     protected function defineEnvironment($app)
     {
         $connection = $app['config']->get('database.default');
 
-        $this->driver = $app['config']->get("database.connections.$connection.driver");
+        $this->driver = $app['config']->get("database.connections.{$connection}.driver");
     }
 }

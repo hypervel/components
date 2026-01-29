@@ -1,11 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentModelWithoutEventsTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -33,7 +39,9 @@ class EloquentModelWithoutEventsTest extends DatabaseTestCase
 class AutoFilledModel extends Model
 {
     public $table = 'auto_filled_models';
+
     public $timestamps = false;
+
     protected $guarded = [];
 
     public static function boot()

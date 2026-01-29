@@ -27,6 +27,15 @@ use Workbench\App\Exceptions\ExceptionHandler;
 /**
  * Base test case for package testing with testbench features.
  *
+ * Methods below are provided by traits that child test classes may use.
+ * The setUpTraits() method checks for trait usage before calling these.
+ *
+ * @method void refreshDatabase()
+ * @method void runDatabaseMigrations()
+ * @method void beginDatabaseTransaction()
+ * @method void disableMiddlewareForAllTests()
+ * @method void disableEventsForAllTests()
+ *
  * @internal
  * @coversNothing
  */

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Events\MigrationEnded;
@@ -12,12 +14,16 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\Event;
 use Orchestra\Testbench\TestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class MigratorEventsTest extends TestCase
 {
     protected function migrateOptions()
     {
         return [
-            '--path' => realpath(__DIR__.'/stubs/'),
+            '--path' => realpath(__DIR__ . '/stubs/'),
             '--realpath' => true,
         ];
     }
@@ -145,7 +151,7 @@ class MigratorEventsTest extends TestCase
         Event::fake();
 
         $this->artisan('migrate', [
-            '--path' => realpath(__DIR__.'/stubs/2014_10_13_000000_skipped_migration.php'),
+            '--path' => realpath(__DIR__ . '/stubs/2014_10_13_000000_skipped_migration.php'),
             '--realpath' => true,
         ]);
 

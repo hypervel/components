@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentModelLoadMaxTest;
 
 use Illuminate\Database\Eloquent\Model;
@@ -8,6 +10,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentModelLoadMaxTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()

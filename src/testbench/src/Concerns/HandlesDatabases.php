@@ -55,7 +55,7 @@ trait HandlesDatabases
     {
         // Process WithMigration attributes BEFORE migrations run
         $this->resolvePhpUnitAttributes()
-            ->filter(static fn ($attrs, string $key) => $key === WithMigration::class && ! empty($attrs))
+            ->filter(static fn ($attrs, string $key) => $key === WithMigration::class)
             ->flatten()
             ->filter(static fn ($instance) => $instance instanceof Invokable)
             ->each(fn ($instance) => $instance($this->app));

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
@@ -13,6 +15,10 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Fluent;
 use Illuminate\Support\Stringable;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class DatabaseCustomCastsTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -37,9 +43,9 @@ class DatabaseCustomCastsTest extends DatabaseTestCase
         });
     }
 
-    public function test_custom_casting()
+    public function testCustomCasting()
     {
-        $model = new TestEloquentModelWithCustomCasts;
+        $model = new TestEloquentModelWithCustomCasts();
 
         $model->array_object = ['name' => 'Taylor'];
         $model->array_object_json = ['name' => 'Taylor'];
@@ -86,7 +92,7 @@ class DatabaseCustomCastsTest extends DatabaseTestCase
         );
     }
 
-    public function test_custom_casting_using_create()
+    public function testCustomCastingUsingCreate()
     {
         $model = TestEloquentModelWithCustomCasts::create([
             'array_object' => ['name' => 'Taylor'],
@@ -107,7 +113,7 @@ class DatabaseCustomCastsTest extends DatabaseTestCase
         $this->assertTrue(Hash::check('secret', $model->password));
     }
 
-    public function test_custom_casting_nullable_values()
+    public function testCustomCastingNullableValues()
     {
         $model = new TestEloquentModelWithCustomCastsNullable();
 
@@ -154,7 +160,7 @@ class DatabaseCustomCastsTest extends DatabaseTestCase
         );
     }
 
-    public function test_as_collection_with_map_into()
+    public function testAsCollectionWithMapInto()
     {
         $model = new TestEloquentModelWithCustomCasts();
         $model->mergeCasts([
@@ -169,7 +175,7 @@ class DatabaseCustomCastsTest extends DatabaseTestCase
         $this->assertSame('bar', $model->collection->first()->foo);
     }
 
-    public function test_as_custom_collection_with_map_into()
+    public function testAsCustomCollectionWithMapInto()
     {
         $model = new TestEloquentModelWithCustomCasts();
         $model->mergeCasts([
@@ -185,7 +191,7 @@ class DatabaseCustomCastsTest extends DatabaseTestCase
         $this->assertSame('bar', $model->collection->first()->foo);
     }
 
-    public function test_as_collection_with_map_callback(): void
+    public function testAsCollectionWithMapCallback(): void
     {
         $model = new TestEloquentModelWithCustomCasts();
         $model->mergeCasts([
@@ -200,7 +206,7 @@ class DatabaseCustomCastsTest extends DatabaseTestCase
         $this->assertSame('bar', $model->collection->first()->foo);
     }
 
-    public function test_as_custom_collection_with_map_callback(): void
+    public function testAsCustomCollectionWithMapCallback(): void
     {
         $model = new TestEloquentModelWithCustomCasts();
         $model->mergeCasts([

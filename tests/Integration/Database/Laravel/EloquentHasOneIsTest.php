@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentHasOneIsTest;
 
 use Illuminate\Database\Eloquent\Model;
@@ -7,6 +9,10 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentHasOneIsTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -46,7 +52,7 @@ class EloquentHasOneIsTest extends DatabaseTestCase
     public function testChildIsNotAnotherModel()
     {
         $parent = Post::first();
-        $child = new Attachment;
+        $child = new Attachment();
         $child->id = 2;
 
         $this->assertFalse($parent->attachment()->is($child));

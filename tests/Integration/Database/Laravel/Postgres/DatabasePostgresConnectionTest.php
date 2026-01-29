@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\Postgres;
 
 use Illuminate\Database\Schema\Blueprint;
@@ -9,6 +11,10 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 #[RequiresOperatingSystem('Linux|Darwin')]
 #[RequiresPhpExtension('pdo_pgsql')]
 class DatabasePostgresConnectionTest extends PostgresTestCase
@@ -32,7 +38,7 @@ class DatabasePostgresConnectionTest extends PostgresTestCase
     {
         DB::table('json_table')->insert(['json_col' => json_encode($value)]);
 
-        $this->assertSame($expected, DB::table('json_table')->whereNull("json_col->$key")->exists());
+        $this->assertSame($expected, DB::table('json_table')->whereNull("json_col->{$key}")->exists());
     }
 
     #[DataProvider('jsonWhereNullDataProvider')]
@@ -40,7 +46,7 @@ class DatabasePostgresConnectionTest extends PostgresTestCase
     {
         DB::table('json_table')->insert(['json_col' => json_encode($value)]);
 
-        $this->assertSame(! $expected, DB::table('json_table')->whereNotNull("json_col->$key")->exists());
+        $this->assertSame(! $expected, DB::table('json_table')->whereNotNull("json_col->{$key}")->exists());
     }
 
     public static function jsonWhereNullDataProvider()

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Eloquent\Model;
@@ -10,6 +12,10 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\Fixtures\Post;
 use Illuminate\Tests\Integration\Database\Fixtures\PostStringyKey;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentDeleteTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -39,7 +45,7 @@ class EloquentDeleteTest extends DatabaseTestCase
         $totalPosts = 10;
         $deleteLimit = 1;
 
-        for ($i = 0; $i < $totalPosts; $i++) {
+        for ($i = 0; $i < $totalPosts; ++$i) {
             Post::query()->create();
         }
 
@@ -61,7 +67,7 @@ class EloquentDeleteTest extends DatabaseTestCase
         $deleteLimit = 1;
         $whereThreshold = 8;
 
-        for ($i = 0; $i < $totalPosts; $i++) {
+        for ($i = 0; $i < $totalPosts; ++$i) {
             Comment::query()->create([
                 'post_id' => Post::query()->create()->id,
             ]);
@@ -86,7 +92,7 @@ class EloquentDeleteTest extends DatabaseTestCase
 
         $this->expectException(QueryException::class);
 
-        for ($i = 0; $i < 10; $i++) {
+        for ($i = 0; $i < 10; ++$i) {
             Comment::query()->create([
                 'post_id' => Post::query()->create()->id,
             ]);
@@ -104,7 +110,7 @@ class EloquentDeleteTest extends DatabaseTestCase
     {
         $role = Role::create([]);
         $this->assertInstanceOf(Role::class, $role);
-        Role::observe(new RoleObserver);
+        Role::observe(new RoleObserver());
 
         $role->delete();
         $this->assertNull(RoleObserver::$model);
@@ -196,13 +202,16 @@ class EloquentDeleteTest extends DatabaseTestCase
 class Comment extends Model
 {
     public $table = 'comments';
+
     protected $fillable = ['post_id'];
 }
 
 class Role extends Model
 {
     use SoftDeletes;
+
     public $table = 'roles';
+
     protected $guarded = [];
 }
 

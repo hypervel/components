@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Eloquent\Model;
@@ -7,6 +9,10 @@ use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentPivotTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -112,7 +118,10 @@ class PivotTestProject extends Model
     public function collaborators()
     {
         return $this->belongsToMany(
-            PivotTestUser::class, 'collaborators', 'project_id', 'user_id'
+            PivotTestUser::class,
+            'collaborators',
+            'project_id',
+            'user_id'
         )->withPivot('permissions')
             ->using(PivotTestCollaborator::class);
     }

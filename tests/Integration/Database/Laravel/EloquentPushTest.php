@@ -1,11 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentPushTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -30,7 +36,7 @@ class EloquentPushTest extends DatabaseTestCase
 
     public function testPushMethodSavesTheRelationshipsRecursively()
     {
-        $user = new UserX;
+        $user = new UserX();
         $user->name = 'Test';
         $user->save();
         $user->posts()->create(['title' => 'Test title']);
@@ -56,7 +62,9 @@ class EloquentPushTest extends DatabaseTestCase
 class UserX extends Model
 {
     public $timestamps = false;
+
     protected $guarded = [];
+
     protected $table = 'users';
 
     public function posts()
@@ -68,7 +76,9 @@ class UserX extends Model
 class PostX extends Model
 {
     public $timestamps = false;
+
     protected $guarded = [];
+
     protected $table = 'posts';
 
     public function comments()
@@ -80,6 +90,8 @@ class PostX extends Model
 class CommentX extends Model
 {
     public $timestamps = false;
+
     protected $guarded = [];
+
     protected $table = 'comments';
 }

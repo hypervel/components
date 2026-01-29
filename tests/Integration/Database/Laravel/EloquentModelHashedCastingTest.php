@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Eloquent\Model;
@@ -8,6 +10,10 @@ use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Schema;
 use RuntimeException;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentModelHashedCastingTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -312,6 +318,7 @@ class EloquentModelHashedCastingTest extends DatabaseTestCase
 class HashedCast extends Model
 {
     public $timestamps = false;
+
     protected $guarded = [];
 
     public $casts = [

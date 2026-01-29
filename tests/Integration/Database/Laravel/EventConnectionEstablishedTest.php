@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Events\ConnectionEstablished;
@@ -10,6 +12,10 @@ use Orchestra\Testbench\TestCase;
 
 use function Orchestra\Testbench\artisan;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EventConnectionEstablishedTest extends TestCase
 {
     use DatabaseMigrations;

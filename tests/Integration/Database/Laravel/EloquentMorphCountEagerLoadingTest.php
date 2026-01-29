@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentMorphCountEagerLoadingTest;
 
 use Illuminate\Database\Eloquent\Model;
@@ -8,6 +10,10 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentMorphCountEagerLoadingTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -39,13 +45,13 @@ class EloquentMorphCountEagerLoadingTest extends DatabaseTestCase
         $post = Post::create();
         $video = Video::create();
 
-        tap((new Like)->post()->associate($post))->save();
-        tap((new Like)->post()->associate($post))->save();
+        tap((new Like())->post()->associate($post))->save();
+        tap((new Like())->post()->associate($post))->save();
 
-        tap((new View)->video()->associate($video))->save();
+        tap((new View())->video()->associate($video))->save();
 
-        (new Comment)->commentable()->associate($post)->save();
-        (new Comment)->commentable()->associate($video)->save();
+        (new Comment())->commentable()->associate($post)->save();
+        (new Comment())->commentable()->associate($video)->save();
     }
 
     public function testWithMorphCountLoading()

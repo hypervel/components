@@ -1,11 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentHasOneOfManyTest;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentHasOneOfManyTest extends DatabaseTestCase
 {
     public $retrievedLogins;
@@ -36,7 +42,7 @@ class EloquentHasOneOfManyTest extends DatabaseTestCase
         User::getEventDispatcher()->listen('eloquent.retrieved:*', function ($event, $models) {
             foreach ($models as $model) {
                 if (get_class($model) == Login::class) {
-                    $this->retrievedLogins++;
+                    ++$this->retrievedLogins;
                 }
             }
         });
@@ -84,6 +90,7 @@ class EloquentHasOneOfManyTest extends DatabaseTestCase
 class User extends Model
 {
     protected $guarded = [];
+
     public $timestamps = false;
 
     public function latest_login()
@@ -126,6 +133,7 @@ class User extends Model
 class Login extends Model
 {
     protected $guarded = [];
+
     public $timestamps = false;
 }
 

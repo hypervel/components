@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Eloquent\Model;
@@ -9,6 +11,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentHasManyTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -117,6 +123,7 @@ class EloquentHasManyTest extends DatabaseTestCase
 class EloquentHasManyTestUser extends Model
 {
     protected $guarded = [];
+
     public $timestamps = false;
 
     public function logins(): HasMany
@@ -143,6 +150,7 @@ class EloquentHasManyTestUser extends Model
 class EloquentHasManyTestLogin extends Model
 {
     protected $guarded = [];
+
     public $timestamps = false;
 }
 

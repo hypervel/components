@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Query\Expression;
@@ -8,6 +10,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\Attributes\RequiresDatabase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class SchemaBuilderTest extends DatabaseTestCase
 {
     protected function destroyDatabaseMigrations()
@@ -68,12 +74,12 @@ class SchemaBuilderTest extends DatabaseTestCase
 
         foreach (['tinyText', 'text', 'mediumText', 'longText'] as $type) {
             $blueprint = new Blueprint($this->getConnection(), 'test', function ($table) use ($type) {
-                $table->$type('test_column')->change();
+                $table->{$type}('test_column')->change();
             });
 
             $uppercase = strtolower($type);
 
-            $expected = ["alter table `test` modify `test_column` $uppercase not null"];
+            $expected = ["alter table `test` modify `test_column` {$uppercase} not null"];
 
             $this->assertEquals($expected, $blueprint->toSql());
         }
@@ -88,12 +94,12 @@ class SchemaBuilderTest extends DatabaseTestCase
 
         foreach (['tinyText', 'mediumText', 'longText'] as $type) {
             $blueprint = new Blueprint($this->getConnection(), 'test', function ($table) use ($type) {
-                $table->$type('test_column')->change();
+                $table->{$type}('test_column')->change();
             });
 
             $lowercase = strtolower($type);
 
-            $expected = ["alter table `test` modify `test_column` $lowercase not null"];
+            $expected = ["alter table `test` modify `test_column` {$lowercase} not null"];
 
             $this->assertEquals($expected, $blueprint->toSql());
         }

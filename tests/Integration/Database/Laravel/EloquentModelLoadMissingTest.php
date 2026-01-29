@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentModelLoadMissingTest;
 
 use DB;
@@ -9,6 +11,10 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentModelLoadMissingTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -93,7 +99,7 @@ class Comment extends Model
     {
         return new Attribute(function (?string $value) {
             return preg_replace_callback('/<u:(\d+)>/', function ($matches) {
-                return '@'.$this->mentionsUsers->find($matches[1])?->name;
+                return '@' . $this->mentionsUsers->find($matches[1])?->name;
             }, $value);
         });
     }

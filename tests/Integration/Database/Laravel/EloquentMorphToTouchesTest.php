@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentMorphToTouchesTest;
 
 use DB;
@@ -8,6 +10,10 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentMorphToTouchesTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -27,7 +33,7 @@ class EloquentMorphToTouchesTest extends DatabaseTestCase
 
     public function testNotNull()
     {
-        $comment = (new Comment)->commentable()->associate(Post::first());
+        $comment = (new Comment())->commentable()->associate(Post::first());
 
         DB::enableQueryLog();
 
@@ -60,5 +66,4 @@ class Comment extends Model
 
 class Post extends Model
 {
-    //
 }

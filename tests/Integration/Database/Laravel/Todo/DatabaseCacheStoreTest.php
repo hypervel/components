@@ -11,6 +11,10 @@ use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 #[WithMigration('cache')]
 class DatabaseCacheStoreTest extends DatabaseTestCase
 {
@@ -252,7 +256,7 @@ class DatabaseCacheStoreTest extends DatabaseTestCase
         $originalConfiguration = config('database');
 
         app('config')->set('database.default', 'sqlite');
-        app('config')->set('database.connections.sqlite.database', __DIR__.'/non-existing-file');
+        app('config')->set('database.connections.sqlite.database', __DIR__ . '/non-existing-file');
 
         $store = $this->getStore();
         $this->assertInstanceOf(SQLiteConnection::class, $store->getConnection());
@@ -275,7 +279,7 @@ class DatabaseCacheStoreTest extends DatabaseTestCase
 
     protected function withCachePrefix(string $key)
     {
-        return config('cache.prefix').$key;
+        return config('cache.prefix') . $key;
     }
 
     protected function insertToCacheTable(string $key, $value, $ttl = 60)

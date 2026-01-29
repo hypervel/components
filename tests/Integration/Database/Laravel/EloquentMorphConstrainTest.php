@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\EloquentMorphConstrainTest;
 
 use Illuminate\Database\Eloquent\Model;
@@ -8,6 +10,10 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentMorphConstrainTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -29,16 +35,16 @@ class EloquentMorphConstrainTest extends DatabaseTestCase
         });
 
         $post1 = Post::create(['post_visible' => true]);
-        (new Comment)->commentable()->associate($post1)->save();
+        (new Comment())->commentable()->associate($post1)->save();
 
         $post2 = Post::create(['post_visible' => false]);
-        (new Comment)->commentable()->associate($post2)->save();
+        (new Comment())->commentable()->associate($post2)->save();
 
         $video1 = Video::create(['video_visible' => true]);
-        (new Comment)->commentable()->associate($video1)->save();
+        (new Comment())->commentable()->associate($video1)->save();
 
         $video2 = Video::create(['video_visible' => false]);
-        (new Comment)->commentable()->associate($video2)->save();
+        (new Comment())->commentable()->associate($video2)->save();
     }
 
     public function testMorphConstraints()
@@ -76,13 +82,17 @@ class Comment extends Model
 class Post extends Model
 {
     public $timestamps = false;
+
     protected $fillable = ['post_visible'];
+
     protected $casts = ['post_visible' => 'boolean'];
 }
 
 class Video extends Model
 {
     public $timestamps = false;
+
     protected $fillable = ['video_visible'];
+
     protected $casts = ['video_visible' => 'boolean'];
 }

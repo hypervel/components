@@ -1,8 +1,11 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database\Sqlite;
 
 use Closure;
+use Exception;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -10,6 +13,10 @@ use Orchestra\Testbench\Attributes\RequiresDatabase;
 use Orchestra\Testbench\TestCase;
 use RuntimeException;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 #[RequiresDatabase('sqlite')]
 class DatabaseSchemaBlueprintTest extends TestCase
 {
@@ -72,8 +79,8 @@ class DatabaseSchemaBlueprintTest extends TestCase
 
         $this->assertEquals([
             'alter table "users" '
-            .'alter column "code" type integer, '
-            .'alter column "code" set not null',
+            . 'alter column "code" type integer, '
+            . 'alter column "code" set not null',
             'alter sequence users_code_seq restart with 10',
             'comment on column "users"."code" is \'my comment\'',
         ], $blueprint->toSql());
@@ -84,10 +91,10 @@ class DatabaseSchemaBlueprintTest extends TestCase
 
         $this->assertEquals([
             'alter table "users" '
-            .'alter column "name" type char(40) collate "unicode", '
-            .'alter column "name" drop not null, '
-            .'alter column "name" set default \'easy\', '
-            .'alter column "name" drop identity if exists',
+            . 'alter column "name" type char(40) collate "unicode", '
+            . 'alter column "name" drop not null, '
+            . 'alter column "name" set default \'easy\', '
+            . 'alter column "name" drop identity if exists',
             'comment on column "users"."name" is NULL',
         ], $blueprint->toSql());
 
@@ -97,11 +104,11 @@ class DatabaseSchemaBlueprintTest extends TestCase
 
         $this->assertEquals([
             'alter table "users" '
-            .'alter column "foo" type integer, '
-            .'alter column "foo" set not null, '
-            .'alter column "foo" drop default, '
-            .'alter column "foo" drop identity if exists, '
-            .'alter column "foo" add  generated always as identity (expression)',
+            . 'alter column "foo" type integer, '
+            . 'alter column "foo" set not null, '
+            . 'alter column "foo" drop default, '
+            . 'alter column "foo" drop identity if exists, '
+            . 'alter column "foo" add  generated always as identity (expression)',
             'comment on column "users"."foo" is NULL',
         ], $blueprint->toSql());
 
@@ -111,10 +118,10 @@ class DatabaseSchemaBlueprintTest extends TestCase
 
         $this->assertEquals([
             'alter table "users" '
-            .'alter column "foo" type geometry(point,1234), '
-            .'alter column "foo" set not null, '
-            .'alter column "foo" drop default, '
-            .'alter column "foo" drop identity if exists',
+            . 'alter column "foo" type geometry(point,1234), '
+            . 'alter column "foo" set not null, '
+            . 'alter column "foo" drop default, '
+            . 'alter column "foo" drop identity if exists',
             'comment on column "users"."foo" is NULL',
         ], $blueprint->toSql());
 
@@ -124,11 +131,11 @@ class DatabaseSchemaBlueprintTest extends TestCase
 
         $this->assertEquals([
             'alter table "users" '
-            .'alter column "added_at" type timestamp(2) without time zone, '
-            .'alter column "added_at" set not null, '
-            .'alter column "added_at" set default CURRENT_TIMESTAMP, '
-            .'alter column "added_at" drop expression if exists, '
-            .'alter column "added_at" drop identity if exists',
+            . 'alter column "added_at" type timestamp(2) without time zone, '
+            . 'alter column "added_at" set not null, '
+            . 'alter column "added_at" set default CURRENT_TIMESTAMP, '
+            . 'alter column "added_at" drop expression if exists, '
+            . 'alter column "added_at" drop identity if exists',
             'comment on column "users"."added_at" is NULL',
         ], $blueprint->toSql());
     }
@@ -486,11 +493,11 @@ class DatabaseSchemaBlueprintTest extends TestCase
             });
 
             $this->addToAssertionCount(1); // it did not throw
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             // Expecting something similar to:
             // Illuminate\Database\QueryException
             //   SQLSTATE[42000]: Syntax error or access violation: 1426 Too big precision 10 specified for 'my_timestamp'. Maximum is 6....
-            $this->fail('test_it_does_not_set_precision_higher_than_supported_when_renaming_timestamps has failed. Error: '.$e->getMessage());
+            $this->fail('test_it_does_not_set_precision_higher_than_supported_when_renaming_timestamps has failed. Error: ' . $e->getMessage());
         }
     }
 
@@ -509,7 +516,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         string $table,
         Closure $callback,
     ): Blueprint {
-        $grammarClass = 'Illuminate\Database\Schema\Grammars\\'.$grammar.'Grammar';
+        $grammarClass = 'Illuminate\Database\Schema\Grammars\\' . $grammar . 'Grammar';
 
         $connection = DB::connection();
         $connection->setSchemaGrammar(new $grammarClass($connection));

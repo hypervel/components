@@ -1,11 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 use Orchestra\Testbench\Attributes\RequiresDatabase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class TimestampTypeTest extends DatabaseTestCase
 {
     public function testChangeDatetimeColumnToTimestampColumn()

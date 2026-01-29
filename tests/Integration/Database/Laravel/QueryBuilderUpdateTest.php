@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Schema\Blueprint;
@@ -10,6 +12,10 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 require_once 'Enums.php';
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class QueryBuilderUpdateTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -47,6 +53,13 @@ class QueryBuilderUpdateTest extends DatabaseTestCase
             'title' => 'Mr.',
             $column => $column === 'payload' ? $this->castAsJson($expected) : $expected,
         ]);
+    }
+
+    public static function jsonValuesDataProvider()
+    {
+        yield ['payload', ['Laravel', 'Founder'], ['Laravel', 'Founder']];
+        yield ['payload', collect(['Laravel', 'Founder']), ['Laravel', 'Founder']];
+        yield ['status', StringStatus::draft, 'draft'];
     }
 
     #[RequiresDatabase(['sqlite', 'mysql', 'mariadb'])]
@@ -89,12 +102,5 @@ class QueryBuilderUpdateTest extends DatabaseTestCase
             'title' => 'Mr.',
             'credits' => null,
         ]);
-    }
-
-    public static function jsonValuesDataProvider()
-    {
-        yield ['payload', ['Laravel', 'Founder'], ['Laravel', 'Founder']];
-        yield ['payload', collect(['Laravel', 'Founder']), ['Laravel', 'Founder']];
-        yield ['status', StringStatus::draft, 'draft'];
     }
 }

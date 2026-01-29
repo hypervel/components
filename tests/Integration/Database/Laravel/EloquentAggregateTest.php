@@ -1,11 +1,17 @@
 <?php
 
+declare(strict_types=1);
+
 namespace Illuminate\Tests\Integration\Database;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class EloquentAggregateTest extends DatabaseTestCase
 {
     protected function afterRefreshingDatabase()
@@ -85,9 +91,15 @@ class EloquentAggregateTest extends DatabaseTestCase
     }
 }
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class UserAggregateTest extends Model
 {
     protected $table = 'users';
+
     protected $fillable = ['name', 'c', 'balance'];
+
     public $timestamps = false;
 }
