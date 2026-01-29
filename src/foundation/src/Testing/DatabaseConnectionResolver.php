@@ -5,25 +5,51 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing;
 
 use Hyperf\Contract\ConfigInterface;
+use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolver;
+use UnitEnum;
 
+use function Hypervel\Support\enum_value;
+
+/**
+ * Database connection resolver for the testing environment.
+ *
+ * Caches connections statically to prevent pool exhaustion (since the testing
+ * environment doesn't use defer() to release connections back to the pool).
+ * Call resetCachedConnections() at the start of each test to ensure clean
+ * state without the test pollution that static caching would otherwise cause.
+ */
 class DatabaseConnectionResolver extends ConnectionResolver
 {
     /**
      * Connections for testing environment.
+     *
+     * @var array<string, ConnectionInterface>
      */
     protected static array $connections = [];
 
     /**
-     * Get a database connection instance.
-     * @param null|mixed $name
+     * Reset all cached connections to clean state.
+     *
+     * Called at the start of each test to prevent test pollution (query logs,
+     * event listeners, transaction state, etc.) from leaking between tests.
      */
-    public function connection($name = null): ConnectionInterface
+    public static function resetCachedConnections(): void
     {
-        if (is_null($name)) {
-            $name = $this->getDefaultConnection();
+        foreach (static::$connections as $connection) {
+            if ($connection instanceof Connection) {
+                $connection->resetForPool();
+            }
         }
+    }
+
+    /**
+     * Get a database connection instance.
+     */
+    public function connection(UnitEnum|string|null $name = null): ConnectionInterface
+    {
+        $name = enum_value($name) ?: $this->getDefaultConnection();
 
         // If the pool is enabled, we should use the default connection resolver.
         $poolEnabled = $this->container

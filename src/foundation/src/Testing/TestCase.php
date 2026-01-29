@@ -55,6 +55,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     protected function setUp(): void
     {
         Facade::clearResolvedInstances();
+        DatabaseConnectionResolver::resetCachedConnections();
 
         /* @phpstan-ignore-next-line */
         if (! $this->app) {

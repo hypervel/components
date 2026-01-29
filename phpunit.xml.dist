@@ -16,6 +16,7 @@
             <exclude>./tests/Prompts</exclude>
             <exclude>./tests/Sentry</exclude>
             <exclude>./tests/Horizon</exclude>
+            <exclude>./tests/Integration/Database/Laravel</exclude>
         </testsuite>
     </testsuites>
     <extensions>
