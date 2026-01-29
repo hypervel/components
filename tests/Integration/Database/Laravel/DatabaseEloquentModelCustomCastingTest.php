@@ -2,19 +2,20 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
 use Exception;
-use Illuminate\Contracts\Database\Eloquent\Castable;
-use Illuminate\Contracts\Database\Eloquent\CastsAttributes;
-use Illuminate\Contracts\Database\Eloquent\CastsInboundAttributes;
-use Illuminate\Contracts\Database\Eloquent\DeviatesCastableAttributes;
-use Illuminate\Contracts\Database\Eloquent\SerializesCastableAttributes;
-use Illuminate\Database\Eloquent\InvalidCastException;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Contracts\Database\Eloquent\Castable;
+use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Contracts\Database\Eloquent\CastsInboundAttributes;
+use Hypervel\Contracts\Database\Eloquent\DeviatesCastableAttributes;
+use Hypervel\Contracts\Database\Eloquent\SerializesCastableAttributes;
+use Hypervel\Database\Eloquent\InvalidCastException;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -22,7 +23,7 @@ use Illuminate\Support\Facades\Schema;
  */
 class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('test_eloquent_model_with_custom_casts', function (Blueprint $table) {
             $table->increments('id');
@@ -297,19 +298,9 @@ class DatabaseEloquentModelCustomCastingTest extends DatabaseTestCase
 
 class TestEloquentModelWithCustomCast extends Model
 {
-    /**
-     * The attributes that aren't mass assignable.
-     *
-     * @var string[]
-     */
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    /**
-     * The attributes that should be cast to native types.
-     *
-     * @var array
-     */
-    protected $casts = [
+    protected array $casts = [
         'address' => AddressCaster::class,
         'price' => DecimalCaster::class,
         'password' => HashCaster::class,
@@ -329,14 +320,11 @@ class TestEloquentModelWithCustomCast extends Model
 
 class HashCaster implements CastsInboundAttributes
 {
-    protected $algorithm;
-
-    public function __construct($algorithm = 'sha256')
+    public function __construct(protected string $algorithm = 'sha256')
     {
-        $this->algorithm = $algorithm;
     }
 
-    public function set($model, $key, $value, $attributes)
+    public function set(Model $model, string $key, mixed $value, array $attributes): array
     {
         return [$key => hash($this->algorithm, $value)];
     }
@@ -344,12 +332,12 @@ class HashCaster implements CastsInboundAttributes
 
 class UppercaseCaster implements CastsAttributes
 {
-    public function get($model, $key, $value, $attributes)
+    public function get(Model $model, string $key, mixed $value, array $attributes): string
     {
         return strtoupper($value);
     }
 
-    public function set($model, $key, $value, $attributes)
+    public function set(Model $model, string $key, mixed $value, array $attributes): array
     {
         return [$key => strtoupper($value)];
     }
@@ -357,16 +345,16 @@ class UppercaseCaster implements CastsAttributes
 
 class AddressCaster implements CastsAttributes
 {
-    public function get($model, $key, $value, $attributes)
+    public function get(Model $model, string $key, mixed $value, array $attributes): ?Address
     {
         if (is_null($attributes['address_line_one'])) {
-            return;
+            return null;
         }
 
         return new Address($attributes['address_line_one'], $attributes['address_line_two']);
     }
 
-    public function set($model, $key, $value, $attributes)
+    public function set(Model $model, string $key, mixed $value, array $attributes): array
     {
         if (is_null($value)) {
             return [
@@ -381,12 +369,12 @@ class AddressCaster implements CastsAttributes
 
 class JsonCaster implements CastsAttributes
 {
-    public function get($model, $key, $value, $attributes)
+    public function get(Model $model, string $key, mixed $value, array $attributes): ?array
     {
         return json_decode($value, true);
     }
 
-    public function set($model, $key, $value, $attributes)
+    public function set(Model $model, string $key, mixed $value, array $attributes): string
     {
         return json_encode($value);
     }
@@ -394,7 +382,7 @@ class JsonCaster implements CastsAttributes
 
 class JsonSettingsCaster implements CastsAttributes
 {
-    public function get($model, string $key, $value, array $attributes): ?Settings
+    public function get(Model $model, string $key, mixed $value, array $attributes): ?Settings
     {
         if ($value === null) {
             return null;
@@ -409,7 +397,7 @@ class JsonSettingsCaster implements CastsAttributes
         return Settings::from($payload);
     }
 
-    public function set($model, string $key, $value, array $attributes): ?string
+    public function set(Model $model, string $key, mixed $value, array $attributes): ?string
     {
         if ($value === null) {
             return null;
@@ -429,27 +417,27 @@ class JsonSettingsCaster implements CastsAttributes
 
 class DecimalCaster implements CastsAttributes, DeviatesCastableAttributes, SerializesCastableAttributes
 {
-    public function get($model, $key, $value, $attributes)
+    public function get(Model $model, string $key, mixed $value, array $attributes): Decimal
     {
         return new Decimal($value);
     }
 
-    public function set($model, $key, $value, $attributes)
+    public function set(Model $model, string $key, mixed $value, array $attributes): string
     {
         return (string) $value;
     }
 
-    public function increment($model, $key, $value, $attributes)
+    public function increment(Model $model, string $key, mixed $value, array $attributes): mixed
     {
         return new Decimal($attributes[$key] + ($value instanceof Decimal ? (string) $value : $value));
     }
 
-    public function decrement($model, $key, $value, $attributes)
+    public function decrement(Model $model, string $key, mixed $value, array $attributes): mixed
     {
         return new Decimal($attributes[$key] - ($value instanceof Decimal ? (string) $value : $value));
     }
 
-    public function serialize($model, $key, $value, $attributes)
+    public function serialize(Model $model, string $key, mixed $value, array $attributes): mixed
     {
         return (string) $value;
     }
@@ -457,14 +445,11 @@ class DecimalCaster implements CastsAttributes, DeviatesCastableAttributes, Seri
 
 class ValueObjectCaster implements CastsAttributes
 {
-    private $argument;
-
-    public function __construct($argument = null)
+    public function __construct(private mixed $argument = null)
     {
-        $this->argument = $argument;
     }
 
-    public function get($model, $key, $value, $attributes)
+    public function get(Model $model, string $key, mixed $value, array $attributes): mixed
     {
         if ($this->argument) {
             return $this->argument;
@@ -473,7 +458,7 @@ class ValueObjectCaster implements CastsAttributes
         return unserialize($value);
     }
 
-    public function set($model, $key, $value, $attributes)
+    public function set(Model $model, string $key, mixed $value, array $attributes): string
     {
         return serialize($value);
     }
@@ -481,24 +466,21 @@ class ValueObjectCaster implements CastsAttributes
 
 class ValueObject implements Castable
 {
-    public $name;
+    public string $name;
 
     public function __construct(string $name)
     {
         $this->name = $name;
     }
 
-    public static function castUsing(array $arguments)
+    public static function castUsing(array $arguments): CastsAttributes
     {
         return new class(...$arguments) implements CastsAttributes, SerializesCastableAttributes {
-            private $argument;
-
-            public function __construct($argument = null)
+            public function __construct(private mixed $argument = null)
             {
-                $this->argument = $argument;
             }
 
-            public function get($model, $key, $value, $attributes)
+            public function get(Model $model, string $key, mixed $value, array $attributes): mixed
             {
                 if ($this->argument) {
                     return $this->argument;
@@ -507,12 +489,12 @@ class ValueObject implements Castable
                 return unserialize($value);
             }
 
-            public function set($model, $key, $value, $attributes)
+            public function set(Model $model, string $key, mixed $value, array $attributes): string
             {
                 return serialize($value);
             }
 
-            public function serialize($model, $key, $value, $attributes)
+            public function serialize(Model $model, string $key, mixed $value, array $attributes): mixed
             {
                 return serialize($value);
             }
@@ -522,7 +504,7 @@ class ValueObject implements Castable
 
 class ValueObjectWithCasterInstance extends ValueObject
 {
-    public static function castUsing(array $arguments)
+    public static function castUsing(array $arguments): CastsAttributes
     {
         return new ValueObjectCaster();
     }
@@ -569,44 +551,42 @@ class Settings
 
 final class Decimal
 {
-    private $value;
+    private int $value;
 
-    private $scale;
+    private int $scale;
 
-    public function __construct($value)
+    public function __construct(string|int|float $value)
     {
-        $parts = explode('.', (string) $value);
+        $stringValue = (string) $value;
+        $parts = explode('.', $stringValue);
 
         $this->scale = strlen($parts[1]);
-        $this->value = (int) str_replace('.', '', $value);
+        $this->value = (int) str_replace('.', '', $stringValue);
     }
 
-    public function getValue()
+    public function getValue(): int
     {
         return $this->value;
     }
 
-    public function __toString()
+    public function __toString(): string
     {
-        return substr_replace($this->value, '.', -$this->scale, 0);
+        return substr_replace((string) $this->value, '.', -$this->scale, 0);
     }
 }
 
 class DateObjectCaster implements CastsAttributes
 {
-    private $argument;
-
-    public function __construct($argument = null)
+    public function __construct(private mixed $argument = null)
     {
-        $this->argument = $argument;
     }
 
-    public function get($model, $key, $value, $attributes)
+    public function get(Model $model, string $key, mixed $value, array $attributes): Carbon
     {
         return Carbon::parse($value);
     }
 
-    public function set($model, $key, $value, $attributes)
+    public function set(Model $model, string $key, mixed $value, array $attributes): string
     {
         return $value->format('Y-m-d');
     }
@@ -618,12 +598,12 @@ class DateTimezoneCasterWithObjectCaching implements CastsAttributes
     {
     }
 
-    public function get($model, $key, $value, $attributes)
+    public function get(Model $model, string $key, mixed $value, array $attributes): Carbon
     {
         return Carbon::parse($value, $this->timezone);
     }
 
-    public function set($model, $key, $value, $attributes)
+    public function set(Model $model, string $key, mixed $value, array $attributes): string
     {
         return $value->timezone($this->timezone)->format('Y-m-d');
     }

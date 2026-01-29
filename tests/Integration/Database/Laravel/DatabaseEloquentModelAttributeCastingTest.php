@@ -2,15 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Eloquent\Casts\Attribute;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Date;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
+use Hypervel\Database\Eloquent\Casts\Attribute;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Support\Str;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -18,7 +19,7 @@ use Illuminate\Support\Str;
  */
 class DatabaseEloquentModelAttributeCastingTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('test_eloquent_model_with_custom_casts', function (Blueprint $table) {
             $table->increments('id');
@@ -345,12 +346,7 @@ class DatabaseEloquentModelAttributeCastingTest extends DatabaseTestCase
 
 class TestEloquentModelWithAttributeCast extends Model
 {
-    /**
-     * The attributes that aren't mass assignable.
-     *
-     * @var string[]
-     */
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function uppercase(): Attribute
     {
