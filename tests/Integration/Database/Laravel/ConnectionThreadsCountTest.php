@@ -1,8 +1,11 @@
 <?php
 
-namespace Illuminate\Tests\Integration\Database;
+declare(strict_types=1);
 
-use Illuminate\Support\Facades\DB;
+namespace Hypervel\Tests\Integration\Database\Laravel;
+
+use Hypervel\Support\Facades\DB;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 class ConnectionThreadsCountTest extends DatabaseTestCase
 {
