@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -14,7 +15,7 @@ use Illuminate\Support\Facades\Schema;
  */
 class EloquentAggregateTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->increments('id');
@@ -91,15 +92,11 @@ class EloquentAggregateTest extends DatabaseTestCase
     }
 }
 
-/**
- * @internal
- * @coversNothing
- */
 class UserAggregateTest extends Model
 {
-    protected $table = 'users';
+    protected ?string $table = 'users';
 
-    protected $fillable = ['name', 'c', 'balance'];
+    protected array $fillable = ['name', 'c', 'balance'];
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 }

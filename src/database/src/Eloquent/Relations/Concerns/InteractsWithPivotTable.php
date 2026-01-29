@@ -67,7 +67,7 @@ trait InteractsWithPivotTable
      *
      * @return array{attached: array, detached: array, updated: array}
      */
-    public function syncWithoutDetaching(BaseCollection|Model|array|int|string $ids): array
+    public function syncWithoutDetaching(BaseCollection|Model|array|int|string|null $ids): array
     {
         return $this->sync($ids, false);
     }
@@ -77,7 +77,7 @@ trait InteractsWithPivotTable
      *
      * @return array{attached: array, detached: array, updated: array}
      */
-    public function sync(BaseCollection|Model|array|int|string $ids, bool $detaching = true): array
+    public function sync(BaseCollection|Model|array|int|string|null $ids, bool $detaching = true): array
     {
         $changes = [
             'attached' => [], 'detached' => [], 'updated' => [],
@@ -134,7 +134,7 @@ trait InteractsWithPivotTable
      *
      * @return array{attached: array, detached: array, updated: array}
      */
-    public function syncWithPivotValues(BaseCollection|Model|array|int|string $ids, array $values, bool $detaching = true): array
+    public function syncWithPivotValues(BaseCollection|Model|array|int|string|null $ids, array $values, bool $detaching = true): array
     {
         return $this->sync((new BaseCollection($this->parseIds($ids)))->mapWithKeys(function ($id) use ($values) {
             return [$id => $values];

@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentBelongsToManyTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentBelongsToManyTest;
 
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Database\Eloquent\Relations\Pivot;
-use Illuminate\Database\RecordsNotFoundException;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\RecordsNotFoundException;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Support\Str;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -22,7 +22,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentBelongsToManyTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->increments('id');
@@ -489,7 +489,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
     public function testFindOrFailMethod()
     {
         $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Illuminate\Tests\Integration\Database\EloquentBelongsToManyTest\Tag] 10');
+        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Integration\Database\Laravel\EloquentBelongsToManyTest\Tag] 10');
 
         $post = Post::create(['title' => Str::random()]);
 
@@ -503,7 +503,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
     public function testFindOrFailMethodWithMany()
     {
         $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Illuminate\Tests\Integration\Database\EloquentBelongsToManyTest\Tag] 10, 11');
+        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Integration\Database\Laravel\EloquentBelongsToManyTest\Tag] 10, 11');
 
         $post = Post::create(['title' => Str::random()]);
 
@@ -517,7 +517,7 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
     public function testFindOrFailMethodWithManyUsingCollection()
     {
         $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Illuminate\Tests\Integration\Database\EloquentBelongsToManyTest\Tag] 10, 11');
+        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Integration\Database\Laravel\EloquentBelongsToManyTest\Tag] 10, 11');
 
         $post = Post::create(['title' => Str::random()]);
 
@@ -1442,13 +1442,13 @@ class EloquentBelongsToManyTest extends DatabaseTestCase
 
 class User extends Model
 {
-    public $table = 'users';
+    protected ?string $table = 'users';
 
-    public $timestamps = true;
+    public bool $timestamps = true;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected static function boot()
+    protected static function boot(): void
     {
         parent::boot();
 
@@ -1475,15 +1475,15 @@ class User extends Model
 
 class PostStringPrimaryKey extends Model
 {
-    public $incrementing = false;
+    public bool $incrementing = false;
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $table = 'post_string_key';
+    protected ?string $table = 'post_string_key';
 
-    protected $keyType = 'string';
+    protected string $keyType = 'string';
 
-    protected $fillable = ['title', 'id'];
+    protected array $fillable = ['title', 'id'];
 
     public function tags()
     {
@@ -1493,15 +1493,15 @@ class PostStringPrimaryKey extends Model
 
 class TagStringPrimaryKey extends Model
 {
-    public $incrementing = false;
+    public bool $incrementing = false;
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $table = 'tag_string_key';
+    protected ?string $table = 'tag_string_key';
 
-    protected $keyType = 'string';
+    protected string $keyType = 'string';
 
-    protected $fillable = ['title', 'id'];
+    protected array $fillable = ['title', 'id'];
 
     public function posts()
     {
@@ -1511,15 +1511,15 @@ class TagStringPrimaryKey extends Model
 
 class Post extends Model
 {
-    public $table = 'posts';
+    protected ?string $table = 'posts';
 
-    public $timestamps = true;
+    public bool $timestamps = true;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected $touches = ['touchingTags'];
+    protected array $touches = ['touchingTags'];
 
-    protected static function boot()
+    protected static function boot(): void
     {
         parent::boot();
 
@@ -1604,11 +1604,11 @@ class Post extends Model
 
 class Tag extends Model
 {
-    public $table = 'tags';
+    protected ?string $table = 'tags';
 
-    public $timestamps = true;
+    public bool $timestamps = true;
 
-    protected $fillable = ['name', 'type'];
+    protected array $fillable = ['name', 'type'];
 
     public function posts()
     {
@@ -1618,11 +1618,11 @@ class Tag extends Model
 
 class UniqueTag extends Model
 {
-    public $table = 'unique_tags';
+    protected ?string $table = 'unique_tags';
 
-    public $timestamps = true;
+    public bool $timestamps = true;
 
-    protected $fillable = ['name', 'type'];
+    protected array $fillable = ['name', 'type'];
 
     public function posts()
     {
@@ -1632,13 +1632,13 @@ class UniqueTag extends Model
 
 class TouchingTag extends Model
 {
-    public $table = 'tags';
+    protected ?string $table = 'tags';
 
-    public $timestamps = true;
+    public bool $timestamps = true;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected $touches = ['posts'];
+    protected array $touches = ['posts'];
 
     public function posts()
     {
@@ -1648,11 +1648,11 @@ class TouchingTag extends Model
 
 class TagWithCustomPivot extends Model
 {
-    public $table = 'tags';
+    protected ?string $table = 'tags';
 
-    public $timestamps = true;
+    public bool $timestamps = true;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function posts()
     {
@@ -1662,14 +1662,14 @@ class TagWithCustomPivot extends Model
 
 class UserPostPivot extends Pivot
 {
-    protected $table = 'users_posts';
+    protected ?string $table = 'users_posts';
 }
 
 class PostTagPivot extends Pivot
 {
-    protected $table = 'posts_tags';
+    protected ?string $table = 'posts_tags';
 
-    public function getCreatedAtAttribute($value)
+    public function getCreatedAtAttribute(mixed $value): string
     {
         return Carbon::parse($value)->format('U');
     }
@@ -1677,13 +1677,13 @@ class PostTagPivot extends Pivot
 
 class TagWithGlobalScope extends Model
 {
-    public $table = 'tags';
+    protected ?string $table = 'tags';
 
-    public $timestamps = true;
+    public bool $timestamps = true;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public static function boot()
+    public static function boot(): void
     {
         parent::boot();
 

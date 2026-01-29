@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
 use Exception;
-use Illuminate\Support\Facades\DB;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use RuntimeException;
 
 /**
@@ -14,7 +16,7 @@ use RuntimeException;
  */
 class DatabaseTransactionsTest extends DatabaseTestCase
 {
-    protected function defineEnvironment($app)
+    protected function defineEnvironment(Application $app): void
     {
         parent::defineEnvironment($app);
 
@@ -141,11 +143,11 @@ class DatabaseTransactionsTest extends DatabaseTestCase
 
 class TestObjectForTransactions
 {
-    public $ran = false;
+    public bool $ran = false;
 
-    public $runs = 0;
+    public int $runs = 0;
 
-    public function handle()
+    public function handle(): void
     {
         $this->ran = true;
         ++$this->runs;
