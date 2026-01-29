@@ -808,7 +808,7 @@ class BelongsToMany extends Relation
             : $this->related->newCollection();
     }
 
-    public function get(array $columns = ['*']): EloquentCollection
+    public function get(array $columns = ['*']): BaseCollection
     {
         // First we'll add the proper select columns onto the query so it is run with
         // the proper columns. Then, we will get the results and hydrate our pivot

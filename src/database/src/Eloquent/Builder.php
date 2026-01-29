@@ -1021,11 +1021,8 @@ class Builder implements BuilderContract
 
     /**
      * Invoke the "after query" modification callbacks.
-     *
-     * @param mixed $result
-     * @return mixed
      */
-    public function applyAfterQueryCallbacks($result)
+    public function applyAfterQueryCallbacks(BaseCollection $result): BaseCollection
     {
         foreach ($this->afterQueryCallbacks as $afterQueryCallback) {
             $result = $afterQueryCallback($result) ?: $result;

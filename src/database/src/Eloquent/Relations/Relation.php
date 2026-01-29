@@ -203,9 +203,9 @@ abstract class Relation implements BuilderContract
     /**
      * Execute the query as a "select" statement.
      *
-     * @return \Hypervel\Database\Eloquent\Collection<int, TRelatedModel>
+     * @return \Hypervel\Support\Collection<int, TRelatedModel>
      */
-    public function get(array $columns = ['*']): EloquentCollection
+    public function get(array $columns = ['*']): BaseCollection
     {
         return $this->query->get($columns);
     }

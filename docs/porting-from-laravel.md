@@ -132,6 +132,23 @@ $this->assertFalse(EloquentHasManyRelatedStub::$saveCalled);
 
 Concrete stubs are the correct approach here - they test actual behavior rather than just verifying mocks were called correctly.
 
+### When Tests Expose Source Code Type Errors
+
+If a Laravel test fails with a type error, the source code type may be wrong—not the test. Types should be **correct**, not just strict. A narrow type that doesn't cover all valid cases is incorrect.
+
+**How to identify:**
+- Test returns/passes a type that the source code should accept but doesn't
+- The type is a parent class of what's currently declared (e.g., `Support\Collection` vs `Eloquent\Collection`)
+
+**How to fix:**
+1. Identify all valid types the method can accept/return
+2. Use the common base type that covers all cases without being unnecessarily loose
+3. Fix the source code, not the test
+
+**Example:** A method returns `Eloquent\Collection` normally, but an `afterQuery` callback can return `Support\Collection`. Since `Eloquent\Collection` extends `Support\Collection`, the correct return type is `Support\Collection`—it covers both cases precisely.
+
+**Wrong approach:** Removing types, using `mixed`, or modifying tests to avoid the type check. These hide the real issue.
+
 ### Missing Dependencies
 
 Some test files reference classes defined in other test files. Laravel gets away with this due to test suite load order. Make tests self-contained by defining required classes locally:
