@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentHasOneOfManyTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentHasOneOfManyTest;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -14,9 +14,9 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentHasOneOfManyTest extends DatabaseTestCase
 {
-    public $retrievedLogins;
+    public int $retrievedLogins;
 
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function ($table) {
             $table->id();
@@ -36,14 +36,16 @@ class EloquentHasOneOfManyTest extends DatabaseTestCase
         });
     }
 
+    /**
+     * @TODO Replace with testItOnlyEagerLoadsRequiredModelsOriginal once illuminate/events package is ported.
+     *       Hypervel's event dispatcher spreads wildcard listener payload instead of passing array.
+     */
     public function testItOnlyEagerLoadsRequiredModels()
     {
         $this->retrievedLogins = 0;
-        User::getEventDispatcher()->listen('eloquent.retrieved:*', function ($event, $models) {
-            foreach ($models as $model) {
-                if (get_class($model) == Login::class) {
-                    ++$this->retrievedLogins;
-                }
+        User::getEventDispatcher()->listen('eloquent.retrieved:*', function ($event, $model) {
+            if ($model instanceof Login) {
+                ++$this->retrievedLogins;
             }
         });
 
@@ -58,6 +60,30 @@ class EloquentHasOneOfManyTest extends DatabaseTestCase
 
         $this->assertSame(2, $this->retrievedLogins);
     }
+
+    // @TODO Restore this test once illuminate/events package is ported (wildcard listeners receive array payload)
+    // public function testItOnlyEagerLoadsRequiredModelsOriginal()
+    // {
+    //     $this->retrievedLogins = 0;
+    //     User::getEventDispatcher()->listen('eloquent.retrieved:*', function ($event, $models) {
+    //         foreach ($models as $model) {
+    //             if (get_class($model) == Login::class) {
+    //                 ++$this->retrievedLogins;
+    //             }
+    //         }
+    //     });
+    //
+    //     $user = User::create();
+    //     $user->latest_login()->create();
+    //     $user->latest_login()->create();
+    //     $user = User::create();
+    //     $user->latest_login()->create();
+    //     $user->latest_login()->create();
+    //
+    //     User::with('latest_login')->get();
+    //
+    //     $this->assertSame(2, $this->retrievedLogins);
+    // }
 
     public function testItGetsCorrectResultUsingAtLeastTwoAggregatesDistinctFromId()
     {
@@ -89,9 +115,9 @@ class EloquentHasOneOfManyTest extends DatabaseTestCase
 
 class User extends Model
 {
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
     public function latest_login()
     {
@@ -132,12 +158,12 @@ class User extends Model
 
 class Login extends Model
 {
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 }
 
 class State extends Model
 {
-    protected $guarded = [];
+    protected array $guarded = [];
 }

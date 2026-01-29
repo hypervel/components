@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentHasOneIsTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentHasOneIsTest;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -15,7 +15,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentHasOneIsTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('posts', function (Blueprint $table) {
             $table->increments('id');
@@ -92,7 +92,7 @@ class EloquentHasOneIsTest extends DatabaseTestCase
 
 class Attachment extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 }
 
 class Post extends Model
