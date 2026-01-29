@@ -11,6 +11,9 @@ use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Str;
 use stdClass;
 use Stringable;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 trait InteractsWithData
 {
@@ -231,8 +234,10 @@ trait InteractsWithData
      *
      * @throws \Carbon\Exceptions\InvalidFormatException
      */
-    public function date(string $key, ?string $format = null, ?string $tz = null): ?Carbon
+    public function date(string $key, ?string $format = null, UnitEnum|string|null $tz = null): ?Carbon
     {
+        $tz = enum_value($tz);
+
         if ($this->isNotFilled($key)) {
             return null;
         }

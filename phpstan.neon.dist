@@ -45,6 +45,7 @@ parameters:
     - '#Call to an undefined method Hyperf\\Tappable\\HigherOrderTapProxy#'
     - message: '#.*#'
       paths:
+        - src/support/src/Collection.php
         - src/core/src/Database/Eloquent/Builder.php
         - src/core/src/Database/Eloquent/Collection.php
         - src/core/src/Database/Eloquent/Concerns/HasRelationships.php

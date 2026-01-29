@@ -23,6 +23,9 @@ use Hypervel\Database\Eloquent\Relations\Pivot;
 use Hypervel\Router\Contracts\UrlRoutable;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use ReflectionClass;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
  * @method static \Hypervel\Database\Eloquent\Collection<int, static> all(array|string $columns = ['*'])
@@ -91,7 +94,26 @@ abstract class Model extends BaseModel implements UrlRoutable, HasBroadcastChann
      */
     protected static array $resolvedBuilderClasses = [];
 
+    /**
+     * The connection name for the model.
+     *
+     * Overrides Hyperf's default of 'default' to null.
+     */
     protected ?string $connection = null;
+
+    /**
+     * Set the connection associated with the model.
+     *
+     * @param null|string|UnitEnum $name
+     */
+    public function setConnection($name): static
+    {
+        $value = enum_value($name);
+
+        $this->connection = is_null($value) ? null : $value;
+
+        return $this;
+    }
 
     public function resolveRouteBinding($value)
     {

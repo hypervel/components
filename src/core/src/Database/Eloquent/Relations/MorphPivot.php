@@ -11,6 +11,9 @@ use Hypervel\Database\Eloquent\Concerns\HasGlobalScopes;
 use Hypervel\Database\Eloquent\Concerns\HasObservers;
 use Hypervel\Database\Eloquent\Concerns\HasTimestamps;
 use Psr\EventDispatcher\StoppableEventInterface;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 class MorphPivot extends BaseMorphPivot
 {
@@ -19,6 +22,20 @@ class MorphPivot extends BaseMorphPivot
     use HasGlobalScopes;
     use HasObservers;
     use HasTimestamps;
+
+    /**
+     * Set the connection associated with the model.
+     *
+     * @param null|string|UnitEnum $name
+     */
+    public function setConnection($name): static
+    {
+        $value = enum_value($name);
+
+        $this->connection = is_null($value) ? null : $value;
+
+        return $this;
+    }
 
     /**
      * Delete the pivot model record from the database.

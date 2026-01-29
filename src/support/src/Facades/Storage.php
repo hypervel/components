@@ -8,10 +8,13 @@ use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\FilesystemManager;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 /**
- * @method static \Hypervel\Filesystem\Contracts\Filesystem drive(string|null $name = null)
- * @method static \Hypervel\Filesystem\Contracts\Filesystem disk(string|null $name = null)
+ * @method static \Hypervel\Filesystem\Contracts\Filesystem drive(\UnitEnum|string|null $name = null)
+ * @method static \Hypervel\Filesystem\Contracts\Filesystem disk(\UnitEnum|string|null $name = null)
  * @method static \Hypervel\Filesystem\Contracts\Cloud cloud()
  * @method static \Hypervel\Filesystem\Contracts\Filesystem build(array|string $config)
  * @method static \Hypervel\Filesystem\Contracts\Filesystem createLocalDriver(array $config, string $name = 'local')
@@ -125,9 +128,9 @@ class Storage extends Facade
      *
      * @return \Hypervel\Filesystem\Contracts\Filesystem
      */
-    public static function fake(?string $disk = null, array $config = [])
+    public static function fake(UnitEnum|string|null $disk = null, array $config = [])
     {
-        $disk = $disk ?: ApplicationContext::getContainer()
+        $disk = enum_value($disk) ?: ApplicationContext::getContainer()
             ->get(ConfigInterface::class)
             ->get('filesystems.default');
 
@@ -149,9 +152,9 @@ class Storage extends Facade
      *
      * @return \Hypervel\Filesystem\Contracts\Filesystem
      */
-    public static function persistentFake(?string $disk = null, array $config = [])
+    public static function persistentFake(UnitEnum|string|null $disk = null, array $config = [])
     {
-        $disk = $disk ?: ApplicationContext::getContainer()
+        $disk = enum_value($disk) ?: ApplicationContext::getContainer()
             ->get(ConfigInterface::class)
             ->get('filesystems.default');
 

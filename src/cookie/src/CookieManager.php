@@ -9,6 +9,9 @@ use Hyperf\Context\RequestContext;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Support\Traits\InteractsWithTime;
 use Hypervel\Cookie\Contracts\Cookie as CookieContract;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 class CookieManager implements CookieContract
 {
@@ -19,25 +22,25 @@ class CookieManager implements CookieContract
     ) {
     }
 
-    public function has(string $key): bool
+    public function has(UnitEnum|string $key): bool
     {
         return ! is_null($this->get($key));
     }
 
-    public function get(string $key, ?string $default = null): ?string
+    public function get(UnitEnum|string $key, ?string $default = null): ?string
     {
         if (! RequestContext::has()) {
             return null;
         }
 
-        return $this->request->cookie($key, $default);
+        return $this->request->cookie(enum_value($key), $default);
     }
 
-    public function make(string $name, string $value, int $minutes = 0, string $path = '', string $domain = '', bool $secure = false, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null): Cookie
+    public function make(UnitEnum|string $name, string $value, int $minutes = 0, string $path = '', string $domain = '', bool $secure = false, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null): Cookie
     {
         $time = ($minutes == 0) ? 0 : $this->availableAt($minutes * 60);
 
-        return new Cookie($name, $value, $time, $path, $domain, $secure, $httpOnly, $raw, $sameSite);
+        return new Cookie(enum_value($name), $value, $time, $path, $domain, $secure, $httpOnly, $raw, $sameSite);
     }
 
     public function queue(...$parameters): void
@@ -51,13 +54,15 @@ class CookieManager implements CookieContract
         $this->appendToQueue($cookie);
     }
 
-    public function expire(string $name, string $path = '', string $domain = ''): void
+    public function expire(UnitEnum|string $name, string $path = '', string $domain = ''): void
     {
         $this->queue($this->forget($name, $path, $domain));
     }
 
-    public function unqueue(string $name, string $path = ''): void
+    public function unqueue(UnitEnum|string $name, string $path = ''): void
     {
+        $name = enum_value($name);
+
         $cookies = $this->getQueuedCookies();
         if ($path === '') {
             unset($cookies[$name]);
@@ -93,12 +98,12 @@ class CookieManager implements CookieContract
         return Context::set('http.cookies.queue', $cookies);
     }
 
-    public function forever(string $name, string $value, string $path = '', string $domain = '', bool $secure = false, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null): Cookie
+    public function forever(UnitEnum|string $name, string $value, string $path = '', string $domain = '', bool $secure = false, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null): Cookie
     {
         return $this->make($name, $value, 2628000, $path, $domain, $secure, $httpOnly, $raw, $sameSite);
     }
 
-    public function forget(string $name, string $path = '', string $domain = ''): Cookie
+    public function forget(UnitEnum|string $name, string $path = '', string $domain = ''): Cookie
     {
         return $this->make($name, '', -2628000, $path, $domain);
     }

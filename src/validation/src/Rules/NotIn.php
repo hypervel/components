@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation\Rules;
 
-use BackedEnum;
 use Hyperf\Contract\Arrayable;
 use Stringable;
 use UnitEnum;
@@ -26,7 +25,7 @@ class NotIn implements Stringable
     /**
      * Create a new "not in" rule instance.
      *
-     * @param array|Arrayable|BackedEnum|string|UnitEnum $values
+     * @param array|Arrayable|string|UnitEnum $values
      */
     public function __construct($values)
     {

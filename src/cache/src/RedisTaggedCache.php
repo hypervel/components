@@ -7,6 +7,9 @@ namespace Hypervel\Cache;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Cache\Contracts\Store;
+use UnitEnum;
+
+use function Hypervel\Support\enum_value;
 
 class RedisTaggedCache extends TaggedCache
 {
@@ -27,8 +30,10 @@ class RedisTaggedCache extends TaggedCache
     /**
      * Store an item in the cache if the key does not exist.
      */
-    public function add(string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    public function add(UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
+        $key = enum_value($key);
+
         $this->tags->addEntry(
             $this->itemKey($key),
             ! is_null($ttl) ? $this->getSeconds($ttl) : 0
@@ -40,11 +45,13 @@ class RedisTaggedCache extends TaggedCache
     /**
      * Store an item in the cache.
      */
-    public function put(array|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
+    public function put(array|UnitEnum|string $key, mixed $value, DateInterval|DateTimeInterface|int|null $ttl = null): bool
     {
         if (is_array($key)) {
             return $this->putMany($key, $value);
         }
+
+        $key = enum_value($key);
 
         if (is_null($ttl)) {
             return $this->forever($key, $value);
@@ -61,8 +68,10 @@ class RedisTaggedCache extends TaggedCache
     /**
      * Increment the value of an item in the cache.
      */
-    public function increment(string $key, int $value = 1): bool|int
+    public function increment(UnitEnum|string $key, int $value = 1): bool|int
     {
+        $key = enum_value($key);
+
         $this->tags->addEntry($this->itemKey($key), updateWhen: 'NX');
 
         return parent::increment($key, $value);
@@ -71,8 +80,10 @@ class RedisTaggedCache extends TaggedCache
     /**
      * Decrement the value of an item in the cache.
      */
-    public function decrement(string $key, int $value = 1): bool|int
+    public function decrement(UnitEnum|string $key, int $value = 1): bool|int
     {
+        $key = enum_value($key);
+
         $this->tags->addEntry($this->itemKey($key), updateWhen: 'NX');
 
         return parent::decrement($key, $value);
@@ -81,8 +92,10 @@ class RedisTaggedCache extends TaggedCache
     /**
      * Store an item in the cache indefinitely.
      */
-    public function forever(string $key, mixed $value): bool
+    public function forever(UnitEnum|string $key, mixed $value): bool
     {
+        $key = enum_value($key);
+
         $this->tags->addEntry($this->itemKey($key));
 
         return parent::forever($key, $value);

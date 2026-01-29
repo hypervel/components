@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Validation;
 
-use BackedEnum;
 use Closure;
 use Hyperf\Contract\Arrayable;
 use Hypervel\Support\Arr;
@@ -100,7 +99,7 @@ class Rule
     /**
      * Get an in rule builder instance.
      */
-    public static function in(array|Arrayable|BackedEnum|string|UnitEnum $values): In
+    public static function in(array|Arrayable|UnitEnum|string $values): In
     {
         if ($values instanceof Arrayable) {
             $values = $values->toArray();
@@ -112,7 +111,7 @@ class Rule
     /**
      * Get a not_in rule builder instance.
      */
-    public static function notIn(array|Arrayable|BackedEnum|string|UnitEnum $values): NotIn
+    public static function notIn(array|Arrayable|UnitEnum|string $values): NotIn
     {
         if ($values instanceof Arrayable) {
             $values = $values->toArray();
