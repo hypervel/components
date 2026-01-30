@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Http;
 
 use Hypervel\Context\Context;
-use Hyperf\Context\ResponseContext;
+use Hypervel\Context\ResponseContext;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Contracts\Validation\Factory as ValidationFactory;
 use Hypervel\Contracts\Validation\ValidatesWhenResolved;
