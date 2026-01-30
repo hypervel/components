@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
 
 enum StringStatus: string
 {
@@ -40,7 +40,7 @@ enum ArrayableStatus: string implements Arrayable
         };
     }
 
-    public function toArray()
+    public function toArray(): array
     {
         return [
             'name' => $this->name,

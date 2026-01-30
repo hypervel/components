@@ -2,14 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Eloquent\Casts\AsEnumArrayObject;
-use Illuminate\Database\Eloquent\Casts\AsEnumCollection;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Eloquent\Casts\AsEnumArrayObject;
+use Hypervel\Database\Eloquent\Casts\AsEnumCollection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use ValueError;
 
 include_once 'Enums.php';
@@ -20,7 +21,7 @@ include_once 'Enums.php';
  */
 class EloquentModelEnumCastingTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('enum_casts', function (Blueprint $table) {
             $table->increments('id');
@@ -159,7 +160,7 @@ class EloquentModelEnumCastingTest extends DatabaseTestCase
             'integer_status_array' => json_encode([1, 2]),
             'arrayable_status' => 'pending',
         ], collect(DB::table('enum_casts')->where('id', $model->id)->first())->map(function ($value) {
-            return str_replace(', ', ',', $value);
+            return is_string($value) ? str_replace(', ', ',', $value) : $value;
         })->all());
     }
 
@@ -187,7 +188,7 @@ class EloquentModelEnumCastingTest extends DatabaseTestCase
             'integer_status_array' => json_encode([1, 2]),
             'arrayable_status' => 'pending',
         ], collect(DB::table('enum_casts')->where('id', $model->id)->first())->map(function ($value) {
-            return str_replace(', ', ',', $value);
+            return is_string($value) ? str_replace(', ', ',', $value) : $value;
         })->all());
     }
 
@@ -333,13 +334,13 @@ class EloquentModelEnumCastingTest extends DatabaseTestCase
 
 class EloquentModelEnumCastingTestModel extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected $table = 'enum_casts';
+    protected ?string $table = 'enum_casts';
 
-    public $casts = [
+    public array $casts = [
         'string_status' => StringStatus::class,
         'string_status_collection' => AsEnumCollection::class . ':' . StringStatus::class,
         'string_status_array' => AsEnumArrayObject::class . ':' . StringStatus::class,
@@ -352,13 +353,13 @@ class EloquentModelEnumCastingTestModel extends Model
 
 class EloquentModelEnumCastingUniqueTestModel extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected $table = 'unique_enum_casts';
+    protected ?string $table = 'unique_enum_casts';
 
-    public $casts = [
+    public array $casts = [
         'string_status' => StringStatus::class,
     ];
 }
