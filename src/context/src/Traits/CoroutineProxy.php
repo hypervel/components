@@ -7,27 +7,26 @@ namespace Hypervel\Context\Traits;
 use Hypervel\Context\Context;
 use RuntimeException;
 
-/**
- * Enables transparent proxying to a coroutine-local object stored in Context.
- *
- * Classes using this trait must define a `$proxyKey` property that specifies
- * the Context key where the target object is stored.
- */
 trait CoroutineProxy
 {
     public function __call(string $name, array $arguments): mixed
     {
-        return $this->getTargetObject()->{$name}(...$arguments);
+        $target = $this->getTargetObject();
+
+        return $target->{$name}(...$arguments);
     }
 
     public function __get(string $name): mixed
     {
-        return $this->getTargetObject()->{$name};
+        $target = $this->getTargetObject();
+
+        return $target->{$name};
     }
 
     public function __set(string $name, mixed $value): void
     {
-        $this->getTargetObject()->{$name} = $value;
+        $target = $this->getTargetObject();
+        $target->{$name} = $value;
     }
 
     protected function getTargetObject(): mixed

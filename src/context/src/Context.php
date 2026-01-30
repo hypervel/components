@@ -1,22 +1,14 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Context;
+namespace Hypervel\Context;
 
 use ArrayObject;
 use Closure;
 use Hyperf\Engine\Coroutine;
 
-use function Hyperf\Support\value;
+use function Hypervel\Support\value;
 
 /**
  * @template TKey of string
@@ -147,7 +139,7 @@ class Context
     /**
      * @return null|array<TKey, TValue>|ArrayObject<TKey, TValue>
      */
-    public static function getContainer(?int $coroutineId = null)
+    public static function getContainer(?int $coroutineId = null): array|ArrayObject|null
     {
         if (Coroutine::id() > 0) {
             return Coroutine::getContextFor($coroutineId);
