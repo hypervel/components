@@ -6,7 +6,7 @@ namespace Hypervel\Sanctum;
 
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
-use Hyperf\Context\RequestContext;
+use Hypervel\Context\RequestContext;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Auth\Guards\GuardHelpers;
 use Hypervel\Contracts\Auth\Authenticatable;

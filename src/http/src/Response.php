@@ -7,7 +7,7 @@ namespace Hypervel\Http;
 use DateTimeImmutable;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
-use Hyperf\Context\RequestContext;
+use Hypervel\Context\RequestContext;
 use Hyperf\HttpMessage\Server\Chunk\Chunkable;
 use Hyperf\HttpMessage\Stream\SwooleStream;
 use Hyperf\HttpServer\Response as HyperfResponse;

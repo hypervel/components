@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Foundation;
 
 use Exception;
 use Hypervel\Context\Context;
-use Hyperf\Context\RequestContext;
+use Hypervel\Context\RequestContext;
 use Hyperf\Context\ResponseContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\SessionInterface;

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Broadcasting;
 
 use Exception;
-use Hyperf\Context\RequestContext;
+use Hypervel\Context\RequestContext;
 use Hyperf\HttpMessage\Server\Request as ServerRequest;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Request;

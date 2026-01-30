@@ -6,7 +6,7 @@ namespace Hypervel\Session;
 
 use Carbon\Carbon;
 use Hypervel\Context\Context;
-use Hyperf\Context\RequestContext;
+use Hypervel\Context\RequestContext;
 use Hyperf\HttpServer\Request;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Database\ConnectionInterface;
