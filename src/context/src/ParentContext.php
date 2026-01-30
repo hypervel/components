@@ -6,7 +6,7 @@ namespace Hypervel\Context;
 
 use ArrayObject;
 use Closure;
-use Hyperf\Coroutine\Coroutine;
+use Hypervel\Coroutine\Coroutine;
 
 class ParentContext
 {
