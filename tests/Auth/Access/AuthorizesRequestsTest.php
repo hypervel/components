@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Auth\Access;
 
 use Hypervel\Context\ApplicationContext;
-use Hyperf\Contract\ContainerInterface;
 use Hypervel\Auth\Access\Response;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\Auth\Stub\AuthorizesRequestsStub;
@@ -79,8 +79,8 @@ class AuthorizesRequestsTest extends TestCase
     {
         $gate = Mockery::mock(Gate::class);
 
-        /** @var ContainerInterface|MockInterface */
-        $container = Mockery::mock(ContainerInterface::class);
+        /** @var Container|MockInterface */
+        $container = Mockery::mock(Container::class);
 
         $container->shouldReceive('get')->with(Gate::class)->andReturn($gate);
 

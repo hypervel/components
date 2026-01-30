@@ -12,17 +12,24 @@ use UnitEnum;
 use function Hypervel\Support\enum_value;
 
 /**
+ * TODO: Remove "extends \Hyperf\Context\Context" once all Hyperf dependencies are removed.
+ * We temporarily extend the parent to share the static $nonCoContext storage with Hyperf
+ * vendor code (e.g., Hyperf\HttpServer\Request) that still uses Hyperf\Context\Context.
+ * Once porting is complete, remove the extends and uncomment $nonCoContext below.
+ *
  * @template TKey of string
  * @template TValue
  */
-class Context
+class Context extends \Hyperf\Context\Context
 {
     protected const DEPTH_KEY = 'di.depth';
 
     /**
+     * TODO: Uncomment when removing "extends \Hyperf\Context\Context".
+     *
      * @var array<TKey, TValue>
      */
-    protected static array $nonCoContext = [];
+    // protected static array $nonCoContext = [];
 
     /**
      * @param TKey $id
