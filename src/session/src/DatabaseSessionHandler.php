@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Carbon\Carbon;
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hyperf\Context\RequestContext;
 use Hyperf\HttpServer\Request;
 use Hypervel\Contracts\Auth\Guard;

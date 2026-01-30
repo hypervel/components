@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Http;
 
 use Carbon\Carbon;
 use Hypervel\Context\ApplicationContext;
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hyperf\HttpMessage\Upload\UploadedFile;
 use Hyperf\HttpMessage\Uri\Uri as HyperfUri;
 use Hyperf\HttpServer\Request as HyperfRequest;

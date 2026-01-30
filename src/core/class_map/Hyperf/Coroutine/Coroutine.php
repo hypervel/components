@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hyperf\Coroutine;
 
 use Hypervel\Context\ApplicationContext;
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Engine\Coroutine as Co;
 use Hyperf\Engine\Exception\CoroutineDestroyedException;

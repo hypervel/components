@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation;
 
 use Exception;
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hyperf\Context\RequestContext;
 use Hyperf\Context\ResponseContext;
 use Hyperf\Contract\ConfigInterface;

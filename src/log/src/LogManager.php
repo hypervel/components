@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Log;
 
 use Closure;
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Environment;

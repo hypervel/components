@@ -6,7 +6,7 @@ namespace Hypervel\Session\Middleware;
 
 use Carbon\Carbon;
 use DateTimeInterface;
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hyperf\Contract\SessionInterface;
 use Hyperf\HttpServer\Request;
 use Hyperf\HttpServer\Router\Dispatched;

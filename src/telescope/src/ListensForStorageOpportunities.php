@@ -7,7 +7,7 @@ namespace Hypervel\Telescope;
 use Closure;
 use Hyperf\Command\Event\AfterExecute as AfterExecuteCommand;
 use Hyperf\Command\Event\BeforeHandle as BeforeHandleCommand;
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hyperf\HttpServer\Event\RequestReceived;
 use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Queue\Events\JobExceptionOccurred;

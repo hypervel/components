@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;

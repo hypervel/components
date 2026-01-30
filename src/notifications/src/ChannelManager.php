@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Notifications;
 
 use Closure;
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Contracts\Notifications\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Notifications\Factory as FactoryContract;

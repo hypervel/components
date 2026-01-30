@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Auth;
 
 use Hyperf\Config\Config;
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Coroutine\Coroutine;
 use Hyperf\Di\Container;

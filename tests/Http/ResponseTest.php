@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Http;
 
 use Hypervel\Context\ApplicationContext;
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hyperf\HttpMessage\Stream\SwooleStream;
 use Hyperf\HttpServer\Response as HyperfResponse;
 use Hyperf\Support\Filesystem\Filesystem;

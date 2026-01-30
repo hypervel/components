@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cookie;
 
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hyperf\Context\RequestContext;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\Support\Traits\InteractsWithTime;

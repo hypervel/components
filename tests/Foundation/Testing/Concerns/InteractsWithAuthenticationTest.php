@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Contracts\Auth\Authenticatable as UserContract;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;

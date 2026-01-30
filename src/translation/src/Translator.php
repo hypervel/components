@@ -6,7 +6,7 @@ namespace Hypervel\Translation;
 
 use Closure;
 use Countable;
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hypervel\Contracts\Translation\Loader;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Support\Arr;

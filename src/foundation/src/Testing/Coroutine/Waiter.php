@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Coroutine;
 
 use Closure;
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hyperf\Coroutine\Coroutine;
 use Hyperf\Coroutine\Exception\ExceptionThrower;
 use Hyperf\Coroutine\Exception\WaitTimeoutException;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cookie\Middleware;
 
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hypervel\Contracts\Cookie\Cookie as CookieContract;
 use Hypervel\Support\Arr;
 use Psr\Http\Message\ResponseInterface;

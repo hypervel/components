@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hyperf\Coroutine\Coroutine;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolFactory;
