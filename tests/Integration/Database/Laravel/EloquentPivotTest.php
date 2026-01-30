@@ -2,12 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentPivotTest;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\Pivot;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -15,7 +17,7 @@ use Illuminate\Support\Facades\Schema;
  */
 class EloquentPivotTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->increments('id');
@@ -92,9 +94,9 @@ class EloquentPivotTest extends DatabaseTestCase
 
 class PivotTestUser extends Model
 {
-    public $table = 'users';
+    public ?string $table = 'users';
 
-    public function activeSubscriptions()
+    public function activeSubscriptions(): BelongsToMany
     {
         return $this->belongsToMany(PivotTestProject::class, 'subscriptions', 'user_id', 'project_id')
             ->withPivotValue('status', 'active')
@@ -102,7 +104,7 @@ class PivotTestUser extends Model
             ->using(PivotTestSubscription::class);
     }
 
-    public function inactiveSubscriptions()
+    public function inactiveSubscriptions(): BelongsToMany
     {
         return $this->belongsToMany(PivotTestProject::class, 'subscriptions', 'user_id', 'project_id')
             ->withPivotValue('status', 'inactive')
@@ -113,9 +115,9 @@ class PivotTestUser extends Model
 
 class PivotTestProject extends Model
 {
-    public $table = 'projects';
+    public ?string $table = 'projects';
 
-    public function collaborators()
+    public function collaborators(): BelongsToMany
     {
         return $this->belongsToMany(
             PivotTestUser::class,
@@ -126,7 +128,7 @@ class PivotTestProject extends Model
             ->using(PivotTestCollaborator::class);
     }
 
-    public function contributors()
+    public function contributors(): BelongsToMany
     {
         return $this->belongsToMany(PivotTestUser::class, 'contributors', 'project_id', 'user_id')
             ->withPivot('id', 'permissions')
@@ -136,35 +138,35 @@ class PivotTestProject extends Model
 
 class PivotTestCollaborator extends Pivot
 {
-    public $table = 'collaborators';
+    public ?string $table = 'collaborators';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $casts = [
+    protected array $casts = [
         'permissions' => 'json',
     ];
 }
 
 class PivotTestContributor extends Pivot
 {
-    public $table = 'contributors';
+    public ?string $table = 'contributors';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    public $incrementing = true;
+    public bool $incrementing = true;
 
-    protected $casts = [
+    protected array $casts = [
         'permissions' => 'json',
     ];
 }
 
 class PivotTestSubscription extends Pivot
 {
-    public $table = 'subscriptions';
+    public ?string $table = 'subscriptions';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $attributes = [
+    protected array $attributes = [
         'status' => 'active',
     ];
 }
