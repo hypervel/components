@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Devtool\Generator;
 
 use Carbon\Carbon;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Devtool\Generator\GeneratorCommand;
 use Symfony\Component\Console\Input\InputInterface;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Router;
 
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hyperf\Contract\ContainerInterface;
 use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Tests\TestCase;

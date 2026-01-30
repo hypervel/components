@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Mail;
 
 use Closure;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Notifications\Messages\MailMessage;

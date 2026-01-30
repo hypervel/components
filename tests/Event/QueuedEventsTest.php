@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Event;
 
 use Hyperf\Config\Config;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Di\Definition\DefinitionSource;

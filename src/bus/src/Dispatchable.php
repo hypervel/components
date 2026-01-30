@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Closure;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hyperf\Support\Fluent;
 use Hypervel\Contracts\Bus\Dispatcher;
 

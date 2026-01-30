@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Translation;
 
 use Countable;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 
 /**

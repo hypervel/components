@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth\Access;
 
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hyperf\Contract\ContainerInterface;
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Tests\Auth\Stub\AuthorizableStub;

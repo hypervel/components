@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hyperf\Coroutine;
 
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Engine\Coroutine as Co;

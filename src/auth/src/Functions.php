@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth;
 
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Auth\Guard;
 

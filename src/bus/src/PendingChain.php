@@ -8,7 +8,7 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hyperf\Conditionable\Conditionable;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Queue\CallQueuedClosure;
 use Laravel\SerializableClosure\SerializableClosure;

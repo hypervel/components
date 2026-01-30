@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Event;
 
 use Closure;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**

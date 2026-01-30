@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Carbon\CarbonImmutable;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Support\Str;
 use Hypervel\Support\Testing\Fakes\BatchFake;

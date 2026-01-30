@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Filesystem;
 
 use Hyperf\Config\Config;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\ContainerInterface;
 use Hyperf\Di\Container;

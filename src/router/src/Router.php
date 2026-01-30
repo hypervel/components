@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Router;
 
 use Closure;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hyperf\HttpServer\Request;
 use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\HttpServer\Router\DispatcherFactory;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Router;
 
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 use InvalidArgumentException;
 

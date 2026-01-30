@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Config;
 
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Config\Repository as ConfigContract;
 
 /**

@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Queue;
 use DateInterval;
 use DateTimeInterface;
 use Exception;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Guards;
 
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Contracts\Auth\Authenticatable;

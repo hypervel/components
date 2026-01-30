@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require __DIR__ . '/../../vendor/autoload.php';
 
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hyperf\Contract\ApplicationInterface;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Coordinator\Constants;

@@ -8,7 +8,7 @@ use Aws\Command;
 use Aws\Exception\AwsException;
 use Aws\Ses\SesClient;
 use Hyperf\Config\Config;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;

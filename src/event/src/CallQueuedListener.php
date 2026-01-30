@@ -6,7 +6,7 @@ namespace Hypervel\Event;
 
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\ShouldQueue;

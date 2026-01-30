@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Console\Scheduling;
 
 use DateTimeZone;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\Support\Filesystem\Filesystem;
 use Hypervel\Console\Contracts\EventMutex;

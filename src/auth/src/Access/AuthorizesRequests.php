@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Access;
 
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Auth\Access\Gate;
 use Hypervel\Contracts\Auth\Authenticatable;
 

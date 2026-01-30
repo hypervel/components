@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting;
 
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Cache\Factory as Cache;
 use Hypervel\Contracts\Queue\ShouldBeUnique;
 

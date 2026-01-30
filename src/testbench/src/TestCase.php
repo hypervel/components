@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench;
 
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hyperf\Coordinator\Constants;
 use Hyperf\Coordinator\CoordinatorManager;
 use Hypervel\Contracts\Console\Kernel as KernelContract;

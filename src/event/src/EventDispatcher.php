@@ -6,7 +6,7 @@ namespace Hypervel\Event;
 
 use Closure;
 use Exception;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;

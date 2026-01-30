@@ -6,7 +6,7 @@ namespace Hypervel\Telescope;
 
 use Closure;
 use Exception;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Contracts\Http\Request as RequestContract;

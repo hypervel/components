@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Notifications\Channels;
 
 use Closure;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Contracts\Mail\Factory as MailFactory;
 use Hypervel\Contracts\Mail\Mailable;

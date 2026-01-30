@@ -9,7 +9,7 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hyperf\Conditionable\Conditionable;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Support\Traits\ForwardsCalls;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;

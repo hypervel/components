@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Notifications\Messages;
 
 use Hyperf\Conditionable\Conditionable;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Mail\Attachable;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Renderable;

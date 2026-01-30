@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Router;
 
 use Hyperf\Config\Config;
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hyperf\Context\Context;
 use Hyperf\Context\RequestContext;
 use Hyperf\Contract\ConfigInterface;

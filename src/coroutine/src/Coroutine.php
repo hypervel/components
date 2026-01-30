@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Coroutine;
 
-use Hyperf\Context\ApplicationContext;
+use Hypervel\Context\ApplicationContext;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Coroutine\Coroutine as BaseCoroutine;
 use Hyperf\ExceptionHandler\Formatter\FormatterInterface;
