@@ -17,9 +17,15 @@ use Symfony\Component\Mailer\Transport\FailoverTransport;
  */
 class MailFailoverTransportTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->app->set(ViewFactory::class, m::mock(ViewFactory::class));
+    }
+
     public function testGetFailoverTransportWithConfiguredTransports()
     {
-        $container = $this->getContainer([
+        $this->app->get(ConfigInterface::class)->set('mail', [
             'default' => 'failover',
             'mailers' => [
                 'failover' => [
@@ -41,7 +47,7 @@ class MailFailoverTransportTest extends TestCase
             ],
         ]);
 
-        $transport = $container->get(FactoryContract::class)
+        $transport = $this->app->get(FactoryContract::class)
             ->removePoolable('failover')
             ->getSymfonyTransport();
         $this->assertInstanceOf(FailoverTransport::class, $transport);
@@ -49,31 +55,15 @@ class MailFailoverTransportTest extends TestCase
 
     public function testGetFailoverTransportWithLaravel6StyleMailConfiguration()
     {
-        $container = $this->getContainer([
+        $this->app->get(ConfigInterface::class)->set('mail', [
             'driver' => 'failover',
             'mailers' => ['sendmail', 'array'],
             'sendmail' => '/usr/sbin/sendmail -bs',
         ]);
 
-        $transport = $container->get(FactoryContract::class)
+        $transport = $this->app->get(FactoryContract::class)
             ->removePoolable('failover')
             ->getSymfonyTransport();
         $this->assertInstanceOf(FailoverTransport::class, $transport);
-    }
-
-    protected function getContainer(array $config = []): ContainerInterface
-    {
-        $container = new Container(
-            new DefinitionSource([
-                ConfigInterface::class => fn () => new Config(['mail' => $config]),
-                FactoryContract::class => MailManager::class,
-                ViewInterface::class => fn () => Mockery::mock(ViewInterface::class),
-                EventDispatcherInterface::class => fn () => Mockery::mock(EventDispatcherInterface::class),
-            ])
-        );
-
-        ApplicationContext::setContainer($container);
-
-        return $container;
     }
 }

@@ -4,11 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hyperf\Config\Config;
-use Hypervel\Context\ApplicationContext;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\ViewEngine\Factory;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Mail\Mailable as MailableContract;
@@ -19,8 +14,8 @@ use Hypervel\Mail\Mailable;
 use Hypervel\Mail\Mailer;
 use Hypervel\Mail\SendQueuedMailable;
 use Hypervel\Support\Testing\Fakes\QueueFake;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 use Symfony\Component\Mailer\Transport\TransportInterface;
 
 /**
@@ -29,9 +24,15 @@ use Symfony\Component\Mailer\Transport\TransportInterface;
  */
 class MailableQueuedTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->app->set(MailableContract::class, m::mock(MailableContract::class));
+    }
+
     public function testQueuedMailableSent()
     {
-        $queueFake = new QueueFake($this->getContainer());
+        $queueFake = new QueueFake($this->app);
         $mailer = $this->getMockBuilder(Mailer::class)
             ->setConstructorArgs($this->getMocks())
             ->onlyMethods(['createMessage', 'to'])
@@ -45,7 +46,7 @@ class MailableQueuedTest extends TestCase
 
     public function testQueuedMailableWithAttachmentSent()
     {
-        $queueFake = new QueueFake($this->getContainer());
+        $queueFake = new QueueFake($this->app);
         $mailer = $this->getMockBuilder(Mailer::class)
             ->setConstructorArgs($this->getMocks())
             ->onlyMethods(['createMessage'])
@@ -64,14 +65,13 @@ class MailableQueuedTest extends TestCase
 
     public function testQueuedMailableWithAttachmentFromDiskSent()
     {
-        $app = $this->getContainer();
         $this->getMockBuilder(Filesystem::class)
             ->getMock();
         $filesystemFactory = $this->getMockBuilder(FilesystemManager::class)
-            ->setConstructorArgs([$app])
+            ->setConstructorArgs([$this->app])
             ->getMock();
-        $app->set('filesystem', $filesystemFactory);
-        $queueFake = new QueueFake($app);
+        $this->app->set('filesystem', $filesystemFactory);
+        $queueFake = new QueueFake($this->app);
         $mailer = $this->getMockBuilder(Mailer::class)
             ->setConstructorArgs($this->getMocks())
             ->onlyMethods(['createMessage'])
@@ -94,20 +94,6 @@ class MailableQueuedTest extends TestCase
     protected function getMocks()
     {
         return ['smtp', m::mock(Factory::class), m::mock(TransportInterface::class)];
-    }
-
-    protected function getContainer(array $config = []): Container
-    {
-        $container = new Container(
-            new DefinitionSource([
-                ConfigInterface::class => fn () => new Config($config),
-                MailableContract::class => fn () => m::mock(MailableContract::class),
-            ])
-        );
-
-        ApplicationContext::setContainer($container);
-
-        return $container;
     }
 }
 

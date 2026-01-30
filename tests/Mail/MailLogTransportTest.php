@@ -4,21 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hyperf\Config\Config;
-use Hypervel\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
-use Hyperf\ViewEngine\Contract\FactoryInterface as ViewInterface;
+use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
 use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Mail\Attachment;
-use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Message;
 use Hypervel\Mail\Transport\LogTransport;
-use Mockery;
-use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Testbench\TestCase;
+use Mockery as m;
 use Psr\Log\LoggerInterface;
 use Psr\Log\NullLogger;
 use Stringable;
@@ -30,24 +23,28 @@ use Symfony\Component\Mime\Email;
  */
 class MailLogTransportTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->app->set(ViewFactory::class, m::mock(ViewFactory::class));
+    }
+
     public function testGetLogTransportWithConfiguredChannel()
     {
-        $container = $this->getContainer([
-            'mail' => [
-                'driver' => 'log',
-                'log_channel' => 'mail',
-            ],
-            'logging' => [
-                'channels' => [
-                    'mail' => [
-                        'driver' => 'single',
-                        'path' => 'mail.log',
-                    ],
+        $this->app->get(ConfigInterface::class)->set('mail', [
+            'driver' => 'log',
+            'log_channel' => 'mail',
+        ]);
+        $this->app->get(ConfigInterface::class)->set('logging', [
+            'channels' => [
+                'mail' => [
+                    'driver' => 'single',
+                    'path' => 'mail.log',
                 ],
             ],
         ]);
 
-        $transport = $container->get(FactoryContract::class)
+        $transport = $this->app->get(FactoryContract::class)
             ->removePoolable('log')
             ->getSymfonyTransport();
         $this->assertInstanceOf(LogTransport::class, $transport);
@@ -108,19 +105,16 @@ class MailLogTransportTest extends TestCase
 
     public function testGetLogTransportWithPsrLogger()
     {
-        $container = $this->getContainer([
-            'mail' => [
-                'driver' => 'log',
-            ],
+        $this->app->get(ConfigInterface::class)->set('mail', [
+            'driver' => 'log',
         ]);
 
-        /** @var Container $container */
-        $container->set(LoggerInterface::class, new NullLogger());
+        $this->app->set(LoggerInterface::class, new NullLogger());
 
-        $transportLogger = $container->get(FactoryContract::class)->getSymfonyTransport()->logger();
+        $transportLogger = $this->app->get(FactoryContract::class)->getSymfonyTransport()->logger();
 
         $this->assertEquals(
-            $container->get(LoggerInterface::class),
+            $this->app->get(LoggerInterface::class),
             $transportLogger
         );
     }
@@ -141,22 +135,5 @@ class MailLogTransportTest extends TestCase
         );
 
         return $logger->loggedValue;
-    }
-
-    protected function getContainer(array $config = []): ContainerInterface
-    {
-        $container = new Container(
-            new DefinitionSource([
-                ConfigInterface::class => fn () => new Config($config),
-                FactoryContract::class => MailManager::class,
-                ViewInterface::class => fn () => Mockery::mock(ViewInterface::class),
-                EventDispatcherInterface::class => fn () => Mockery::mock(EventDispatcherInterface::class),
-                LoggerInterface::class => fn () => Mockery::mock(LoggerInterface::class),
-            ])
-        );
-
-        ApplicationContext::setContainer($container);
-
-        return $container;
     }
 }

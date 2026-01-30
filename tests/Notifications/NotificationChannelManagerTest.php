@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Notifications;
 
 use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
+use Hypervel\Container\Container;
 use Hypervel\Bus\Queueable;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;

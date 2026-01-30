@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Router;
 
-use Hypervel\Context\ApplicationContext;
-use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\HttpServer\Router\RouteCollector as HyperfRouteCollector;
+use Hypervel\Container\Container;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Router\DispatcherFactory;
 use Hypervel\Router\RouteCollector;
 use Hypervel\Router\RouteFileCollector;
