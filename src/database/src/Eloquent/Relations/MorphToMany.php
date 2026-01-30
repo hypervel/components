@@ -142,7 +142,7 @@ class MorphToMany extends BelongsToMany
      *
      * @return TPivotModel
      */
-    public function newPivot(array $attributes = [], bool $exists = false): Pivot
+    public function newPivot(array $attributes = [], bool $exists = false): Model
     {
         $using = $this->using;
 

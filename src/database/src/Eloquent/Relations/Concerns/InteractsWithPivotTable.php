@@ -457,7 +457,7 @@ trait InteractsWithPivotTable
     /**
      * Create a new pivot model instance.
      */
-    public function newPivot(array $attributes = [], bool $exists = false): Pivot
+    public function newPivot(array $attributes = [], bool $exists = false): Model
     {
         $attributes = array_merge(array_column($this->pivotValues, 'value', 'column'), $attributes);
 
@@ -469,6 +469,7 @@ trait InteractsWithPivotTable
             $this->using
         );
 
+        /* @phpstan-ignore method.notFound (AsPivot trait provides setPivotKeys/setRelatedModel) */
         return $pivot
             ->setPivotKeys($this->foreignPivotKey, $this->relatedPivotKey)
             ->setRelatedModel($this->related);
@@ -477,7 +478,7 @@ trait InteractsWithPivotTable
     /**
      * Create a new existing pivot model instance.
      */
-    public function newExistingPivot(array $attributes = []): Pivot
+    public function newExistingPivot(array $attributes = []): Model
     {
         return $this->newPivot($attributes, true);
     }

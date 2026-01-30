@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentModelLoadCountTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentModelLoadCountTest;
 
-use DB;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -17,7 +17,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentModelLoadCountTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('base_models', function (Blueprint $table) {
             $table->increments('id');
@@ -96,9 +96,9 @@ class EloquentModelLoadCountTest extends DatabaseTestCase
 
 class BaseModel extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function related1()
     {
@@ -118,9 +118,9 @@ class BaseModel extends Model
 
 class Related1 extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $fillable = ['base_model_id'];
+    protected array $fillable = ['base_model_id'];
 
     public function parent()
     {
@@ -130,9 +130,9 @@ class Related1 extends Model
 
 class Related2 extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $fillable = ['base_model_id'];
+    protected array $fillable = ['base_model_id'];
 
     public function parent()
     {
@@ -144,9 +144,9 @@ class DeletedRelated extends Model
 {
     use SoftDeletes;
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $fillable = ['base_model_id'];
+    protected array $fillable = ['base_model_id'];
 
     public function parent()
     {

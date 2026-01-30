@@ -1589,7 +1589,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
      * @param array<string, mixed> $attributes
      * @param null|class-string<Pivot> $using
      */
-    public function newPivot(self $parent, array $attributes, string $table, bool $exists, ?string $using = null): Pivot
+    public function newPivot(self $parent, array $attributes, string $table, bool $exists, ?string $using = null): self
     {
         return $using ? $using::fromRawAttributes($parent, $attributes, $table, $exists)
             : Pivot::fromAttributes($parent, $attributes, $table, $exists);

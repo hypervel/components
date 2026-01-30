@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentModelDateCastingTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentModelImmutableDateCastingTest;
 
 use Carbon\CarbonImmutable;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -16,7 +16,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentModelImmutableDateCastingTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('test_model_immutable', function (Blueprint $table) {
             $table->increments('id');
@@ -54,13 +54,13 @@ class EloquentModelImmutableDateCastingTest extends DatabaseTestCase
 
 class TestModelImmutable extends Model
 {
-    public $table = 'test_model_immutable';
+    public ?string $table = 'test_model_immutable';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public $casts = [
+    public array $casts = [
         'date_field' => 'immutable_date',
         'datetime_field' => 'immutable_datetime',
     ];
@@ -68,13 +68,13 @@ class TestModelImmutable extends Model
 
 class TestModelCustomImmutable extends Model
 {
-    public $table = 'test_model_immutable';
+    public ?string $table = 'test_model_immutable';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public $casts = [
+    public array $casts = [
         'date_field' => 'immutable_date:Y-m',
         'datetime_field' => 'immutable_datetime:Y-m H:i',
     ];

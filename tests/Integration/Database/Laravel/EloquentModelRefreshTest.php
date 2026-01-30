@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentModelRefreshTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentModelRefreshTest;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\Concerns\AsPivot;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\Concerns\AsPivot;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -17,7 +17,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentModelRefreshTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('posts', function (Blueprint $table) {
             $table->increments('id');
@@ -95,13 +95,13 @@ class Post extends Model
 {
     use SoftDeletes;
 
-    public $table = 'posts';
+    public ?string $table = 'posts';
 
-    public $timestamps = true;
+    public bool $timestamps = true;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected static function boot()
+    protected static function boot(): void
     {
         parent::boot();
 
@@ -125,5 +125,5 @@ class AsPivotPostPivot extends Model
 {
     use AsPivot;
 
-    protected $table = 'post_posts';
+    protected ?string $table = 'post_posts';
 }
