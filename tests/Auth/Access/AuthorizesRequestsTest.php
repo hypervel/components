@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth\Access;
 
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Auth\Access\Response;
-use Hypervel\Contracts\Container\Container;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Auth\Access\Gate;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\Auth\Stub\AuthorizesRequestsStub;
 use Hypervel\Tests\TestCase;

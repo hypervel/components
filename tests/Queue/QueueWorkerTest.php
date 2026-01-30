@@ -7,9 +7,10 @@ namespace Hypervel\Tests\Queue;
 use DateInterval;
 use DateTimeInterface;
 use Exception;
-use Hypervel\Context\ApplicationContext;
-use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
+use Hypervel\Container\Container;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\Job;
@@ -28,7 +29,6 @@ use Hypervel\Queue\WorkerOptions;
 use Hypervel\Support\Carbon;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
 use RuntimeException;
 use Throwable;
 
@@ -44,7 +44,7 @@ class QueueWorkerTest extends TestCase
 
     protected ExceptionHandlerContract $exceptionHandler;
 
-    protected ContainerInterface $container;
+    protected ContainerContract $container;
 
     protected function setUp(): void
     {

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Coroutine;
 
-use Hypervel\Context\ApplicationContext;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Coroutine\Coroutine as BaseCoroutine;
 use Hyperf\ExceptionHandler\Formatter\FormatterInterface;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Throwable;
 

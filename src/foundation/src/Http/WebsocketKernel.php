@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http;
 
-use Hypervel\Context\Context;
 use Hyperf\Coordinator\Constants;
 use Hyperf\Coordinator\CoordinatorManager;
 use Hyperf\Engine\Constant;
@@ -18,6 +17,7 @@ use Hyperf\WebSocketServer\CoreMiddleware;
 use Hyperf\WebSocketServer\Exception\WebSocketHandShakeException;
 use Hyperf\WebSocketServer\Security;
 use Hyperf\WebSocketServer\Server as WebSocketServer;
+use Hypervel\Context\Context;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Foundation\Exceptions\Handler as ExceptionHandler;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;

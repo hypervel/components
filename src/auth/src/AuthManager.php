@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Auth;
 
 use Closure;
-use Hypervel\Context\Context;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Auth\Guards\JwtGuard;
 use Hypervel\Auth\Guards\RequestGuard;
 use Hypervel\Auth\Guards\SessionGuard;
+use Hypervel\Context\Context;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\StatefulGuard;

@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Bus;
 
 use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Container\Container;
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
+use Hypervel\Container\Container;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;

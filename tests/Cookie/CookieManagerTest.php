@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cookie;
 
-use Hypervel\Context\RequestContext;
 use Hyperf\HttpServer\Contract\RequestInterface;
+use Hypervel\Context\RequestContext;
 use Hypervel\Cookie\Cookie;
 use Hypervel\Cookie\CookieManager;
 use Hypervel\Tests\TestCase;

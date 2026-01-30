@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hypervel\Context\ApplicationContext;
-use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Cache\RateLimiter;
+use Hypervel\Container\Container;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Queue\Middleware\RateLimited;
 use Mockery;
 use Mockery\MockInterface;

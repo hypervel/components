@@ -6,10 +6,10 @@ namespace Hypervel\Tests\ObjectPool;
 
 use Closure;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\ObjectPool;
 use Hypervel\ObjectPool\PoolProxy;
-use Hypervel\Contracts\Container\Container as ContainerContract;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 

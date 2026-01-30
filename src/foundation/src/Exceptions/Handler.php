@@ -6,7 +6,6 @@ namespace Hypervel\Foundation\Exceptions;
 
 use Closure;
 use Exception;
-use Hypervel\Context\Context;
 use Hyperf\Contract\MessageBag as MessageBagContract;
 use Hyperf\Contract\MessageProvider;
 use Hyperf\Contract\SessionInterface;
@@ -18,6 +17,7 @@ use Hyperf\Support\MessageBag;
 use Hyperf\ViewEngine\ViewErrorBag;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\AuthenticationException;
+use Hypervel\Context\Context;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Debug\ShouldntReport;
 use Hypervel\Contracts\Foundation\Application as Container;

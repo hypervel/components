@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Exceptions;
 
-use Hypervel\Context\RequestContext;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Foundation\ExceptionRenderer;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Throwable;

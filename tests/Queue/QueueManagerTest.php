@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Hyperf\Config\Config;
-use Hypervel\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
+use Hypervel\Container\Container;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;

@@ -6,8 +6,8 @@ namespace Illuminate\Events;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Bus\Queueable;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\InteractsWithQueue;

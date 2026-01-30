@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Closure;
-use Hypervel\Context\ApplicationContext;
 use Hyperf\Support\Fluent;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Bus\Dispatcher;
 
 use function Hyperf\Support\value;

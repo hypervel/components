@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Router;
 
 use Closure;
-use Hypervel\Context\ApplicationContext;
 use Hyperf\HttpServer\Request;
 use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\HttpServer\Router\DispatcherFactory;
 use Hyperf\HttpServer\Router\RouteCollector;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\DispatchedRoute;
 use RuntimeException;

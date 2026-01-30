@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Middleware;
 
-use Hypervel\Context\ApplicationContext;
 use Hypervel\Cache\RateLimiter;
 use Hypervel\Cache\RateLimiting\Unlimited;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use UnitEnum;

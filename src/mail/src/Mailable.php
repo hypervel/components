@@ -9,9 +9,9 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hyperf\Conditionable\Conditionable;
-use Hypervel\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Support\Traits\ForwardsCalls;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Mail\Attachable;
 use Hypervel\Contracts\Mail\Factory;
@@ -36,7 +36,6 @@ use Symfony\Component\Mailer\Header\MetadataHeader;
 use Symfony\Component\Mailer\Header\TagHeader;
 use Symfony\Component\Mime\Address;
 
-use function Hyperf\Support\call;
 use function Hyperf\Support\make;
 
 class Mailable implements MailableContract, Renderable

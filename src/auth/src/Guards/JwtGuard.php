@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Auth\Guards;
 
 use Carbon\Carbon;
+use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
-use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\UserProvider;

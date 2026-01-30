@@ -19,7 +19,6 @@ use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\AssertionFailedError;
-use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * @internal

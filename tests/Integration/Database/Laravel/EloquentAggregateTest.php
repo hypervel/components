@@ -92,6 +92,10 @@ class EloquentAggregateTest extends DatabaseTestCase
     }
 }
 
+/**
+ * @internal
+ * @coversNothing
+ */
 class UserAggregateTest extends Model
 {
     protected ?string $table = 'users';

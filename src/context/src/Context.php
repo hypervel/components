@@ -24,11 +24,8 @@ class Context extends \Hyperf\Context\Context
 {
     protected const DEPTH_KEY = 'di.depth';
 
-    /**
-     * TODO: Uncomment when removing "extends \Hyperf\Context\Context".
-     *
-     * @var array<TKey, TValue>
-     */
+    // TODO: Uncomment when removing "extends \Hyperf\Context\Context".
+    // /** @var array<TKey, TValue> */
     // protected static array $nonCoContext = [];
 
     /**

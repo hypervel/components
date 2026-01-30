@@ -6,9 +6,9 @@ namespace Hypervel\Container;
 
 use ArrayAccess;
 use Closure;
-use Hypervel\Context\ApplicationContext;
 use Hyperf\Di\Container as HyperfContainer;
 use Hyperf\Di\Definition\DefinitionSource;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use InvalidArgumentException;
 use LogicException;

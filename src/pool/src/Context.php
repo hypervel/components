@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Pool;
 
-use Hypervel\Context\Context as CoroutineContext;
 use Hyperf\Contract\ConnectionInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Context\Context as CoroutineContext;
 use Psr\Container\ContainerInterface;
 use Psr\Log\LoggerInterface;
 

@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hypervel\Context\Context;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\HttpServer\Event\RequestHandled;
 use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\HttpServer\Server as HttpServer;
 use Hyperf\Server\Event;
+use Hypervel\Context\Context;
 use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
