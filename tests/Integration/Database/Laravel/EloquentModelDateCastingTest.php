@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentModelDateCastingTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentModelDateCastingTest;
 
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -17,7 +17,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentModelDateCastingTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('test_model1', function (Blueprint $table) {
             $table->increments('id');
@@ -157,13 +157,13 @@ class EloquentModelDateCastingTest extends DatabaseTestCase
 
 class TestModel1 extends Model
 {
-    public $table = 'test_model1';
+    public ?string $table = 'test_model1';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public $casts = [
+    public array $casts = [
         'date_field' => 'date:Y-m',
         'datetime_field' => 'datetime:Y-m H:i',
         'immutable_date_field' => 'date:Y-m',
@@ -173,13 +173,13 @@ class TestModel1 extends Model
 
 class TestModel2 extends Model
 {
-    public $table = 'test_model2';
+    public ?string $table = 'test_model2';
 
     public const UPDATED_AT = null;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public $casts = [
+    public array $casts = [
         'date_field' => 'date:Y-m',
         'datetime_field' => 'datetime:Y-m H:i',
         'immutable_date_field' => 'date:Y-m',

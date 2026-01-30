@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Eloquent\Casts\AsEncryptedArrayObject;
-use Illuminate\Database\Eloquent\Model;
-use Orchestra\Testbench\TestCase;
+use Hypervel\Database\Eloquent\Casts\AsEncryptedArrayObject;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Testbench\TestCase;
 
 /**
  * @internal
@@ -85,9 +85,9 @@ class EloquentModelEncryptedDirtyTest extends TestCase
  */
 class EncryptedDirtyAttributeCast extends Model
 {
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public $casts = [
+    public array $casts = [
         'secret' => 'encrypted',
         'secret_array' => 'encrypted:array',
         'secret_json' => 'encrypted:json',

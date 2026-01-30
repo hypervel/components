@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentModelDecimalCastingTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentModelDecimalCastingTest;
 
 use Brick\Math\Exception\NumberFormatException;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Exceptions\MathException;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Exceptions\MathException;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -17,7 +17,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentModelDecimalCastingTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('test_model1', function (Blueprint $table) {
             $table->increments('id');
@@ -29,9 +29,9 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
     public function testItHandlesExponent()
     {
         $model = new class extends Model {
-            public $timestamps = false;
+            public bool $timestamps = false;
 
-            protected $casts = [
+            protected array $casts = [
                 'amount' => 'decimal:20',
             ];
         };
@@ -46,9 +46,9 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
     public function testItHandlesIntegersWithUnderscores()
     {
         $model = new class extends Model {
-            public $timestamps = false;
+            public bool $timestamps = false;
 
-            protected $casts = [
+            protected array $casts = [
                 'amount' => 'decimal:2',
             ];
         };
@@ -60,9 +60,9 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
     public function testItWrapsThrownExceptions()
     {
         $model = new class extends Model {
-            public $timestamps = false;
+            public bool $timestamps = false;
 
-            protected $casts = [
+            protected array $casts = [
                 'amount' => 'decimal:20',
             ];
         };
@@ -81,9 +81,9 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
     public function testItHandlesMissingIntegers()
     {
         $model = new class extends Model {
-            public $timestamps = false;
+            public bool $timestamps = false;
 
-            protected $casts = [
+            protected array $casts = [
                 'amount' => 'decimal:2',
             ];
         };
@@ -98,9 +98,9 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
     public function testItHandlesLargeNumbers()
     {
         $model = new class extends Model {
-            public $timestamps = false;
+            public bool $timestamps = false;
 
-            protected $casts = [
+            protected array $casts = [
                 'amount' => 'decimal:20',
             ];
         };
@@ -115,9 +115,9 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
     public function testItRounds()
     {
         $model = new class extends Model {
-            public $timestamps = false;
+            public bool $timestamps = false;
 
-            protected $casts = [
+            protected array $casts = [
                 'amount' => 'decimal:2',
             ];
         };
@@ -129,9 +129,9 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
     public function testItTrimsLongValues()
     {
         $model = new class extends Model {
-            public $timestamps = false;
+            public bool $timestamps = false;
 
-            protected $casts = [
+            protected array $casts = [
                 'amount' => 'decimal:20',
             ];
         };
@@ -143,9 +143,9 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
     public function testItDoesntRoundNumbers()
     {
         $model = new class extends Model {
-            public $timestamps = false;
+            public bool $timestamps = false;
 
-            protected $casts = [
+            protected array $casts = [
                 'amount' => 'decimal:1',
             ];
         };
@@ -179,7 +179,7 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
     public function testRoundingDirection()
     {
         $model = new class extends Model {
-            protected $casts = [
+            protected array $casts = [
                 'amount' => 'decimal:2',
             ];
         };
@@ -218,13 +218,13 @@ class EloquentModelDecimalCastingTest extends DatabaseTestCase
 
 class TestModel1 extends Model
 {
-    public $table = 'test_model1';
+    public ?string $table = 'test_model1';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public $casts = [
+    public array $casts = [
         'decimal_field_2' => 'decimal:2',
         'decimal_field_4' => 'decimal:4',
     ];

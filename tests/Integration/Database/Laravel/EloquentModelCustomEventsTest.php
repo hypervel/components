@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentModelCustomEventsTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentModelCustomEventsTest;
 
-use Illuminate\Database\Eloquent\Attributes\ObservedBy;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Attributes\ObservedBy;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -26,7 +26,7 @@ class EloquentModelCustomEventsTest extends DatabaseTestCase
         });
     }
 
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('test_model1', function (Blueprint $table) {
             $table->increments('id');
@@ -74,13 +74,13 @@ class EloquentModelCustomEventsTest extends DatabaseTestCase
 
 class TestModel1 extends Model
 {
-    public $dispatchesEvents = ['created' => CustomEvent::class];
+    public array $dispatchesEvents = ['created' => CustomEvent::class];
 
-    public $table = 'test_model1';
+    public ?string $table = 'test_model1';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 }
 
 class CustomEvent
@@ -117,5 +117,5 @@ class EloquentModelStubWithCustomEventFromTrait extends Model
 {
     use CustomEventTrait;
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 }

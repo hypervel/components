@@ -2,18 +2,19 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Contracts\Encryption\Encrypter;
-use Illuminate\Database\Eloquent\Casts\ArrayObject;
-use Illuminate\Database\Eloquent\Casts\AsEncryptedArrayObject;
-use Illuminate\Database\Eloquent\Casts\AsEncryptedCollection;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\Crypt;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Fluent;
+use Hypervel\Contracts\Encryption\Encrypter;
+use Hypervel\Database\Eloquent\Casts\ArrayObject;
+use Hypervel\Database\Eloquent\Casts\AsEncryptedArrayObject;
+use Hypervel\Database\Eloquent\Casts\AsEncryptedCollection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Facades\Crypt;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Support\Fluent;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use stdClass;
 
 /**
@@ -22,7 +23,7 @@ use stdClass;
  */
 class EloquentModelEncryptedCastingTest extends DatabaseTestCase
 {
-    protected $encrypter;
+    protected Encrypter $encrypter;
 
     protected function setUp(): void
     {
@@ -34,7 +35,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
         Model::$encrypter = null;
     }
 
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('encrypted_casts', function (Blueprint $table) {
             $table->increments('id');
@@ -55,7 +56,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
             ->with('encrypted-secret-string', false)
             ->andReturn('this is a secret string');
 
-        /** @var \Illuminate\Tests\Integration\Database\EncryptedCast $subject */
+        /** @var EncryptedCast $subject */
         $subject = EncryptedCast::create([
             'secret' => 'this is a secret string',
         ]);
@@ -76,7 +77,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
             ->with('encrypted-secret-array-string', false)
             ->andReturn('{"key1":"value1"}');
 
-        /** @var \Illuminate\Tests\Integration\Database\EncryptedCast $subject */
+        /** @var EncryptedCast $subject */
         $subject = EncryptedCast::create([
             'secret_array' => ['key1' => 'value1'],
         ]);
@@ -97,7 +98,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
             ->with('encrypted-secret-json-string', false)
             ->andReturn('{"key1":"value1"}');
 
-        /** @var \Illuminate\Tests\Integration\Database\EncryptedCast $subject */
+        /** @var EncryptedCast $subject */
         $subject = EncryptedCast::create([
             'secret_json' => ['key1' => 'value1'],
         ]);
@@ -152,7 +153,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
             ->with('encrypted-secret-object-string', false)
             ->andReturn('{"key1":"value1"}');
 
-        /** @var \Illuminate\Tests\Integration\Database\EncryptedCast $object */
+        /** @var EncryptedCast $object */
         $object = EncryptedCast::create([
             'secret_object' => $object,
         ]);
@@ -175,7 +176,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
             ->with('encrypted-secret-collection-string', false)
             ->andReturn('{"key1":"value1"}');
 
-        /** @var \Illuminate\Tests\Integration\Database\EncryptedCast $subject */
+        /** @var EncryptedCast $subject */
         $subject = EncryptedCast::create([
             'secret_collection' => new Collection(['key1' => 'value1']),
         ]);
@@ -365,7 +366,7 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
             ->with('encrypted-secret-string', false)
             ->andReturn('this is a secret string');
 
-        /** @var \Illuminate\Tests\Integration\Database\EncryptedCast $subject */
+        /** @var EncryptedCast $subject */
         $subject = EncryptedCast::create([
             'secret' => 'this is a secret string',
         ]);
@@ -387,11 +388,11 @@ class EloquentModelEncryptedCastingTest extends DatabaseTestCase
  */
 class EncryptedCast extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public $casts = [
+    public array $casts = [
         'secret' => 'encrypted',
         'secret_array' => 'encrypted:array',
         'secret_json' => 'encrypted:json',
