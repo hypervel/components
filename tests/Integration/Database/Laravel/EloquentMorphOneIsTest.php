@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentMorphOneIsTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentMorphOneIsTest;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphOne;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -15,7 +16,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentMorphOneIsTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('posts', function (Blueprint $table) {
             $table->increments('id');
@@ -94,12 +95,12 @@ class EloquentMorphOneIsTest extends DatabaseTestCase
 
 class Attachment extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 }
 
 class Post extends Model
 {
-    public function attachment()
+    public function attachment(): MorphOne
     {
         return $this->morphOne(Attachment::class, 'attachable');
     }

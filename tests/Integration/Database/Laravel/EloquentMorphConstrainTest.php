@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentMorphConstrainTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentMorphConstrainTest;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -16,7 +16,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentMorphConstrainTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('posts', function (Blueprint $table) {
             $table->increments('id');
@@ -71,9 +71,9 @@ class EloquentMorphConstrainTest extends DatabaseTestCase
 
 class Comment extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    public function commentable()
+    public function commentable(): MorphTo
     {
         return $this->morphTo();
     }
@@ -81,18 +81,18 @@ class Comment extends Model
 
 class Post extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $fillable = ['post_visible'];
+    protected array $fillable = ['post_visible'];
 
-    protected $casts = ['post_visible' => 'boolean'];
+    protected array $casts = ['post_visible' => 'boolean'];
 }
 
 class Video extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $fillable = ['video_visible'];
+    protected array $fillable = ['video_visible'];
 
-    protected $casts = ['video_visible' => 'boolean'];
+    protected array $casts = ['video_visible' => 'boolean'];
 }

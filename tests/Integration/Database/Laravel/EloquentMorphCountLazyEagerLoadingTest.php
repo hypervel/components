@@ -2,12 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentMorphCountLazyEagerLoadingTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentMorphCountLazyEagerLoadingTest;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -15,7 +18,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentMorphCountLazyEagerLoadingTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('likes', function (Blueprint $table) {
             $table->increments('id');
@@ -55,9 +58,9 @@ class EloquentMorphCountLazyEagerLoadingTest extends DatabaseTestCase
 
 class Comment extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    public function commentable()
+    public function commentable(): MorphTo
     {
         return $this->morphTo();
     }
@@ -65,9 +68,9 @@ class Comment extends Model
 
 class Post extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    public function likes()
+    public function likes(): HasMany
     {
         return $this->hasMany(Like::class);
     }
@@ -75,9 +78,9 @@ class Post extends Model
 
 class Like extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    public function post()
+    public function post(): BelongsTo
     {
         return $this->belongsTo(Post::class);
     }

@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Contracts\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Attributes\Scope;
-use Illuminate\Database\Eloquent\Model;
+use Hypervel\Contracts\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Attributes\Scope;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -38,13 +39,13 @@ class EloquentModelScopeTest extends DatabaseTestCase
 
 class TestScopeModel1 extends Model
 {
-    public function scopeExists(Builder $builder)
+    public function scopeExists(Builder $builder): Builder
     {
         return $builder;
     }
 
     #[Scope]
-    protected function existsAsWell(Builder $builder)
+    protected function existsAsWell(Builder $builder): Builder
     {
         return $builder;
     }

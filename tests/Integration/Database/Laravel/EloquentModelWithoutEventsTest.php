@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -14,7 +15,7 @@ use Illuminate\Support\Facades\Schema;
  */
 class EloquentModelWithoutEventsTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('auto_filled_models', function (Blueprint $table) {
             $table->increments('id');
@@ -38,13 +39,13 @@ class EloquentModelWithoutEventsTest extends DatabaseTestCase
 
 class AutoFilledModel extends Model
 {
-    public $table = 'auto_filled_models';
+    public ?string $table = 'auto_filled_models';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public static function boot()
+    public static function boot(): void
     {
         parent::boot();
 

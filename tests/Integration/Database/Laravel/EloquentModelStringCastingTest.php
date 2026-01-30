@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use stdClass;
 
 /**
@@ -15,7 +16,7 @@ use stdClass;
  */
 class EloquentModelStringCastingTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('casting_table', function (Blueprint $table) {
             $table->increments('id');
@@ -31,7 +32,7 @@ class EloquentModelStringCastingTest extends DatabaseTestCase
      */
     public function testSavingCastedAttributesToDatabase()
     {
-        /** @var \Illuminate\Tests\Integration\Database\StringCasts $model */
+        /** @var StringCasts $model */
         $model = StringCasts::create([
             'array_attributes' => ['key1' => 'value1'],
             'json_attributes' => ['json_key' => 'json_value'],
@@ -51,7 +52,7 @@ class EloquentModelStringCastingTest extends DatabaseTestCase
 
     public function testSavingCastedEmptyAttributesToDatabase()
     {
-        /** @var \Illuminate\Tests\Integration\Database\StringCasts $model */
+        /** @var StringCasts $model */
         $model = StringCasts::create([
             'array_attributes' => [],
             'json_attributes' => [],
@@ -73,20 +74,11 @@ class EloquentModelStringCastingTest extends DatabaseTestCase
  */
 class StringCasts extends Eloquent
 {
-    /**
-     * @var string
-     */
-    protected $table = 'casting_table';
+    protected ?string $table = 'casting_table';
 
-    /**
-     * @var string[]
-     */
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    /**
-     * @var array
-     */
-    protected $casts = [
+    protected array $casts = [
         'array_attributes' => 'array',
         'json_attributes' => 'json',
         'object_attributes' => 'object',

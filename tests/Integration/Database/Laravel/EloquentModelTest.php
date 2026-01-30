@@ -2,13 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Support\Str;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -16,7 +17,7 @@ use Illuminate\Support\Str;
  */
 class EloquentModelTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('test_model1', function (Blueprint $table) {
             $table->increments('id');
@@ -121,11 +122,11 @@ class EloquentModelTest extends DatabaseTestCase
         });
 
         $model = new class extends Model {
-            protected $table = 'actions';
+            protected ?string $table = 'actions';
 
-            protected $guarded = ['id'];
+            protected array $guarded = ['id'];
 
-            public $timestamps = false;
+            public bool $timestamps = false;
         };
 
         $model->newInstance()->create([
@@ -146,20 +147,20 @@ class EloquentModelTest extends DatabaseTestCase
 
 class TestModel1 extends Model
 {
-    public $table = 'test_model1';
+    public ?string $table = 'test_model1';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected $casts = ['nullable_date' => 'datetime'];
+    protected array $casts = ['nullable_date' => 'datetime'];
 }
 
 class TestModel2 extends Model
 {
-    public $table = 'test_model2';
+    public ?string $table = 'test_model2';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 }

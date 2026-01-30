@@ -2,14 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentMorphEagerLoadingTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentMorphEagerLoadingTest;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphTo;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -17,7 +18,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentMorphEagerLoadingTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->increments('id');
@@ -120,9 +121,9 @@ class EloquentMorphEagerLoadingTest extends DatabaseTestCase
 
 class Action extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    public function target()
+    public function target(): MorphTo
     {
         return $this->morphTo()->withTrashed();
     }
@@ -130,9 +131,9 @@ class Action extends Model
 
 class Comment extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    public function commentable()
+    public function commentable(): MorphTo
     {
         return $this->morphTo();
     }
@@ -140,11 +141,11 @@ class Comment extends Model
 
 class Post extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $primaryKey = 'post_id';
+    protected string $primaryKey = 'post_id';
 
-    public function user()
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
@@ -154,12 +155,12 @@ class User extends Model
 {
     use SoftDeletes;
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 }
 
 class Video extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $primaryKey = 'video_id';
+    protected string $primaryKey = 'video_id';
 }

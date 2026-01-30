@@ -2,15 +2,17 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentMorphManyTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentMorphManyTest;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphOne;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\MorphMany;
+use Hypervel\Database\Eloquent\Relations\MorphOne;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Support\Str;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -18,7 +20,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentMorphManyTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('posts', function (Blueprint $table) {
             $table->increments('id');
@@ -79,15 +81,15 @@ class EloquentMorphManyTest extends DatabaseTestCase
 
 class Post extends Model
 {
-    public $table = 'posts';
+    public ?string $table = 'posts';
 
-    public $timestamps = true;
+    public bool $timestamps = true;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected $withCount = ['comments'];
+    protected array $withCount = ['comments'];
 
-    public function comments()
+    public function comments(): MorphMany
     {
         return $this->morphMany(Comment::class, 'commentable');
     }
@@ -105,18 +107,18 @@ class Post extends Model
 
 class Comment extends Model
 {
-    public $table = 'comments';
+    public ?string $table = 'comments';
 
-    public $timestamps = true;
+    public bool $timestamps = true;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public function commentable()
+    public function commentable(): MorphTo
     {
         return $this->morphTo();
     }
 
-    public function replies()
+    public function replies(): MorphMany
     {
         return $this->morphMany(self::class, 'commentable');
     }
