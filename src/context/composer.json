@@ -1,0 +1,41 @@
+{
+    "name": "hypervel/context",
+    "description": "A coroutine context library for Hypervel.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "hyperf",
+        "context",
+        "coroutine",
+        "swoole",
+        "hypervel"
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "hyperf/engine": "^2.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Context\\": "src/"
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.3-dev"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev"
+}
