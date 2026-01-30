@@ -92,7 +92,7 @@
             "src/support/src/helpers.php",
             "src/testbench/src/functions.php",
             "src/translation/src/Functions.php",
-            "src/core/src/helpers.php"
+            "src/context/src/helpers.php"
         ],
         "classmap": [
             "src/core/class_map/Hyperf/Coroutine/Coroutine.php",

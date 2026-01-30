@@ -23,7 +23,7 @@ function test(User $user, Post $post, Comment $comment, ChildUser $child): void
 {
     assertType('Hypervel\Database\Eloquent\Relations\HasOne<Hypervel\Types\Relations\Address, Hypervel\Types\Relations\User>', $user->address());
     assertType('Hypervel\Types\Relations\Address|null', $user->address()->getResults());
-    assertType('Hypervel\Database\Eloquent\Collection<int, Hypervel\Types\Relations\Address>', $user->address()->get());
+    assertType('Hypervel\Support\Collection<int, Hypervel\Types\Relations\Address>', $user->address()->get());
     assertType('Hypervel\Types\Relations\Address', $user->address()->make());
     assertType('Hypervel\Types\Relations\Address', $user->address()->create());
     assertType('Hypervel\Database\Eloquent\Relations\HasOne<Hypervel\Types\Relations\Address, Hypervel\Types\Relations\ChildUser>', $child->address());
