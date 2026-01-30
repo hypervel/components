@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentModelRelationAutoloadTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentModelRelationAutoloadTest;
 
-use DB;
-use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Factories\Factory;
+use Hypervel\Database\Eloquent\Factories\HasFactory;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -18,7 +18,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentModelRelationAutoloadTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('tags', function (Blueprint $table) {
             $table->increments('id');
@@ -252,9 +252,9 @@ class EloquentModelRelationAutoloadTest extends DatabaseTestCase
 
 class TagFactory extends Factory
 {
-    protected $model = Tag::class;
+    protected ?string $model = Tag::class;
 
-    public function definition()
+    public function definition(): array
     {
         return [];
     }
@@ -264,11 +264,11 @@ class Tag extends Model
 {
     use HasFactory;
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected static function booted()
+    protected static function booted(): void
     {
         static::creating(function ($model) {
             if ($model->post->shouldApplyStatus()) {
@@ -277,7 +277,7 @@ class Tag extends Model
         });
     }
 
-    protected static function newFactory()
+    protected static function newFactory(): TagFactory
     {
         return TagFactory::new();
     }
@@ -290,9 +290,9 @@ class Tag extends Model
 
 class Comment extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function parent()
     {
@@ -312,9 +312,9 @@ class Comment extends Model
 
 class Post extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    public function shouldApplyStatus()
+    public function shouldApplyStatus(): bool
     {
         return false;
     }
@@ -342,7 +342,7 @@ class Post extends Model
 
 class Video extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
     public function comments()
     {
@@ -357,9 +357,9 @@ class Video extends Model
 
 class Like extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function likeable()
     {
