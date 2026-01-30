@@ -8,9 +8,18 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Psr\Container\ContainerInterface;
 use TypeError;
 
-class ApplicationContext
+/**
+ * TODO: Remove "extends \Hyperf\Context\ApplicationContext" once all Hyperf dependencies are removed.
+ * We temporarily extend the parent to share the static $container storage with Hyperf
+ * vendor code that still uses Hyperf\Context\ApplicationContext.
+ * Once porting is complete, remove the extends and uncomment $container below.
+ */
+class ApplicationContext extends \Hyperf\Context\ApplicationContext
 {
-    protected static ?ContainerInterface $container = null;
+    /**
+     * TODO: Uncomment when removing "extends \Hyperf\Context\ApplicationContext".
+     */
+    // protected static ?ContainerInterface $container = null;
 
     /**
      * @throws TypeError
