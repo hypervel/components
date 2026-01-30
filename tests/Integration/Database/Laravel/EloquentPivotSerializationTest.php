@@ -2,15 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentPivotSerializationTest;
 
-use Illuminate\Database\Eloquent\Collection as DatabaseCollection;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphPivot;
-use Illuminate\Database\Eloquent\Relations\Pivot;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Eloquent\Collection as DatabaseCollection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\MorphPivot;
+use Hypervel\Database\Eloquent\Relations\MorphToMany;
+use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Queue\SerializesModels;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -18,7 +21,7 @@ use Illuminate\Support\Facades\Schema;
  */
 class EloquentPivotSerializationTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->increments('id');
@@ -153,14 +156,14 @@ class PivotSerializationTestCollectionClass
 
 class PivotSerializationTestUser extends Model
 {
-    public $table = 'users';
+    public ?string $table = 'users';
 }
 
 class PivotSerializationTestProject extends Model
 {
-    public $table = 'projects';
+    public ?string $table = 'projects';
 
-    public function collaborators()
+    public function collaborators(): BelongsToMany
     {
         return $this->belongsToMany(
             PivotSerializationTestUser::class,
@@ -170,7 +173,7 @@ class PivotSerializationTestProject extends Model
         )->using(PivotSerializationTestCollaborator::class);
     }
 
-    public function tags()
+    public function tags(): MorphToMany
     {
         return $this->morphToMany(PivotSerializationTestTag::class, 'taggable', 'taggables', 'taggable_id', 'tag_id')
             ->using(PivotSerializationTestTagAttachment::class);
@@ -179,9 +182,9 @@ class PivotSerializationTestProject extends Model
 
 class PivotSerializationTestTag extends Model
 {
-    public $table = 'tags';
+    public ?string $table = 'tags';
 
-    public function projects()
+    public function projects(): MorphToMany
     {
         return $this->morphedByMany(PivotSerializationTestProject::class, 'taggable', 'taggables', 'tag_id', 'taggable_id')
             ->using(PivotSerializationTestTagAttachment::class);
@@ -190,14 +193,14 @@ class PivotSerializationTestTag extends Model
 
 class PivotSerializationTestCollaborator extends Pivot
 {
-    public $table = 'project_users';
+    public ?string $table = 'project_users';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 }
 
 class PivotSerializationTestTagAttachment extends MorphPivot
 {
-    public $table = 'taggables';
+    public ?string $table = 'taggables';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 }

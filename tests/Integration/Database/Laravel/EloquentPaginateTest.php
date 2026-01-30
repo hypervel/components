@@ -2,11 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentPaginateTest;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -14,7 +15,7 @@ use Illuminate\Support\Facades\Schema;
  */
 class EloquentPaginateTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('posts', function (Blueprint $table) {
             $table->increments('id');
@@ -106,10 +107,10 @@ class EloquentPaginateTest extends DatabaseTestCase
 
 class Post extends Model
 {
-    protected $guarded = [];
+    protected array $guarded = [];
 }
 
 class User extends Model
 {
-    protected $guarded = [];
+    protected array $guarded = [];
 }

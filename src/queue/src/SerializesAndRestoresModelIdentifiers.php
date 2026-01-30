@@ -108,7 +108,7 @@ trait SerializesAndRestoresModelIdentifiers
     /**
      * Get the query for model restoration.
      */
-    protected function getQueryForModelRestoration(Model $model, array|int $ids): Builder
+    protected function getQueryForModelRestoration(Model $model, array|int|string $ids): Builder
     {
         return $model->newQueryForRestoration($ids);
     }

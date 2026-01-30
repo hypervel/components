@@ -2,13 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentPivotEventsTest;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\MorphPivot;
-use Illuminate\Database\Eloquent\Relations\Pivot;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\MorphPivot;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Eloquent\Relations\MorphToMany;
+use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -24,7 +29,7 @@ class EloquentPivotEventsTest extends DatabaseTestCase
         PivotEventsTestCollaborator::$eventsCalled = [];
     }
 
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->increments('id');
@@ -200,19 +205,19 @@ class EloquentPivotEventsTest extends DatabaseTestCase
 
 class PivotEventsTestUser extends Model
 {
-    public $table = 'users';
+    public ?string $table = 'users';
 }
 
 class PivotEventsTestEquipment extends Model
 {
-    public $table = 'equipments';
+    public ?string $table = 'equipments';
 
-    public function getForeignKey()
+    public function getForeignKey(): string
     {
         return 'equipment_id';
     }
 
-    public function projects()
+    public function projects(): MorphToMany
     {
         return $this->morphedByMany(PivotEventsTestProject::class, 'equipmentable')->using(PivotEventsTestModelEquipment::class);
     }
@@ -220,9 +225,9 @@ class PivotEventsTestEquipment extends Model
 
 class PivotEventsTestProject extends Model
 {
-    public $table = 'projects';
+    public ?string $table = 'projects';
 
-    public function collaborators()
+    public function collaborators(): BelongsToMany
     {
         return $this->belongsToMany(
             PivotEventsTestUser::class,
@@ -232,21 +237,21 @@ class PivotEventsTestProject extends Model
         )->using(PivotEventsTestCollaborator::class);
     }
 
-    public function contributors()
+    public function contributors(): BelongsToMany
     {
         return $this->belongsToMany(PivotEventsTestUser::class, 'project_users', 'project_id', 'user_id')
             ->using(PivotEventsTestCollaborator::class)
             ->wherePivot('role', 'contributor');
     }
 
-    public function managers()
+    public function managers(): BelongsToMany
     {
         return $this->belongsToMany(PivotEventsTestUser::class, 'project_users', 'project_id', 'user_id')
             ->using(PivotEventsTestCollaborator::class)
             ->withPivotValue('role', 'manager');
     }
 
-    public function equipments()
+    public function equipments(): MorphToMany
     {
         return $this->morphToMany(PivotEventsTestEquipment::class, 'equipmentable')->using(PivotEventsTestModelEquipment::class);
     }
@@ -254,13 +259,13 @@ class PivotEventsTestProject extends Model
 
 class PivotEventsTestModelEquipment extends MorphPivot
 {
-    public $table = 'equipmentables';
+    public ?string $table = 'equipmentables';
 
-    public static $eventsMorphClasses = [];
+    public static array $eventsMorphClasses = [];
 
-    public static $eventsMorphTypes = [];
+    public static array $eventsMorphTypes = [];
 
-    public static function boot()
+    public static function boot(): void
     {
         parent::boot();
 
@@ -305,12 +310,12 @@ class PivotEventsTestModelEquipment extends MorphPivot
         });
     }
 
-    public function equipment()
+    public function equipment(): BelongsTo
     {
         return $this->belongsTo(PivotEventsTestEquipment::class);
     }
 
-    public function equipmentable()
+    public function equipmentable(): MorphTo
     {
         return $this->morphTo();
     }
@@ -318,17 +323,17 @@ class PivotEventsTestModelEquipment extends MorphPivot
 
 class PivotEventsTestCollaborator extends Pivot
 {
-    public $table = 'project_users';
+    public ?string $table = 'project_users';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $casts = [
+    protected array $casts = [
         'permissions' => 'json',
     ];
 
-    public static $eventsCalled = [];
+    public static array $eventsCalled = [];
 
-    public static function boot()
+    public static function boot(): void
     {
         parent::boot();
 
