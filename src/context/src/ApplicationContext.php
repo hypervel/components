@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Context;
 
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Psr\Container\ContainerInterface;
 use TypeError;
 
@@ -14,8 +15,9 @@ class ApplicationContext
     /**
      * @throws TypeError
      */
-    public static function getContainer(): ContainerInterface
+    public static function getContainer(): ContainerContract
     {
+        /* @phpstan-ignore-next-line */
         return self::$container;
     }
 
