@@ -1341,10 +1341,7 @@ class Mailable implements MailableContract, Renderable
     protected function prepareMailableForDelivery(): void
     {
         if (method_exists($this, 'build')) {
-            $container = ApplicationContext::getContainer();
-            method_exists($container, 'call')
-                ? $container->call([$this, 'build']) // @phpstan-ignore-line
-                : call([$this, 'build']);
+            ApplicationContext::getContainer()->call([$this, 'build']);
         }
 
         $this->ensureHeadersAreHydrated();
