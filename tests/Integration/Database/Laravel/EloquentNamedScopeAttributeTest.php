@@ -2,24 +2,35 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Database\Laravel;
+namespace Illuminate\Tests\Integration\Database;
 
-use Hypervel\Tests\Integration\Database\DatabaseTestCase;
-use Hypervel\Tests\Integration\Database\Laravel\Fixtures\NamedScopeUser;
+use Orchestra\Testbench\Attributes\WithMigration;
+use Orchestra\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
  * @internal
  * @coversNothing
  */
-class EloquentNamedScopeAttributeTest extends DatabaseTestCase
+#[WithMigration]
+class EloquentNamedScopeAttributeTest extends TestCase
 {
-    protected string $query = 'select * from "named_scope_users" where "email_verified_at" is not null';
+    protected $query = 'select * from "named_scope_users" where "email_verified_at" is not null';
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->markTestSkippedUnless(
+            $this->usesSqliteInMemoryDatabaseConnection(),
+            'Requires in-memory database connection',
+        );
+    }
 
     #[DataProvider('scopeDataProvider')]
     public function testItCanQueryNamedScopedFromTheQueryBuilder(string $methodName)
     {
-        $query = NamedScopeUser::query()->{$methodName}(true);
+        $query = Fixtures\NamedScopeUser::query()->{$methodName}(true);
 
         $this->assertSame($this->query, $query->toRawSql());
     }
@@ -27,7 +38,7 @@ class EloquentNamedScopeAttributeTest extends DatabaseTestCase
     #[DataProvider('scopeDataProvider')]
     public function testItCanQueryNamedScopedFromStaticQuery(string $methodName)
     {
-        $query = NamedScopeUser::{$methodName}(true);
+        $query = Fixtures\NamedScopeUser::{$methodName}(true);
 
         $this->assertSame($this->query, $query->toRawSql());
     }
