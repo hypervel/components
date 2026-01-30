@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Context;
 
 use Hypervel\Context\Context;
 use PHPUnit\Framework\TestCase;
-use TypeError;
 
 enum ContextKeyBackedEnum: string
 {
@@ -60,11 +59,11 @@ class ContextEnumTest extends TestCase
         $this->assertSame('en-US', Context::get(ContextKeyUnitEnum::Locale));
     }
 
-    public function testSetWithIntBackedEnumThrowsTypeError(): void
+    public function testSetAndGetWithIntBackedEnum(): void
     {
-        // Int-backed enum causes TypeError because parent::set() expects string key
-        $this->expectException(TypeError::class);
         Context::set(ContextKeyIntBackedEnum::UserId, 'user-123');
+
+        $this->assertSame('user-123', Context::get(ContextKeyIntBackedEnum::UserId));
     }
 
     public function testHasWithBackedEnum(): void
