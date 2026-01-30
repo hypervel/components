@@ -598,13 +598,16 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     /**
      * Map a collection and flatten the result by a single level.
      *
+     * No return type: Eloquent\Collection::collapse() returns base collection,
+     * which would violate `: static` when called on Eloquent\Collection.
+     *
      * @template TFlatMapKey of array-key
      * @template TFlatMapValue
      *
      * @param callable(TValue, TKey): (array<TFlatMapKey, TFlatMapValue>|Collection<TFlatMapKey, TFlatMapValue>) $callback
      * @return static<TFlatMapKey, TFlatMapValue>
      */
-    public function flatMap(callable $callback): static;
+    public function flatMap(callable $callback);
 
     /**
      * Map the values into a new class.

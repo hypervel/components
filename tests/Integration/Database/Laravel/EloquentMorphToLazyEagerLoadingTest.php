@@ -2,13 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentMorphToLazyEagerLoadingTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentMorphToLazyEagerLoadingTest;
 
-use DB;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -16,7 +18,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentMorphToLazyEagerLoadingTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->increments('id');
@@ -64,9 +66,9 @@ class EloquentMorphToLazyEagerLoadingTest extends DatabaseTestCase
 
 class Comment extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    public function commentable()
+    public function commentable(): MorphTo
     {
         return $this->morphTo();
     }
@@ -74,13 +76,13 @@ class Comment extends Model
 
 class Post extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $primaryKey = 'post_id';
+    protected string $primaryKey = 'post_id';
 
-    protected $with = ['user'];
+    protected array $with = ['user'];
 
-    public function user()
+    public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
@@ -88,12 +90,12 @@ class Post extends Model
 
 class User extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 }
 
 class Video extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $primaryKey = 'video_id';
+    protected string $primaryKey = 'video_id';
 }
