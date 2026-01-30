@@ -3238,7 +3238,7 @@ class HttpClientTest extends TestCase
     {
         $config = new Config(['http_client' => $config]);
 
-        return new \Hyperf\Di\Container(
+        return new \Hypervel\Container\Container(
             new \Hyperf\Di\Definition\DefinitionSource([
                 ConfigInterface::class => fn () => $config,
                 PoolFactory::class => PoolManager::class,

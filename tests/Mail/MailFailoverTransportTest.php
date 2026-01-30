@@ -4,18 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hyperf\Config\Config;
-use Hypervel\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
-use Hyperf\ViewEngine\Contract\FactoryInterface as ViewInterface;
+use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
 use Hypervel\Contracts\Mail\Factory as FactoryContract;
-use Hypervel\Mail\MailManager;
-use Mockery;
-use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Testbench\TestCase;
+use Mockery as m;
 use Symfony\Component\Mailer\Transport\FailoverTransport;
 
 /**

@@ -4,10 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hypervel\Context\ApplicationContext;
-use Hyperf\Contract\ConfigInterface;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
 use Hyperf\ViewEngine\Contract\ViewInterface;
 use Hypervel\Contracts\Mail\Attachable;
@@ -20,9 +16,9 @@ use Hypervel\Mail\Mailables\Headers;
 use Hypervel\Mail\Mailer;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Transport\ArrayTransport;
+use Hypervel\Testbench\TestCase;
 use Mockery as m;
 use PHPUnit\Framework\AssertionFailedError;
-use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
@@ -1041,6 +1037,8 @@ class MailMailableTest extends TestCase
 
     public function testAssertHasAttachmentFromStorage()
     {
+        $this->mockContainer();
+
         $mailable = new class extends Mailable {
             public function build()
             {
@@ -1144,23 +1142,15 @@ class MailMailableTest extends TestCase
         $mailable->assertHasSubject('test subject');
     }
 
-    protected function mockContainer()
+    protected function mockContainer(): void
     {
         $mailer = m::mock(MailerContract::class);
         $mailer->shouldReceive('render')
             ->andReturn('');
 
-        $container = new Container(
-            new DefinitionSource([
-                ConfigInterface::class => fn () => m::mock(ConfigInterface::class),
-                FactoryContract::class => MailManager::class,
-                ViewFactory::class => ViewFactory::class,
-                EventDispatcherInterface::class => fn () => m::mock(EventDispatcherInterface::class),
-                MailerContract::class => fn () => $mailer,
-            ])
-        );
-
-        ApplicationContext::setContainer($container);
+        $this->app->bind(FactoryContract::class, MailManager::class);
+        $this->app->set(ViewFactory::class, m::mock(ViewFactory::class));
+        $this->app->set(MailerContract::class, $mailer);
     }
 
     protected function mockView()

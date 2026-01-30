@@ -4,20 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hyperf\Config\Config;
-use Hypervel\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\TransportPoolProxy;
-use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
-use Hypervel\ObjectPool\PoolManager;
+use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
-use Mockery;
-use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Mockery as m;
 use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport;
 
 /**
@@ -26,14 +19,19 @@ use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport;
  */
 class MailManagerTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->app->set(ViewFactory::class, m::mock(ViewFactory::class));
+    }
+
     /**
      * @dataProvider emptyTransportConfigDataProvider
      * @param mixed $transport
      */
     public function testEmptyTransportConfig($transport)
     {
-        $container = $this->getContainer();
-        $container->get(ConfigInterface::class)
+        $this->app->get(ConfigInterface::class)
             ->set('mail.mailers.custom_smtp', [
                 'transport' => $transport,
                 'host' => null,
@@ -47,7 +45,7 @@ class MailManagerTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage("Unsupported mail transport [{$transport}]");
 
-        (new MailManager($container))
+        (new MailManager($this->app))
             ->mailer('custom_smtp');
     }
 
@@ -62,13 +60,12 @@ class MailManagerTest extends TestCase
 
     public function testMailUrlConfig()
     {
-        $container = $this->getContainer();
-        $container->get(ConfigInterface::class)
+        $this->app->get(ConfigInterface::class)
             ->set('mail.mailers.smtp_url', [
                 'url' => 'smtp://usr:pwd@127.0.0.2:5876',
             ]);
 
-        $transport = (new MailManager($container))
+        $transport = (new MailManager($this->app))
             ->removePoolable('smtp')
             ->mailer('smtp_url')
             ->getSymfonyTransport(); // @phpstan-ignore-line
@@ -82,32 +79,15 @@ class MailManagerTest extends TestCase
 
     public function testPoolableMailUrlConfig()
     {
-        $container = $this->getContainer();
-        $container->get(ConfigInterface::class)
+        $this->app->get(ConfigInterface::class)
             ->set('mail.mailers.smtp_url', [
                 'url' => 'smtp://usr:pwd@127.0.0.2:5876',
             ]);
 
-        $transport = (new MailManager($container))
+        $transport = (new MailManager($this->app))
             ->mailer('smtp_url')
             ->getSymfonyTransport(); // @phpstan-ignore-line
 
         $this->assertInstanceOf(TransportPoolProxy::class, $transport);
-    }
-
-    protected function getContainer(): Container
-    {
-        $container = new Container(
-            new DefinitionSource([
-                ConfigInterface::class => fn () => new Config([]),
-                ViewFactory::class => fn () => Mockery::mock(ViewFactory::class),
-                EventDispatcherInterface::class => fn () => Mockery::mock(EventDispatcherInterface::class),
-                PoolFactory::class => PoolManager::class,
-            ])
-        );
-
-        ApplicationContext::setContainer($container);
-
-        return $container;
     }
 }
