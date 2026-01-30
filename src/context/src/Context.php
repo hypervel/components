@@ -7,7 +7,9 @@ namespace Hypervel\Context;
 use ArrayObject;
 use Closure;
 use Hyperf\Engine\Coroutine;
+use UnitEnum;
 
+use function Hypervel\Support\enum_value;
 use function Hypervel\Support\value;
 
 /**
@@ -16,6 +18,8 @@ use function Hypervel\Support\value;
  */
 class Context
 {
+    protected const DEPTH_KEY = 'di.depth';
+
     /**
      * @var array<TKey, TValue>
      */
@@ -26,8 +30,10 @@ class Context
      * @param TValue $value
      * @return TValue
      */
-    public static function set(string $id, mixed $value, ?int $coroutineId = null): mixed
+    public static function set(UnitEnum|string $id, mixed $value, ?int $coroutineId = null): mixed
     {
+        $id = enum_value($id);
+
         if (Coroutine::id() > 0) {
             Coroutine::getContextFor($coroutineId)[$id] = $value;
         } else {
@@ -41,8 +47,10 @@ class Context
      * @param TKey $id
      * @return TValue
      */
-    public static function get(string $id, mixed $default = null, ?int $coroutineId = null): mixed
+    public static function get(UnitEnum|string $id, mixed $default = null, ?int $coroutineId = null): mixed
     {
+        $id = enum_value($id);
+
         if (Coroutine::id() > 0) {
             return Coroutine::getContextFor($coroutineId)[$id] ?? $default;
         }
@@ -53,8 +61,10 @@ class Context
     /**
      * @param TKey $id
      */
-    public static function has(string $id, ?int $coroutineId = null): bool
+    public static function has(UnitEnum|string $id, ?int $coroutineId = null): bool
     {
+        $id = enum_value($id);
+
         if (Coroutine::id() > 0) {
             return isset(Coroutine::getContextFor($coroutineId)[$id]);
         }
@@ -67,8 +77,10 @@ class Context
      *
      * @param TKey $id
      */
-    public static function destroy(string $id, ?int $coroutineId = null): void
+    public static function destroy(UnitEnum|string $id, ?int $coroutineId = null): void
     {
+        $id = enum_value($id);
+
         if (Coroutine::id() > 0) {
             unset(Coroutine::getContextFor($coroutineId)[$id]);
         }
@@ -105,7 +117,7 @@ class Context
      * @param TKey $id
      * @param (Closure(TValue):TValue) $closure
      */
-    public static function override(string $id, Closure $closure, ?int $coroutineId = null): mixed
+    public static function override(UnitEnum|string $id, Closure $closure, ?int $coroutineId = null): mixed
     {
         $value = null;
 
@@ -127,13 +139,71 @@ class Context
      * @param TValue $value
      * @return TValue
      */
-    public static function getOrSet(string $id, mixed $value, ?int $coroutineId = null): mixed
+    public static function getOrSet(UnitEnum|string $id, mixed $value, ?int $coroutineId = null): mixed
     {
         if (! self::has($id, $coroutineId)) {
             return self::set($id, value($value), $coroutineId);
         }
 
         return self::get($id, null, $coroutineId);
+    }
+
+    /**
+     * Set multiple key-value pairs in the context.
+     */
+    public static function setMany(array $values, ?int $coroutineId = null): void
+    {
+        foreach ($values as $key => $value) {
+            static::set($key, $value, $coroutineId);
+        }
+    }
+
+    /**
+     * Copy context data from non-coroutine context to the specified coroutine context.
+     */
+    public static function copyFromNonCoroutine(array $keys = [], ?int $coroutineId = null): void
+    {
+        if (is_null($context = Coroutine::getContextFor($coroutineId))) {
+            return;
+        }
+
+        if ($keys) {
+            $map = array_intersect_key(static::$nonCoContext, array_flip($keys));
+        } else {
+            $map = static::$nonCoContext;
+        }
+
+        $context->exchangeArray($map);
+    }
+
+    /**
+     * Destroy all context data for the specified coroutine, preserving only the depth key.
+     */
+    public static function destroyAll(?int $coroutineId = null): void
+    {
+        $coroutineId = $coroutineId ?: Coroutine::id();
+
+        // Clear non-coroutine context in non-coroutine environment.
+        if ($coroutineId < 0) {
+            static::$nonCoContext = [];
+            return;
+        }
+
+        if (! $context = Coroutine::getContextFor($coroutineId)) {
+            return;
+        }
+
+        $contextKeys = [];
+        foreach ($context as $key => $_) {
+            if ($key === static::DEPTH_KEY) {
+                continue;
+            }
+            $contextKeys[] = $key;
+        }
+
+        foreach ($contextKeys as $key) {
+            static::destroy($key, $coroutineId);
+        }
     }
 
     /**
