@@ -22,7 +22,7 @@ use Hypervel\Support\Stringable;
 use Hypervel\Support\Uri;
 use Mockery;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
 use Swow\Psr7\Message\ServerRequestPlusInterface;
@@ -748,7 +748,7 @@ class RequestTest extends TestCase
 
     public function testHasSession()
     {
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         $container->shouldReceive('has')
             ->with(SessionContract::class)
             ->andReturn(true);
@@ -763,7 +763,7 @@ class RequestTest extends TestCase
 
     public function testSession()
     {
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         $container->shouldReceive('get')
             ->with(SessionContract::class)
             ->andReturn($session = Mockery::mock(SessionContract::class));
@@ -805,7 +805,7 @@ class RequestTest extends TestCase
             )
             ->andReturn(['name' => 'John Doe']);
 
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         $container->shouldReceive('get')
             ->with(ValidatorFactoryContract::class)
             ->andReturn($validatorFactory);
@@ -838,7 +838,7 @@ class RequestTest extends TestCase
             ->with($request, true)
             ->andReturn(true);
 
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         $container->shouldReceive('get')
             ->with(UrlGeneratorContract::class)
             ->once()
@@ -858,7 +858,7 @@ class RequestTest extends TestCase
             ->with($request, false)
             ->andReturn(true);
 
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         $container->shouldReceive('get')
             ->with(UrlGeneratorContract::class)
             ->once()
@@ -878,7 +878,7 @@ class RequestTest extends TestCase
             ->with($request, true, [])
             ->andReturn(true);
 
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         $container->shouldReceive('get')
             ->with(UrlGeneratorContract::class)
             ->once()
@@ -898,7 +898,7 @@ class RequestTest extends TestCase
             ->with($request, false, [])
             ->andReturn(true);
 
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         $container->shouldReceive('get')
             ->with(UrlGeneratorContract::class)
             ->once()

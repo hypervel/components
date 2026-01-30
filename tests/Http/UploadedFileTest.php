@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Http;
 
-use Hypervel\Context\ApplicationContext;
-use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
+use Hypervel\Container\Container;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Http\Exceptions\CannotWriteFileException;
 use Hypervel\Http\Exceptions\ExtensionFileException;
 use Hypervel\Http\Exceptions\FileException;

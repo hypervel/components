@@ -25,6 +25,7 @@ use League\Flysystem\UnableToWriteFile;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\TestCase;
+use Hypervel\Contracts\Container\Container;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Swoole\Runtime;
@@ -643,7 +644,7 @@ class FilesystemAdapterTest extends TestCase
 
     protected function mockResponse(string $content): void
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('get')
             ->with(ResponseContract::class)
             ->andReturn(new Response());

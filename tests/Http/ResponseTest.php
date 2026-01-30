@@ -17,7 +17,7 @@ use Hypervel\Http\Response;
 use Hypervel\HttpMessage\Exceptions\RangeNotSatisfiableHttpException;
 use Mockery;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
@@ -39,7 +39,7 @@ class ResponseTest extends TestCase
 
     public function testMake()
     {
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         ApplicationContext::setContainer($container);
 
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();
@@ -86,7 +86,7 @@ class ResponseTest extends TestCase
 
     public function testNoContent()
     {
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         ApplicationContext::setContainer($container);
 
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();
@@ -106,7 +106,7 @@ class ResponseTest extends TestCase
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();
         Context::set(ResponseInterface::class, $psrResponse);
 
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         ApplicationContext::setContainer($container);
 
         $renderer = Mockery::mock(RenderInterface::class);
@@ -142,7 +142,7 @@ class ResponseTest extends TestCase
             ->once()
             ->andReturn(false);
 
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         $container->shouldReceive('get')
             ->with(Filesystem::class)
             ->once()
@@ -169,7 +169,7 @@ class ResponseTest extends TestCase
             ->once()
             ->andReturn($fileContent = 'file_content');
 
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         $container->shouldReceive('get')
             ->with(Filesystem::class)
             ->once()
