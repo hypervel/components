@@ -2,13 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentTouchParentWithGlobalScopeTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentTouchParentWithGlobalScopeTest;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Support\Str;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -16,7 +19,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentTouchParentWithGlobalScopeTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('posts', function (Blueprint $table) {
             $table->increments('id');
@@ -46,22 +49,22 @@ class EloquentTouchParentWithGlobalScopeTest extends DatabaseTestCase
 
 class Post extends Model
 {
-    public $table = 'posts';
+    protected ?string $table = 'posts';
 
-    public $timestamps = true;
+    public bool $timestamps = true;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public function comments()
+    public function comments(): HasMany
     {
         return $this->hasMany(Comment::class, 'post_id');
     }
 
-    public static function boot()
+    public static function boot(): void
     {
         parent::boot();
 
-        static::addGlobalScope('age', function ($builder) {
+        static::addGlobalScope('age', function (Builder $builder) {
             $builder->join('comments', 'comments.post_id', '=', 'posts.id');
         });
     }
@@ -69,15 +72,15 @@ class Post extends Model
 
 class Comment extends Model
 {
-    public $table = 'comments';
+    protected ?string $table = 'comments';
 
-    public $timestamps = true;
+    public bool $timestamps = true;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected $touches = ['post'];
+    protected array $touches = ['post'];
 
-    public function post()
+    public function post(): BelongsTo
     {
         return $this->belongsTo(Post::class, 'post_id');
     }
