@@ -7,6 +7,7 @@ namespace Hypervel\Testbench\Concerns;
 use Attribute;
 use Closure;
 use Hypervel\Support\Collection;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Contracts\Attributes\Actionable;
 use Hypervel\Testbench\Contracts\Attributes\AfterAll;
 use Hypervel\Testbench\Contracts\Attributes\AfterEach;
@@ -181,11 +182,13 @@ trait InteractsWithTestCase
             ->filter(static fn ($instance) => $instance instanceof Invokable)
             ->each(fn ($instance) => $instance($this->app));
 
-        // Execute Actionable attributes (like DefineEnvironment, DefineRoute, DefineDatabase)
+        // Execute Actionable attributes (like DefineRoute, DefineDatabase)
+        // DefineEnvironment is excluded - it runs earlier in defineEnvironment()
+        // before providers boot, so database config can be set before connections pool.
         // Some attributes (like DefineDatabase with defer: true) return a Closure
         // that must be executed to complete the setup
         $attributes
-            ->filter(static fn ($instance) => $instance instanceof Actionable)
+            ->filter(static fn ($instance) => $instance instanceof Actionable && ! $instance instanceof DefineEnvironment)
             ->each(function ($instance): void {
                 $result = $instance->handle(
                     $this->app,

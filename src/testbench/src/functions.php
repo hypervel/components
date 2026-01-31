@@ -49,14 +49,21 @@ function load_migration_paths(ApplicationContract $app, array|string $paths): vo
 /**
  * Get the migration path by type.
  *
+ * Returns the path to framework test migrations in the testbench package.
+ * These are separate from the workbench app's migrations (which use database_path()).
+ *
  * @throws InvalidArgumentException
  */
 function default_migration_path(?string $type = null): string
 {
+    // Migrations live at testbench/migrations/, parallel to testbench/workbench/
+    // This mirrors Laravel's testbench-core/laravel/migrations/ structure
+    $basePath = dirname(__DIR__) . '/migrations';
+
     $path = realpath(
         is_null($type)
-            ? base_path('migrations')
-            : base_path(join_paths('migrations', $type))
+            ? $basePath
+            : join_paths($basePath, $type)
     );
 
     if ($path === false) {

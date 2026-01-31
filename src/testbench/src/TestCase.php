@@ -19,8 +19,10 @@ use Hypervel\Foundation\Testing\TestCase as BaseTestCase;
 use Hypervel\Foundation\Testing\WithoutEvents;
 use Hypervel\Foundation\Testing\WithoutMiddleware;
 use Hypervel\Queue\Queue;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Concerns\HandlesAttributes;
 use Hypervel\Testbench\Concerns\InteractsWithTestCase;
+use Hypervel\Testbench\Contracts\Attributes\Actionable;
 use Swoole\Timer;
 use Workbench\App\Exceptions\ExceptionHandler;
 
@@ -74,9 +76,25 @@ class TestCase extends BaseTestCase
 
     /**
      * Define environment setup.
+     *
+     * DefineEnvironment attributes are processed here (before providers boot)
+     * so they can set database config and other settings that must be configured
+     * before connections are established. In Swoole, once connections are pooled,
+     * you cannot change the underlying config.
      */
     protected function defineEnvironment(ApplicationContract $app): void
     {
+        // Process DefineEnvironment attributes at the same time as the method override
+        // This must happen BEFORE providers boot so database config can be set
+        $this->resolvePhpUnitAttributes()
+            ->filter(static fn ($attrs, string $key) => $key === DefineEnvironment::class)
+            ->flatten()
+            ->filter(static fn ($instance) => $instance instanceof Actionable)
+            ->each(fn ($instance) => $instance->handle(
+                $app,
+                fn ($method, $parameters) => $this->{$method}(...$parameters)
+            ));
+
         $this->registerPackageProviders($app);
         $this->registerPackageAliases($app);
     }
