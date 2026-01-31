@@ -284,4 +284,5 @@ jobs:
       - name: Execute integration tests
         env:
           DB_CONNECTION: sqlite
-        run: vendor/bin/phpunit tests/Integration/Database/Sqlite
+          DB_DATABASE: /tmp/testing.sqlite
+        run: vendor/bin/phpunit tests/Integration/Database
