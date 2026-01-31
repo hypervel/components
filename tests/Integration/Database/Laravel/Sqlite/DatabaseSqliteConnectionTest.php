@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\Sqlite;
+namespace Hypervel\Tests\Integration\Database\Laravel\Sqlite;
 
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
-use Orchestra\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -18,7 +18,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 #[RequiresDatabase('sqlite')]
 class DatabaseSqliteConnectionTest extends DatabaseTestCase
 {
-    protected function defineEnvironment($app)
+    protected function defineEnvironment($app): void
     {
         parent::defineEnvironment($app);
 
@@ -31,7 +31,7 @@ class DatabaseSqliteConnectionTest extends DatabaseTestCase
         ]);
     }
 
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         if (! Schema::hasTable('json_table')) {
             Schema::create('json_table', function (Blueprint $table) {
@@ -40,7 +40,7 @@ class DatabaseSqliteConnectionTest extends DatabaseTestCase
         }
     }
 
-    protected function destroyDatabaseMigrations()
+    protected function destroyDatabaseMigrations(): void
     {
         Schema::drop('json_table');
     }

@@ -2,15 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\Sqlite;
+namespace Hypervel\Tests\Integration\Database\Laravel\Sqlite;
 
 use Closure;
 use Exception;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Orchestra\Testbench\Attributes\RequiresDatabase;
-use Orchestra\Testbench\TestCase;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Testbench\TestCase;
 use RuntimeException;
 
 /**
@@ -20,11 +21,11 @@ use RuntimeException;
 #[RequiresDatabase('sqlite')]
 class DatabaseSchemaBlueprintTest extends TestCase
 {
-    protected function defineEnvironment($app)
+    use RefreshDatabase;
+
+    protected function defineEnvironment($app): void
     {
-        $app['config']->set([
-            'database.default' => 'testing',
-        ]);
+        $app['config']->set('database.connections.sqlite.foreign_key_constraints', false);
     }
 
     public function testRenamingAndChangingColumnsWork()
@@ -137,38 +138,6 @@ class DatabaseSchemaBlueprintTest extends TestCase
             . 'alter column "added_at" drop expression if exists, '
             . 'alter column "added_at" drop identity if exists',
             'comment on column "users"."added_at" is NULL',
-        ], $blueprint->toSql());
-    }
-
-    public function testNativeColumnModifyingOnSqlServer()
-    {
-        $blueprint = $this->getBlueprint('SqlServer', 'users', function ($table) {
-            $table->timestamp('added_at', 4)->nullable(false)->useCurrent()->change();
-        });
-
-        $this->assertEquals([
-            "DECLARE @sql NVARCHAR(MAX) = '';SELECT @sql += 'ALTER TABLE \"users\" DROP CONSTRAINT ' + OBJECT_NAME([default_object_id]) + ';' FROM sys.columns WHERE [object_id] = OBJECT_ID(N'\"users\"') AND [name] in ('added_at') AND [default_object_id] <> 0;EXEC(@sql)",
-            'alter table "users" alter column "added_at" datetime2(4) not null',
-            'alter table "users" add default CURRENT_TIMESTAMP for "added_at"',
-        ], $blueprint->toSql());
-
-        $blueprint = $this->getBlueprint('SqlServer', 'users', function ($table) {
-            $table->char('name', 40)->nullable()->default('easy')->collation('unicode')->change();
-        });
-
-        $this->assertEquals([
-            "DECLARE @sql NVARCHAR(MAX) = '';SELECT @sql += 'ALTER TABLE \"users\" DROP CONSTRAINT ' + OBJECT_NAME([default_object_id]) + ';' FROM sys.columns WHERE [object_id] = OBJECT_ID(N'\"users\"') AND [name] in ('name') AND [default_object_id] <> 0;EXEC(@sql)",
-            'alter table "users" alter column "name" nchar(40) collate unicode null',
-            'alter table "users" add default \'easy\' for "name"',
-        ], $blueprint->toSql());
-
-        $blueprint = $this->getBlueprint('SqlServer', 'users', function ($table) {
-            $table->integer('foo')->change();
-        });
-
-        $this->assertEquals([
-            "DECLARE @sql NVARCHAR(MAX) = '';SELECT @sql += 'ALTER TABLE \"users\" DROP CONSTRAINT ' + OBJECT_NAME([default_object_id]) + ';' FROM sys.columns WHERE [object_id] = OBJECT_ID(N'\"users\"') AND [name] in ('foo') AND [default_object_id] <> 0;EXEC(@sql)",
-            'alter table "users" alter column "foo" int not null',
         ], $blueprint->toSql());
     }
 
@@ -324,12 +293,6 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $this->assertEquals($expected, $getSql('SQLite'));
 
         $expected = [
-            'sp_rename N\'"users"."index1"\', "index2", N\'INDEX\'',
-        ];
-
-        $this->assertEquals($expected, $getSql('SqlServer'));
-
-        $expected = [
             'alter table `users` rename index `index1` to `index2`',
         ];
 
@@ -378,14 +341,6 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ];
 
         $this->assertEquals($expected, $getSql('SQLite'));
-
-        $expected = [
-            "DECLARE @sql NVARCHAR(MAX) = '';SELECT @sql += 'ALTER TABLE \"users\" DROP CONSTRAINT ' + OBJECT_NAME([default_object_id]) + ';' FROM sys.columns WHERE [object_id] = OBJECT_ID(N'\"users\"') AND [name] in ('name') AND [default_object_id] <> 0;EXEC(@sql)",
-            'alter table "users" alter column "name" nvarchar(255) null',
-            'create unique index "users_name_unique" on "users" ("name")',
-        ];
-
-        $this->assertEquals($expected, $getSql('SqlServer'));
     }
 
     public function testAddUniqueIndexWithNameWorks()
@@ -424,14 +379,6 @@ class DatabaseSchemaBlueprintTest extends TestCase
         ];
 
         $this->assertEquals($expected, $getSql('SQLite'));
-
-        $expected = [
-            "DECLARE @sql NVARCHAR(MAX) = '';SELECT @sql += 'ALTER TABLE \"users\" DROP CONSTRAINT ' + OBJECT_NAME([default_object_id]) + ';' FROM sys.columns WHERE [object_id] = OBJECT_ID(N'\"users\"') AND [name] in ('name') AND [default_object_id] <> 0;EXEC(@sql)",
-            'alter table "users" alter column "name" int null',
-            'create unique index "index1" on "users" ("name")',
-        ];
-
-        $this->assertEquals($expected, $getSql('SqlServer'));
     }
 
     public function testAddColumnNamedCreateWorks()
@@ -473,11 +420,6 @@ class DatabaseSchemaBlueprintTest extends TestCase
             'drop index "users_name_unique"',
             $getSql('SQLite'),
         );
-
-        $this->assertContains(
-            'drop index "users_name_unique" on "users"',
-            $getSql('SqlServer'),
-        );
     }
 
     public function testItDoesNotSetPrecisionHigherThanSupportedWhenRenamingTimestamps()
@@ -516,7 +458,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         string $table,
         Closure $callback,
     ): Blueprint {
-        $grammarClass = 'Illuminate\Database\Schema\Grammars\\' . $grammar . 'Grammar';
+        $grammarClass = 'Hypervel\Database\Schema\Grammars\\' . $grammar . 'Grammar';
 
         $connection = DB::connection();
         $connection->setSchemaGrammar(new $grammarClass($connection));

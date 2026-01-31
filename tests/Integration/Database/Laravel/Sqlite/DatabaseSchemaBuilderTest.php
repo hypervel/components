@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\Sqlite;
+namespace Hypervel\Tests\Integration\Database\Laravel\Sqlite;
 
-use Illuminate\Database\Query\Expression;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Orchestra\Testbench\Attributes\RequiresDatabase;
-use Orchestra\Testbench\TestCase;
+use Hypervel\Database\Query\Expression;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Testbench\TestCase;
 
 /**
  * @internal
@@ -18,7 +18,17 @@ use Orchestra\Testbench\TestCase;
 #[RequiresDatabase('sqlite')]
 class DatabaseSchemaBuilderTest extends TestCase
 {
-    protected function defineEnvironment($app)
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Clean up all connections before each test
+        Schema::dropAllTables();
+        Schema::connection('sqlite-with-prefix')->dropAllTables();
+        Schema::connection('sqlite-with-indexed-prefix')->dropAllTables();
+    }
+
+    protected function defineEnvironment($app): void
     {
         $app['config']->set([
             'database.connections.sqlite-with-prefix' => [
