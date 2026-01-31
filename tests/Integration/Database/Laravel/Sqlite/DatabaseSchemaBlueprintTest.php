@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Integration\Database\Laravel\Sqlite;
 use Closure;
 use Exception;
 use Hypervel\Database\Schema\Blueprint;
-use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
@@ -21,11 +20,18 @@ use RuntimeException;
 #[RequiresDatabase('sqlite')]
 class DatabaseSchemaBlueprintTest extends TestCase
 {
-    use RefreshDatabase;
-
     protected function defineEnvironment($app): void
     {
         $app['config']->set('database.connections.sqlite.foreign_key_constraints', false);
+    }
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // Purge and reconnect to apply the foreign_key_constraints config
+        DB::purge();
+        Schema::dropAllTables();
     }
 
     public function testRenamingAndChangingColumnsWork()
