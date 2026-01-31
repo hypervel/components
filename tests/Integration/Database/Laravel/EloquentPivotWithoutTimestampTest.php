@@ -2,12 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Tests\Integration\Database\EloquentPivotWithoutTimestampTest as App;
-use Orchestra\Testbench\Attributes\WithConfig;
-use Orchestra\Testbench\Attributes\WithMigration;
-use Orchestra\Testbench\Concerns\WithFixtures;
+use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Testbench\Attributes\WithMigration;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Tests\Integration\Database\Laravel\EloquentPivotWithoutTimestampTest as App;
+
+// Load the fixtures file which defines models and migrations
+require_once __DIR__ . '/EloquentPivotWithoutTimestampTest.fixtures.php';
 
 /**
  * @internal
@@ -17,14 +20,12 @@ use Orchestra\Testbench\Concerns\WithFixtures;
 #[WithMigration]
 class EloquentPivotWithoutTimestampTest extends DatabaseTestCase
 {
-    use WithFixtures;
-
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         App\migrate();
     }
 
-    public function testAttachingModelWithoutTimestamps()
+    public function testAttachingModelWithoutTimestamps(): void
     {
         $now = $this->freezeSecond();
 

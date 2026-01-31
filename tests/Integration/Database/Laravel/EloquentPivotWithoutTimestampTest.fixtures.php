@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentPivotWithoutTimestampTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentPivotWithoutTimestampTest;
 
-use Illuminate\Database\Eloquent\Attributes\UseFactory;
-use Illuminate\Database\Eloquent\Factories\Factory;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\Relations\Pivot;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Foundation\Auth\User as Authenticatable;
-use Illuminate\Support\Facades\Schema;
-use Orchestra\Testbench\Factories\UserFactory;
+use Hypervel\Database\Eloquent\Attributes\UseFactory;
+use Hypervel\Database\Eloquent\Factories\Factory;
+use Hypervel\Database\Eloquent\Factories\HasFactory;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Foundation\Auth\User as Authenticatable;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\Factories\UserFactory;
 
 #[UseFactory(UserFactory::class)]
 class User extends Authenticatable
@@ -54,9 +54,9 @@ class RoleFactory extends Factory
 
 class UserRole extends Pivot
 {
-    public $table = 'role_user';
+    protected ?string $table = 'role_user';
 
-    public function getUpdatedAtColumn()
+    public function getUpdatedAtColumn(): ?string
     {
         return null;
     }

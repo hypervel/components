@@ -42,6 +42,7 @@ use Workbench\App\Exceptions\ExceptionHandler;
 class TestCase extends BaseTestCase
 {
     use Concerns\CreatesApplication;
+    use Concerns\HandlesAssertions;
     use Concerns\HandlesDatabases;
     use Concerns\HandlesRoutes;
     use HandlesAttributes;

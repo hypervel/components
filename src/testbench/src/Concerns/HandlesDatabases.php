@@ -9,9 +9,38 @@ use Hypervel\Testbench\Contracts\Attributes\Invokable;
 
 /**
  * Provides hooks for defining database migrations and seeders.
+ *
+ * @property \Hypervel\Contracts\Foundation\Application|null $app
  */
 trait HandlesDatabases
 {
+    /**
+     * Determine if using in-memory SQLite database connection.
+     */
+    protected function usesSqliteInMemoryDatabaseConnection(?string $connection = null): bool
+    {
+        if ($this->app === null) {
+            return false;
+        }
+
+        /** @var \Hypervel\Contracts\Config\Repository $config */
+        $config = $this->app->make('config');
+
+        /** @var string $connection */
+        $connection ??= $config->get('database.default');
+
+        /** @var array{driver: string, database: string}|null $database */
+        $database = $config->get("database.connections.{$connection}");
+
+        if ($database === null || $database['driver'] !== 'sqlite') {
+            return false;
+        }
+
+        return $database['database'] === ':memory:'
+            || str_contains($database['database'], '?mode=memory')
+            || str_contains($database['database'], '&mode=memory');
+    }
+
     /**
      * Define database migrations.
      */
