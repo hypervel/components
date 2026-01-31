@@ -81,7 +81,6 @@ class SQLiteFilePoolingTest extends TestCase
             ],
         ];
 
-        $config->set('databases.sqlite_file', $connectionConfig);
         $config->set('database.connections.sqlite_file', $connectionConfig);
     }
 

@@ -2,12 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Support\Facades\DB;
-use Orchestra\Testbench\Attributes\WithConfig;
-
-use function Orchestra\Testbench\artisan;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Testbench\Attributes\WithConfig;
 
 /**
  * @internal
@@ -16,17 +14,17 @@ use function Orchestra\Testbench\artisan;
 #[WithConfig('database.connections.second', ['driver' => 'sqlite', 'database' => ':memory:', 'foreign_key_constraints' => false])]
 class EloquentTransactionWithAfterCommitUsingRefreshDatabaseOnMultipleConnectionsTest extends EloquentTransactionWithAfterCommitUsingRefreshDatabaseTest
 {
-    protected function connectionsToTransact()
+    protected function connectionsToTransact(): array
     {
         return [null, 'second'];
     }
 
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
-        artisan($this, 'migrate', ['--database' => 'second']);
+        $this->artisan('migrate', ['--database' => 'second']);
     }
 
-    public function testAfterCommitCallbacksAreCalledCorrectlyWhenNoAppTransaction()
+    public function testAfterCommitCallbacksAreCalledCorrectlyWhenNoAppTransaction(): void
     {
         $called = false;
 
@@ -37,7 +35,7 @@ class EloquentTransactionWithAfterCommitUsingRefreshDatabaseOnMultipleConnection
         $this->assertTrue($called);
     }
 
-    public function testAfterCommitCallbacksAreCalledWithWrappingTransactionsCorrectly()
+    public function testAfterCommitCallbacksAreCalledWithWrappingTransactionsCorrectly(): void
     {
         $calls = [];
 

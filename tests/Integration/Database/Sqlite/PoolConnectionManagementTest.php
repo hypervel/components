@@ -89,7 +89,6 @@ class PoolConnectionManagementTest extends TestCase
             ],
         ];
 
-        $config->set('databases.pool_test', $connectionConfig);
         $config->set('database.connections.pool_test', $connectionConfig);
     }
 

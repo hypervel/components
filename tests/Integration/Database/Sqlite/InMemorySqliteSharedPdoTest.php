@@ -62,7 +62,6 @@ class InMemorySqliteSharedPdoTest extends TestCase
             ],
         ];
 
-        $config->set('databases.memory_test', $connectionConfig);
         $config->set('database.connections.memory_test', $connectionConfig);
     }
 
@@ -93,7 +92,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
         ];
 
         $configKey = 'in_memory_test_' . md5($database);
-        $config->set("databases.{$configKey}", $connectionConfig);
+        $config->set("database.connections.{$configKey}", $connectionConfig);
 
         $factory = $this->getPoolFactory();
         $pool = $factory->getPool($configKey);
@@ -137,7 +136,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
             ],
         ];
 
-        $config->set('databases.mysql_memory_test', $connectionConfig);
+        $config->set('database.connections.mysql_memory_test', $connectionConfig);
 
         $factory = $this->getPoolFactory();
         $pool = $factory->getPool('mysql_memory_test');
@@ -181,7 +180,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
                 ],
             ];
 
-            $config->set('databases.file_sqlite_test', $connectionConfig);
+            $config->set('database.connections.file_sqlite_test', $connectionConfig);
 
             $factory = $this->getPoolFactory();
             $pool = $factory->getPool('file_sqlite_test');

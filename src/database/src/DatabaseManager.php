@@ -119,7 +119,7 @@ class DatabaseManager implements ConnectionResolverInterface
     {
         throw new RuntimeException(
             'Dynamic database connections via DB::build() are not supported in Hypervel. '
-            . 'Configure all connections in config/databases.php instead.'
+            . 'Configure all connections in config/database.php instead.'
         );
     }
 
@@ -142,7 +142,7 @@ class DatabaseManager implements ConnectionResolverInterface
     {
         throw new RuntimeException(
             'Dynamic database connections via DB::connectUsing() are not supported in Hypervel. '
-            . 'Configure all connections in config/databases.php instead.'
+            . 'Configure all connections in config/database.php instead.'
         );
     }
 

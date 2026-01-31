@@ -40,9 +40,9 @@ class UnsetContextInTaskWorkerListener implements ListenerInterface
         }
 
         $connectionResolver = $this->container->get(ConnectionResolverInterface::class);
-        $databases = (array) $this->config->get('databases', []);
+        $connections = (array) $this->config->get('database.connections', []);
 
-        foreach (array_keys($databases) as $name) {
+        foreach (array_keys($connections) as $name) {
             $contextKey = (fn () => $this->getContextKey($name))->call($connectionResolver);
             Context::destroy($contextKey);
         }

@@ -39,7 +39,7 @@ class DbPool extends Pool
         protected string $name
     ) {
         $configService = $container->get(ConfigInterface::class);
-        $key = sprintf('databases.%s', $this->name);
+        $key = sprintf('database.connections.%s', $this->name);
 
         if (! $configService->has($key)) {
             throw new InvalidArgumentException(sprintf('Database connection [%s] not configured.', $this->name));

@@ -7,6 +7,7 @@ namespace Hypervel\Support\Facades;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Testing\Fakes\ExceptionHandlerFake;
+use Throwable;
 
 /**
  * @method static void report(\Throwable $e)
@@ -43,7 +44,7 @@ class Exceptions extends Facade
     /**
      * Replace the bound instance with a fake.
      *
-     * @param array<int, class-string<\Throwable>>|class-string<\Throwable> $exceptions
+     * @param array<int, class-string<Throwable>>|class-string<Throwable> $exceptions
      */
     public static function fake(array|string $exceptions = []): ExceptionHandlerFake
     {

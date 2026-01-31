@@ -77,11 +77,6 @@ abstract class DatabaseIntegrationTestCase extends TestCase
             default => throw new InvalidArgumentException("Unsupported driver: {$driver}"),
         };
 
-        // Set Hyperf-style config (used by DbPool/ConnectionResolver)
-        $config->set("databases.{$driver}", $connectionConfig);
-        $config->set('databases.default', $connectionConfig);
-
-        // Set Laravel-style config (used by RefreshDatabase trait)
         $config->set("database.connections.{$driver}", $connectionConfig);
         $config->set('database.default', $driver);
     }

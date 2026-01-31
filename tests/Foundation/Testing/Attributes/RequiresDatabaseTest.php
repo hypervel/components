@@ -55,7 +55,7 @@ class RequiresDatabaseTest extends TestCase
 
     public function testAcceptsArrayOfDrivers(): void
     {
-        $attribute = new RequiresDatabase(['sqlite', 'mysql'], connection: 'default');
+        $attribute = new RequiresDatabase(['sqlite', 'mysql'], connection: null);
 
         $skipped = false;
 
@@ -73,7 +73,7 @@ class RequiresDatabaseTest extends TestCase
 
     public function testSkipsWhenDriverNotInArray(): void
     {
-        $attribute = new RequiresDatabase(['pgsql', 'mysql'], connection: 'default');
+        $attribute = new RequiresDatabase(['pgsql', 'mysql'], connection: null);
 
         $skipped = false;
         $skipMessage = null;

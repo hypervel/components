@@ -57,7 +57,7 @@ class ExceptionHandlerFake implements ExceptionHandler, Fake
     /**
      * Assert if an exception of the given type has been reported.
      *
-     * @param (Closure(Throwable): bool)|class-string<Throwable> $exception
+     * @param class-string<Throwable>|(Closure(Throwable): bool) $exception
      */
     public function assertReported(Closure|string $exception): void
     {
@@ -101,7 +101,7 @@ class ExceptionHandlerFake implements ExceptionHandler, Fake
     /**
      * Assert if an exception of the given type has not been reported.
      *
-     * @param (Closure(Throwable): bool)|class-string<Throwable> $exception
+     * @param class-string<Throwable>|(Closure(Throwable): bool) $exception
      */
     public function assertNotReported(Closure|string $exception): void
     {

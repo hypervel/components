@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Concerns;
 
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Testbench\Contracts\Attributes\Invokable;
 
@@ -75,12 +76,19 @@ trait HandlesDatabases
     /**
      * Setup database requirements.
      *
-     * Processes WithMigration attributes before running migrations,
+     * Processes WithConfig and WithMigration attributes before running migrations,
      * then executes the callback (which typically runs migrations),
      * and finally runs seeders.
      */
     protected function setUpDatabaseRequirements(callable $callback): void
     {
+        // Process WithConfig attributes BEFORE database connections are established
+        $this->resolvePhpUnitAttributes()
+            ->filter(static fn ($attrs, string $key) => $key === WithConfig::class)
+            ->flatten()
+            ->filter(static fn ($instance) => $instance instanceof Invokable)
+            ->each(fn ($instance) => $instance($this->app));
+
         // Process WithMigration attributes BEFORE migrations run
         $this->resolvePhpUnitAttributes()
             ->filter(static fn ($attrs, string $key) => $key === WithMigration::class)
