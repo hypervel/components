@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\MySql;
+namespace Hypervel\Tests\Integration\Database\Laravel\MySql;
 
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
@@ -18,7 +18,7 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 #[RequiresPhpExtension('pdo_mysql')]
 class FulltextTest extends MySqlTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('articles', function (Blueprint $table) {
             $table->id('id');
@@ -26,16 +26,6 @@ class FulltextTest extends MySqlTestCase
             $table->text('body');
             $table->fulltext(['title', 'body']);
         });
-    }
-
-    protected function destroyDatabaseMigrations()
-    {
-        Schema::drop('articles');
-    }
-
-    protected function setUp(): void
-    {
-        parent::setUp();
 
         DB::table('articles')->insert([
             ['title' => 'MySQL Tutorial', 'body' => 'DBMS stands for DataBase ...'],
@@ -45,6 +35,11 @@ class FulltextTest extends MySqlTestCase
             ['title' => 'MySQL vs. YourSQL', 'body' => 'In the following database comparison ...'],
             ['title' => 'MySQL Security', 'body' => 'When configured properly, MySQL ...'],
         ]);
+    }
+
+    protected function destroyDatabaseMigrations(): void
+    {
+        Schema::drop('articles');
     }
 
     /** @link https://dev.mysql.com/doc/refman/8.0/en/fulltext-natural-language.html */
