@@ -170,4 +170,9 @@ interface ConnectionInterface
      * Indicate if any records have been modified.
      */
     public function recordsHaveBeenModified(bool $value = true): void;
+
+    /**
+     * Disconnect from the underlying PDO connection.
+     */
+    public function disconnect(): void;
 }

@@ -341,7 +341,9 @@ class Container extends HyperfContainer implements ContainerContract, ArrayAcces
     {
         $this->removeAbstractAlias($abstract);
 
-        unset($this->aliases[$abstract]);
+        unset($this->aliases[$abstract], $this->resolvedEntries[$abstract]);
+
+        // Clear any cached resolved entry so the new instance is used
 
         // We'll check to determine if this type has been bound before, and if it has
         // we will fire the rebound callbacks registered with the container and it

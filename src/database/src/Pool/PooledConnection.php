@@ -241,16 +241,22 @@ class PooledConnection implements PoolConnectionInterface
             // Creating a fresh PDO would give us a new empty database.
             $connection->setPdo($sharedPdo);
             $connection->setReadPdo($sharedPdo);
-            return;
+        } else {
+            // Normal refresh path for other drivers
+            $fresh = $this->factory->make($this->config, $this->config['name'] ?? null);
+
+            $connection->disconnect();
+            $connection->setPdo($fresh->getPdo());
+            $connection->setReadPdo($fresh->getReadPdo());
+
+            $this->logger->warning('Database connection refreshed.');
         }
 
-        // Normal refresh path for other drivers
-        $fresh = $this->factory->make($this->config, $this->config['name'] ?? null);
-
-        $connection->disconnect();
-        $connection->setPdo($fresh->getPdo());
-        $connection->setReadPdo($fresh->getReadPdo());
-
-        $this->logger->warning('Database connection refreshed.');
+        // Dispatch connection established event (fetching from container to respect fakes)
+        if ($this->container->has(Dispatcher::class)) {
+            $this->container->get(Dispatcher::class)->dispatch(
+                new ConnectionEstablished($connection)
+            );
+        }
     }
 }
