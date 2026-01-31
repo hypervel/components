@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\Postgres;
+namespace Hypervel\Tests\Integration\Database\Laravel\Postgres;
 
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
-use PHPUnit\Framework\Attributes\RequiresOperatingSystemFamily;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Support\Str;
+use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
 /**
@@ -16,10 +16,10 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
  * @coversNothing
  */
 #[RequiresPhpExtension('pdo_pgsql')]
-#[RequiresOperatingSystemFamily('Linux|Darwin')]
+#[RequiresOperatingSystem('Linux|Darwin')]
 class JoinLateralTest extends PostgresTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->id('id');
@@ -32,17 +32,6 @@ class JoinLateralTest extends PostgresTestCase
             $table->integer('rating');
             $table->unsignedBigInteger('user_id');
         });
-    }
-
-    protected function destroyDatabaseMigrations()
-    {
-        Schema::drop('posts');
-        Schema::drop('users');
-    }
-
-    protected function setUp(): void
-    {
-        parent::setUp();
 
         DB::table('users')->insert([
             ['name' => Str::random()],
@@ -54,6 +43,12 @@ class JoinLateralTest extends PostgresTestCase
             ['title' => Str::random(), 'rating' => 3, 'user_id' => 1],
             ['title' => Str::random(), 'rating' => 7, 'user_id' => 1],
         ]);
+    }
+
+    protected function destroyDatabaseMigrations(): void
+    {
+        Schema::drop('posts');
+        Schema::drop('users');
     }
 
     public function testJoinLateral()

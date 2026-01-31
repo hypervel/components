@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\Postgres;
+namespace Hypervel\Tests\Integration\Database\Laravel\Postgres;
 
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Orchestra\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\Attributes\RequiresDatabase;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
@@ -19,7 +19,7 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 #[RequiresPhpExtension('pdo_pgsql')]
 class FulltextTest extends PostgresTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('articles', function (Blueprint $table) {
             $table->id('id');
@@ -27,16 +27,6 @@ class FulltextTest extends PostgresTestCase
             $table->text('body');
             $table->fulltext(['title', 'body']);
         });
-    }
-
-    protected function destroyDatabaseMigrations()
-    {
-        Schema::drop('articles');
-    }
-
-    protected function setUp(): void
-    {
-        parent::setUp();
 
         DB::table('articles')->insert([
             ['title' => 'PostgreSQL Tutorial', 'body' => 'DBMS stands for DataBase ...'],
@@ -46,6 +36,11 @@ class FulltextTest extends PostgresTestCase
             ['title' => 'PostgreSQL vs. YourSQL', 'body' => 'In the following database comparison ...'],
             ['title' => 'PostgreSQL Security', 'body' => 'When configured properly, PostgreSQL ...'],
         ]);
+    }
+
+    protected function destroyDatabaseMigrations(): void
+    {
+        Schema::drop('articles');
     }
 
     public function testWhereFulltext()

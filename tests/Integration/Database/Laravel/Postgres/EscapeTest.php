@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Database\Laravel\Postgres;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use RuntimeException;
+use TypeError;
 
 /**
  * @internal
@@ -70,7 +71,7 @@ class EscapeTest extends PostgresTestCase
 
     public function testEscapeArray()
     {
-        $this->expectException(RuntimeException::class);
+        $this->expectException(TypeError::class);
 
         $this->app['db']->escape(['a', 'b']);
     }
