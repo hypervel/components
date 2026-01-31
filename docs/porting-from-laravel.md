@@ -151,13 +151,21 @@ If a Laravel test fails with a type error, the source code type may be wrong—n
 
 ### Missing Dependencies
 
-Some test files reference classes defined in other test files. Laravel gets away with this due to test suite load order. Make tests self-contained by defining required classes locally:
+Some test files reference classes defined in other test files. Laravel gets away with this due to test suite load order. Make tests self-contained by defining required classes locally.
+
+### Helper Class Naming
+
+Laravel tests define helper classes (models, stubs) with generic names like `User`, `Post`, `Comment`. Since all ported tests share the same namespace, these conflict when PHPUnit loads multiple test files.
+
+**Prefix helper classes with the test class name (minus "Test" suffix):**
 
 ```php
-// Add at bottom of test file if TestModel is used but not defined
-class TestModel extends Model
-{
-}
+// In EloquentDeleteTest.php
+class EloquentDeleteComment extends Model {}
+class EloquentDeletePost extends Model {}
+
+// In EloquentMorphManyTest.php
+class EloquentMorphManyComment extends Model {}
 ```
 
 ### Unsupported Features
@@ -188,6 +196,6 @@ For tests that need work but aren't fundamentally incompatible, move them to the
 6. Add type declarations to model properties
 7. Fix mock types (PDO, QueryBuilder, Grammar, etc.)
 8. Add `->andReturnSelf()` to chained method mocks
-9. Define any missing helper classes locally
+9. Rename helper classes with test name prefix (e.g., `Comment` → `EloquentDeleteComment`)
 10. Remove tests for unsupported drivers/features
 11. Run tests and fix any remaining type errors
