@@ -2,12 +2,17 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentThroughTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentThroughTest;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Eloquent\Relations\HasManyThrough;
+use Hypervel\Database\Eloquent\Relations\MorphMany;
+use Hypervel\Database\Eloquent\Relations\MorphTo;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -15,7 +20,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentThroughTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('posts', function (Blueprint $table) {
             $table->increments('id');
@@ -57,14 +62,14 @@ class EloquentThroughTest extends DatabaseTestCase
 
 class Comment extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    public function commentable()
+    public function commentable(): MorphTo
     {
         return $this->morphTo();
     }
 
-    public function likes()
+    public function likes(): HasMany
     {
         return $this->hasMany(Like::class);
     }
@@ -72,23 +77,23 @@ class Comment extends Model
 
 class Post extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected $withCount = ['comments'];
+    protected array $withCount = ['comments'];
 
-    public function comments()
+    public function comments(): MorphMany
     {
         return $this->morphMany(Comment::class, 'commentable');
     }
 
-    public function commentLikes()
+    public function commentLikes(): HasManyThrough
     {
         return $this->through($this->comments())->has('likes');
     }
 
-    public function texts()
+    public function texts(): HasMany
     {
         return $this->hasMany(Text::class);
     }
@@ -96,9 +101,9 @@ class Post extends Model
 
 class OtherCommentable extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    public function comments()
+    public function comments(): MorphMany
     {
         return $this->morphMany(Comment::class, 'commentable');
     }
@@ -106,11 +111,11 @@ class OtherCommentable extends Model
 
 class Text extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public function post()
+    public function post(): BelongsTo
     {
         return $this->belongsTo(Post::class);
     }
@@ -118,9 +123,9 @@ class Text extends Model
 
 class Like extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    public function comment()
+    public function comment(): BelongsTo
     {
         return $this->belongsTo(Comment::class);
     }

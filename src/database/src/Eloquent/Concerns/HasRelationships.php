@@ -15,6 +15,7 @@ use Hypervel\Database\Eloquent\Relations\BelongsToMany;
 use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Eloquent\Relations\HasManyThrough;
 use Hypervel\Database\Eloquent\Relations\HasOne;
+use Hypervel\Database\Eloquent\Relations\HasOneOrMany;
 use Hypervel\Database\Eloquent\Relations\HasOneThrough;
 use Hypervel\Database\Eloquent\Relations\MorphMany;
 use Hypervel\Database\Eloquent\Relations\MorphOne;
@@ -452,7 +453,7 @@ trait HasRelationships
      * )
      * @phpstan-ignore conditionalType.alwaysFalse (template covariance limitation with conditional return types)
      */
-    public function through(string|HasMany|HasOne $relationship): PendingHasThroughRelationship
+    public function through(string|HasOneOrMany $relationship): PendingHasThroughRelationship
     {
         if (is_string($relationship)) {
             $relationship = $this->{$relationship}();

@@ -2,14 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\LazyLoadingViolationException;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\LazyLoadingViolationException;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use RuntimeException;
 
 /**
@@ -25,7 +27,7 @@ class EloquentStrictLoadingTest extends DatabaseTestCase
         Model::preventLazyLoading();
     }
 
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('test_model1', function (Blueprint $table) {
             $table->increments('id');
@@ -170,13 +172,13 @@ class EloquentStrictLoadingTest extends DatabaseTestCase
 
 class EloquentStrictLoadingTestModel1 extends Model
 {
-    public $table = 'test_model1';
+    protected ?string $table = 'test_model1';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public function modelTwos()
+    public function modelTwos(): HasMany
     {
         return $this->hasMany(EloquentStrictLoadingTestModel2::class, 'model_1_id');
     }
@@ -184,18 +186,18 @@ class EloquentStrictLoadingTestModel1 extends Model
 
 class EloquentStrictLoadingTestModel1WithCustomHandler extends Model
 {
-    public $table = 'test_model1';
+    protected ?string $table = 'test_model1';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public function modelTwos()
+    public function modelTwos(): HasMany
     {
         return $this->hasMany(EloquentStrictLoadingTestModel2::class, 'model_1_id');
     }
 
-    protected function handleLazyLoadingViolation($key)
+    protected function handleLazyLoadingViolation(string $key): mixed
     {
         throw new RuntimeException("Violated {$key}");
     }
@@ -203,15 +205,15 @@ class EloquentStrictLoadingTestModel1WithCustomHandler extends Model
 
 class EloquentStrictLoadingTestModel1WithLocalPreventsLazyLoading extends Model
 {
-    public $table = 'test_model1';
+    protected ?string $table = 'test_model1';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    public $preventsLazyLoading = true;
+    public bool $preventsLazyLoading = true;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public function modelTwos()
+    public function modelTwos(): HasMany
     {
         return $this->hasMany(EloquentStrictLoadingTestModel2::class, 'model_1_id');
     }
@@ -219,13 +221,13 @@ class EloquentStrictLoadingTestModel1WithLocalPreventsLazyLoading extends Model
 
 class EloquentStrictLoadingTestModel2 extends Model
 {
-    public $table = 'test_model2';
+    protected ?string $table = 'test_model2';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public function modelThrees()
+    public function modelThrees(): HasMany
     {
         return $this->hasMany(EloquentStrictLoadingTestModel3::class, 'model_2_id');
     }
@@ -233,20 +235,20 @@ class EloquentStrictLoadingTestModel2 extends Model
 
 class EloquentStrictLoadingTestModel3 extends Model
 {
-    public $table = 'test_model3';
+    protected ?string $table = 'test_model3';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 }
 
 class ViolatedLazyLoadingEvent
 {
-    public $model;
+    public Model $model;
 
-    public $key;
+    public string $key;
 
-    public function __construct($model, $key)
+    public function __construct(Model $model, string $key)
     {
         $this->model = $model;
         $this->key = $key;

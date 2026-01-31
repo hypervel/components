@@ -2,11 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -14,7 +16,7 @@ use Illuminate\Support\Facades\Schema;
  */
 class EloquentPushTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->increments('id');
@@ -61,13 +63,13 @@ class EloquentPushTest extends DatabaseTestCase
 
 class UserX extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected $table = 'users';
+    protected ?string $table = 'users';
 
-    public function posts()
+    public function posts(): HasMany
     {
         return $this->hasMany(PostX::class, 'user_id');
     }
@@ -75,13 +77,13 @@ class UserX extends Model
 
 class PostX extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected $table = 'posts';
+    protected ?string $table = 'posts';
 
-    public function comments()
+    public function comments(): HasMany
     {
         return $this->hasMany(CommentX::class, 'post_id');
     }
@@ -89,9 +91,9 @@ class PostX extends Model
 
 class CommentX extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected $table = 'comments';
+    protected ?string $table = 'comments';
 }
