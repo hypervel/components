@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Testbench\Exceptions;
+namespace Hypervel\Testing\Exceptions;
 
 use PHPUnit\Framework\Exception;
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Testbench\Constraints;
+namespace Hypervel\Testing\Constraints;
 
 use ArrayObject;
 use PHPUnit\Framework\Constraint\Constraint;

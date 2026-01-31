@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Testbench;
+namespace Hypervel\Testing;
 
 use ArrayAccess;
-use Hypervel\Testbench\Constraints\ArraySubset;
+use Hypervel\Testing\Constraints\ArraySubset;
 use PHPUnit\Framework\Assert as PHPUnit;
 
 /**
