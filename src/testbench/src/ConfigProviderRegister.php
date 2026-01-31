@@ -4,13 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench;
 
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 
 class ConfigProviderRegister
 {
     protected static $configProviders = [
         \Hyperf\Command\ConfigProvider::class,
-        \Hyperf\Database\SQLite\ConfigProvider::class,
         \Hyperf\DbConnection\ConfigProvider::class,
         \Hyperf\Di\ConfigProvider::class,
         \Hyperf\Dispatcher\ConfigProvider::class,
@@ -22,14 +21,13 @@ class ConfigProviderRegister
         \Hyperf\HttpServer\ConfigProvider::class,
         \Hyperf\Memory\ConfigProvider::class,
         \Hyperf\ModelListener\ConfigProvider::class,
-        \Hyperf\Paginator\ConfigProvider::class,
-        \Hyperf\Pool\ConfigProvider::class,
         \Hyperf\Process\ConfigProvider::class,
         \Hyperf\Redis\ConfigProvider::class,
         \Hyperf\Serializer\ConfigProvider::class,
         \Hyperf\Server\ConfigProvider::class,
         \Hyperf\Signal\ConfigProvider::class,
         \Hypervel\ConfigProvider::class,
+        \Hypervel\Database\ConfigProvider::class,
         \Hypervel\Auth\ConfigProvider::class,
         \Hypervel\Broadcasting\ConfigProvider::class,
         \Hypervel\Bus\ConfigProvider::class,

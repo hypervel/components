@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Prompts;
 
-use Hyperf\Collection\Collection;
 use Hypervel\Prompts\Prompt;
+use Hypervel\Support\Collection;
 use PHPUnit\Framework\TestCase;
 
 use function Hypervel\Prompts\progress;

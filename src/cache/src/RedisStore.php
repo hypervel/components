@@ -6,7 +6,7 @@ namespace Hypervel\Cache;
 
 use Hyperf\Redis\RedisFactory;
 use Hyperf\Redis\RedisProxy;
-use Hypervel\Cache\Contracts\LockProvider;
+use Hypervel\Contracts\Cache\LockProvider;
 
 class RedisStore extends TaggableStore implements LockProvider
 {

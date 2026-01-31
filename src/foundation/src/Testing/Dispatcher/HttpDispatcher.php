@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Dispatcher;
 
-use Hyperf\Context\ApplicationContext;
 use Hyperf\Dispatcher\HttpDispatcher as HyperfHttpDispatcher;
+use Hypervel\Context\ApplicationContext;
 use Psr\Http\Message\ResponseInterface;
 
 class HttpDispatcher extends HyperfHttpDispatcher

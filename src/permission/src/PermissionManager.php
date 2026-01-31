@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Permission;
 
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Cache\Contracts\Factory as CacheManager;
-use Hypervel\Cache\Contracts\Repository;
+use Hypervel\Contracts\Cache\Factory as CacheManager;
+use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Permission\Models\Permission;
 use Hypervel\Permission\Models\Role;
 use InvalidArgumentException;

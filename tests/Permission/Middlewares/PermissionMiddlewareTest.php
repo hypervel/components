@@ -54,7 +54,6 @@ class PermissionMiddlewareTest extends PermissionTestCase
 
     protected function tearDown(): void
     {
-        m::close();
         parent::tearDown();
     }
 
@@ -109,7 +108,6 @@ class PermissionMiddlewareTest extends PermissionTestCase
         Permission::create([
             'name' => 'view',
             'guard_name' => 'web',
-            'is_forbidden' => false,
         ]);
 
         $user->givePermissionTo('view');
@@ -132,7 +130,6 @@ class PermissionMiddlewareTest extends PermissionTestCase
         Permission::create([
             'name' => 'view',
             'guard_name' => 'web',
-            'is_forbidden' => false,
         ]);
 
         $user->givePermissionTo('view');

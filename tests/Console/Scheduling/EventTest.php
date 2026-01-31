@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Console\Scheduling;
 
 use DateTimeZone;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Context\Context;
-use Hyperf\Stringable\Str;
 use Hyperf\Support\Filesystem\Filesystem;
 use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Console\Scheduling\Event;
-use Hypervel\Container\Contracts\Container;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Support\Str;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
@@ -58,8 +58,6 @@ class EventTest extends TestCase
 
     protected function tearDown(): void
     {
-        m::close();
-
         parent::tearDown();
     }
 

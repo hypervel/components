@@ -4,20 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Database\Model\Collection as ModelCollection;
-use Hyperf\Database\Model\Model;
-use Hyperf\Stringable\Str;
-use Hypervel\Bus\Contracts\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Translation\HasLocalePreference;
+use Hypervel\Database\Eloquent\Collection as ModelCollection;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Notifications\Events\NotificationSending;
 use Hypervel\Notifications\Events\NotificationSent;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Localizable;
-use Hypervel\Translation\Contracts\HasLocalePreference;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 use function Hyperf\Support\value;
-use function Hyperf\Tappable\tap;
 
 class NotificationSender
 {

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Socialite\One;
 
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
 use Hypervel\Socialite\Contracts\Provider as ProviderContract;
 use Hypervel\Socialite\HasProviderContext;
 use League\OAuth1\Client\Credentials\TokenCredentials;

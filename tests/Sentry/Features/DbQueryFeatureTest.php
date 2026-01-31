@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry\Features;
 
-use Hyperf\Database\Connection;
-use Hyperf\Database\Events\QueryExecuted;
-use Hyperf\Database\Events\TransactionBeginning;
-use Hyperf\Database\Events\TransactionCommitted;
-use Hyperf\Database\Events\TransactionRolledBack;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Database\Connection;
+use Hypervel\Database\Events\QueryExecuted;
+use Hypervel\Database\Events\TransactionBeginning;
+use Hypervel\Database\Events\TransactionCommitted;
+use Hypervel\Database\Events\TransactionRolledBack;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Sentry\Features\DbQueryFeature;
 use Hypervel\Tests\Sentry\SentryTestCase;
@@ -32,6 +32,14 @@ class DbQueryFeatureTest extends SentryTestCase
         'sentry.breadcrumbs.sql_bindings' => true,
         'sentry.breadcrumbs.sql_transaction' => true,
     ];
+
+    /**
+     * Create a test database connection for event testing.
+     */
+    protected function createTestConnection(): Connection
+    {
+        return new Connection(fn () => null, '', '', ['name' => 'sqlite']);
+    }
 
     public function testFeatureIsApplicableWhenSqlQueriesBreadcrumbIsEnabled(): void
     {
@@ -79,7 +87,7 @@ class DbQueryFeatureTest extends SentryTestCase
             'SELECT * FROM users WHERE id = ?',
             [123],
             50.0,
-            new Connection('sqlite', config: ['name' => 'sqlite'])
+            $this->createTestConnection()
         );
 
         $dispatcher->dispatch($event);
@@ -113,7 +121,7 @@ class DbQueryFeatureTest extends SentryTestCase
             'SELECT * FROM users WHERE id = ?',
             [123],
             50.0,
-            new Connection('sqlite', config: ['name' => 'sqlite'])
+            $this->createTestConnection()
         );
 
         $dispatcher->dispatch($event);
@@ -135,7 +143,7 @@ class DbQueryFeatureTest extends SentryTestCase
     {
         $dispatcher = $this->app->get(Dispatcher::class);
 
-        $event = new TransactionBeginning(new Connection('sqlite', config: ['name' => 'sqlite']));
+        $event = new TransactionBeginning($this->createTestConnection());
 
         $dispatcher->dispatch($event);
 
@@ -156,7 +164,7 @@ class DbQueryFeatureTest extends SentryTestCase
     {
         $dispatcher = $this->app->get(Dispatcher::class);
 
-        $event = new TransactionCommitted(new Connection('sqlite', config: ['name' => 'sqlite']));
+        $event = new TransactionCommitted($this->createTestConnection());
 
         $dispatcher->dispatch($event);
 
@@ -177,7 +185,7 @@ class DbQueryFeatureTest extends SentryTestCase
     {
         $dispatcher = $this->app->get(Dispatcher::class);
 
-        $event = new TransactionRolledBack(new Connection('sqlite', config: ['name' => 'sqlite']));
+        $event = new TransactionRolledBack($this->createTestConnection());
 
         $dispatcher->dispatch($event);
 
@@ -206,7 +214,7 @@ class DbQueryFeatureTest extends SentryTestCase
             'SELECT * FROM users WHERE id = ?',
             [123],
             50.0,
-            new Connection('sqlite', config: ['name' => 'sqlite'])
+            $this->createTestConnection()
         );
 
         $dispatcher->dispatch($event);
@@ -226,7 +234,7 @@ class DbQueryFeatureTest extends SentryTestCase
 
         $dispatcher = $this->app->get(Dispatcher::class);
 
-        $event = new TransactionBeginning(new Connection('sqlite', config: ['name' => 'sqlite']));
+        $event = new TransactionBeginning($this->createTestConnection());
 
         $dispatcher->dispatch($event);
 

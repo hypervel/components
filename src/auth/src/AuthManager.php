@@ -5,17 +5,17 @@ declare(strict_types=1);
 namespace Hypervel\Auth;
 
 use Closure;
-use Hyperf\Context\Context;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
-use Hypervel\Auth\Contracts\Guard;
-use Hypervel\Auth\Contracts\StatefulGuard;
 use Hypervel\Auth\Guards\JwtGuard;
 use Hypervel\Auth\Guards\RequestGuard;
 use Hypervel\Auth\Guards\SessionGuard;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
+use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Auth\StatefulGuard;
+use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\JWT\JWTManager;
-use Hypervel\Session\Contracts\Session as SessionContract;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;
 

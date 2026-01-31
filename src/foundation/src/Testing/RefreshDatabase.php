@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing;
 
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Database\Connection as DatabaseConnection;
-use Hyperf\Database\Model\Booted;
-use Hyperf\DbConnection\Db;
+use Hypervel\Database\Connection as DatabaseConnection;
+use Hypervel\Database\DatabaseManager;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
@@ -38,7 +38,7 @@ trait RefreshDatabase
      */
     protected function refreshModelBootedStates(): void
     {
-        Booted::$container = [];
+        Model::clearBootedModels();
     }
 
     /**
@@ -46,7 +46,7 @@ trait RefreshDatabase
      */
     protected function restoreInMemoryDatabase(): void
     {
-        $database = $this->app->get(Db::class);
+        $database = $this->app->get(DatabaseManager::class);
 
         foreach ($this->connectionsToTransact() as $name) {
             if (isset(RefreshDatabaseState::$inMemoryConnections[$name])) {
@@ -100,10 +100,17 @@ trait RefreshDatabase
      */
     public function beginDatabaseTransaction(): void
     {
-        $database = $this->app->get(Db::class);
+        $database = $this->app->get(DatabaseManager::class);
+        $connections = $this->connectionsToTransact();
 
-        foreach ($this->connectionsToTransact() as $name) {
+        // Create a testing-aware transaction manager that properly handles the wrapper transaction
+        $this->app->instance('db.transactions', $transactionsManager = new DatabaseTransactionsManager($connections));
+
+        foreach ($connections as $name) {
             $connection = $database->connection($name);
+
+            // Set the testing transaction manager on the connection
+            $connection->setTransactionManager($transactionsManager);
 
             if ($this->usingInMemoryDatabase()) {
                 RefreshDatabaseState::$inMemoryConnections[$name] ??= $connection->getPdo();
@@ -113,7 +120,10 @@ trait RefreshDatabase
 
             $connection->unsetEventDispatcher();
             $connection->beginTransaction();
-            $connection->setEventDispatcher($dispatcher);
+
+            if ($dispatcher) {
+                $connection->setEventDispatcher($dispatcher);
+            }
         }
 
         $this->beforeApplicationDestroyed(function () use ($database) {
@@ -128,11 +138,14 @@ trait RefreshDatabase
                 }
 
                 if ($connection instanceof DatabaseConnection) {
-                    $connection->resetRecordsModified();
+                    $connection->forgetRecordModificationState();
                 }
 
                 $connection->rollBack();
-                $connection->setEventDispatcher($dispatcher);
+
+                if ($dispatcher) {
+                    $connection->setEventDispatcher($dispatcher);
+                }
                 // this will trigger a database refresh warning
                 // $connection->disconnect();
             }
@@ -144,7 +157,7 @@ trait RefreshDatabase
      */
     protected function withoutModelEvents(callable $callback, ?string $connection = null): void
     {
-        $connection = $this->app->get(Db::class)
+        $connection = $this->app->get(DatabaseManager::class)
             ->connection($connection);
         $dispatcher = $connection->getEventDispatcher();
 

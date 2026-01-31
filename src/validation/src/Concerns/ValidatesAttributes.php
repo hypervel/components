@@ -17,9 +17,9 @@ use Egulias\EmailValidator\Validation\MultipleValidationWithAnd;
 use Egulias\EmailValidator\Validation\NoRFCWarningsValidation;
 use Egulias\EmailValidator\Validation\RFCValidation;
 use Exception;
-use Hyperf\Database\Model\Model;
 use Hyperf\HttpMessage\Upload\UploadedFile;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
@@ -459,8 +459,8 @@ trait ValidatesAttributes
      */
     protected function validateCurrentPassword(string $attribute, mixed $value, mixed $parameters): bool
     {
-        $auth = $this->container->get(\Hypervel\Auth\Contracts\Factory::class);
-        $hasher = $this->container->get(\Hypervel\Hashing\Contracts\Hasher::class);
+        $auth = $this->container->get(\Hypervel\Contracts\Auth\Factory::class);
+        $hasher = $this->container->get(\Hypervel\Contracts\Hashing\Hasher::class);
 
         $guard = $auth->guard(Arr::first($parameters));
 
@@ -962,7 +962,7 @@ trait ValidatesAttributes
             $table = $model->getTable();
             $connection ??= $model->getConnectionName();
 
-            if (str_contains($table, '.') && Str::startsWith($table, $connection)) {
+            if ($connection !== null && str_contains($table, '.') && Str::startsWith($table, $connection)) {
                 $connection = null;
             }
 

@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Validation;
 
 use Closure;
-use Hyperf\Contract\Arrayable;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Validation\InvokableRule;
+use Hypervel\Contracts\Validation\ValidationRule;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Macroable;
-use Hypervel\Validation\Contracts\InvokableRule;
-use Hypervel\Validation\Contracts\ValidationRule;
 use Hypervel\Validation\Rules\AnyOf;
 use Hypervel\Validation\Rules\ArrayRule;
 use Hypervel\Validation\Rules\Can;
@@ -125,7 +125,7 @@ class Rule
     /**
      * Get a contains rule builder instance.
      */
-    public static function contains(array|Arrayable|BackedEnum|string|UnitEnum $values): Contains
+    public static function contains(array|Arrayable|UnitEnum|string $values): Contains
     {
         if ($values instanceof Arrayable) {
             $values = $values->toArray();
@@ -137,7 +137,7 @@ class Rule
     /**
      * Get a doesnt_contain rule builder instance.
      */
-    public static function doesntContain(array|Arrayable|BackedEnum|string|UnitEnum $values): DoesntContain
+    public static function doesntContain(array|Arrayable|UnitEnum|string $values): DoesntContain
     {
         if ($values instanceof Arrayable) {
             $values = $values->toArray();

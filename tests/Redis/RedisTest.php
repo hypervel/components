@@ -248,7 +248,7 @@ class RedisTest extends TestCase
             ->once()
             ->andReturn($mockRedisProxy);
 
-        $mockContainer = Mockery::mock(\Hypervel\Container\Contracts\Container::class);
+        $mockContainer = Mockery::mock(\Hypervel\Contracts\Container\Container::class);
         $mockContainer->shouldReceive('get')
             ->with(RedisFactory::class)
             ->andReturn($mockRedisFactory);
@@ -272,7 +272,7 @@ class RedisTest extends TestCase
             ->once()
             ->andReturn($mockRedisProxy);
 
-        $mockContainer = Mockery::mock(\Hypervel\Container\Contracts\Container::class);
+        $mockContainer = Mockery::mock(\Hypervel\Contracts\Container\Container::class);
         $mockContainer->shouldReceive('get')
             ->with(RedisFactory::class)
             ->andReturn($mockRedisFactory);
@@ -290,7 +290,7 @@ class RedisTest extends TestCase
     {
         $mockRedisFactory = Mockery::mock(RedisFactory::class);
 
-        $mockContainer = Mockery::mock(\Hypervel\Container\Contracts\Container::class);
+        $mockContainer = Mockery::mock(\Hypervel\Contracts\Container\Container::class);
         $mockContainer->shouldReceive('get')
             ->with(RedisFactory::class)
             ->andReturn($mockRedisFactory);

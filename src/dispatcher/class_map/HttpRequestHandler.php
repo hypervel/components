@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hyperf\Dispatcher;
 
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hypervel\Dispatcher\Pipeline;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;

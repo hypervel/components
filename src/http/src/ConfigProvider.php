@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use Hyperf\HttpServer\CoreMiddleware as HyperfCoreMiddleware;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
 use Psr\Http\Message\ServerRequestInterface;
 
 class ConfigProvider

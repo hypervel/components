@@ -7,20 +7,20 @@ namespace Hypervel\Foundation\Providers;
 use Hyperf\Command\Event\FailToHandle;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Grammar;
 use Hyperf\HttpServer\MiddlewareManager;
-use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
-use Hypervel\Container\Contracts\Container;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Grammar;
 use Hypervel\Foundation\Console\CliDumper;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Foundation\Http\HtmlDumper;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Uri;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -111,10 +111,6 @@ class FoundationServiceProvider extends ServiceProvider
             'app_name' => $this->config->get('app.name'),
             'app_env' => $this->config->get('app.env'),
             StdoutLoggerInterface::class . '.log_level' => $this->config->get('app.stdout_log_level'),
-            'databases' => $connections = $this->config->get('database.connections'),
-            'databases.migrations' => $migration = $this->config->get('database.migrations', 'migrations'),
-            'databases.default' => $connections[$this->config->get('database.default')] ?? [],
-            'databases.default.migrations' => $migration,
             'redis' => $this->getRedisConfig(),
         ];
 

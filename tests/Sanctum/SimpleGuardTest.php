@@ -37,7 +37,6 @@ class SimpleGuardTest extends TestCase
                 ],
                 'auth.providers.users.model' => TestUser::class,
                 'auth.providers.users.driver' => 'eloquent',
-                'database.default' => 'testing',
             ]);
 
         // Create users table

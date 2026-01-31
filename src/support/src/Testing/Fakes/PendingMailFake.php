@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Testing\Fakes;
 
-use Hypervel\Mail\Contracts\Mailable;
+use Hypervel\Contracts\Mail\Mailable;
 use Hypervel\Mail\PendingMail;
 use Hypervel\Mail\SentMessage;
 

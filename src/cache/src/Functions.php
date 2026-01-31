@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Hyperf\Context\ApplicationContext;
-use Hypervel\Cache\Exceptions\InvalidArgumentException;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Cache\InvalidArgumentException;
 
 /**
  * Get / set the specified cache value.

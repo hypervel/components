@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
-use Hyperf\Database\Connection as DatabaseConnection;
-use Hyperf\DbConnection\Db;
+use Hypervel\Database\Connection as DatabaseConnection;
+use Hypervel\Database\DatabaseManager;
 
 trait DatabaseTransactions
 {
@@ -14,7 +14,7 @@ trait DatabaseTransactions
      */
     public function beginDatabaseTransaction(): void
     {
-        $database = $this->app->get(Db::class);
+        $database = $this->app->get(DatabaseManager::class);
 
         foreach ($this->connectionsToTransact() as $name) {
             $connection = $database->connection($name);
@@ -22,7 +22,10 @@ trait DatabaseTransactions
 
             $connection->unsetEventDispatcher();
             $connection->beginTransaction();
-            $connection->setEventDispatcher($dispatcher);
+
+            if ($dispatcher !== null) {
+                $connection->setEventDispatcher($dispatcher);
+            }
         }
 
         $this->beforeApplicationDestroyed(function () use ($database) {
@@ -37,7 +40,10 @@ trait DatabaseTransactions
                 }
 
                 $connection->rollBack();
-                $connection->setEventDispatcher($dispatcher);
+
+                if ($dispatcher !== null) {
+                    $connection->setEventDispatcher($dispatcher);
+                }
                 // this will trigger a database refresh warning
                 // $connection->disconnect();
             }

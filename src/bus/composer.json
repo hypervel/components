@@ -24,7 +24,7 @@
         "php": "^8.2",
         "hyperf/context": "~3.1.0",
         "hyperf/contract": "~3.1.0",
-        "hyperf/collection": "~3.1.0",
+        "hypervel/collections": "~0.3.0",
         "hyperf/conditionable": "~3.1.0",
         "hyperf/coroutine": "~3.1.0",
         "hyperf/support": "~3.1.0",

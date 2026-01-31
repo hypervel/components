@@ -7,8 +7,6 @@ namespace Hypervel\Support\Facades;
 use Closure;
 use Hypervel\Process\Factory;
 
-use function Hyperf\Tappable\tap;
-
 /**
  * @method static \Hypervel\Process\PendingProcess command(array|string $command)
  * @method static \Hypervel\Process\PendingProcess path(string $path)

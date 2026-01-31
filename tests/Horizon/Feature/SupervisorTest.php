@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Horizon\Feature;
 
 use Carbon\CarbonImmutable;
 use Exception;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Horizon\AutoScaler;
 use Hypervel\Horizon\Contracts\HorizonCommandQueue;
 use Hypervel\Horizon\Contracts\JobRepository;

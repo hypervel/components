@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Query\Builder;
 use Hyperf\Di\Container;
-use Hyperf\Stringable\Str;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Queue\DatabaseQueue;
 use Hypervel\Queue\Queue;
+use Hypervel\Support\Str;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -29,8 +29,6 @@ class QueueDatabaseQueueUnitTest extends TestCase
 {
     protected function tearDown(): void
     {
-        m::close();
-
         Uuid::setFactory(new UuidFactory());
     }
 
@@ -56,6 +54,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
             $this->assertEquals(0, $array['attempts']);
             $this->assertNull($array['reserved_at']);
             $this->assertIsInt($array['available_at']);
+
+            return 1;
         });
 
         $queue->push($job, ['data']);
@@ -98,6 +98,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
             $this->assertEquals(0, $array['attempts']);
             $this->assertNull($array['reserved_at']);
             $this->assertIsInt($array['available_at']);
+
+            return 1;
         });
 
         $queue->later(10, 'foo', ['data']);
@@ -167,6 +169,8 @@ class QueueDatabaseQueueUnitTest extends TestCase
                 'available_at' => 1732502704,
                 'created_at' => 1732502704,
             ]], $records);
+
+            return true;
         });
 
         $queue->bulk(['foo', 'bar'], ['data'], 'queue');

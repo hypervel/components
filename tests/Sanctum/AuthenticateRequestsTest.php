@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Context\Context;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Router\Router;
@@ -61,29 +61,6 @@ class AuthenticateRequestsTest extends TestCase
         ]);
     }
 
-    protected function defineRoutes(Router $router): void
-    {
-        $router->get('/sanctum/api/user', function () {
-            $user = auth('sanctum')->user();
-
-            if (! $user) {
-                abort(401);
-            }
-
-            return response()->json(['email' => $user->email]);
-        });
-
-        $router->get('/sanctum/web/user', function () {
-            $user = auth('sanctum')->user();
-
-            if (! $user) {
-                abort(401);
-            }
-
-            return response()->json(['email' => $user->email]);
-        });
-    }
-
     protected function tearDown(): void
     {
         parent::tearDown();
@@ -115,6 +92,29 @@ class AuthenticateRequestsTest extends TestCase
             $table->string('email')->unique();
             $table->string('password');
             $table->timestamps();
+        });
+    }
+
+    protected function defineRoutes(Router $router): void
+    {
+        $router->get('/sanctum/api/user', function () {
+            $user = auth('sanctum')->user();
+
+            if (! $user) {
+                abort(401);
+            }
+
+            return response()->json(['email' => $user->email]);
+        });
+
+        $router->get('/sanctum/web/user', function () {
+            $user = auth('sanctum')->user();
+
+            if (! $user) {
+                abort(401);
+            }
+
+            return response()->json(['email' => $user->email]);
         });
     }
 

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Process;
 
-use Hyperf\Collection\Collection;
 use Hypervel\Process\Contracts\ProcessResult;
+use Hypervel\Support\Collection;
 use Symfony\Component\Process\Process;
 
 class FakeProcessDescription

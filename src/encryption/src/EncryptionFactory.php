@@ -5,12 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Encryption;
 
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
 use Hypervel\Encryption\Exceptions\MissingAppKeyException;
+use Hypervel\Support\Str;
 use Laravel\SerializableClosure\SerializableClosure;
 use Psr\Container\ContainerInterface;
-
-use function Hyperf\Tappable\tap;
 
 class EncryptionFactory
 {

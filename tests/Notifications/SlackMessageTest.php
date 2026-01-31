@@ -46,8 +46,6 @@ class SlackMessageTest extends TestCase
         $this->slackChannel = null;
         $this->client = null;
         $this->config = null;
-
-        Mockery::close();
     }
 
     public function testExceptionWhenNoTextOrBlock(): void

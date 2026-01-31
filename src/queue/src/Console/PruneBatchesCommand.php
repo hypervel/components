@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
-use Hypervel\Bus\Contracts\BatchRepository;
-use Hypervel\Bus\Contracts\PrunableBatchRepository;
 use Hypervel\Bus\DatabaseBatchRepository;
+use Hypervel\Contracts\Bus\BatchRepository;
+use Hypervel\Contracts\Bus\PrunableBatchRepository;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
 

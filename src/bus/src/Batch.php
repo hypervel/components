@@ -6,15 +6,15 @@ namespace Hypervel\Bus;
 
 use Carbon\CarbonInterface;
 use Closure;
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
-use Hyperf\Collection\Enumerable;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\Arrayable;
-use Hypervel\Bus\Contracts\BatchRepository;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Bus\BatchRepository;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Queue\CallQueuedClosure;
-use Hypervel\Queue\Contracts\Factory as QueueFactory;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Enumerable;
 use JsonSerializable;
 use Throwable;
 

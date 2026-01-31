@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hyperf\Context\Context;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Auth\AuthManager;
+use Hypervel\Context\Context;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
@@ -48,7 +48,6 @@ class GuardTest extends TestCase
                 ],
                 'auth.providers.users.model' => TestUser::class,
                 'auth.providers.users.driver' => 'eloquent',
-                'database.default' => 'testing',
                 'sanctum.guard' => ['web'],
             ]);
 
@@ -63,7 +62,6 @@ class GuardTest extends TestCase
         Context::destroy('__sanctum.acting_as_user');
         Context::destroy('__sanctum.acting_as_guard');
 
-        Mockery::close();
         Sanctum::$accessTokenRetrievalCallback = null;
         Sanctum::$accessTokenAuthenticationCallback = null;
     }

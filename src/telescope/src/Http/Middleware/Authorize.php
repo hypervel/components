@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Http\Middleware;
 
-use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\HttpMessage\Exceptions\HttpException;
 use Hypervel\Telescope\Telescope;
 use Psr\Http\Message\ResponseInterface;

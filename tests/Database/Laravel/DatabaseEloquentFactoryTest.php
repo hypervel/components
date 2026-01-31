@@ -1,0 +1,1289 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel;
+
+use BadMethodCallException;
+use Carbon\Carbon;
+use Faker\Generator;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Foundation\Application;
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Attributes\UseFactory;
+use Hypervel\Database\Eloquent\Casts\Attribute;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Factories\CrossJoinSequence;
+use Hypervel\Database\Eloquent\Factories\Factory;
+use Hypervel\Database\Eloquent\Factories\HasFactory;
+use Hypervel\Database\Eloquent\Factories\Sequence;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Support\Str;
+use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Database\Laravel\Fixtures\Models\Money\Price;
+use Mockery as m;
+use ReflectionClass;
+
+/**
+ * TODO(laravel-container-port): This test requires Laravel's container to be ported.
+ * It relies on Container::setInstance(null) and other Laravel-specific container behaviors
+ * that differ from Hyperf's container. Once Laravel's container is ported, remove the
+ * markTestSkipped() call in setUp() and this test should work.
+ * @internal
+ * @coversNothing
+ */
+class DatabaseEloquentFactoryTest extends TestCase
+{
+    protected function setUp(): void
+    {
+        $this->markTestSkipped(
+            'Requires Laravel container port - uses Container::setInstance(null) and other Laravel-specific container behaviors'
+        );
+
+        $container = Container::getInstance();
+        $container->singleton(Generator::class, function ($app, $parameters) {
+            return \Faker\Factory::create('en_US');
+        });
+        $container->instance(Application::class, $app = m::mock(Application::class));
+        $app->shouldReceive('getNamespace')->andReturn('App\\');
+
+        $db = new DB();
+
+        $db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ]);
+
+        $db->bootEloquent();
+        $db->setAsGlobal();
+
+        $this->createSchema();
+        Factory::expandRelationshipsByDefault();
+    }
+
+    /**
+     * Setup the database schema.
+     */
+    public function createSchema()
+    {
+        $this->schema()->create('users', function ($table) {
+            $table->increments('id');
+            $table->string('name');
+            $table->string('options')->nullable();
+            $table->timestamps();
+        });
+
+        $this->schema()->create('posts', function ($table) {
+            $table->increments('id');
+            $table->foreignId('user_id');
+            $table->string('title');
+            $table->softDeletes();
+            $table->timestamps();
+        });
+
+        $this->schema()->create('comments', function ($table) {
+            $table->increments('id');
+            $table->foreignId('commentable_id');
+            $table->string('commentable_type');
+            $table->foreignId('user_id');
+            $table->string('body');
+            $table->softDeletes();
+            $table->timestamps();
+        });
+
+        $this->schema()->create('roles', function ($table) {
+            $table->increments('id');
+            $table->string('name');
+            $table->timestamps();
+        });
+
+        $this->schema()->create('role_user', function ($table) {
+            $table->foreignId('role_id');
+            $table->foreignId('user_id');
+            $table->string('admin')->default('N');
+        });
+    }
+
+    /**
+     * Tear down the database schema.
+     */
+    protected function tearDown(): void
+    {
+        $this->schema()->drop('users');
+
+        Container::setInstance(null);
+
+        parent::tearDown();
+    }
+
+    public function testBasicModelCanBeCreated()
+    {
+        $user = FactoryTestUserFactory::new()->create();
+        $this->assertInstanceOf(Eloquent::class, $user);
+
+        $user = FactoryTestUserFactory::new()->createOne();
+        $this->assertInstanceOf(Eloquent::class, $user);
+
+        $user = FactoryTestUserFactory::new()->create(['name' => 'Taylor Otwell']);
+        $this->assertInstanceOf(Eloquent::class, $user);
+        $this->assertSame('Taylor Otwell', $user->name);
+
+        $user = FactoryTestUserFactory::new()->set('name', 'Taylor Otwell')->create();
+        $this->assertInstanceOf(Eloquent::class, $user);
+        $this->assertSame('Taylor Otwell', $user->name);
+
+        $users = FactoryTestUserFactory::new()->createMany([
+            ['name' => 'Taylor Otwell'],
+            ['name' => 'Jeffrey Way'],
+        ]);
+        $this->assertInstanceOf(Collection::class, $users);
+        $this->assertCount(2, $users);
+
+        $users = FactoryTestUserFactory::new()->createMany(2);
+        $this->assertInstanceOf(Collection::class, $users);
+        $this->assertCount(2, $users);
+        $this->assertInstanceOf(FactoryTestUser::class, $users->first());
+
+        $users = FactoryTestUserFactory::times(2)->createMany();
+        $this->assertInstanceOf(Collection::class, $users);
+        $this->assertCount(2, $users);
+        $this->assertInstanceOf(FactoryTestUser::class, $users->first());
+
+        $users = FactoryTestUserFactory::times(2)->createMany();
+        $this->assertInstanceOf(Collection::class, $users);
+        $this->assertCount(2, $users);
+        $this->assertInstanceOf(FactoryTestUser::class, $users->first());
+
+        $users = FactoryTestUserFactory::times(3)->createMany([
+            ['name' => 'Taylor Otwell'],
+            ['name' => 'Jeffrey Way'],
+        ]);
+        $this->assertInstanceOf(Collection::class, $users);
+        $this->assertCount(2, $users);
+        $this->assertInstanceOf(FactoryTestUser::class, $users->first());
+
+        $users = FactoryTestUserFactory::new()->createMany();
+        $this->assertInstanceOf(Collection::class, $users);
+        $this->assertCount(1, $users);
+        $this->assertInstanceOf(FactoryTestUser::class, $users->first());
+
+        $users = FactoryTestUserFactory::times(10)->create();
+        $this->assertCount(10, $users);
+    }
+
+    public function testExpandedClosureAttributesAreResolvedAndPassedToClosures()
+    {
+        $user = FactoryTestUserFactory::new()->create([
+            'name' => function () {
+                return 'taylor';
+            },
+            'options' => function ($attributes) {
+                return $attributes['name'] . '-options';
+            },
+        ]);
+
+        $this->assertSame('taylor-options', $user->options);
+    }
+
+    public function testExpandedClosureAttributeReturningAFactoryIsResolved()
+    {
+        $post = FactoryTestPostFactory::new()->create([
+            'title' => 'post',
+            'user_id' => fn ($attributes) => FactoryTestUserFactory::new([
+                'options' => $attributes['title'] . '-options',
+            ]),
+        ]);
+
+        $this->assertEquals('post-options', $post->user->options);
+    }
+
+    public function testMakeCreatesUnpersistedModelInstance()
+    {
+        $user = FactoryTestUserFactory::new()->makeOne();
+        $this->assertInstanceOf(Eloquent::class, $user);
+
+        $user = FactoryTestUserFactory::new()->make(['name' => 'Taylor Otwell']);
+
+        $this->assertInstanceOf(Eloquent::class, $user);
+        $this->assertSame('Taylor Otwell', $user->name);
+        $this->assertCount(0, FactoryTestUser::all());
+    }
+
+    public function testBasicModelAttributesCanBeCreated()
+    {
+        $user = FactoryTestUserFactory::new()->raw();
+        $this->assertIsArray($user);
+
+        $user = FactoryTestUserFactory::new()->raw(['name' => 'Taylor Otwell']);
+        $this->assertIsArray($user);
+        $this->assertSame('Taylor Otwell', $user['name']);
+    }
+
+    public function testExpandedModelAttributesCanBeCreated()
+    {
+        $post = FactoryTestPostFactory::new()->raw();
+        $this->assertIsArray($post);
+
+        $post = FactoryTestPostFactory::new()->raw(['title' => 'Test Title']);
+        $this->assertIsArray($post);
+        $this->assertIsInt($post['user_id']);
+        $this->assertSame('Test Title', $post['title']);
+    }
+
+    public function testLazyModelAttributesCanBeCreated()
+    {
+        $userFunction = FactoryTestUserFactory::new()->lazy();
+        $this->assertIsCallable($userFunction);
+        $this->assertInstanceOf(Eloquent::class, $userFunction());
+
+        $userFunction = FactoryTestUserFactory::new()->lazy(['name' => 'Taylor Otwell']);
+        $this->assertIsCallable($userFunction);
+
+        $user = $userFunction();
+        $this->assertInstanceOf(Eloquent::class, $user);
+        $this->assertSame('Taylor Otwell', $user->name);
+    }
+
+    public function testMultipleModelAttributesCanBeCreated()
+    {
+        $posts = FactoryTestPostFactory::times(10)->raw();
+        $this->assertIsArray($posts);
+
+        $this->assertCount(10, $posts);
+    }
+
+    public function testAfterCreatingAndMakingCallbacksAreCalled()
+    {
+        $user = FactoryTestUserFactory::new()
+            ->afterMaking(function ($user) {
+                $_SERVER['__test.user.making'] = $user;
+            })
+            ->afterCreating(function ($user) {
+                $_SERVER['__test.user.creating'] = $user;
+            })
+            ->create();
+
+        $this->assertSame($user, $_SERVER['__test.user.making']);
+        $this->assertSame($user, $_SERVER['__test.user.creating']);
+
+        unset($_SERVER['__test.user.making'], $_SERVER['__test.user.creating']);
+    }
+
+    public function testHasManyRelationship()
+    {
+        $users = FactoryTestUserFactory::times(10)
+            ->has(
+                FactoryTestPostFactory::times(3)
+                    ->state(function ($attributes, $user) {
+                        // Test parent is passed to child state mutations...
+                        $_SERVER['__test.post.state-user'] = $user;
+
+                        return [];
+                    })
+                    // Test parents passed to callback...
+                    ->afterCreating(function ($post, $user) {
+                        $_SERVER['__test.post.creating-post'] = $post;
+                        $_SERVER['__test.post.creating-user'] = $user;
+                    }),
+                'posts'
+            )
+            ->create();
+
+        $this->assertCount(10, FactoryTestUser::all());
+        $this->assertCount(30, FactoryTestPost::all());
+        $this->assertCount(3, FactoryTestUser::latest()->first()->posts);
+
+        $this->assertInstanceOf(Eloquent::class, $_SERVER['__test.post.creating-post']);
+        $this->assertInstanceOf(Eloquent::class, $_SERVER['__test.post.creating-user']);
+        $this->assertInstanceOf(Eloquent::class, $_SERVER['__test.post.state-user']);
+
+        unset($_SERVER['__test.post.creating-post'], $_SERVER['__test.post.creating-user'], $_SERVER['__test.post.state-user']);
+    }
+
+    public function testBelongsToRelationship()
+    {
+        $posts = FactoryTestPostFactory::times(3)
+            ->for(FactoryTestUserFactory::new(['name' => 'Taylor Otwell']), 'user')
+            ->create();
+
+        $this->assertCount(3, $posts->filter(function ($post) {
+            return $post->user->name === 'Taylor Otwell';
+        }));
+
+        $this->assertCount(1, FactoryTestUser::all());
+        $this->assertCount(3, FactoryTestPost::all());
+    }
+
+    public function testBelongsToRelationshipWithExistingModelInstance()
+    {
+        $user = FactoryTestUserFactory::new(['name' => 'Taylor Otwell'])->create();
+        $posts = FactoryTestPostFactory::times(3)
+            ->for($user, 'user')
+            ->create();
+
+        $this->assertCount(3, $posts->filter(function ($post) use ($user) {
+            return $post->user->is($user);
+        }));
+
+        $this->assertCount(1, FactoryTestUser::all());
+        $this->assertCount(3, FactoryTestPost::all());
+    }
+
+    public function testBelongsToRelationshipWithExistingModelInstanceWithRelationshipNameImpliedFromModel()
+    {
+        $user = FactoryTestUserFactory::new(['name' => 'Taylor Otwell'])->create();
+        $posts = FactoryTestPostFactory::times(3)
+            ->for($user)
+            ->create();
+
+        $this->assertCount(3, $posts->filter(function ($post) use ($user) {
+            return $post->factoryTestUser->is($user);
+        }));
+
+        $this->assertCount(1, FactoryTestUser::all());
+        $this->assertCount(3, FactoryTestPost::all());
+    }
+
+    public function testMorphToRelationship()
+    {
+        $posts = FactoryTestCommentFactory::times(3)
+            ->for(FactoryTestPostFactory::new(['title' => 'Test Title']), 'commentable')
+            ->create();
+
+        $this->assertSame('Test Title', FactoryTestPost::first()->title);
+        $this->assertCount(3, FactoryTestPost::first()->comments);
+
+        $this->assertCount(1, FactoryTestPost::all());
+        $this->assertCount(3, FactoryTestComment::all());
+    }
+
+    public function testMorphToRelationshipWithExistingModelInstance()
+    {
+        $post = FactoryTestPostFactory::new(['title' => 'Test Title'])->create();
+        $posts = FactoryTestCommentFactory::times(3)
+            ->for($post, 'commentable')
+            ->create();
+
+        $this->assertSame('Test Title', FactoryTestPost::first()->title);
+        $this->assertCount(3, FactoryTestPost::first()->comments);
+
+        $this->assertCount(1, FactoryTestPost::all());
+        $this->assertCount(3, FactoryTestComment::all());
+    }
+
+    public function testBelongsToManyRelationship()
+    {
+        $users = FactoryTestUserFactory::times(3)
+            ->hasAttached(
+                FactoryTestRoleFactory::times(3)->afterCreating(function ($role, $user) {
+                    $_SERVER['__test.role.creating-role'] = $role;
+                    $_SERVER['__test.role.creating-user'] = $user;
+                }),
+                ['admin' => 'Y'],
+                'roles'
+            )
+            ->create();
+
+        $this->assertCount(9, FactoryTestRole::all());
+
+        $user = FactoryTestUser::latest()->first();
+
+        $this->assertCount(3, $user->roles);
+        $this->assertSame('Y', $user->roles->first()->pivot->admin);
+
+        $this->assertInstanceOf(Eloquent::class, $_SERVER['__test.role.creating-role']);
+        $this->assertInstanceOf(Eloquent::class, $_SERVER['__test.role.creating-user']);
+
+        unset($_SERVER['__test.role.creating-role'], $_SERVER['__test.role.creating-user']);
+    }
+
+    public function testBelongsToManyRelationshipRelatedModelsSetOnInstanceWhenTouchingOwner()
+    {
+        $user = FactoryTestUserFactory::new()->create();
+        $role = FactoryTestRoleFactory::new()->hasAttached($user, [], 'users')->create();
+
+        $this->assertCount(1, $role->users);
+    }
+
+    public function testRelationCanBeLoadedBeforeModelIsCreated()
+    {
+        $user = FactoryTestUserFactory::new(['name' => 'Taylor Otwell'])->createOne();
+
+        $post = FactoryTestPostFactory::new()
+            ->for($user, 'user')
+            ->afterMaking(function (FactoryTestPost $post) {
+                $post->load('user');
+            })
+            ->createOne();
+
+        $this->assertTrue($post->relationLoaded('user'));
+        $this->assertTrue($post->user->is($user));
+
+        $this->assertCount(1, FactoryTestUser::all());
+        $this->assertCount(1, FactoryTestPost::all());
+    }
+
+    public function testBelongsToManyRelationshipWithExistingModelInstances()
+    {
+        $roles = FactoryTestRoleFactory::times(3)
+            ->afterCreating(function ($role) {
+                $_SERVER['__test.role.creating-role'] = $role;
+            })
+            ->create();
+        FactoryTestUserFactory::times(3)
+            ->hasAttached($roles, ['admin' => 'Y'], 'roles')
+            ->create();
+
+        $this->assertCount(3, FactoryTestRole::all());
+
+        $user = FactoryTestUser::latest()->first();
+
+        $this->assertCount(3, $user->roles);
+        $this->assertSame('Y', $user->roles->first()->pivot->admin);
+
+        $this->assertInstanceOf(Eloquent::class, $_SERVER['__test.role.creating-role']);
+
+        unset($_SERVER['__test.role.creating-role']);
+    }
+
+    public function testBelongsToManyRelationshipWithExistingModelInstancesUsingArray()
+    {
+        $roles = FactoryTestRoleFactory::times(3)
+            ->afterCreating(function ($role) {
+                $_SERVER['__test.role.creating-role'] = $role;
+            })
+            ->create();
+        FactoryTestUserFactory::times(3)
+            ->hasAttached($roles->toArray(), ['admin' => 'Y'], 'roles')
+            ->create();
+
+        $this->assertCount(3, FactoryTestRole::all());
+
+        $user = FactoryTestUser::latest()->first();
+
+        $this->assertCount(3, $user->roles);
+        $this->assertSame('Y', $user->roles->first()->pivot->admin);
+
+        $this->assertInstanceOf(Eloquent::class, $_SERVER['__test.role.creating-role']);
+
+        unset($_SERVER['__test.role.creating-role']);
+    }
+
+    public function testBelongsToManyRelationshipWithExistingModelInstancesWithRelationshipNameImpliedFromModel()
+    {
+        $roles = FactoryTestRoleFactory::times(3)
+            ->afterCreating(function ($role) {
+                $_SERVER['__test.role.creating-role'] = $role;
+            })
+            ->create();
+        FactoryTestUserFactory::times(3)
+            ->hasAttached($roles, ['admin' => 'Y'])
+            ->create();
+
+        $this->assertCount(3, FactoryTestRole::all());
+
+        $user = FactoryTestUser::latest()->first();
+
+        $this->assertCount(3, $user->factoryTestRoles);
+        $this->assertSame('Y', $user->factoryTestRoles->first()->pivot->admin);
+
+        $this->assertInstanceOf(Eloquent::class, $_SERVER['__test.role.creating-role']);
+
+        unset($_SERVER['__test.role.creating-role']);
+    }
+
+    public function testSequences()
+    {
+        $users = FactoryTestUserFactory::times(2)->sequence(
+            ['name' => 'Taylor Otwell'],
+            ['name' => 'Abigail Otwell'],
+        )->create();
+
+        $this->assertSame('Taylor Otwell', $users[0]->name);
+        $this->assertSame('Abigail Otwell', $users[1]->name);
+
+        $user = FactoryTestUserFactory::new()
+            ->hasAttached(
+                FactoryTestRoleFactory::times(4),
+                new Sequence(['admin' => 'Y'], ['admin' => 'N']),
+                'roles'
+            )
+            ->create();
+
+        $this->assertCount(4, $user->roles);
+
+        $this->assertCount(2, $user->roles->filter(function ($role) {
+            return $role->pivot->admin === 'Y';
+        }));
+
+        $this->assertCount(2, $user->roles->filter(function ($role) {
+            return $role->pivot->admin === 'N';
+        }));
+
+        $users = FactoryTestUserFactory::times(2)->sequence(function ($sequence) {
+            return ['name' => 'index: ' . $sequence->index];
+        })->create();
+
+        $this->assertSame('index: 0', $users[0]->name);
+        $this->assertSame('index: 1', $users[1]->name);
+    }
+
+    public function testCountedSequence()
+    {
+        $factory = FactoryTestUserFactory::new()->forEachSequence(
+            ['name' => 'Taylor Otwell'],
+            ['name' => 'Abigail Otwell'],
+            ['name' => 'Dayle Rees']
+        );
+
+        $class = new ReflectionClass($factory);
+        $prop = $class->getProperty('count');
+        $value = $prop->getValue($factory);
+
+        $this->assertSame(3, $value);
+    }
+
+    public function testSequenceWithHasManyRelationship()
+    {
+        $users = FactoryTestUserFactory::times(2)
+            ->sequence(
+                ['name' => 'Abigail Otwell'],
+                ['name' => 'Taylor Otwell'],
+            )
+            ->has(
+                FactoryTestPostFactory::times(3)
+                    ->state(['title' => 'Post'])
+                    ->sequence(function ($sequence, $attributes, $user) {
+                        return ['title' => $user->name . ' ' . $attributes['title'] . ' ' . ($sequence->index % 3 + 1)];
+                    }),
+                'posts'
+            )
+            ->create();
+
+        $this->assertCount(2, FactoryTestUser::all());
+        $this->assertCount(6, FactoryTestPost::all());
+        $this->assertCount(3, FactoryTestUser::latest()->first()->posts);
+        $this->assertEquals(
+            FactoryTestPost::orderBy('title')->pluck('title')->all(),
+            [
+                'Abigail Otwell Post 1',
+                'Abigail Otwell Post 2',
+                'Abigail Otwell Post 3',
+                'Taylor Otwell Post 1',
+                'Taylor Otwell Post 2',
+                'Taylor Otwell Post 3',
+            ]
+        );
+    }
+
+    public function testCrossJoinSequences()
+    {
+        $assert = function ($users) {
+            $assertions = [
+                ['first_name' => 'Thomas', 'last_name' => 'Anderson'],
+                ['first_name' => 'Thomas', 'last_name' => 'Smith'],
+                ['first_name' => 'Agent', 'last_name' => 'Anderson'],
+                ['first_name' => 'Agent', 'last_name' => 'Smith'],
+            ];
+
+            foreach ($assertions as $key => $assertion) {
+                $this->assertSame(
+                    $assertion,
+                    $users[$key]->only('first_name', 'last_name'),
+                );
+            }
+        };
+
+        $usersByClass = FactoryTestUserFactory::times(4)
+            ->state(
+                new CrossJoinSequence(
+                    [['first_name' => 'Thomas'], ['first_name' => 'Agent']],
+                    [['last_name' => 'Anderson'], ['last_name' => 'Smith']],
+                ),
+            )
+            ->make();
+
+        $assert($usersByClass);
+
+        $usersByMethod = FactoryTestUserFactory::times(4)
+            ->crossJoinSequence(
+                [['first_name' => 'Thomas'], ['first_name' => 'Agent']],
+                [['last_name' => 'Anderson'], ['last_name' => 'Smith']],
+            )
+            ->make();
+
+        $assert($usersByMethod);
+    }
+
+    public function testResolveNestedModelFactories()
+    {
+        Factory::useNamespace('Factories\\');
+
+        $resolves = [
+            'App\Foo' => 'Factories\FooFactory',
+            'App\Models\Foo' => 'Factories\FooFactory',
+            'App\Models\Nested\Foo' => 'Factories\Nested\FooFactory',
+            'App\Models\Really\Nested\Foo' => 'Factories\Really\Nested\FooFactory',
+        ];
+
+        foreach ($resolves as $model => $factory) {
+            $this->assertEquals($factory, Factory::resolveFactoryName($model));
+        }
+    }
+
+    public function testResolveNestedModelNameFromFactory()
+    {
+        Container::getInstance()->instance(Application::class, $app = m::mock(Application::class));
+        $app->shouldReceive('getNamespace')->andReturn('Hypervel\Tests\Database\Laravel\Fixtures\\');
+
+        Factory::useNamespace('Hypervel\Tests\Database\Laravel\Fixtures\Factories\\');
+
+        $factory = Price::factory();
+
+        $this->assertSame(Price::class, $factory->modelName());
+    }
+
+    public function testResolveNonAppNestedModelFactories()
+    {
+        Container::getInstance()->instance(Application::class, $app = m::mock(Application::class));
+        $app->shouldReceive('getNamespace')->andReturn('Foo\\');
+
+        Factory::useNamespace('Factories\\');
+
+        $resolves = [
+            'Foo\Bar' => 'Factories\BarFactory',
+            'Foo\Models\Bar' => 'Factories\BarFactory',
+            'Foo\Models\Nested\Bar' => 'Factories\Nested\BarFactory',
+            'Foo\Models\Really\Nested\Bar' => 'Factories\Really\Nested\BarFactory',
+        ];
+
+        foreach ($resolves as $model => $factory) {
+            $this->assertEquals($factory, Factory::resolveFactoryName($model));
+        }
+    }
+
+    public function testModelHasFactory()
+    {
+        Factory::guessFactoryNamesUsing(function ($model) {
+            return $model . 'Factory';
+        });
+
+        $this->assertInstanceOf(FactoryTestUserFactory::class, FactoryTestUser::factory());
+    }
+
+    public function testDynamicHasAndForMethods()
+    {
+        Factory::guessFactoryNamesUsing(function ($model) {
+            return $model . 'Factory';
+        });
+
+        $user = FactoryTestUserFactory::new()->hasPosts(3)->create();
+
+        $this->assertCount(3, $user->posts);
+
+        $post = FactoryTestPostFactory::new()
+            ->forAuthor(['name' => 'Taylor Otwell'])
+            ->hasComments(2)
+            ->create();
+
+        $this->assertInstanceOf(FactoryTestUser::class, $post->author);
+        $this->assertSame('Taylor Otwell', $post->author->name);
+        $this->assertCount(2, $post->comments);
+    }
+
+    public function testCanBeMacroable()
+    {
+        $factory = FactoryTestUserFactory::new();
+        $factory->macro('getFoo', function () {
+            return 'Hello World';
+        });
+
+        $this->assertSame('Hello World', $factory->getFoo());
+    }
+
+    public function testFactoryCanConditionallyExecuteCode()
+    {
+        FactoryTestUserFactory::new()
+            ->when(true, function () {
+                $this->assertTrue(true);
+            })
+            ->when(false, function () {
+                $this->fail('Unreachable code that has somehow been reached.');
+            })
+            ->unless(false, function () {
+                $this->assertTrue(true);
+            })
+            ->unless(true, function () {
+                $this->fail('Unreachable code that has somehow been reached.');
+            });
+    }
+
+    public function testDynamicTrashedStateForSoftdeletesModels()
+    {
+        $now = Carbon::create(2020, 6, 7, 8, 9);
+        Carbon::setTestNow($now);
+        $post = FactoryTestPostFactory::new()->trashed()->create();
+
+        $this->assertTrue($post->deleted_at->equalTo($now->subDay()));
+
+        $deleted_at = Carbon::create(2020, 1, 2, 3, 4, 5);
+        $post = FactoryTestPostFactory::new()->trashed($deleted_at)->create();
+
+        $this->assertTrue($deleted_at->equalTo($post->deleted_at));
+
+        Carbon::setTestNow();
+    }
+
+    public function testDynamicTrashedStateRespectsExistingState()
+    {
+        $now = Carbon::create(2020, 6, 7, 8, 9);
+        Carbon::setTestNow($now);
+        $comment = FactoryTestCommentFactory::new()->trashed()->create();
+
+        $this->assertTrue($comment->deleted_at->equalTo($now->subWeek()));
+
+        Carbon::setTestNow();
+    }
+
+    public function testDynamicTrashedStateThrowsExceptionWhenNotASoftdeletesModel()
+    {
+        $this->expectException(BadMethodCallException::class);
+        FactoryTestUserFactory::new()->trashed()->create();
+    }
+
+    public function testModelInstancesCanBeUsedInPlaceOfNestedFactories()
+    {
+        Factory::guessFactoryNamesUsing(function ($model) {
+            return $model . 'Factory';
+        });
+
+        $user = FactoryTestUserFactory::new()->create();
+        $post = FactoryTestPostFactory::new()
+            ->recycle($user)
+            ->hasComments(2)
+            ->create();
+
+        $this->assertSame(1, FactoryTestUser::count());
+        $this->assertEquals($user->id, $post->user_id);
+        $this->assertEquals($user->id, $post->comments[0]->user_id);
+        $this->assertEquals($user->id, $post->comments[1]->user_id);
+    }
+
+    public function testForMethodRecyclesModels()
+    {
+        Factory::guessFactoryNamesUsing(function ($model) {
+            return $model . 'Factory';
+        });
+
+        $user = FactoryTestUserFactory::new()->create();
+        $post = FactoryTestPostFactory::new()
+            ->recycle($user)
+            ->for(FactoryTestUserFactory::new())
+            ->create();
+
+        $this->assertSame(1, FactoryTestUser::count());
+    }
+
+    public function testHasMethodDoesNotReassignTheParent()
+    {
+        Factory::guessFactoryNamesUsing(function ($model) {
+            return $model . 'Factory';
+        });
+
+        $post = FactoryTestPostFactory::new()->create();
+        $user = FactoryTestUserFactory::new()
+            ->recycle($post)
+            // The recycled post already belongs to a user, so it shouldn't be recycled here.
+            ->has(FactoryTestPostFactory::new(), 'posts')
+            ->create();
+
+        $this->assertSame(2, FactoryTestPost::count());
+    }
+
+    public function testMultipleModelsCanBeProvidedToRecycle()
+    {
+        Factory::guessFactoryNamesUsing(function ($model) {
+            return $model . 'Factory';
+        });
+
+        $users = FactoryTestUserFactory::new()->count(3)->create();
+
+        $posts = FactoryTestPostFactory::new()
+            ->recycle($users)
+            ->for(FactoryTestUserFactory::new())
+            ->has(FactoryTestCommentFactory::new()->count(5), 'comments')
+            ->count(2)
+            ->create();
+
+        $this->assertSame(3, FactoryTestUser::count());
+    }
+
+    public function testRecycledModelsCanBeCombinedWithMultipleCalls()
+    {
+        Factory::guessFactoryNamesUsing(function ($model) {
+            return $model . 'Factory';
+        });
+
+        $users = FactoryTestUserFactory::new()
+            ->count(2)
+            ->create();
+        $posts = FactoryTestPostFactory::new()
+            ->recycle($users)
+            ->count(2)
+            ->create();
+        $additionalUser = FactoryTestUserFactory::new()
+            ->create();
+        $additionalPost = FactoryTestPostFactory::new()
+            ->recycle($additionalUser)
+            ->create();
+
+        $this->assertSame(3, FactoryTestUser::count());
+        $this->assertSame(3, FactoryTestPost::count());
+
+        $comments = FactoryTestCommentFactory::new()
+            ->recycle($users)
+            ->recycle($posts)
+            ->recycle([$additionalUser, $additionalPost])
+            ->count(5)
+            ->create();
+
+        $this->assertSame(3, FactoryTestUser::count());
+        $this->assertSame(3, FactoryTestPost::count());
+    }
+
+    public function testNoModelsCanBeProvidedToRecycle()
+    {
+        Factory::guessFactoryNamesUsing(function ($model) {
+            return $model . 'Factory';
+        });
+
+        $posts = FactoryTestPostFactory::new()
+            ->recycle([])
+            ->count(2)
+            ->create();
+
+        $this->assertSame(2, FactoryTestPost::count());
+        $this->assertSame(2, FactoryTestUser::count());
+    }
+
+    public function testCanDisableRelationships()
+    {
+        $post = FactoryTestPostFactory::new()
+            ->withoutParents()
+            ->make();
+
+        $this->assertNull($post->user_id);
+    }
+
+    public function testCanDisableRelationshipsExplicitlyByModelName()
+    {
+        $comment = FactoryTestCommentFactory::new()
+            ->withoutParents([FactoryTestUser::class])
+            ->make();
+
+        $this->assertNull($comment->user_id);
+        $this->assertNotNull($comment->commentable->id);
+    }
+
+    public function testCanDisableRelationshipsExplicitlyByAttributeName()
+    {
+        $comment = FactoryTestCommentFactory::new()
+            ->withoutParents(['user_id'])
+            ->make();
+
+        $this->assertNull($comment->user_id);
+        $this->assertNotNull($comment->commentable->id);
+    }
+
+    public function testCanDisableRelationshipsExplicitlyByBothAttributeNameAndModelName()
+    {
+        $comment = FactoryTestCommentFactory::new()
+            ->withoutParents(['user_id', FactoryTestPost::class])
+            ->make();
+
+        $this->assertNull($comment->user_id);
+        $this->assertNull($comment->commentable->id);
+    }
+
+    public function testCanDefaultToWithoutParents()
+    {
+        FactoryTestPostFactory::dontExpandRelationshipsByDefault();
+
+        $post = FactoryTestPostFactory::new()->make();
+        $this->assertNull($post->user_id);
+
+        FactoryTestPostFactory::expandRelationshipsByDefault();
+        $postWithParents = FactoryTestPostFactory::new()->create();
+        $this->assertNotNull($postWithParents->user_id);
+    }
+
+    public function testFactoryModelNamesCorrect()
+    {
+        $this->assertEquals(FactoryTestUseFactoryAttribute::factory()->modelName(), FactoryTestUseFactoryAttribute::class);
+        $this->assertEquals(FactoryTestGuessModel::factory()->modelName(), FactoryTestGuessModel::class);
+    }
+
+    public function testFactoryGlobalModelResolver()
+    {
+        Factory::guessModelNamesUsing(function ($factory) {
+            return __NAMESPACE__ . '\\' . Str::replaceLast('Factory', '', class_basename($factory::class));
+        });
+
+        $this->assertEquals(FactoryTestGuessModel::factory()->modelName(), FactoryTestGuessModel::class);
+        $this->assertEquals(FactoryTestUseFactoryAttribute::factory()->modelName(), FactoryTestUseFactoryAttribute::class);
+
+        $this->assertEquals(FactoryTestUseFactoryAttributeFactory::new()->modelName(), FactoryTestUseFactoryAttribute::class);
+        $this->assertEquals(FactoryTestGuessModelFactory::new()->modelName(), FactoryTestGuessModel::class);
+    }
+
+    public function testFactoryModelHasManyRelationshipHasPendingAttributes()
+    {
+        FactoryTestUser::factory()->has(new FactoryTestPostFactory(), 'postsWithFooBarBazAsTitle')->create();
+
+        $this->assertEquals('foo bar baz', FactoryTestPost::first()->title);
+    }
+
+    public function testFactoryModelHasManyRelationshipHasPendingAttributesOverride()
+    {
+        FactoryTestUser::factory()->has((new FactoryTestPostFactory())->state(['title' => 'other title']), 'postsWithFooBarBazAsTitle')->create();
+
+        $this->assertEquals('other title', FactoryTestPost::first()->title);
+    }
+
+    public function testFactoryModelHasOneRelationshipHasPendingAttributes()
+    {
+        FactoryTestUser::factory()->has(new FactoryTestPostFactory(), 'postWithFooBarBazAsTitle')->create();
+
+        $this->assertEquals('foo bar baz', FactoryTestPost::first()->title);
+    }
+
+    public function testFactoryModelHasOneRelationshipHasPendingAttributesOverride()
+    {
+        FactoryTestUser::factory()->has((new FactoryTestPostFactory())->state(['title' => 'other title']), 'postWithFooBarBazAsTitle')->create();
+
+        $this->assertEquals('other title', FactoryTestPost::first()->title);
+    }
+
+    public function testFactoryModelBelongsToManyRelationshipHasPendingAttributes()
+    {
+        FactoryTestUser::factory()->has(new FactoryTestRoleFactory(), 'rolesWithFooBarBazAsName')->create();
+
+        $this->assertEquals('foo bar baz', FactoryTestRole::first()->name);
+    }
+
+    public function testFactoryModelBelongsToManyRelationshipHasPendingAttributesOverride()
+    {
+        FactoryTestUser::factory()->has((new FactoryTestRoleFactory())->state(['name' => 'other name']), 'rolesWithFooBarBazAsName')->create();
+
+        $this->assertEquals('other name', FactoryTestRole::first()->name);
+    }
+
+    public function testFactoryModelMorphManyRelationshipHasPendingAttributes()
+    {
+        (new FactoryTestPostFactory())->has(new FactoryTestCommentFactory(), 'commentsWithFooBarBazAsBody')->create();
+
+        $this->assertEquals('foo bar baz', FactoryTestComment::first()->body);
+    }
+
+    public function testFactoryModelMorphManyRelationshipHasPendingAttributesOverride()
+    {
+        (new FactoryTestPostFactory())->has((new FactoryTestCommentFactory())->state(['body' => 'other body']), 'commentsWithFooBarBazAsBody')->create();
+
+        $this->assertEquals('other body', FactoryTestComment::first()->body);
+    }
+
+    public function testFactoryCanInsert()
+    {
+        (new FactoryTestPostFactory())
+            ->count(5)
+            ->recycle([
+                (new FactoryTestUserFactory())->create(['name' => Name::Taylor]),
+                (new FactoryTestUserFactory())->create(['name' => Name::Shad, 'created_at' => now()]),
+            ])
+            ->state(['title' => 'hello'])
+            ->insert();
+        $this->assertCount(5, $posts = FactoryTestPost::query()->where('title', 'hello')->get());
+        $this->assertEquals(strtoupper($posts[0]->user->name), $posts[0]->upper_case_name);
+        $this->assertEquals(
+            2,
+            ($users = FactoryTestUser::query()->get())->count()
+        );
+        $this->assertCount(1, $users->where('name', 'totwell'));
+        $this->assertCount(1, $users->where('name', 'shaedrich'));
+    }
+
+    public function testFactoryCanInsertWithHidden()
+    {
+        (new FactoryTestUserFactory())->forEachSequence(['name' => Name::Taylor, 'options' => 'abc'])->insert();
+        $user = DB::table('users')->sole();
+        $this->assertEquals('abc', $user->options);
+        $userModel = FactoryTestUser::query()->sole();
+        $this->assertEquals('abc', $userModel->options);
+    }
+
+    public function testFactoryCanInsertWithArrayCasts()
+    {
+        (new FactoryTestUserWithArrayFactory())->count(2)->insert();
+        $users = DB::table('users')->get();
+        foreach ($users as $user) {
+            $this->assertEquals(['rtj'], json_decode($user->options, true));
+            $createdAt = Carbon::parse($user->created_at);
+            $updatedAt = Carbon::parse($user->updated_at);
+            $this->assertEquals($updatedAt, $createdAt);
+        }
+    }
+
+    /**
+     * Get a database connection instance.
+     *
+     * @return \Hypervel\Database\ConnectionInterface
+     */
+    protected function connection()
+    {
+        return Eloquent::getConnectionResolver()->connection();
+    }
+
+    /**
+     * Get a schema builder instance.
+     *
+     * @return \Hypervel\Database\Schema\Builder
+     */
+    protected function schema()
+    {
+        return $this->connection()->getSchemaBuilder();
+    }
+}
+
+class FactoryTestUserFactory extends Factory
+{
+    protected ?string $model = FactoryTestUser::class;
+
+    public function definition(): array
+    {
+        return [
+            'name' => $this->faker->name(),
+            'options' => null,
+        ];
+    }
+}
+
+class FactoryTestUser extends Eloquent
+{
+    use HasFactory;
+
+    protected ?string $table = 'users';
+
+    protected array $hidden = ['options'];
+
+    protected array $withCount = ['posts'];
+
+    protected array $with = ['posts'];
+
+    public function posts()
+    {
+        return $this->hasMany(FactoryTestPost::class, 'user_id');
+    }
+
+    public function postsWithFooBarBazAsTitle()
+    {
+        return $this->hasMany(FactoryTestPost::class, 'user_id')->withAttributes(['title' => 'foo bar baz']);
+    }
+
+    public function postWithFooBarBazAsTitle()
+    {
+        return $this->hasOne(FactoryTestPost::class, 'user_id')->withAttributes(['title' => 'foo bar baz']);
+    }
+
+    public function roles()
+    {
+        return $this->belongsToMany(FactoryTestRole::class, 'role_user', 'user_id', 'role_id')->withPivot('admin');
+    }
+
+    public function rolesWithFooBarBazAsName()
+    {
+        return $this->belongsToMany(FactoryTestRole::class, 'role_user', 'user_id', 'role_id')->withPivot('admin')->withAttributes(['name' => 'foo bar baz']);
+    }
+
+    public function factoryTestRoles()
+    {
+        return $this->belongsToMany(FactoryTestRole::class, 'role_user', 'user_id', 'role_id')->withPivot('admin');
+    }
+}
+
+class FactoryTestPostFactory extends Factory
+{
+    protected ?string $model = FactoryTestPost::class;
+
+    public function definition(): array
+    {
+        return [
+            'user_id' => FactoryTestUserFactory::new(),
+            'title' => $this->faker->name(),
+        ];
+    }
+}
+
+class FactoryTestPost extends Eloquent
+{
+    use SoftDeletes;
+
+    protected ?string $table = 'posts';
+
+    protected array $appends = ['upper_case_name'];
+
+    public function upperCaseName(): Attribute
+    {
+        return Attribute::get(fn ($attr) => Str::upper($this->user->name));
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(FactoryTestUser::class, 'user_id');
+    }
+
+    public function factoryTestUser()
+    {
+        return $this->belongsTo(FactoryTestUser::class, 'user_id');
+    }
+
+    public function author()
+    {
+        return $this->belongsTo(FactoryTestUser::class, 'user_id');
+    }
+
+    public function comments()
+    {
+        return $this->morphMany(FactoryTestComment::class, 'commentable');
+    }
+
+    public function commentsWithFooBarBazAsBody()
+    {
+        return $this->morphMany(FactoryTestComment::class, 'commentable')->withAttributes(['body' => 'foo bar baz']);
+    }
+}
+
+class FactoryTestCommentFactory extends Factory
+{
+    protected ?string $model = FactoryTestComment::class;
+
+    public function definition(): array
+    {
+        return [
+            'commentable_id' => FactoryTestPostFactory::new(),
+            'commentable_type' => FactoryTestPost::class,
+            'user_id' => fn () => FactoryTestUserFactory::new(),
+            'body' => $this->faker->name(),
+        ];
+    }
+
+    public function trashed()
+    {
+        return $this->state([
+            'deleted_at' => Carbon::now()->subWeek(),
+        ]);
+    }
+}
+
+class FactoryTestComment extends Eloquent
+{
+    use SoftDeletes;
+
+    protected ?string $table = 'comments';
+
+    public function commentable()
+    {
+        return $this->morphTo();
+    }
+}
+
+class FactoryTestRoleFactory extends Factory
+{
+    protected ?string $model = FactoryTestRole::class;
+
+    public function definition(): array
+    {
+        return [
+            'name' => $this->faker->name(),
+        ];
+    }
+}
+
+class FactoryTestRole extends Eloquent
+{
+    protected ?string $table = 'roles';
+
+    protected array $touches = ['users'];
+
+    public function users()
+    {
+        return $this->belongsToMany(FactoryTestUser::class, 'role_user', 'role_id', 'user_id')->withPivot('admin');
+    }
+}
+
+class FactoryTestGuessModelFactory extends Factory
+{
+    protected static function appNamespace(): string
+    {
+        return __NAMESPACE__ . '\\';
+    }
+
+    public function definition(): array
+    {
+        return [
+            'name' => $this->faker->name(),
+        ];
+    }
+}
+
+class FactoryTestGuessModel extends Eloquent
+{
+    use HasFactory;
+
+    protected static $factory = FactoryTestGuessModelFactory::class;
+}
+
+class FactoryTestUseFactoryAttributeFactory extends Factory
+{
+    public function definition(): array
+    {
+        return [
+            'name' => $this->faker->name(),
+        ];
+    }
+}
+
+#[UseFactory(FactoryTestUseFactoryAttributeFactory::class)]
+class FactoryTestUseFactoryAttribute extends Eloquent
+{
+    use HasFactory;
+}
+
+class FactoryTestUserWithArray extends Eloquent
+{
+    protected ?string $table = 'users';
+
+    protected function casts(): array
+    {
+        return ['options' => 'array'];
+    }
+}
+
+class FactoryTestUserWithArrayFactory extends Factory
+{
+    protected ?string $model = FactoryTestUserWithArray::class;
+
+    public function definition(): array
+    {
+        return [
+            'name' => 'killer mike',
+            'options' => ['rtj'],
+        ];
+    }
+}
+
+enum Name: string
+{
+    case Taylor = 'totwell';
+    case Shad = 'shaedrich';
+}

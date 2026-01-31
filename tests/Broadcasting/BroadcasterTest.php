@@ -5,15 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Broadcasting;
 
 use Exception;
-use Hyperf\Context\RequestContext;
-use Hyperf\Database\Model\Booted;
 use Hyperf\HttpMessage\Server\Request as ServerRequest;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Request;
 use Hypervel\Auth\AuthManager;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\Guard;
 use Hypervel\Broadcasting\Broadcasters\Broadcaster;
+use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\HttpMessage\Exceptions\HttpException;
 use Mockery as m;
@@ -44,24 +43,28 @@ class BroadcasterTest extends TestCase
     {
         parent::tearDown();
 
-        m::close();
-
         FakeBroadcaster::flushChannels();
     }
 
     public function testExtractingParametersWhileCheckingForUserAccess()
     {
-        Booted::$container[BroadcasterTestEloquentModelStub::class] = true;
-
         $callback = function ($user, BroadcasterTestEloquentModelStub $model, $nonModel) {
         };
         $parameters = $this->broadcaster->extractAuthParameters('asd.{model}.{nonModel}', 'asd.1.something', $callback);
-        $this->assertEquals(['model.1.instance', 'something'], $parameters);
+        $this->assertCount(2, $parameters);
+        $this->assertInstanceOf(BroadcasterTestEloquentModelStub::class, $parameters[0]);
+        $this->assertSame('1', $parameters[0]->boundValue);
+        $this->assertSame('something', $parameters[1]);
 
         $callback = function ($user, BroadcasterTestEloquentModelStub $model, BroadcasterTestEloquentModelStub $model2, $something) {
         };
         $parameters = $this->broadcaster->extractAuthParameters('asd.{model}.{model2}.{nonModel}', 'asd.1.uid.something', $callback);
-        $this->assertEquals(['model.1.instance', 'model.uid.instance', 'something'], $parameters);
+        $this->assertCount(3, $parameters);
+        $this->assertInstanceOf(BroadcasterTestEloquentModelStub::class, $parameters[0]);
+        $this->assertSame('1', $parameters[0]->boundValue);
+        $this->assertInstanceOf(BroadcasterTestEloquentModelStub::class, $parameters[1]);
+        $this->assertSame('uid', $parameters[1]->boundValue);
+        $this->assertSame('something', $parameters[2]);
 
         $callback = function ($user) {
         };
@@ -77,7 +80,10 @@ class BroadcasterTest extends TestCase
     public function testCanUseChannelClasses()
     {
         $parameters = $this->broadcaster->extractAuthParameters('asd.{model}.{nonModel}', 'asd.1.something', DummyBroadcastingChannel::class);
-        $this->assertEquals(['model.1.instance', 'something'], $parameters);
+        $this->assertCount(2, $parameters);
+        $this->assertInstanceOf(BroadcasterTestEloquentModelStub::class, $parameters[0]);
+        $this->assertSame('1', $parameters[0]->boundValue);
+        $this->assertSame('something', $parameters[1]);
     }
 
     public function testUnknownChannelAuthHandlerTypeThrowsException()
@@ -97,8 +103,6 @@ class BroadcasterTest extends TestCase
 
     public function testNotFoundThrowsHttpException()
     {
-        Booted::$container[BroadcasterTestEloquentModelNotFoundStub::class] = true;
-
         $this->expectException(HttpException::class);
 
         $callback = function ($user, BroadcasterTestEloquentModelNotFoundStub $model) {
@@ -445,40 +449,32 @@ class FakeBroadcaster extends Broadcaster
 
 class BroadcasterTestEloquentModelStub extends Model
 {
-    public function getRouteKeyName()
+    public string $boundValue = '';
+
+    public function getRouteKeyName(): string
     {
         return 'id';
     }
 
-    public function where($key, $value)
+    public function resolveRouteBinding(mixed $value, ?string $field = null): ?self
     {
-        $this->value = $value;
+        $instance = new static();
+        $instance->boundValue = (string) $value;
 
-        return $this;
-    }
-
-    public function firstOrFail()
-    {
-        return "model.{$this->value}.instance";
+        return $instance;
     }
 }
 
 class BroadcasterTestEloquentModelNotFoundStub extends Model
 {
-    public function getRouteKeyName()
+    public function getRouteKeyName(): string
     {
         return 'id';
     }
 
-    public function where($key, $value)
+    public function resolveRouteBinding(mixed $value, ?string $field = null): ?self
     {
-        $this->value = $value;
-
-        return $this;
-    }
-
-    public function firstOrFail()
-    {
+        return null;
     }
 }
 

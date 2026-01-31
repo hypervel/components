@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Devtool\Generator;
 
 use Hyperf\Devtool\Generator\GeneratorCommand;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Symfony\Component\Console\Input\InputOption;
 
 class ConsoleCommand extends GeneratorCommand

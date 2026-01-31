@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail\Transport;
 
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Psr\Log\LoggerInterface;
 use Stringable;
 use Symfony\Component\Mailer\Envelope;

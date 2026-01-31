@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Database\ConnectionResolverInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Psr\Container\ContainerInterface;
 
 class DatabaseBatchRepositoryFactory

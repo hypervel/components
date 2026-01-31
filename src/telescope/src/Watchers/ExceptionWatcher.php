@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
 use Hypervel\Log\Events\MessageLogged;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hypervel\Telescope\ExceptionContext;
 use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\IncomingExceptionEntry;

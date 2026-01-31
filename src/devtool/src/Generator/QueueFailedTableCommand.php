@@ -5,11 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Devtool\Generator;
 
 use Carbon\Carbon;
-use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Devtool\Generator\GeneratorCommand;
+use Hypervel\Context\ApplicationContext;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class QueueFailedTableCommand extends GeneratorCommand
@@ -81,9 +80,7 @@ class QueueFailedTableCommand extends GeneratorCommand
 
     protected function getOptions(): array
     {
-        return array_merge(parent::getOptions(), [
-            ['path', 'p', InputOption::VALUE_OPTIONAL, 'The path of the sessions table migration.'],
-        ]);
+        return parent::getOptions();
     }
 
     protected function getDefaultNamespace(): string

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Translation;
 
 use Countable;
-use Hypervel\Translation\Contracts\Translator;
+use Hypervel\Contracts\Translation\Translator;
 use Stringable;
 
 class PotentiallyTranslatedString implements Stringable

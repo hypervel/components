@@ -6,12 +6,12 @@ namespace Hypervel\Tests\Cache;
 
 use Carbon\Carbon;
 use Exception;
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Exception\QueryException;
-use Hyperf\Database\Query\Builder;
-use Hypervel\Cache\Contracts\RefreshableLock;
 use Hypervel\Cache\DatabaseLock;
+use Hypervel\Contracts\Cache\RefreshableLock;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Database\QueryException;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
@@ -42,7 +42,7 @@ class CacheDatabaseLockTest extends TestCase
         $owner = $lock->owner();
 
         // First attempt throws exception (key exists)
-        $table->shouldReceive('insert')->once()->andThrow(new QueryException('', [], new Exception()));
+        $table->shouldReceive('insert')->once()->andThrow(new QueryException('', '', [], new Exception()));
 
         // So it tries to update
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);
@@ -67,7 +67,7 @@ class CacheDatabaseLockTest extends TestCase
         [$lock, $table] = $this->getLock();
 
         // Insert fails
-        $table->shouldReceive('insert')->once()->andThrow(new QueryException('', [], new Exception()));
+        $table->shouldReceive('insert')->once()->andThrow(new QueryException('', '', [], new Exception()));
 
         // Update fails too (someone else owns it)
         $table->shouldReceive('where')->once()->with('key', 'foo')->andReturn($table);

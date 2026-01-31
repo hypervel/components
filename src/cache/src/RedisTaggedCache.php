@@ -6,7 +6,7 @@ namespace Hypervel\Cache;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Cache\Contracts\Store;
+use Hypervel\Contracts\Cache\Store;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;

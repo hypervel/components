@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use Hyperf\Database\Schema\Blueprint;
 use Hypervel\Database\Migrations\Migration;
+use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 
 use function Hypervel\Config\config;
@@ -12,10 +12,10 @@ return new class extends Migration {
     /**
      * Get the migration connection name.
      */
-    public function getConnection(): string
+    public function getConnection(): ?string
     {
         return config('telescope.storage.database.connection')
-            ?: parent::getConnection();
+            ?? parent::getConnection();
     }
 
     /**

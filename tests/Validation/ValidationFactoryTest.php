@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Validation;
 
 use Faker\Container\ContainerInterface;
-use Hypervel\Translation\Contracts\Translator as TranslatorInterface;
+use Hypervel\Contracts\Translation\Translator as TranslatorInterface;
 use Hypervel\Validation\Factory;
 use Hypervel\Validation\PresenceVerifierInterface;
 use Hypervel\Validation\Validator;
@@ -18,11 +18,6 @@ use PHPUnit\Framework\TestCase;
  */
 class ValidationFactoryTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testMakeMethodCreatesValidValidator()
     {
         $translator = m::mock(TranslatorInterface::class);

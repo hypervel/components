@@ -14,16 +14,14 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\TransferStats;
-use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Str;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
+use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use PHPUnit\Framework\Assert as PHPUnit;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
-
-use function Hyperf\Tappable\tap;
 
 /**
  * @mixin \Hypervel\HttpClient\PendingRequest

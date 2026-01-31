@@ -3,36 +3,36 @@
 declare(strict_types=1);
 
 use Carbon\Carbon;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\Arrayable;
 use Hyperf\HttpMessage\Cookie\Cookie;
-use Hyperf\Stringable\Stringable;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
 use Hyperf\ViewEngine\Contract\ViewInterface;
-use Hypervel\Auth\Contracts\Factory as AuthFactoryContract;
-use Hypervel\Auth\Contracts\Gate;
-use Hypervel\Auth\Contracts\Guard;
-use Hypervel\Broadcasting\Contracts\Factory as BroadcastFactory;
 use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Bus\PendingClosureDispatch;
 use Hypervel\Bus\PendingDispatch;
-use Hypervel\Container\Contracts\Container;
-use Hypervel\Cookie\Contracts\Cookie as CookieContract;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Auth\Access\Gate;
+use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
+use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Cookie\Cookie as CookieContract;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
+use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Contracts\Session\Session as SessionContract;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Responsable;
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
+use Hypervel\Contracts\Validation\Factory as ValidatorFactoryContract;
+use Hypervel\Contracts\Validation\Validator as ValidatorContract;
 use Hypervel\Foundation\Application;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
 use Hypervel\HttpMessage\Exceptions\HttpException;
 use Hypervel\HttpMessage\Exceptions\HttpResponseException;
 use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
-use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
-use Hypervel\Session\Contracts\Session as SessionContract;
-use Hypervel\Support\Contracts\Responsable;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Mix;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
-use Hypervel\Validation\Contracts\Factory as ValidatorFactoryContract;
-use Hypervel\Validation\Contracts\Validator as ValidatorContract;
+use Hypervel\Support\Stringable;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Log\LoggerInterface;
 
@@ -279,7 +279,7 @@ if (! function_exists('config')) {
      * If an array is passed as the key, we will assume you want to set an array of values.
      *
      * @param null|array<string, mixed>|string $key
-     * @return ($key is null ? \Hypervel\Config\Contracts\Repository : ($key is string ? mixed : null))
+     * @return ($key is null ? \Hypervel\Contracts\Config\Repository : ($key is string ? mixed : null))
      */
     function config(mixed $key = null, mixed $default = null): mixed
     {

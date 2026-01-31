@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Storage;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Database\Model\Builder;
+use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Collection;
 
 class EntryModel extends Model
 {

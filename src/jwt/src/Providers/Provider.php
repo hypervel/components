@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\JWT\Providers;
 
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 
 abstract class Provider
 {

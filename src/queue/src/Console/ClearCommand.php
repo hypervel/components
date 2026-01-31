@@ -6,10 +6,10 @@ namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
 use Hypervel\Console\ConfirmableTrait;
-use Hypervel\Queue\Contracts\ClearableQueue;
-use Hypervel\Queue\Contracts\Factory as FactoryContract;
+use Hypervel\Contracts\Queue\ClearableQueue;
+use Hypervel\Contracts\Queue\Factory as FactoryContract;
+use Hypervel\Support\Str;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
 use ReflectionClass;
 use Symfony\Component\Console\Input\InputArgument;

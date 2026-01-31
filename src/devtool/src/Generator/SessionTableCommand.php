@@ -7,7 +7,6 @@ namespace Hypervel\Devtool\Generator;
 use Carbon\Carbon;
 use Hyperf\Devtool\Generator\GeneratorCommand;
 use Symfony\Component\Console\Input\InputInterface;
-use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class SessionTableCommand extends GeneratorCommand
@@ -72,9 +71,7 @@ class SessionTableCommand extends GeneratorCommand
 
     protected function getOptions(): array
     {
-        return array_merge(parent::getOptions(), [
-            ['path', 'p', InputOption::VALUE_OPTIONAL, 'The path of the sessions table migration.'],
-        ]);
+        return parent::getOptions();
     }
 
     protected function getDefaultNamespace(): string

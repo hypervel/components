@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail;
 
-use Hypervel\Mail\Contracts\Factory;
-use Hypervel\Mail\Contracts\Mailer as MailerContract;
+use Hypervel\Contracts\Mail\Factory;
+use Hypervel\Contracts\Mail\Mailer as MailerContract;
 
 class MailerFactory
 {

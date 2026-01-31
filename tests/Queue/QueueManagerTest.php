@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Hyperf\Config\Config;
-use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Encryption\Contracts\Encrypter;
+use Hypervel\Container\Container;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Encryption\Encrypter;
+use Hypervel\Contracts\Queue\Queue;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\PoolManager;
 use Hypervel\Queue\Connectors\ConnectorInterface;
-use Hypervel\Queue\Contracts\Queue;
 use Hypervel\Queue\QueueManager;
 use Hypervel\Queue\QueuePoolProxy;
 use Mockery as m;
@@ -25,11 +25,6 @@ use PHPUnit\Framework\TestCase;
  */
 class QueueManagerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testDefaultConnectionCanBeResolved()
     {
         $container = $this->getContainer();

@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Telescope;
 
 use BackedEnum;
-use Hyperf\Collection\Arr;
-use Hyperf\Database\Model\Model;
-use Hyperf\Database\Model\Relations\Pivot;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Support\Arr;
 
 class FormatModel
 {

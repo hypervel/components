@@ -8,7 +8,7 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Framework\Event\BeforeWorkerStart;
 use Hyperf\Support\DotenvManager;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 
 class ReloadDotenvAndConfig implements ListenerInterface
 {
@@ -65,7 +65,7 @@ class ReloadDotenvAndConfig implements ListenerInterface
     {
         $this->container->get(ConfigInterface::class)
             ->afterSettingCallback(function (array $values) {
-                static::$modifiedItems = array_merge(
+                static::$modifiedItems = array_replace(
                     static::$modifiedItems,
                     $values
                 );

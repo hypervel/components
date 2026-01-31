@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Traits;
 
-use Hyperf\Context\ApplicationContext;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Psr\Container\ContainerInterface;
 
 trait HasLaravelStyleCommand

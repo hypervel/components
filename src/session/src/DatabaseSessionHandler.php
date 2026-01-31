@@ -5,20 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Session;
 
 use Carbon\Carbon;
-use Hyperf\Collection\Arr;
-use Hyperf\Context\Context;
-use Hyperf\Context\RequestContext;
-use Hyperf\Database\ConnectionInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Exception\QueryException;
-use Hyperf\Database\Query\Builder;
 use Hyperf\HttpServer\Request;
-use Hypervel\Auth\Contracts\Guard;
-use Hypervel\Support\Traits\InteractsWithTime;
+use Hypervel\Context\Context;
+use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Database\ConnectionInterface;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Database\QueryException;
+use Hypervel\Support\Arr;
+use Hypervel\Support\InteractsWithTime;
 use Psr\Container\ContainerInterface;
 use SessionHandlerInterface;
-
-use function Hyperf\Tappable\tap;
 
 class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerInterface
 {

@@ -6,14 +6,15 @@ namespace Hypervel\Tests\Filesystem;
 
 use Carbon\Carbon;
 use GuzzleHttp\Psr7\Stream;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Context\Context;
 use Hyperf\Coroutine\Coroutine;
 use Hyperf\HttpMessage\Upload\UploadedFile;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
 use Hypervel\Filesystem\FilesystemAdapter;
 use Hypervel\Filesystem\FilesystemManager;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
 use Hypervel\Http\Response;
 use InvalidArgumentException;
 use League\Flysystem\Filesystem;
@@ -59,7 +60,6 @@ class FilesystemAdapterTest extends TestCase
             $this->adapter = new LocalFilesystemAdapter(dirname($this->tempDir))
         );
         $filesystem->deleteDirectory(basename($this->tempDir));
-        m::close();
 
         unset($this->tempDir, $this->filesystem, $this->adapter);
     }
@@ -644,7 +644,7 @@ class FilesystemAdapterTest extends TestCase
 
     protected function mockResponse(string $content): void
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('get')
             ->with(ResponseContract::class)
             ->andReturn(new Response());

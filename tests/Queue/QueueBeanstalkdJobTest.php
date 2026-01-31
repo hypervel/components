@@ -24,11 +24,6 @@ use stdClass;
  */
 class QueueBeanstalkdJobTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testFireProperlyCallsTheJobHandler()
     {
         $job = $this->getJob();

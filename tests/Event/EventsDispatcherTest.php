@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Event;
 
 use Error;
 use Exception;
-use Hypervel\Database\TransactionManager;
-use Hypervel\Event\Contracts\ShouldDispatchAfterCommit;
+use Hypervel\Contracts\Event\ShouldDispatchAfterCommit;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
 use Hypervel\Tests\TestCase;
@@ -38,7 +38,7 @@ class EventsDispatcherTest extends TestCase
         unset($_SERVER['__event.test']);
 
         $d = $this->getEventDispatcher();
-        $d->listen('foo', function ($event, $foo) {
+        $d->listen('foo', function ($foo) {
             $_SERVER['__event.test'] = $foo;
         });
 
@@ -46,7 +46,7 @@ class EventsDispatcherTest extends TestCase
         $this->assertSame('bar', $_SERVER['__event.test']);
 
         // we can still add listeners after the event has fired
-        $d->listen('foo', function ($event, $foo) {
+        $d->listen('foo', function ($foo) {
             $_SERVER['__event.test'] .= $foo;
         });
 
@@ -58,7 +58,7 @@ class EventsDispatcherTest extends TestCase
     {
         unset($_SERVER['__event.test']);
         $d = $this->getEventDispatcher();
-        $d->listen('foo', function ($event, $foo) {
+        $d->listen('foo', function ($foo) {
             $_SERVER['__event.test'] = $foo;
         });
 
@@ -77,10 +77,10 @@ class EventsDispatcherTest extends TestCase
     {
         $_SERVER['__event.test'] = [];
         $d = $this->getEventDispatcher();
-        $d->listen('foo', function ($event, $value) {
+        $d->listen('foo', function ($value) {
             $_SERVER['__event.test'][] = $value;
         });
-        $d->listen('bar', function ($event, $value) {
+        $d->listen('bar', function ($value) {
             $_SERVER['__event.test'][] = $value;
         });
         $d->defer(function () use ($d) {
@@ -96,7 +96,7 @@ class EventsDispatcherTest extends TestCase
     {
         $_SERVER['__event.test'] = [];
         $d = $this->getEventDispatcher();
-        $d->listen('foo', function ($event, $foo) {
+        $d->listen('foo', function ($foo) {
             $_SERVER['__event.test'][] = $foo;
         });
 
@@ -120,11 +120,11 @@ class EventsDispatcherTest extends TestCase
         $_SERVER['__event.test'] = [];
         $d = $this->getEventDispatcher();
 
-        $d->listen('foo', function ($event, $foo) {
+        $d->listen('foo', function ($foo) {
             $_SERVER['__event.test'][] = $foo;
         });
 
-        $d->listen('bar', function ($event, $bar) {
+        $d->listen('bar', function ($bar) {
             $_SERVER['__event.test'][] = $bar;
         });
 
@@ -143,11 +143,11 @@ class EventsDispatcherTest extends TestCase
         $_SERVER['__event.test'] = [];
         $d = $this->getEventDispatcher();
 
-        $d->listen('foo', function ($event, $foo) {
+        $d->listen('foo', function ($foo) {
             $_SERVER['__event.test'][] = $foo;
         });
 
-        $d->listen('bar', function ($event, $bar) {
+        $d->listen('bar', function ($bar) {
             $_SERVER['__event.test'][] = $bar;
         });
 
@@ -198,16 +198,19 @@ class EventsDispatcherTest extends TestCase
         $d = $this->getEventDispatcher();
         $d->listen('foo', function () {
             $this->assertTrue(true);
+
+            return 'halted';
         });
         $d->listen('foo', function () {
             throw new Exception('should not be called');
         });
 
+        // With halt=true, returns first non-null response
         $response = $d->dispatch('foo', ['bar'], true);
-        $this->assertEquals('foo', $response);
+        $this->assertEquals('halted', $response);
 
         $response = $d->until('foo', ['bar']);
-        $this->assertEquals('foo', $response);
+        $this->assertEquals('halted', $response);
     }
 
     public function testResponseWhenNoListenersAreSet()
@@ -226,10 +229,10 @@ class EventsDispatcherTest extends TestCase
         unset($_SERVER['__event.test']);
 
         $d = $this->getEventDispatcher();
-        $d->listen('foo', function ($event, $foo) {
+        $d->listen('foo', function ($foo) {
             return $foo;
         });
-        $d->listen('foo', function ($event, $foo) {
+        $d->listen('foo', function ($foo) {
             $_SERVER['__event.test'] = $foo;
 
             return false;
@@ -306,17 +309,17 @@ class EventsDispatcherTest extends TestCase
         unset($_SERVER['__event.test']);
 
         $d = $this->getEventDispatcher();
-        $d->listen('update', function ($event, $name) {
+        $d->listen('update', function ($name) {
             $_SERVER['__event.test'] = $name;
         });
         $d->push('update', ['name' => 'taylor']);
-        $d->listen('update', function ($event, $name) {
+        $d->listen('update', function ($name) {
             $_SERVER['__event.test'] .= '_' . $name;
         });
 
         $this->assertFalse(isset($_SERVER['__event.test']));
         $d->flush('update');
-        $d->listen('update', function ($event, $name) {
+        $d->listen('update', function ($name) {
             $_SERVER['__event.test'] .= $name;
         });
         $this->assertSame('taylor_taylor', $_SERVER['__event.test']);
@@ -328,7 +331,7 @@ class EventsDispatcherTest extends TestCase
 
         $d = $this->getEventDispatcher();
         $d->push('update', ['name' => 'taylor']);
-        $d->listen('update', function ($event, $name) {
+        $d->listen('update', function ($name) {
             $_SERVER['__event.test'] = $name;
         });
 
@@ -344,7 +347,7 @@ class EventsDispatcherTest extends TestCase
         $d = $this->getEventDispatcher();
         $d->push('update', ['name' => 'taylor ']);
         $d->push('update', ['name' => 'otwell']);
-        $d->listen('update', function ($event, $name) {
+        $d->listen('update', function ($name) {
             $_SERVER['__event.test'] .= $name;
         });
 
@@ -358,7 +361,7 @@ class EventsDispatcherTest extends TestCase
 
         $d = $this->getEventDispatcher();
         $d->push(ExampleEvent::class, $e = new ExampleEvent());
-        $d->listen(ExampleEvent::class, function ($event, $payload) {
+        $d->listen(ExampleEvent::class, function ($payload) {
             $_SERVER['__event.test'] = $payload;
         });
 
@@ -806,18 +809,18 @@ class EventsDispatcherTest extends TestCase
         // Get raw listeners
         $rawListeners = $d->getRawListeners();
 
-        // Assert that the raw listeners are as expected
+        // Assert that the raw listeners are as expected (now returns raw strings, not ListenerData)
         $this->assertArrayHasKey('event1', $rawListeners);
         $this->assertArrayHasKey('event2', $rawListeners);
         $this->assertArrayHasKey('event3', $rawListeners);
-        $this->assertSame('Listener1', $rawListeners['event1'][0]->listener);
-        $this->assertSame('Listener2', $rawListeners['event2'][0]->listener);
-        $this->assertSame('Listener3', $rawListeners['event3'][0]->listener);
+        $this->assertSame('Listener1', $rawListeners['event1'][0]);
+        $this->assertSame('Listener2', $rawListeners['event2'][0]);
+        $this->assertSame('Listener3', $rawListeners['event3'][0]);
     }
 
     public function testDispatchWithAfterCommit()
     {
-        $transactionResolver = Mockery::mock(TransactionManager::class);
+        $transactionResolver = Mockery::mock(DatabaseTransactionsManager::class);
         $transactionResolver
             ->shouldReceive('addCallback')
             ->once();
@@ -826,7 +829,7 @@ class EventsDispatcherTest extends TestCase
         $d->setTransactionManagerResolver(fn () => $transactionResolver);
 
         $listenerTriggered = false;
-        $d->listen(AfterCommitEvent::class, function ($event, $foo) use (&$listenerTriggered) {
+        $d->listen(AfterCommitEvent::class, function ($foo) use (&$listenerTriggered) {
             $listenerTriggered = true;
         });
 
@@ -870,7 +873,7 @@ class TestListenerInvoke
         $_SERVER['__event.test'][] = '__construct';
     }
 
-    public function __invoke($event, $payload)
+    public function __invoke($payload)
     {
         $_SERVER['__event.test'][] = '__invoke_' . $payload;
 
@@ -896,14 +899,14 @@ class AfterCommitEvent implements ShouldDispatchAfterCommit
 
 class TestEventListener
 {
-    public function onFooEvent($event, $foo, $bar)
+    public function onFooEvent($foo, $bar)
     {
         $_SERVER['__event.test'] = $foo;
 
         return 'baz';
     }
 
-    public function handle($event, $foo, $bar)
+    public function handle($foo, $bar)
     {
         $_SERVER['__event.test'] = $bar;
 

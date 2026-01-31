@@ -5,24 +5,24 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Http;
 
 use Carbon\Carbon;
-use Hyperf\Collection\Collection;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Context\Context;
 use Hyperf\HttpMessage\Upload\UploadedFile;
 use Hyperf\HttpMessage\Uri\Uri as HyperfUri;
 use Hyperf\HttpServer\Request as HyperfRequest;
 use Hyperf\HttpServer\Router\Dispatched;
-use Hyperf\Stringable\Stringable;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Contracts\Session\Session as SessionContract;
+use Hypervel\Contracts\Validation\Factory as ValidatorFactoryContract;
 use Hypervel\Http\DispatchedRoute;
 use Hypervel\Http\Request;
-use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Router\RouteHandler;
-use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Stringable;
 use Hypervel\Support\Uri;
-use Hypervel\Validation\Contracts\Factory as ValidatorFactoryContract;
 use Mockery;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
 use Swow\Psr7\Message\ServerRequestPlusInterface;
@@ -35,7 +35,6 @@ class RequestTest extends TestCase
 {
     protected function tearDown(): void
     {
-        Mockery::close();
         Context::destroy(ServerRequestInterface::class);
         Context::destroy('http.request.parsedData');
         Context::destroy(HyperfRequest::class . '.properties.requestUri');
@@ -749,7 +748,7 @@ class RequestTest extends TestCase
 
     public function testHasSession()
     {
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         $container->shouldReceive('has')
             ->with(SessionContract::class)
             ->andReturn(true);
@@ -764,7 +763,7 @@ class RequestTest extends TestCase
 
     public function testSession()
     {
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         $container->shouldReceive('get')
             ->with(SessionContract::class)
             ->andReturn($session = Mockery::mock(SessionContract::class));
@@ -806,7 +805,7 @@ class RequestTest extends TestCase
             )
             ->andReturn(['name' => 'John Doe']);
 
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         $container->shouldReceive('get')
             ->with(ValidatorFactoryContract::class)
             ->andReturn($validatorFactory);
@@ -839,7 +838,7 @@ class RequestTest extends TestCase
             ->with($request, true)
             ->andReturn(true);
 
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         $container->shouldReceive('get')
             ->with(UrlGeneratorContract::class)
             ->once()
@@ -859,7 +858,7 @@ class RequestTest extends TestCase
             ->with($request, false)
             ->andReturn(true);
 
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         $container->shouldReceive('get')
             ->with(UrlGeneratorContract::class)
             ->once()
@@ -879,7 +878,7 @@ class RequestTest extends TestCase
             ->with($request, true, [])
             ->andReturn(true);
 
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         $container->shouldReceive('get')
             ->with(UrlGeneratorContract::class)
             ->once()
@@ -899,7 +898,7 @@ class RequestTest extends TestCase
             ->with($request, false, [])
             ->andReturn(true);
 
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         $container->shouldReceive('get')
             ->with(UrlGeneratorContract::class)
             ->once()

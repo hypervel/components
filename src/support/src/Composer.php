@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Composer\Autoload\ClassLoader;
-use Hyperf\Collection\Collection;
 use Hypervel\Filesystem\Filesystem;
 use RuntimeException;
 use Symfony\Component\Process\Process;

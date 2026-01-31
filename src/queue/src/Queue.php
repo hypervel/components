@@ -7,21 +7,18 @@ namespace Hypervel\Queue;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
-use Hyperf\Stringable\Str;
 use Hyperf\Support\Traits\InteractsWithTime;
-use Hypervel\Database\TransactionManager;
-use Hypervel\Encryption\Contracts\Encrypter;
-use Hypervel\Queue\Contracts\ShouldBeEncrypted;
-use Hypervel\Queue\Contracts\ShouldQueueAfterCommit;
+use Hypervel\Contracts\Encryption\Encrypter;
+use Hypervel\Contracts\Queue\ShouldBeEncrypted;
+use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Queue\Events\JobQueued;
 use Hypervel\Queue\Events\JobQueueing;
 use Hypervel\Queue\Exceptions\InvalidPayloadException;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
-
-use function Hyperf\Tappable\tap;
 
 use const JSON_UNESCAPED_UNICODE;
 
@@ -279,9 +276,9 @@ abstract class Queue
     protected function enqueueUsing(object|string $job, ?string $payload, ?string $queue, DateInterval|DateTimeInterface|int|null $delay, callable $callback): mixed
     {
         if ($this->shouldDispatchAfterCommit($job)
-            && $this->container->has(TransactionManager::class)
+            && $this->container->has('db.transactions')
         ) {
-            return $this->container->get(TransactionManager::class)
+            return $this->container->get('db.transactions')
                 ->addCallback(
                     function () use ($queue, $job, $payload, $delay, $callback) {
                         $this->raiseJobQueueingEvent($queue, $job, $payload, $delay);

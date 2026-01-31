@@ -13,20 +13,20 @@ use GuzzleHttp\Client as HttpClient;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\ClientInterface as HttpClientInterface;
 use GuzzleHttp\Exception\TransferException;
-use Hyperf\Collection\Arr;
-use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Stringable;
 use Hyperf\Support\Filesystem\Filesystem;
-use Hyperf\Tappable\Tappable;
 use Hypervel\Console\Contracts\EventMutex;
-use Hypervel\Container\Contracts\Container;
 use Hypervel\Context\Context;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
-use Hypervel\Mail\Contracts\Mailer;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Contracts\Mail\Mailer;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Stringable;
+use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\ReflectsClosures;
+use Hypervel\Support\Traits\Tappable;
 use LogicException;
 use Psr\Http\Client\ClientExceptionInterface;
 use Symfony\Component\Process\Process;
@@ -184,7 +184,7 @@ class Event
      */
     protected function runProcess(Container $container): int
     {
-        /** @var \Hypervel\Foundation\Contracts\Application $container */
+        /** @var \Hypervel\Contracts\Foundation\Application $container */
         $process = Process::fromShellCommandline(
             $this->command,
             $container->basePath()

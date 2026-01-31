@@ -6,10 +6,10 @@ namespace Hypervel\Container;
 
 use ArrayAccess;
 use Closure;
-use Hyperf\Context\ApplicationContext;
 use Hyperf\Di\Container as HyperfContainer;
 use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Container\Contracts\Container as ContainerContract;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use InvalidArgumentException;
 use LogicException;
 use TypeError;
@@ -259,6 +259,17 @@ class Container extends HyperfContainer implements ContainerContract, ArrayAcces
     }
 
     /**
+     * Register a shared binding in the container.
+     *
+     * @temporary This is an alias for bind() until Laravel's container is ported.
+     *            In Hyperf/Swoole, all bindings are singletons by default.
+     */
+    public function singleton(string $abstract, mixed $concrete = null): void
+    {
+        $this->bind($abstract, $concrete);
+    }
+
+    /**
      * Determine if the container has a method binding.
      */
     public function hasMethodBinding(string $method): bool
@@ -330,7 +341,9 @@ class Container extends HyperfContainer implements ContainerContract, ArrayAcces
     {
         $this->removeAbstractAlias($abstract);
 
-        unset($this->aliases[$abstract]);
+        unset($this->aliases[$abstract], $this->resolvedEntries[$abstract]);
+
+        // Clear any cached resolved entry so the new instance is used
 
         // We'll check to determine if this type has been bound before, and if it has
         // we will fire the rebound callbacks registered with the container and it

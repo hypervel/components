@@ -28,6 +28,7 @@
     "require": {
         "php": "^8.2",
         "hyperf/redis": "~3.1.0",
+        "hypervel/pool": "~0.3",        
         "hypervel/support": "^0.3"
     },
     "config": {

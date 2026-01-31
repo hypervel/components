@@ -8,26 +8,26 @@ use BadMethodCallException;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Collection\Collection;
 use Hyperf\Conditionable\Conditionable;
-use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Str;
 use Hyperf\Support\Traits\ForwardsCalls;
-use Hypervel\Filesystem\Contracts\Factory as FilesystemFactory;
-use Hypervel\Foundation\Testing\Constraints\SeeInOrder;
-use Hypervel\Mail\Contracts\Attachable;
-use Hypervel\Mail\Contracts\Factory;
-use Hypervel\Mail\Contracts\Factory as MailFactory;
-use Hypervel\Mail\Contracts\Mailable as MailableContract;
-use Hypervel\Mail\Contracts\Mailer;
-use Hypervel\Queue\Contracts\Factory as QueueFactory;
-use Hypervel\Support\Contracts\Htmlable;
-use Hypervel\Support\Contracts\Renderable;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
+use Hypervel\Contracts\Mail\Attachable;
+use Hypervel\Contracts\Mail\Factory;
+use Hypervel\Contracts\Mail\Factory as MailFactory;
+use Hypervel\Contracts\Mail\Mailable as MailableContract;
+use Hypervel\Contracts\Mail\Mailer;
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
+use Hypervel\Contracts\Support\Htmlable;
+use Hypervel\Contracts\Support\Renderable;
+use Hypervel\Contracts\Translation\HasLocalePreference;
+use Hypervel\Support\Collection;
 use Hypervel\Support\HtmlString;
+use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Localizable;
-use Hypervel\Translation\Contracts\HasLocalePreference;
+use Hypervel\Support\Traits\Macroable;
+use Hypervel\Testing\Constraints\SeeInOrder;
 use PHPUnit\Framework\Assert as PHPUnit;
 use ReflectionClass;
 use ReflectionException;
@@ -36,7 +36,6 @@ use Symfony\Component\Mailer\Header\MetadataHeader;
 use Symfony\Component\Mailer\Header\TagHeader;
 use Symfony\Component\Mime\Address;
 
-use function Hyperf\Support\call;
 use function Hyperf\Support\make;
 
 class Mailable implements MailableContract, Renderable
@@ -1341,10 +1340,7 @@ class Mailable implements MailableContract, Renderable
     protected function prepareMailableForDelivery(): void
     {
         if (method_exists($this, 'build')) {
-            $container = ApplicationContext::getContainer();
-            method_exists($container, 'call')
-                ? $container->call([$this, 'build']) // @phpstan-ignore-line
-                : call([$this, 'build']);
+            ApplicationContext::getContainer()->call([$this, 'build']);
         }
 
         $this->ensureHeadersAreHydrated();

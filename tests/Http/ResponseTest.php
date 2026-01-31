@@ -4,24 +4,23 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Http;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Context\Context;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\Jsonable;
 use Hyperf\HttpMessage\Stream\SwooleStream;
 use Hyperf\HttpServer\Response as HyperfResponse;
 use Hyperf\Support\Filesystem\Filesystem;
 use Hyperf\View\RenderInterface;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Http\Exceptions\FileNotFoundException;
 use Hypervel\Http\Response;
 use Hypervel\HttpMessage\Exceptions\RangeNotSatisfiableHttpException;
 use Mockery;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
-use Stringable;
 use Swow\Psr7\Message\ResponsePlusInterface;
 use Swow\Psr7\Message\ServerRequestPlusInterface;
 
@@ -33,7 +32,6 @@ class ResponseTest extends TestCase
 {
     protected function tearDown(): void
     {
-        Mockery::close();
         Context::destroy(ResponseInterface::class);
         Context::destroy(Response::RANGE_HEADERS_CONTEXT);
         Context::destroy(ServerRequestInterface::class);
@@ -41,7 +39,7 @@ class ResponseTest extends TestCase
 
     public function testMake()
     {
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         ApplicationContext::setContainer($container);
 
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();
@@ -75,8 +73,8 @@ class ResponseTest extends TestCase
         $this->assertEquals('application/json', $result->getHeaderLine('content-type'));
 
         // Test with Jsonable content
-        $jsonable = new class implements Stringable, Jsonable {
-            public function __toString(): string
+        $jsonable = new class implements Jsonable {
+            public function toJson(int $options = 0): string
             {
                 return '{"baz":"qux"}';
             }
@@ -88,7 +86,7 @@ class ResponseTest extends TestCase
 
     public function testNoContent()
     {
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         ApplicationContext::setContainer($container);
 
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();
@@ -108,7 +106,7 @@ class ResponseTest extends TestCase
         $psrResponse = new \Hyperf\HttpMessage\Base\Response();
         Context::set(ResponseInterface::class, $psrResponse);
 
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         ApplicationContext::setContainer($container);
 
         $renderer = Mockery::mock(RenderInterface::class);
@@ -144,7 +142,7 @@ class ResponseTest extends TestCase
             ->once()
             ->andReturn(false);
 
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         $container->shouldReceive('get')
             ->with(Filesystem::class)
             ->once()
@@ -171,7 +169,7 @@ class ResponseTest extends TestCase
             ->once()
             ->andReturn($fileContent = 'file_content');
 
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = Mockery::mock(Container::class);
         $container->shouldReceive('get')
             ->with(Filesystem::class)
             ->once()

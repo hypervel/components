@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Failed;
 
 use DateTimeInterface;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Query\Builder;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Query\Builder;
 use Hypervel\Support\Carbon;
 use Throwable;
 
@@ -119,8 +119,8 @@ class DatabaseUuidFailedJobProvider implements CountableFailedJobProvider, Faile
     public function count(?string $connection = null, ?string $queue = null): int
     {
         return $this->getTable()
-            ->when($connection, fn ($builder) => $builder->whereConnection($connection))
-            ->when($queue, fn ($builder) => $builder->whereQueue($queue))
+            ->when($connection, fn ($builder) => $builder->where('connection', $connection))
+            ->when($queue, fn ($builder) => $builder->where('queue', $queue))
             ->count();
     }
 

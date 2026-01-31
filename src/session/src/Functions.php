@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Session;
 
-use Hypervel\Session\Contracts\Session as SessionContract;
+use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Support\HtmlString;
 use RuntimeException;
 

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hypervel\Auth\Contracts\Factory as AuthFactory;
-use Hypervel\Auth\Contracts\Guard;
+use Hypervel\Contracts\Auth\Factory as AuthFactory;
+use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Sanctum\Http\Middleware\CheckForAnyAbility;
 use Mockery;
 use PHPUnit\Framework\TestCase;
@@ -18,20 +18,13 @@ use Psr\Http\Message\ServerRequestInterface;
  */
 class CheckForAnyAbilityTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        Mockery::close();
-    }
-
     /**
      * Test request is passed along if any abilities are present on token.
      */
     public function testRequestIsPassedAlongIfAbilitiesArePresentOnToken(): void
     {
         // Create a user object with the required methods
-        $user = new class implements \Hypervel\Auth\Contracts\Authenticatable {
+        $user = new class implements \Hypervel\Contracts\Auth\Authenticatable {
             private $token;
 
             public function __construct()
@@ -88,7 +81,7 @@ class CheckForAnyAbilityTest extends TestCase
     {
         $this->expectException(\Hypervel\Sanctum\Exceptions\MissingAbilityException::class);
 
-        $user = new class implements \Hypervel\Auth\Contracts\Authenticatable {
+        $user = new class implements \Hypervel\Contracts\Auth\Authenticatable {
             private $token;
 
             public function __construct()
@@ -160,7 +153,7 @@ class CheckForAnyAbilityTest extends TestCase
     {
         $this->expectException(\Hypervel\Auth\AuthenticationException::class);
 
-        $user = new class implements \Hypervel\Auth\Contracts\Authenticatable {
+        $user = new class implements \Hypervel\Contracts\Auth\Authenticatable {
             public function currentAccessToken()
             {
                 return null;

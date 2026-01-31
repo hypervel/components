@@ -4,13 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Middleware;
 
-use Hyperf\Context\ApplicationContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Redis\RedisFactory;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Redis\Limiters\DurationLimiter;
-use Hypervel\Support\Traits\InteractsWithTime;
-
-use function Hyperf\Tappable\tap;
+use Hypervel\Support\InteractsWithTime;
 
 class RateLimitedWithRedis extends RateLimited
 {

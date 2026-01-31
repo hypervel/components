@@ -6,14 +6,14 @@ namespace Hypervel\Auth\Access;
 
 use Closure;
 use Exception;
-use Hyperf\Collection\Arr;
 use Hyperf\Contract\ContainerInterface;
 use Hyperf\Di\Exception\NotFoundException;
-use Hyperf\Stringable\Str;
 use Hypervel\Auth\Access\Events\GateEvaluated;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\Gate as GateContract;
+use Hypervel\Contracts\Auth\Access\Gate as GateContract;
+use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Database\Eloquent\Attributes\UsePolicy;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
 use InvalidArgumentException;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use ReflectionClass;

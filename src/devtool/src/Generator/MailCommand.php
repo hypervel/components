@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Devtool\Generator;
 
-use Hyperf\Collection\Collection;
 use Hyperf\Devtool\Generator\GeneratorCommand;
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use Symfony\Component\Console\Input\InputOption;
 
 class MailCommand extends GeneratorCommand

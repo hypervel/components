@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactoryContract;
+use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactoryContract;
 
 /**
  * @method static void routes(array $attributes = [])
@@ -16,8 +16,8 @@ use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactoryContract;
  * @method static \Hypervel\Broadcasting\AnonymousEvent presence(string $channel)
  * @method static \Hypervel\Broadcasting\PendingBroadcast event(mixed $event = null)
  * @method static void queue(mixed $event)
- * @method static \Hypervel\Broadcasting\Contracts\Broadcaster connection(string|null $driver = null)
- * @method static \Hypervel\Broadcasting\Contracts\Broadcaster driver(string|null $name = null)
+ * @method static \Hypervel\Contracts\Broadcasting\Broadcaster connection(string|null $driver = null)
+ * @method static \Hypervel\Contracts\Broadcasting\Broadcaster driver(string|null $name = null)
  * @method static \Pusher\Pusher pusher(array $config)
  * @method static \Ably\AblyRest ably(array $config)
  * @method static string getDefaultDriver()
@@ -35,7 +35,7 @@ use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactoryContract;
  * @method static \Hypervel\Broadcasting\BroadcastManager setPoolables(array $poolables)
  * @method static array|null resolveAuthenticatedUser(\Hyperf\HttpServer\Contract\RequestInterface $request)
  * @method static void resolveAuthenticatedUserUsing(\Closure $callback)
- * @method static \Hypervel\Broadcasting\Broadcasters\Broadcaster channel(\Hypervel\Broadcasting\Contracts\HasBroadcastChannel|string $channel, callable|string $callback, array $options = [])
+ * @method static \Hypervel\Broadcasting\Broadcasters\Broadcaster channel(\Hypervel\Contracts\Broadcasting\HasBroadcastChannel|string $channel, callable|string $callback, array $options = [])
  * @method static \Hypervel\Support\Collection getChannels()
  * @method static void flushChannels()
  * @method static mixed auth(\Hyperf\HttpServer\Contract\RequestInterface $request)

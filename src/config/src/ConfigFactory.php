@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Config;
 
-use Hyperf\Collection\Arr;
+use Hypervel\Support\Arr;
 use Psr\Container\ContainerInterface;
 use Symfony\Component\Finder\Finder;
 

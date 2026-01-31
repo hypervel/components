@@ -1,0 +1,81 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentModelImmutableDateCastingTest;
+
+use Carbon\CarbonImmutable;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+
+/**
+ * @internal
+ * @coversNothing
+ */
+class EloquentModelImmutableDateCastingTest extends DatabaseTestCase
+{
+    protected function afterRefreshingDatabase(): void
+    {
+        Schema::create('test_model_immutable', function (Blueprint $table) {
+            $table->increments('id');
+            $table->date('date_field')->nullable();
+            $table->datetime('datetime_field')->nullable();
+        });
+    }
+
+    public function testDatesAreImmutableCastable()
+    {
+        $model = TestModelImmutable::create([
+            'date_field' => '2019-10-01',
+            'datetime_field' => '2019-10-01 10:15:20',
+        ]);
+
+        $this->assertSame('2019-10-01T00:00:00.000000Z', $model->toArray()['date_field']);
+        $this->assertSame('2019-10-01T10:15:20.000000Z', $model->toArray()['datetime_field']);
+        $this->assertInstanceOf(CarbonImmutable::class, $model->date_field);
+        $this->assertInstanceOf(CarbonImmutable::class, $model->datetime_field);
+    }
+
+    public function testDatesAreImmutableAndCustomCastable()
+    {
+        $model = TestModelCustomImmutable::create([
+            'date_field' => '2019-10-01',
+            'datetime_field' => '2019-10-01 10:15:20',
+        ]);
+
+        $this->assertSame('2019-10', $model->toArray()['date_field']);
+        $this->assertSame('2019-10 10:15', $model->toArray()['datetime_field']);
+        $this->assertInstanceOf(CarbonImmutable::class, $model->date_field);
+        $this->assertInstanceOf(CarbonImmutable::class, $model->datetime_field);
+    }
+}
+
+class TestModelImmutable extends Model
+{
+    public ?string $table = 'test_model_immutable';
+
+    public bool $timestamps = false;
+
+    protected array $guarded = [];
+
+    public array $casts = [
+        'date_field' => 'immutable_date',
+        'datetime_field' => 'immutable_datetime',
+    ];
+}
+
+class TestModelCustomImmutable extends Model
+{
+    public ?string $table = 'test_model_immutable';
+
+    public bool $timestamps = false;
+
+    protected array $guarded = [];
+
+    public array $casts = [
+        'date_field' => 'immutable_date:Y-m',
+        'datetime_field' => 'immutable_datetime:Y-m H:i',
+    ];
+}

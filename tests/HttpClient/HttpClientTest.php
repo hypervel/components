@@ -12,12 +12,10 @@ use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\Psr7\Utils;
 use GuzzleHttp\TransferStats;
 use Hyperf\Config\Config;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Contract\Arrayable;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\ContainerInterface;
-use Hyperf\Stringable\Str;
-use Hyperf\Stringable\Stringable;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Http\Response as HttpResponse;
 use Hypervel\HttpClient\ConnectionException;
 use Hypervel\HttpClient\Events\RequestSending;
@@ -35,6 +33,8 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\Sleep;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
 use Hypervel\Tests\TestCase;
 use JsonSerializable;
 use Mockery as m;
@@ -69,7 +69,6 @@ class HttpClientTest extends TestCase
 
     protected function tearDown(): void
     {
-        m::close();
         parent::tearDown();
     }
 
@@ -3239,7 +3238,7 @@ class HttpClientTest extends TestCase
     {
         $config = new Config(['http_client' => $config]);
 
-        return new \Hyperf\Di\Container(
+        return new \Hypervel\Container\Container(
             new \Hyperf\Di\Definition\DefinitionSource([
                 ConfigInterface::class => fn () => $config,
                 PoolFactory::class => PoolManager::class,

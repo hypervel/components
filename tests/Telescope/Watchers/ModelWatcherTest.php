@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Stringable\Str;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\ModelWatcher;
@@ -26,10 +26,10 @@ class ModelWatcherTest extends FeatureTestCase
             ->set('telescope.watchers', [
                 ModelWatcher::class => [
                     'enabled' => true,
-                    'events' => [
-                        \Hyperf\Database\Model\Events\Created::class,
-                        \Hyperf\Database\Model\Events\Updated::class,
-                        \Hyperf\Database\Model\Events\Retrieved::class,
+                    'actions' => [
+                        'created',
+                        'updated',
+                        'retrieved',
                     ],
                     'hydrations' => true,
                 ],

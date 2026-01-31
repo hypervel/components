@@ -1,0 +1,263 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Tests\TestCase;
+
+/**
+ * @internal
+ * @coversNothing
+ */
+class DatabaseEloquentMorphOneOfManyTest extends TestCase
+{
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $db = new DB();
+
+        $db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ]);
+
+        $db->bootEloquent();
+        $db->setAsGlobal();
+
+        $this->createSchema();
+    }
+
+    /**
+     * Setup the database schema.
+     */
+    public function createSchema(): void
+    {
+        $this->schema()->create('products', function ($table) {
+            $table->increments('id');
+        });
+
+        $this->schema()->create('states', function ($table) {
+            $table->increments('id');
+            $table->morphs('stateful');
+            $table->string('state');
+            $table->string('type')->nullable();
+        });
+    }
+
+    /**
+     * Tear down the database schema.
+     */
+    protected function tearDown(): void
+    {
+        $this->schema()->drop('products');
+        $this->schema()->drop('states');
+
+        parent::tearDown();
+    }
+
+    public function testEagerLoadingAppliesConstraintsToInnerJoinSubQuery()
+    {
+        $product = MorphOneOfManyTestProduct::create();
+        $relation = $product->current_state();
+        $relation->addEagerConstraints([$product]);
+        $this->assertSame('select MAX("states"."id") as "id_aggregate", "states"."stateful_id", "states"."stateful_type" from "states" where "states"."stateful_type" = ? and "states"."stateful_id" = ? and "states"."stateful_id" is not null and "states"."stateful_id" in (1) and "states"."stateful_type" = ? group by "states"."stateful_id", "states"."stateful_type"', $relation->getOneOfManySubQuery()->toSql());
+    }
+
+    public function testReceivingModel()
+    {
+        $product = MorphOneOfManyTestProduct::create();
+        $product->states()->create([
+            'state' => 'draft',
+        ]);
+        $product->states()->create([
+            'state' => 'active',
+        ]);
+
+        $this->assertNotNull($product->current_state);
+        $this->assertSame('active', $product->current_state->state);
+    }
+
+    public function testMorphType()
+    {
+        $product = MorphOneOfManyTestProduct::create();
+        $product->states()->create([
+            'state' => 'draft',
+        ]);
+        $product->states()->create([
+            'state' => 'active',
+        ]);
+        $state = $product->states()->make([
+            'state' => 'foo',
+        ]);
+        $state->stateful_type = 'bar';
+        $state->save();
+
+        $this->assertNotNull($product->current_state);
+        $this->assertSame('active', $product->current_state->state);
+    }
+
+    public function testForceCreateMorphType()
+    {
+        $product = MorphOneOfManyTestProduct::create();
+        $state = $product->states()->forceCreate([
+            'state' => 'active',
+        ]);
+
+        $this->assertNotNull($state);
+        $this->assertSame(MorphOneOfManyTestProduct::class, $product->current_state->stateful_type);
+    }
+
+    public function testExists()
+    {
+        $product = MorphOneOfManyTestProduct::create();
+        $previousState = $product->states()->create([
+            'state' => 'draft',
+        ]);
+        $currentState = $product->states()->create([
+            'state' => 'active',
+        ]);
+
+        $exists = MorphOneOfManyTestProduct::whereHas('current_state', function ($q) use ($previousState) {
+            $q->whereKey($previousState->getKey());
+        })->exists();
+        $this->assertFalse($exists);
+
+        $exists = MorphOneOfManyTestProduct::whereHas('current_state', function ($q) use ($currentState) {
+            $q->whereKey($currentState->getKey());
+        })->exists();
+        $this->assertTrue($exists);
+    }
+
+    public function testWithWhereHas()
+    {
+        $product = MorphOneOfManyTestProduct::create();
+        $previousState = $product->states()->create([
+            'state' => 'draft',
+        ]);
+        $currentState = $product->states()->create([
+            'state' => 'active',
+        ]);
+
+        $exists = MorphOneOfManyTestProduct::withWhereHas('current_state', function ($q) use ($previousState) {
+            $q->whereKey($previousState->getKey());
+        })->exists();
+        $this->assertFalse($exists);
+
+        $exists = MorphOneOfManyTestProduct::withWhereHas('current_state', function ($q) use ($currentState) {
+            $q->whereKey($currentState->getKey());
+        })->get();
+
+        $this->assertCount(1, $exists);
+        $this->assertTrue($exists->first()->relationLoaded('current_state'));
+        $this->assertSame($exists->first()->current_state->state, $currentState->state);
+    }
+
+    public function testWithWhereRelation()
+    {
+        $product = MorphOneOfManyTestProduct::create();
+        $currentState = $product->states()->create([
+            'state' => 'active',
+        ]);
+
+        $exists = MorphOneOfManyTestProduct::withWhereRelation('current_state', 'state', 'active')->exists();
+        $this->assertTrue($exists);
+
+        $exists = MorphOneOfManyTestProduct::withWhereRelation('current_state', 'state', 'active')->get();
+
+        $this->assertCount(1, $exists);
+        $this->assertTrue($exists->first()->relationLoaded('current_state'));
+        $this->assertSame($exists->first()->current_state->state, $currentState->state);
+    }
+
+    public function testWithExists()
+    {
+        $product = MorphOneOfManyTestProduct::create();
+
+        $product = MorphOneOfManyTestProduct::withExists('current_state')->first();
+        $this->assertFalse($product->current_state_exists);
+
+        $product->states()->create([
+            'state' => 'draft',
+        ]);
+        $product = MorphOneOfManyTestProduct::withExists('current_state')->first();
+        $this->assertTrue($product->current_state_exists);
+    }
+
+    public function testWithExistsWithConstraintsInJoinSubSelect()
+    {
+        $product = MorphOneOfManyTestProduct::create();
+
+        $product = MorphOneOfManyTestProduct::withExists('current_foo_state')->first();
+        $this->assertFalse($product->current_foo_state_exists);
+
+        $product->states()->create([
+            'state' => 'draft',
+            'type' => 'foo',
+        ]);
+        $product = MorphOneOfManyTestProduct::withExists('current_foo_state')->first();
+        $this->assertTrue($product->current_foo_state_exists);
+    }
+
+    /**
+     * Get a database connection instance.
+     */
+    protected function connection(): \Hypervel\Database\Connection
+    {
+        return Eloquent::getConnectionResolver()->connection();
+    }
+
+    /**
+     * Get a schema builder instance.
+     */
+    protected function schema(): \Hypervel\Database\Schema\Builder
+    {
+        return $this->connection()->getSchemaBuilder();
+    }
+}
+
+/**
+ * Eloquent Models...
+ */
+class MorphOneOfManyTestProduct extends Eloquent
+{
+    protected ?string $table = 'products';
+
+    protected array $guarded = [];
+
+    public bool $timestamps = false;
+
+    public function states()
+    {
+        return $this->morphMany(MorphOneOfManyTestState::class, 'stateful');
+    }
+
+    public function current_state()
+    {
+        return $this->morphOne(MorphOneOfManyTestState::class, 'stateful')->ofMany();
+    }
+
+    public function current_foo_state()
+    {
+        return $this->morphOne(MorphOneOfManyTestState::class, 'stateful')->ofMany(
+            ['id' => 'max'],
+            function ($q) {
+                $q->where('type', 'foo');
+            }
+        );
+    }
+}
+
+class MorphOneOfManyTestState extends Eloquent
+{
+    protected ?string $table = 'states';
+
+    protected array $guarded = [];
+
+    public bool $timestamps = false;
+
+    protected array $fillable = ['state', 'type'];
+}

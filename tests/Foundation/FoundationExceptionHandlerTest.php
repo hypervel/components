@@ -5,12 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation;
 
 use Exception;
-use Hyperf\Context\Context;
-use Hyperf\Context\RequestContext;
-use Hyperf\Context\ResponseContext;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\SessionInterface;
-use Hyperf\Database\Model\ModelNotFoundException;
 use Hyperf\Di\MethodDefinitionCollector;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hyperf\HttpMessage\Exception\HttpException;
@@ -21,14 +17,18 @@ use Hyperf\ViewEngine\Contract\FactoryInterface;
 use Hyperf\ViewEngine\ViewErrorBag;
 use Hypervel\Config\Repository;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Context\Context;
+use Hypervel\Context\RequestContext;
+use Hypervel\Context\ResponseContext;
+use Hypervel\Contracts\Http\Response as ResponseContract;
+use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
+use Hypervel\Contracts\Session\Session as SessionContract;
+use Hypervel\Contracts\Support\Responsable;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Foundation\Exceptions\Handler;
-use Hypervel\Http\Contracts\ResponseContract;
 use Hypervel\Http\Request;
 use Hypervel\Http\Response;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
-use Hypervel\Router\Contracts\UrlGenerator as UrlGeneratorContract;
-use Hypervel\Session\Contracts\Session as SessionContract;
-use Hypervel\Support\Contracts\Responsable;
 use Hypervel\Support\Facades\View;
 use Hypervel\Support\MessageBag;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
@@ -91,6 +91,7 @@ class FoundationExceptionHandlerTest extends TestCase
         parent::tearDown();
 
         Context::destroy('__request.root.uri');
+        Context::destroy(ServerRequestInterface::class);
     }
 
     public function testHandlerReportsExceptionAsContext()

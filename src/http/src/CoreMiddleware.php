@@ -5,11 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use FastRoute\Dispatcher;
-use Hyperf\Codec\Json;
-use Hyperf\Context\RequestContext;
-use Hyperf\Contract\Arrayable;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Contract\Jsonable;
 use Hyperf\HttpMessage\Server\ResponsePlusProxy;
 use Hyperf\HttpMessage\Stream\SwooleStream;
 use Hyperf\HttpServer\Contract\CoreMiddlewareInterface;
@@ -19,10 +15,14 @@ use Hyperf\Server\Exception\ServerException;
 use Hyperf\View\RenderInterface;
 use Hyperf\ViewEngine\Contract\Renderable;
 use Hyperf\ViewEngine\Contract\ViewInterface;
+use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\HttpMessage\Exceptions\MethodNotAllowedHttpException;
 use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
 use Hypervel\HttpMessage\Exceptions\ServerErrorHttpException;
+use Hypervel\Support\Json;
 use Hypervel\View\Events\ViewRendered;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -73,7 +73,11 @@ class CoreMiddleware implements CoreMiddlewareInterface
             return new ResponsePlusProxy($response);
         }
 
-        if (is_array($response) || $response instanceof Arrayable) {
+        if ($response instanceof Arrayable) {
+            $response = $response->toArray();
+        }
+
+        if (is_array($response)) {
             return $this->response()
                 ->addHeader('content-type', 'application/json')
                 ->setBody(new SwooleStream(Json::encode($response)));
@@ -82,7 +86,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
         if ($response instanceof Jsonable) {
             return $this->response()
                 ->addHeader('content-type', 'application/json')
-                ->setBody(new SwooleStream((string) $response));
+                ->setBody(new SwooleStream($response->toJson()));
         }
 
         if ($this->response()->hasHeader('content-type')) {

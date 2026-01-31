@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
-use Hyperf\Database\ConnectionResolverInterface;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Testbench\TestCase;
@@ -13,6 +13,7 @@ use Hypervel\Translation\Translator;
 use Hypervel\Validation\DatabasePresenceVerifier;
 use Hypervel\Validation\Rules\Unique;
 use Hypervel\Validation\Validator;
+use UnitEnum;
 
 /**
  * @internal
@@ -254,5 +255,5 @@ class ClassWithNonEmptyConstructor
 
 class EloquentModelWithConnection extends EloquentModelStub
 {
-    protected ?string $connection = 'mysql';
+    protected UnitEnum|string|null $connection = 'mysql';
 }

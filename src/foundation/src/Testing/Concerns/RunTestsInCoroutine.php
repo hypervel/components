@@ -33,6 +33,9 @@ trait RunTestsInCoroutine
 
         /* @phpstan-ignore-next-line */
         run(function () use (&$testResult, &$exception, $arguments) {
+            // Clear stale transaction context from previous tests before copying
+            $this->clearNonCoroutineTransactionContext();
+
             if ($this->copyNonCoroutineContext) {
                 Context::copyFromNonCoroutine();
             }
@@ -44,6 +47,7 @@ trait RunTestsInCoroutine
                 $exception = $e;
             } finally {
                 $this->invokeTearDownInCoroutine();
+                $this->cleanupTestContext();
                 Timer::clearAll();
                 CoordinatorManager::until(Constants::WORKER_EXIT)->resume();
             }
@@ -78,5 +82,38 @@ trait RunTestsInCoroutine
         if (method_exists($this, 'tearDownInCoroutine')) {
             call_user_func([$this, 'tearDownInCoroutine']);
         }
+    }
+
+    /**
+     * Clear transaction context from non-coroutine storage before test starts.
+     *
+     * This prevents stale transaction data from a previous test's setUp
+     * (which uses preserveTransactionContext) from polluting this test.
+     */
+    protected function clearNonCoroutineTransactionContext(): void
+    {
+        Context::clearFromNonCoroutine([
+            '__db.transactions.committed',
+            '__db.transactions.pending',
+            '__db.transactions.current',
+        ]);
+    }
+
+    /**
+     * Clean up Context keys that cause test pollution.
+     *
+     * Only destroys specific keys known to leak between tests. Does not use
+     * Context::destroyAll() because that would destroy data needed by defer
+     * callbacks (e.g., Redis connections waiting to be released).
+     */
+    protected function cleanupTestContext(): void
+    {
+        // Transaction manager state
+        Context::destroy('__db.transactions.committed');
+        Context::destroy('__db.transactions.pending');
+        Context::destroy('__db.transactions.current');
+
+        // Model guard state
+        Context::destroy('__database.model.unguarded');
     }
 }

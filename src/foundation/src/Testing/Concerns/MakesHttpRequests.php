@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use Hypervel\Foundation\Testing\Http\TestClient;
-use Hypervel\Foundation\Testing\Http\TestResponse;
 use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
+use Hypervel\Testing\TestResponse;
 
 trait MakesHttpRequests
 {

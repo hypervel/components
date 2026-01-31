@@ -6,11 +6,12 @@ namespace Hypervel\Tests\Notifications;
 
 use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Bus\Contracts\Dispatcher as BusDispatcherContract;
 use Hypervel\Bus\Queueable;
+use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Notifications\ChannelManager;
 use Hypervel\Notifications\Channels\MailChannel;
 use Hypervel\Notifications\Events\NotificationSending;
@@ -21,7 +22,6 @@ use Hypervel\Notifications\NotificationPoolProxy;
 use Hypervel\Notifications\SendQueuedNotifications;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\PoolManager;
-use Hypervel\Queue\Contracts\ShouldQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -32,11 +32,6 @@ use Psr\EventDispatcher\EventDispatcherInterface;
  */
 class NotificationChannelManagerTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testGetDefaultChannel()
     {
         $container = $this->getContainer();

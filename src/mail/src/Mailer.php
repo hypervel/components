@@ -7,19 +7,19 @@ namespace Hypervel\Mail;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Macroable\Macroable;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
-use Hypervel\Mail\Contracts\Mailable;
-use Hypervel\Mail\Contracts\Mailable as MailableContract;
-use Hypervel\Mail\Contracts\Mailer as MailerContract;
-use Hypervel\Mail\Contracts\MailQueue as MailQueueContract;
+use Hypervel\Contracts\Mail\Mailable;
+use Hypervel\Contracts\Mail\Mailable as MailableContract;
+use Hypervel\Contracts\Mail\Mailer as MailerContract;
+use Hypervel\Contracts\Mail\MailQueue as MailQueueContract;
+use Hypervel\Contracts\Queue\Factory as QueueFactory;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Support\Htmlable;
 use Hypervel\Mail\Events\MessageSending;
 use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Mail\Mailables\Address;
-use Hypervel\Queue\Contracts\Factory as QueueFactory;
-use Hypervel\Queue\Contracts\ShouldQueue;
-use Hypervel\Support\Contracts\Htmlable;
 use Hypervel\Support\HtmlString;
+use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Mailer\Envelope;
@@ -28,7 +28,6 @@ use Symfony\Component\Mailer\Transport\TransportInterface;
 use Symfony\Component\Mime\Email;
 
 use function Hyperf\Support\value;
-use function Hyperf\Tappable\tap;
 
 class Mailer implements MailerContract, MailQueueContract
 {

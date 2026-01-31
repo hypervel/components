@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http;
 
-use Hyperf\Context\RequestContext;
 use Hyperf\Coordinator\Constants;
 use Hyperf\Coordinator\CoordinatorManager;
 use Hyperf\HttpMessage\Server\Request;
@@ -15,7 +14,8 @@ use Hyperf\HttpServer\Event\RequestReceived;
 use Hyperf\HttpServer\Event\RequestTerminated;
 use Hyperf\HttpServer\Server as HyperfServer;
 use Hyperf\Support\SafeCaller;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Foundation\Exceptions\Handler as ExceptionHandler;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Foundation\Http\Traits\HasMiddleware;
@@ -154,7 +154,7 @@ class Kernel extends HyperfServer implements MiddlewareContract
         ));
     }
 
-    protected function getResponseForException(Throwable $throwable): Response
+    protected function getResponseForException(Throwable $throwable): ResponseInterface
     {
         return $this->container->get(SafeCaller::class)->call(function () use ($throwable) {
             return $this->exceptionHandlerDispatcher->dispatch($throwable, $this->exceptionHandlers);
