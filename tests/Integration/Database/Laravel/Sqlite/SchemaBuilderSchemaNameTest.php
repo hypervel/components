@@ -2,15 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\Sqlite;
+namespace Hypervel\Tests\Integration\Database\Laravel\Sqlite;
 
-use Orchestra\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Tests\Integration\Database\Laravel\SchemaBuilderSchemaNameTest as BaseSchemaBuilderSchemaNameTest;
 
 /**
  * @internal
  * @coversNothing
  */
 #[RequiresDatabase('sqlite')]
-class SchemaBuilderSchemaNameTest extends \Illuminate\Tests\Integration\Database\SchemaBuilderSchemaNameTest
+class SchemaBuilderSchemaNameTest extends BaseSchemaBuilderSchemaNameTest
 {
 }
