@@ -285,4 +285,6 @@ jobs:
         env:
           DB_CONNECTION: sqlite
           DB_DATABASE: /tmp/testing.sqlite
-        run: vendor/bin/phpunit tests/Integration/Database
+        run: |
+          touch /tmp/testing.sqlite
+          vendor/bin/phpunit tests/Integration/Database
