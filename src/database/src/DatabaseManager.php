@@ -247,6 +247,9 @@ class DatabaseManager implements ConnectionResolverInterface
         $contextKey = $this->getConnectionContextKey($name);
         Context::destroy($contextKey);
 
+        // Clear cached connection for SimpleConnectionResolver (non-pooled mode)
+        unset($this->connections[$name]);
+
         // Flush the pool to honor config changes
         if ($this->app->has(PoolFactory::class)) {
             $this->app->get(PoolFactory::class)->flushPool($name);
