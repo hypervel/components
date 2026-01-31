@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Testing\Features;
+namespace Hypervel\Testbench\Features;
 
 use Closure;
 use Hypervel\Support\Collection;

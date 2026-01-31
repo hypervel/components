@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Attribute;
-use Hypervel\Foundation\Testing\AttributeParser;
 use Hypervel\Testbench\Attributes\Define;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Attributes\WithConfig;
-use Hypervel\Foundation\Testing\Concerns\HandlesAttributes;
-use Hypervel\Foundation\Testing\Concerns\InteractsWithTestCase;
+use Hypervel\Testbench\Concerns\HandlesAttributes;
+use Hypervel\Testbench\Concerns\InteractsWithTestCase;
+use Hypervel\Testbench\PHPUnit\AttributeParser;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
 

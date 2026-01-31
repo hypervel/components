@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Testing\Concerns;
+namespace Hypervel\Testbench\Concerns;
 
 use Attribute;
 use Closure;
-use Hypervel\Foundation\Testing\AttributeParser;
+use Hypervel\Testbench\PHPUnit\AttributeParser;
 use Hypervel\Testbench\Contracts\Attributes\Actionable;
 use Hypervel\Testbench\Contracts\Attributes\AfterAll;
 use Hypervel\Testbench\Contracts\Attributes\AfterEach;

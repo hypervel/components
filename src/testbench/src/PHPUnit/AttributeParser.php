@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Testing;
+namespace Hypervel\Testbench\PHPUnit;
 
 use Hypervel\Testbench\Contracts\Attributes\Resolvable;
 use Hypervel\Testbench\Contracts\Attributes\TestingFeature;

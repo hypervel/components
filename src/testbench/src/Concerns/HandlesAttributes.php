@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Testing\Concerns;
+namespace Hypervel\Testbench\Concerns;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Testbench\Contracts\Attributes\Actionable;
 use Hypervel\Testbench\Contracts\Attributes\Invokable;
-use Hypervel\Foundation\Testing\Features\FeaturesCollection;
+use Hypervel\Testbench\Features\FeaturesCollection;
 use Hypervel\Support\Collection;
 
 /**

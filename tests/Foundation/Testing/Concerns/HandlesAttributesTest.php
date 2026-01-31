@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Hypervel\Testbench\Attributes\DefineEnvironment;
 use Hypervel\Testbench\Attributes\WithConfig;
-use Hypervel\Foundation\Testing\Features\FeaturesCollection;
+use Hypervel\Testbench\Features\FeaturesCollection;
 use Hypervel\Testbench\TestCase;
 
 /**
