@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\Postgres;
+namespace Hypervel\Tests\Integration\Database\Laravel\Postgres;
 
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;

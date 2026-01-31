@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\Postgres;
+namespace Hypervel\Tests\Integration\Database\Laravel\Postgres;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
 
 /**
  * @internal
@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Schema;
  */
 class DatabaseEloquentPostgresIntegrationTest extends PostgresTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         if (! Schema::hasTable('database_eloquent_postgres_integration_users')) {
             Schema::create('database_eloquent_postgres_integration_users', function (Blueprint $table) {
@@ -27,7 +27,7 @@ class DatabaseEloquentPostgresIntegrationTest extends PostgresTestCase
         }
     }
 
-    protected function destroyDatabaseMigrations()
+    protected function destroyDatabaseMigrations(): void
     {
         Schema::drop('database_eloquent_postgres_integration_users');
     }
@@ -84,7 +84,7 @@ class DatabaseEloquentPostgresIntegrationTest extends PostgresTestCase
 
 class DatabaseEloquentPostgresIntegrationUser extends Model
 {
-    protected $table = 'database_eloquent_postgres_integration_users';
+    protected ?string $table = 'database_eloquent_postgres_integration_users';
 
-    protected $guarded = [];
+    protected array $guarded = [];
 }

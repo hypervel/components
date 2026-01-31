@@ -2,11 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\Postgres;
+namespace Hypervel\Tests\Integration\Database\Laravel\Postgres;
 
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
-use Orchestra\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 #[RequiresDatabase('pgsql')]
 abstract class PostgresTestCase extends DatabaseTestCase
 {

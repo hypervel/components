@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\Postgres;
+namespace Hypervel\Tests\Integration\Database\Laravel\Postgres;
 
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
@@ -19,7 +19,7 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 #[RequiresPhpExtension('pdo_pgsql')]
 class DatabasePostgresConnectionTest extends PostgresTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         if (! Schema::hasTable('json_table')) {
             Schema::create('json_table', function (Blueprint $table) {
@@ -28,7 +28,7 @@ class DatabasePostgresConnectionTest extends PostgresTestCase
         }
     }
 
-    protected function destroyDatabaseMigrations()
+    protected function destroyDatabaseMigrations(): void
     {
         Schema::drop('json_table');
     }
