@@ -250,6 +250,12 @@ class DatabaseManager implements ConnectionResolverInterface
         // Clear cached connection for SimpleConnectionResolver (non-pooled mode)
         unset($this->connections[$name]);
 
+        // Clear resolver-level caching (e.g., DatabaseConnectionResolver's static cache)
+        $resolver = $this->app->get(ConnectionResolverInterface::class);
+        if ($resolver instanceof FlushableConnectionResolver) {
+            $resolver->flush($name);
+        }
+
         // Flush the pool to honor config changes
         if ($this->app->has(PoolFactory::class)) {
             $this->app->get(PoolFactory::class)->flushPool($name);

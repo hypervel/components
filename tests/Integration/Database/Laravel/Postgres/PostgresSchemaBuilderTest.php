@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\Postgres;
+namespace Hypervel\Tests\Integration\Database\Laravel\Postgres;
 
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Orchestra\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\Attributes\RequiresDatabase;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
@@ -19,21 +19,21 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 #[RequiresPhpExtension('pdo_pgsql')]
 class PostgresSchemaBuilderTest extends PostgresTestCase
 {
-    protected function defineEnvironment($app)
+    protected function defineEnvironment($app): void
     {
         parent::defineEnvironment($app);
 
         $app['config']->set('database.connections.pgsql.search_path', 'public,private');
     }
 
-    protected function defineDatabaseMigrations()
+    protected function defineDatabaseMigrations(): void
     {
         parent::defineDatabaseMigrations();
 
         DB::statement('create schema if not exists private');
     }
 
-    protected function destroyDatabaseMigrations()
+    protected function destroyDatabaseMigrations(): void
     {
         DB::statement('drop table if exists public.table');
         DB::statement('drop table if exists private.table');
@@ -63,45 +63,9 @@ class PostgresSchemaBuilderTest extends PostgresTestCase
         $this->assertFalse(Schema::hasTable('private.table'));
     }
 
-    public function testDropAllTablesUsesDontDropConfigOnAllSchemas()
-    {
-        $this->app['config']->set('database.connections.pgsql.dont_drop', ['spatial_ref_sys', 'table']);
-        DB::purge('pgsql');
-
-        Schema::create('public.table', function (Blueprint $table) {
-            $table->increments('id');
-        });
-        Schema::create('private.table', function (Blueprint $table) {
-            $table->increments('id');
-        });
-
-        Schema::dropAllTables();
-
-        $this->artisan('migrate:install');
-
-        $this->assertTrue(Schema::hasTable('public.table'));
-        $this->assertTrue(Schema::hasTable('private.table'));
-    }
-
-    public function testDropAllTablesUsesDontDropConfigOnOneSchema()
-    {
-        $this->app['config']->set('database.connections.pgsql.dont_drop', ['spatial_ref_sys', 'private.table']);
-        DB::purge('pgsql');
-
-        Schema::create('public.table', function (Blueprint $table) {
-            $table->increments('id');
-        });
-        Schema::create('private.table', function (Blueprint $table) {
-            $table->increments('id');
-        });
-
-        Schema::dropAllTables();
-
-        $this->artisan('migrate:install');
-
-        $this->assertFalse(Schema::hasTable('public.table'));
-        $this->assertTrue(Schema::hasTable('private.table'));
-    }
+    // MOVED: testDropAllTablesUsesDontDropConfigOnAllSchemas -> PostgresSchemaBuilderDontDropAllTest.php
+    // MOVED: testDropAllTablesUsesDontDropConfigOnOneSchema -> PostgresSchemaBuilderDontDropOneTest.php
+    // Swoole requires dont_drop config in defineEnvironment(), not runtime Config::set()
 
     public function testDropAllViewsOnAllSchemas()
     {

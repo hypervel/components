@@ -8,6 +8,7 @@ use Hyperf\Contract\ConfigInterface;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolver;
+use Hypervel\Database\FlushableConnectionResolver;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -20,7 +21,7 @@ use function Hypervel\Support\enum_value;
  * Call resetCachedConnections() at the start of each test to ensure clean
  * state without the test pollution that static caching would otherwise cause.
  */
-class DatabaseConnectionResolver extends ConnectionResolver
+class DatabaseConnectionResolver extends ConnectionResolver implements FlushableConnectionResolver
 {
     /**
      * Connections for testing environment.
@@ -42,6 +43,17 @@ class DatabaseConnectionResolver extends ConnectionResolver
                 $connection->resetForPool();
             }
         }
+    }
+
+    /**
+     * Flush a cached connection.
+     *
+     * Clears the static cache so the next connection() call creates a fresh
+     * connection with current configuration.
+     */
+    public function flush(string $name): void
+    {
+        unset(static::$connections[$name]);
     }
 
     /**
