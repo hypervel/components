@@ -28,7 +28,7 @@ trait HandlesAttributes
     protected function parseTestMethodAttributes(ApplicationContract $app, string $attribute): FeaturesCollection
     {
         $attributes = $this->resolvePhpUnitAttributes()
-            ->filter(static fn ($attrs, string $key) => $key === $attribute && $attrs->isNotEmpty())
+            ->filter(static fn ($attributes, string $key) => $key === $attribute && $attributes->isNotEmpty())
             ->flatten()
             ->map(function ($instance) use ($app) {
                 if ($instance instanceof Invokable) {
