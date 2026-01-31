@@ -13,6 +13,7 @@ use Hypervel\Database\Console\Migrations\ResetCommand;
 use Hypervel\Database\Console\Migrations\RollbackCommand;
 use Hypervel\Database\Console\Migrations\StatusCommand;
 use Hypervel\Database\Console\SeedCommand;
+use Hypervel\Database\Console\ShowModelCommand;
 use Hypervel\Database\Console\WipeCommand;
 use Hypervel\Database\Listeners\RegisterConnectionResolverListener;
 use Hypervel\Database\Listeners\UnsetContextInTaskWorkerListener;
@@ -41,6 +42,7 @@ class ConfigProvider
                 ResetCommand::class,
                 RollbackCommand::class,
                 SeedCommand::class,
+                ShowModelCommand::class,
                 StatusCommand::class,
                 WipeCommand::class,
             ],

@@ -26,6 +26,15 @@ use Hypervel\Tests\Integration\Database\DatabaseTestCase;
  */
 class ModelInspectorTest extends DatabaseTestCase
 {
+    protected function setUp(): void
+    {
+        // Must be called before parent::setUp() so DatabaseMigrations
+        // doesn't bind mock output during migrate:fresh
+        $this->withoutMockingConsoleOutput();
+
+        parent::setUp();
+    }
+
     protected function afterRefreshingDatabase(): void
     {
         Schema::create('parent_test_models', function (Blueprint $table) {
@@ -52,12 +61,12 @@ class ModelInspectorTest extends DatabaseTestCase
         $this->assertSame(ModelInspectorTestModelResource::class, $modelInfo['resource']);
     }
 
-    public function testCommandReturnsJson()
+    public function testCommandReturnsJson(): void
     {
-        $this->withoutMockingConsoleOutput()->artisan('model:show', ['model' => ModelInspectorTestModel::class, '--json' => true]);
-        $o = Artisan::output();
-        $this->assertJson($o);
-        $modelInfo = json_decode($o, true);
+        $this->artisan('model:show', ['model' => ModelInspectorTestModel::class, '--json' => true]);
+        $output = Artisan::output();
+        $this->assertJson($output);
+        $modelInfo = json_decode($output, true);
         $this->assertModelInfo($modelInfo);
     }
 

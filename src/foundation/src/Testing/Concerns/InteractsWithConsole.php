@@ -78,6 +78,9 @@ trait InteractsWithConsole
 
     /**
      * Disable mocking the console output.
+     *
+     * When using this with traits like DatabaseMigrations, call this in setUp()
+     * BEFORE parent::setUp() to ensure mock output is never bound.
      */
     protected function withoutMockingConsoleOutput(): static
     {
