@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Queue;
 
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Database\DatabaseTransactionsManager;
 use Throwable;
 
 class CoroutineQueue extends SyncQueue
@@ -24,9 +23,9 @@ class CoroutineQueue extends SyncQueue
     {
         if (
             $this->shouldDispatchAfterCommit($job)
-            && $this->container->has(DatabaseTransactionsManager::class)
+            && $this->container->has('db.transactions')
         ) {
-            return $this->container->get(DatabaseTransactionsManager::class)
+            return $this->container->get('db.transactions')
                 ->addCallback(
                     fn () => $this->executeJob($job, $data, $queue)
                 );

@@ -73,7 +73,7 @@ class QueueCoroutineQueueTest extends TestCase
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set(DatabaseTransactionsManager::class, $transactionManager);
+        $container->set('db.transactions', $transactionManager);
 
         $coroutine->setContainer($container);
         run(fn () => $coroutine->push(new CoroutineQueueAfterCommitJob()));
@@ -86,7 +86,7 @@ class QueueCoroutineQueueTest extends TestCase
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set(DatabaseTransactionsManager::class, $transactionManager);
+        $container->set('db.transactions', $transactionManager);
 
         $coroutine->setContainer($container);
         run(fn () => $coroutine->push(new CoroutineQueueAfterCommitInterfaceJob()));

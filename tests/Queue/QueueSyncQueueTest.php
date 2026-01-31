@@ -94,7 +94,7 @@ class QueueSyncQueueTest extends TestCase
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set(DatabaseTransactionsManager::class, $transactionManager);
+        $container->set('db.transactions', $transactionManager);
 
         $sync->setContainer($container);
         $sync->push(new SyncQueueAfterCommitJob());
@@ -107,7 +107,7 @@ class QueueSyncQueueTest extends TestCase
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set(DatabaseTransactionsManager::class, $transactionManager);
+        $container->set('db.transactions', $transactionManager);
 
         $sync->setContainer($container);
         $sync->push(new SyncQueueAfterCommitInterfaceJob());
