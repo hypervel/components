@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\Queue;
+namespace Hypervel\Tests\Integration\Database\Laravel\Queue;
 
-use Illuminate\Foundation\Testing\DatabaseMigrations;
-use Illuminate\Support\Facades\Bus;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
-use Orchestra\Testbench\Attributes\WithConfig;
-use Orchestra\Testbench\Attributes\WithMigration;
+use Hypervel\Foundation\Testing\DatabaseMigrations;
+use Hypervel\Support\Facades\Bus;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Testbench\Attributes\WithMigration;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use Symfony\Component\Process\Exception\ProcessSignaledException;
 use Throwable;
 
-use function Orchestra\Testbench\remote;
+use function Hypervel\Testbench\remote;
 
 /**
  * @internal

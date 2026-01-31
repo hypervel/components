@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\Queue\Fixtures;
+namespace Hypervel\Tests\Integration\Database\Laravel\Queue\Fixtures;
 
-use Illuminate\Bus\Batchable;
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Support\Facades\DB;
+use Hypervel\Bus\Batchable;
+use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Support\Facades\DB;
 
 class TimeOutJobWithTransaction implements ShouldQueue
 {
