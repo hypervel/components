@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Testing\Constraints;
+namespace Hypervel\Testing\Constraints;
 
 use Hypervel\Database\Connection;
 use PHPUnit\Framework\Constraint\Constraint;
 
-class SoftDeletedInDatabase extends Constraint
+class NotSoftDeletedInDatabase extends Constraint
 {
     /**
      * Number of records that will be shown in the console in case of failure.
@@ -33,7 +33,7 @@ class SoftDeletedInDatabase extends Constraint
     {
         return $this->database->table($table)
             ->where($this->data)
-            ->whereNotNull($this->deletedAtColumn)
+            ->whereNull($this->deletedAtColumn)
             ->count() > 0;
     }
 
@@ -45,7 +45,7 @@ class SoftDeletedInDatabase extends Constraint
     public function failureDescription($table): string
     {
         return sprintf(
-            "any soft deleted row in the table [%s] matches the attributes %s.\n\n%s",
+            "any existing row in the table [%s] matches the attributes %s.\n\n%s",
             $table,
             $this->toString(),
             $this->getAdditionalInfo($table)

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Testing\Constraints;
+namespace Hypervel\Testing\Constraints;
 
 use Hypervel\Database\Connection;
 use PHPUnit\Framework\Constraint\Constraint;

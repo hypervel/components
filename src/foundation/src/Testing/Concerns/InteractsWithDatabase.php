@@ -8,12 +8,12 @@ use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\Events\QueryExecuted;
-use Hypervel\Foundation\Testing\Constraints\CountInDatabase;
-use Hypervel\Foundation\Testing\Constraints\HasInDatabase;
-use Hypervel\Foundation\Testing\Constraints\NotSoftDeletedInDatabase;
-use Hypervel\Foundation\Testing\Constraints\SoftDeletedInDatabase;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\DB;
+use Hypervel\Testing\Constraints\CountInDatabase;
+use Hypervel\Testing\Constraints\HasInDatabase;
+use Hypervel\Testing\Constraints\NotSoftDeletedInDatabase;
+use Hypervel\Testing\Constraints\SoftDeletedInDatabase;
 use PHPUnit\Framework\Constraint\LogicalNot as ReverseConstraint;
 
 trait InteractsWithDatabase

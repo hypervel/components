@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use Hypervel\Contracts\Console\Kernel as KernelContract;
-use Hypervel\Foundation\Testing\PendingCommand;
+use Hypervel\Testing\PendingCommand;
 
 trait InteractsWithConsole
 {

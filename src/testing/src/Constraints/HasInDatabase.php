@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Testing\Constraints;
+namespace Hypervel\Testing\Constraints;
 
 use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Connection;

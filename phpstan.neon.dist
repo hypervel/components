@@ -20,7 +20,6 @@ parameters:
     - %currentWorkingDirectory%/src/*/class_map/*
     - %currentWorkingDirectory%/src/foundation/src/helpers.php
     - %currentWorkingDirectory%/src/foundation/src/Testing/Concerns/*
-    - %currentWorkingDirectory%/src/foundation/src/Testing/Constraints/*
     - %currentWorkingDirectory%/src/foundation/src/Http/WebsocketKernel.php
     - %currentWorkingDirectory%/src/log/src/Adapter/*
     - %currentWorkingDirectory%/src/support/src/Js.php

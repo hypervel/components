@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Testing\Http;
+namespace Hypervel\Testing;
 
 use Carbon\Carbon;
 use Closure;
@@ -12,8 +12,8 @@ use Hyperf\ViewEngine\ViewErrorBag;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Cookie\Cookie;
-use Hypervel\Foundation\Testing\TestResponseAssert as PHPUnit;
 use Hypervel\Support\Arr;
+use Hypervel\Testing\TestResponseAssert as PHPUnit;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
 

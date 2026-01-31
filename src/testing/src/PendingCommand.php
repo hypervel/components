@@ -2,13 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Testing;
+namespace Hypervel\Testing;
 
 use Hyperf\Command\Event\FailToHandle;
 use Hyperf\Conditionable\Conditionable;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Foundation\Testing\TestCase;
 use Hypervel\Prompts\Note as PromptsNote;
 use Hypervel\Prompts\Prompt as BasePrompt;
 use Hypervel\Prompts\Table as PromptsTable;
