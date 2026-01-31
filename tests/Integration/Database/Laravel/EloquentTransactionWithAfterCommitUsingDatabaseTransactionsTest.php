@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Foundation\Testing\DatabaseTransactions;
-use Orchestra\Testbench\TestCase;
+use Hypervel\Foundation\Testing\DatabaseTransactions;
+use Hypervel\Testbench\TestCase;
 
 /**
  * @internal
@@ -13,15 +13,13 @@ use Orchestra\Testbench\TestCase;
  */
 class EloquentTransactionWithAfterCommitUsingDatabaseTransactionsTest extends TestCase
 {
-    use EloquentTransactionWithAfterCommitTests;
     use DatabaseTransactions;
+    use EloquentTransactionWithAfterCommitTests;
 
     /**
      * The current database driver.
-     *
-     * @return string
      */
-    protected $driver;
+    protected string $driver;
 
     protected function setUp(): void
     {
@@ -36,9 +34,11 @@ class EloquentTransactionWithAfterCommitUsingDatabaseTransactionsTest extends Te
         if ($this->usesSqliteInMemoryDatabaseConnection()) {
             $this->markTestSkipped('Test cannot be used with in-memory SQLite connection.');
         }
+
+        $this->createTransactionTestTables();
     }
 
-    protected function defineEnvironment($app)
+    protected function defineEnvironment($app): void
     {
         $connection = $app->make('config')->get('database.default');
 

@@ -22,7 +22,10 @@ trait DatabaseTransactions
 
             $connection->unsetEventDispatcher();
             $connection->beginTransaction();
-            $connection->setEventDispatcher($dispatcher);
+
+            if ($dispatcher !== null) {
+                $connection->setEventDispatcher($dispatcher);
+            }
         }
 
         $this->beforeApplicationDestroyed(function () use ($database) {
@@ -37,7 +40,10 @@ trait DatabaseTransactions
                 }
 
                 $connection->rollBack();
-                $connection->setEventDispatcher($dispatcher);
+
+                if ($dispatcher !== null) {
+                    $connection->setEventDispatcher($dispatcher);
+                }
                 // this will trigger a database refresh warning
                 // $connection->disconnect();
             }

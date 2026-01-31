@@ -2,7 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
+
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -11,4 +13,9 @@ namespace Illuminate\Tests\Integration\Database;
 class EloquentTransactionWithAfterCommitTest extends DatabaseTestCase
 {
     use EloquentTransactionWithAfterCommitTests;
+
+    protected function afterRefreshingDatabase(): void
+    {
+        $this->createTransactionTestTables();
+    }
 }

@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Foundation\Testing\DatabaseMigrations;
+use Hypervel\Foundation\Testing\DatabaseMigrations;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -12,6 +13,11 @@ use Illuminate\Foundation\Testing\DatabaseMigrations;
  */
 class EloquentTransactionWithAfterCommitUsingDatabaseMigrationsTest extends DatabaseTestCase
 {
-    use EloquentTransactionWithAfterCommitTests;
     use DatabaseMigrations;
+    use EloquentTransactionWithAfterCommitTests;
+
+    protected function afterRefreshingDatabase(): void
+    {
+        $this->createTransactionTestTables();
+    }
 }
