@@ -2,19 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Testing\Attributes;
+namespace Hypervel\Testbench\Attributes;
 
 use Attribute;
 use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Foundation\Testing\Contracts\Attributes\Actionable;
-use Hypervel\Router\Router;
+use Hypervel\Testbench\Contracts\Attributes\Actionable;
 
 /**
- * Calls a test method with the router instance for route definition.
+ * Calls a test method with the application instance for environment setup.
  */
-#[Attribute(Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
-final class DefineRoute implements Actionable
+#[Attribute(Attribute::TARGET_CLASS | Attribute::TARGET_METHOD | Attribute::IS_REPEATABLE)]
+final class DefineEnvironment implements Actionable
 {
     public function __construct(
         public readonly string $method
@@ -28,9 +27,7 @@ final class DefineRoute implements Actionable
      */
     public function handle(ApplicationContract $app, Closure $action): mixed
     {
-        $router = $app->get(Router::class);
-
-        \call_user_func($action, $this->method, [$router]);
+        \call_user_func($action, $this->method, [$app]);
 
         return null;
     }

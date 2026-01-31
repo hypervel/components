@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Testbench;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Foundation\Testing\Attributes\WithConfig;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Foundation\Testing\Concerns\HandlesAttributes;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithTestCase;
 use Hypervel\Testbench\Concerns\CreatesApplication;

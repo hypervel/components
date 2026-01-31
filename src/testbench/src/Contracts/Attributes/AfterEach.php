@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Testing\Contracts\Attributes;
+namespace Hypervel\Testbench\Contracts\Attributes;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
-use Hypervel\Foundation\Testing\Attributes\DefineEnvironment;
-use Hypervel\Foundation\Testing\Attributes\WithConfig;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Foundation\Testing\Features\FeaturesCollection;
 use Hypervel\Testbench\TestCase;
 

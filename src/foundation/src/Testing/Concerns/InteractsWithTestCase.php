@@ -7,13 +7,13 @@ namespace Hypervel\Foundation\Testing\Concerns;
 use Attribute;
 use Closure;
 use Hypervel\Foundation\Testing\AttributeParser;
-use Hypervel\Foundation\Testing\Contracts\Attributes\Actionable;
-use Hypervel\Foundation\Testing\Contracts\Attributes\AfterAll;
-use Hypervel\Foundation\Testing\Contracts\Attributes\AfterEach;
-use Hypervel\Foundation\Testing\Contracts\Attributes\BeforeAll;
-use Hypervel\Foundation\Testing\Contracts\Attributes\BeforeEach;
-use Hypervel\Foundation\Testing\Contracts\Attributes\Invokable;
-use Hypervel\Foundation\Testing\Contracts\Attributes\Resolvable;
+use Hypervel\Testbench\Contracts\Attributes\Actionable;
+use Hypervel\Testbench\Contracts\Attributes\AfterAll;
+use Hypervel\Testbench\Contracts\Attributes\AfterEach;
+use Hypervel\Testbench\Contracts\Attributes\BeforeAll;
+use Hypervel\Testbench\Contracts\Attributes\BeforeEach;
+use Hypervel\Testbench\Contracts\Attributes\Invokable;
+use Hypervel\Testbench\Contracts\Attributes\Resolvable;
 use Hypervel\Support\Collection;
 
 /**

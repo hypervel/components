@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Testing\Attributes;
+namespace Hypervel\Testbench\Attributes;
 
 use Attribute;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Foundation\Testing\Contracts\Attributes\Invokable;
+use Hypervel\Testbench\Contracts\Attributes\Invokable;
 use Hypervel\Support\Collection;
 
 use function Hypervel\Testbench\default_migration_path;

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Testing\Attributes;
+namespace Hypervel\Testbench\Attributes;
 
 use Attribute;
-use Hypervel\Foundation\Testing\Contracts\Attributes\AfterAll;
-use Hypervel\Foundation\Testing\Contracts\Attributes\BeforeAll;
+use Hypervel\Testbench\Contracts\Attributes\AfterAll;
+use Hypervel\Testbench\Contracts\Attributes\BeforeAll;
 use Hypervel\Foundation\Testing\RefreshDatabaseState;
 
 /**

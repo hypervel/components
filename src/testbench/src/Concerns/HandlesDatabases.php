@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Concerns;
 
-use Hypervel\Foundation\Testing\Attributes\WithMigration;
-use Hypervel\Foundation\Testing\Contracts\Attributes\Invokable;
+use Hypervel\Testbench\Attributes\WithMigration;
+use Hypervel\Testbench\Contracts\Attributes\Invokable;
 
 /**
  * Provides hooks for defining database migrations and seeders.

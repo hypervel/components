@@ -8,7 +8,7 @@ use Hypervel\Cache\DatabaseLock;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Query\Builder;
 use Hypervel\Database\QueryException;
-use Hypervel\Foundation\Testing\Attributes\WithMigration;
+use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Support\Facades\Cache;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;

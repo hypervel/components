@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Testing\Contracts\Attributes;
+namespace Hypervel\Testbench\Contracts\Attributes;
 
 /**
  * Interface for attributes that run before all tests in a class.

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Testing\Attributes;
+namespace Hypervel\Testbench\Attributes;
 
 use Attribute;
-use Hypervel\Foundation\Testing\Contracts\Attributes\Resolvable;
-use Hypervel\Foundation\Testing\Contracts\Attributes\TestingFeature;
+use Hypervel\Testbench\Contracts\Attributes\Resolvable;
+use Hypervel\Testbench\Contracts\Attributes\TestingFeature;
 
 /**
  * Meta-attribute that resolves to actual attribute classes based on group.

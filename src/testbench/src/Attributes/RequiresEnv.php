@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Testing\Attributes;
+namespace Hypervel\Testbench\Attributes;
 
 use Attribute;
 use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Foundation\Testing\Contracts\Attributes\Actionable;
+use Hypervel\Testbench\Contracts\Attributes\Actionable;
 
 /**
  * Skips the test if the required environment variable is missing.

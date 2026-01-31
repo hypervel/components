@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
-use Hypervel\Foundation\Testing\Contracts\Attributes\Resolvable;
-use Hypervel\Foundation\Testing\Contracts\Attributes\TestingFeature;
+use Hypervel\Testbench\Contracts\Attributes\Resolvable;
+use Hypervel\Testbench\Contracts\Attributes\TestingFeature;
 use PHPUnit\Framework\TestCase;
 use ReflectionAttribute;
 use ReflectionClass;

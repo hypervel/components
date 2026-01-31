@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Foundation\Testing\Attributes;
+namespace Hypervel\Testbench\Attributes;
 
 use Attribute;
 use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Foundation\Testing\Contracts\Attributes\Actionable;
-use Hypervel\Foundation\Testing\Contracts\Attributes\AfterEach;
-use Hypervel\Foundation\Testing\Contracts\Attributes\BeforeEach;
+use Hypervel\Testbench\Contracts\Attributes\Actionable;
+use Hypervel\Testbench\Contracts\Attributes\AfterEach;
+use Hypervel\Testbench\Contracts\Attributes\BeforeEach;
 
 /**
  * Calls a test method for database setup with deferred execution support.

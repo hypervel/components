@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
-use Hypervel\Foundation\Testing\Attributes\DefineDatabase;
+use Hypervel\Testbench\Attributes\DefineDatabase;
 use Hypervel\Testbench\TestCase;
 
 /**

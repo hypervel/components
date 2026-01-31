@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Attributes;
 
-use Hypervel\Foundation\Testing\Attributes\RequiresDatabase;
+use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 

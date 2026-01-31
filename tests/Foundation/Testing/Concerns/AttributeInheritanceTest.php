@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Hypervel\Foundation\Testing\AttributeParser;
-use Hypervel\Foundation\Testing\Attributes\WithConfig;
+use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\TestCase;
 
 /**
