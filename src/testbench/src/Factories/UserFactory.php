@@ -14,7 +14,7 @@ use Hypervel\Support\Str;
  *
  * @extends \Hypervel\Database\Eloquent\Factories\Factory<TModel>
  *
- * @property class-string<\Hypervel\Database\Eloquent\Model|TModel>|null $model
+ * @property null|class-string<\Hypervel\Database\Eloquent\Model|TModel> $model
  */
 class UserFactory extends Factory
 {

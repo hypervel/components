@@ -8,6 +8,7 @@ use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Faker\Generator as FakerGenerator;
 use Hyperf\Coroutine\Coroutine;
+use Hypervel\Context\Context;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithContainer;
@@ -64,9 +65,15 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
 
         $this->setUpFaker();
 
-        $this->runInCoroutine(
-            fn () => $this->setUpTraits()
-        );
+        $this->runInCoroutine(function () {
+            $this->setUpTraits();
+
+            // Preserve transaction manager context for the test coroutine.
+            // RefreshDatabase stores transaction state in Context, but setUpTraits runs
+            // in a temporary coroutine. Copy to non-coroutine context so the test
+            // coroutine (which copies from nonCoContext) can access it.
+            $this->preserveTransactionContext();
+        });
 
         foreach ($this->afterApplicationCreatedCallbacks as $callback) {
             $callback();
@@ -193,6 +200,23 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
                 }
             }
         }
+    }
+
+    /**
+     * Preserve transaction manager context for the test coroutine.
+     *
+     * RefreshDatabase and DatabaseTransactions store transaction state in Context.
+     * Since setUpTraits runs in a temporary coroutine (separate from the test method's
+     * coroutine), we must copy this state to non-coroutine context. The test coroutine
+     * will then copy from non-coroutine context via copyFromNonCoroutine().
+     */
+    protected function preserveTransactionContext(): void
+    {
+        Context::copyToNonCoroutine([
+            '__db.transactions.committed',
+            '__db.transactions.pending',
+            '__db.transactions.current',
+        ]);
     }
 
     /**

@@ -6,11 +6,11 @@ namespace Hypervel\Tests\Testbench;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Testbench\Attributes\WithConfig;
-use Hypervel\Testbench\Concerns\HandlesAttributes;
-use Hypervel\Testbench\Concerns\InteractsWithTestCase;
 use Hypervel\Testbench\Concerns\CreatesApplication;
+use Hypervel\Testbench\Concerns\HandlesAttributes;
 use Hypervel\Testbench\Concerns\HandlesDatabases;
 use Hypervel\Testbench\Concerns\HandlesRoutes;
+use Hypervel\Testbench\Concerns\InteractsWithTestCase;
 use Hypervel\Testbench\TestCase;
 
 /**

@@ -12,8 +12,6 @@ use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
-use Hypervel\Testbench\Concerns\HandlesAttributes;
-use Hypervel\Testbench\Concerns\InteractsWithTestCase;
 use Hypervel\Foundation\Testing\DatabaseMigrations;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -21,6 +19,8 @@ use Hypervel\Foundation\Testing\TestCase as BaseTestCase;
 use Hypervel\Foundation\Testing\WithoutEvents;
 use Hypervel\Foundation\Testing\WithoutMiddleware;
 use Hypervel\Queue\Queue;
+use Hypervel\Testbench\Concerns\HandlesAttributes;
+use Hypervel\Testbench\Concerns\InteractsWithTestCase;
 use Swoole\Timer;
 use Workbench\App\Exceptions\ExceptionHandler;
 

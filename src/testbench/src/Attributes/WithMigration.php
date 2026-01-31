@@ -6,8 +6,8 @@ namespace Hypervel\Testbench\Attributes;
 
 use Attribute;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Testbench\Contracts\Attributes\Invokable;
 use Hypervel\Support\Collection;
+use Hypervel\Testbench\Contracts\Attributes\Invokable;
 
 use function Hypervel\Testbench\default_migration_path;
 use function Hypervel\Testbench\load_migration_paths;

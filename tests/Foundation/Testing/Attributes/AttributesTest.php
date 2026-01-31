@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Foundation\Testing\Attributes;
 
 use Attribute;
 use Closure;
+use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Testbench\Attributes\Define;
 use Hypervel\Testbench\Attributes\DefineDatabase;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
@@ -21,7 +22,6 @@ use Hypervel\Testbench\Contracts\Attributes\BeforeAll;
 use Hypervel\Testbench\Contracts\Attributes\BeforeEach;
 use Hypervel\Testbench\Contracts\Attributes\Invokable;
 use Hypervel\Testbench\Contracts\Attributes\Resolvable;
-use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Testbench\TestCase;
 use ReflectionClass;
 

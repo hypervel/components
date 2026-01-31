@@ -101,9 +101,16 @@ trait RefreshDatabase
     public function beginDatabaseTransaction(): void
     {
         $database = $this->app->get(DatabaseManager::class);
+        $connections = $this->connectionsToTransact();
 
-        foreach ($this->connectionsToTransact() as $name) {
+        // Create a testing-aware transaction manager that properly handles the wrapper transaction
+        $this->app->instance('db.transactions', $transactionsManager = new DatabaseTransactionsManager($connections));
+
+        foreach ($connections as $name) {
             $connection = $database->connection($name);
+
+            // Set the testing transaction manager on the connection
+            $connection->setTransactionManager($transactionsManager);
 
             if ($this->usingInMemoryDatabase()) {
                 RefreshDatabaseState::$inMemoryConnections[$name] ??= $connection->getPdo();

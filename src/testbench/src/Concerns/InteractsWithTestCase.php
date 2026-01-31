@@ -6,7 +6,7 @@ namespace Hypervel\Testbench\Concerns;
 
 use Attribute;
 use Closure;
-use Hypervel\Testbench\PHPUnit\AttributeParser;
+use Hypervel\Support\Collection;
 use Hypervel\Testbench\Contracts\Attributes\Actionable;
 use Hypervel\Testbench\Contracts\Attributes\AfterAll;
 use Hypervel\Testbench\Contracts\Attributes\AfterEach;
@@ -14,7 +14,7 @@ use Hypervel\Testbench\Contracts\Attributes\BeforeAll;
 use Hypervel\Testbench\Contracts\Attributes\BeforeEach;
 use Hypervel\Testbench\Contracts\Attributes\Invokable;
 use Hypervel\Testbench\Contracts\Attributes\Resolvable;
-use Hypervel\Support\Collection;
+use Hypervel\Testbench\PHPUnit\AttributeParser;
 
 /**
  * Provides test case lifecycle and attribute caching functionality.

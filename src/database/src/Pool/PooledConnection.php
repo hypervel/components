@@ -9,7 +9,6 @@ use Hyperf\Contract\StdoutLoggerInterface;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
-use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Pool\Event\ReleaseConnection;
 use Psr\Container\ContainerInterface;
@@ -114,8 +113,8 @@ class PooledConnection implements PoolConnectionInterface
         }
 
         // Configure transaction manager for after-commit callbacks
-        if ($this->container->has(DatabaseTransactionsManager::class)) {
-            $this->connection->setTransactionManager($this->container->get(DatabaseTransactionsManager::class));
+        if ($this->container->has('db.transactions')) {
+            $this->connection->setTransactionManager($this->container->get('db.transactions'));
         }
 
         // Set up reconnector for the connection

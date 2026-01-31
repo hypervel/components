@@ -33,6 +33,9 @@ trait RunTestsInCoroutine
 
         /* @phpstan-ignore-next-line */
         run(function () use (&$testResult, &$exception, $arguments) {
+            // Clear stale transaction context from previous tests before copying
+            $this->clearNonCoroutineTransactionContext();
+
             if ($this->copyNonCoroutineContext) {
                 Context::copyFromNonCoroutine();
             }
@@ -79,6 +82,21 @@ trait RunTestsInCoroutine
         if (method_exists($this, 'tearDownInCoroutine')) {
             call_user_func([$this, 'tearDownInCoroutine']);
         }
+    }
+
+    /**
+     * Clear transaction context from non-coroutine storage before test starts.
+     *
+     * This prevents stale transaction data from a previous test's setUp
+     * (which uses preserveTransactionContext) from polluting this test.
+     */
+    protected function clearNonCoroutineTransactionContext(): void
+    {
+        Context::clearFromNonCoroutine([
+            '__db.transactions.committed',
+            '__db.transactions.pending',
+            '__db.transactions.current',
+        ]);
     }
 
     /**

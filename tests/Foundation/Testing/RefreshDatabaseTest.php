@@ -159,6 +159,8 @@ class RefreshDatabaseTest extends TestCase
         $connection->shouldReceive('setEventDispatcher')
             ->twice()
             ->with($eventDispatcher);
+        $connection->shouldReceive('setTransactionManager')
+            ->once();
 
         $pdo = m::mock(PDO::class);
         $pdo->shouldReceive('inTransaction')

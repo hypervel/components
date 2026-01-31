@@ -10,7 +10,7 @@ use Hypervel\Testbench\Contracts\Attributes\Invokable;
 /**
  * Provides hooks for defining database migrations and seeders.
  *
- * @property \Hypervel\Contracts\Foundation\Application|null $app
+ * @property null|\Hypervel\Contracts\Foundation\Application $app
  */
 trait HandlesDatabases
 {
@@ -28,7 +28,7 @@ trait HandlesDatabases
 
         $connection ??= $config->get('database.default');
 
-        /** @var array{driver: string, database: string}|null $database */
+        /** @var null|array{driver: string, database: string} $database */
         $database = $config->get("database.connections.{$connection}");
 
         if ($database === null || $database['driver'] !== 'sqlite') {

@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Foundation\Testing\RefreshDatabase;
-use Orchestra\Testbench\TestCase;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Database\DatabaseManager;
+use Hypervel\Foundation\Testing\RefreshDatabase;
+use Hypervel\Testbench\TestCase;
 
 /**
  * @internal
@@ -16,28 +18,32 @@ class EloquentTransactionWithAfterCommitUsingRefreshDatabaseTest extends TestCas
     use EloquentTransactionWithAfterCommitTests;
     use RefreshDatabase;
 
-    /**
-     * The current database driver.
-     *
-     * @return string
-     */
-    protected $driver;
+    protected string $driver;
 
     protected function setUp(): void
     {
         $this->beforeApplicationDestroyed(function () {
-            foreach (array_keys($this->app['db']->getConnections()) as $name) {
-                $this->app['db']->purge($name);
+            $database = $this->app->get(DatabaseManager::class);
+            foreach (array_keys($database->getConnections()) as $name) {
+                $database->purge($name);
             }
         });
 
         parent::setUp();
     }
 
-    protected function defineEnvironment($app)
+    protected function afterRefreshingDatabase(): void
     {
-        $connection = $app['config']->get('database.default');
+        $this->createTransactionTestTables();
+    }
 
-        $this->driver = $app['config']->get("database.connections.{$connection}.driver");
+    protected function defineEnvironment(ApplicationContract $app): void
+    {
+        parent::defineEnvironment($app);
+
+        $config = $app->get('config');
+        $connection = $config->get('database.default');
+
+        $this->driver = $config->get("database.connections.{$connection}.driver");
     }
 }

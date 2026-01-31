@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Attributes;
 
 use Attribute;
+use Hypervel\Foundation\Testing\RefreshDatabaseState;
 use Hypervel\Testbench\Contracts\Attributes\AfterAll;
 use Hypervel\Testbench\Contracts\Attributes\BeforeAll;
-use Hypervel\Foundation\Testing\RefreshDatabaseState;
 
 /**
  * Resets the database state before and after all tests in a class.

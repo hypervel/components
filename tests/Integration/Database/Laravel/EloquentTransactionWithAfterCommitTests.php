@@ -2,37 +2,60 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Auth\User;
-use Illuminate\Foundation\Bus\Dispatchable;
-use Illuminate\Queue\InteractsWithQueue;
-use Illuminate\Support\Facades\DB;
-use Orchestra\Testbench\Concerns\WithLaravelMigrations;
-use Orchestra\Testbench\Factories\UserFactory;
+use Hypervel\Bus\Dispatchable;
+use Hypervel\Bus\Queueable;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Foundation\Auth\User;
+use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\Factories\UserFactory;
 use RuntimeException;
 
+/**
+ * Shared test methods for transaction afterCommit behavior.
+ *
+ * Tests that observer callbacks with $afterCommit = true are deferred
+ * until after the database transaction commits.
+ */
 trait EloquentTransactionWithAfterCommitTests
 {
-    use WithLaravelMigrations;
-
     protected function setUpEloquentTransactionWithAfterCommitTests(): void
     {
-        User::unguard();
+        // Note: User::unguard() uses Context which is coroutine-local.
+        // We wrap creates in User::unguarded() instead.
     }
 
-    protected function tearDownEloquentTransactionWithAfterCommitTests(): void
+    /**
+     * Create the required database tables for these tests.
+     */
+    protected function createTransactionTestTables(): void
     {
-        User::reguard();
+        Schema::create('users', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('email')->unique();
+            $table->timestamp('email_verified_at')->nullable();
+            $table->string('password');
+            $table->string('remember_token', 100)->nullable();
+            $table->timestamps();
+        });
+
+        Schema::create('password_reset_tokens', function (Blueprint $table) {
+            $table->string('email')->primary();
+            $table->string('token');
+            $table->timestamp('created_at')->nullable();
+        });
     }
 
     public function testObserverIsCalledOnTestsWithAfterCommit()
     {
         User::observe($observer = EloquentTransactionWithAfterCommitTestsUserObserver::resetting());
 
-        $user1 = User::create(UserFactory::new()->raw());
+        $user1 = User::unguarded(fn () => User::create(UserFactory::new()->raw()));
 
         $this->assertTrue($user1->exists);
         $this->assertEquals(1, $observer::$calledTimes, 'Failed to assert the observer was called once.');
@@ -42,7 +65,7 @@ trait EloquentTransactionWithAfterCommitTests
     {
         User::observe($observer = EloquentTransactionWithAfterCommitTestsUserObserver::resetting());
 
-        $user1 = DB::transaction(fn () => User::create(UserFactory::new()->raw()));
+        $user1 = DB::transaction(fn () => User::unguarded(fn () => User::create(UserFactory::new()->raw())));
 
         $this->assertTrue($user1->exists);
         $this->assertEquals(1, $observer::$calledTimes, 'Failed to assert the observer was called once.');
@@ -52,7 +75,7 @@ trait EloquentTransactionWithAfterCommitTests
     {
         User::observe($observer = EloquentTransactionWithAfterCommitTestsUserObserverUsingDispatchSync::resetting());
 
-        $user1 = DB::transaction(fn () => User::create(UserFactory::new()->raw()));
+        $user1 = DB::transaction(fn () => User::unguarded(fn () => User::create(UserFactory::new()->raw())));
 
         $this->assertTrue($user1->exists);
         $this->assertEquals(1, $observer::$calledTimes, 'Failed to assert the observer was called once.');
@@ -67,7 +90,7 @@ trait EloquentTransactionWithAfterCommitTests
     {
         User::observe($observer = EloquentTransactionWithAfterCommitTestsUserObserver::resetting());
 
-        $user1 = User::createOrFirst(UserFactory::new()->raw());
+        $user1 = User::unguarded(fn () => User::createOrFirst(UserFactory::new()->raw()));
 
         $this->assertTrue($user1->exists);
         $this->assertEquals(1, $observer::$calledTimes, 'Failed to assert the observer was called once.');
@@ -77,7 +100,7 @@ trait EloquentTransactionWithAfterCommitTests
     {
         User::observe($observer = EloquentTransactionWithAfterCommitTestsUserObserver::resetting());
 
-        $user1 = DB::transaction(fn () => User::createOrFirst(UserFactory::new()->raw()));
+        $user1 = DB::transaction(fn () => User::unguarded(fn () => User::createOrFirst(UserFactory::new()->raw())));
 
         $this->assertTrue($user1->exists);
         $this->assertEquals(1, $observer::$calledTimes, 'Failed to assert the observer was called once.');
@@ -90,7 +113,7 @@ trait EloquentTransactionWithAfterCommitTests
         $user1 = DB::transaction(function () use ($observer) {
             return tap(DB::transaction(function () use ($observer) {
                 return tap(DB::transaction(function () use ($observer) {
-                    return tap(User::createOrFirst(UserFactory::new()->raw()), function () use ($observer) {
+                    return tap(User::unguarded(fn () => User::createOrFirst(UserFactory::new()->raw())), function () use ($observer) {
                         $this->assertEquals(0, $observer::$calledTimes, 'Should not have been called');
                     });
                 }), function () use ($observer) {
@@ -118,7 +141,9 @@ trait EloquentTransactionWithAfterCommitTests
         // executed. It's important that the transaction would already be committed by that point, so the
         // transaction level should be modified before executing any callbacks. Also, exceptions in the
         // callbacks should not affect the connection's transaction level.
-        $this->assertThrows(function () use ($rootTransactionLevel, $secondObject, $firstObject) {
+        $this->expectException(RuntimeException::class);
+
+        try {
             DB::transaction(function () use ($rootTransactionLevel, $firstObject, $secondObject) {
                 DB::transaction(function () use ($rootTransactionLevel, $firstObject) {
                     $this->assertSame($rootTransactionLevel + 2, DB::transactionLevel());
@@ -135,30 +160,29 @@ trait EloquentTransactionWithAfterCommitTests
                 DB::afterCommit(fn () => throw new RuntimeException());
                 DB::afterCommit(fn () => $secondObject->handle());
             });
-        }, RuntimeException::class);
-
-        $this->assertSame($rootTransactionLevel, DB::transactionLevel());
-
-        $this->assertTrue($firstObject->ran);
-        $this->assertFalse($secondObject->ran);
-        $this->assertEquals(1, $firstObject->runs);
+        } finally {
+            $this->assertSame($rootTransactionLevel, DB::transactionLevel());
+            $this->assertTrue($firstObject->ran);
+            $this->assertFalse($secondObject->ran);
+            $this->assertEquals(1, $firstObject->runs);
+        }
     }
 }
 
 class EloquentTransactionWithAfterCommitTestsUserObserver
 {
-    public static $calledTimes = 0;
+    public static int $calledTimes = 0;
 
-    public $afterCommit = true;
+    public bool $afterCommit = true;
 
-    public static function resetting()
+    public static function resetting(): static
     {
         static::$calledTimes = 0;
 
         return new static();
     }
 
-    public function created($user)
+    public function created(User $user): void
     {
         ++static::$calledTimes;
     }
@@ -166,7 +190,7 @@ class EloquentTransactionWithAfterCommitTestsUserObserver
 
 class EloquentTransactionWithAfterCommitTestsUserObserverUsingDispatchSync extends EloquentTransactionWithAfterCommitTestsUserObserver
 {
-    public function created($user)
+    public function created(User $user): void
     {
         dispatch_sync(new EloquentTransactionWithAfterCommitTestsJob($user->email));
 
@@ -180,9 +204,9 @@ class EloquentTransactionWithAfterCommitTestsJob implements ShouldQueue
     use InteractsWithQueue;
     use Queueable;
 
-    public function __construct(public string $email)
-    {
-        // ...
+    public function __construct(
+        public string $email
+    ) {
     }
 
     public function handle(): void
@@ -197,11 +221,11 @@ class EloquentTransactionWithAfterCommitTestsJob implements ShouldQueue
 
 class EloquentTransactionWithAfterCommitTestsTestObjectForTransactions
 {
-    public $ran = false;
+    public bool $ran = false;
 
-    public $runs = 0;
+    public int $runs = 0;
 
-    public function handle()
+    public function handle(): void
     {
         $this->ran = true;
         ++$this->runs;

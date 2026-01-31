@@ -180,6 +180,41 @@ class Context extends \Hyperf\Context\Context
     }
 
     /**
+     * Copy context data from the specified coroutine context to non-coroutine context.
+     */
+    public static function copyToNonCoroutine(array $keys = [], ?int $coroutineId = null): void
+    {
+        if (is_null($context = Coroutine::getContextFor($coroutineId))) {
+            return;
+        }
+
+        if ($keys) {
+            foreach ($keys as $key) {
+                if (isset($context[$key])) {
+                    static::$nonCoContext[$key] = $context[$key];
+                }
+            }
+        } else {
+            foreach ($context as $key => $value) {
+                static::$nonCoContext[$key] = $value;
+            }
+        }
+    }
+
+    /**
+     * Clear specific keys from non-coroutine context only.
+     *
+     * Unlike destroy() which clears from both contexts, this only affects
+     * non-coroutine storage. Useful for clearing stale data before copying.
+     */
+    public static function clearFromNonCoroutine(array $keys): void
+    {
+        foreach ($keys as $key) {
+            unset(static::$nonCoContext[$key]);
+        }
+    }
+
+    /**
      * Destroy all context data for the specified coroutine, preserving only the depth key.
      */
     public static function destroyAll(?int $coroutineId = null): void

@@ -7,8 +7,8 @@ namespace Hypervel\Testbench\Attributes;
 use Attribute;
 use Closure;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Testbench\Contracts\Attributes\Actionable;
 use Hypervel\Router\Router;
+use Hypervel\Testbench\Contracts\Attributes\Actionable;
 
 /**
  * Calls a test method with the router instance for route definition.

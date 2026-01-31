@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Testbench\Concerns;
 
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Support\Collection;
 use Hypervel\Testbench\Contracts\Attributes\Actionable;
 use Hypervel\Testbench\Contracts\Attributes\Invokable;
 use Hypervel\Testbench\Features\FeaturesCollection;
-use Hypervel\Support\Collection;
 
 /**
  * Handles parsing and executing test method attributes.
