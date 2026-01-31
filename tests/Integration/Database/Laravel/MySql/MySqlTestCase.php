@@ -2,11 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\MySql;
+namespace Hypervel\Tests\Integration\Database\Laravel\MySql;
 
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
-use Orchestra\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 #[RequiresDatabase('mysql')]
 abstract class MySqlTestCase extends DatabaseTestCase
 {

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\MySql;
+namespace Hypervel\Tests\Integration\Database\Laravel\MySql;
 
-use Illuminate\Contracts\Database\Eloquent\CastsAttributes;
-use Illuminate\Database\Eloquent\Casts\Attribute;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Contracts\Database\Eloquent\CastsAttributes;
+use Hypervel\Database\Eloquent\Casts\Attribute;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\Schema;
 
 /**
  * @internal
@@ -16,9 +16,9 @@ use Illuminate\Support\Facades\Schema;
  */
 class EloquentCastTest extends MySqlTestCase
 {
-    protected $driver = 'mysql';
+    protected string $driver = 'mysql';
 
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function ($table) {
             $table->increments('id');
@@ -35,7 +35,7 @@ class EloquentCastTest extends MySqlTestCase
         });
     }
 
-    protected function destroyDatabaseMigrations()
+    protected function destroyDatabaseMigrations(): void
     {
         Schema::drop('users');
     }
@@ -153,11 +153,11 @@ class EloquentCastTest extends MySqlTestCase
 
 class UserWithIntTimestampsViaCasts extends Model
 {
-    protected $table = 'users';
+    protected ?string $table = 'users';
 
-    protected $fillable = ['email'];
+    protected array $fillable = ['email'];
 
-    protected $casts = [
+    protected array $casts = [
         'created_at' => UnixTimeStampToCarbon::class,
         'updated_at' => UnixTimeStampToCarbon::class,
     ];
@@ -178,9 +178,9 @@ class UnixTimeStampToCarbon implements CastsAttributes
 
 class UserWithIntTimestampsViaAttribute extends Model
 {
-    protected $table = 'users';
+    protected ?string $table = 'users';
 
-    protected $fillable = ['email'];
+    protected array $fillable = ['email'];
 
     protected function updatedAt(): Attribute
     {
@@ -201,9 +201,9 @@ class UserWithIntTimestampsViaAttribute extends Model
 
 class UserWithIntTimestampsViaMutator extends Model
 {
-    protected $table = 'users';
+    protected ?string $table = 'users';
 
-    protected $fillable = ['email'];
+    protected array $fillable = ['email'];
 
     protected function getUpdatedAtAttribute($value)
     {
@@ -228,9 +228,9 @@ class UserWithIntTimestampsViaMutator extends Model
 
 class UserWithUpdatedAtViaMutator extends Model
 {
-    protected $table = 'users_nullable_timestamps';
+    protected ?string $table = 'users_nullable_timestamps';
 
-    protected $fillable = ['email', 'updated_at'];
+    protected array $fillable = ['email', 'updated_at'];
 
     public function setUpdatedAtAttribute($value)
     {
@@ -238,6 +238,6 @@ class UserWithUpdatedAtViaMutator extends Model
             return;
         }
 
-        $this->updated_at = $value;
+        $this->attributes['updated_at'] = $value;
     }
 }

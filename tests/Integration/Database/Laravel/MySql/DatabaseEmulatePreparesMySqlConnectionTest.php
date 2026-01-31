@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\MySql;
+namespace Hypervel\Tests\Integration\Database\Laravel\MySql;
 
 use PDO;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
@@ -16,7 +16,7 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 #[RequiresPhpExtension('pdo_mysql')]
 class DatabaseEmulatePreparesMySqlConnectionTest extends DatabaseMySqlConnectionTest
 {
-    protected function defineEnvironment($app)
+    protected function defineEnvironment($app): void
     {
         parent::defineEnvironment($app);
 
