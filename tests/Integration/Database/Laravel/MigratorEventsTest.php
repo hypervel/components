@@ -2,17 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Events\MigrationEnded;
-use Illuminate\Database\Events\MigrationsEnded;
-use Illuminate\Database\Events\MigrationSkipped;
-use Illuminate\Database\Events\MigrationsStarted;
-use Illuminate\Database\Events\MigrationStarted;
-use Illuminate\Database\Events\NoPendingMigrations;
-use Illuminate\Database\Migrations\Migration;
-use Illuminate\Support\Facades\Event;
-use Orchestra\Testbench\TestCase;
+use Hypervel\Database\Events\MigrationEnded;
+use Hypervel\Database\Events\MigrationsEnded;
+use Hypervel\Database\Events\MigrationSkipped;
+use Hypervel\Database\Events\MigrationsStarted;
+use Hypervel\Database\Events\MigrationStarted;
+use Hypervel\Database\Events\NoPendingMigrations;
+use Hypervel\Database\Migrations\Migration;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Support\Facades\Event;
+use Hypervel\Testbench\TestCase;
 
 /**
  * @internal
@@ -20,6 +21,8 @@ use Orchestra\Testbench\TestCase;
  */
 class MigratorEventsTest extends TestCase
 {
+    use RunTestsInCoroutine;
+
     protected function migrateOptions()
     {
         return [

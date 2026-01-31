@@ -9,6 +9,7 @@ use FriendsOfHyperf\PrettyConsole\View\Components\BulletList;
 use FriendsOfHyperf\PrettyConsole\View\Components\Info;
 use FriendsOfHyperf\PrettyConsole\View\Components\Task;
 use FriendsOfHyperf\PrettyConsole\View\Components\TwoColumnDetail;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Database\Events\MigrationEvent as MigrationEventContract;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Connection;
@@ -72,7 +73,6 @@ class Migrator
         protected MigrationRepositoryInterface $repository,
         protected Resolver $resolver,
         protected Filesystem $files,
-        protected ?Dispatcher $events = null,
     ) {
     }
 
@@ -708,9 +708,17 @@ class Migrator
 
     /**
      * Fire the given event for the migration.
+     *
+     * Fetches the dispatcher from the container each time to ensure Event::fake()
+     * and other runtime swaps are respected (the Migrator may be constructed
+     * before fakes are set up).
      */
     public function fireMigrationEvent(MigrationEventContract $event): void
     {
-        $this->events?->dispatch($event);
+        $container = ApplicationContext::getContainer();
+
+        if ($container->has(Dispatcher::class)) {
+            $container->get(Dispatcher::class)->dispatch($event);
+        }
     }
 }
