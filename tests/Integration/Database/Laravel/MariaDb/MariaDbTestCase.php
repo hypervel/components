@@ -2,11 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\MariaDb;
+namespace Hypervel\Tests\Integration\Database\Laravel\MariaDb;
 
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
-use Orchestra\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
+/**
+ * @internal
+ * @coversNothing
+ */
 #[RequiresDatabase('mariadb')]
 abstract class MariaDbTestCase extends DatabaseTestCase
 {

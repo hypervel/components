@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench\Concerns;
 
+use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Testbench\Attributes\WithConfig;
 use Hypervel\Testbench\Attributes\WithMigration;
+use Hypervel\Testbench\Contracts\Attributes\Actionable;
 use Hypervel\Testbench\Contracts\Attributes\Invokable;
 
 /**
@@ -76,12 +78,24 @@ trait HandlesDatabases
     /**
      * Setup database requirements.
      *
-     * Processes WithConfig and WithMigration attributes before running migrations,
+     * Processes RequiresDatabase first (to skip early if wrong driver),
+     * then WithConfig and WithMigration attributes before running migrations,
      * then executes the callback (which typically runs migrations),
      * and finally runs seeders.
      */
     protected function setUpDatabaseRequirements(callable $callback): void
     {
+        // Process RequiresDatabase FIRST - skip test early if wrong driver
+        // This must happen before any driver-specific schema operations
+        $this->resolvePhpUnitAttributes()
+            ->filter(static fn ($attrs, string $key) => $key === RequiresDatabase::class)
+            ->flatten()
+            ->filter(static fn ($instance) => $instance instanceof Actionable)
+            ->each(fn ($instance) => $instance->handle(
+                $this->app,
+                fn ($method, $parameters) => $this->{$method}(...$parameters)
+            ));
+
         // Process WithConfig attributes BEFORE database connections are established
         $this->resolvePhpUnitAttributes()
             ->filter(static fn ($attrs, string $key) => $key === WithConfig::class)

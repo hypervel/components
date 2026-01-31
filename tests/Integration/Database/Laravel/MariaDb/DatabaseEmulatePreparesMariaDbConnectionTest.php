@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\MariaDb;
+namespace Hypervel\Tests\Integration\Database\Laravel\MariaDb;
 
 use PDO;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
@@ -16,7 +16,7 @@ use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 #[RequiresPhpExtension('pdo_mysql')]
 class DatabaseEmulatePreparesMariaDbConnectionTest extends DatabaseMariaDbConnectionTest
 {
-    protected function defineEnvironment($app)
+    protected function defineEnvironment($app): void
     {
         parent::defineEnvironment($app);
 

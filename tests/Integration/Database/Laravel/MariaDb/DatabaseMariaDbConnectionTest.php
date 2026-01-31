@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\MariaDb;
+namespace Hypervel\Tests\Integration\Database\Laravel\MariaDb;
 
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
@@ -27,7 +27,7 @@ class DatabaseMariaDbConnectionTest extends MariaDbTestCase
 
     public const FLOAT_VAL = 0.2;
 
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         if (! Schema::hasTable(self::TABLE)) {
             Schema::create(self::TABLE, function (Blueprint $table) {
@@ -37,7 +37,7 @@ class DatabaseMariaDbConnectionTest extends MariaDbTestCase
         }
     }
 
-    protected function destroyDatabaseMigrations()
+    protected function destroyDatabaseMigrations(): void
     {
         Schema::drop(self::TABLE);
     }

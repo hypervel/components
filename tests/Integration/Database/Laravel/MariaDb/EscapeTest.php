@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\MariaDb;
+namespace Hypervel\Tests\Integration\Database\Laravel\MariaDb;
 
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
