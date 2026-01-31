@@ -26,7 +26,6 @@ class ConfigProvider
         return [
             'dependencies' => [
                 ConnectionResolverInterface::class => ConnectionResolver::class,
-                'db.transactions' => DatabaseTransactionsManager::class,
                 MigrationRepositoryInterface::class => DatabaseMigrationRepositoryFactory::class,
             ],
             'listeners' => [

@@ -2,9 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Migrations\Migrator;
+use Hypervel\Database\Migrations\Migrator;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -12,10 +13,17 @@ use Illuminate\Database\Migrations\Migrator;
  */
 class MigrationServiceProviderTest extends DatabaseTestCase
 {
-    public function testContainerCanBuildMigrator()
+    /**
+     * Test that 'migrator' alias and Migrator::class resolve to the same singleton.
+     *
+     * Note: Hypervel uses get() for singleton resolution. Laravel's make() creates
+     * new instances, but in Laravel's test the singleton binding ensures same instance.
+     * In Hypervel, get() returns the cached singleton.
+     */
+    public function testContainerCanBuildMigrator(): void
     {
-        $fromString = $this->app->make('migrator');
-        $fromClass = $this->app->make(Migrator::class);
+        $fromString = $this->app->get('migrator');
+        $fromClass = $this->app->get(Migrator::class);
 
         $this->assertSame($fromString, $fromClass);
     }

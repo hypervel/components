@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Support\Facades\Schema;
-use Orchestra\Testbench\TestCase;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\TestCase;
 
 /**
  * @internal
@@ -13,6 +14,8 @@ use Orchestra\Testbench\TestCase;
  */
 class MigrateWithRealpathTest extends TestCase
 {
+    use RunTestsInCoroutine;
+
     protected function setUp(): void
     {
         parent::setUp();
