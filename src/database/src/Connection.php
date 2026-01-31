@@ -348,9 +348,9 @@ class Connection implements ConnectionInterface
     /**
      * Run a select statement against the database.
      */
-    public function select(string $query, array $bindings = [], bool $useReadPdo = true): array
+    public function select(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): array
     {
-        return $this->run($query, $bindings, function ($query, $bindings) use ($useReadPdo) {
+        return $this->run($query, $bindings, function ($query, $bindings) use ($useReadPdo, $fetchUsing) {
             if ($this->pretending()) {
                 return [];
             }
@@ -366,7 +366,7 @@ class Connection implements ConnectionInterface
 
             $statement->execute();
 
-            return $statement->fetchAll();
+            return $statement->fetchAll(...$fetchUsing);
         });
     }
 
@@ -403,7 +403,7 @@ class Connection implements ConnectionInterface
      *
      * @return Generator<int, stdClass>
      */
-    public function cursor(string $query, array $bindings = [], bool $useReadPdo = true): Generator
+    public function cursor(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): Generator
     {
         $statement = $this->run($query, $bindings, function ($query, $bindings) use ($useReadPdo) {
             if ($this->pretending()) {
@@ -429,7 +429,7 @@ class Connection implements ConnectionInterface
             return $statement;
         });
 
-        while ($record = $statement->fetch()) {
+        while ($record = $statement->fetch(...$fetchUsing)) {
             yield $record;
         }
     }

@@ -229,6 +229,11 @@ class Builder implements BuilderContract
     public bool $useWritePdo = false;
 
     /**
+     * The PDO fetch mode arguments for the query.
+     */
+    public array $fetchUsing = [];
+
+    /**
      * Create a new query builder instance.
      */
     public function __construct(
@@ -706,7 +711,7 @@ class Builder implements BuilderContract
     /**
      * Add a basic "where" clause to the query.
      */
-    public function where(Closure|string|array|ExpressionContract $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
+    public function where(Closure|self|EloquentBuilder|Relation|ExpressionContract|array|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
         if ($column instanceof ConditionExpression) {
             $type = 'Expression';
@@ -2757,7 +2762,8 @@ class Builder implements BuilderContract
         return $this->connection->select(
             $this->toSql(),
             $this->getBindings(),
-            ! $this->useWritePdo
+            ! $this->useWritePdo,
+            $this->fetchUsing
         );
     }
 
@@ -2972,7 +2978,8 @@ class Builder implements BuilderContract
             yield from $this->connection->cursor(
                 $this->toSql(),
                 $this->getBindings(),
-                ! $this->useWritePdo
+                ! $this->useWritePdo,
+                $this->fetchUsing
             );
         }))->map(function ($item) {
             return $this->applyAfterQueryCallbacks(new Collection([$item]))->first();
@@ -3105,7 +3112,8 @@ class Builder implements BuilderContract
         $results = $this->connection->select(
             $this->grammar->compileExists($this),
             $this->getBindings(),
-            ! $this->useWritePdo
+            ! $this->useWritePdo,
+            $this->fetchUsing
         );
 
         // If the results have rows, we will get the row and see if the exists column is a
@@ -3857,6 +3865,16 @@ class Builder implements BuilderContract
     public function useWritePdo(): static
     {
         $this->useWritePdo = true;
+
+        return $this;
+    }
+
+    /**
+     * Set the PDO fetch mode arguments for the query.
+     */
+    public function fetchUsing(mixed ...$fetchUsing): static
+    {
+        $this->fetchUsing = $fetchUsing;
 
         return $this;
     }

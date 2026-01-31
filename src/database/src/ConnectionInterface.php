@@ -42,12 +42,12 @@ interface ConnectionInterface
     /**
      * Run a select statement against the database.
      */
-    public function select(string $query, array $bindings = [], bool $useReadPdo = true): array;
+    public function select(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): array;
 
     /**
      * Run a select statement against the database and returns a generator.
      */
-    public function cursor(string $query, array $bindings = [], bool $useReadPdo = true): Generator;
+    public function cursor(string $query, array $bindings = [], bool $useReadPdo = true, array $fetchUsing = []): Generator;
 
     /**
      * Run an insert statement against the database.

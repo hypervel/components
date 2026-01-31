@@ -2,17 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Database\MultipleRecordsFoundException;
-use Illuminate\Database\RecordsNotFoundException;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Testing\Assert as PHPUnit;
-use Orchestra\Testbench\Attributes\DefineEnvironment;
+use Hypervel\Contracts\Pagination\LengthAwarePaginator;
+use Hypervel\Database\MultipleRecordsFoundException;
+use Hypervel\Database\RecordsNotFoundException;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\Assert as PHPUnit;
+use Hypervel\Testbench\Attributes\DefineEnvironment;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use PDO;
 use PDOException;
 
@@ -22,7 +23,7 @@ use PDOException;
  */
 class QueryBuilderTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('posts', function (Blueprint $table) {
             $table->increments('id');
@@ -693,7 +694,7 @@ class QueryBuilderTest extends DatabaseTestCase
         $this->assertSame('Bar Post', $result2[1]->title);
     }
 
-    protected function defineEnvironmentWouldThrowsPDOException($app)
+    protected function defineEnvironmentWouldThrowsPDOException($app): void
     {
         $this->afterApplicationCreated(function () {
             if (in_array($this->driver, ['pgsql', 'sqlsrv'])) {

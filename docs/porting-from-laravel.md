@@ -187,21 +187,33 @@ PHPUnit loads test files directly (not via autoloading), so the namespace doesn'
 
 ### Unsupported Features
 
-Remove tests for features Hypervel doesn't support:
+These are the **only** features that can be removed without asking:
 - `SqlServerConnector` tests (no SQL Server support)
 - Dynamic connections (`DB::build()`, `DB::connectUsing()`) - incompatible with Swoole connection pooling
 
+This list is exhaustive. Any other missing functionality is "not yet ported" and requires investigation and reporting.
+
+### Handling Failing Tests
+
+For tests that fail after conversion:
+
+1. **Easy fixes** (namespace typos, missing return types, etc.) - fix and continue
+2. **Non-trivial failures** - STOP and investigate:
+   - Identify the root cause (missing feature, source bug, architectural difference)
+   - Explain what's missing and what adding it would involve
+   - Report findings and wait for instructions
+
+**You do not decide what tests to skip or remove.** Only the user makes that call after reviewing your investigation.
+
 ### Removed Tests
 
-When removing a test that's incompatible with Hypervel, replace it with a comment **in the same position**:
+When the user approves removing a test, replace it with a comment **in the same position**:
 
 ```php
 // REMOVED: testMethodName - Reason for removal
 ```
 
 This preserves the test's location so future diffs against Laravel show intentional removals vs new tests needing porting.
-
-For tests that need work but aren't fundamentally incompatible, move them to the `Todo/` subdirectory with `markTestSkipped()` in setUp.
 
 ### Quick Checklist
 
@@ -214,5 +226,5 @@ For tests that need work but aren't fundamentally incompatible, move them to the
 7. Fix mock types (PDO, QueryBuilder, Grammar, etc.)
 8. Add `->andReturnSelf()` to chained method mocks
 9. Use test-specific namespace if file defines helper classes (e.g., `...Laravel\EloquentDeleteTest`)
-10. Remove tests for unsupported drivers/features
+10. Remove tests for unsupported drivers/features (SQL Server, dynamic connections only)
 11. Run tests and fix any remaining type errors
