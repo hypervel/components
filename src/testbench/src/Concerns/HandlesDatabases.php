@@ -26,7 +26,6 @@ trait HandlesDatabases
         /** @var \Hypervel\Contracts\Config\Repository $config */
         $config = $this->app->make('config');
 
-        /** @var string $connection */
         $connection ??= $config->get('database.default');
 
         /** @var array{driver: string, database: string}|null $database */
