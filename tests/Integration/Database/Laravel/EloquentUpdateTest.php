@@ -2,13 +2,14 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Support\Str;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -16,7 +17,7 @@ use Illuminate\Support\Str;
  */
 class EloquentUpdateTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('test_model1', function (Blueprint $table) {
             $table->increments('id');
@@ -190,29 +191,29 @@ class EloquentUpdateTest extends DatabaseTestCase
 
 class TestUpdateModel1 extends Model
 {
-    public $table = 'test_model1';
+    public ?string $table = 'test_model1';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 }
 
 class TestUpdateModel2 extends Model
 {
     use SoftDeletes;
 
-    public $table = 'test_model2';
+    public ?string $table = 'test_model2';
 
-    protected $fillable = ['name'];
+    protected array $fillable = ['name'];
 }
 
 class TestUpdateModel3 extends Model
 {
     use SoftDeletes;
 
-    public $table = 'test_model3';
+    public ?string $table = 'test_model3';
 
-    protected $fillable = ['counter'];
+    protected array $fillable = ['counter'];
 
-    protected $casts = ['deleted_at' => 'datetime'];
+    protected array $casts = ['deleted_at' => 'datetime'];
 }

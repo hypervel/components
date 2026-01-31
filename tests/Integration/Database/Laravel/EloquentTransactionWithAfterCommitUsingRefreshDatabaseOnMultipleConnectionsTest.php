@@ -21,6 +21,7 @@ class EloquentTransactionWithAfterCommitUsingRefreshDatabaseOnMultipleConnection
 
     protected function afterRefreshingDatabase(): void
     {
+        parent::afterRefreshingDatabase();
         $this->artisan('migrate', ['--database' => 'second']);
     }
 

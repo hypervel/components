@@ -2,14 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Eloquent\Concerns\HasUlids;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
-use Illuminate\Database\Eloquent\Model as Eloquent;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
+use Hypervel\Database\Eloquent\Concerns\HasUlids;
+use Hypervel\Database\Eloquent\Concerns\HasUuids;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Support\Str;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -17,7 +18,7 @@ use Illuminate\Support\Str;
  */
 class EloquentUniqueStringPrimaryKeysTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->uuid('id')->primary();
@@ -144,11 +145,11 @@ class ModelWithUuidPrimaryKey extends Eloquent
 {
     use HasUuids;
 
-    protected $table = 'users';
+    protected ?string $table = 'users';
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public function uniqueIds()
+    public function uniqueIds(): array
     {
         return [$this->getKeyName(), 'foo', 'bar'];
     }
@@ -158,11 +159,11 @@ class ModelUpsertWithUuidPrimaryKey extends Eloquent
 {
     use HasUuids;
 
-    protected $table = 'foo';
+    protected ?string $table = 'foo';
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public function uniqueIds()
+    public function uniqueIds(): array
     {
         return [$this->getKeyName()];
     }
@@ -172,11 +173,11 @@ class ModelWithUlidPrimaryKey extends Eloquent
 {
     use HasUlids;
 
-    protected $table = 'posts';
+    protected ?string $table = 'posts';
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public function uniqueIds()
+    public function uniqueIds(): array
     {
         return [$this->getKeyName(), 'foo', 'bar'];
     }
@@ -186,11 +187,11 @@ class ModelWithoutUuidPrimaryKey extends Eloquent
 {
     use HasUuids;
 
-    protected $table = 'songs';
+    protected ?string $table = 'songs';
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public function uniqueIds()
+    public function uniqueIds(): array
     {
         return ['foo', 'bar'];
     }
@@ -200,9 +201,9 @@ class ModelWithCustomUuidPrimaryKeyName extends Eloquent
 {
     use HasUuids;
 
-    protected $table = 'pictures';
+    protected ?string $table = 'pictures';
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected $primaryKey = 'uuid';
+    protected string $primaryKey = 'uuid';
 }
