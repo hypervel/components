@@ -32,7 +32,7 @@ class BlueprintState
     /**
      * The primary key.
      */
-    private ?IndexDefinition $primaryKey;
+    private Fluent|IndexDefinition|null $primaryKey;
 
     /**
      * The indexes.
@@ -101,7 +101,7 @@ class BlueprintState
     /**
      * Get the primary key.
      */
-    public function getPrimaryKey(): ?IndexDefinition
+    public function getPrimaryKey(): Fluent|IndexDefinition|null
     {
         return $this->primaryKey;
     }
@@ -185,7 +185,6 @@ class BlueprintState
 
                 break;
             case 'primary':
-                // @phpstan-ignore assign.propertyType (Blueprint commands are Fluent, stored as IndexDefinition)
                 $this->primaryKey = $command;
                 break;
             case 'unique':

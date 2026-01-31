@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Orchestra\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -25,7 +26,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
         }
     }
 
-    protected function defineDatabaseMigrations()
+    protected function defineDatabaseMigrations(): void
     {
         if (in_array($this->driver, ['mariadb', 'mysql'])) {
             Schema::createDatabase('my_schema');
@@ -39,7 +40,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
         }
     }
 
-    protected function destroyDatabaseMigrations()
+    protected function destroyDatabaseMigrations(): void
     {
         if (in_array($this->driver, ['mariadb', 'mysql'])) {
             Schema::dropDatabaseIfExists('my_schema');
@@ -53,7 +54,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
         }
     }
 
-    protected function defineEnvironment($app)
+    protected function defineEnvironment($app): void
     {
         parent::defineEnvironment($app);
 

@@ -36,7 +36,7 @@ class SQLiteBuilder extends Builder
     public function getTables(array|string|null $schema = null): array
     {
         try {
-            $withSize = $this->connection->scalar($this->grammar->compileDbstatExists());
+            $withSize = (bool) $this->connection->scalar($this->grammar->compileDbstatExists());
         } catch (QueryException) {
             $withSize = false;
         }
@@ -87,7 +87,7 @@ class SQLiteBuilder extends Builder
 
         return $this->connection->getPostProcessor()->processColumns(
             $this->connection->selectFromWriteConnection($this->grammar->compileColumns($schema, $table)),
-            $this->connection->scalar($this->grammar->compileSqlCreateStatement($schema, $table))
+            $this->connection->scalar($this->grammar->compileSqlCreateStatement($schema, $table)) ?? ''
         );
     }
 

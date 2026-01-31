@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Support\Facades\DB;
-use Orchestra\Testbench\TestCase;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Testbench\TestCase;
 
 /**
  * @internal
