@@ -252,6 +252,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
                 'select "related_table".*, "pivot_table"."source_id" as "pivot_source_id", "pivot_table"."related_id" as "pivot_related_id" from "related_table" inner join "pivot_table" on "related_table"."id" = "pivot_table"."related_id" where "pivot_table"."source_id" = ? and ("attr" = ?) limit 1',
                 [123, 'foo'],
                 true,
+                [],
             )
             ->andReturn([]);
 
@@ -261,6 +262,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
                 'select * from "related_table" where ("attr" = ?) limit 1',
                 ['foo'],
                 true,
+                [],
             )
             ->andReturn([[
                 'id' => 456,
@@ -334,6 +336,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
                 'select "related_table".*, "pivot_table"."source_id" as "pivot_source_id", "pivot_table"."related_id" as "pivot_related_id" from "related_table" inner join "pivot_table" on "related_table"."id" = "pivot_table"."related_id" where "pivot_table"."source_id" = ? and ("attr" = ?) limit 1',
                 [123, 'foo'],
                 true,
+                [],
             )
             ->andReturn([]);
 
@@ -343,6 +346,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
                 'select * from "related_table" where ("attr" = ?) limit 1',
                 ['foo'],
                 true,
+                [],
             )
             ->andReturn([]);
 

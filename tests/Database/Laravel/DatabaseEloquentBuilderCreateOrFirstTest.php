@@ -76,7 +76,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], false)
+            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], false, [])
             ->andReturn([[
                 'id' => 123,
                 'attr' => 'foo',
@@ -105,7 +105,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], true)
+            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], true, [])
             ->andReturn([[
                 'id' => 123,
                 'attr' => 'foo',
@@ -134,7 +134,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], true)
+            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], true, [])
             ->andReturn([]);
 
         $model->getConnection()->expects('insert')->with(
@@ -162,7 +162,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], true)
+            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], true, [])
             ->andReturn([]);
 
         $sql = 'insert into "table" ("attr", "val", "updated_at", "created_at") values (?, ?, ?, ?)';
@@ -175,7 +175,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], false)
+            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], false, [])
             ->andReturn([[
                 'id' => 123,
                 'attr' => 'foo',
@@ -204,7 +204,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], true)
+            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], true, [])
             ->andReturn([[
                 'id' => 123,
                 'attr' => 'foo',
@@ -241,7 +241,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], true)
+            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], true, [])
             ->andReturn([]);
 
         $model->getConnection()->expects('insert')->with(
@@ -269,7 +269,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], true)
+            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], true, [])
             ->andReturn([]);
 
         $sql = 'insert into "table" ("attr", "val", "updated_at", "created_at") values (?, ?, ?, ?)';
@@ -282,7 +282,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], false)
+            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], false, [])
             ->andReturn([[
                 'id' => 123,
                 'attr' => 'foo',
@@ -319,7 +319,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], true)
+            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], true, [])
             ->andReturn([[
                 'id' => 123,
                 'attr' => 'foo',
@@ -361,7 +361,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], true)
+            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], true, [])
             ->andReturn([]);
 
         $model->getConnection()->expects('insert')->with(
@@ -389,7 +389,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], true)
+            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], true, [])
             ->andReturn([[
                 'id' => 123,
                 'attr' => 'foo',
@@ -433,7 +433,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], true)
+            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], true, [])
             ->andReturn([]);
 
         $sql = 'insert into "table" ("attr", "count", "updated_at", "created_at") values (?, ?, ?, ?)';
@@ -446,7 +446,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], false)
+            ->with('select * from "table" where ("attr" = ?) limit 1', ['foo'], false, [])
             ->andReturn([[
                 'id' => 123,
                 'attr' => 'foo',

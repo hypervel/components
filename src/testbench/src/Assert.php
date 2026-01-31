@@ -9,7 +9,7 @@ use Hypervel\Testbench\Constraints\ArraySubset;
 use PHPUnit\Framework\Assert as PHPUnit;
 
 /**
- * @internal This class is not meant to be used or overwritten outside the framework itself.
+ * @internal this class is not meant to be used or overwritten outside the framework itself
  */
 abstract class Assert extends PHPUnit
 {

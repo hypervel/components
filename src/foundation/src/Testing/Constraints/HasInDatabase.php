@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Constraints;
 
+use Hypervel\Contracts\Database\Query\Expression;
 use Hypervel\Database\Connection;
-use Hypervel\Database\Query\Expression;
 use PHPUnit\Framework\Constraint\Constraint;
 
 class HasInDatabase extends Constraint
@@ -93,11 +93,9 @@ class HasInDatabase extends Constraint
     public function toString($options = 0): string
     {
         foreach ($this->data as $key => $data) {
-            $output[$key] = $data instanceof Expression ? (string) $data : $data;
+            $output[$key] = $data instanceof Expression ? $data->getValue($this->database->getQueryGrammar()) : $data;
         }
 
-        // since phpunit 10 it will pass options in boolean
-        // we need to cast it to int
         return json_encode($output ?? [], (int) $options);
     }
 }

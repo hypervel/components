@@ -79,7 +79,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], false)
+            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], false, [])
             ->andReturn([[
                 'id' => 456,
                 'parent_id' => 123,
@@ -111,7 +111,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true)
+            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true, [])
             ->andReturn([]);
 
         $model->getConnection()->expects('insert')->with(
@@ -141,7 +141,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true)
+            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true, [])
             ->andReturn([[
                 'id' => 456,
                 'parent_id' => 123,
@@ -173,7 +173,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true)
+            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true, [])
             ->andReturn([]);
 
         $sql = 'insert into "child_table" ("attr", "val", "parent_id", "updated_at", "created_at") values (?, ?, ?, ?, ?)';
@@ -186,7 +186,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], false)
+            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], false, [])
             ->andReturn([[
                 'id' => 456,
                 'parent_id' => 123,
@@ -218,7 +218,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true)
+            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true, [])
             ->andReturn([]);
 
         $model->getConnection()->expects('insert')->with(
@@ -248,7 +248,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true)
+            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true, [])
             ->andReturn([[
                 'id' => 456,
                 'parent_id' => 123,
@@ -285,7 +285,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true)
+            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], true, [])
             ->andReturn([]);
 
         $sql = 'insert into "child_table" ("attr", "val", "parent_id", "updated_at", "created_at") values (?, ?, ?, ?, ?)';
@@ -298,7 +298,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
         $model->getConnection()
             ->expects('select')
-            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], false)
+            ->with('select * from "child_table" where "child_table"."parent_id" = ? and "child_table"."parent_id" is not null and ("attr" = ?) limit 1', [123, 'foo'], false, [])
             ->andReturn([[
                 'id' => 456,
                 'parent_id' => 123,
