@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Integration\Database\Laravel;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentCollectionLoadCountTest;
 
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;

@@ -153,20 +153,33 @@ If a Laravel test fails with a type error, the source code type may be wrong—n
 
 Some test files reference classes defined in other test files. Laravel gets away with this due to test suite load order. Make tests self-contained by defining required classes locally.
 
-### Helper Class Naming
+### Helper Class Namespacing
 
-Laravel tests define helper classes (models, stubs) with generic names like `User`, `Post`, `Comment`. Since all ported tests share the same namespace, these conflict when PHPUnit loads multiple test files.
+Laravel tests define helper classes (models, stubs) with generic names like `User`, `Post`, `Comment`. When multiple test files use the same namespace and define classes with the same name, PHP throws "Cannot redeclare class" errors.
 
-**Prefix helper classes with the test class name (minus "Test" suffix):**
+**Use test-specific namespaces** (matching Laravel's pattern):
 
 ```php
-// In EloquentDeleteTest.php
-class EloquentDeleteComment extends Model {}
-class EloquentDeletePost extends Model {}
+// WRONG - shared namespace causes conflicts
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-// In EloquentMorphManyTest.php
-class EloquentMorphManyComment extends Model {}
+class EloquentDeleteTest extends DatabaseTestCase { ... }
+class Comment extends Model {}  // Conflicts with Comment in other files!
+
+// CORRECT - test-specific namespace isolates classes
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentDeleteTest;
+
+class EloquentDeleteTest extends DatabaseTestCase { ... }
+class Comment extends Model {}  // No conflict - different namespace
 ```
+
+The namespace includes the test class name as the final segment. This means:
+- Each test file has its own namespace
+- Helper classes can use simple names (`Comment`, `Post`, `User`)
+- No `$table` properties needed (Eloquent derives `comments` from `Comment`)
+- No explicit foreign keys needed (Eloquent derives `user_id` from `User`)
+
+PHPUnit loads test files directly (not via autoloading), so the namespace doesn't need to match the directory structure.
 
 ### Unsupported Features
 
@@ -196,6 +209,6 @@ For tests that need work but aren't fundamentally incompatible, move them to the
 6. Add type declarations to model properties
 7. Fix mock types (PDO, QueryBuilder, Grammar, etc.)
 8. Add `->andReturnSelf()` to chained method mocks
-9. Rename helper classes with test name prefix (e.g., `Comment` → `EloquentDeleteComment`)
+9. Use test-specific namespace if file defines helper classes (e.g., `...Laravel\EloquentDeleteTest`)
 10. Remove tests for unsupported drivers/features
 11. Run tests and fix any remaining type errors

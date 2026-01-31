@@ -2,17 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
 use Exception;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Prunable;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Events\ModelsPruned;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Exceptions;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Prunable;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Events\ModelsPruned;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Event;
+use Hypervel\Support\Facades\Exceptions;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use LogicException;
 
 /**
@@ -21,7 +22,7 @@ use LogicException;
  */
 class EloquentPrunableTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         collect([
             'prunable_test_models',
