@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\Sqlite;
+namespace Hypervel\Tests\Integration\Database\Laravel\Sqlite;
 
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
-use Orchestra\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use RuntimeException;
 
 /**
@@ -15,7 +15,7 @@ use RuntimeException;
 #[RequiresDatabase('sqlite')]
 class EscapeTest extends DatabaseTestCase
 {
-    protected function defineEnvironment($app)
+    protected function defineEnvironment($app): void
     {
         parent::defineEnvironment($app);
 
@@ -82,7 +82,8 @@ class EscapeTest extends DatabaseTestCase
 
     public function testEscapeArray()
     {
-        $this->expectException(RuntimeException::class);
+        // Hypervel throws TypeError due to stricter type hints on escape() method
+        $this->expectException(\TypeError::class);
 
         $this->app['db']->escape(['a', 'b']);
     }

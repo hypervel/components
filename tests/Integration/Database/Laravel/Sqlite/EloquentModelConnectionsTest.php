@@ -2,14 +2,17 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\Sqlite;
+namespace Hypervel\Tests\Integration\Database\Laravel\Sqlite\EloquentModelConnectionsTest;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
-use Orchestra\Testbench\Attributes\RequiresDatabase;
-use Orchestra\Testbench\TestCase;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Eloquent\Relations\HasMany;
+use UnitEnum;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Support\Str;
+use Hypervel\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Testbench\TestCase;
 
 /**
  * @internal
@@ -18,7 +21,7 @@ use Orchestra\Testbench\TestCase;
 #[RequiresDatabase('sqlite')]
 class EloquentModelConnectionsTest extends TestCase
 {
-    protected function defineEnvironment($app)
+    protected function defineEnvironment($app): void
     {
         $app['config']->set('database.default', 'conn1');
 
@@ -35,8 +38,14 @@ class EloquentModelConnectionsTest extends TestCase
         ]);
     }
 
-    protected function defineDatabaseMigrations()
+    protected function defineDatabaseMigrations(): void
     {
+        // Clean up any existing tables from previous tests
+        Schema::dropIfExists('child');
+        Schema::dropIfExists('parent');
+        Schema::connection('conn2')->dropIfExists('child');
+        Schema::connection('conn2')->dropIfExists('parent');
+
         Schema::create('parent', function (Blueprint $table) {
             $table->increments('id');
             $table->string('name');
@@ -101,18 +110,18 @@ class EloquentModelConnectionsTest extends TestCase
 
 class ParentModel extends Model
 {
-    public $table = 'parent';
+    protected ?string $table = 'parent';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public function children()
+    public function children(): HasMany
     {
         return $this->hasMany(ChildModel::class, 'parent_id');
     }
 
-    public function childrenDefaultConn2()
+    public function childrenDefaultConn2(): HasMany
     {
         return $this->hasMany(ChildModelDefaultConn2::class, 'parent_id');
     }
@@ -120,13 +129,13 @@ class ParentModel extends Model
 
 class ChildModel extends Model
 {
-    public $table = 'child';
+    protected ?string $table = 'child';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public function parent()
+    public function parent(): BelongsTo
     {
         return $this->belongsTo(ParentModel::class, 'parent_id');
     }
@@ -134,15 +143,15 @@ class ChildModel extends Model
 
 class ChildModelDefaultConn2 extends Model
 {
-    public $connection = 'conn2';
+    protected UnitEnum|string|null $connection = 'conn2';
 
-    public $table = 'child';
+    protected ?string $table = 'child';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public function parent()
+    public function parent(): BelongsTo
     {
         return $this->belongsTo(ParentModel::class, 'parent_id');
     }
