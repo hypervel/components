@@ -45,6 +45,7 @@
         "sort-packages": true
     },
     "bin": [
+        "bin/testbench",
         "bin/testbench-sync"
     ],
     "scripts": {
