@@ -48,10 +48,9 @@ class NullDispatcher implements Dispatcher
      */
     public function listen(
         array|Closure|QueuedClosure|string $events,
-        array|Closure|int|QueuedClosure|string|null $listener = null,
-        int $priority = ListenerData::DEFAULT_PRIORITY
+        array|Closure|QueuedClosure|string|null $listener = null
     ): void {
-        $this->dispatcher->listen($events, $listener, $priority);
+        $this->dispatcher->listen($events, $listener);
     }
 
     /**

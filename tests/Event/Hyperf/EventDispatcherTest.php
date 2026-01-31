@@ -83,20 +83,21 @@ class EventDispatcherTest extends TestCase
         $dispatcher->dispatch(new Alpha());
     }
 
-    public function testListenersWithPriority()
+    public function testListenersCalledInRegistrationOrder(): void
     {
+        // Listeners are called in registration order (Laravel-style, no priority)
         PriorityEvent::$result = [];
         $listenerProvider = new ListenerProvider();
-        $listenerProvider->on(PriorityEvent::class, [new PriorityListener(1), 'process'], 1);
-        $listenerProvider->on(PriorityEvent::class, [new PriorityListener(2), 'process'], 3);
-        $listenerProvider->on(PriorityEvent::class, [new PriorityListener(3), 'process'], 2);
-        $listenerProvider->on(PriorityEvent::class, [new PriorityListener(4), 'process'], 0);
-        $listenerProvider->on(PriorityEvent::class, [new PriorityListener(5), 'process'], 99);
-        $listenerProvider->on(PriorityEvent::class, [new PriorityListener(6), 'process'], -99);
+        $listenerProvider->on(PriorityEvent::class, [new PriorityListener(1), 'process']);
+        $listenerProvider->on(PriorityEvent::class, [new PriorityListener(2), 'process']);
+        $listenerProvider->on(PriorityEvent::class, [new PriorityListener(3), 'process']);
+        $listenerProvider->on(PriorityEvent::class, [new PriorityListener(4), 'process']);
+        $listenerProvider->on(PriorityEvent::class, [new PriorityListener(5), 'process']);
+        $listenerProvider->on(PriorityEvent::class, [new PriorityListener(6), 'process']);
 
         $dispatcher = new EventDispatcher($listenerProvider);
         $dispatcher->dispatch(new PriorityEvent());
 
-        $this->assertSame([5, 2, 3, 1, 4, 6], PriorityEvent::$result);
+        $this->assertSame([1, 2, 3, 4, 5, 6], PriorityEvent::$result);
     }
 }

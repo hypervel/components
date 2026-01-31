@@ -8,54 +8,69 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Annotation\AnnotationCollector;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
-use Hyperf\Event\ListenerData;
 use Psr\Container\ContainerInterface;
 
+/**
+ * Factory for creating and configuring the ListenerProvider.
+ *
+ * Registers listeners from two sources:
+ * 1. Config-based: Classes listed in the 'listeners' config array
+ * 2. Annotation-based: Classes with #[Listener] attribute
+ *
+ * Both sources support Hyperf's ListenerInterface pattern where listeners
+ * declare which events they handle via listen() and process them via process().
+ */
 class ListenerProviderFactory
 {
     public function __invoke(ContainerInterface $container): ListenerProvider
     {
         $listenerProvider = new ListenerProvider();
 
-        // Register config listeners.
         $this->registerConfig($listenerProvider, $container);
-
-        // Register annotation listeners.
         $this->registerAnnotations($listenerProvider, $container);
 
         return $listenerProvider;
     }
 
+    /**
+     * Register listeners from the 'listeners' config array.
+     */
     protected function registerConfig(ListenerProvider $provider, ContainerInterface $container): void
     {
         $config = $container->get(ConfigInterface::class);
-        foreach ($config->get('listeners', []) as $listener => $priority) {
-            if (is_int($listener)) {
-                $listener = $priority;
-                $priority = ListenerData::DEFAULT_PRIORITY;
-            }
+
+        foreach ($config->get('listeners', []) as $key => $value) {
+            // Support both indexed array and associative (legacy priority) format
+            $listener = is_int($key) ? $value : $key;
+
             if (is_string($listener)) {
-                $this->register($provider, $container, $listener, $priority);
+                $this->register($provider, $container, $listener);
             }
         }
     }
 
+    /**
+     * Register listeners with #[Listener] annotation.
+     */
     protected function registerAnnotations(ListenerProvider $provider, ContainerInterface $container): void
     {
         foreach (AnnotationCollector::list() as $className => $values) {
-            /** @var Listener $annotation */
-            if ($annotation = $values['_c'][Listener::class] ?? null) {
-                $this->register($provider, $container, $className, $annotation->priority);
+            if (isset($values['_c'][Listener::class])) {
+                $this->register($provider, $container, $className);
             }
         }
     }
 
-    protected function register(ListenerProvider $provider, ContainerInterface $container, string $listener, int $priority = ListenerData::DEFAULT_PRIORITY): void
+    /**
+     * Register a listener class implementing ListenerInterface.
+     */
+    protected function register(ListenerProvider $provider, ContainerInterface $container, string $listener): void
     {
         $instance = $container->get($listener);
+
         if ($instance instanceof ListenerInterface) {
             foreach ($instance->listen() as $event) {
-                $provider->on($event, [$instance, 'process'], $priority);
+                $provider->on($event, [$instance, 'process']);
             }
         }
     }

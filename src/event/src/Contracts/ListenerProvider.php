@@ -16,7 +16,7 @@ interface ListenerProvider extends PsrListenerProviderInterface
     /**
      * Register an event listener with the listener provider.
      */
-    public function on(string $event, array|callable|string $listener, int $priority): void;
+    public function on(string $event, array|callable|string $listener): void;
 
     /**
      * Get all of the listeners for a given event name.

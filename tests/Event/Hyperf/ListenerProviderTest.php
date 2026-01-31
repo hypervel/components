@@ -16,21 +16,21 @@ use Hypervel\Tests\TestCase;
  */
 class ListenerProviderTest extends TestCase
 {
-    public function testListenNotExistEvent()
+    public function testListenNotExistEvent(): void
     {
         $provider = new ListenerProvider();
         $provider->on(Alpha::class, [new AlphaListener(), 'process']);
         $provider->on('NotExistEvent', [new AlphaListener(), 'process']);
 
-        $it = $provider->getListenersForEvent(new Alpha());
-        $listenerData = $it->current();
+        $listeners = $provider->getListenersForEvent(new Alpha());
+        $this->assertCount(1, $listeners);
+        $listenerData = $listeners[0];
         [$class, $method] = $listenerData['listener'];
         $this->assertInstanceOf(AlphaListener::class, $class);
         $this->assertSame('process', $method);
         $this->assertFalse($listenerData['isWildcard']);
-        $this->assertNull($it->next());
 
-        $it = $provider->getListenersForEvent(new Beta());
-        $this->assertNull($it->current());
+        $betaListeners = $provider->getListenersForEvent(new Beta());
+        $this->assertEmpty($betaListeners);
     }
 }

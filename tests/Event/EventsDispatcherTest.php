@@ -809,13 +809,13 @@ class EventsDispatcherTest extends TestCase
         // Get raw listeners
         $rawListeners = $d->getRawListeners();
 
-        // Assert that the raw listeners are as expected
+        // Assert that the raw listeners are as expected (now returns raw strings, not ListenerData)
         $this->assertArrayHasKey('event1', $rawListeners);
         $this->assertArrayHasKey('event2', $rawListeners);
         $this->assertArrayHasKey('event3', $rawListeners);
-        $this->assertSame('Listener1', $rawListeners['event1'][0]->listener);
-        $this->assertSame('Listener2', $rawListeners['event2'][0]->listener);
-        $this->assertSame('Listener3', $rawListeners['event3'][0]->listener);
+        $this->assertSame('Listener1', $rawListeners['event1'][0]);
+        $this->assertSame('Listener2', $rawListeners['event2'][0]);
+        $this->assertSame('Listener3', $rawListeners['event3'][0]);
     }
 
     public function testDispatchWithAfterCommit()

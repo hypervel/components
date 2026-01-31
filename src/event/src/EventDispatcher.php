@@ -113,16 +113,15 @@ class EventDispatcher implements EventDispatcherContract
     }
 
     /**
-     * Register an event listener with the listener provider.
+     * Register an event listener with the dispatcher.
      */
     public function listen(
         array|Closure|QueuedClosure|string $events,
-        array|Closure|int|QueuedClosure|string|null $listener = null,
-        int $priority = ListenerData::DEFAULT_PRIORITY
+        array|Closure|QueuedClosure|string|null $listener = null
     ): void {
         if ($events instanceof Closure) {
             foreach ((array) $this->firstClosureParameterTypes($events) as $event) {
-                $this->listeners->on($event, $events, is_int($listener) ? $listener : $priority);
+                $this->listeners->on($event, $events);
             }
 
             return;
@@ -130,7 +129,7 @@ class EventDispatcher implements EventDispatcherContract
 
         if ($events instanceof QueuedClosure) {
             foreach ((array) $this->firstClosureParameterTypes($events->closure) as $event) {
-                $this->listeners->on($event, $events->resolve(), is_int($listener) ? $listener : $priority);
+                $this->listeners->on($event, $events->resolve());
             }
 
             return;
@@ -141,7 +140,7 @@ class EventDispatcher implements EventDispatcherContract
         }
 
         foreach ((array) $events as $event) {
-            $this->listeners->on($event, $listener, $priority);
+            $this->listeners->on($event, $listener);
         }
     }
 

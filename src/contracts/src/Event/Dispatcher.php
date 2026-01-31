@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\Event;
 
 use Closure;
-use Hypervel\Event\ListenerData;
 use Hypervel\Event\QueuedClosure;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
@@ -17,12 +16,11 @@ interface Dispatcher extends EventDispatcherInterface
     public function dispatch(object|string $event, mixed $payload = [], bool $halt = false): mixed;
 
     /**
-     * Register an event listener with the listener provider.
+     * Register an event listener with the dispatcher.
      */
     public function listen(
         array|Closure|QueuedClosure|string $events,
-        array|Closure|int|QueuedClosure|string|null $listener = null,
-        int $priority = ListenerData::DEFAULT_PRIORITY
+        array|Closure|QueuedClosure|string|null $listener = null
     ): void;
 
     /**
