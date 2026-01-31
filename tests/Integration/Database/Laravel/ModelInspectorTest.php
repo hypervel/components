@@ -2,22 +2,23 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Eloquent\Attributes\CollectedBy;
-use Illuminate\Database\Eloquent\Attributes\ObservedBy;
-use Illuminate\Database\Eloquent\Attributes\UseResource;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\ModelInfo;
-use Illuminate\Database\Eloquent\ModelInspector;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Eloquent\Attributes\CollectedBy;
+use Hypervel\Database\Eloquent\Attributes\ObservedBy;
+use Hypervel\Database\Eloquent\Attributes\UseResource;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Concerns\HasUuids;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\ModelInfo;
+use Hypervel\Database\Eloquent\ModelInspector;
+use Hypervel\Database\Eloquent\Relations\BelongsTo;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Http\Resources\Json\JsonResource;
+use Hypervel\Support\Facades\Artisan;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -25,7 +26,7 @@ use Illuminate\Support\Facades\Schema;
  */
 class ModelInspectorTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('parent_test_models', function (Blueprint $table) {
             $table->id();
@@ -168,14 +169,14 @@ class ModelInspectorTest extends DatabaseTestCase
         $this->assertEqualsCanonicalizing([
             'name' => 'parentModel',
             'type' => 'BelongsTo',
-            'related' => 'Illuminate\Tests\Integration\Database\ParentTestModel',
+            'related' => 'Hypervel\Tests\Integration\Database\Laravel\ParentTestModel',
         ], $modelInfo['relations'][0]);
 
         $this->assertEmpty($modelInfo['events']);
         $this->assertCount(1, $modelInfo['observers']);
         $this->assertEquals('created', $modelInfo['observers'][0]['event']);
         $this->assertCount(1, $modelInfo['observers'][0]['observer']);
-        $this->assertEquals('Illuminate\Tests\Integration\Database\ModelInspectorTestModelObserver@created', $modelInfo['observers'][0]['observer'][0]);
+        $this->assertEquals('Hypervel\Tests\Integration\Database\Laravel\ModelInspectorTestModelObserver@created', $modelInfo['observers'][0]['observer'][0]);
         $this->assertEquals(ModelInspectorTestModelEloquentCollection::class, $modelInfo['collection']);
         $this->assertEquals(ModelInspectorTestModelBuilder::class, $modelInfo['builder']);
     }
@@ -200,11 +201,11 @@ class ModelInspectorTestModel extends Model
 
     protected static string $builder = ModelInspectorTestModelBuilder::class;
 
-    public $table = 'model_info_extractor_test_model';
+    public ?string $table = 'model_info_extractor_test_model';
 
-    protected $guarded = ['name'];
+    protected array $guarded = ['name'];
 
-    protected $casts = ['nullable_date' => 'datetime', 'a_bool' => 'bool'];
+    protected array $casts = ['nullable_date' => 'datetime', 'a_bool' => 'bool'];
 
     public function parentModel(): BelongsTo
     {
@@ -214,9 +215,9 @@ class ModelInspectorTestModel extends Model
 
 class ParentTestModel extends Model
 {
-    public $table = 'parent_test_models';
+    public ?string $table = 'parent_test_models';
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 }
 
 class ModelInspectorTestModelObserver
