@@ -43,8 +43,12 @@ Each test runs in a fresh coroutine. Context is automatically destroyed when the
 ### Namespace Changes
 
 - Change `Illuminate\` to `Hypervel\`
-- Change `namespace Illuminate\Tests\{Package}` to `namespace Hypervel\Tests\{Package}\Laravel`
 - Add `declare(strict_types=1);` at the top of every file
+- **Preserve Laravel's namespace structure** - just swap prefix and add `\Laravel`:
+  - `Illuminate\Tests\Integration\Database` → `Hypervel\Tests\Integration\Database\Laravel`
+  - `Illuminate\Tests\Integration\Database\EloquentFooTest` → `Hypervel\Tests\Integration\Database\Laravel\EloquentFooTest`
+
+If Laravel's namespace includes the test class name, keep it. Stripping it causes "Cannot redeclare class" errors.
 
 ### Stricter Typing
 
