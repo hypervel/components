@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentWhereHasMorphTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentWhereHasMorphTest;
 
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\Relation;
-use Illuminate\Database\Eloquent\SoftDeletes;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -18,7 +18,7 @@ use Illuminate\Tests\Integration\Database\DatabaseTestCase;
  */
 class EloquentWhereHasMorphTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('posts', function (Blueprint $table) {
             $table->increments('id');
@@ -294,9 +294,9 @@ class Comment extends Model
 {
     use SoftDeletes;
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function commentable()
     {
@@ -318,9 +318,9 @@ class Post extends Model
 {
     use SoftDeletes;
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function scopeSomeSharedModelScope($query)
     {
@@ -330,9 +330,9 @@ class Post extends Model
 
 class Video extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function scopeSomeSharedModelScope($query)
     {

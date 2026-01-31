@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\EloquentWhereHasTest;
+namespace Hypervel\Tests\Integration\Database\Laravel\EloquentWhereHasTest;
 
-use Illuminate\Database\Eloquent\Builder as EloquentBuilder;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Query\Builder as QueryBuilder;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Query\Builder as QueryBuilder;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -19,7 +19,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
  */
 class EloquentWhereHasTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->increments('id');
@@ -258,7 +258,7 @@ class EloquentWhereHasTest extends DatabaseTestCase
 
 class Comment extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
     public function commentable()
     {
@@ -268,11 +268,11 @@ class Comment extends Model
 
 class Post extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    protected $withCount = ['comments'];
+    protected array $withCount = ['comments'];
 
     public function comments()
     {
@@ -292,9 +292,9 @@ class Post extends Model
 
 class Text extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
     public function post()
     {
@@ -304,7 +304,7 @@ class Text extends Model
 
 class User extends Model
 {
-    public $timestamps = false;
+    public bool $timestamps = false;
 
     public function posts()
     {

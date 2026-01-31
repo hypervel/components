@@ -2,15 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database;
+namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Database\MultipleRecordsFoundException;
-use Illuminate\Database\Query\Builder;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\MultipleRecordsFoundException;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\DB;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
@@ -18,7 +19,7 @@ use Illuminate\Support\Facades\Schema;
  */
 class EloquentWhereTest extends DatabaseTestCase
 {
-    protected function afterRefreshingDatabase()
+    protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {
             $table->increments('id');
@@ -30,14 +31,14 @@ class EloquentWhereTest extends DatabaseTestCase
 
     public function testWhereAndWhereOrBehavior()
     {
-        /** @var \Illuminate\Tests\Integration\Database\UserWhereTest $firstUser */
+        /** @var \Hypervel\Tests\Integration\Database\Laravel\UserWhereTest $firstUser */
         $firstUser = UserWhereTest::create([
             'name' => 'test-name',
             'email' => 'test-email',
             'address' => 'test-address',
         ]);
 
-        /** @var \Illuminate\Tests\Integration\Database\UserWhereTest $secondUser */
+        /** @var \Hypervel\Tests\Integration\Database\Laravel\UserWhereTest $secondUser */
         $secondUser = UserWhereTest::create([
             'name' => 'test-name1',
             'email' => 'test-email1',
@@ -74,14 +75,14 @@ class EloquentWhereTest extends DatabaseTestCase
 
     public function testWhereNot()
     {
-        /** @var \Illuminate\Tests\Integration\Database\UserWhereTest $firstUser */
+        /** @var \Hypervel\Tests\Integration\Database\Laravel\UserWhereTest $firstUser */
         $firstUser = UserWhereTest::create([
             'name' => 'test-name',
             'email' => 'test-email',
             'address' => 'test-address',
         ]);
 
-        /** @var \Illuminate\Tests\Integration\Database\UserWhereTest $secondUser */
+        /** @var \Hypervel\Tests\Integration\Database\Laravel\UserWhereTest $secondUser */
         $secondUser = UserWhereTest::create([
             'name' => 'test-name1',
             'email' => 'test-email1',
@@ -101,21 +102,21 @@ class EloquentWhereTest extends DatabaseTestCase
 
     public function testWhereIn()
     {
-        /** @var \Illuminate\Tests\Integration\Database\UserWhereTest $user1 */
+        /** @var \Hypervel\Tests\Integration\Database\Laravel\UserWhereTest $user1 */
         $user1 = UserWhereTest::create([
             'name' => 'test-name1',
             'email' => 'test-email1',
             'address' => 'test-address1',
         ]);
 
-        /** @var \Illuminate\Tests\Integration\Database\UserWhereTest $user2 */
+        /** @var \Hypervel\Tests\Integration\Database\Laravel\UserWhereTest $user2 */
         $user2 = UserWhereTest::create([
             'name' => 'test-name2',
             'email' => 'test-email2',
             'address' => 'test-address2',
         ]);
 
-        /** @var \Illuminate\Tests\Integration\Database\UserWhereTest $user3 */
+        /** @var \Hypervel\Tests\Integration\Database\Laravel\UserWhereTest $user3 */
         $user3 = UserWhereTest::create([
             'name' => 'test-name2',
             'email' => 'test-email3',
@@ -193,21 +194,21 @@ class EloquentWhereTest extends DatabaseTestCase
 
     public function testWhereIntegerInRaw()
     {
-        /** @var \Illuminate\Tests\Integration\Database\UserWhereTest $user1 */
+        /** @var \Hypervel\Tests\Integration\Database\Laravel\UserWhereTest $user1 */
         $user1 = UserWhereTest::create([
             'name' => 'test-name1',
             'email' => 'test-email1',
             'address' => 'test-address1',
         ]);
 
-        /** @var \Illuminate\Tests\Integration\Database\UserWhereTest $user2 */
+        /** @var \Hypervel\Tests\Integration\Database\Laravel\UserWhereTest $user2 */
         $user2 = UserWhereTest::create([
             'name' => 'test-name2',
             'email' => 'test-email2',
             'address' => 'test-address2',
         ]);
 
-        /** @var \Illuminate\Tests\Integration\Database\UserWhereTest $user3 */
+        /** @var \Hypervel\Tests\Integration\Database\Laravel\UserWhereTest $user3 */
         $user3 = UserWhereTest::create([
             'name' => 'test-name2',
             'email' => 'test-email3',
@@ -232,14 +233,14 @@ class EloquentWhereTest extends DatabaseTestCase
 
     public function testFirstWhere()
     {
-        /** @var \Illuminate\Tests\Integration\Database\UserWhereTest $firstUser */
+        /** @var \Hypervel\Tests\Integration\Database\Laravel\UserWhereTest $firstUser */
         $firstUser = UserWhereTest::create([
             'name' => 'test-name',
             'email' => 'test-email',
             'address' => 'test-address',
         ]);
 
-        /** @var \Illuminate\Tests\Integration\Database\UserWhereTest $secondUser */
+        /** @var \Hypervel\Tests\Integration\Database\Laravel\UserWhereTest $secondUser */
         $secondUser = UserWhereTest::create([
             'name' => 'test-name1',
             'email' => 'test-email1',
@@ -343,9 +344,9 @@ class EloquentWhereTest extends DatabaseTestCase
  */
 class UserWhereTest extends Model
 {
-    protected $table = 'users';
+    protected ?string $table = 'users';
 
-    protected $guarded = [];
+    protected array $guarded = [];
 
-    public $timestamps = false;
+    public bool $timestamps = false;
 }
