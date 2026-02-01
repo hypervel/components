@@ -4,17 +4,15 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\Laravel;
 
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\Schema;
-use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-class MigrateWithRealpathTest extends TestCase
+class MigrateWithRealpathTest extends DatabaseTestCase
 {
-    use RunTestsInCoroutine;
 
     protected function setUp(): void
     {

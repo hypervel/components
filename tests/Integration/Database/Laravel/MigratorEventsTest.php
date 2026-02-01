@@ -11,17 +11,15 @@ use Hypervel\Database\Events\MigrationsStarted;
 use Hypervel\Database\Events\MigrationStarted;
 use Hypervel\Database\Events\NoPendingMigrations;
 use Hypervel\Database\Migrations\Migration;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\Event;
-use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-class MigratorEventsTest extends TestCase
+class MigratorEventsTest extends DatabaseTestCase
 {
-    use RunTestsInCoroutine;
 
     protected function migrateOptions()
     {

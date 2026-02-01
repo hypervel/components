@@ -5,18 +5,16 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\Laravel;
 
 use Hypervel\Database\Events\ConnectionEstablished;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
-use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-class EventConnectionEstablishedTest extends TestCase
+class EventConnectionEstablishedTest extends DatabaseTestCase
 {
-    use RunTestsInCoroutine;
 
     /**
      * Test that ConnectionEstablished fires when a connection is re-established.

@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\Laravel;
 
 use Hypervel\Support\Facades\DB;
-use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-class RefreshCommandTest extends TestCase
+class RefreshCommandTest extends DatabaseTestCase
 {
     public function testRefreshWithoutRealpath()
     {
