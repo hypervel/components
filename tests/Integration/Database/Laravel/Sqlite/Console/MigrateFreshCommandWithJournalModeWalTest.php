@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace Illuminate\Tests\Integration\Database\Sqlite\Console;
+namespace Hypervel\Tests\Integration\Database\Laravel\Sqlite\Console;
 
-use Illuminate\Filesystem\Filesystem;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Tests\Integration\Database\DatabaseTestCase;
-use Orchestra\Testbench\Attributes\RequiresDatabase;
-use Orchestra\Testbench\Attributes\WithConfig;
+use Hypervel\Filesystem\Filesystem;
+use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\Attributes\RequiresDatabase;
+use Hypervel\Testbench\Attributes\WithConfig;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use Override;
 
-use function Illuminate\Filesystem\join_paths;
-use function Orchestra\Testbench\default_migration_path;
-use function Orchestra\Testbench\default_skeleton_path;
+use function Hypervel\Filesystem\join_paths;
+use function Hypervel\Testbench\default_migration_path;
+use function Hypervel\Testbench\default_skeleton_path;
 
 /**
  * @internal

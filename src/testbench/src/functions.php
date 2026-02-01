@@ -47,6 +47,21 @@ function load_migration_paths(ApplicationContract $app, array|string $paths): vo
 }
 
 /**
+ * Get the path to the default skeleton application.
+ *
+ * Returns the path to the workbench app used for testing.
+ *
+ * @param array<int, null|string>|string $path
+ * @return string|false
+ */
+function default_skeleton_path(array|string $path = ''): string|false
+{
+    return realpath(
+        join_paths(dirname(__DIR__), 'workbench', ...Arr::wrap(func_num_args() > 1 ? func_get_args() : $path))
+    );
+}
+
+/**
  * Get the migration path by type.
  *
  * Returns the path to framework test migrations in the testbench package.
