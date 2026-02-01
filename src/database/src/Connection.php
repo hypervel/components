@@ -888,9 +888,22 @@ class Connection implements ConnectionInterface
 
     /**
      * Disconnect from the underlying PDO connection.
+     *
+     * Any open transactions are rolled back before disconnecting to ensure
+     * the connection is returned to the pool in a clean state.
      */
     public function disconnect(): void
     {
+        // Roll back any open transactions before releasing the PDO.
+        // This prevents dirty state from leaking to the next pool user.
+        if ($this->transactions > 0) {
+            $this->transactions = 0;
+
+            if ($this->pdo?->inTransaction()) {
+                $this->pdo->rollBack();
+            }
+        }
+
         $this->setPdo(null)->setReadPdo(null);
     }
 
