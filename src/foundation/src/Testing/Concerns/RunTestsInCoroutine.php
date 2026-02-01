@@ -73,6 +73,14 @@ trait RunTestsInCoroutine
 
     protected function invokeSetupInCoroutine(): void
     {
+        // Call trait-specific coroutine setup methods (e.g., setUpDatabaseTransactionsInCoroutine)
+        foreach (class_uses_recursive(static::class) as $trait) {
+            $method = 'setUp' . class_basename($trait) . 'InCoroutine';
+            if (method_exists($this, $method)) {
+                $this->{$method}();
+            }
+        }
+
         if (method_exists($this, 'setUpInCoroutine')) {
             call_user_func([$this, 'setUpInCoroutine']);
         }
@@ -82,6 +90,14 @@ trait RunTestsInCoroutine
     {
         if (method_exists($this, 'tearDownInCoroutine')) {
             call_user_func([$this, 'tearDownInCoroutine']);
+        }
+
+        // Call trait-specific coroutine teardown methods (e.g., tearDownDatabaseTransactionsInCoroutine)
+        foreach (class_uses_recursive(static::class) as $trait) {
+            $method = 'tearDown' . class_basename($trait) . 'InCoroutine';
+            if (method_exists($this, $method)) {
+                $this->{$method}();
+            }
         }
     }
 

@@ -31,24 +31,36 @@ trait EloquentTransactionWithAfterCommitTests
 
     /**
      * Create the required database tables for these tests.
+     *
+     * Tables are created idempotently because setUp() runs outside the
+     * DatabaseTransactions wrapper. The wrapper only rolls back row data,
+     * not schema changes. Without this check, subsequent tests would fail
+     * with "table already exists".
+     *
+     * This doesn't affect test correctness - we're testing afterCommit
+     * callback behavior on transactions, not schema operations.
      */
     protected function createTransactionTestTables(): void
     {
-        Schema::create('users', function (Blueprint $table) {
-            $table->id();
-            $table->string('name');
-            $table->string('email')->unique();
-            $table->timestamp('email_verified_at')->nullable();
-            $table->string('password');
-            $table->string('remember_token', 100)->nullable();
-            $table->timestamps();
-        });
+        if (! Schema::hasTable('users')) {
+            Schema::create('users', function (Blueprint $table) {
+                $table->id();
+                $table->string('name');
+                $table->string('email')->unique();
+                $table->timestamp('email_verified_at')->nullable();
+                $table->string('password');
+                $table->string('remember_token', 100)->nullable();
+                $table->timestamps();
+            });
+        }
 
-        Schema::create('password_reset_tokens', function (Blueprint $table) {
-            $table->string('email')->primary();
-            $table->string('token');
-            $table->timestamp('created_at')->nullable();
-        });
+        if (! Schema::hasTable('password_reset_tokens')) {
+            Schema::create('password_reset_tokens', function (Blueprint $table) {
+                $table->string('email')->primary();
+                $table->string('token');
+                $table->timestamp('created_at')->nullable();
+            });
+        }
     }
 
     public function testObserverIsCalledOnTestsWithAfterCommit()
