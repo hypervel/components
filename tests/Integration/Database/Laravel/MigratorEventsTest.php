@@ -20,7 +20,6 @@ use Hypervel\Tests\Integration\Database\DatabaseTestCase;
  */
 class MigratorEventsTest extends DatabaseTestCase
 {
-
     protected function migrateOptions()
     {
         return [

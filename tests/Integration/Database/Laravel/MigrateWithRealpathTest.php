@@ -13,7 +13,6 @@ use Hypervel\Tests\Integration\Database\DatabaseTestCase;
  */
 class MigrateWithRealpathTest extends DatabaseTestCase
 {
-
     protected function setUp(): void
     {
         parent::setUp();

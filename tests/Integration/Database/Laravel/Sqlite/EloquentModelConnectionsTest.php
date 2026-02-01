@@ -7,12 +7,12 @@ namespace Hypervel\Tests\Integration\Database\Laravel\Sqlite\EloquentModelConnec
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsTo;
 use Hypervel\Database\Eloquent\Relations\HasMany;
-use UnitEnum;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Testbench\TestCase;
+use UnitEnum;
 
 /**
  * @internal

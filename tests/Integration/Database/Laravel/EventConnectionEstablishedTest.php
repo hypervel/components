@@ -15,7 +15,6 @@ use Hypervel\Tests\Integration\Database\DatabaseTestCase;
  */
 class EventConnectionEstablishedTest extends DatabaseTestCase
 {
-
     /**
      * Test that ConnectionEstablished fires when a connection is re-established.
      *

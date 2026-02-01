@@ -23,7 +23,7 @@ trait InteractsWithPublishedFiles
     /**
      * List of existing migration files.
      *
-     * @var array<int, string>|null
+     * @var null|array<int, string>
      */
     protected ?array $cachedExistingMigrationsFiles = null;
 
