@@ -40,6 +40,14 @@ class DatabaseConnectionsTest extends DatabaseTestCase
 
     protected function defineEnvironment($app): void
     {
+        // Configure a basic sqlite connection for testConnectionsWithoutReadWriteConfigurationAlwaysShowAsWrite
+        // (When running with Postgres, DB_DATABASE=testing would be used, causing SQLite to fail)
+        $app['config']->set('database.connections.sqlite', [
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+            'prefix' => '',
+        ]);
+
         // Configure a read/write split connection for tests
         $app['config']->set('database.connections.sqlite_readwrite', [
             'driver' => 'sqlite',
