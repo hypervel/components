@@ -147,9 +147,18 @@ class Connection implements ConnectionInterface
     /**
      * All of the registered query duration handlers.
      *
-     * @var array{has_run: bool, handler: callable}[]
+     * @var array{threshold: float|int, handler: callable, has_run: bool}[]
      */
     protected array $queryDurationHandlers = [];
+
+    /**
+     * Indicates if the query duration listener has been registered.
+     *
+     * We use a single persistent listener that iterates over all handlers,
+     * rather than one listener per handler, to prevent listener accumulation
+     * when connections are reset for pooling.
+     */
+    protected bool $queryDurationListenerRegistered = false;
 
     /**
      * Indicates if the connection is in a "dry run".
@@ -786,19 +795,26 @@ class Connection implements ConnectionInterface
             : $threshold;
 
         $this->queryDurationHandlers[] = [
-            'has_run' => false,
+            'threshold' => $threshold,
             'handler' => $handler,
+            'has_run' => false,
         ];
 
-        $key = count($this->queryDurationHandlers) - 1;
-
-        $this->listen(function ($event) use ($threshold, $handler, $key) {
-            if (! $this->queryDurationHandlers[$key]['has_run'] && $this->totalQueryDuration() > $threshold) {
-                $handler($this, $event);
-
-                $this->queryDurationHandlers[$key]['has_run'] = true;
-            }
-        });
+        // Register a single persistent listener that iterates over all handlers.
+        // This prevents listener accumulation when connections are reset for pooling.
+        // Only set the flag if a dispatcher is present; otherwise the listener
+        // won't actually be registered and we should try again next time.
+        if (! $this->queryDurationListenerRegistered && $this->events) {
+            $this->listen(function ($event) {
+                foreach ($this->queryDurationHandlers as $key => $config) {
+                    if (! $config['has_run'] && $this->totalQueryDuration() > $config['threshold']) {
+                        $config['handler']($this, $event);
+                        $this->queryDurationHandlers[$key]['has_run'] = true;
+                    }
+                }
+            });
+            $this->queryDurationListenerRegistered = true;
+        }
     }
 
     /**
