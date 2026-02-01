@@ -9,6 +9,7 @@ use Carbon\CarbonImmutable;
 use Faker\Generator as FakerGenerator;
 use Hyperf\Coroutine\Coroutine;
 use Hypervel\Context\Context;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithContainer;
@@ -165,6 +166,13 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         if (class_exists(CarbonImmutable::class)) {
             CarbonImmutable::setTestNow();
         }
+
+        // Reset Model strict mode flags to prevent test pollution.
+        // These are process-global in Swoole, so tests that enable strict
+        // modes must not leak that state to subsequent tests.
+        Model::preventSilentlyDiscardingAttributes(false);
+        Model::preventLazyLoading(false);
+        Model::preventAccessingMissingAttributes(false);
 
         $this->setUpHasRun = false;
     }
