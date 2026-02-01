@@ -56,12 +56,15 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     protected function setUp(): void
     {
         Facade::clearResolvedInstances();
-        DatabaseConnectionResolver::resetCachedConnections();
 
         /* @phpstan-ignore-next-line */
         if (! $this->app) {
             $this->refreshApplication();
         }
+
+        // Reset after Application exists so container-change detection works correctly
+        // and rebinding hooks are registered on the current container.
+        DatabaseConnectionResolver::resetCachedConnections();
 
         $this->setUpFaker();
 

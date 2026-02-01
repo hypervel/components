@@ -341,6 +341,8 @@ class Container extends HyperfContainer implements ContainerContract, ArrayAcces
     {
         $this->removeAbstractAlias($abstract);
 
+        $isBound = $this->bound($abstract);
+
         unset($this->aliases[$abstract], $this->resolvedEntries[$abstract]);
 
         // Clear any cached resolved entry so the new instance is used
@@ -352,11 +354,13 @@ class Container extends HyperfContainer implements ContainerContract, ArrayAcces
             $instance = fn () => $instance;
         }
 
-        if ($this->bound($abstract)) {
+        // Define the new instance BEFORE firing rebound callbacks,
+        // so callbacks receive the new instance, not the old one
+        $this->define($abstract, $instance);
+
+        if ($isBound) {
             $this->rebound($abstract);
         }
-
-        $this->define($abstract, $instance);
 
         return $instance;
     }
