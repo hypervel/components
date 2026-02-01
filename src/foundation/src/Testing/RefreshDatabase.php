@@ -29,8 +29,7 @@ trait RefreshDatabase
 
         // Restore in-memory database BEFORE migrations for all tests.
         // This ensures the correct ordering: restore cached PDO → run migrations → begin transaction.
-        // Testing uses SimpleConnectionResolver (non-pooled), so the same connection is used
-        // regardless of coroutine context.
+        // For in-memory SQLite, this avoids overwriting a freshly migrated schema later.
         if ($this->usingInMemoryDatabase()) {
             $this->restoreInMemoryDatabase();
         }
