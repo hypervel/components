@@ -8,6 +8,7 @@ use Hyperf\Contract\ConfigInterface;
 use Hypervel\Database\Connection as DatabaseConnection;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
@@ -17,6 +18,10 @@ trait RefreshDatabase
 
     /**
      * Define hooks to migrate the database before and after each test.
+     *
+     * For tests using RunTestsInCoroutine, the transaction and post-refresh
+     * hooks are deferred to setUpRefreshDatabaseInCoroutine() to keep all
+     * transaction state in the same coroutine.
      */
     public function refreshDatabase(): void
     {
@@ -28,9 +33,12 @@ trait RefreshDatabase
 
         $this->refreshTestDatabase();
 
-        $this->afterRefreshingDatabase();
-
-        $this->refreshModelBootedStates();
+        // For coroutine tests, these run in setUpRefreshDatabaseInCoroutine()
+        // to maintain correct ordering: transaction → afterRefreshing → test
+        if (! in_array(RunTestsInCoroutine::class, class_uses_recursive(static::class), true)) {
+            $this->afterRefreshingDatabase();
+            $this->refreshModelBootedStates();
+        }
     }
 
     /**
@@ -69,6 +77,10 @@ trait RefreshDatabase
 
     /**
      * Refresh a conventional test database.
+     *
+     * Runs migrations if needed. For non-coroutine tests, also starts the
+     * wrapper transaction. For coroutine tests, transaction handling is
+     * deferred to setUpRefreshDatabaseInCoroutine().
      */
     protected function refreshTestDatabase(): void
     {
@@ -92,19 +104,53 @@ trait RefreshDatabase
             $this->mockConsoleOutput = $shouldMockOutput;
         }
 
-        $this->beginDatabaseTransaction();
+        // For coroutine tests, transaction handling happens in setUpRefreshDatabaseInCoroutine()
+        if (! in_array(RunTestsInCoroutine::class, class_uses_recursive(static::class), true)) {
+            $this->beginDatabaseTransactionWork();
+
+            $this->beforeApplicationDestroyed(function () {
+                $this->rollbackDatabaseTransactionWork();
+            });
+        }
     }
 
     /**
-     * Begin a database transaction on the testing database.
+     * Start database transaction in the test coroutine.
+     *
+     * Called by RunTestsInCoroutine before the test runs. Maintains correct
+     * ordering: transaction starts, then afterRefreshingDatabase runs, then
+     * test executes. This keeps all transaction state in the same coroutine.
      */
-    public function beginDatabaseTransaction(): void
+    protected function setUpRefreshDatabaseInCoroutine(): void
+    {
+        $this->beginDatabaseTransactionWork();
+        $this->afterRefreshingDatabase();
+        $this->refreshModelBootedStates();
+    }
+
+    /**
+     * Rollback database transaction in the test coroutine.
+     *
+     * Called by RunTestsInCoroutine after the test runs.
+     */
+    protected function tearDownRefreshDatabaseInCoroutine(): void
+    {
+        $this->rollbackDatabaseTransactionWork();
+    }
+
+    /**
+     * Start transactions on all connections.
+     */
+    protected function beginDatabaseTransactionWork(): void
     {
         $database = $this->app->get(DatabaseManager::class);
         $connections = $this->connectionsToTransact();
 
-        // Create a testing-aware transaction manager that properly handles the wrapper transaction
-        $this->app->instance('db.transactions', $transactionsManager = new DatabaseTransactionsManager($connections));
+        // Create a testing-aware transaction manager that properly handles afterCommit callbacks
+        $this->app->instance(
+            'db.transactions',
+            $transactionsManager = new DatabaseTransactionsManager($connections)
+        );
 
         foreach ($connections as $name) {
             $connection = $database->connection($name);
@@ -125,31 +171,35 @@ trait RefreshDatabase
                 $connection->setEventDispatcher($dispatcher);
             }
         }
+    }
 
-        $this->beforeApplicationDestroyed(function () use ($database) {
-            foreach ($this->connectionsToTransact() as $name) {
-                $connection = $database->connection($name);
-                $dispatcher = $connection->getEventDispatcher();
+    /**
+     * Rollback transactions on all connections.
+     */
+    protected function rollbackDatabaseTransactionWork(): void
+    {
+        $database = $this->app->get(DatabaseManager::class);
 
-                $connection->unsetEventDispatcher();
+        foreach ($this->connectionsToTransact() as $name) {
+            $connection = $database->connection($name);
+            $dispatcher = $connection->getEventDispatcher();
 
-                if (! $connection->getPdo()->inTransaction()) {
-                    RefreshDatabaseState::$migrated = false;
-                }
+            $connection->unsetEventDispatcher();
 
-                if ($connection instanceof DatabaseConnection) {
-                    $connection->forgetRecordModificationState();
-                }
-
-                $connection->rollBack();
-
-                if ($dispatcher) {
-                    $connection->setEventDispatcher($dispatcher);
-                }
-                // this will trigger a database refresh warning
-                // $connection->disconnect();
+            if (! $connection->getPdo()->inTransaction()) {
+                RefreshDatabaseState::$migrated = false;
             }
-        });
+
+            if ($connection instanceof DatabaseConnection) {
+                $connection->forgetRecordModificationState();
+            }
+
+            $connection->rollBack();
+
+            if ($dispatcher) {
+                $connection->setEventDispatcher($dispatcher);
+            }
+        }
     }
 
     /**
