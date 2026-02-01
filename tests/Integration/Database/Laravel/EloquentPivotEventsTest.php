@@ -29,6 +29,16 @@ class EloquentPivotEventsTest extends DatabaseTestCase
         PivotEventsTestCollaborator::$eventsCalled = [];
     }
 
+    protected function tearDown(): void
+    {
+        // Clean up $_SERVER values used for test communication to prevent
+        // pollution of other tests (especially those using remote() which
+        // passes environment variables to subprocesses)
+        unset($_SERVER['pivot_attributes'], $_SERVER['pivot_dirty_attributes']);
+
+        parent::tearDown();
+    }
+
     protected function afterRefreshingDatabase(): void
     {
         Schema::create('users', function (Blueprint $table) {

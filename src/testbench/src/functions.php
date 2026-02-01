@@ -124,13 +124,18 @@ function package_path(array|string $path = ''): string
 /**
  * Get defined environment variables to pass to subprocess.
  *
- * @return array<string, mixed>
+ * Filters out non-scalar values (arrays, objects) since environment
+ * variables must be strings. This prevents "Array to string conversion"
+ * errors when tests pollute $_SERVER with array values.
+ *
+ * @return array<string, null|bool|float|int|string>
  */
 function defined_environment_variables(): array
 {
     return (new Collection(array_merge($_SERVER, $_ENV)))
         ->keys()
         ->mapWithKeys(static fn (string $key) => [$key => $_ENV[$key] ?? $_SERVER[$key] ?? null])
+        ->filter(static fn ($value) => $value === null || is_scalar($value))
         ->when(
             ! defined('TESTBENCH_WORKING_PATH'),
             static fn (Collection $env) => $env->put('TESTBENCH_WORKING_PATH', package_path())
