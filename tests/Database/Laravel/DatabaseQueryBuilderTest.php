@@ -46,6 +46,17 @@ class DatabaseQueryBuilderTest extends TestCase
 {
     protected $called;
 
+    protected function tearDown(): void
+    {
+        // Reset static resolvers to prevent test pollution. These are process-global
+        // in Swoole, so tests that set custom resolvers must restore defaults.
+        Paginator::currentPathResolver(fn () => '/');
+        Paginator::currentPageResolver(fn () => 1);
+        CursorPaginator::currentCursorResolver(fn () => null);
+
+        parent::tearDown();
+    }
+
     public function testBasicSelect()
     {
         $builder = $this->getBuilder();
