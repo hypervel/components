@@ -23,6 +23,18 @@ class EloquentTransactionWithAfterCommitUsingDatabaseTransactionsTest extends Te
      */
     protected string $driver;
 
+    protected function setUpTraits(): array
+    {
+        // Skip BEFORE DatabaseTransactions starts its wrapping transaction.
+        // In-memory SQLite has no persistent schema, so tables created in setUp
+        // would be rolled back when the test ends, breaking subsequent tests.
+        if ($this->usesSqliteInMemoryDatabaseConnection()) {
+            $this->markTestSkipped('Test cannot be used with in-memory SQLite connection.');
+        }
+
+        return parent::setUpTraits();
+    }
+
     protected function setUp(): void
     {
         $this->beforeApplicationDestroyed(function () {
@@ -32,10 +44,6 @@ class EloquentTransactionWithAfterCommitUsingDatabaseTransactionsTest extends Te
         });
 
         parent::setUp();
-
-        if ($this->usesSqliteInMemoryDatabaseConnection()) {
-            $this->markTestSkipped('Test cannot be used with in-memory SQLite connection.');
-        }
 
         $this->createTransactionTestTables();
     }
