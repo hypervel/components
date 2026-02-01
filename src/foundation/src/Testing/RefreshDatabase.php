@@ -27,6 +27,10 @@ trait RefreshDatabase
     {
         $this->beforeRefreshingDatabase();
 
+        // Restore in-memory database BEFORE migrations for all tests.
+        // This ensures the correct ordering: restore cached PDO → run migrations → begin transaction.
+        // Testing uses SimpleConnectionResolver (non-pooled), so the same connection is used
+        // regardless of coroutine context.
         if ($this->usingInMemoryDatabase()) {
             $this->restoreInMemoryDatabase();
         }
@@ -120,6 +124,9 @@ trait RefreshDatabase
      * Called by RunTestsInCoroutine before the test runs. Maintains correct
      * ordering: transaction starts, then afterRefreshingDatabase runs, then
      * test executes. This keeps all transaction state in the same coroutine.
+     *
+     * Note: restoreInMemoryDatabase() runs earlier in refreshDatabase() before
+     * migrations, which is the correct ordering for in-memory SQLite.
      */
     protected function setUpRefreshDatabaseInCoroutine(): void
     {
