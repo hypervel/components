@@ -202,6 +202,23 @@ class Context extends \Hyperf\Context\Context
     }
 
     /**
+     * Get a value from non-coroutine context only.
+     *
+     * Unlike get() which reads from coroutine context when inside a coroutine,
+     * this always reads from non-coroutine storage regardless of current context.
+     *
+     * @param TKey $id
+     * @param TValue $default
+     * @return TValue
+     */
+    public static function getFromNonCoroutine(UnitEnum|string $id, mixed $default = null): mixed
+    {
+        $id = enum_value($id);
+
+        return static::$nonCoContext[$id] ?? $default;
+    }
+
+    /**
      * Clear specific keys from non-coroutine context only.
      *
      * Unlike destroy() which clears from both contexts, this only affects

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\Laravel;
 
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\DatabaseTransactions;
 use Hypervel\Testbench\TestCase;
 
@@ -14,6 +15,7 @@ use Hypervel\Testbench\TestCase;
 class EloquentTransactionWithAfterCommitUsingDatabaseTransactionsTest extends TestCase
 {
     use DatabaseTransactions;
+    use RunTestsInCoroutine;
     use EloquentTransactionWithAfterCommitTests;
 
     /**

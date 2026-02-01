@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\Laravel;
 
 use Hypervel\Testbench\Attributes\WithMigration;
-use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use Hypervel\Tests\Integration\Database\Laravel\Fixtures\NamedScopeUser;
 use PHPUnit\Framework\Attributes\DataProvider;
 
@@ -14,7 +14,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
  * @coversNothing
  */
 #[WithMigration]
-class EloquentNamedScopeAttributeTest extends TestCase
+class EloquentNamedScopeAttributeTest extends DatabaseTestCase
 {
     protected string $query = 'select * from "named_scope_users" where "email_verified_at" is not null';
 

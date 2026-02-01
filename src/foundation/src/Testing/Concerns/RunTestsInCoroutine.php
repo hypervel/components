@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Testing\Concerns;
 use Hyperf\Coordinator\Constants;
 use Hyperf\Coordinator\CoordinatorManager;
 use Hypervel\Context\Context;
+use Hypervel\Support\Collection;
 use Swoole\Coroutine;
 use Swoole\Timer;
 use Throwable;
@@ -87,11 +88,19 @@ trait RunTestsInCoroutine
     /**
      * Clear transaction context from non-coroutine storage before test starts.
      *
-     * This prevents stale transaction data from a previous test's setUp
-     * (which uses preserveTransactionContext) from polluting this test.
+     * RefreshDatabase starts its wrapper transaction in setUp() (outside coroutine),
+     * storing it in nonCoContext. We must preserve this data for copying into the
+     * coroutine. Only clear if there are no pending transactions (meaning any data
+     * is stale from a previous test that didn't clean up properly).
      */
     protected function clearNonCoroutineTransactionContext(): void
     {
+        $pending = Context::getFromNonCoroutine('__db.transactions.pending');
+
+        if ($pending instanceof Collection && $pending->isNotEmpty()) {
+            return;
+        }
+
         Context::clearFromNonCoroutine([
             '__db.transactions.committed',
             '__db.transactions.pending',
