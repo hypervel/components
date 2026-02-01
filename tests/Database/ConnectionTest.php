@@ -103,4 +103,123 @@ class ConnectionTest extends TestCase
         $freshConnection = DB::connection($connectionName);
         $this->assertSame(0, $freshConnection->transactionLevel());
     }
+
+    /**
+     * Test that multiple whenQueryingForLongerThan handlers work correctly.
+     *
+     * Uses a single persistent listener internally, but all handlers should fire.
+     */
+    public function testMultipleQueryDurationHandlersAllFire(): void
+    {
+        $connection = DB::connection();
+        $connection->resetTotalQueryDuration();
+
+        $fired = ['handler1' => false, 'handler2' => false, 'handler3' => false];
+
+        // Register multiple handlers with very low thresholds
+        $connection->whenQueryingForLongerThan(0, function () use (&$fired) {
+            $fired['handler1'] = true;
+        });
+        $connection->whenQueryingForLongerThan(0, function () use (&$fired) {
+            $fired['handler2'] = true;
+        });
+        $connection->whenQueryingForLongerThan(0, function () use (&$fired) {
+            $fired['handler3'] = true;
+        });
+
+        // Execute a query to trigger the handlers
+        $connection->select('SELECT 1');
+
+        $this->assertTrue($fired['handler1'], 'Handler 1 should have fired');
+        $this->assertTrue($fired['handler2'], 'Handler 2 should have fired');
+        $this->assertTrue($fired['handler3'], 'Handler 3 should have fired');
+    }
+
+    /**
+     * Test that handlers respect their individual thresholds.
+     */
+    public function testQueryDurationHandlersRespectThresholds(): void
+    {
+        $connection = DB::connection();
+        $connection->resetTotalQueryDuration();
+
+        $fired = ['low' => false, 'high' => false];
+
+        // Low threshold - should fire
+        $connection->whenQueryingForLongerThan(0, function () use (&$fired) {
+            $fired['low'] = true;
+        });
+
+        // Very high threshold - should not fire
+        $connection->whenQueryingForLongerThan(999999999, function () use (&$fired) {
+            $fired['high'] = true;
+        });
+
+        $connection->select('SELECT 1');
+
+        $this->assertTrue($fired['low'], 'Low threshold handler should have fired');
+        $this->assertFalse($fired['high'], 'High threshold handler should not have fired');
+    }
+
+    /**
+     * Test that resetForPool clears handlers but new handlers still work.
+     */
+    public function testHandlersWorkAfterResetForPool(): void
+    {
+        $connection = DB::connection();
+        $connection->resetTotalQueryDuration();
+
+        $oldHandlerFired = false;
+        $newHandlerFired = false;
+
+        // Register a handler
+        $connection->whenQueryingForLongerThan(0, function () use (&$oldHandlerFired) {
+            $oldHandlerFired = true;
+        });
+
+        // Reset the connection (simulating return to pool)
+        $connection->resetForPool();
+        $connection->resetTotalQueryDuration();
+
+        // Register a new handler after reset
+        $connection->whenQueryingForLongerThan(0, function () use (&$newHandlerFired) {
+            $newHandlerFired = true;
+        });
+
+        // Execute a query
+        $connection->select('SELECT 1');
+
+        $this->assertFalse($oldHandlerFired, 'Old handler should not fire after resetForPool');
+        $this->assertTrue($newHandlerFired, 'New handler should fire after resetForPool');
+    }
+
+    /**
+     * Test that handlers only fire once until allowQueryDurationHandlersToRunAgain is called.
+     */
+    public function testHandlersOnlyFireOnceUntilReset(): void
+    {
+        $connection = DB::connection();
+        $connection->resetTotalQueryDuration();
+
+        $fireCount = 0;
+
+        $connection->whenQueryingForLongerThan(0, function () use (&$fireCount) {
+            ++$fireCount;
+        });
+
+        // First query - should fire
+        $connection->select('SELECT 1');
+        $this->assertSame(1, $fireCount);
+
+        // Second query - should NOT fire again (already ran)
+        $connection->select('SELECT 1');
+        $this->assertSame(1, $fireCount);
+
+        // Allow handlers to run again
+        $connection->allowQueryDurationHandlersToRunAgain();
+
+        // Third query - should fire again
+        $connection->select('SELECT 1');
+        $this->assertSame(2, $fireCount);
+    }
 }
