@@ -29,10 +29,8 @@ class QueryBuilderWhereLikeTest extends DatabaseTestCase
         Schema::drop('users');
     }
 
-    protected function setUp(): void
+    protected function setUpInCoroutine(): void
     {
-        parent::setUp();
-
         DB::table('users')->insert([
             ['name' => 'John Doe', 'email' => 'John.Doe@example.com'],
             ['name' => 'Jane Doe', 'email' => 'janedoe@example.com'],
