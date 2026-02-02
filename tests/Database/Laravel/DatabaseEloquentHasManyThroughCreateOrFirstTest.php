@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentHasManyThroughCreateOrFirstTest;
 
 use Exception;
 use Hypervel\Database\Connection;
@@ -38,7 +38,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 
     public function testCreateOrFirstMethodCreatesNewRecord(): void
     {
-        $parent = new HasManyThroughCreateOrFirstTestParentModel();
+        $parent = new ParentModel();
         $parent->id = 123;
         $this->mockConnectionForModel($parent, 'SQLite', [789]);
         $parent->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -61,7 +61,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 
     public function testCreateOrFirstMethodRetrievesExistingRecord(): void
     {
-        $parent = new HasManyThroughCreateOrFirstTestParentModel();
+        $parent = new ParentModel();
         $parent->id = 123;
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite');
@@ -109,7 +109,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodCreatesNewRecord(): void
     {
-        $parent = new HasManyThroughCreateOrFirstTestParentModel();
+        $parent = new ParentModel();
         $parent->id = 123;
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite', [789]);
@@ -144,7 +144,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodRetrievesExistingRecord(): void
     {
-        $parent = new HasManyThroughCreateOrFirstTestParentModel();
+        $parent = new ParentModel();
         $parent->id = 123;
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite');
@@ -184,7 +184,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodRetrievesRecordCreatedJustNow(): void
     {
-        $parent = new HasManyThroughCreateOrFirstTestParentModel();
+        $parent = new ParentModel();
         $parent->id = 123;
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite');
@@ -242,7 +242,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodCreatesNewRecord(): void
     {
-        $parent = new HasManyThroughCreateOrFirstTestParentModel();
+        $parent = new ParentModel();
         $parent->id = 123;
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite', [789]);
@@ -280,7 +280,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodUpdatesExistingRecord(): void
     {
-        $parent = new HasManyThroughCreateOrFirstTestParentModel();
+        $parent = new ParentModel();
         $parent->id = 123;
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite');
@@ -328,7 +328,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodUpdatesRecordCreatedJustNow(): void
     {
-        $parent = new HasManyThroughCreateOrFirstTestParentModel();
+        $parent = new ParentModel();
         $parent->id = 123;
         $parent->exists = true;
         $this->mockConnectionForModel($parent, 'SQLite');
@@ -414,7 +414,7 @@ class DatabaseEloquentHasManyThroughCreateOrFirstTest extends TestCase
  * @property int $id
  * @property int $pivot_id
  */
-class HasManyThroughCreateOrFirstTestChildModel extends Model
+class ChildModel extends Model
 {
     protected ?string $table = 'child';
 
@@ -425,7 +425,7 @@ class HasManyThroughCreateOrFirstTestChildModel extends Model
  * @property int $id
  * @property int $parent_id
  */
-class HasManyThroughCreateOrFirstTestPivotModel extends Model
+class PivotModel extends Model
 {
     protected ?string $table = 'pivot';
 
@@ -435,7 +435,7 @@ class HasManyThroughCreateOrFirstTestPivotModel extends Model
 /**
  * @property int $id
  */
-class HasManyThroughCreateOrFirstTestParentModel extends Model
+class ParentModel extends Model
 {
     protected ?string $table = 'parent';
 
@@ -444,8 +444,8 @@ class HasManyThroughCreateOrFirstTestParentModel extends Model
     public function children(): HasManyThrough
     {
         return $this->hasManyThrough(
-            HasManyThroughCreateOrFirstTestChildModel::class,
-            HasManyThroughCreateOrFirstTestPivotModel::class,
+            ChildModel::class,
+            PivotModel::class,
             'parent_id',
             'pivot_id',
         );
