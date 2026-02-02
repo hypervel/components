@@ -1530,10 +1530,9 @@ class Builder implements BuilderContract
     /**
      * Create a new instance of the model being queried.
      *
-     * @param array $attributes
      * @return TModel
      */
-    public function newModelInstance($attributes = [])
+    public function newModelInstance(array $attributes = []): Model
     {
         $attributes = array_merge($this->pendingAttributes, $attributes);
 
@@ -1544,10 +1543,8 @@ class Builder implements BuilderContract
 
     /**
      * Parse a list of relations into individuals.
-     *
-     * @return array
      */
-    protected function parseWithRelations(array $relations)
+    protected function parseWithRelations(array $relations): array
     {
         if ($relations === []) {
             return [];
@@ -1569,12 +1566,8 @@ class Builder implements BuilderContract
 
     /**
      * Prepare nested with relationships.
-     *
-     * @param array $relations
-     * @param string $prefix
-     * @return array
      */
-    protected function prepareNestedWithRelationships($relations, $prefix = '')
+    protected function prepareNestedWithRelationships(array $relations, string $prefix = ''): array
     {
         $preparedRelationships = [];
 
@@ -1621,10 +1614,8 @@ class Builder implements BuilderContract
 
     /**
      * Combine an array of constraints into a single constraint.
-     *
-     * @return Closure
      */
-    protected function combineConstraints(array $constraints)
+    protected function combineConstraints(array $constraints): Closure
     {
         return function ($builder) use ($constraints) {
             foreach ($constraints as $constraint) {
@@ -1637,11 +1628,8 @@ class Builder implements BuilderContract
 
     /**
      * Parse the attribute select constraints from the name.
-     *
-     * @param string $name
-     * @return array
      */
-    protected function parseNameAndAttributeSelectionConstraint($name)
+    protected function parseNameAndAttributeSelectionConstraint(string $name): array
     {
         return str_contains($name, ':')
             ? $this->createSelectWithConstraint($name)
@@ -1651,11 +1639,8 @@ class Builder implements BuilderContract
 
     /**
      * Create a constraint to select the given columns for the relation.
-     *
-     * @param string $name
-     * @return array
      */
-    protected function createSelectWithConstraint($name)
+    protected function createSelectWithConstraint(string $name): array
     {
         return [explode(':', $name)[0], static function ($query) use ($name) {
             $query->select(array_map(static function ($column) use ($query) {
@@ -1668,12 +1653,8 @@ class Builder implements BuilderContract
 
     /**
      * Parse the nested relationships in a relation.
-     *
-     * @param string $name
-     * @param array $results
-     * @return array
      */
-    protected function addNestedWiths($name, $results)
+    protected function addNestedWiths(string $name, array $results): array
     {
         $progress = [];
 
@@ -1696,12 +1677,8 @@ class Builder implements BuilderContract
      * Specify attributes that should be added to any new models created by this builder.
      *
      * The given key / value pairs will also be added as where conditions to the query.
-     *
-     * @param mixed $value
-     * @param bool $asConditions
-     * @return $this
      */
-    public function withAttributes(Expression|array|string $attributes, $value = null, $asConditions = true)
+    public function withAttributes(Expression|array|string $attributes, mixed $value = null, bool $asConditions = true): static
     {
         if (! is_array($attributes)) {
             $attributes = [$attributes => $value];
@@ -1720,11 +1697,8 @@ class Builder implements BuilderContract
 
     /**
      * Apply query-time casts to the model instance.
-     *
-     * @param array $casts
-     * @return $this
      */
-    public function withCasts($casts)
+    public function withCasts(array $casts): static
     {
         $this->model->mergeCasts($casts);
 
@@ -1748,10 +1722,8 @@ class Builder implements BuilderContract
 
     /**
      * Get the Eloquent builder instances that are used in the union of the query.
-     *
-     * @return \Hypervel\Support\Collection
      */
-    protected function getUnionBuilders()
+    protected function getUnionBuilders(): BaseCollection
     {
         return isset($this->query->unions)
             ? (new BaseCollection($this->query->unions))->pluck('query')
@@ -1760,21 +1732,16 @@ class Builder implements BuilderContract
 
     /**
      * Get the underlying query builder instance.
-     *
-     * @return \Hypervel\Database\Query\Builder
      */
-    public function getQuery()
+    public function getQuery(): QueryBuilder
     {
         return $this->query;
     }
 
     /**
      * Set the underlying query builder instance.
-     *
-     * @param \Hypervel\Database\Query\Builder $query
-     * @return $this
      */
-    public function setQuery($query)
+    public function setQuery(QueryBuilder $query): static
     {
         $this->query = $query;
 
@@ -1783,30 +1750,24 @@ class Builder implements BuilderContract
 
     /**
      * Get a base query builder instance.
-     *
-     * @return \Hypervel\Database\Query\Builder
      */
-    public function toBase()
+    public function toBase(): QueryBuilder
     {
         return $this->applyScopes()->getQuery();
     }
 
     /**
      * Get the relationships being eagerly loaded.
-     *
-     * @return array
      */
-    public function getEagerLoads()
+    public function getEagerLoads(): array
     {
         return $this->eagerLoad;
     }
 
     /**
      * Set the relationships being eagerly loaded.
-     *
-     * @return $this
      */
-    public function setEagerLoads(array $eagerLoad)
+    public function setEagerLoads(array $eagerLoad): static
     {
         $this->eagerLoad = $eagerLoad;
 
@@ -1815,10 +1776,8 @@ class Builder implements BuilderContract
 
     /**
      * Indicate that the given relationships should not be eagerly loaded.
-     *
-     * @return $this
      */
-    public function withoutEagerLoad(array $relations)
+    public function withoutEagerLoad(array $relations): static
     {
         $relations = array_diff(array_keys($this->model->getRelations()), $relations);
 
@@ -1827,40 +1786,32 @@ class Builder implements BuilderContract
 
     /**
      * Flush the relationships being eagerly loaded.
-     *
-     * @return $this
      */
-    public function withoutEagerLoads()
+    public function withoutEagerLoads(): static
     {
         return $this->setEagerLoads([]);
     }
 
     /**
      * Get the "limit" value from the query or null if it's not set.
-     *
-     * @return mixed
      */
-    public function getLimit()
+    public function getLimit(): ?int
     {
         return $this->query->getLimit();
     }
 
     /**
      * Get the "offset" value from the query or null if it's not set.
-     *
-     * @return mixed
      */
-    public function getOffset()
+    public function getOffset(): ?int
     {
         return $this->query->getOffset();
     }
 
     /**
      * Get the default key name of the table.
-     *
-     * @return string
      */
-    protected function defaultKeyName()
+    protected function defaultKeyName(): string
     {
         return $this->getModel()->getKeyName();
     }
@@ -1870,7 +1821,7 @@ class Builder implements BuilderContract
      *
      * @return TModel
      */
-    public function getModel()
+    public function getModel(): Model
     {
         return $this->model;
     }
@@ -1883,7 +1834,7 @@ class Builder implements BuilderContract
      * @param TModelNew $model
      * @return static<TModelNew>
      */
-    public function setModel(Model $model)
+    public function setModel(Model $model): static
     {
         $this->model = $model;
 
@@ -1895,11 +1846,8 @@ class Builder implements BuilderContract
 
     /**
      * Qualify the given column name by the model's table.
-     *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
-     * @return string
      */
-    public function qualifyColumn($column)
+    public function qualifyColumn(Expression|string $column): string
     {
         $column = $column instanceof Expression ? $column->getValue($this->getGrammar()) : $column;
 
@@ -1908,55 +1856,40 @@ class Builder implements BuilderContract
 
     /**
      * Qualify the given columns with the model's table.
-     *
-     * @param array|\Hypervel\Contracts\Database\Query\Expression $columns
-     * @return array
      */
-    public function qualifyColumns($columns)
+    public function qualifyColumns(Expression|array $columns): array
     {
         return $this->model->qualifyColumns($columns);
     }
 
     /**
      * Get the given macro by name.
-     *
-     * @param string $name
-     * @return Closure
      */
-    public function getMacro($name)
+    public function getMacro(string $name): ?Closure
     {
         return Arr::get($this->localMacros, $name);
     }
 
     /**
      * Checks if a macro is registered.
-     *
-     * @param string $name
-     * @return bool
      */
-    public function hasMacro($name)
+    public function hasMacro(string $name): bool
     {
         return isset($this->localMacros[$name]);
     }
 
     /**
      * Get the given global macro by name.
-     *
-     * @param string $name
-     * @return Closure
      */
-    public static function getGlobalMacro($name)
+    public static function getGlobalMacro(string $name): ?Closure
     {
         return Arr::get(static::$macros, $name);
     }
 
     /**
      * Checks if a global macro is registered.
-     *
-     * @param string $name
-     * @return bool
      */
-    public static function hasGlobalMacro($name)
+    public static function hasGlobalMacro(string $name): bool
     {
         return isset(static::$macros[$name]);
     }
@@ -1964,12 +1897,9 @@ class Builder implements BuilderContract
     /**
      * Dynamically access builder proxies.
      *
-     * @param string $key
-     * @return mixed
-     *
      * @throws Exception
      */
-    public function __get($key)
+    public function __get(string $key): mixed
     {
         if (in_array($key, ['orWhere', 'whereNot', 'orWhereNot'])) {
             return new HigherOrderBuilderProxy($this, $key);
@@ -1984,12 +1914,8 @@ class Builder implements BuilderContract
 
     /**
      * Dynamically handle calls into the query instance.
-     *
-     * @param string $method
-     * @param array $parameters
-     * @return mixed
      */
-    public function __call($method, $parameters)
+    public function __call(string $method, array $parameters): mixed
     {
         if ($method === 'macro') {
             $this->localMacros[$parameters[0]] = $parameters[1];
@@ -2029,13 +1955,9 @@ class Builder implements BuilderContract
     /**
      * Dynamically handle calls into the query instance.
      *
-     * @param string $method
-     * @param array $parameters
-     * @return mixed
-     *
      * @throws BadMethodCallException
      */
-    public static function __callStatic($method, $parameters)
+    public static function __callStatic(string $method, array $parameters): mixed
     {
         if ($method === 'macro') {
             static::$macros[$parameters[0]] = $parameters[1];
@@ -2080,20 +2002,16 @@ class Builder implements BuilderContract
 
     /**
      * Clone the Eloquent query builder.
-     *
-     * @return static
      */
-    public function clone()
+    public function clone(): static
     {
         return clone $this;
     }
 
     /**
      * Register a closure to be invoked on a clone.
-     *
-     * @return $this
      */
-    public function onClone(Closure $callback)
+    public function onClone(Closure $callback): static
     {
         $this->onCloneCallbacks[] = $callback;
 
@@ -2103,7 +2021,7 @@ class Builder implements BuilderContract
     /**
      * Force a clone of the underlying query builder when cloning.
      */
-    public function __clone()
+    public function __clone(): void
     {
         $this->query = clone $this->query;
 
