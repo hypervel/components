@@ -33,10 +33,8 @@ class FulltextTest extends MariaDbTestCase
         Schema::drop('articles');
     }
 
-    protected function setUp(): void
+    protected function setUpInCoroutine(): void
     {
-        parent::setUp();
-
         DB::table('articles')->insert([
             ['title' => 'MariaDB Tutorial', 'body' => 'DBMS stands for DataBase ...'],
             ['title' => 'How To Use MariaDB Well', 'body' => 'After you went through a ...'],
