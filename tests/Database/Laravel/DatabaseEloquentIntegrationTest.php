@@ -2438,31 +2438,31 @@ class DatabaseEloquentIntegrationTest extends TestCase
     public function testWhenBaseModelIsIgnoredAllChildModelsAreIgnored()
     {
         $this->assertFalse(Model::isIgnoringTouch());
-        $this->assertFalse(IntegrationUser::isIgnoringTouch());
+        $this->assertFalse(IgnoringTouchUser::isIgnoringTouch());
 
         Model::withoutTouching(function () {
             $this->assertTrue(Model::isIgnoringTouch());
-            $this->assertTrue(IntegrationUser::isIgnoringTouch());
+            $this->assertTrue(IgnoringTouchUser::isIgnoringTouch());
         });
 
-        $this->assertFalse(IntegrationUser::isIgnoringTouch());
+        $this->assertFalse(IgnoringTouchUser::isIgnoringTouch());
         $this->assertFalse(Model::isIgnoringTouch());
     }
 
     public function testChildModelsAreIgnored()
     {
         $this->assertFalse(Model::isIgnoringTouch());
-        $this->assertFalse(IntegrationUser::isIgnoringTouch());
-        $this->assertFalse(IntegrationPost::isIgnoringTouch());
+        $this->assertFalse(IgnoringTouchUser::isIgnoringTouch());
+        $this->assertFalse(IgnoringTouchPost::isIgnoringTouch());
 
-        IntegrationUser::withoutTouching(function () {
+        IgnoringTouchUser::withoutTouching(function () {
             $this->assertFalse(Model::isIgnoringTouch());
-            $this->assertFalse(IntegrationPost::isIgnoringTouch());
-            $this->assertTrue(IntegrationUser::isIgnoringTouch());
+            $this->assertFalse(IgnoringTouchPost::isIgnoringTouch());
+            $this->assertTrue(IgnoringTouchUser::isIgnoringTouch());
         });
 
-        $this->assertFalse(IntegrationPost::isIgnoringTouch());
-        $this->assertFalse(IntegrationUser::isIgnoringTouch());
+        $this->assertFalse(IgnoringTouchPost::isIgnoringTouch());
+        $this->assertFalse(IgnoringTouchUser::isIgnoringTouch());
         $this->assertFalse(Model::isIgnoringTouch());
     }
 
@@ -2900,8 +2900,13 @@ class Post extends Eloquent
 
     public function tags()
     {
-        return $this->morphToMany(Tag::class, 'taggable', null, null, 'tag_id')->withPivot('taxonomy');
+        return $this->morphToMany(Tag::class, 'taggable', Taggable::class, null, 'tag_id')->withPivot('taxonomy');
     }
+}
+
+class Taggable extends MorphPivot
+{
+    protected ?string $table = 'taggables';
 }
 
 class Tag extends Eloquent
@@ -3122,15 +3127,14 @@ enum StringBackedRole: string
 }
 
 /**
- * Local stubs for User and Post (originally from Laravel's Integration\Database\Fixtures)
  * Used for isIgnoringTouch() / withoutTouching() tests.
  */
-class IntegrationUser extends Eloquent
+class IgnoringTouchUser extends Eloquent
 {
     protected array $guarded = [];
 }
 
-class IntegrationPost extends Eloquent
+class IgnoringTouchPost extends Eloquent
 {
     protected array $guarded = [];
 }
