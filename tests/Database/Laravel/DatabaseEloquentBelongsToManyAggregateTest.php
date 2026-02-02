@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentBelongsToManyAggregateTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model as Eloquent;
@@ -34,7 +34,7 @@ class DatabaseEloquentBelongsToManyAggregateTest extends TestCase
     {
         $this->seedData();
 
-        $order = BelongsToManyAggregateTestTestOrder::query()
+        $order = Order::query()
             ->withSum('products as total_products', 'order_product.quantity')
             ->first();
 
@@ -45,7 +45,7 @@ class DatabaseEloquentBelongsToManyAggregateTest extends TestCase
     {
         $this->seedData();
 
-        $order = BelongsToManyAggregateTestTestTransaction::query()
+        $order = Transaction::query()
             ->withSum('allocatedTo as total_allocated', 'allocations.amount')
             ->first();
 
@@ -56,7 +56,7 @@ class DatabaseEloquentBelongsToManyAggregateTest extends TestCase
     {
         $this->seedData();
 
-        $order = BelongsToManyAggregateTestTestTransaction::query()
+        $order = Transaction::query()
             ->withSum('allocatedTo as total_allocated', new Expression('allocations.amount * 2'))
             ->first();
 
@@ -114,9 +114,9 @@ class DatabaseEloquentBelongsToManyAggregateTest extends TestCase
      */
     protected function seedData()
     {
-        $order = BelongsToManyAggregateTestTestOrder::create(['id' => 1]);
+        $order = Order::create(['id' => 1]);
 
-        BelongsToManyAggregateTestTestProduct::query()->insert([
+        Product::query()->insert([
             ['id' => 1],
             ['id' => 2],
             ['id' => 3],
@@ -128,9 +128,9 @@ class DatabaseEloquentBelongsToManyAggregateTest extends TestCase
             3 => ['quantity' => 5],
         ]);
 
-        $transaction = BelongsToManyAggregateTestTestTransaction::create(['id' => 1, 'value' => 1200]);
+        $transaction = Transaction::create(['id' => 1, 'value' => 1200]);
 
-        BelongsToManyAggregateTestTestTransaction::query()->insert([
+        Transaction::query()->insert([
             ['id' => 2, 'value' => -300],
             ['id' => 3, 'value' => -400],
             ['id' => 4, 'value' => -500],
@@ -164,7 +164,7 @@ class DatabaseEloquentBelongsToManyAggregateTest extends TestCase
     }
 }
 
-class BelongsToManyAggregateTestTestOrder extends Eloquent
+class Order extends Eloquent
 {
     protected ?string $table = 'orders';
 
@@ -175,12 +175,12 @@ class BelongsToManyAggregateTestTestOrder extends Eloquent
     public function products()
     {
         return $this
-            ->belongsToMany(BelongsToManyAggregateTestTestProduct::class, 'order_product', 'order_id', 'product_id')
+            ->belongsToMany(Product::class, 'order_product', 'order_id', 'product_id')
             ->withPivot('quantity');
     }
 }
 
-class BelongsToManyAggregateTestTestProduct extends Eloquent
+class Product extends Eloquent
 {
     protected ?string $table = 'products';
 
@@ -189,7 +189,7 @@ class BelongsToManyAggregateTestTestProduct extends Eloquent
     public bool $timestamps = false;
 }
 
-class BelongsToManyAggregateTestTestTransaction extends Eloquent
+class Transaction extends Eloquent
 {
     protected ?string $table = 'transactions';
 
@@ -200,7 +200,7 @@ class BelongsToManyAggregateTestTestTransaction extends Eloquent
     public function allocatedTo()
     {
         return $this
-            ->belongsToMany(BelongsToManyAggregateTestTestTransaction::class, 'allocations', 'from_id', 'to_id')
+            ->belongsToMany(Transaction::class, 'allocations', 'from_id', 'to_id')
             ->withPivot('quantity');
     }
 }
