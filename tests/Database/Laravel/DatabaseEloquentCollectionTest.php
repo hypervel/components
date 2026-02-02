@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentCollectionTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Builder;
@@ -212,9 +212,9 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testFindMethodFindsManyModelsById()
     {
-        $model1 = (new TestEloquentCollectionModel())->forceFill(['id' => 1]);
-        $model2 = (new TestEloquentCollectionModel())->forceFill(['id' => 2]);
-        $model3 = (new TestEloquentCollectionModel())->forceFill(['id' => 3]);
+        $model1 = (new CollectionModel())->forceFill(['id' => 1]);
+        $model2 = (new CollectionModel())->forceFill(['id' => 2]);
+        $model3 = (new CollectionModel())->forceFill(['id' => 3]);
 
         $c = new Collection();
         $this->assertInstanceOf(Collection::class, $c->find([]));
@@ -245,8 +245,8 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testFindOrFailFindsManyModelsById()
     {
-        $model1 = (new TestEloquentCollectionModel())->forceFill(['id' => 1]);
-        $model2 = (new TestEloquentCollectionModel())->forceFill(['id' => 2]);
+        $model1 = (new CollectionModel())->forceFill(['id' => 1]);
+        $model2 = (new CollectionModel())->forceFill(['id' => 2]);
 
         $c = new Collection();
         $this->assertInstanceOf(Collection::class, $c->findOrFail([]));
@@ -260,19 +260,19 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertCount(2, $c->findOrFail([1, 2]));
 
         $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\TestEloquentCollectionModel] 3');
+        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\DatabaseEloquentCollectionTest\CollectionModel] 3');
 
         $c->findOrFail([1, 2, 3]);
     }
 
     public function testFindOrFailThrowsExceptionWithMessageWhenOtherModelsArePresent()
     {
-        $model = (new TestEloquentCollectionModel())->forceFill(['id' => 1]);
+        $model = (new CollectionModel())->forceFill(['id' => 1]);
 
         $c = new Collection([$model]);
 
         $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\TestEloquentCollectionModel] 2');
+        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\DatabaseEloquentCollectionTest\CollectionModel] 2');
 
         $c->findOrFail(2);
     }
@@ -408,10 +408,10 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testCollectionReturnsDuplicateBasedOnlyOnKeys()
     {
-        $one = new TestEloquentCollectionModel();
-        $two = new TestEloquentCollectionModel();
-        $three = new TestEloquentCollectionModel();
-        $four = new TestEloquentCollectionModel();
+        $one = new CollectionModel();
+        $two = new CollectionModel();
+        $three = new CollectionModel();
+        $four = new CollectionModel();
         $one->id = 1;
         $one->someAttribute = '1';
         $two->id = 1;
@@ -476,10 +476,10 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testCollectionReturnsUniqueStrictBasedOnKeysOnly()
     {
-        $one = new TestEloquentCollectionModel();
-        $two = new TestEloquentCollectionModel();
-        $three = new TestEloquentCollectionModel();
-        $four = new TestEloquentCollectionModel();
+        $one = new CollectionModel();
+        $two = new CollectionModel();
+        $three = new CollectionModel();
+        $four = new CollectionModel();
         $one->id = 1;
         $one->someAttribute = '1';
         $two->id = 1;
@@ -534,7 +534,7 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testMakeHiddenAddsHiddenOnEntireCollection()
     {
-        $c = new Collection([new TestEloquentCollectionModel()]);
+        $c = new Collection([new CollectionModel()]);
         $c = $c->makeHidden(['visible']);
 
         $this->assertEquals(['hidden', 'visible'], $c[0]->getHidden());
@@ -542,7 +542,7 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testMakeVisibleRemovesHiddenFromEntireCollection()
     {
-        $c = new Collection([new TestEloquentCollectionModel()]);
+        $c = new Collection([new CollectionModel()]);
         $c = $c->makeVisible(['hidden']);
 
         $this->assertEquals([], $c[0]->getHidden());
@@ -550,7 +550,7 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testMergeHiddenAddsHiddenOnEntireCollection()
     {
-        $c = new Collection([new TestEloquentCollectionModel()]);
+        $c = new Collection([new CollectionModel()]);
         $c = $c->mergeHidden(['merged']);
 
         $this->assertEquals(['hidden', 'merged'], $c[0]->getHidden());
@@ -558,7 +558,7 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testMergeVisibleRemovesHiddenFromEntireCollection()
     {
-        $c = new Collection([new TestEloquentCollectionModel()]);
+        $c = new Collection([new CollectionModel()]);
         $c = $c->mergeVisible(['merged']);
 
         $this->assertEquals(['visible', 'merged'], $c[0]->getVisible());
@@ -566,7 +566,7 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testSetVisibleReplacesVisibleOnEntireCollection()
     {
-        $c = new Collection([new TestEloquentCollectionModel()]);
+        $c = new Collection([new CollectionModel()]);
         $c = $c->setVisible(['hidden']);
 
         $this->assertEquals(['hidden'], $c[0]->getVisible());
@@ -574,7 +574,7 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testSetHiddenReplacesHiddenOnEntireCollection()
     {
-        $c = new Collection([new TestEloquentCollectionModel()]);
+        $c = new Collection([new CollectionModel()]);
         $c = $c->setHidden(['visible']);
 
         $this->assertEquals(['visible'], $c[0]->getHidden());
@@ -582,7 +582,7 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testAppendsAddsTestOnEntireCollection()
     {
-        $c = new Collection([new TestEloquentCollectionModel()]);
+        $c = new Collection([new CollectionModel()]);
         $c = $c->makeVisible('test');
         $c = $c->append('test');
 
@@ -591,7 +591,7 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testSetAppendsSetsAppendedPropertiesOnEntireCollection()
     {
-        $c = new Collection([new EloquentAppendingTestUserModel()]);
+        $c = new Collection([new AppendingUser()]);
         $c->setAppends(['other_appended_field']);
 
         $this->assertEquals(
@@ -603,7 +603,7 @@ class DatabaseEloquentCollectionTest extends TestCase
     public function testWithoutAppendsRemovesAppendsOnEntireCollection()
     {
         $this->seedData();
-        $c = EloquentAppendingTestUserModel::query()->get();
+        $c = AppendingUser::query()->get();
         $this->assertEquals('hello', $c->toArray()[0]['appended_field']);
 
         $c = $c->withoutAppends();
@@ -627,7 +627,7 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testMakeVisibleRemovesHiddenAndIncludesVisible()
     {
-        $c = new Collection([new TestEloquentCollectionModel()]);
+        $c = new Collection([new CollectionModel()]);
         $c = $c->makeVisible('hidden');
 
         $this->assertEquals([], $c[0]->getHidden());
@@ -636,8 +636,8 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testMultiply()
     {
-        $a = new TestEloquentCollectionModel();
-        $b = new TestEloquentCollectionModel();
+        $a = new CollectionModel();
+        $b = new CollectionModel();
 
         $c = new Collection([$a, $b]);
 
@@ -651,8 +651,8 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testQueueableCollectionImplementation()
     {
-        $c = new Collection([new TestEloquentCollectionModel(), new TestEloquentCollectionModel()]);
-        $this->assertEquals(TestEloquentCollectionModel::class, $c->getQueueableClass());
+        $c = new Collection([new CollectionModel(), new CollectionModel()]);
+        $this->assertEquals(CollectionModel::class, $c->getQueueableClass());
     }
 
     public function testQueueableCollectionImplementationThrowsExceptionOnMultipleModelTypes()
@@ -660,7 +660,7 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->expectException(LogicException::class);
         $this->expectExceptionMessage('Queueing collections with multiple model types is not supported.');
 
-        $c = new Collection([new TestEloquentCollectionModel(), (object) ['id' => 'something']]);
+        $c = new Collection([new CollectionModel(), (object) ['id' => 'something']]);
         $c->getQueueableClass();
     }
 
@@ -738,7 +738,7 @@ class DatabaseEloquentCollectionTest extends TestCase
     public function testLoadExistsShouldCastBool()
     {
         $this->seedData();
-        $user = EloquentTestUserModel::with('articles')->first();
+        $user = User::with('articles')->first();
         $user->articles->loadExists('comments');
         $commentsExists = $user->articles->pluck('comments_exists')->toArray();
 
@@ -747,11 +747,11 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testWithNonScalarKey()
     {
-        $fooKey = new EloquentTestKey('foo');
+        $fooKey = new TestKey('foo');
         $foo = m::mock(Model::class);
         $foo->shouldReceive('getKey')->andReturn($fooKey);
 
-        $barKey = new EloquentTestKey('bar');
+        $barKey = new TestKey('bar');
         $bar = m::mock(Model::class);
         $bar->shouldReceive('getKey')->andReturn($barKey);
 
@@ -766,9 +766,9 @@ class DatabaseEloquentCollectionTest extends TestCase
 
     public function testPluck()
     {
-        $model1 = (new TestEloquentCollectionModel())->forceFill(['id' => 1, 'name' => 'John', 'country' => 'US']);
-        $model2 = (new TestEloquentCollectionModel())->forceFill(['id' => 2, 'name' => 'Jane', 'country' => 'NL']);
-        $model3 = (new TestEloquentCollectionModel())->forceFill(['id' => 3, 'name' => 'Taylor', 'country' => 'US']);
+        $model1 = (new CollectionModel())->forceFill(['id' => 1, 'name' => 'John', 'country' => 'US']);
+        $model2 = (new CollectionModel())->forceFill(['id' => 2, 'name' => 'Jane', 'country' => 'NL']);
+        $model3 = (new CollectionModel())->forceFill(['id' => 3, 'name' => 'Taylor', 'country' => 'US']);
 
         $c = new Collection();
 
@@ -781,7 +781,7 @@ class DatabaseEloquentCollectionTest extends TestCase
         $this->assertEquals([1 => 1, 2 => 2, 3 => 3], $c->pluck('id', 'id')->all());
         $this->assertInstanceOf(BaseCollection::class, $c->pluck('test'));
 
-        $this->assertEquals(['John (US)', 'Jane (NL)', 'Taylor (US)'], $c->pluck(fn (TestEloquentCollectionModel $model) => "{$model->name} ({$model->country})")->all());
+        $this->assertEquals(['John (US)', 'Jane (NL)', 'Taylor (US)'], $c->pluck(fn (CollectionModel $model) => "{$model->name} ({$model->country})")->all());
     }
 
     /**
@@ -789,15 +789,15 @@ class DatabaseEloquentCollectionTest extends TestCase
      */
     protected function seedData()
     {
-        $user = EloquentTestUserModel::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        $user = User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
 
-        EloquentTestArticleModel::query()->insert([
+        Article::query()->insert([
             ['user_id' => 1, 'title' => 'Another title'],
             ['user_id' => 1, 'title' => 'Another title'],
             ['user_id' => 1, 'title' => 'Another title'],
         ]);
 
-        EloquentTestCommentModel::query()->insert([
+        Comment::query()->insert([
             ['article_id' => 1, 'content' => 'Another comment'],
             ['article_id' => 2, 'content' => 'Another comment'],
         ]);
@@ -824,7 +824,7 @@ class DatabaseEloquentCollectionTest extends TestCase
     }
 }
 
-class TestEloquentCollectionModel extends Model
+class CollectionModel extends Model
 {
     protected array $visible = ['visible'];
 
@@ -836,7 +836,7 @@ class TestEloquentCollectionModel extends Model
     }
 }
 
-class EloquentTestUserModel extends Model
+class User extends Model
 {
     protected ?string $table = 'users';
 
@@ -846,11 +846,11 @@ class EloquentTestUserModel extends Model
 
     public function articles()
     {
-        return $this->hasMany(EloquentTestArticleModel::class, 'user_id');
+        return $this->hasMany(Article::class, 'user_id');
     }
 }
 
-class EloquentTestArticleModel extends Model
+class Article extends Model
 {
     protected ?string $table = 'articles';
 
@@ -860,11 +860,11 @@ class EloquentTestArticleModel extends Model
 
     public function comments()
     {
-        return $this->hasMany(EloquentTestCommentModel::class, 'article_id');
+        return $this->hasMany(Comment::class, 'article_id');
     }
 }
 
-class EloquentTestCommentModel extends Model
+class Comment extends Model
 {
     protected ?string $table = 'comments';
 
@@ -873,7 +873,7 @@ class EloquentTestCommentModel extends Model
     public bool $timestamps = false;
 }
 
-class EloquentTestKey
+class TestKey
 {
     public function __construct(private readonly string $key)
     {
@@ -885,7 +885,7 @@ class EloquentTestKey
     }
 }
 
-class EloquentAppendingTestUserModel extends Model
+class AppendingUser extends Model
 {
     protected ?string $table = 'users';
 
@@ -907,6 +907,6 @@ class EloquentAppendingTestUserModel extends Model
 
     public function articles()
     {
-        return $this->hasMany(EloquentTestArticleModel::class, 'user_id');
+        return $this->hasMany(Article::class, 'user_id');
     }
 }
