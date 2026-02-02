@@ -8,22 +8,22 @@ use Hypervel\Database\Query\Expression;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
-use Hypervel\Testbench\Attributes\RequiresDatabase;
-use Hypervel\Testbench\TestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-#[RequiresDatabase('sqlite')]
-class DatabaseSchemaBuilderTest extends TestCase
+class DatabaseSchemaBuilderTest extends SqliteTestCase
 {
     protected function setUpInCoroutine(): void
     {
         // Clean up all connections before each test
         Schema::dropAllTables();
+        $this->artisan('migrate:install');
         Schema::connection('sqlite-with-prefix')->dropAllTables();
+        $this->artisan('migrate:install', ['--database' => 'sqlite-with-prefix']);
         Schema::connection('sqlite-with-indexed-prefix')->dropAllTables();
+        $this->artisan('migrate:install', ['--database' => 'sqlite-with-indexed-prefix']);
     }
 
     protected function defineEnvironment($app): void

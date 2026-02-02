@@ -7,15 +7,12 @@ namespace Hypervel\Tests\Integration\Database\Laravel\Sqlite;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\Attributes\DefineEnvironment;
-use Hypervel\Testbench\Attributes\RequiresDatabase;
-use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-#[RequiresDatabase('sqlite')]
-class ConnectorTest extends DatabaseTestCase
+class ConnectorTest extends SqliteTestCase
 {
     /**
      * Configure custom_sqlite connection with custom pragma settings including query_only.
@@ -66,16 +63,20 @@ class ConnectorTest extends DatabaseTestCase
     }
 
     /**
-     * Test default pragma values for in-memory SQLite connection.
+     * Test default pragma values for SQLite connection.
      *
      * The default config has foreign_key_constraints => true, so foreign_keys is 1.
+     * journal_mode differs based on database type: 'memory' for :memory:, 'delete' for file-based.
      */
     public function testDefaultPragmaValues(): void
     {
         // Default config has foreign_key_constraints => true
         $this->assertSame(1, Schema::pragma('foreign_keys'));
         $this->assertSame(60000, Schema::pragma('busy_timeout'));
-        $this->assertSame('memory', Schema::pragma('journal_mode'));
+
+        $expectedJournalMode = $this->usesSqliteInMemoryDatabaseConnection() ? 'memory' : 'delete';
+        $this->assertSame($expectedJournalMode, Schema::pragma('journal_mode'));
+
         $this->assertSame(2, Schema::pragma('synchronous'));
     }
 

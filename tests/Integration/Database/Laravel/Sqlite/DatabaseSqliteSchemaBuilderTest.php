@@ -7,15 +7,12 @@ namespace Hypervel\Tests\Integration\Database\Laravel\Sqlite;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
-use Hypervel\Testbench\Attributes\RequiresDatabase;
-use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-#[RequiresDatabase('sqlite')]
-class DatabaseSqliteSchemaBuilderTest extends DatabaseTestCase
+class DatabaseSqliteSchemaBuilderTest extends SqliteTestCase
 {
     protected function defineEnvironment($app): void
     {

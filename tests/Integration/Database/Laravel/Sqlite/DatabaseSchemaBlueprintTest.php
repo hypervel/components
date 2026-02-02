@@ -9,16 +9,13 @@ use Exception;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
-use Hypervel\Testbench\Attributes\RequiresDatabase;
-use Hypervel\Testbench\TestCase;
 use RuntimeException;
 
 /**
  * @internal
  * @coversNothing
  */
-#[RequiresDatabase('sqlite')]
-class DatabaseSchemaBlueprintTest extends TestCase
+class DatabaseSchemaBlueprintTest extends SqliteTestCase
 {
     protected function defineEnvironment($app): void
     {
@@ -30,6 +27,7 @@ class DatabaseSchemaBlueprintTest extends TestCase
         // Purge and reconnect to apply the foreign_key_constraints config
         DB::purge();
         Schema::dropAllTables();
+        $this->artisan('migrate:install');
     }
 
     public function testRenamingAndChangingColumnsWork()

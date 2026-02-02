@@ -6,9 +6,8 @@ namespace Hypervel\Tests\Integration\Database\Laravel\Sqlite\Console;
 
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Facades\Schema;
-use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Testbench\Attributes\WithConfig;
-use Hypervel\Tests\Integration\Database\DatabaseTestCase;
+use Hypervel\Tests\Integration\Database\Laravel\Sqlite\SqliteTestCase;
 use Override;
 
 use function Hypervel\Filesystem\join_paths;
@@ -19,9 +18,8 @@ use function Hypervel\Testbench\default_skeleton_path;
  * @internal
  * @coversNothing
  */
-#[RequiresDatabase('sqlite')]
 #[WithConfig('database.connections.sqlite.journal_mode', 'wal')]
-class MigrateFreshCommandWithJournalModeWalTest extends DatabaseTestCase
+class MigrateFreshCommandWithJournalModeWalTest extends SqliteTestCase
 {
     #[Override]
     protected function setUp(): void

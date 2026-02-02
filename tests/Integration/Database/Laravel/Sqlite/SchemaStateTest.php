@@ -5,9 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\Laravel\Sqlite;
 
 use Hypervel\Support\Facades\DB;
-use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Testbench\Concerns\InteractsWithPublishedFiles;
-use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 
 use function Hypervel\Testbench\remote;
@@ -16,8 +14,7 @@ use function Hypervel\Testbench\remote;
  * @internal
  * @coversNothing
  */
-#[RequiresDatabase('sqlite')]
-class SchemaStateTest extends TestCase
+class SchemaStateTest extends SqliteTestCase
 {
     use InteractsWithPublishedFiles;
 
@@ -42,6 +39,10 @@ class SchemaStateTest extends TestCase
     #[RequiresOperatingSystem('Linux|Darwin')]
     public function testSchemaDumpOnSqlite()
     {
+        if (! is_executable('/usr/bin/sqlite3') && ! shell_exec('which sqlite3')) {
+            $this->markTestSkipped('sqlite3 CLI tool is not available');
+        }
+
         if ($this->usesSqliteInMemoryDatabaseConnection()) {
             $this->markTestSkipped('Test cannot be run using :in-memory: database connection');
         }

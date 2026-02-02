@@ -105,10 +105,10 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
         $currentSchema = $schema->getCurrentSchemaName();
         $tableName = $connection === 'with-prefix' ? 'example_table' : 'table';
 
-        $this->assertEqualsCanonicalizing(
-            [$currentSchema . '.migrations', 'my_schema.' . $tableName],
-            $schema->getTableListing([$currentSchema, 'my_schema'])
-        );
+        // Use assertContains rather than exact equality - testbench may create additional tables
+        $tables = $schema->getTableListing([$currentSchema, 'my_schema']);
+        $this->assertContains($currentSchema . '.migrations', $tables);
+        $this->assertContains('my_schema.' . $tableName, $tables);
     }
 
     #[DataProvider('connectionProvider')]
@@ -159,20 +159,21 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
         $currentSchema = $schema->getCurrentSchemaName();
         $tableName = $connection === 'with-prefix' ? 'example_table' : 'table';
 
-        $this->assertEqualsCanonicalizing(
-            [$currentSchema . '.migrations', $currentSchema . '.' . $tableName, 'my_schema.' . $tableName],
-            $schema->getTableListing([$currentSchema, 'my_schema'])
-        );
+        // Use assertContains rather than exact equality - testbench may create additional tables
+        $tables = $schema->getTableListing([$currentSchema, 'my_schema']);
+        $this->assertContains($currentSchema . '.migrations', $tables);
+        $this->assertContains($currentSchema . '.' . $tableName, $tables);
+        $this->assertContains('my_schema.' . $tableName, $tables);
 
         $schema->drop('my_schema.table');
 
         $this->assertFalse($schema->hasTable('my_schema.table'));
         $this->assertTrue($schema->hasTable('table'));
 
-        $this->assertEqualsCanonicalizing(
-            [$currentSchema . '.migrations', $currentSchema . '.' . $tableName],
-            $schema->getTableListing([$currentSchema, 'my_schema'])
-        );
+        $tables = $schema->getTableListing([$currentSchema, 'my_schema']);
+        $this->assertContains($currentSchema . '.migrations', $tables);
+        $this->assertContains($currentSchema . '.' . $tableName, $tables);
+        $this->assertNotContains('my_schema.' . $tableName, $tables);
     }
 
     #[DataProvider('connectionProvider')]

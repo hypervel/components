@@ -4,16 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\Laravel\Sqlite;
 
-use Hypervel\Testbench\Attributes\RequiresDatabase;
-use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use RuntimeException;
 
 /**
  * @internal
  * @coversNothing
  */
-#[RequiresDatabase('sqlite')]
-class EscapeTest extends DatabaseTestCase
+class EscapeTest extends SqliteTestCase
 {
     protected function defineEnvironment($app): void
     {

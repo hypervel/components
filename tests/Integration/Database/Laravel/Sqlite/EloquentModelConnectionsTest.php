@@ -10,16 +10,14 @@ use Hypervel\Database\Eloquent\Relations\HasMany;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Support\Str;
-use Hypervel\Testbench\Attributes\RequiresDatabase;
-use Hypervel\Testbench\TestCase;
+use Hypervel\Tests\Integration\Database\Laravel\Sqlite\SqliteTestCase;
 use UnitEnum;
 
 /**
  * @internal
  * @coversNothing
  */
-#[RequiresDatabase('sqlite')]
-class EloquentModelConnectionsTest extends TestCase
+class EloquentModelConnectionsTest extends SqliteTestCase
 {
     protected function defineEnvironment($app): void
     {
