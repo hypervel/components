@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentBelongsToManyExpressionTest;
 
 use Exception;
 use Hypervel\Database\Capsule\Manager as DB;
@@ -37,7 +37,7 @@ class DatabaseEloquentBelongsToManyExpressionTest extends TestCase
     {
         $this->seedData();
 
-        $tags = DatabaseEloquentBelongsToManyExpressionTestTestPost::findOrFail(1)
+        $tags = Post::findOrFail(1)
             ->tags()
             ->wherePivotNotIn(new Expression("tag_id || '_' || type"), ['1_t1'])
             ->get();
@@ -50,7 +50,7 @@ class DatabaseEloquentBelongsToManyExpressionTest extends TestCase
     {
         $this->seedData();
 
-        $tags = DatabaseEloquentBelongsToManyExpressionTestTestPost::findOrFail(2)
+        $tags = Post::findOrFail(2)
             ->tags()
             ->wherePivotNotIn(new Expression("taggables.tag_id || '_' || taggables.type"), ['2_t2'])
             ->get();
@@ -62,8 +62,8 @@ class DatabaseEloquentBelongsToManyExpressionTest extends TestCase
     public function testGlobalScopesAreAppliedToBelongsToManyRelation(): void
     {
         $this->seedData();
-        $post = DatabaseEloquentBelongsToManyExpressionTestTestPost::query()->firstOrFail();
-        DatabaseEloquentBelongsToManyExpressionTestTestTag::addGlobalScope(
+        $post = Post::query()->firstOrFail();
+        Tag::addGlobalScope(
             'default',
             static fn () => throw new Exception('Default global scope.')
         );
@@ -75,8 +75,8 @@ class DatabaseEloquentBelongsToManyExpressionTest extends TestCase
     public function testGlobalScopesCanBeRemovedFromBelongsToManyRelation(): void
     {
         $this->seedData();
-        $post = DatabaseEloquentBelongsToManyExpressionTestTestPost::query()->firstOrFail();
-        DatabaseEloquentBelongsToManyExpressionTestTestTag::addGlobalScope(
+        $post = Post::query()->firstOrFail();
+        Tag::addGlobalScope(
             'default',
             static fn () => throw new Exception('Default global scope.')
         );
@@ -119,11 +119,11 @@ class DatabaseEloquentBelongsToManyExpressionTest extends TestCase
      */
     protected function seedData(): void
     {
-        $p1 = DatabaseEloquentBelongsToManyExpressionTestTestPost::query()->create();
-        $p2 = DatabaseEloquentBelongsToManyExpressionTestTestPost::query()->create();
-        $t1 = DatabaseEloquentBelongsToManyExpressionTestTestTag::query()->create();
-        $t2 = DatabaseEloquentBelongsToManyExpressionTestTestTag::query()->create();
-        $t3 = DatabaseEloquentBelongsToManyExpressionTestTestTag::query()->create();
+        $p1 = Post::query()->create();
+        $p2 = Post::query()->create();
+        $t1 = Tag::query()->create();
+        $t2 = Tag::query()->create();
+        $t3 = Tag::query()->create();
 
         $p1->tags()->sync([
             $t1->getKey() => ['type' => 't1'],
@@ -156,7 +156,7 @@ class DatabaseEloquentBelongsToManyExpressionTest extends TestCase
     }
 }
 
-class DatabaseEloquentBelongsToManyExpressionTestTestPost extends Eloquent
+class Post extends Eloquent
 {
     protected ?string $table = 'posts';
 
@@ -167,7 +167,7 @@ class DatabaseEloquentBelongsToManyExpressionTestTestPost extends Eloquent
     public function tags(): MorphToMany
     {
         return $this->morphToMany(
-            DatabaseEloquentBelongsToManyExpressionTestTestTag::class,
+            Tag::class,
             'taggable',
             'taggables',
             'taggable_id',
@@ -178,7 +178,7 @@ class DatabaseEloquentBelongsToManyExpressionTestTestPost extends Eloquent
     }
 }
 
-class DatabaseEloquentBelongsToManyExpressionTestTestTag extends Eloquent
+class Tag extends Eloquent
 {
     protected ?string $table = 'tags';
 
