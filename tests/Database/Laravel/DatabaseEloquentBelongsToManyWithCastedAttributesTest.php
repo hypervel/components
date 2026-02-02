@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentBelongsToManyWithCastedAttributesTest;
 
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection;
@@ -74,7 +74,7 @@ class DatabaseEloquentBelongsToManyWithCastedAttributesTest extends TestCase
 
         return new BelongsToMany(
             $builder,
-            new EloquentBelongsToManyModelStub(),
+            new ModelStub(),
             'relation',
             'foreign_key',
             'id',
@@ -84,7 +84,7 @@ class DatabaseEloquentBelongsToManyWithCastedAttributesTest extends TestCase
     }
 }
 
-class EloquentBelongsToManyModelStub extends Model
+class ModelStub extends Model
 {
     public $foreign_key = 'foreign.value';
 }
