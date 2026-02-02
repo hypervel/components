@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentIntegrationWithTablePrefixTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model as Eloquent;
 use Hypervel\Database\Eloquent\Relations\Relation;
-use Hypervel\Tests\TestCase;
+use Hypervel\Testbench\TestCase;
 
 /**
  * @internal
@@ -86,13 +86,13 @@ class DatabaseEloquentIntegrationWithTablePrefixTest extends TestCase
 
     public function testBasicModelHydration()
     {
-        TablePrefixEloquentTestUser::create(['email' => 'taylorotwell@gmail.com']);
-        TablePrefixEloquentTestUser::create(['email' => 'abigailotwell@gmail.com']);
+        User::create(['email' => 'taylorotwell@gmail.com']);
+        User::create(['email' => 'abigailotwell@gmail.com']);
 
-        $models = TablePrefixEloquentTestUser::fromQuery('SELECT * FROM prefix_users WHERE email = ?', ['abigailotwell@gmail.com']);
+        $models = User::fromQuery('SELECT * FROM prefix_users WHERE email = ?', ['abigailotwell@gmail.com']);
 
         $this->assertInstanceOf(Collection::class, $models);
-        $this->assertInstanceOf(TablePrefixEloquentTestUser::class, $models[0]);
+        $this->assertInstanceOf(User::class, $models[0]);
         $this->assertSame('abigailotwell@gmail.com', $models[0]->email);
         $this->assertCount(1, $models);
     }
@@ -171,7 +171,7 @@ class DatabaseEloquentIntegrationWithTablePrefixTest extends TestCase
     }
 }
 
-class TablePrefixEloquentTestUser extends Eloquent
+class User extends Eloquent
 {
     protected ?string $table = 'users';
 
