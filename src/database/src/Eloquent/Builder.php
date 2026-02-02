@@ -17,6 +17,7 @@ use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Database\UniqueConstraintViolationException;
+use Hypervel\Contracts\Pagination\CursorPaginator as CursorPaginatorContract;
 use Hypervel\Pagination\Cursor;
 use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
@@ -1031,7 +1032,7 @@ class Builder implements BuilderContract
     /**
      * Paginate the given query into a cursor paginator.
      */
-    public function cursorPaginate(?int $perPage = null, array|string $columns = ['*'], string $cursorName = 'cursor', Cursor|string|null $cursor = null): CursorPaginator
+    public function cursorPaginate(?int $perPage = null, array|string $columns = ['*'], string $cursorName = 'cursor', Cursor|string|null $cursor = null): CursorPaginatorContract
     {
         $perPage = $perPage ?: $this->model->getPerPage();
 
