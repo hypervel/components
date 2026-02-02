@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentBelongsToManyCreateOrFirstTest;
 
 use Exception;
 use Hypervel\Database\Connection;
@@ -39,10 +39,10 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
     public function testCreateOrFirstMethodCreatesNewRelated(): void
     {
-        $source = new BelongsToManyCreateOrFirstTestSourceModel();
+        $source = new SourceModel();
         $source->id = 123;
         $this->mockConnectionForModels(
-            [$source, new BelongsToManyCreateOrFirstTestRelatedModel()],
+            [$source, new RelatedModel()],
             'SQLite',
             [456],
         );
@@ -72,10 +72,10 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
     public function testCreateOrFirstMethodAssociatesExistingRelated(): void
     {
-        $source = new BelongsToManyCreateOrFirstTestSourceModel();
+        $source = new SourceModel();
         $source->id = 123;
         $this->mockConnectionForModels(
-            [$source, new BelongsToManyCreateOrFirstTestRelatedModel()],
+            [$source, new RelatedModel()],
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -119,11 +119,11 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodRetrievesExistingRelatedAlreadyAssociated(): void
     {
-        $source = new BelongsToManyCreateOrFirstTestSourceModel();
+        $source = new SourceModel();
         $source->id = 123;
         $source->exists = true;
         $this->mockConnectionForModels(
-            [$source, new BelongsToManyCreateOrFirstTestRelatedModel()],
+            [$source, new RelatedModel()],
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -164,11 +164,11 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
     public function testCreateOrFirstMethodRetrievesExistingRelatedAssociatedJustNow(): void
     {
-        $source = new BelongsToManyCreateOrFirstTestSourceModel();
+        $source = new SourceModel();
         $source->id = 123;
         $source->exists = true;
         $this->mockConnectionForModels(
-            [$source, new BelongsToManyCreateOrFirstTestRelatedModel()],
+            [$source, new RelatedModel()],
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -236,11 +236,11 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodRetrievesExistingRelatedAndAssociatesIt(): void
     {
-        $source = new BelongsToManyCreateOrFirstTestSourceModel();
+        $source = new SourceModel();
         $source->id = 123;
         $source->exists = true;
         $this->mockConnectionForModels(
-            [$source, new BelongsToManyCreateOrFirstTestRelatedModel()],
+            [$source, new RelatedModel()],
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -294,12 +294,12 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodFallsBackToCreateOrFirst(): void
     {
-        $source = new class extends BelongsToManyCreateOrFirstTestSourceModel {
+        $source = new class extends SourceModel {
             protected function newBelongsToMany(Builder $query, Model $parent, $table, $foreignPivotKey, $relatedPivotKey, $parentKey, $relatedKey, $relationName = null): BelongsToMany
             {
                 $relation = m::mock(BelongsToMany::class)->makePartial();
                 $relation->__construct(...func_get_args());
-                $instance = new BelongsToManyCreateOrFirstTestRelatedModel([
+                $instance = new RelatedModel([
                     'id' => 456,
                     'attr' => 'foo',
                     'val' => 'bar',
@@ -324,7 +324,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
         $source->id = 123;
         $source->exists = true;
         $this->mockConnectionForModels(
-            [$source, new BelongsToManyCreateOrFirstTestRelatedModel()],
+            [$source, new RelatedModel()],
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -366,12 +366,12 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodCreatesNewRelated(): void
     {
-        $source = new class extends BelongsToManyCreateOrFirstTestSourceModel {
+        $source = new class extends SourceModel {
             protected function newBelongsToMany(Builder $query, Model $parent, $table, $foreignPivotKey, $relatedPivotKey, $parentKey, $relatedKey, $relationName = null): BelongsToMany
             {
                 $relation = m::mock(BelongsToMany::class)->makePartial();
                 $relation->__construct(...func_get_args());
-                $instance = new BelongsToManyCreateOrFirstTestRelatedModel([
+                $instance = new RelatedModel([
                     'id' => 456,
                     'attr' => 'foo',
                     'val' => 'bar',
@@ -391,7 +391,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
         };
         $source->id = 123;
         $this->mockConnectionForModels(
-            [$source, new BelongsToManyCreateOrFirstTestRelatedModel()],
+            [$source, new RelatedModel()],
             'SQLite',
         );
 
@@ -407,12 +407,12 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodUpdatesExistingRelated(): void
     {
-        $source = new class extends BelongsToManyCreateOrFirstTestSourceModel {
+        $source = new class extends SourceModel {
             protected function newBelongsToMany(Builder $query, Model $parent, $table, $foreignPivotKey, $relatedPivotKey, $parentKey, $relatedKey, $relationName = null): BelongsToMany
             {
                 $relation = m::mock(BelongsToMany::class)->makePartial();
                 $relation->__construct(...func_get_args());
-                $instance = new BelongsToManyCreateOrFirstTestRelatedModel([
+                $instance = new RelatedModel([
                     'id' => 456,
                     'attr' => 'foo',
                     'val' => 'bar',
@@ -432,7 +432,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
         };
         $source->id = 123;
         $this->mockConnectionForModels(
-            [$source, new BelongsToManyCreateOrFirstTestRelatedModel()],
+            [$source, new RelatedModel()],
             'SQLite',
         );
         $source->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -488,7 +488,7 @@ class DatabaseEloquentBelongsToManyCreateOrFirstTest extends TestCase
 /**
  * @property int $id
  */
-class BelongsToManyCreateOrFirstTestRelatedModel extends Model
+class RelatedModel extends Model
 {
     protected ?string $table = 'related_table';
 
@@ -498,7 +498,7 @@ class BelongsToManyCreateOrFirstTestRelatedModel extends Model
 /**
  * @property int $id
  */
-class BelongsToManyCreateOrFirstTestSourceModel extends Model
+class SourceModel extends Model
 {
     protected ?string $table = 'source_table';
 
@@ -507,7 +507,7 @@ class BelongsToManyCreateOrFirstTestSourceModel extends Model
     public function related(): BelongsToMany
     {
         return $this->belongsToMany(
-            BelongsToManyCreateOrFirstTestRelatedModel::class,
+            RelatedModel::class,
             'pivot_table',
             'source_id',
             'related_id',
