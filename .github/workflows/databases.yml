@@ -155,6 +155,56 @@ jobs:
           DB_PASSWORD: password
         run: vendor/bin/phpunit tests/Integration/Database
 
+  mariadb_11:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: password
+          MARIADB_DATABASE: testing
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "healthcheck.sh --connect --innodb_initialized"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    container:
+      image: phpswoole/swoole:6.0.2-php8.4
+
+    strategy:
+      fail-fast: true
+
+    name: MariaDB 11
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: /root/.composer/cache
+          key: composer-8.4-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-8.4-
+
+      - name: Install dependencies
+        run: COMPOSER_MEMORY_LIMIT=-1 composer install --prefer-dist -n -o
+
+      - name: Execute integration tests
+        env:
+          DB_CONNECTION: mariadb
+          DB_HOST: mariadb
+          DB_PORT: 3306
+          DB_DATABASE: testing
+          DB_USERNAME: root
+          DB_PASSWORD: password
+        run: vendor/bin/phpunit tests/Integration/Database
+
   pgsql_17:
     runs-on: ubuntu-latest
     timeout-minutes: 5

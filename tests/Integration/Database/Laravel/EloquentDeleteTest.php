@@ -9,6 +9,7 @@ use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Database\QueryException;
 use Hypervel\Database\Schema\Blueprint;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Support\Facades\DB;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use Hypervel\Tests\Integration\Database\Laravel\Fixtures\Post;
 use Hypervel\Tests\Integration\Database\Laravel\Fixtures\PostStringyKey;
@@ -19,6 +20,21 @@ use Hypervel\Tests\Integration\Database\Laravel\Fixtures\PostStringyKey;
  */
 class EloquentDeleteTest extends DatabaseTestCase
 {
+    /**
+     * Check if the current MariaDB version supports DELETE with JOIN + ORDER BY + LIMIT.
+     * MariaDB 11.0+ supports this syntax; older versions do not.
+     */
+    protected function mariaDbSupportsDeleteJoinLimit(): bool
+    {
+        if ($this->driver !== 'mariadb') {
+            return false;
+        }
+
+        $version = DB::scalar('SELECT VERSION()');
+
+        return version_compare($version, '11.0', '>=');
+    }
+
     protected function afterRefreshingDatabase(): void
     {
         Schema::create('posts', function (Blueprint $table) {
@@ -58,10 +74,14 @@ class EloquentDeleteTest extends DatabaseTestCase
 
     public function testDeleteUseLimitWithJoins(): void
     {
-        $ignoredDrivers = ['sqlsrv', 'mysql', 'mariadb'];
+        // MySQL does not support DELETE with JOIN + ORDER BY + LIMIT
+        // MariaDB 10.x does not support it, but MariaDB 11+ does
+        if ($this->driver === 'mysql') {
+            $this->markTestSkipped('MySQL does not support LIMIT on DELETE statements with JOIN clauses.');
+        }
 
-        if (in_array($this->driver, $ignoredDrivers)) {
-            $this->markTestSkipped("{$this->driver} does not support LIMIT on DELETE statements with JOIN clauses.");
+        if ($this->driver === 'mariadb' && ! $this->mariaDbSupportsDeleteJoinLimit()) {
+            $this->markTestSkipped('MariaDB < 11.0 does not support LIMIT on DELETE statements with JOIN clauses.');
         }
 
         $totalPosts = 10;
@@ -89,6 +109,11 @@ class EloquentDeleteTest extends DatabaseTestCase
     {
         if (! in_array($this->driver, ['mysql', 'mariadb'])) {
             $this->markTestSkipped('This test only applies to MySQL/MariaDB.');
+        }
+
+        // MariaDB 11+ supports DELETE with JOIN + ORDER BY + LIMIT, so no exception is thrown
+        if ($this->mariaDbSupportsDeleteJoinLimit()) {
+            $this->markTestSkipped('MariaDB 11+ supports LIMIT on DELETE statements with JOIN clauses.');
         }
 
         $this->expectException(QueryException::class);

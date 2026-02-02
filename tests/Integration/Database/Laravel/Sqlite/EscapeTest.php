@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Integration\Database\Laravel\Sqlite;
 use Hypervel\Testbench\Attributes\RequiresDatabase;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use RuntimeException;
-use TypeError;
 
 /**
  * @internal
@@ -83,8 +82,7 @@ class EscapeTest extends DatabaseTestCase
 
     public function testEscapeArray()
     {
-        // Hypervel throws TypeError due to stricter type hints on escape() method
-        $this->expectException(TypeError::class);
+        $this->expectException(RuntimeException::class);
 
         $this->app['db']->escape(['a', 'b']);
     }
