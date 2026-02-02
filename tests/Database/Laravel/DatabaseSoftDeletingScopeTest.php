@@ -44,7 +44,7 @@ class DatabaseSoftDeletingScopeTest extends TestCase
         $callback = $builder->getMacro('restore');
         $givenBuilder = m::mock(EloquentBuilder::class);
         $givenBuilder->shouldReceive('withTrashed')->once();
-        $givenBuilder->shouldReceive('getModel')->once()->andReturn($model = m::mock(stdClass::class));
+        $givenBuilder->shouldReceive('getModel')->once()->andReturn($model = m::mock(Model::class));
         $model->shouldReceive('getDeletedAtColumn')->once()->andReturn('deleted_at');
         $givenBuilder->shouldReceive('update')->once()->with(['deleted_at' => null]);
 

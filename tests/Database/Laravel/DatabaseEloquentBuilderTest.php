@@ -47,10 +47,11 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->setModel($model);
         $model->shouldReceive('getKeyType')->once()->andReturn('int');
         $builder->getQuery()->shouldReceive('where')->once()->with('foo_table.foo', '=', 'bar');
-        $builder->shouldReceive('first')->with(['column'])->andReturn('baz');
+        $expectedModel = m::mock(Model::class);
+        $builder->shouldReceive('first')->with(['column'])->andReturn($expectedModel);
 
         $result = $builder->find('bar', ['column']);
-        $this->assertSame('baz', $result);
+        $this->assertSame($expectedModel, $result);
     }
 
     public function testFindSoleMethod()
@@ -60,10 +61,11 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->setModel($model);
         $model->shouldReceive('getKeyType')->once()->andReturn('int');
         $builder->getQuery()->shouldReceive('where')->once()->with('foo_table.foo', '=', 'bar');
-        $builder->shouldReceive('sole')->with(['column'])->andReturn('baz');
+        $expectedModel = m::mock(Model::class);
+        $builder->shouldReceive('sole')->with(['column'])->andReturn($expectedModel);
 
         $result = $builder->findSole('bar', ['column']);
-        $this->assertSame('baz', $result);
+        $this->assertSame($expectedModel, $result);
     }
 
     public function testFindManyMethod()
@@ -74,10 +76,11 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model->shouldReceive('getKeyType')->andReturn('int');
         $builder->setModel($model);
         $builder->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('foo_table.foo', ['one', 'two']);
-        $builder->shouldReceive('get')->with(['column'])->andReturn(['baz']);
+        $expectedCollection = new Collection(['baz']);
+        $builder->shouldReceive('get')->with(['column'])->andReturn($expectedCollection);
 
         $result = $builder->findMany(['one', 'two'], ['column']);
-        $this->assertEquals(['baz'], $result);
+        $this->assertEquals($expectedCollection, $result);
 
         // ids are empty array
         $builder = m::mock(Builder::class . '[get]', [$this->getMockQueryBuilder()]);
@@ -109,12 +112,13 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         $model = $this->getMockModel();
         $model->shouldReceive('getKeyType')->once()->andReturn('int');
-        $model->shouldReceive('findOrNew')->once()->andReturn('baz');
+        $expectedModel = m::mock(Model::class);
+        $model->shouldReceive('findOrNew')->once()->andReturn($expectedModel);
 
         $builder = m::mock(Builder::class . '[first]', [$this->getMockQueryBuilder()]);
         $builder->setModel($model);
         $builder->getQuery()->shouldReceive('where')->once()->with('foo_table.foo', '=', 'bar');
-        $builder->shouldReceive('first')->with(['column'])->andReturn('baz');
+        $builder->shouldReceive('first')->with(['column'])->andReturn($expectedModel);
 
         $expected = $model->findOrNew('bar', ['column']);
         $result = $builder->find('bar', ['column']);
@@ -210,7 +214,8 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->getQuery()->shouldReceive('whereIntegerInRaw')->with('foo_table.foo', [1, 2, 3])->once();
         $builder->shouldReceive('get')->andReturn(new Collection([$model1, $model2]))->once();
         $builder->shouldReceive('get')->with(['column'])->andReturn(new Collection([$model1, $model2]))->once();
-        $builder->shouldReceive('get')->andReturn(null)->once();
+        // Return empty collection to trigger callback (count mismatch with requested IDs)
+        $builder->shouldReceive('get')->andReturn(new Collection())->once();
 
         $result = $builder->findOr([1, 2], fn () => 'callback result');
         $this->assertInstanceOf(Collection::class, $result);
@@ -238,7 +243,8 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->getQuery()->shouldReceive('whereIntegerInRaw')->with('foo_table.foo', [1, 2, 3])->once();
         $builder->shouldReceive('get')->andReturn(new Collection([$model1, $model2]))->once();
         $builder->shouldReceive('get')->with(['column'])->andReturn(new Collection([$model1, $model2]))->once();
-        $builder->shouldReceive('get')->andReturn(null)->once();
+        // Return empty collection to trigger callback (count mismatch with requested IDs)
+        $builder->shouldReceive('get')->andReturn(new Collection())->once();
 
         $result = $builder->findOr(new Collection([1, 2]), fn () => 'callback result');
         $this->assertInstanceOf(Collection::class, $result);
@@ -271,10 +277,11 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model->shouldReceive('getKeyType')->andReturn('int');
         $builder->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('foo_table.foo', [1, 2]);
         $builder->setModel($model);
-        $builder->shouldReceive('get')->with(['column'])->andReturn('baz');
+        $expectedCollection = new Collection(['baz']);
+        $builder->shouldReceive('get')->with(['column'])->andReturn($expectedCollection);
 
         $result = $builder->find([1, 2], ['column']);
-        $this->assertSame('baz', $result);
+        $this->assertSame($expectedCollection, $result);
     }
 
     public function testFindWithManyUsingCollection()
@@ -285,10 +292,11 @@ class DatabaseEloquentBuilderTest extends TestCase
         $model->shouldReceive('getKeyType')->andReturn('int');
         $builder->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('foo_table.foo', [1, 2]);
         $builder->setModel($model);
-        $builder->shouldReceive('get')->with(['column'])->andReturn('baz');
+        $expectedCollection = new Collection(['baz']);
+        $builder->shouldReceive('get')->with(['column'])->andReturn($expectedCollection);
 
         $result = $builder->find($ids, ['column']);
-        $this->assertSame('baz', $result);
+        $this->assertSame($expectedCollection, $result);
     }
 
     public function testFirstMethod()
@@ -368,7 +376,7 @@ class DatabaseEloquentBuilderTest extends TestCase
     public function testValueOrFailMethodWithModelFound()
     {
         $builder = m::mock(Builder::class . '[first]', [$this->getMockQueryBuilder()]);
-        $mockModel = new stdClass();
+        $mockModel = m::mock(Model::class);
         $mockModel->name = 'foo';
         $builder->shouldReceive('first')->with(['name'])->andReturn($mockModel);
 
@@ -895,11 +903,12 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->setEagerLoads(['orders' => function ($query) {
             $_SERVER['__eloquent.constrain'] = $query;
         }]);
-        $relation = m::mock(stdClass::class);
+        $relation = m::mock(Relation::class);
         $relation->shouldReceive('addEagerConstraints')->once()->with(['models']);
         $relation->shouldReceive('initRelation')->once()->with(['models'], 'orders')->andReturn(['models']);
-        $relation->shouldReceive('getEager')->once()->andReturn(['results']);
-        $relation->shouldReceive('match')->once()->with(['models'], ['results'], 'orders')->andReturn(['models.matched']);
+        $eagerResults = new Collection(['results']);
+        $relation->shouldReceive('getEager')->once()->andReturn($eagerResults);
+        $relation->shouldReceive('match')->once()->with(['models'], $eagerResults, 'orders')->andReturn(['models.matched']);
         $builder->shouldReceive('getRelation')->once()->with('orders')->andReturn($relation);
         $results = $builder->eagerLoadRelations(['models']);
 
@@ -935,8 +944,9 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         $builder = $this->getBuilder();
         $builder->setModel($this->getMockModel());
-        $builder->getModel()->shouldReceive('newInstance->orders')->once()->andReturn($relation = m::mock(stdClass::class));
-        $relationQuery = m::mock(stdClass::class);
+        $relation = m::mock(Relation::class);
+        $builder->getModel()->shouldReceive('newInstance->orders')->once()->andReturn($relation);
+        $relationQuery = m::mock(Builder::class);
         $relation->shouldReceive('getQuery')->andReturn($relationQuery);
         $relationQuery->shouldReceive('with')->once()->with(['lines' => null, 'lines.details' => null]);
         $builder->setEagerLoads(['orders' => null, 'orders.lines' => null, 'orders.lines.details' => null]);
@@ -948,13 +958,15 @@ class DatabaseEloquentBuilderTest extends TestCase
     {
         $builder = $this->getBuilder();
         $builder->setModel($this->getMockModel());
-        $builder->getModel()->shouldReceive('newInstance->orders')->once()->andReturn($relation = m::mock(stdClass::class));
-        $builder->getModel()->shouldReceive('newInstance->ordersGroups')->once()->andReturn($groupsRelation = m::mock(stdClass::class));
+        $relation = m::mock(Relation::class);
+        $groupsRelation = m::mock(Relation::class);
+        $builder->getModel()->shouldReceive('newInstance->orders')->once()->andReturn($relation);
+        $builder->getModel()->shouldReceive('newInstance->ordersGroups')->once()->andReturn($groupsRelation);
 
-        $relationQuery = m::mock(stdClass::class);
+        $relationQuery = m::mock(Builder::class);
         $relation->shouldReceive('getQuery')->andReturn($relationQuery);
 
-        $groupRelationQuery = m::mock(stdClass::class);
+        $groupRelationQuery = m::mock(Builder::class);
         $groupsRelation->shouldReceive('getQuery')->andReturn($groupRelationQuery);
         $groupRelationQuery->shouldReceive('with')->once()->with(['lines' => null, 'lines.details' => null]);
 

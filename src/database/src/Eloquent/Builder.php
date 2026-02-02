@@ -594,7 +594,7 @@ class Builder implements BuilderContract
      *     : TModel|TValue
      * )
      */
-    public function findOr(mixed $id, Closure|array|string $columns = ['*'], ?Closure $callback = null): Model|Collection
+    public function findOr(mixed $id, Closure|array|string $columns = ['*'], ?Closure $callback = null): mixed
     {
         if ($columns instanceof Closure) {
             $callback = $columns;

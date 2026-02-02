@@ -230,9 +230,11 @@ class DatabaseEloquentSoftDeletesIntegrationTest extends TestCase
 
             public function newModelQuery(): \Hypervel\Database\Eloquent\Builder
             {
-                return m::spy(parent::newModelQuery(), function (MockInterface $mock) {
-                    $mock->shouldReceive('forceDelete')->andThrow(new Exception());
-                });
+                $mock = m::mock(\Hypervel\Database\Eloquent\Builder::class);
+                $mock->shouldReceive('where')->andReturnSelf();
+                $mock->shouldReceive('forceDelete')->andThrow(new Exception());
+
+                return $mock;
             }
         };
 

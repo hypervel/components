@@ -3808,7 +3808,7 @@ class FindWithWritePdoStub extends Model
     {
         $mock = m::mock(Builder::class);
         $mock->shouldReceive('useWritePdo')->once()->andReturnSelf();
-        $mock->shouldReceive('find')->once()->with(1)->andReturn('foo');
+        $mock->shouldReceive('find')->once()->with(1)->andReturn(m::mock(Model::class));
 
         return $mock;
     }
@@ -3824,8 +3824,9 @@ class DestroyStub extends Model
     {
         $mock = m::mock(Builder::class);
         $mock->shouldReceive('whereIn')->once()->with('id', [1, 2, 3])->andReturn($mock);
-        $mock->shouldReceive('get')->once()->andReturn([$model = m::mock(stdClass::class)]);
+        $model = m::mock(Model::class);
         $model->shouldReceive('delete')->once();
+        $mock->shouldReceive('get')->once()->andReturn(new Collection([$model]));
 
         return $mock;
     }
