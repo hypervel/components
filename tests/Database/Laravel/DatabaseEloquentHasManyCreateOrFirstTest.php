@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentHasManyCreateOrFirstTest;
 
 use Exception;
 use Hypervel\Database\Connection;
@@ -38,7 +38,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testCreateOrFirstMethodCreatesNewRecord(): void
     {
-        $model = new HasManyCreateOrFirstTestParentModel();
+        $model = new ParentModel();
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite', [456]);
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -63,7 +63,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testCreateOrFirstMethodRetrievesExistingRecord(): void
     {
-        $model = new HasManyCreateOrFirstTestParentModel();
+        $model = new ParentModel();
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -103,7 +103,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodCreatesNewRecord(): void
     {
-        $model = new HasManyCreateOrFirstTestParentModel();
+        $model = new ParentModel();
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite', [456]);
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -133,7 +133,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodRetrievesExistingRecord(): void
     {
-        $model = new HasManyCreateOrFirstTestParentModel();
+        $model = new ParentModel();
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -165,7 +165,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodRetrievesRecordCreatedJustNow(): void
     {
-        $model = new HasManyCreateOrFirstTestParentModel();
+        $model = new ParentModel();
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -210,7 +210,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodCreatesNewRecord(): void
     {
-        $model = new HasManyCreateOrFirstTestParentModel();
+        $model = new ParentModel();
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite', [456]);
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -240,7 +240,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodUpdatesExistingRecord(): void
     {
-        $model = new HasManyCreateOrFirstTestParentModel();
+        $model = new ParentModel();
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -277,7 +277,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodUpdatesRecordCreatedJustNow(): void
     {
-        $model = new HasManyCreateOrFirstTestParentModel();
+        $model = new ParentModel();
         $model->id = 123;
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
@@ -354,7 +354,7 @@ class DatabaseEloquentHasManyCreateOrFirstTest extends TestCase
 /**
  * @property int $id
  */
-class HasManyCreateOrFirstTestParentModel extends Model
+class ParentModel extends Model
 {
     protected ?string $table = 'parent_table';
 
@@ -362,7 +362,7 @@ class HasManyCreateOrFirstTestParentModel extends Model
 
     public function children(): HasMany
     {
-        return $this->hasMany(HasManyCreateOrFirstTestChildModel::class, 'parent_id');
+        return $this->hasMany(ChildModel::class, 'parent_id');
     }
 }
 
@@ -370,7 +370,7 @@ class HasManyCreateOrFirstTestParentModel extends Model
  * @property int $id
  * @property int $parent_id
  */
-class HasManyCreateOrFirstTestChildModel extends Model
+class ChildModel extends Model
 {
     protected ?string $table = 'child_table';
 
