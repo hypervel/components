@@ -54,8 +54,11 @@ class CollectionEngine extends Engine
             $models = $models->take($builder->limit);
         }
 
+        /** @var array<Model> $results */
+        $results = $models->all();
+
         return [
-            'results' => $models->all(),
+            'results' => $results,
             'total' => count($models),
         ];
     }
@@ -69,8 +72,11 @@ class CollectionEngine extends Engine
     {
         $models = $this->searchModels($builder);
 
+        /** @var array<Model> $results */
+        $results = $models->forPage($page, $perPage)->all();
+
         return [
-            'results' => $models->forPage($page, $perPage)->all(),
+            'results' => $results,
             'total' => count($models),
         ];
     }
