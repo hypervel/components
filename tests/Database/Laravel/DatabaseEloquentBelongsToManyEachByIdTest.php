@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentBelongsToManyEachByIdTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model as Eloquent;
@@ -57,10 +57,10 @@ class DatabaseEloquentBelongsToManyEachByIdTest extends TestCase
     {
         $this->seedData();
 
-        $user = BelongsToManyEachByIdTestTestUser::query()->first();
+        $user = User::query()->first();
         $i = 0;
 
-        $user->articles()->eachById(function (BelongsToManyEachByIdTestTestArticle $model) use (&$i) {
+        $user->articles()->eachById(function (Article $model) use (&$i) {
             ++$i;
             $this->assertEquals($i, $model->id);
         });
@@ -85,8 +85,8 @@ class DatabaseEloquentBelongsToManyEachByIdTest extends TestCase
      */
     protected function seedData()
     {
-        $user = BelongsToManyEachByIdTestTestUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
-        BelongsToManyEachByIdTestTestArticle::query()->insert([
+        $user = User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        Article::query()->insert([
             ['id' => 1, 'title' => 'Another title'],
             ['id' => 2, 'title' => 'Another title'],
             ['id' => 3, 'title' => 'Another title'],
@@ -116,7 +116,7 @@ class DatabaseEloquentBelongsToManyEachByIdTest extends TestCase
     }
 }
 
-class BelongsToManyEachByIdTestTestUser extends Eloquent
+class User extends Eloquent
 {
     protected ?string $table = 'users';
 
@@ -126,11 +126,11 @@ class BelongsToManyEachByIdTestTestUser extends Eloquent
 
     public function articles()
     {
-        return $this->belongsToMany(BelongsToManyEachByIdTestTestArticle::class, 'article_user', 'user_id', 'article_id');
+        return $this->belongsToMany(Article::class, 'article_user', 'user_id', 'article_id');
     }
 }
 
-class BelongsToManyEachByIdTestTestArticle extends Eloquent
+class Article extends Eloquent
 {
     protected ?string $table = 'articles';
 
