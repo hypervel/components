@@ -215,16 +215,77 @@ When the user approves removing a test, replace it with a comment **in the same 
 
 This preserves the test's location so future diffs against Laravel show intentional removals vs new tests needing porting.
 
+### Temporary Workarounds (Until illuminate/events Is Ported)
+
+Hypervel currently uses Hyperf's event system, which has some differences from Laravel's. These workarounds apply until `illuminate/events` is ported. Once ported, search for `@TODO.*illuminate/events` to find tests that need updating.
+
+**Pattern A: `Event::fake()` + `assertDispatched()` - Works as-is**
+
+Hypervel's `EventFake` supports `assertDispatched()`, `assertDispatchedTimes()`, etc. No changes needed:
+
+```php
+Event::fake();
+// ... test code ...
+Event::assertDispatched(ModelsPruned::class, 2);
+```
+
+**Pattern B: Mockery mock of Dispatcher - Convert to Event::fake()**
+
+Laravel tests that mock the Dispatcher directly (e.g., `app('events')->shouldReceive('dispatch')->times(2)`) should be converted to use `Event::fake()` + `assertDispatched()`:
+
+```php
+// Laravel original using Mockery
+app('events')->shouldReceive('dispatch')->times(2)->with(m::type(ModelsPruned::class));
+$count = (new MassPrunableTestModel())->pruneAll();
+
+// Hypervel - convert to Event::fake()
+Event::fake();
+$count = (new MassPrunableTestModel())->pruneAll();
+Event::assertDispatched(ModelsPruned::class, 2);
+```
+
+**Pattern C: Wildcard listeners - Spread vs array payload**
+
+Hypervel spreads wildcard listener payload as separate arguments; Laravel passes them as an array. Create a working version and comment out the original:
+
+```php
+/**
+ * @TODO Replace with testOriginalName once illuminate/events is ported.
+ *       Hypervel's event dispatcher spreads wildcard listener payload instead of passing array.
+ */
+public function testWorkingVersion()
+{
+    // Hypervel version: receives spread arguments ($event, $model)
+    User::getEventDispatcher()->listen('eloquent.retrieved:*', function ($event, $model) {
+        if ($model instanceof Login) {
+            // ...
+        }
+    });
+}
+
+// @TODO Restore this test once illuminate/events package is ported (wildcard listeners receive array payload)
+// public function testOriginalName()
+// {
+//     // Laravel version: receives array ($event, $models)
+//     User::getEventDispatcher()->listen('eloquent.retrieved:*', function ($event, $models) {
+//         foreach ($models as $model) {
+//             // ...
+//         }
+//     });
+// }
+```
+
 ### Quick Checklist
 
 1. Update namespace to `Hypervel\Tests\{Package}\Laravel`
 2. Add `declare(strict_types=1);`
 3. Change `Illuminate\` imports to `Hypervel\`
-4. Choose correct base TestCase
-5. Ensure `parent::setUp()` is called
-6. Add type declarations to model properties
-7. Fix mock types (PDO, QueryBuilder, Grammar, etc.)
-8. Add `->andReturnSelf()` to chained method mocks
-9. Use test-specific namespace if file defines helper classes (e.g., `...Laravel\EloquentDeleteTest`)
-10. Remove tests for unsupported drivers/features (SQL Server, dynamic connections only)
-11. Run tests and fix any remaining type errors
+4. Add `@internal` and `@coversNothing` docblock to test classes
+5. Choose correct base TestCase
+6. Ensure `parent::setUp()` is called
+7. Add type declarations to model properties
+8. Fix mock types (PDO, QueryBuilder, Grammar, etc.)
+9. Add `->andReturnSelf()` to chained method mocks
+10. Use test-specific namespace if file defines helper classes (e.g., `...Laravel\EloquentDeleteTest`)
+11. Remove tests for unsupported drivers/features (SQL Server, dynamic connections only)
+12. Run tests and fix any remaining type errors

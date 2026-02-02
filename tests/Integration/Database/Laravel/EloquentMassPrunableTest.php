@@ -7,7 +7,9 @@ namespace Hypervel\Tests\Integration\Database\Laravel;
 use Hypervel\Database\Eloquent\MassPrunable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Events\ModelsPruned;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use LogicException;
@@ -45,12 +47,10 @@ class EloquentMassPrunableTest extends DatabaseTestCase
         MassPrunableTestModelMissingPrunableMethod::create()->pruneAll();
     }
 
-    /**
-     * @TODO Add event dispatch verification once illuminate/events is ported.
-     *       Original test expected app('events')->shouldReceive('dispatch')->times(2)->with(m::type(ModelsPruned::class))
-     */
     public function testPrunesRecords()
     {
+        Event::fake();
+
         collect(range(1, 5000))->map(function ($id) {
             return ['name' => 'foo'];
         })->chunk(200)->each(function ($chunk) {
@@ -61,14 +61,14 @@ class EloquentMassPrunableTest extends DatabaseTestCase
 
         $this->assertEquals(1500, $count);
         $this->assertEquals(3500, MassPrunableTestModel::count());
+
+        Event::assertDispatched(ModelsPruned::class, 2);
     }
 
-    /**
-     * @TODO Add event dispatch verification once illuminate/events is ported.
-     *       Original test expected app('events')->shouldReceive('dispatch')->times(3)->with(m::type(ModelsPruned::class))
-     */
     public function testPrunesSoftDeletedRecords()
     {
+        Event::fake();
+
         collect(range(1, 5000))->map(function ($id) {
             return ['deleted_at' => now()];
         })->chunk(200)->each(function ($chunk) {
@@ -80,6 +80,8 @@ class EloquentMassPrunableTest extends DatabaseTestCase
         $this->assertEquals(3000, $count);
         $this->assertEquals(0, MassPrunableSoftDeleteTestModel::count());
         $this->assertEquals(2000, MassPrunableSoftDeleteTestModel::withTrashed()->count());
+
+        Event::assertDispatched(ModelsPruned::class, 3);
     }
 }
 
