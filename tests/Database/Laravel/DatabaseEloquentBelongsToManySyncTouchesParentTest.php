@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentBelongsToManySyncTouchesParentTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model as Eloquent;
@@ -76,9 +76,9 @@ class DatabaseEloquentBelongsToManySyncTouchesParentTest extends TestCase
      */
     protected function seedData()
     {
-        DatabaseEloquentBelongsToManySyncTouchesParentTestTestUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
-        DatabaseEloquentBelongsToManySyncTouchesParentTestTestUser::create(['id' => 2, 'email' => 'anonymous@gmail.com']);
-        DatabaseEloquentBelongsToManySyncTouchesParentTestTestUser::create(['id' => 3, 'email' => 'anoni-mous@gmail.com']);
+        User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        User::create(['id' => 2, 'email' => 'anonymous@gmail.com']);
+        User::create(['id' => 3, 'email' => 'anoni-mous@gmail.com']);
     }
 
     public function testSyncWithDetachedValuesShouldTouch()
@@ -86,7 +86,7 @@ class DatabaseEloquentBelongsToManySyncTouchesParentTest extends TestCase
         $this->seedData();
 
         Carbon::setTestNow('2021-07-19 10:13:14');
-        $article = DatabaseEloquentBelongsToManySyncTouchesParentTestTestArticle::create(['id' => 1, 'title' => 'uuid title']);
+        $article = Article::create(['id' => 1, 'title' => 'uuid title']);
         $article->users()->sync([1, 2, 3]);
         $this->assertSame('2021-07-19 10:13:14', $article->updated_at->format('Y-m-d H:i:s'));
 
@@ -98,11 +98,11 @@ class DatabaseEloquentBelongsToManySyncTouchesParentTest extends TestCase
         $article->refresh();
         $this->assertSame('2021-07-20 19:13:14', $article->updated_at->format('Y-m-d H:i:s'));
 
-        $user1 = DatabaseEloquentBelongsToManySyncTouchesParentTestTestUser::find(1);
+        $user1 = User::find(1);
         $this->assertNotSame('2021-07-20 19:13:14', $user1->updated_at->format('Y-m-d H:i:s'));
-        $user2 = DatabaseEloquentBelongsToManySyncTouchesParentTestTestUser::find(2);
+        $user2 = User::find(2);
         $this->assertNotSame('2021-07-20 19:13:14', $user2->updated_at->format('Y-m-d H:i:s'));
-        $user3 = DatabaseEloquentBelongsToManySyncTouchesParentTestTestUser::find(3);
+        $user3 = User::find(3);
         $this->assertNotSame('2021-07-20 19:13:14', $user3->updated_at->format('Y-m-d H:i:s'));
     }
 
@@ -127,7 +127,7 @@ class DatabaseEloquentBelongsToManySyncTouchesParentTest extends TestCase
     }
 }
 
-class DatabaseEloquentBelongsToManySyncTouchesParentTestTestArticle extends Eloquent
+class Article extends Eloquent
 {
     protected ?string $table = 'articles';
 
@@ -140,13 +140,13 @@ class DatabaseEloquentBelongsToManySyncTouchesParentTestTestArticle extends Eloq
     public function users()
     {
         return $this
-            ->belongsToMany(DatabaseEloquentBelongsToManySyncTouchesParentTestTestArticle::class, 'article_user', 'article_id', 'user_id')
-            ->using(DatabaseEloquentBelongsToManySyncTouchesParentTestTestArticleUser::class)
+            ->belongsToMany(Article::class, 'article_user', 'article_id', 'user_id')
+            ->using(ArticleUser::class)
             ->withTimestamps();
     }
 }
 
-class DatabaseEloquentBelongsToManySyncTouchesParentTestTestArticleUser extends EloquentPivot
+class ArticleUser extends EloquentPivot
 {
     protected ?string $table = 'article_user';
 
@@ -156,16 +156,16 @@ class DatabaseEloquentBelongsToManySyncTouchesParentTestTestArticleUser extends 
 
     public function article()
     {
-        return $this->belongsTo(DatabaseEloquentBelongsToManySyncTouchesParentTestTestArticle::class, 'article_id', 'id');
+        return $this->belongsTo(Article::class, 'article_id', 'id');
     }
 
     public function user()
     {
-        return $this->belongsTo(DatabaseEloquentBelongsToManySyncTouchesParentTestTestUser::class, 'user_id', 'id');
+        return $this->belongsTo(User::class, 'user_id', 'id');
     }
 }
 
-class DatabaseEloquentBelongsToManySyncTouchesParentTestTestUser extends Eloquent
+class User extends Eloquent
 {
     protected ?string $table = 'users';
 
@@ -178,8 +178,8 @@ class DatabaseEloquentBelongsToManySyncTouchesParentTestTestUser extends Eloquen
     public function articles()
     {
         return $this
-            ->belongsToMany(DatabaseEloquentBelongsToManySyncTouchesParentTestTestArticle::class, 'article_user', 'user_id', 'article_id')
-            ->using(DatabaseEloquentBelongsToManySyncTouchesParentTestTestArticleUser::class)
+            ->belongsToMany(Article::class, 'article_user', 'user_id', 'article_id')
+            ->using(ArticleUser::class)
             ->withTimestamps();
     }
 }
