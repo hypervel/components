@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentBuilderCreateOrFirstTest;
 
 use Exception;
 use Hypervel\Database\Connection;
@@ -38,7 +38,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
     public function testCreateOrFirstMethodCreatesNewRecord(): void
     {
-        $model = new EloquentBuilderCreateOrFirstTestModel();
+        $model = new TestModel();
         $this->mockConnectionForModel($model, 'SQLite', [123]);
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
         $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
@@ -61,7 +61,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
     public function testCreateOrFirstMethodRetrievesExistingRecord(): void
     {
-        $model = new EloquentBuilderCreateOrFirstTestModel();
+        $model = new TestModel();
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
         $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
@@ -98,7 +98,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodRetrievesExistingRecord(): void
     {
-        $model = new EloquentBuilderCreateOrFirstTestModel();
+        $model = new TestModel();
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
         $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
@@ -127,7 +127,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodCreatesNewRecord(): void
     {
-        $model = new EloquentBuilderCreateOrFirstTestModel();
+        $model = new TestModel();
         $this->mockConnectionForModel($model, 'SQLite', [123]);
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
         $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
@@ -155,7 +155,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
     public function testFirstOrCreateMethodRetrievesRecordCreatedJustNow(): void
     {
-        $model = new EloquentBuilderCreateOrFirstTestModel();
+        $model = new TestModel();
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
         $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
@@ -197,7 +197,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodUpdatesExistingRecord(): void
     {
-        $model = new EloquentBuilderCreateOrFirstTestModel();
+        $model = new TestModel();
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
         $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
@@ -234,7 +234,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodCreatesNewRecord(): void
     {
-        $model = new EloquentBuilderCreateOrFirstTestModel();
+        $model = new TestModel();
         $this->mockConnectionForModel($model, 'SQLite', [123]);
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
         $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
@@ -262,7 +262,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
     public function testUpdateOrCreateMethodUpdatesRecordCreatedJustNow(): void
     {
-        $model = new EloquentBuilderCreateOrFirstTestModel();
+        $model = new TestModel();
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
         $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
@@ -312,7 +312,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
     public function testIncrementOrCreateMethodIncrementsExistingRecord(): void
     {
-        $model = new EloquentBuilderCreateOrFirstTestModel();
+        $model = new TestModel();
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
         $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
@@ -354,7 +354,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
     public function testIncrementOrCreateMethodCreatesNewRecord(): void
     {
-        $model = new EloquentBuilderCreateOrFirstTestModel();
+        $model = new TestModel();
         $this->mockConnectionForModel($model, 'SQLite', [123]);
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
         $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
@@ -382,7 +382,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
     public function testIncrementOrCreateMethodIncrementParametersArePassed(): void
     {
-        $model = new EloquentBuilderCreateOrFirstTestModel();
+        $model = new TestModel();
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
         $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
@@ -426,7 +426,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
 
     public function testIncrementOrCreateMethodRetrievesRecordCreatedJustNow(): void
     {
-        $model = new EloquentBuilderCreateOrFirstTestModel();
+        $model = new TestModel();
         $this->mockConnectionForModel($model, 'SQLite');
         $model->getConnection()->shouldReceive('transactionLevel')->andReturn(0);
         $model->getConnection()->shouldReceive('getName')->andReturn('sqlite');
@@ -505,7 +505,7 @@ class DatabaseEloquentBuilderCreateOrFirstTest extends TestCase
     }
 }
 
-class EloquentBuilderCreateOrFirstTestModel extends Model
+class TestModel extends Model
 {
     protected ?string $table = 'table';
 
