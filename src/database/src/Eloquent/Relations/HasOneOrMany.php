@@ -179,9 +179,21 @@ abstract class HasOneOrMany extends Relation
     {
         $foreign = $this->getForeignKeyName();
 
-        return $results->mapToDictionary(function ($result) use ($foreign) {
-            return [$this->getDictionaryKey($result->{$foreign}) => $result];
-        })->all();
+        $dictionary = [];
+
+        $isAssociative = Arr::isAssoc($results->all());
+
+        foreach ($results as $key => $item) {
+            $pairKey = $this->getDictionaryKey($item->{$foreign});
+
+            if ($isAssociative) {
+                $dictionary[$pairKey][$key] = $item;
+            } else {
+                $dictionary[$pairKey][] = $item;
+            }
+        }
+
+        return $dictionary;
     }
 
     /**

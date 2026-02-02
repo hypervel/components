@@ -13,6 +13,7 @@ use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
 use Hypervel\Database\Query\Grammars\MySqlGrammar;
 use Hypervel\Database\UniqueConstraintViolationException;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
 
 /**
@@ -167,12 +168,17 @@ abstract class HasOneOrManyThrough extends Relation
     {
         $dictionary = [];
 
+        $isAssociative = Arr::isAssoc($results->all());
+
         // First we will create a dictionary of models keyed by the foreign key of the
         // relationship as this will allow us to quickly access all of the related
         // models without having to do nested looping which will be quite slow.
-        foreach ($results as $result) {
-            // @phpstan-ignore property.notFound (laravel_through_key is a select alias added during query)
-            $dictionary[$result->laravel_through_key][] = $result;
+        foreach ($results as $key => $result) {
+            if ($isAssociative) {
+                $dictionary[$result->laravel_through_key][$key] = $result; // @phpstan-ignore property.notFound
+            } else {
+                $dictionary[$result->laravel_through_key][] = $result; // @phpstan-ignore property.notFound
+            }
         }
 
         return $dictionary;

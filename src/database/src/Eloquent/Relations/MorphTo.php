@@ -9,6 +9,7 @@ use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\Concerns\InteractsWithDictionary;
+use Hypervel\Support\Arr;
 use Override;
 
 /**
@@ -90,12 +91,18 @@ class MorphTo extends BelongsTo
      */
     protected function buildDictionary(EloquentCollection $models): void
     {
-        foreach ($models as $model) {
+        $isAssociative = Arr::isAssoc($models->all());
+
+        foreach ($models as $key => $model) {
             if ($model->{$this->morphType}) {
                 $morphTypeKey = $this->getDictionaryKey($model->{$this->morphType});
                 $foreignKeyKey = $this->getDictionaryKey($model->{$this->foreignKey});
 
-                $this->dictionary[$morphTypeKey][$foreignKeyKey][] = $model;
+                if ($isAssociative) {
+                    $this->dictionary[$morphTypeKey][$foreignKeyKey][$key] = $model;
+                } else {
+                    $this->dictionary[$morphTypeKey][$foreignKeyKey][] = $model;
+                }
             }
         }
     }
