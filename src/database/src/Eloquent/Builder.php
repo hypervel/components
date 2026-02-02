@@ -17,9 +17,13 @@ use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Database\UniqueConstraintViolationException;
+use Hypervel\Pagination\Cursor;
+use Hypervel\Pagination\CursorPaginator;
+use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection as BaseCollection;
+use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\ForwardsCalls;
 use InvalidArgumentException;
@@ -44,68 +48,56 @@ class Builder implements BuilderContract
 
     /**
      * The base query builder instance.
-     *
-     * @var \Hypervel\Database\Query\Builder
      */
-    protected $query;
+    protected QueryBuilder $query;
 
     /**
      * The model being queried.
      *
      * @var TModel
      */
-    protected $model;
+    protected Model $model;
 
     /**
      * The attributes that should be added to new models created by this builder.
-     *
-     * @var array
      */
-    public $pendingAttributes = [];
+    public array $pendingAttributes = [];
 
     /**
      * The relationships that should be eager loaded.
-     *
-     * @var array
      */
-    protected $eagerLoad = [];
+    protected array $eagerLoad = [];
 
     /**
      * All of the globally registered builder macros.
-     *
-     * @var array
      */
-    protected static $macros = [];
+    protected static array $macros = [];
 
     /**
      * All of the locally registered builder macros.
-     *
-     * @var array
      */
-    protected $localMacros = [];
+    protected array $localMacros = [];
 
     /**
      * A replacement for the typical delete function.
-     *
-     * @var null|Closure
      */
-    protected $onDelete;
+    protected ?Closure $onDelete = null;
 
     /**
      * The properties that should be returned from query builder.
      *
-     * @var string[]
+     * @var list<string>
      */
-    protected $propertyPassthru = [
+    protected array $propertyPassthru = [
         'from',
     ];
 
     /**
      * The methods that should be returned from query builder.
      *
-     * @var string[]
+     * @var list<string>
      */
-    protected $passthru = [
+    protected array $passthru = [
         'aggregate',
         'average',
         'avg',
@@ -142,31 +134,27 @@ class Builder implements BuilderContract
 
     /**
      * Applied global scopes.
-     *
-     * @var array
      */
-    protected $scopes = [];
+    protected array $scopes = [];
 
     /**
      * Removed global scopes.
-     *
-     * @var array
      */
-    protected $removedScopes = [];
+    protected array $removedScopes = [];
 
     /**
      * The callbacks that should be invoked after retrieving data from the database.
      *
-     * @var array
+     * @var list<Closure>
      */
-    protected $afterQueryCallbacks = [];
+    protected array $afterQueryCallbacks = [];
 
     /**
      * The callbacks that should be invoked on clone.
      *
-     * @var array
+     * @var list<Closure>
      */
-    protected $onCloneCallbacks = [];
+    protected array $onCloneCallbacks = [];
 
     /**
      * Create a new Eloquent query builder instance.
@@ -181,19 +169,15 @@ class Builder implements BuilderContract
      *
      * @return TModel
      */
-    public function make(array $attributes = [])
+    public function make(array $attributes = []): Model
     {
         return $this->newModelInstance($attributes);
     }
 
     /**
      * Register a new global scope.
-     *
-     * @param string $identifier
-     * @param Closure|\Hypervel\Database\Eloquent\Scope $scope
-     * @return $this
      */
-    public function withGlobalScope($identifier, $scope)
+    public function withGlobalScope(string $identifier, Closure|Scope $scope): static
     {
         $this->scopes[$identifier] = $scope;
 
@@ -206,11 +190,8 @@ class Builder implements BuilderContract
 
     /**
      * Remove a registered global scope.
-     *
-     * @param \Hypervel\Database\Eloquent\Scope|string $scope
-     * @return $this
      */
-    public function withoutGlobalScope($scope)
+    public function withoutGlobalScope(Scope|string $scope): static
     {
         if (! is_string($scope)) {
             $scope = get_class($scope);
@@ -225,10 +206,8 @@ class Builder implements BuilderContract
 
     /**
      * Remove all or passed registered global scopes.
-     *
-     * @return $this
      */
-    public function withoutGlobalScopes(?array $scopes = null)
+    public function withoutGlobalScopes(?array $scopes = null): static
     {
         if (! is_array($scopes)) {
             $scopes = array_keys($this->scopes);
@@ -243,10 +222,8 @@ class Builder implements BuilderContract
 
     /**
      * Remove all global scopes except the given scopes.
-     *
-     * @return $this
      */
-    public function withoutGlobalScopesExcept(array $scopes = [])
+    public function withoutGlobalScopesExcept(array $scopes = []): static
     {
         $this->withoutGlobalScopes(
             array_diff(array_keys($this->scopes), $scopes)
@@ -257,21 +234,16 @@ class Builder implements BuilderContract
 
     /**
      * Get an array of global scopes that were removed from the query.
-     *
-     * @return array
      */
-    public function removedScopes()
+    public function removedScopes(): array
     {
         return $this->removedScopes;
     }
 
     /**
      * Add a where clause on the primary key to the query.
-     *
-     * @param mixed $id
-     * @return $this
      */
-    public function whereKey($id)
+    public function whereKey(mixed $id): static
     {
         if ($id instanceof Model) {
             $id = $id->getKey();
@@ -296,11 +268,8 @@ class Builder implements BuilderContract
 
     /**
      * Add a where clause on the primary key to the query.
-     *
-     * @param mixed $id
-     * @return $this
      */
-    public function whereKeyNot($id)
+    public function whereKeyNot(mixed $id): static
     {
         if ($id instanceof Model) {
             $id = $id->getKey();
@@ -325,11 +294,8 @@ class Builder implements BuilderContract
 
     /**
      * Exclude the given models from the query results.
-     *
-     * @param iterable|mixed $models
-     * @return static
      */
-    public function except($models)
+    public function except(mixed $models): static
     {
         return $this->whereKeyNot(
             $models instanceof Model
@@ -341,13 +307,9 @@ class Builder implements BuilderContract
     /**
      * Add a basic where clause to the query.
      *
-     * @param array|(Closure(static): mixed)|\Hypervel\Contracts\Database\Query\Expression|string $column
-     * @param mixed $operator
-     * @param mixed $value
-     * @param string $boolean
-     * @return $this
+     * @param array|(Closure(static): mixed)|Expression|string $column
      */
-    public function where($column, $operator = null, $value = null, $boolean = 'and')
+    public function where(array|Closure|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
         if ($column instanceof Closure && is_null($operator)) {
             // @phpstan-ignore argument.type (closure receives Builder instance, static type not required)
@@ -366,13 +328,10 @@ class Builder implements BuilderContract
     /**
      * Add a basic where clause to the query, and return the first result.
      *
-     * @param array|(Closure(static): mixed)|\Hypervel\Contracts\Database\Query\Expression|string $column
-     * @param mixed $operator
-     * @param mixed $value
-     * @param string $boolean
+     * @param array|(Closure(static): mixed)|Expression|string $column
      * @return null|TModel
      */
-    public function firstWhere($column, $operator = null, $value = null, $boolean = 'and')
+    public function firstWhere(array|Closure|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): ?Model
     {
         return $this->where(...func_get_args())->first();
     }
@@ -380,12 +339,9 @@ class Builder implements BuilderContract
     /**
      * Add an "or where" clause to the query.
      *
-     * @param array|(Closure(static): mixed)|\Hypervel\Contracts\Database\Query\Expression|string $column
-     * @param mixed $operator
-     * @param mixed $value
-     * @return $this
+     * @param array|(Closure(static): mixed)|Expression|string $column
      */
-    public function orWhere($column, $operator = null, $value = null)
+    public function orWhere(array|Closure|Expression|string $column, mixed $operator = null, mixed $value = null): static
     {
         [$value, $operator] = $this->query->prepareValueAndOperator(
             $value,
@@ -399,13 +355,9 @@ class Builder implements BuilderContract
     /**
      * Add a basic "where not" clause to the query.
      *
-     * @param array|(Closure(static): mixed)|\Hypervel\Contracts\Database\Query\Expression|string $column
-     * @param mixed $operator
-     * @param mixed $value
-     * @param string $boolean
-     * @return $this
+     * @param array|(Closure(static): mixed)|Expression|string $column
      */
-    public function whereNot($column, $operator = null, $value = null, $boolean = 'and')
+    public function whereNot(array|Closure|Expression|string $column, mixed $operator = null, mixed $value = null, string $boolean = 'and'): static
     {
         return $this->where($column, $operator, $value, $boolean . ' not');
     }
@@ -413,23 +365,17 @@ class Builder implements BuilderContract
     /**
      * Add an "or where not" clause to the query.
      *
-     * @param array|(Closure(static): mixed)|\Hypervel\Contracts\Database\Query\Expression|string $column
-     * @param mixed $operator
-     * @param mixed $value
-     * @return $this
+     * @param array|(Closure(static): mixed)|Expression|string $column
      */
-    public function orWhereNot($column, $operator = null, $value = null)
+    public function orWhereNot(array|Closure|Expression|string $column, mixed $operator = null, mixed $value = null): static
     {
         return $this->whereNot($column, $operator, $value, 'or');
     }
 
     /**
      * Add an "order by" clause for a timestamp to the query.
-     *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
-     * @return $this
      */
-    public function latest($column = null)
+    public function latest(Expression|string|null $column = null): static
     {
         if (is_null($column)) {
             $column = $this->model->getCreatedAtColumn() ?? 'created_at';
@@ -442,11 +388,8 @@ class Builder implements BuilderContract
 
     /**
      * Add an "order by" clause for a timestamp to the query.
-     *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
-     * @return $this
      */
-    public function oldest($column = null)
+    public function oldest(Expression|string|null $column = null): static
     {
         if (is_null($column)) {
             $column = $this->model->getCreatedAtColumn() ?? 'created_at';
@@ -460,9 +403,9 @@ class Builder implements BuilderContract
     /**
      * Create a collection of models from plain arrays.
      *
-     * @return \Hypervel\Database\Eloquent\Collection<int, TModel>
+     * @return Collection<int, TModel>
      */
-    public function hydrate(array $items)
+    public function hydrate(array $items): Collection
     {
         $instance = $this->newModelInstance();
 
@@ -481,9 +424,8 @@ class Builder implements BuilderContract
      * Insert into the database after merging the model's default attributes, setting timestamps, and casting values.
      *
      * @param array<int, array<string, mixed>> $values
-     * @return bool
      */
-    public function fillAndInsert(array $values)
+    public function fillAndInsert(array $values): bool
     {
         return $this->insert($this->fillForInsert($values));
     }
@@ -492,9 +434,8 @@ class Builder implements BuilderContract
      * Insert (ignoring errors) into the database after merging the model's default attributes, setting timestamps, and casting values.
      *
      * @param array<int, array<string, mixed>> $values
-     * @return int
      */
-    public function fillAndInsertOrIgnore(array $values)
+    public function fillAndInsertOrIgnore(array $values): int
     {
         return $this->insertOrIgnore($this->fillForInsert($values));
     }
@@ -503,9 +444,8 @@ class Builder implements BuilderContract
      * Insert a record into the database and get its ID after merging the model's default attributes, setting timestamps, and casting values.
      *
      * @param array<string, mixed> $values
-     * @return int
      */
-    public function fillAndInsertGetId(array $values)
+    public function fillAndInsertGetId(array $values): int
     {
         return $this->insertGetId($this->fillForInsert([$values])[0]);
     }
@@ -516,7 +456,7 @@ class Builder implements BuilderContract
      * @param array<int, array<string, mixed>> $values
      * @return array<int, array<string, mixed>>
      */
-    public function fillForInsert(array $values)
+    public function fillForInsert(array $values): array
     {
         if (empty($values)) {
             return [];
@@ -541,11 +481,9 @@ class Builder implements BuilderContract
     /**
      * Create a collection of models from a raw query.
      *
-     * @param string $query
-     * @param array $bindings
-     * @return \Hypervel\Database\Eloquent\Collection<int, TModel>
+     * @return Collection<int, TModel>
      */
-    public function fromQuery($query, $bindings = [])
+    public function fromQuery(string $query, array $bindings = []): Collection
     {
         return $this->hydrate(
             $this->query->getConnection()->select($query, $bindings)
@@ -555,11 +493,9 @@ class Builder implements BuilderContract
     /**
      * Find a model by its primary key.
      *
-     * @param mixed $id
-     * @param array|string $columns
-     * @return ($id is (array<mixed>|\Hypervel\Contracts\Support\Arrayable<array-key, mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TModel> : null|TModel)
+     * @return ($id is (array<mixed>|Arrayable<array-key, mixed>) ? Collection<int, TModel> : null|TModel)
      */
-    public function find($id, $columns = ['*'])
+    public function find(mixed $id, array|string $columns = ['*']): Model|Collection|null
     {
         if (is_array($id) || $id instanceof Arrayable) {
             return $this->findMany($id, $columns);
@@ -571,14 +507,12 @@ class Builder implements BuilderContract
     /**
      * Find a sole model by its primary key.
      *
-     * @param mixed $id
-     * @param array|string $columns
      * @return TModel
      *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<TModel>
+     * @throws ModelNotFoundException<TModel>
      * @throws \Hypervel\Database\MultipleRecordsFoundException
      */
-    public function findSole($id, $columns = ['*'])
+    public function findSole(mixed $id, array|string $columns = ['*']): Model
     {
         return $this->whereKey($id)->sole($columns);
     }
@@ -586,11 +520,9 @@ class Builder implements BuilderContract
     /**
      * Find multiple models by their primary keys.
      *
-     * @param array|\Hypervel\Contracts\Support\Arrayable $ids
-     * @param array|string $columns
-     * @return \Hypervel\Database\Eloquent\Collection<int, TModel>
+     * @return Collection<int, TModel>
      */
-    public function findMany($ids, $columns = ['*'])
+    public function findMany(Arrayable|array $ids, array|string $columns = ['*']): Collection
     {
         $ids = $ids instanceof Arrayable ? $ids->toArray() : $ids;
 
@@ -604,13 +536,11 @@ class Builder implements BuilderContract
     /**
      * Find a model by its primary key or throw an exception.
      *
-     * @param mixed $id
-     * @param array|string $columns
-     * @return ($id is (array<mixed>|\Hypervel\Contracts\Support\Arrayable<array-key, mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TModel> : TModel)
+     * @return ($id is (array<mixed>|Arrayable<array-key, mixed>) ? Collection<int, TModel> : TModel)
      *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<TModel>
+     * @throws ModelNotFoundException<TModel>
      */
-    public function findOrFail($id, $columns = ['*'])
+    public function findOrFail(mixed $id, array|string $columns = ['*']): Model|Collection
     {
         $result = $this->find($id, $columns);
 
@@ -640,11 +570,9 @@ class Builder implements BuilderContract
     /**
      * Find a model by its primary key or return fresh model instance.
      *
-     * @param mixed $id
-     * @param array|string $columns
-     * @return ($id is (array<mixed>|\Hypervel\Contracts\Support\Arrayable<array-key, mixed>) ? \Hypervel\Database\Eloquent\Collection<int, TModel> : TModel)
+     * @return ($id is (array<mixed>|Arrayable<array-key, mixed>) ? Collection<int, TModel> : TModel)
      */
-    public function findOrNew($id, $columns = ['*'])
+    public function findOrNew(mixed $id, array|string $columns = ['*']): Model|Collection
     {
         if (! is_null($model = $this->find($id, $columns))) {
             return $model;
@@ -658,16 +586,15 @@ class Builder implements BuilderContract
      *
      * @template TValue
      *
-     * @param mixed $id
      * @param (Closure(): TValue)|list<string>|string $columns
      * @param null|(Closure(): TValue) $callback
      * @return (
-     *     $id is (\Hypervel\Contracts\Support\Arrayable<array-key, mixed>|array<mixed>)
-     *     ? \Hypervel\Database\Eloquent\Collection<int, TModel>
+     *     $id is (Arrayable<array-key, mixed>|array<mixed>)
+     *     ? Collection<int, TModel>
      *     : TModel|TValue
      * )
      */
-    public function findOr($id, $columns = ['*'], ?Closure $callback = null)
+    public function findOr(mixed $id, Closure|array|string $columns = ['*'], ?Closure $callback = null): Model|Collection
     {
         if ($columns instanceof Closure) {
             $callback = $columns;
@@ -687,7 +614,7 @@ class Builder implements BuilderContract
      *
      * @return TModel
      */
-    public function firstOrNew(array $attributes = [], array $values = [])
+    public function firstOrNew(array $attributes = [], array $values = []): Model
     {
         if (! is_null($instance = $this->where($attributes)->first())) {
             return $instance;
@@ -701,7 +628,7 @@ class Builder implements BuilderContract
      *
      * @return TModel
      */
-    public function firstOrCreate(array $attributes = [], array $values = [])
+    public function firstOrCreate(array $attributes = [], array $values = []): Model
     {
         if (! is_null($instance = (clone $this)->where($attributes)->first())) {
             return $instance;
@@ -715,7 +642,7 @@ class Builder implements BuilderContract
      *
      * @return TModel
      */
-    public function createOrFirst(array $attributes = [], array $values = [])
+    public function createOrFirst(array $attributes = [], array $values = []): Model
     {
         try {
             return $this->withSavepointIfNeeded(fn () => $this->create(array_merge($attributes, $values)));
@@ -730,7 +657,7 @@ class Builder implements BuilderContract
      *
      * @return TModel
      */
-    public function updateOrCreate(array $attributes, array $values = [])
+    public function updateOrCreate(array $attributes, array $values = []): Model
     {
         return tap($this->firstOrCreate($attributes, $values), function ($instance) use ($values) {
             if (! $instance->wasRecentlyCreated) {
@@ -742,11 +669,9 @@ class Builder implements BuilderContract
     /**
      * Create a record matching the attributes, or increment the existing record.
      *
-     * @param float|int $default
-     * @param float|int $step
      * @return TModel
      */
-    public function incrementOrCreate(array $attributes, string $column = 'count', $default = 1, $step = 1, array $extra = [])
+    public function incrementOrCreate(array $attributes, string $column = 'count', float|int $default = 1, float|int $step = 1, array $extra = []): Model
     {
         return tap($this->firstOrCreate($attributes, [$column => $default]), function ($instance) use ($column, $step, $extra) {
             if (! $instance->wasRecentlyCreated) {
@@ -758,12 +683,11 @@ class Builder implements BuilderContract
     /**
      * Execute the query and get the first result or throw an exception.
      *
-     * @param array|string $columns
      * @return TModel
      *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<TModel>
+     * @throws ModelNotFoundException<TModel>
      */
-    public function firstOrFail($columns = ['*'])
+    public function firstOrFail(array|string $columns = ['*']): Model
     {
         if (! is_null($model = $this->first($columns))) {
             return $model;
@@ -781,7 +705,7 @@ class Builder implements BuilderContract
      * @param null|(Closure(): TValue) $callback
      * @return TModel|TValue
      */
-    public function firstOr($columns = ['*'], ?Closure $callback = null)
+    public function firstOr(Closure|array $columns = ['*'], ?Closure $callback = null): mixed
     {
         if ($columns instanceof Closure) {
             $callback = $columns;
@@ -799,13 +723,12 @@ class Builder implements BuilderContract
     /**
      * Execute the query and get the first result if it's the sole matching record.
      *
-     * @param array|string $columns
      * @return TModel
      *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<TModel>
+     * @throws ModelNotFoundException<TModel>
      * @throws \Hypervel\Database\MultipleRecordsFoundException
      */
-    public function sole($columns = ['*'])
+    public function sole(array|string $columns = ['*']): Model
     {
         try {
             return $this->baseSole($columns);
@@ -816,29 +739,25 @@ class Builder implements BuilderContract
 
     /**
      * Get a single column's value from the first result of a query.
-     *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
-     * @return mixed
      */
-    public function value($column)
+    public function value(Expression|string $column): mixed
     {
         if ($result = $this->first([$column])) {
             $column = $column instanceof Expression ? $column->getValue($this->getGrammar()) : $column;
 
             return $result->{Str::afterLast($column, '.')};
         }
+
+        return null;
     }
 
     /**
      * Get a single column's value from the first result of a query if it's the sole matching record.
      *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
-     * @return mixed
-     *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<TModel>
+     * @throws ModelNotFoundException<TModel>
      * @throws \Hypervel\Database\MultipleRecordsFoundException
      */
-    public function soleValue($column)
+    public function soleValue(Expression|string $column): mixed
     {
         $column = $column instanceof Expression ? $column->getValue($this->getGrammar()) : $column;
 
@@ -848,12 +767,9 @@ class Builder implements BuilderContract
     /**
      * Get a single column's value from the first result of the query or throw an exception.
      *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
-     * @return mixed
-     *
-     * @throws \Hypervel\Database\Eloquent\ModelNotFoundException<TModel>
+     * @throws ModelNotFoundException<TModel>
      */
-    public function valueOrFail($column)
+    public function valueOrFail(Expression|string $column): mixed
     {
         $column = $column instanceof Expression ? $column->getValue($this->getGrammar()) : $column;
 
@@ -863,10 +779,9 @@ class Builder implements BuilderContract
     /**
      * Execute the query as a "select" statement.
      *
-     * @param array|string $columns
-     * @return \Hypervel\Database\Eloquent\Collection<int, TModel>
+     * @return Collection<int, TModel>
      */
-    public function get($columns = ['*'])
+    public function get(array|string $columns = ['*']): Collection
     {
         $builder = $this->applyScopes();
 
@@ -885,10 +800,9 @@ class Builder implements BuilderContract
     /**
      * Get the hydrated models without eager loading.
      *
-     * @param array|string $columns
      * @return array<int, TModel>
      */
-    public function getModels($columns = ['*'])
+    public function getModels(array|string $columns = ['*']): array
     {
         return $this->model->hydrate(
             $this->query->get($columns)->all()
@@ -901,7 +815,7 @@ class Builder implements BuilderContract
      * @param array<int, TModel> $models
      * @return array<int, TModel>
      */
-    public function eagerLoadRelations(array $models)
+    public function eagerLoadRelations(array $models): array
     {
         foreach ($this->eagerLoad as $name => $constraints) {
             // For nested eager loads we'll skip loading them here and they will be set as an
@@ -917,11 +831,8 @@ class Builder implements BuilderContract
 
     /**
      * Eagerly load the relationship on a set of models.
-     *
-     * @param string $name
-     * @return array
      */
-    protected function eagerLoadRelation(array $models, $name, Closure $constraints)
+    protected function eagerLoadRelation(array $models, string $name, Closure $constraints): array
     {
         // First we will "back up" the existing where conditions on the query so we can
         // add our eager constraints. Then we will merge the wheres that were on the
@@ -945,10 +856,9 @@ class Builder implements BuilderContract
     /**
      * Get the relation instance for the given relation name.
      *
-     * @param string $name
-     * @return \Hypervel\Database\Eloquent\Relations\Relation<\Hypervel\Database\Eloquent\Model, TModel, *>
+     * @return Relation<Model, TModel, *>
      */
-    public function getRelation($name)
+    public function getRelation(string $name): Relation
     {
         // We want to run a relationship query without any constrains so that we will
         // not have to remove these where clauses manually which gets really hacky
@@ -975,11 +885,8 @@ class Builder implements BuilderContract
 
     /**
      * Get the deeply nested relations for a given top-level relation.
-     *
-     * @param string $relation
-     * @return array
      */
-    protected function relationsNestedUnder($relation)
+    protected function relationsNestedUnder(string $relation): array
     {
         $nested = [];
 
@@ -997,22 +904,16 @@ class Builder implements BuilderContract
 
     /**
      * Determine if the relationship is nested.
-     *
-     * @param string $relation
-     * @param string $name
-     * @return bool
      */
-    protected function isNestedUnder($relation, $name)
+    protected function isNestedUnder(string $relation, string $name): bool
     {
         return str_contains($name, '.') && str_starts_with($name, $relation . '.');
     }
 
     /**
      * Register a closure to be invoked after the query is executed.
-     *
-     * @return $this
      */
-    public function afterQuery(Closure $callback)
+    public function afterQuery(Closure $callback): static
     {
         $this->afterQueryCallbacks[] = $callback;
 
@@ -1036,7 +937,7 @@ class Builder implements BuilderContract
      *
      * @return \Hypervel\Support\LazyCollection<int, TModel>
      */
-    public function cursor()
+    public function cursor(): LazyCollection
     {
         return $this->applyScopes()->query->cursor()->map(function ($record) {
             $model = $this->newModelInstance()->newFromBuilder($record);
@@ -1048,7 +949,7 @@ class Builder implements BuilderContract
     /**
      * Add a generic "order by" clause if the query doesn't already have one.
      */
-    protected function enforceOrderBy()
+    protected function enforceOrderBy(): void
     {
         if (empty($this->query->orders) && empty($this->query->unionOrders)) {
             $this->orderBy($this->model->getQualifiedKeyName(), 'asc');
@@ -1058,11 +959,9 @@ class Builder implements BuilderContract
     /**
      * Get a collection with the values of a given column.
      *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
-     * @param null|string $key
-     * @return \Hypervel\Support\Collection<array-key, mixed>
+     * @return BaseCollection<array-key, mixed>
      */
-    public function pluck($column, $key = null)
+    public function pluck(Expression|string $column, ?string $key = null): BaseCollection
     {
         $results = $this->toBase()->pluck($column, $key);
 
@@ -1089,16 +988,9 @@ class Builder implements BuilderContract
     /**
      * Paginate the given query.
      *
-     * @param null|Closure|int $perPage
-     * @param array|string $columns
-     * @param string $pageName
-     * @param null|int $page
-     * @param null|Closure|int $total
-     * @return \Hypervel\Pagination\LengthAwarePaginator
-     *
      * @throws InvalidArgumentException
      */
-    public function paginate($perPage = null, $columns = ['*'], $pageName = 'page', $page = null, $total = null)
+    public function paginate(Closure|int|null $perPage = null, array|string $columns = ['*'], string $pageName = 'page', ?int $page = null, Closure|int|null $total = null): LengthAwarePaginator
     {
         $page = $page ?: Paginator::resolveCurrentPage($pageName);
 
@@ -1118,14 +1010,8 @@ class Builder implements BuilderContract
 
     /**
      * Paginate the given query into a simple paginator.
-     *
-     * @param null|int $perPage
-     * @param array|string $columns
-     * @param string $pageName
-     * @param null|int $page
-     * @return \Hypervel\Contracts\Pagination\Paginator
      */
-    public function simplePaginate($perPage = null, $columns = ['*'], $pageName = 'page', $page = null)
+    public function simplePaginate(?int $perPage = null, array|string $columns = ['*'], string $pageName = 'page', ?int $page = null): Paginator
     {
         $page = $page ?: Paginator::resolveCurrentPage($pageName);
 
@@ -1144,14 +1030,8 @@ class Builder implements BuilderContract
 
     /**
      * Paginate the given query into a cursor paginator.
-     *
-     * @param null|int $perPage
-     * @param array|string $columns
-     * @param string $cursorName
-     * @param null|\Hypervel\Pagination\Cursor|string $cursor
-     * @return \Hypervel\Contracts\Pagination\CursorPaginator
      */
-    public function cursorPaginate($perPage = null, $columns = ['*'], $cursorName = 'cursor', $cursor = null)
+    public function cursorPaginate(?int $perPage = null, array|string $columns = ['*'], string $cursorName = 'cursor', Cursor|string|null $cursor = null): CursorPaginator
     {
         $perPage = $perPage ?: $this->model->getPerPage();
 
@@ -1160,11 +1040,8 @@ class Builder implements BuilderContract
 
     /**
      * Ensure the proper order by required for cursor pagination.
-     *
-     * @param bool $shouldReverse
-     * @return \Hypervel\Support\Collection
      */
-    protected function ensureOrderForCursorPagination($shouldReverse = false)
+    protected function ensureOrderForCursorPagination(bool $shouldReverse = false): BaseCollection
     {
         if (empty($this->query->orders) && empty($this->query->unionOrders)) {
             $this->enforceOrderBy();
@@ -1197,7 +1074,7 @@ class Builder implements BuilderContract
      *
      * @return TModel
      */
-    public function create(array $attributes = [])
+    public function create(array $attributes = []): Model
     {
         return tap($this->newModelInstance($attributes), function ($instance) {
             $instance->save();
@@ -1209,7 +1086,7 @@ class Builder implements BuilderContract
      *
      * @return TModel
      */
-    public function createQuietly(array $attributes = [])
+    public function createQuietly(array $attributes = []): Model
     {
         return Model::withoutEvents(fn () => $this->create($attributes));
     }
@@ -1219,7 +1096,7 @@ class Builder implements BuilderContract
      *
      * @return TModel
      */
-    public function forceCreate(array $attributes)
+    public function forceCreate(array $attributes): Model
     {
         return $this->model->unguarded(function () use ($attributes) {
             return $this->newModelInstance()->create($attributes);
@@ -1231,29 +1108,23 @@ class Builder implements BuilderContract
      *
      * @return TModel
      */
-    public function forceCreateQuietly(array $attributes = [])
+    public function forceCreateQuietly(array $attributes = []): Model
     {
         return Model::withoutEvents(fn () => $this->forceCreate($attributes));
     }
 
     /**
      * Update records in the database.
-     *
-     * @return int
      */
-    public function update(array $values)
+    public function update(array $values): int
     {
         return $this->toBase()->update($this->addUpdatedAtColumn($values));
     }
 
     /**
      * Insert new records or update the existing ones.
-     *
-     * @param array|string $uniqueBy
-     * @param null|array $update
-     * @return int
      */
-    public function upsert(array $values, $uniqueBy, $update = null)
+    public function upsert(array $values, array|string $uniqueBy, ?array $update = null): int
     {
         if (empty($values)) {
             return 0;
@@ -1276,11 +1147,8 @@ class Builder implements BuilderContract
 
     /**
      * Update the column's update timestamp.
-     *
-     * @param null|string $column
-     * @return false|int
      */
-    public function touch($column = null)
+    public function touch(?string $column = null): false|int
     {
         $time = $this->model->freshTimestamp();
 
@@ -1299,12 +1167,8 @@ class Builder implements BuilderContract
 
     /**
      * Increment a column's value by a given amount.
-     *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
-     * @param float|int $amount
-     * @return int
      */
-    public function increment($column, $amount = 1, array $extra = [])
+    public function increment(Expression|string $column, float|int $amount = 1, array $extra = []): int
     {
         return $this->toBase()->increment(
             $column,
@@ -1315,12 +1179,8 @@ class Builder implements BuilderContract
 
     /**
      * Decrement a column's value by a given amount.
-     *
-     * @param \Hypervel\Contracts\Database\Query\Expression|string $column
-     * @param float|int $amount
-     * @return int
      */
-    public function decrement($column, $amount = 1, array $extra = [])
+    public function decrement(Expression|string $column, float|int $amount = 1, array $extra = []): int
     {
         return $this->toBase()->decrement(
             $column,
@@ -1331,10 +1191,8 @@ class Builder implements BuilderContract
 
     /**
      * Add the "updated at" column to an array of values.
-     *
-     * @return array
      */
-    protected function addUpdatedAtColumn(array $values)
+    protected function addUpdatedAtColumn(array $values): array
     {
         if (! $this->model->usesTimestamps()
             || is_null($this->model->getUpdatedAtColumn())) {
@@ -1372,10 +1230,8 @@ class Builder implements BuilderContract
 
     /**
      * Add unique IDs to the inserted values.
-     *
-     * @return array
      */
-    protected function addUniqueIdsToUpsertValues(array $values)
+    protected function addUniqueIdsToUpsertValues(array $values): array
     {
         if (! $this->model->usesUniqueIds()) {
             return $values;
@@ -1394,10 +1250,8 @@ class Builder implements BuilderContract
 
     /**
      * Add timestamps to the inserted values.
-     *
-     * @return array
      */
-    protected function addTimestampsToUpsertValues(array $values)
+    protected function addTimestampsToUpsertValues(array $values): array
     {
         if (! $this->model->usesTimestamps()) {
             return $values;
@@ -1421,10 +1275,8 @@ class Builder implements BuilderContract
 
     /**
      * Add the "updated at" column to the updated columns.
-     *
-     * @return array
      */
-    protected function addUpdatedAtToUpsertColumns(array $update)
+    protected function addUpdatedAtToUpsertColumns(array $update): array
     {
         if (! $this->model->usesTimestamps()) {
             return $update;
@@ -1443,10 +1295,8 @@ class Builder implements BuilderContract
 
     /**
      * Delete records from the database.
-     *
-     * @return mixed
      */
-    public function delete()
+    public function delete(): mixed
     {
         if (isset($this->onDelete)) {
             return call_user_func($this->onDelete, $this);
@@ -1459,10 +1309,8 @@ class Builder implements BuilderContract
      * Run the default delete function on the builder.
      *
      * Since we do not apply scopes here, the row will actually be deleted.
-     *
-     * @return mixed
      */
-    public function forceDelete()
+    public function forceDelete(): mixed
     {
         return $this->query->delete();
     }
@@ -1470,29 +1318,23 @@ class Builder implements BuilderContract
     /**
      * Register a replacement for the default delete function.
      */
-    public function onDelete(Closure $callback)
+    public function onDelete(Closure $callback): void
     {
         $this->onDelete = $callback;
     }
 
     /**
      * Determine if the given model has a scope.
-     *
-     * @param string $scope
-     * @return bool
      */
-    public function hasNamedScope($scope)
+    public function hasNamedScope(string $scope): bool
     {
         return $this->model && $this->model->hasNamedScope($scope); // @phpstan-ignore booleanAnd.leftAlwaysTrue (model can be null before setModel() is called)
     }
 
     /**
      * Call the given local model scopes.
-     *
-     * @param array|string $scopes
-     * @return mixed|static
      */
-    public function scopes($scopes)
+    public function scopes(array|string $scopes): mixed
     {
         $builder = $this;
 
@@ -1518,10 +1360,8 @@ class Builder implements BuilderContract
 
     /**
      * Apply the scopes to the Eloquent builder instance and return it.
-     *
-     * @return static
      */
-    public function applyScopes()
+    public function applyScopes(): static
     {
         if (! $this->scopes) {
             return $this;
@@ -1556,10 +1396,8 @@ class Builder implements BuilderContract
 
     /**
      * Apply the given scope on the current builder instance.
-     *
-     * @return mixed
      */
-    protected function callScope(callable $scope, array $parameters = [])
+    protected function callScope(callable $scope, array $parameters = []): mixed
     {
         array_unshift($parameters, $this);
 
@@ -1581,11 +1419,8 @@ class Builder implements BuilderContract
 
     /**
      * Apply the given named scope on the current builder instance.
-     *
-     * @param string $scope
-     * @return mixed
      */
-    protected function callNamedScope($scope, array $parameters = [])
+    protected function callNamedScope(string $scope, array $parameters = []): mixed
     {
         return $this->callScope(function (...$parameters) use ($scope) {
             return $this->model->callNamedScope($scope, $parameters);
@@ -1594,10 +1429,8 @@ class Builder implements BuilderContract
 
     /**
      * Nest where conditions by slicing them at the given where count.
-     *
-     * @param int $originalWhereCount
      */
-    protected function addNewWheresWithinGroup(QueryBuilder $query, $originalWhereCount)
+    protected function addNewWheresWithinGroup(QueryBuilder $query, int $originalWhereCount): void
     {
         // Here, we totally remove all of the where clauses since we are going to
         // rebuild them as nested queries by slicing the groups of wheres into
@@ -1619,10 +1452,8 @@ class Builder implements BuilderContract
 
     /**
      * Slice where conditions at the given offset and add them to the query as a nested condition.
-     *
-     * @param array $whereSlice
      */
-    protected function groupWhereSliceForScope(QueryBuilder $query, $whereSlice)
+    protected function groupWhereSliceForScope(QueryBuilder $query, array $whereSlice): void
     {
         $whereBooleans = (new BaseCollection($whereSlice))->pluck('boolean');
 
@@ -1643,12 +1474,8 @@ class Builder implements BuilderContract
 
     /**
      * Create a where array with nested where conditions.
-     *
-     * @param array $whereSlice
-     * @param string $boolean
-     * @return array
      */
-    protected function createNestedWhere($whereSlice, $boolean = 'and')
+    protected function createNestedWhere(array $whereSlice, string $boolean = 'and'): array
     {
         $whereGroup = $this->getQuery()->forNestedWhere();
 
@@ -1660,11 +1487,10 @@ class Builder implements BuilderContract
     /**
      * Specify relationships that should be eager loaded.
      *
-     * @param  array<array-key, array|(\Closure(\Hypervel\Database\Eloquent\Relations\Relation<*,*,*>): mixed)|string>|string  $relations
-     * @param  (\Closure(\Hypervel\Database\Eloquent\Relations\Relation<*,*,*>): mixed)|string|null  $callback
-     * @return $this
+     * @param  array<array-key, array|(Closure(Relation<*,*,*>): mixed)|string>|string  $relations
+     * @param  (Closure(Relation<*,*,*>): mixed)|string|null  $callback
      */
-    public function with($relations, $callback = null)
+    public function with(array|string $relations, Closure|string|null $callback = null): static
     {
         if ($callback instanceof Closure) {
             $eagerLoad = $this->parseWithRelations([$relations => $callback]);
@@ -1679,11 +1505,8 @@ class Builder implements BuilderContract
 
     /**
      * Prevent the specified relations from being eager loaded.
-     *
-     * @param mixed $relations
-     * @return $this
      */
-    public function without($relations)
+    public function without(mixed $relations): static
     {
         $this->eagerLoad = array_diff_key($this->eagerLoad, array_flip(
             is_string($relations) ? func_get_args() : $relations
@@ -1695,10 +1518,9 @@ class Builder implements BuilderContract
     /**
      * Set the relationships that should be eager loaded while removing any previously added eager loading specifications.
      *
-     * @param  array<array-key, array|(\Closure(\Hypervel\Database\Eloquent\Relations\Relation<*,*,*>): mixed)|string>|string  $relations
-     * @return $this
+     * @param  array<array-key, array|(Closure(Relation<*,*,*>): mixed)|string>|string  $relations
      */
-    public function withOnly($relations)
+    public function withOnly(array|string $relations): static
     {
         $this->eagerLoad = [];
 
