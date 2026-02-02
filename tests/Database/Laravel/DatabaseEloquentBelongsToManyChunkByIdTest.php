@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentBelongsToManyChunkByIdTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Collection;
@@ -58,7 +58,7 @@ class DatabaseEloquentBelongsToManyChunkByIdTest extends TestCase
     {
         $this->seedData();
 
-        $user = BelongsToManyChunkByIdTestTestUser::query()->first();
+        $user = User::query()->first();
         $i = 0;
 
         $user->articles()->chunkById(1, function (Collection $collection) use (&$i) {
@@ -73,7 +73,7 @@ class DatabaseEloquentBelongsToManyChunkByIdTest extends TestCase
     {
         $this->seedData();
 
-        $user = BelongsToManyChunkByIdTestTestUser::query()->first();
+        $user = User::query()->first();
         $i = 0;
 
         $user->articles()->chunkByIdDesc(1, function (Collection $collection) use (&$i) {
@@ -101,8 +101,8 @@ class DatabaseEloquentBelongsToManyChunkByIdTest extends TestCase
      */
     protected function seedData()
     {
-        $user = BelongsToManyChunkByIdTestTestUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
-        BelongsToManyChunkByIdTestTestArticle::query()->insert([
+        $user = User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        Article::query()->insert([
             ['id' => 1, 'title' => 'Another title'],
             ['id' => 2, 'title' => 'Another title'],
             ['id' => 3, 'title' => 'Another title'],
@@ -132,7 +132,7 @@ class DatabaseEloquentBelongsToManyChunkByIdTest extends TestCase
     }
 }
 
-class BelongsToManyChunkByIdTestTestUser extends Eloquent
+class User extends Eloquent
 {
     protected ?string $table = 'users';
 
@@ -142,11 +142,11 @@ class BelongsToManyChunkByIdTestTestUser extends Eloquent
 
     public function articles()
     {
-        return $this->belongsToMany(BelongsToManyChunkByIdTestTestArticle::class, 'article_user', 'user_id', 'article_id');
+        return $this->belongsToMany(Article::class, 'article_user', 'user_id', 'article_id');
     }
 }
 
-class BelongsToManyChunkByIdTestTestArticle extends Eloquent
+class Article extends Eloquent
 {
     protected ?string $table = 'articles';
 
