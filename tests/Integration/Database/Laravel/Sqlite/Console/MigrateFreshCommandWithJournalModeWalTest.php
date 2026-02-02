@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Integration\Database\Laravel\Sqlite\Console;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
+use Hypervel\Testbench\Attributes\WithMigration;
 use Hypervel\Tests\Integration\Database\Laravel\Sqlite\SqliteTestCase;
 use Override;
 
@@ -22,6 +23,7 @@ use Override;
  * @internal
  * @coversNothing
  */
+#[WithMigration]
 class MigrateFreshCommandWithJournalModeWalTest extends SqliteTestCase
 {
     #[Override]
