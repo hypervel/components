@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentBelongsToManySyncReturnValueTypeTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model as Eloquent;
@@ -72,8 +72,8 @@ class DatabaseEloquentBelongsToManySyncReturnValueTypeTest extends TestCase
      */
     protected function seedData()
     {
-        BelongsToManySyncTestTestUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
-        BelongsToManySyncTestTestArticle::insert([
+        User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        Article::insert([
             ['id' => '7b7306ae-5a02-46fa-a84c-9538f45c7dd4', 'title' => 'uuid title'],
             ['id' => (string) (PHP_INT_MAX + 1), 'title' => 'Another title'],
             ['id' => '1', 'title' => 'Another title'],
@@ -84,16 +84,16 @@ class DatabaseEloquentBelongsToManySyncReturnValueTypeTest extends TestCase
     {
         $this->seedData();
 
-        $user = BelongsToManySyncTestTestUser::query()->first();
-        $articleIDs = BelongsToManySyncTestTestArticle::all()->pluck('id')->toArray();
+        $user = User::query()->first();
+        $articleIDs = Article::all()->pluck('id')->toArray();
 
         $changes = $user->articles()->sync($articleIDs);
 
         collect($changes['attached'])->map(function ($id) {
-            $this->assertSame(gettype($id), (new BelongsToManySyncTestTestArticle())->getKeyType());
+            $this->assertSame(gettype($id), (new Article())->getKeyType());
         });
 
-        $user->articles->each(function (BelongsToManySyncTestTestArticle $article) {
+        $user->articles->each(function (Article $article) {
             $this->assertSame('0', (string) $article->pivot->visible);
         });
     }
@@ -102,16 +102,16 @@ class DatabaseEloquentBelongsToManySyncReturnValueTypeTest extends TestCase
     {
         $this->seedData();
 
-        $user = BelongsToManySyncTestTestUser::query()->first();
-        $articleIDs = BelongsToManySyncTestTestArticle::all()->pluck('id')->toArray();
+        $user = User::query()->first();
+        $articleIDs = Article::all()->pluck('id')->toArray();
 
         $changes = $user->articles()->syncWithPivotValues($articleIDs, ['visible' => true]);
 
         collect($changes['attached'])->each(function ($id) {
-            $this->assertSame(gettype($id), (new BelongsToManySyncTestTestArticle())->getKeyType());
+            $this->assertSame(gettype($id), (new Article())->getKeyType());
         });
 
-        $user->articles->each(function (BelongsToManySyncTestTestArticle $article) {
+        $user->articles->each(function (Article $article) {
             $this->assertSame('1', (string) $article->pivot->visible);
         });
     }
@@ -137,7 +137,7 @@ class DatabaseEloquentBelongsToManySyncReturnValueTypeTest extends TestCase
     }
 }
 
-class BelongsToManySyncTestTestUser extends Eloquent
+class User extends Eloquent
 {
     protected ?string $table = 'users';
 
@@ -147,11 +147,11 @@ class BelongsToManySyncTestTestUser extends Eloquent
 
     public function articles()
     {
-        return $this->belongsToMany(BelongsToManySyncTestTestArticle::class, 'article_user', 'user_id', 'article_id')->withPivot('visible');
+        return $this->belongsToMany(Article::class, 'article_user', 'user_id', 'article_id')->withPivot('visible');
     }
 }
 
-class BelongsToManySyncTestTestArticle extends Eloquent
+class Article extends Eloquent
 {
     protected ?string $table = 'articles';
 
