@@ -223,6 +223,7 @@ class CollectionEngine extends Engine
             ->values()
             ->all();
 
+        /** @var array<int|string> $objectIds */
         $objectIdPositions = array_flip($objectIds);
 
         /** @var EloquentCollection<int, Model&SearchableInterface> $scoutModels */
@@ -252,6 +253,7 @@ class CollectionEngine extends Engine
             ->values()
             ->all();
 
+        /** @var array<int|string> $objectIds */
         $objectIdPositions = array_flip($objectIds);
 
         /** @var LazyCollection<int, Model&SearchableInterface> $cursor */

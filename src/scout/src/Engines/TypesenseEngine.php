@@ -471,6 +471,7 @@ class TypesenseEngine extends Engine
             ->values()
             ->all();
 
+        /** @var array<int|string> $objectIds */
         $objectIdPositions = array_flip($objectIds);
 
         /** @var EloquentCollection<int, Model&SearchableInterface> $scoutModels */
@@ -504,6 +505,7 @@ class TypesenseEngine extends Engine
             ->values()
             ->all();
 
+        /** @var array<int|string> $objectIds */
         $objectIdPositions = array_flip($objectIds);
 
         return $model->queryScoutModelsByIds($builder, $objectIds)
