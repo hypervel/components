@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentBelongsToManyLazyByIdTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model as Eloquent;
@@ -56,7 +56,7 @@ class DatabaseEloquentBelongsToManyLazyByIdTest extends TestCase
     {
         $this->seedData();
 
-        $user = BelongsToManyLazyByIdTestTestUser::query()->first();
+        $user = User::query()->first();
         $i = 0;
 
         $user->articles()->lazyById(1)->each(function ($model) use (&$i) {
@@ -84,8 +84,8 @@ class DatabaseEloquentBelongsToManyLazyByIdTest extends TestCase
      */
     protected function seedData()
     {
-        $user = BelongsToManyLazyByIdTestTestUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
-        BelongsToManyLazyByIdTestTestArticle::query()->insert([
+        $user = User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        Article::query()->insert([
             ['aid' => 1, 'title' => 'Another title'],
             ['aid' => 2, 'title' => 'Another title'],
             ['aid' => 3, 'title' => 'Another title'],
@@ -115,7 +115,7 @@ class DatabaseEloquentBelongsToManyLazyByIdTest extends TestCase
     }
 }
 
-class BelongsToManyLazyByIdTestTestUser extends Eloquent
+class User extends Eloquent
 {
     protected ?string $table = 'users';
 
@@ -125,11 +125,11 @@ class BelongsToManyLazyByIdTestTestUser extends Eloquent
 
     public function articles()
     {
-        return $this->belongsToMany(BelongsToManyLazyByIdTestTestArticle::class, 'article_user', 'user_id', 'article_id');
+        return $this->belongsToMany(Article::class, 'article_user', 'user_id', 'article_id');
     }
 }
 
-class BelongsToManyLazyByIdTestTestArticle extends Eloquent
+class Article extends Eloquent
 {
     protected string $primaryKey = 'aid';
 
