@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\Laravel;
 
+use Hyperf\Contract\ConfigInterface;
+use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Event;
@@ -15,6 +18,15 @@ use Hypervel\Tests\Integration\Database\DatabaseTestCase;
  */
 class EventConnectionEstablishedTest extends DatabaseTestCase
 {
+    protected function defineEnvironment(Application $app): void
+    {
+        parent::defineEnvironment($app);
+
+        // Suppress expected reconnection log output
+        $config = $app->get(ConfigInterface::class);
+        $config->set(StdoutLoggerInterface::class . '.log_level', []);
+    }
+
     /**
      * Test that ConnectionEstablished fires when a connection is re-established.
      *

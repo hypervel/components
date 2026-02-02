@@ -73,17 +73,21 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
         $schema = Schema::connection($connection);
 
         $schemas = $schema->getSchemas();
+        $schemaNames = array_column($schemas, 'name');
+        $currentSchema = $schema->getCurrentSchemaName();
 
-        $this->assertSame($schema->getCurrentSchemaName(), collect($schemas)->firstWhere('default')['name']);
-        $this->assertEqualsCanonicalizing(
-            match ($this->driver) {
-                'mysql', 'mariadb' => ['laravel', 'my_schema'],
-                'pgsql' => ['public', 'my_schema'],
-                'sqlite' => ['main', 'my_schema'],
-                'sqlsrv' => ['dbo', 'guest', 'my_schema'],
-            },
-            array_column($schemas, 'name'),
-        );
+        $this->assertSame($currentSchema, collect($schemas)->firstWhere('default')['name']);
+
+        // Check that expected schemas are present (other system schemas may also exist)
+        $expectedSchemas = match ($this->driver) {
+            'mysql', 'mariadb' => [$currentSchema, 'my_schema'],
+            'pgsql' => ['public', 'my_schema'],
+            'sqlite' => ['main', 'my_schema'],
+            'sqlsrv' => ['dbo', 'guest', 'my_schema'],
+        };
+        foreach ($expectedSchemas as $expectedSchema) {
+            $this->assertContains($expectedSchema, $schemaNames);
+        }
     }
 
     #[DataProvider('connectionProvider')]
@@ -397,14 +401,15 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
     public function testForeignKeys($connection)
     {
         $schema = Schema::connection($connection);
+        $currentSchema = $schema->getCurrentSchemaName();
 
         $schema->create('my_tables', function (Blueprint $table) {
             $table->id();
         });
-        $schema->create('my_schema.table', function (Blueprint $table) {
+        $schema->create('my_schema.table', function (Blueprint $table) use ($currentSchema) {
             $table->id();
             $table->foreignId('my_table_id')
-                ->constrained(table: in_array($this->driver, ['mariadb', 'mysql']) ? 'laravel.my_tables' : null);
+                ->constrained(table: in_array($this->driver, ['mariadb', 'mysql']) ? "{$currentSchema}.my_tables" : null);
         });
         $schema->create('table', function (Blueprint $table) {
             $table->unsignedBigInteger('table_id');
@@ -416,7 +421,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
         $defaultSchemaName = match ($this->driver) {
             'pgsql' => 'public',
             'sqlsrv' => 'dbo',
-            default => 'laravel',
+            default => $currentSchema,
         };
 
         $this->assertTrue(collect($schema->getForeignKeys('my_schema.table'))->contains(
@@ -519,6 +524,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
     public function testComment($connection)
     {
         $schema = Schema::connection($connection);
+        $currentSchema = $schema->getCurrentSchemaName();
 
         $schema->create('my_schema.table', function (Blueprint $table) {
             $table->comment('comment on schema table');
@@ -531,7 +537,7 @@ class SchemaBuilderSchemaNameTest extends DatabaseTestCase
 
         $tables = collect($schema->getTables());
         $tableName = $connection === 'with-prefix' ? 'example_table' : 'table';
-        $defaultSchema = $this->driver === 'pgsql' ? 'public' : 'laravel';
+        $defaultSchema = $this->driver === 'pgsql' ? 'public' : $currentSchema;
 
         $this->assertEquals(
             'comment on schema table',

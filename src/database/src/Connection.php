@@ -559,7 +559,7 @@ class Connection implements ConnectionInterface
     {
         $query = $this->getQueryGrammar()->compileThreadCount();
 
-        return $query ? $this->scalar($query) : null;
+        return $query ? (int) $this->scalar($query) : null;
     }
 
     /**
