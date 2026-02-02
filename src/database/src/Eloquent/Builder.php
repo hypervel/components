@@ -9,6 +9,7 @@ use Closure;
 use Exception;
 use Hypervel\Contracts\Database\Eloquent\Builder as BuilderContract;
 use Hypervel\Contracts\Database\Query\Expression;
+use Hypervel\Contracts\Pagination\CursorPaginator as CursorPaginatorContract;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Database\Concerns\BuildsQueries;
 use Hypervel\Database\Eloquent\Concerns\QueriesRelationships;
@@ -17,9 +18,7 @@ use Hypervel\Database\Eloquent\Relations\Relation;
 use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\RecordsNotFoundException;
 use Hypervel\Database\UniqueConstraintViolationException;
-use Hypervel\Contracts\Pagination\CursorPaginator as CursorPaginatorContract;
 use Hypervel\Pagination\Cursor;
-use Hypervel\Pagination\CursorPaginator;
 use Hypervel\Pagination\LengthAwarePaginator;
 use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Arr;
@@ -780,7 +779,7 @@ class Builder implements BuilderContract
     /**
      * Execute the query as a "select" statement.
      *
-     * @return Collection<int, TModel>|BaseCollection
+     * @return BaseCollection|Collection<int, TModel>
      */
     public function get(array|string $columns = ['*']): BaseCollection
     {

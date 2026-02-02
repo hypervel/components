@@ -761,12 +761,14 @@ class QueryBuilder extends EloquentBuilder
             $this->withTrashed();
         }
 
-        $existing = $this
+        /** @var \Hypervel\Database\Eloquent\Collection $result */
+        $result = $this
             ->when($root, function (self $query) use ($root) {
                 return $query->whereDescendantOf($root);
             })
-            ->get()
-            ->getDictionary();
+            ->get();
+
+        $existing = $result->getDictionary();
 
         $dictionary = [];
         $parentId = $root ? $root->getKey() : null;

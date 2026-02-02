@@ -765,7 +765,6 @@ trait QueriesRelationships
 
     /**
      * Add subselect queries to include an aggregate value for a relationship.
-     *
      */
     public function withAggregate(mixed $relations, Expression|string $column, ?string $function = null): static
     {
@@ -882,7 +881,6 @@ trait QueriesRelationships
 
     /**
      * Add subselect queries to count the relations.
-     *
      */
     public function withCount(mixed $relations): static
     {
@@ -891,7 +889,6 @@ trait QueriesRelationships
 
     /**
      * Add subselect queries to include the max of the relation's column.
-     *
      */
     public function withMax(string|array $relation, Expression|string $column): static
     {

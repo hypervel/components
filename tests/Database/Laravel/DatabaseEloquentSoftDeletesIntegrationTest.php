@@ -16,7 +16,6 @@ use Hypervel\Pagination\Paginator;
 use Hypervel\Support\Carbon;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Mockery\MockInterface;
 
 /**
  * @internal
