@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentHasOneThroughIntegrationTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model as Eloquent;
@@ -79,7 +79,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
     public function testItLoadsAHasOneThroughRelationWithCustomKeys()
     {
         $this->seedData();
-        $contract = HasOneThroughTestPosition::first()->contract;
+        $contract = Position::first()->contract;
 
         $this->assertSame('A title', $contract->title);
     }
@@ -89,7 +89,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         $this->migrateDefault();
         $this->seedDefaultData();
 
-        $contract = HasOneThroughDefaultTestPosition::first()->contract;
+        $contract = DefaultPosition::first()->contract;
         $this->assertSame('A title', $contract->title);
         $this->assertArrayNotHasKey('email', $contract->getAttributes());
 
@@ -99,7 +99,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
     public function testItLoadsARelationWithCustomIntermediateAndLocalKey()
     {
         $this->seedData();
-        $contract = HasOneThroughIntermediateTestPosition::first()->contract;
+        $contract = IntermediatePosition::first()->contract;
 
         $this->assertSame('A title', $contract->title);
     }
@@ -107,7 +107,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
     public function testEagerLoadingARelationWithCustomIntermediateAndLocalKey()
     {
         $this->seedData();
-        $contract = HasOneThroughIntermediateTestPosition::with('contract')->first()->contract;
+        $contract = IntermediatePosition::with('contract')->first()->contract;
 
         $this->assertSame('A title', $contract->title);
     }
@@ -115,7 +115,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
     public function testWhereHasOnARelationWithCustomIntermediateAndLocalKey()
     {
         $this->seedData();
-        $position = HasOneThroughIntermediateTestPosition::whereHas('contract', function ($query) {
+        $position = IntermediatePosition::whereHas('contract', function ($query) {
             $query->where('title', 'A title');
         })->get();
 
@@ -125,7 +125,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
     public function testWithWhereHasOnARelationWithCustomIntermediateAndLocalKey()
     {
         $this->seedData();
-        $position = HasOneThroughIntermediateTestPosition::withWhereHas('contract', function ($query) {
+        $position = IntermediatePosition::withWhereHas('contract', function ($query) {
             $query->where('title', 'A title');
         })->get();
 
@@ -137,28 +137,28 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
     public function testFirstOrFailThrowsAnException()
     {
         $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\HasOneThroughTestContract].');
+        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\DatabaseEloquentHasOneThroughIntegrationTest\Contract].');
 
-        HasOneThroughTestPosition::create(['id' => 1, 'name' => 'President', 'shortname' => 'ps'])
+        Position::create(['id' => 1, 'name' => 'President', 'shortname' => 'ps'])
             ->user()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'position_short' => 'ps']);
 
-        HasOneThroughTestPosition::first()->contract()->firstOrFail();
+        Position::first()->contract()->firstOrFail();
     }
 
     public function testFindOrFailThrowsAnException()
     {
         $this->expectException(ModelNotFoundException::class);
 
-        HasOneThroughTestPosition::create(['id' => 1, 'name' => 'President', 'shortname' => 'ps'])
+        Position::create(['id' => 1, 'name' => 'President', 'shortname' => 'ps'])
             ->user()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'position_short' => 'ps']);
 
-        HasOneThroughTestPosition::first()->contract()->findOrFail(1);
+        Position::first()->contract()->findOrFail(1);
     }
 
     public function testFirstRetrievesFirstRecord()
     {
         $this->seedData();
-        $contract = HasOneThroughTestPosition::first()->contract()->first();
+        $contract = Position::first()->contract()->first();
 
         $this->assertNotNull($contract);
         $this->assertSame('A title', $contract->title);
@@ -167,7 +167,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
     public function testAllColumnsAreRetrievedByDefault()
     {
         $this->seedData();
-        $contract = HasOneThroughTestPosition::first()->contract()->first();
+        $contract = Position::first()->contract()->first();
         $this->assertEquals([
             'id',
             'user_id',
@@ -183,7 +183,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
     public function testOnlyProperColumnsAreSelectedIfProvided()
     {
         $this->seedData();
-        $contract = HasOneThroughTestPosition::first()->contract()->first(['title', 'body']);
+        $contract = Position::first()->contract()->first(['title', 'body']);
 
         $this->assertEquals([
             'title',
@@ -196,7 +196,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
     {
         $this->seedData();
         $this->seedDataExtended();
-        $position = HasOneThroughTestPosition::find(1);
+        $position = Position::find(1);
 
         $position->contract()->chunk(10, function ($contractsChunk) {
             $contract = $contractsChunk->first();
@@ -216,7 +216,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
     {
         $this->seedData();
         $this->seedDataExtended();
-        $position = HasOneThroughTestPosition::find(1);
+        $position = Position::find(1);
 
         $contracts = $position->contract()->cursor();
 
@@ -237,7 +237,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
     {
         $this->seedData();
         $this->seedDataExtended();
-        $position = HasOneThroughTestPosition::find(1);
+        $position = Position::find(1);
 
         $position->contract()->each(function ($contract) {
             $this->assertEquals([
@@ -256,7 +256,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
     {
         $this->seedData();
         $this->seedDataExtended();
-        $position = HasOneThroughTestPosition::find(1);
+        $position = Position::find(1);
 
         $position->contract()->lazy()->each(function ($contract) {
             $this->assertEquals([
@@ -274,9 +274,9 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
     public function testIntermediateSoftDeletesAreIgnored()
     {
         $this->seedData();
-        HasOneThroughSoftDeletesTestUser::first()->delete();
+        SoftDeletesUser::first()->delete();
 
-        $contract = HasOneThroughSoftDeletesTestPosition::first()->contract;
+        $contract = SoftDeletesPosition::first()->contract;
 
         $this->assertSame('A title', $contract->title);
     }
@@ -284,7 +284,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
     public function testEagerLoadingLoadsRelatedModelsCorrectly()
     {
         $this->seedData();
-        $position = HasOneThroughSoftDeletesTestPosition::with('contract')->first();
+        $position = SoftDeletesPosition::with('contract')->first();
 
         $this->assertSame('ps', $position->shortname);
         $this->assertSame('A title', $position->contract->title);
@@ -295,14 +295,14 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
      */
     protected function seedData()
     {
-        HasOneThroughTestPosition::create(['id' => 1, 'name' => 'President', 'shortname' => 'ps'])
+        Position::create(['id' => 1, 'name' => 'President', 'shortname' => 'ps'])
             ->user()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'position_short' => 'ps'])
             ->contract()->create(['title' => 'A title', 'body' => 'A body', 'email' => 'taylorotwell@gmail.com']);
     }
 
     protected function seedDataExtended()
     {
-        $position = HasOneThroughTestPosition::create(['id' => 2, 'name' => 'Vice President', 'shortname' => 'vp']);
+        $position = Position::create(['id' => 2, 'name' => 'Vice President', 'shortname' => 'vp']);
         $position->user()->create(['id' => 2, 'email' => 'example1@gmail.com', 'position_short' => 'vp'])
             ->contract()->create(
                 ['title' => 'Example1 title1', 'body' => 'Example1 body1', 'email' => 'example1contract1@gmail.com']
@@ -314,7 +314,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
      */
     protected function seedDefaultData()
     {
-        HasOneThroughDefaultTestPosition::create(['id' => 1, 'name' => 'President'])
+        DefaultPosition::create(['id' => 1, 'name' => 'President'])
             ->user()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com'])
             ->contract()->create(['title' => 'A title', 'body' => 'A body']);
     }
@@ -337,13 +337,13 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
         $this->schema()->create('users_default', function ($table) {
             $table->increments('id');
             $table->string('email')->unique();
-            $table->unsignedInteger('has_one_through_default_test_position_id')->unique()->nullable();
+            $table->unsignedInteger('default_position_id')->unique()->nullable();
             $table->timestamps();
         });
 
         $this->schema()->create('contracts_default', function ($table) {
             $table->increments('id');
-            $table->integer('has_one_through_default_test_user_id')->unique();
+            $table->integer('default_user_id')->unique();
             $table->string('title');
             $table->text('body');
             $table->timestamps();
@@ -380,7 +380,7 @@ class DatabaseEloquentHasOneThroughIntegrationTest extends TestCase
 /**
  * Eloquent Models...
  */
-class HasOneThroughTestUser extends Eloquent
+class User extends Eloquent
 {
     protected ?string $table = 'users';
 
@@ -388,14 +388,14 @@ class HasOneThroughTestUser extends Eloquent
 
     public function contract()
     {
-        return $this->hasOne(HasOneThroughTestContract::class, 'user_id');
+        return $this->hasOne(Contract::class, 'user_id');
     }
 }
 
 /**
  * Eloquent Models...
  */
-class HasOneThroughTestContract extends Eloquent
+class Contract extends Eloquent
 {
     protected ?string $table = 'contracts';
 
@@ -403,11 +403,11 @@ class HasOneThroughTestContract extends Eloquent
 
     public function owner()
     {
-        return $this->belongsTo(HasOneThroughTestUser::class, 'user_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 }
 
-class HasOneThroughTestPosition extends Eloquent
+class Position extends Eloquent
 {
     protected ?string $table = 'positions';
 
@@ -415,19 +415,19 @@ class HasOneThroughTestPosition extends Eloquent
 
     public function contract()
     {
-        return $this->hasOneThrough(HasOneThroughTestContract::class, HasOneThroughTestUser::class, 'position_id', 'user_id');
+        return $this->hasOneThrough(Contract::class, User::class, 'position_id', 'user_id');
     }
 
     public function user()
     {
-        return $this->hasOne(HasOneThroughTestUser::class, 'position_id');
+        return $this->hasOne(User::class, 'position_id');
     }
 }
 
 /**
  * Eloquent Models...
  */
-class HasOneThroughDefaultTestUser extends Eloquent
+class DefaultUser extends Eloquent
 {
     protected ?string $table = 'users_default';
 
@@ -435,14 +435,14 @@ class HasOneThroughDefaultTestUser extends Eloquent
 
     public function contract()
     {
-        return $this->hasOne(HasOneThroughDefaultTestContract::class);
+        return $this->hasOne(DefaultContract::class);
     }
 }
 
 /**
  * Eloquent Models...
  */
-class HasOneThroughDefaultTestContract extends Eloquent
+class DefaultContract extends Eloquent
 {
     protected ?string $table = 'contracts_default';
 
@@ -450,11 +450,11 @@ class HasOneThroughDefaultTestContract extends Eloquent
 
     public function owner()
     {
-        return $this->belongsTo(HasOneThroughDefaultTestUser::class);
+        return $this->belongsTo(DefaultUser::class);
     }
 }
 
-class HasOneThroughDefaultTestPosition extends Eloquent
+class DefaultPosition extends Eloquent
 {
     protected ?string $table = 'positions_default';
 
@@ -462,16 +462,16 @@ class HasOneThroughDefaultTestPosition extends Eloquent
 
     public function contract()
     {
-        return $this->hasOneThrough(HasOneThroughDefaultTestContract::class, HasOneThroughDefaultTestUser::class);
+        return $this->hasOneThrough(DefaultContract::class, DefaultUser::class);
     }
 
     public function user()
     {
-        return $this->hasOne(HasOneThroughDefaultTestUser::class);
+        return $this->hasOne(DefaultUser::class);
     }
 }
 
-class HasOneThroughIntermediateTestPosition extends Eloquent
+class IntermediatePosition extends Eloquent
 {
     protected ?string $table = 'positions';
 
@@ -479,16 +479,16 @@ class HasOneThroughIntermediateTestPosition extends Eloquent
 
     public function contract()
     {
-        return $this->hasOneThrough(HasOneThroughTestContract::class, HasOneThroughTestUser::class, 'position_short', 'email', 'shortname', 'email');
+        return $this->hasOneThrough(Contract::class, User::class, 'position_short', 'email', 'shortname', 'email');
     }
 
     public function user()
     {
-        return $this->hasOne(HasOneThroughTestUser::class, 'position_id');
+        return $this->hasOne(User::class, 'position_id');
     }
 }
 
-class HasOneThroughSoftDeletesTestUser extends Eloquent
+class SoftDeletesUser extends Eloquent
 {
     use SoftDeletes;
 
@@ -498,14 +498,14 @@ class HasOneThroughSoftDeletesTestUser extends Eloquent
 
     public function contract()
     {
-        return $this->hasOne(HasOneThroughSoftDeletesTestContract::class, 'user_id');
+        return $this->hasOne(SoftDeletesContract::class, 'user_id');
     }
 }
 
 /**
  * Eloquent Models...
  */
-class HasOneThroughSoftDeletesTestContract extends Eloquent
+class SoftDeletesContract extends Eloquent
 {
     protected ?string $table = 'contracts';
 
@@ -513,11 +513,11 @@ class HasOneThroughSoftDeletesTestContract extends Eloquent
 
     public function owner()
     {
-        return $this->belongsTo(HasOneThroughSoftDeletesTestUser::class, 'user_id');
+        return $this->belongsTo(SoftDeletesUser::class, 'user_id');
     }
 }
 
-class HasOneThroughSoftDeletesTestPosition extends Eloquent
+class SoftDeletesPosition extends Eloquent
 {
     protected ?string $table = 'positions';
 
@@ -525,11 +525,11 @@ class HasOneThroughSoftDeletesTestPosition extends Eloquent
 
     public function contract()
     {
-        return $this->hasOneThrough(HasOneThroughSoftDeletesTestContract::class, HasOneThroughTestUser::class, 'position_id', 'user_id');
+        return $this->hasOneThrough(SoftDeletesContract::class, User::class, 'position_id', 'user_id');
     }
 
     public function user()
     {
-        return $this->hasOne(HasOneThroughSoftDeletesTestUser::class, 'position_id');
+        return $this->hasOne(SoftDeletesUser::class, 'position_id');
     }
 }
