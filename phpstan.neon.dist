@@ -43,6 +43,7 @@ parameters:
     - '#Call to an undefined method Hyperf\\Database\\Query\\Builder::firstOrFail\(\)#'
     - '#Access to an undefined property Hyperf\\Collection\\HigherOrderCollectionProxy#'
     - '#Call to an undefined method Hyperf\\Tappable\\HigherOrderTapProxy#'
+    - '#Trait Hypervel\\Scout\\Searchable is used zero times and is not analysed#'
     - message: '#.*#'
       paths:
         - src/core/src/Database/Eloquent/Builder.php
