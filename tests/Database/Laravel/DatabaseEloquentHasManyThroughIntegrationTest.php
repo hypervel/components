@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentHasManyThroughIntegrationTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model as Eloquent;
@@ -81,7 +81,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     public function testItLoadsAHasManyThroughRelationWithCustomKeys()
     {
         $this->seedData();
-        $posts = HasManyThroughTestCountry::first()->posts;
+        $posts = Country::first()->posts;
 
         $this->assertSame('A title', $posts[0]->title);
         $this->assertCount(2, $posts);
@@ -92,7 +92,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->migrateDefault();
         $this->seedDefaultData();
 
-        $posts = HasManyThroughDefaultTestCountry::first()->posts;
+        $posts = DefaultCountry::first()->posts;
         $this->assertSame('A title', $posts[0]->title);
         $this->assertCount(2, $posts);
 
@@ -102,7 +102,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     public function testItLoadsARelationWithCustomIntermediateAndLocalKey()
     {
         $this->seedData();
-        $posts = HasManyThroughIntermediateTestCountry::first()->posts;
+        $posts = IntermediateCountry::first()->posts;
 
         $this->assertSame('A title', $posts[0]->title);
         $this->assertCount(2, $posts);
@@ -111,7 +111,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     public function testEagerLoadingARelationWithCustomIntermediateAndLocalKey()
     {
         $this->seedData();
-        $posts = HasManyThroughIntermediateTestCountry::with('posts')->first()->posts;
+        $posts = IntermediateCountry::with('posts')->first()->posts;
 
         $this->assertSame('A title', $posts[0]->title);
         $this->assertCount(2, $posts);
@@ -120,7 +120,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     public function testWhereHasOnARelationWithCustomIntermediateAndLocalKey()
     {
         $this->seedData();
-        $country = HasManyThroughIntermediateTestCountry::whereHas('posts', function ($query) {
+        $country = IntermediateCountry::whereHas('posts', function ($query) {
             $query->where('title', 'A title');
         })->get();
 
@@ -130,7 +130,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     public function testWithWhereHasOnARelationWithCustomIntermediateAndLocalKey()
     {
         $this->seedData();
-        $country = HasManyThroughIntermediateTestCountry::withWhereHas('posts', function ($query) {
+        $country = IntermediateCountry::withWhereHas('posts', function ($query) {
             $query->where('title', 'A title');
         })->get();
 
@@ -141,14 +141,14 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
 
     public function testFindMethod()
     {
-        HasManyThroughTestCountry::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
+        Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
             ->posts()->createMany([
                 ['id' => 1, 'title' => 'A title', 'body' => 'A body', 'email' => 'taylorotwell@gmail.com'],
                 ['id' => 2, 'title' => 'Another title', 'body' => 'Another body', 'email' => 'taylorotwell@gmail.com'],
             ]);
 
-        $country = HasManyThroughTestCountry::first();
+        $country = Country::first();
         $post = $country->posts()->find(1);
 
         $this->assertNotNull($post);
@@ -160,14 +160,14 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
 
     public function testFindManyMethod()
     {
-        HasManyThroughTestCountry::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
+        Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
             ->posts()->createMany([
                 ['id' => 1, 'title' => 'A title', 'body' => 'A body', 'email' => 'taylorotwell@gmail.com'],
                 ['id' => 2, 'title' => 'Another title', 'body' => 'Another body', 'email' => 'taylorotwell@gmail.com'],
             ]);
 
-        $country = HasManyThroughTestCountry::first();
+        $country = Country::first();
 
         $this->assertCount(2, $country->posts()->findMany([1, 2]));
         $this->assertCount(2, $country->posts()->findMany(new Collection([1, 2])));
@@ -176,127 +176,127 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     public function testFirstOrFailThrowsAnException()
     {
         $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\HasManyThroughTestPost].');
+        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\DatabaseEloquentHasManyThroughIntegrationTest\Post].');
 
-        HasManyThroughTestCountry::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
+        Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us']);
 
-        HasManyThroughTestCountry::first()->posts()->firstOrFail();
+        Country::first()->posts()->firstOrFail();
     }
 
     public function testFindOrFailThrowsAnException()
     {
         $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\HasManyThroughTestPost] 1');
+        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1');
 
-        HasManyThroughTestCountry::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
+        Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us']);
 
-        HasManyThroughTestCountry::first()->posts()->findOrFail(1);
+        Country::first()->posts()->findOrFail(1);
     }
 
     public function testFindOrFailWithManyThrowsAnException()
     {
         $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\HasManyThroughTestPost] 1, 2');
+        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1, 2');
 
-        HasManyThroughTestCountry::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
+        Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
             ->posts()->create(['id' => 1, 'title' => 'A title', 'body' => 'A body', 'email' => 'taylorotwell@gmail.com']);
 
-        HasManyThroughTestCountry::first()->posts()->findOrFail([1, 2]);
+        Country::first()->posts()->findOrFail([1, 2]);
     }
 
     public function testFindOrFailWithManyUsingCollectionThrowsAnException()
     {
         $this->expectException(ModelNotFoundException::class);
-        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\HasManyThroughTestPost] 1, 2');
+        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\DatabaseEloquentHasManyThroughIntegrationTest\Post] 1, 2');
 
-        HasManyThroughTestCountry::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
+        Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
             ->posts()->create(['id' => 1, 'title' => 'A title', 'body' => 'A body', 'email' => 'taylorotwell@gmail.com']);
 
-        HasManyThroughTestCountry::first()->posts()->findOrFail(new Collection([1, 2]));
+        Country::first()->posts()->findOrFail(new Collection([1, 2]));
     }
 
     public function testFindOrMethod()
     {
-        HasManyThroughTestCountry::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
+        Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
             ->posts()->create(['id' => 1, 'title' => 'A title', 'body' => 'A body', 'email' => 'taylorotwell@gmail.com']);
 
-        $result = HasManyThroughTestCountry::first()->posts()->findOr(1, fn () => 'callback result');
-        $this->assertInstanceOf(HasManyThroughTestPost::class, $result);
+        $result = Country::first()->posts()->findOr(1, fn () => 'callback result');
+        $this->assertInstanceOf(Post::class, $result);
         $this->assertSame(1, $result->id);
         $this->assertSame('A title', $result->title);
 
-        $result = HasManyThroughTestCountry::first()->posts()->findOr(1, ['posts.id'], fn () => 'callback result');
-        $this->assertInstanceOf(HasManyThroughTestPost::class, $result);
+        $result = Country::first()->posts()->findOr(1, ['posts.id'], fn () => 'callback result');
+        $this->assertInstanceOf(Post::class, $result);
         $this->assertSame(1, $result->id);
         $this->assertNull($result->title);
 
-        $result = HasManyThroughTestCountry::first()->posts()->findOr(2, fn () => 'callback result');
+        $result = Country::first()->posts()->findOr(2, fn () => 'callback result');
         $this->assertSame('callback result', $result);
     }
 
     public function testFindOrMethodWithMany()
     {
-        HasManyThroughTestCountry::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
+        Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
             ->posts()->createMany([
                 ['id' => 1, 'title' => 'A title', 'body' => 'A body', 'email' => 'taylorotwell@gmail.com'],
                 ['id' => 2, 'title' => 'Another title', 'body' => 'Another body', 'email' => 'taylorotwell@gmail.com'],
             ]);
 
-        $result = HasManyThroughTestCountry::first()->posts()->findOr([1, 2], fn () => 'callback result');
+        $result = Country::first()->posts()->findOr([1, 2], fn () => 'callback result');
         $this->assertInstanceOf(Collection::class, $result);
         $this->assertSame(1, $result[0]->id);
         $this->assertSame(2, $result[1]->id);
         $this->assertSame('A title', $result[0]->title);
         $this->assertSame('Another title', $result[1]->title);
 
-        $result = HasManyThroughTestCountry::first()->posts()->findOr([1, 2], ['posts.id'], fn () => 'callback result');
+        $result = Country::first()->posts()->findOr([1, 2], ['posts.id'], fn () => 'callback result');
         $this->assertInstanceOf(Collection::class, $result);
         $this->assertSame(1, $result[0]->id);
         $this->assertSame(2, $result[1]->id);
         $this->assertNull($result[0]->title);
         $this->assertNull($result[1]->title);
 
-        $result = HasManyThroughTestCountry::first()->posts()->findOr([1, 2, 3], fn () => 'callback result');
+        $result = Country::first()->posts()->findOr([1, 2, 3], fn () => 'callback result');
         $this->assertSame('callback result', $result);
     }
 
     public function testFindOrMethodWithManyUsingCollection()
     {
-        HasManyThroughTestCountry::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
+        Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
             ->posts()->createMany([
                 ['id' => 1, 'title' => 'A title', 'body' => 'A body', 'email' => 'taylorotwell@gmail.com'],
                 ['id' => 2, 'title' => 'Another title', 'body' => 'Another body', 'email' => 'taylorotwell@gmail.com'],
             ]);
 
-        $result = HasManyThroughTestCountry::first()->posts()->findOr(new Collection([1, 2]), fn () => 'callback result');
+        $result = Country::first()->posts()->findOr(new Collection([1, 2]), fn () => 'callback result');
         $this->assertInstanceOf(Collection::class, $result);
         $this->assertSame(1, $result[0]->id);
         $this->assertSame(2, $result[1]->id);
         $this->assertSame('A title', $result[0]->title);
         $this->assertSame('Another title', $result[1]->title);
 
-        $result = HasManyThroughTestCountry::first()->posts()->findOr(new Collection([1, 2]), ['posts.id'], fn () => 'callback result');
+        $result = Country::first()->posts()->findOr(new Collection([1, 2]), ['posts.id'], fn () => 'callback result');
         $this->assertInstanceOf(Collection::class, $result);
         $this->assertSame(1, $result[0]->id);
         $this->assertSame(2, $result[1]->id);
         $this->assertNull($result[0]->title);
         $this->assertNull($result[1]->title);
 
-        $result = HasManyThroughTestCountry::first()->posts()->findOr(new Collection([1, 2, 3]), fn () => 'callback result');
+        $result = Country::first()->posts()->findOr(new Collection([1, 2, 3]), fn () => 'callback result');
         $this->assertSame('callback result', $result);
     }
 
     public function testFirstRetrievesFirstRecord()
     {
         $this->seedData();
-        $post = HasManyThroughTestCountry::first()->posts()->first();
+        $post = Country::first()->posts()->first();
 
         $this->assertNotNull($post);
         $this->assertSame('A title', $post->title);
@@ -305,7 +305,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     public function testAllColumnsAreRetrievedByDefault()
     {
         $this->seedData();
-        $post = HasManyThroughTestCountry::first()->posts()->first();
+        $post = Country::first()->posts()->first();
         $this->assertEquals([
             'id',
             'user_id',
@@ -321,7 +321,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     public function testOnlyProperColumnsAreSelectedIfProvided()
     {
         $this->seedData();
-        $post = HasManyThroughTestCountry::first()->posts()->first(['title', 'body']);
+        $post = Country::first()->posts()->first(['title', 'body']);
 
         $this->assertEquals([
             'title',
@@ -334,7 +334,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     {
         $this->seedData();
         $this->seedDataExtended();
-        $country = HasManyThroughTestCountry::find(2);
+        $country = Country::find(2);
 
         $country->posts()->chunk(10, function ($postsChunk) {
             $post = $postsChunk->first();
@@ -355,7 +355,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     {
         $this->seedData();
         $this->seedDataExtended();
-        $country = HasManyThroughTestCountry::find(2);
+        $country = Country::find(2);
 
         $i = 0;
         $count = 0;
@@ -373,7 +373,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     {
         $this->seedData();
         $this->seedDataExtended();
-        $country = HasManyThroughTestCountry::find(2);
+        $country = Country::find(2);
 
         $posts = $country->posts()->cursor();
 
@@ -397,7 +397,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     {
         $this->seedData();
         $this->seedDataExtended();
-        $country = HasManyThroughTestCountry::find(2);
+        $country = Country::find(2);
 
         $country->posts()->each(function ($post) {
             $this->assertEquals([
@@ -417,7 +417,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     {
         $this->seedData();
         $this->seedDataExtended();
-        $country = HasManyThroughTestCountry::find(2);
+        $country = Country::find(2);
 
         $country->posts()->eachById(function ($post) {
             $this->assertEquals([
@@ -437,7 +437,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     {
         $this->seedData();
         $this->seedDataExtended();
-        $country = HasManyThroughTestCountry::find(2);
+        $country = Country::find(2);
 
         $country->posts()->lazy(10)->each(function ($post) {
             $this->assertEquals([
@@ -457,7 +457,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     {
         $this->seedData();
         $this->seedDataExtended();
-        $country = HasManyThroughTestCountry::find(2);
+        $country = Country::find(2);
 
         $i = 0;
 
@@ -482,9 +482,9 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     public function testIntermediateSoftDeletesAreIgnored()
     {
         $this->seedData();
-        HasManyThroughSoftDeletesTestUser::first()->delete();
+        SoftDeletesUser::first()->delete();
 
-        $posts = HasManyThroughSoftDeletesTestCountry::first()->posts;
+        $posts = SoftDeletesCountry::first()->posts;
 
         $this->assertSame('A title', $posts[0]->title);
         $this->assertCount(2, $posts);
@@ -493,7 +493,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
     public function testEagerLoadingLoadsRelatedModelsCorrectly()
     {
         $this->seedData();
-        $country = HasManyThroughSoftDeletesTestCountry::with('posts')->first();
+        $country = SoftDeletesCountry::with('posts')->first();
 
         $this->assertSame('us', $country->shortname);
         $this->assertSame('A title', $country->posts[0]->title);
@@ -505,7 +505,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
      */
     protected function seedData()
     {
-        HasManyThroughTestCountry::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
+        Country::create(['id' => 1, 'name' => 'United States of America', 'shortname' => 'us'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com', 'country_short' => 'us'])
             ->posts()->createMany([
                 ['title' => 'A title', 'body' => 'A body', 'email' => 'taylorotwell@gmail.com'],
@@ -515,7 +515,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
 
     protected function seedDataExtended()
     {
-        $country = HasManyThroughTestCountry::create(['id' => 2, 'name' => 'United Kingdom', 'shortname' => 'uk']);
+        $country = Country::create(['id' => 2, 'name' => 'United Kingdom', 'shortname' => 'uk']);
         $country->users()->create(['id' => 2, 'email' => 'example1@gmail.com', 'country_short' => 'uk'])
             ->posts()->createMany([
                 ['title' => 'Example1 title1', 'body' => 'Example1 body1', 'email' => 'example1post1@gmail.com'],
@@ -538,7 +538,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
      */
     protected function seedDefaultData()
     {
-        HasManyThroughDefaultTestCountry::create(['id' => 1, 'name' => 'United States of America'])
+        DefaultCountry::create(['id' => 1, 'name' => 'United States of America'])
             ->users()->create(['id' => 1, 'email' => 'taylorotwell@gmail.com'])
             ->posts()->createMany([
                 ['title' => 'A title', 'body' => 'A body'],
@@ -564,13 +564,13 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
         $this->schema()->create('users_default', function ($table) {
             $table->increments('id');
             $table->string('email')->unique();
-            $table->unsignedInteger('has_many_through_default_test_country_id');
+            $table->unsignedInteger('default_country_id');
             $table->timestamps();
         });
 
         $this->schema()->create('posts_default', function ($table) {
             $table->increments('id');
-            $table->integer('has_many_through_default_test_user_id');
+            $table->integer('default_user_id');
             $table->string('title');
             $table->text('body');
             $table->timestamps();
@@ -607,7 +607,7 @@ class DatabaseEloquentHasManyThroughIntegrationTest extends TestCase
 /**
  * Eloquent Models...
  */
-class HasManyThroughTestUser extends Eloquent
+class User extends Eloquent
 {
     protected ?string $table = 'users';
 
@@ -615,14 +615,14 @@ class HasManyThroughTestUser extends Eloquent
 
     public function posts()
     {
-        return $this->hasMany(HasManyThroughTestPost::class, 'user_id');
+        return $this->hasMany(Post::class, 'user_id');
     }
 }
 
 /**
  * Eloquent Models...
  */
-class HasManyThroughTestPost extends Eloquent
+class Post extends Eloquent
 {
     protected ?string $table = 'posts';
 
@@ -630,11 +630,11 @@ class HasManyThroughTestPost extends Eloquent
 
     public function owner()
     {
-        return $this->belongsTo(HasManyThroughTestUser::class, 'user_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 }
 
-class HasManyThroughTestCountry extends Eloquent
+class Country extends Eloquent
 {
     protected ?string $table = 'countries';
 
@@ -642,19 +642,19 @@ class HasManyThroughTestCountry extends Eloquent
 
     public function posts()
     {
-        return $this->hasManyThrough(HasManyThroughTestPost::class, HasManyThroughTestUser::class, 'country_id', 'user_id');
+        return $this->hasManyThrough(Post::class, User::class, 'country_id', 'user_id');
     }
 
     public function users()
     {
-        return $this->hasMany(HasManyThroughTestUser::class, 'country_id');
+        return $this->hasMany(User::class, 'country_id');
     }
 }
 
 /**
  * Eloquent Models...
  */
-class HasManyThroughDefaultTestUser extends Eloquent
+class DefaultUser extends Eloquent
 {
     protected ?string $table = 'users_default';
 
@@ -662,14 +662,14 @@ class HasManyThroughDefaultTestUser extends Eloquent
 
     public function posts()
     {
-        return $this->hasMany(HasManyThroughDefaultTestPost::class);
+        return $this->hasMany(DefaultPost::class);
     }
 }
 
 /**
  * Eloquent Models...
  */
-class HasManyThroughDefaultTestPost extends Eloquent
+class DefaultPost extends Eloquent
 {
     protected ?string $table = 'posts_default';
 
@@ -677,11 +677,11 @@ class HasManyThroughDefaultTestPost extends Eloquent
 
     public function owner()
     {
-        return $this->belongsTo(HasManyThroughDefaultTestUser::class);
+        return $this->belongsTo(DefaultUser::class);
     }
 }
 
-class HasManyThroughDefaultTestCountry extends Eloquent
+class DefaultCountry extends Eloquent
 {
     protected ?string $table = 'countries_default';
 
@@ -689,16 +689,16 @@ class HasManyThroughDefaultTestCountry extends Eloquent
 
     public function posts()
     {
-        return $this->hasManyThrough(HasManyThroughDefaultTestPost::class, HasManyThroughDefaultTestUser::class);
+        return $this->hasManyThrough(DefaultPost::class, DefaultUser::class);
     }
 
     public function users()
     {
-        return $this->hasMany(HasManyThroughDefaultTestUser::class);
+        return $this->hasMany(DefaultUser::class);
     }
 }
 
-class HasManyThroughIntermediateTestCountry extends Eloquent
+class IntermediateCountry extends Eloquent
 {
     protected ?string $table = 'countries';
 
@@ -706,16 +706,16 @@ class HasManyThroughIntermediateTestCountry extends Eloquent
 
     public function posts()
     {
-        return $this->hasManyThrough(HasManyThroughTestPost::class, HasManyThroughTestUser::class, 'country_short', 'email', 'shortname', 'email');
+        return $this->hasManyThrough(Post::class, User::class, 'country_short', 'email', 'shortname', 'email');
     }
 
     public function users()
     {
-        return $this->hasMany(HasManyThroughTestUser::class, 'country_id');
+        return $this->hasMany(User::class, 'country_id');
     }
 }
 
-class HasManyThroughSoftDeletesTestUser extends Eloquent
+class SoftDeletesUser extends Eloquent
 {
     use SoftDeletes;
 
@@ -725,14 +725,14 @@ class HasManyThroughSoftDeletesTestUser extends Eloquent
 
     public function posts()
     {
-        return $this->hasMany(HasManyThroughSoftDeletesTestPost::class, 'user_id');
+        return $this->hasMany(SoftDeletesPost::class, 'user_id');
     }
 }
 
 /**
  * Eloquent Models...
  */
-class HasManyThroughSoftDeletesTestPost extends Eloquent
+class SoftDeletesPost extends Eloquent
 {
     protected ?string $table = 'posts';
 
@@ -740,11 +740,11 @@ class HasManyThroughSoftDeletesTestPost extends Eloquent
 
     public function owner()
     {
-        return $this->belongsTo(HasManyThroughSoftDeletesTestUser::class, 'user_id');
+        return $this->belongsTo(SoftDeletesUser::class, 'user_id');
     }
 }
 
-class HasManyThroughSoftDeletesTestCountry extends Eloquent
+class SoftDeletesCountry extends Eloquent
 {
     protected ?string $table = 'countries';
 
@@ -752,11 +752,11 @@ class HasManyThroughSoftDeletesTestCountry extends Eloquent
 
     public function posts()
     {
-        return $this->hasManyThrough(HasManyThroughSoftDeletesTestPost::class, HasManyThroughTestUser::class, 'country_id', 'user_id');
+        return $this->hasManyThrough(SoftDeletesPost::class, User::class, 'country_id', 'user_id');
     }
 
     public function users()
     {
-        return $this->hasMany(HasManyThroughSoftDeletesTestUser::class, 'country_id');
+        return $this->hasMany(SoftDeletesUser::class, 'country_id');
     }
 }
