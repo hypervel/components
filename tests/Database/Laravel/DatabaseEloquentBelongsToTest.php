@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentBelongsToTest;
 
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection;
@@ -72,7 +72,7 @@ class DatabaseEloquentBelongsToTest extends TestCase
         $relation->getRelated()->shouldReceive('getKeyName')->andReturn('id');
         $relation->getRelated()->shouldReceive('getKeyType')->andReturn('int');
         $relation->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('relation.id', ['foreign.value', 'foreign.value.two']);
-        $models = [new EloquentBelongsToModelStub(), new EloquentBelongsToModelStub(), new AnotherEloquentBelongsToModelStub()];
+        $models = [new ModelStub(), new ModelStub(), new AnotherModelStub()];
         $relation->addEagerConstraints($models);
     }
 
@@ -82,7 +82,7 @@ class DatabaseEloquentBelongsToTest extends TestCase
         $relation->getRelated()->shouldReceive('getKeyName')->andReturn('id');
         $relation->getRelated()->shouldReceive('getKeyType')->andReturn('int');
         $relation->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('relation.id', [0, 'foreign.value']);
-        $models = [new EloquentBelongsToModelStub(), new EloquentBelongsToModelStubWithZeroId()];
+        $models = [new ModelStub(), new ModelStubWithZeroId()];
         $relation->addEagerConstraints($models);
     }
 
@@ -92,7 +92,7 @@ class DatabaseEloquentBelongsToTest extends TestCase
         $relation->getRelated()->shouldReceive('getKeyName')->andReturn('id');
         $relation->getRelated()->shouldReceive('getKeyType')->andReturn('int');
         $relation->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('relation.id', [5, 'foreign.value']);
-        $models = [new EloquentBelongsToModelStub(), new EloquentBelongsToModelStubWithBackedEnumCast()];
+        $models = [new ModelStub(), new ModelStubWithBackedEnumCast()];
         $relation->addEagerConstraints($models);
     }
 
@@ -135,18 +135,18 @@ class DatabaseEloquentBelongsToTest extends TestCase
             protected array $attributes = ['id' => 5];
         };
 
-        $model1 = new EloquentBelongsToModelStub();
+        $model1 = new ModelStub();
         $model1->foreign_key = 1;
-        $model2 = new EloquentBelongsToModelStub();
+        $model2 = new ModelStub();
         $model2->foreign_key = 2;
-        $model3 = new EloquentBelongsToModelStub();
+        $model3 = new ModelStub();
         $model3->foreign_key = new class {
             public function __toString()
             {
                 return '3';
             }
         };
-        $model4 = new EloquentBelongsToModelStub();
+        $model4 = new ModelStub();
         $model4->foreign_key = 5;
         $models = $relation->match(
             [$model1, $model2, $model3, $model4],
@@ -206,7 +206,7 @@ class DatabaseEloquentBelongsToTest extends TestCase
         $relation->getRelated()->shouldReceive('getKeyName')->andReturn('id');
         $relation->getRelated()->shouldReceive('getKeyType')->andReturn('int');
         $relation->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('relation.id', m::mustBe([]));
-        $models = [new MissingEloquentBelongsToModelStub(), new MissingEloquentBelongsToModelStub()];
+        $models = [new MissingModelStub(), new MissingModelStub()];
         $relation->addEagerConstraints($models);
     }
 
@@ -214,7 +214,7 @@ class DatabaseEloquentBelongsToTest extends TestCase
     {
         $relation = $this->getRelation(null, 'string');
         $relation->getQuery()->shouldReceive('whereIn')->once()->with('relation.id', m::mustBe([]));
-        $models = [new MissingEloquentBelongsToModelStub(), new MissingEloquentBelongsToModelStub()];
+        $models = [new MissingModelStub(), new MissingModelStub()];
         $relation->addEagerConstraints($models);
     }
 
@@ -224,7 +224,7 @@ class DatabaseEloquentBelongsToTest extends TestCase
         $relation->getRelated()->shouldReceive('getKeyName')->andReturn('id');
         $relation->getRelated()->shouldReceive('getKeyType')->andReturn('int');
         $relation->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('relation.id', m::mustBe([]));
-        $models = [new MissingEloquentBelongsToModelStub(), new MissingEloquentBelongsToModelStub()];
+        $models = [new MissingModelStub(), new MissingModelStub()];
         $relation->addEagerConstraints($models);
     }
 
@@ -401,7 +401,7 @@ class DatabaseEloquentBelongsToTest extends TestCase
         $this->related->shouldReceive('getTable')->andReturn('relation');
         $this->related->shouldReceive('qualifyColumn')->andReturnUsing(fn (string $column) => "relation.{$column}");
         $this->builder->shouldReceive('getModel')->andReturn($this->related);
-        $parent = $parent ?: new EloquentBelongsToModelStub();
+        $parent = $parent ?: new ModelStub();
 
         return new BelongsTo($this->builder, $parent, 'foreign_key', 'id', 'relation');
     }
@@ -418,39 +418,39 @@ class DatabaseEloquentBelongsToTest extends TestCase
     {
         $this->builder = m::mock(Builder::class);
         $this->builder->shouldReceive('where')->with('relation.id', '=', 'foreign.value');
-        $this->related = m::mock(EloquentBelongsToModelStub::class)->makePartial();
+        $this->related = m::mock(ModelStub::class)->makePartial();
         $this->related->shouldReceive('getKeyType')->andReturn('int');
         $this->related->shouldReceive('getKeyName')->andReturn('id');
         $this->related->shouldReceive('getTable')->andReturn('relation');
         $this->related->shouldReceive('qualifyColumn')->andReturnUsing(fn (string $column) => "relation.{$column}");
         $this->builder->shouldReceive('getModel')->andReturn($this->related);
-        $parent = $parent ?: new EloquentBelongsToModelStub();
+        $parent = $parent ?: new ModelStub();
 
         return new BelongsTo($this->builder, $parent, 'foreign_key', 'id', 'relation');
     }
 }
 
-class EloquentBelongsToModelStub extends Model
+class ModelStub extends Model
 {
     public $foreign_key = 'foreign.value';
 }
 
-class AnotherEloquentBelongsToModelStub extends Model
+class AnotherModelStub extends Model
 {
     public $foreign_key = 'foreign.value.two';
 }
 
-class EloquentBelongsToModelStubWithZeroId extends Model
+class ModelStubWithZeroId extends Model
 {
     public $foreign_key = 0;
 }
 
-class MissingEloquentBelongsToModelStub extends Model
+class MissingModelStub extends Model
 {
     public $foreign_key;
 }
 
-class EloquentBelongsToModelStubWithBackedEnumCast extends Model
+class ModelStubWithBackedEnumCast extends Model
 {
     protected array $casts = [
         'foreign_key' => Bar::class,
