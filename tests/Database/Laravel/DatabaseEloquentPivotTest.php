@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentPivotTest;
 
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
@@ -44,7 +44,7 @@ class DatabaseEloquentPivotTest extends TestCase
         $parent = m::mock(Model::class . '[getConnectionName]');
         $parent->shouldReceive('getConnectionName')->once()->andReturn('connection');
 
-        $pivot = DatabaseEloquentPivotTestMutatorStub::fromAttributes($parent, ['foo' => 'bar'], 'table', true);
+        $pivot = MutatorStub::fromAttributes($parent, ['foo' => 'bar'], 'table', true);
 
         $this->assertTrue($pivot->getMutatorCalled());
     }
@@ -54,7 +54,7 @@ class DatabaseEloquentPivotTest extends TestCase
         $parent = m::mock(Model::class . '[getConnectionName]');
         $parent->shouldReceive('getConnectionName')->once()->andReturn('connection');
 
-        $pivot = DatabaseEloquentPivotTestJsonCastStub::fromRawAttributes($parent, ['foo' => json_encode(['name' => 'Taylor'])], 'table', true);
+        $pivot = JsonCastStub::fromRawAttributes($parent, ['foo' => json_encode(['name' => 'Taylor'])], 'table', true);
 
         $this->assertEquals(['name' => 'Taylor'], $pivot->foo);
     }
@@ -64,7 +64,7 @@ class DatabaseEloquentPivotTest extends TestCase
         $parent = m::mock(Model::class . '[getConnectionName]');
         $parent->shouldReceive('getConnectionName')->once()->andReturn('connection');
 
-        $pivot = DatabaseEloquentPivotTestMutatorStub::fromRawAttributes($parent, ['foo' => 'bar'], 'table', true);
+        $pivot = MutatorStub::fromRawAttributes($parent, ['foo' => 'bar'], 'table', true);
 
         $this->assertFalse($pivot->getMutatorCalled());
     }
@@ -93,10 +93,10 @@ class DatabaseEloquentPivotTest extends TestCase
         $parent = m::mock(Model::class . '[getConnectionName,getDates]');
         $parent->shouldReceive('getConnectionName')->andReturn('connection');
         $parent->shouldReceive('getDates')->andReturn([]);
-        $pivot = DatabaseEloquentPivotTestDateStub::fromAttributes($parent, ['foo' => 'bar', 'created_at' => 'foo'], 'table');
+        $pivot = DateStub::fromAttributes($parent, ['foo' => 'bar', 'created_at' => 'foo'], 'table');
         $this->assertTrue($pivot->timestamps);
 
-        $pivot = DatabaseEloquentPivotTestDateStub::fromAttributes($parent, ['foo' => 'bar'], 'table');
+        $pivot = DateStub::fromAttributes($parent, ['foo' => 'bar'], 'table');
         $this->assertFalse($pivot->timestamps);
     }
 
@@ -191,7 +191,7 @@ class DatabaseEloquentPivotTest extends TestCase
     }
 }
 
-class DatabaseEloquentPivotTestDateStub extends Pivot
+class DateStub extends Pivot
 {
     public function getDates(): array
     {
@@ -199,7 +199,7 @@ class DatabaseEloquentPivotTestDateStub extends Pivot
     }
 }
 
-class DatabaseEloquentPivotTestMutatorStub extends Pivot
+class MutatorStub extends Pivot
 {
     private $mutatorCalled = false;
 
@@ -216,7 +216,7 @@ class DatabaseEloquentPivotTestMutatorStub extends Pivot
     }
 }
 
-class DatabaseEloquentPivotTestJsonCastStub extends Pivot
+class JsonCastStub extends Pivot
 {
     protected array $casts = [
         'foo' => 'json',

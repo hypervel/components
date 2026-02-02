@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentMorphToTest;
 
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
@@ -92,20 +92,20 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testMorphToWithDefault()
     {
-        $this->addMockConnection(new EloquentMorphToModelStub());
+        $this->addMockConnection(new ModelStub());
 
         $relation = $this->getRelation()->withDefault();
 
         $this->builder->shouldReceive('first')->once()->andReturnNull();
 
-        $newModel = new EloquentMorphToModelStub();
+        $newModel = new ModelStub();
 
         $this->assertEquals($newModel, $relation->getResults());
     }
 
     public function testMorphToWithDynamicDefault()
     {
-        $this->addMockConnection(new EloquentMorphToModelStub());
+        $this->addMockConnection(new ModelStub());
 
         $relation = $this->getRelation()->withDefault(function ($newModel) {
             $newModel->username = 'taylor';
@@ -113,7 +113,7 @@ class DatabaseEloquentMorphToTest extends TestCase
 
         $this->builder->shouldReceive('first')->once()->andReturnNull();
 
-        $newModel = new EloquentMorphToModelStub();
+        $newModel = new ModelStub();
         $newModel->username = 'taylor';
 
         $result = $relation->getResults();
@@ -125,13 +125,13 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testMorphToWithArrayDefault()
     {
-        $this->addMockConnection(new EloquentMorphToModelStub());
+        $this->addMockConnection(new ModelStub());
 
         $relation = $this->getRelation()->withDefault(['username' => 'taylor']);
 
         $this->builder->shouldReceive('first')->once()->andReturnNull();
 
-        $newModel = new EloquentMorphToModelStub();
+        $newModel = new ModelStub();
         $newModel->username = 'taylor';
 
         $result = $relation->getResults();
@@ -143,7 +143,7 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testMorphToWithZeroMorphType()
     {
-        $parent = $this->getMockBuilder(EloquentMorphToModelStub::class)->onlyMethods(['getAttributeFromArray', 'morphEagerTo', 'morphInstanceTo'])->getMock();
+        $parent = $this->getMockBuilder(ModelStub::class)->onlyMethods(['getAttributeFromArray', 'morphEagerTo', 'morphInstanceTo'])->getMock();
         $parent->method('getAttributeFromArray')->with('relation_type')->willReturn(0);
         $parent->expects($this->once())->method('morphInstanceTo');
         $parent->expects($this->never())->method('morphEagerTo');
@@ -153,7 +153,7 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testMorphToWithEmptyStringMorphType()
     {
-        $parent = $this->getMockBuilder(EloquentMorphToModelStub::class)->onlyMethods(['getAttributeFromArray', 'morphEagerTo', 'morphInstanceTo'])->getMock();
+        $parent = $this->getMockBuilder(ModelStub::class)->onlyMethods(['getAttributeFromArray', 'morphEagerTo', 'morphInstanceTo'])->getMock();
         $parent->method('getAttributeFromArray')->with('relation_type')->willReturn('');
         $parent->expects($this->once())->method('morphEagerTo');
         $parent->expects($this->never())->method('morphInstanceTo');
@@ -163,14 +163,14 @@ class DatabaseEloquentMorphToTest extends TestCase
 
     public function testMorphToWithSpecifiedClassDefault()
     {
-        $this->addMockConnection(new EloquentMorphToRelatedStub());
+        $this->addMockConnection(new RelatedStub());
 
-        $parent = new EloquentMorphToModelStub();
-        $parent->relation_type = EloquentMorphToRelatedStub::class;
+        $parent = new ModelStub();
+        $parent->relation_type = RelatedStub::class;
 
         $relation = $parent->relation()->withDefault();
 
-        $newModel = new EloquentMorphToRelatedStub();
+        $newModel = new RelatedStub();
 
         $result = $relation->getResults();
 
@@ -408,17 +408,17 @@ class DatabaseEloquentMorphToTest extends TestCase
         $this->related->shouldReceive('getTable')->andReturn('relation');
         $this->related->shouldReceive('qualifyColumn')->andReturnUsing(fn (string $column) => "relation.{$column}");
         $this->builder->shouldReceive('getModel')->andReturn($this->related);
-        $parent = $parent ?: new EloquentMorphToModelStub();
+        $parent = $parent ?: new ModelStub();
 
         return m::mock(MorphTo::class . '[createModelByType]', [$this->builder, $parent, 'foreign_key', 'id', 'morph_type', 'relation']);
     }
 }
 
-class EloquentMorphToModelStub extends Model
+class ModelStub extends Model
 {
     public string $foreign_key = 'foreign.value';
 
-    protected ?string $table = 'eloquent_morph_to_model_stubs';
+    protected ?string $table = 'model_stubs';
 
     public function relation()
     {
@@ -426,7 +426,7 @@ class EloquentMorphToModelStub extends Model
     }
 }
 
-class EloquentMorphToRelatedStub extends Model
+class RelatedStub extends Model
 {
-    protected ?string $table = 'eloquent_morph_to_related_stubs';
+    protected ?string $table = 'related_stubs';
 }

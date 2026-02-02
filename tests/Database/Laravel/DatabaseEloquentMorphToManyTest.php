@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentMorphToManyTest;
 
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
@@ -26,9 +26,9 @@ class DatabaseEloquentMorphToManyTest extends TestCase
         $relation->getParent()->shouldReceive('getKeyType')->once()->andReturn('int');
         $relation->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('taggables.taggable_id', [1, 2]);
         $relation->getQuery()->shouldReceive('where')->once()->with('taggables.taggable_type', get_class($relation->getParent()));
-        $model1 = new EloquentMorphToManyModelStub();
+        $model1 = new ModelStub();
         $model1->id = 1;
-        $model2 = new EloquentMorphToManyModelStub();
+        $model2 = new ModelStub();
         $model2->id = 2;
         $relation->addEagerConstraints([$model1, $model2]);
     }
@@ -141,7 +141,7 @@ class DatabaseEloquentMorphToManyTest extends TestCase
     }
 }
 
-class EloquentMorphToManyModelStub extends Model
+class ModelStub extends Model
 {
     protected array $guarded = [];
 }

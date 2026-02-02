@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentPolymorphicRelationsIntegrationTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model as Eloquent;
@@ -53,7 +53,7 @@ class DatabaseEloquentPolymorphicRelationsIntegrationTest extends TestCase
         });
 
         $this->schema('default')->create('taggables', function ($table) {
-            $table->integer('eloquent_many_to_many_polymorphic_test_tag_id');
+            $table->integer('tag_id');
             $table->integer('taggable_id');
             $table->string('taggable_type');
         });
@@ -78,10 +78,10 @@ class DatabaseEloquentPolymorphicRelationsIntegrationTest extends TestCase
 
     public function testCreation()
     {
-        $post = EloquentManyToManyPolymorphicTestPost::create();
-        $image = EloquentManyToManyPolymorphicTestImage::create();
-        $tag = EloquentManyToManyPolymorphicTestTag::create();
-        $tag2 = EloquentManyToManyPolymorphicTestTag::create();
+        $post = Post::create();
+        $image = Image::create();
+        $tag = Tag::create();
+        $tag2 = Tag::create();
 
         $post->tags()->attach($tag->id);
         $post->tags()->attach($tag2->id);
@@ -97,12 +97,12 @@ class DatabaseEloquentPolymorphicRelationsIntegrationTest extends TestCase
 
     public function testEagerLoading()
     {
-        $post = EloquentManyToManyPolymorphicTestPost::create();
-        $tag = EloquentManyToManyPolymorphicTestTag::create();
+        $post = Post::create();
+        $tag = Tag::create();
         $post->tags()->attach($tag->id);
 
-        $post = EloquentManyToManyPolymorphicTestPost::with('tags')->whereId(1)->first();
-        $tag = EloquentManyToManyPolymorphicTestTag::with('posts')->whereId(1)->first();
+        $post = Post::with('tags')->whereId(1)->first();
+        $tag = Tag::with('posts')->whereId(1)->first();
 
         $this->assertTrue($post->relationLoaded('tags'));
         $this->assertTrue($tag->relationLoaded('posts'));
@@ -112,16 +112,16 @@ class DatabaseEloquentPolymorphicRelationsIntegrationTest extends TestCase
 
     public function testChunkById()
     {
-        $post = EloquentManyToManyPolymorphicTestPost::create();
-        $tag1 = EloquentManyToManyPolymorphicTestTag::create();
-        $tag2 = EloquentManyToManyPolymorphicTestTag::create();
-        $tag3 = EloquentManyToManyPolymorphicTestTag::create();
+        $post = Post::create();
+        $tag1 = Tag::create();
+        $tag2 = Tag::create();
+        $tag3 = Tag::create();
         $post->tags()->attach([$tag1->id, $tag2->id, $tag3->id]);
 
         $count = 0;
         $iterations = 0;
         $post->tags()->chunkById(2, function ($tags) use (&$iterations, &$count) {
-            $this->assertInstanceOf(EloquentManyToManyPolymorphicTestTag::class, $tags->first());
+            $this->assertInstanceOf(Tag::class, $tags->first());
             $count += $tags->count();
             ++$iterations;
         });
@@ -150,7 +150,7 @@ class DatabaseEloquentPolymorphicRelationsIntegrationTest extends TestCase
 /**
  * Eloquent Models...
  */
-class EloquentManyToManyPolymorphicTestPost extends Eloquent
+class Post extends Eloquent
 {
     protected ?string $table = 'posts';
 
@@ -158,11 +158,11 @@ class EloquentManyToManyPolymorphicTestPost extends Eloquent
 
     public function tags()
     {
-        return $this->morphToMany(EloquentManyToManyPolymorphicTestTag::class, 'taggable');
+        return $this->morphToMany(Tag::class, 'taggable');
     }
 }
 
-class EloquentManyToManyPolymorphicTestImage extends Eloquent
+class Image extends Eloquent
 {
     protected ?string $table = 'images';
 
@@ -170,11 +170,11 @@ class EloquentManyToManyPolymorphicTestImage extends Eloquent
 
     public function tags()
     {
-        return $this->morphToMany(EloquentManyToManyPolymorphicTestTag::class, 'taggable');
+        return $this->morphToMany(Tag::class, 'taggable');
     }
 }
 
-class EloquentManyToManyPolymorphicTestTag extends Eloquent
+class Tag extends Eloquent
 {
     protected ?string $table = 'tags';
 
@@ -182,11 +182,11 @@ class EloquentManyToManyPolymorphicTestTag extends Eloquent
 
     public function posts()
     {
-        return $this->morphedByMany(EloquentManyToManyPolymorphicTestPost::class, 'taggable');
+        return $this->morphedByMany(Post::class, 'taggable');
     }
 
     public function images()
     {
-        return $this->morphedByMany(EloquentManyToManyPolymorphicTestImage::class, 'taggable');
+        return $this->morphedByMany(Image::class, 'taggable');
     }
 }

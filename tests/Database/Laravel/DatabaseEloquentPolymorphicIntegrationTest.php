@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentPolymorphicIntegrationTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model as Eloquent;
@@ -84,55 +84,55 @@ class DatabaseEloquentPolymorphicIntegrationTest extends TestCase
     {
         $this->seedData();
 
-        $like = TestLikeWithSingleWithPolymorphic::first();
+        $like = LikeWithSingleWith::first();
 
         $this->assertTrue($like->relationLoaded('likeable'));
-        $this->assertEquals(TestCommentPolymorphic::first(), $like->likeable);
+        $this->assertEquals(Comment::first(), $like->likeable);
     }
 
     public function testItLoadsChainedRelationshipsAutomatically()
     {
         $this->seedData();
 
-        $like = TestLikeWithSingleWithPolymorphic::first();
+        $like = LikeWithSingleWith::first();
 
         $this->assertTrue($like->likeable->relationLoaded('commentable'));
-        $this->assertEquals(TestPostPolymorphic::first(), $like->likeable->commentable);
+        $this->assertEquals(Post::first(), $like->likeable->commentable);
     }
 
     public function testItLoadsNestedRelationshipsAutomatically()
     {
         $this->seedData();
 
-        $like = TestLikeWithNestedWithPolymorphic::first();
+        $like = LikeWithNestedWith::first();
 
         $this->assertTrue($like->relationLoaded('likeable'));
         $this->assertTrue($like->likeable->relationLoaded('owner'));
 
-        $this->assertEquals(TestUserPolymorphic::first(), $like->likeable->owner);
+        $this->assertEquals(User::first(), $like->likeable->owner);
     }
 
     public function testItLoadsNestedRelationshipsOnDemand()
     {
         $this->seedData();
 
-        $like = TestLikePolymorphic::with('likeable.owner')->first();
+        $like = Like::with('likeable.owner')->first();
 
         $this->assertTrue($like->relationLoaded('likeable'));
         $this->assertTrue($like->likeable->relationLoaded('owner'));
 
-        $this->assertEquals(TestUserPolymorphic::first(), $like->likeable->owner);
+        $this->assertEquals(User::first(), $like->likeable->owner);
     }
 
     public function testItLoadsNestedMorphRelationshipsOnDemand()
     {
         $this->seedData();
 
-        TestPostPolymorphic::first()->likes()->create([]);
+        Post::first()->likes()->create([]);
 
-        $likes = TestLikePolymorphic::with('likeable.owner')->get()->loadMorph('likeable', [
-            TestCommentPolymorphic::class => ['commentable'],
-            TestPostPolymorphic::class => 'comments',
+        $likes = Like::with('likeable.owner')->get()->loadMorph('likeable', [
+            Comment::class => ['commentable'],
+            Post::class => 'comments',
         ]);
 
         $this->assertTrue($likes[0]->relationLoaded('likeable'));
@@ -148,12 +148,12 @@ class DatabaseEloquentPolymorphicIntegrationTest extends TestCase
     {
         $this->seedData();
 
-        TestPostPolymorphic::first()->likes()->create([]);
-        TestCommentPolymorphic::first()->likes()->create([]);
+        Post::first()->likes()->create([]);
+        Comment::first()->likes()->create([]);
 
-        $likes = TestLikePolymorphic::with('likeable.owner')->get()->loadMorphCount('likeable', [
-            TestCommentPolymorphic::class => ['likes'],
-            TestPostPolymorphic::class => 'comments',
+        $likes = Like::with('likeable.owner')->get()->loadMorphCount('likeable', [
+            Comment::class => ['likes'],
+            Post::class => 'comments',
         ]);
 
         $this->assertTrue($likes[0]->relationLoaded('likeable'));
@@ -174,7 +174,7 @@ class DatabaseEloquentPolymorphicIntegrationTest extends TestCase
      */
     protected function seedData(): void
     {
-        $taylor = TestUserPolymorphic::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        $taylor = User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
 
         $taylor->posts()->create(['title' => 'A title', 'body' => 'A body'])
             ->comments()->create(['body' => 'A comment body', 'user_id' => 1])
@@ -201,7 +201,7 @@ class DatabaseEloquentPolymorphicIntegrationTest extends TestCase
 /**
  * Eloquent Models...
  */
-class TestUserPolymorphic extends Eloquent
+class User extends Eloquent
 {
     protected ?string $table = 'users';
 
@@ -209,11 +209,11 @@ class TestUserPolymorphic extends Eloquent
 
     public function posts()
     {
-        return $this->hasMany(TestPostPolymorphic::class, 'user_id');
+        return $this->hasMany(Post::class, 'user_id');
     }
 }
 
-class TestPostPolymorphic extends Eloquent
+class Post extends Eloquent
 {
     protected ?string $table = 'posts';
 
@@ -221,21 +221,21 @@ class TestPostPolymorphic extends Eloquent
 
     public function comments()
     {
-        return $this->morphMany(TestCommentPolymorphic::class, 'commentable');
+        return $this->morphMany(Comment::class, 'commentable');
     }
 
     public function owner()
     {
-        return $this->belongsTo(TestUserPolymorphic::class, 'user_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function likes()
     {
-        return $this->morphMany(TestLikePolymorphic::class, 'likeable');
+        return $this->morphMany(Like::class, 'likeable');
     }
 }
 
-class TestCommentPolymorphic extends Eloquent
+class Comment extends Eloquent
 {
     protected ?string $table = 'comments';
 
@@ -245,7 +245,7 @@ class TestCommentPolymorphic extends Eloquent
 
     public function owner()
     {
-        return $this->belongsTo(TestUserPolymorphic::class, 'user_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 
     public function commentable()
@@ -255,11 +255,11 @@ class TestCommentPolymorphic extends Eloquent
 
     public function likes()
     {
-        return $this->morphMany(TestLikePolymorphic::class, 'likeable');
+        return $this->morphMany(Like::class, 'likeable');
     }
 }
 
-class TestLikePolymorphic extends Eloquent
+class Like extends Eloquent
 {
     protected ?string $table = 'likes';
 
@@ -271,7 +271,7 @@ class TestLikePolymorphic extends Eloquent
     }
 }
 
-class TestLikeWithSingleWithPolymorphic extends Eloquent
+class LikeWithSingleWith extends Eloquent
 {
     protected ?string $table = 'likes';
 
@@ -285,7 +285,7 @@ class TestLikeWithSingleWithPolymorphic extends Eloquent
     }
 }
 
-class TestLikeWithNestedWithPolymorphic extends Eloquent
+class LikeWithNestedWith extends Eloquent
 {
     protected ?string $table = 'likes';
 
