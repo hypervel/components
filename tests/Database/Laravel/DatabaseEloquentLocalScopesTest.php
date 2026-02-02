@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentLocalScopesTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model;
-use Hypervel\Tests\TestCase;
+use Hypervel\Testbench\TestCase;
 
 /**
  * @internal
@@ -33,7 +33,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
 
     public function testCanCheckExistenceOfLocalScope()
     {
-        $model = new EloquentLocalScopesTestModel();
+        $model = new ScopedModel();
 
         $this->assertTrue($model->hasNamedScope('active'));
         $this->assertTrue($model->hasNamedScope('type'));
@@ -43,7 +43,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
 
     public function testLocalScopeIsApplied()
     {
-        $model = new EloquentLocalScopesTestModel();
+        $model = new ScopedModel();
         $query = $model->newQuery()->active();
 
         $this->assertSame('select * from "table" where "active" = ?', $query->toSql());
@@ -52,7 +52,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
 
     public function testDynamicLocalScopeIsApplied()
     {
-        $model = new EloquentLocalScopesTestModel();
+        $model = new ScopedModel();
         $query = $model->newQuery()->type('foo');
 
         $this->assertSame('select * from "table" where "type" = ?', $query->toSql());
@@ -61,7 +61,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
 
     public function testLocalScopesCanChained()
     {
-        $model = new EloquentLocalScopesTestModel();
+        $model = new ScopedModel();
         $query = $model->newQuery()->active()->type('foo');
 
         $this->assertSame('select * from "table" where "active" = ? and "type" = ?', $query->toSql());
@@ -70,7 +70,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
 
     public function testLocalScopeNestingDoesntDoubleFirstWhereClauseNegation()
     {
-        $model = new EloquentLocalScopesTestModel();
+        $model = new ScopedModel();
         $query = $model
             ->newQuery()
             ->whereNot('firstWhere', true)
@@ -83,7 +83,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
 
     public function testLocalScopeNestingGroupsOrNotWhereClause()
     {
-        $model = new EloquentLocalScopesTestModel();
+        $model = new ScopedModel();
         $query = $model
             ->newQuery()
             ->where('firstWhere', true)
@@ -95,7 +95,7 @@ class DatabaseEloquentLocalScopesTest extends TestCase
     }
 }
 
-class EloquentLocalScopesTestModel extends Model
+class ScopedModel extends Model
 {
     protected ?string $table = 'table';
 
