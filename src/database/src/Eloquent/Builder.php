@@ -56,7 +56,7 @@ class Builder implements BuilderContract
      *
      * @var TModel
      */
-    protected Model $model;
+    protected ?Model $model = null;
 
     /**
      * The attributes that should be added to new models created by this builder.
@@ -779,9 +779,9 @@ class Builder implements BuilderContract
     /**
      * Execute the query as a "select" statement.
      *
-     * @return Collection<int, TModel>
+     * @return Collection<int, TModel>|BaseCollection
      */
-    public function get(array|string $columns = ['*']): Collection
+    public function get(array|string $columns = ['*']): BaseCollection
     {
         $builder = $this->applyScopes();
 
@@ -1168,7 +1168,7 @@ class Builder implements BuilderContract
     /**
      * Increment a column's value by a given amount.
      */
-    public function increment(Expression|string $column, float|int $amount = 1, array $extra = []): int
+    public function increment(Expression|string $column, mixed $amount = 1, array $extra = []): int
     {
         return $this->toBase()->increment(
             $column,
@@ -1180,7 +1180,7 @@ class Builder implements BuilderContract
     /**
      * Decrement a column's value by a given amount.
      */
-    public function decrement(Expression|string $column, float|int $amount = 1, array $extra = []): int
+    public function decrement(Expression|string $column, mixed $amount = 1, array $extra = []): int
     {
         return $this->toBase()->decrement(
             $column,
@@ -1920,7 +1920,7 @@ class Builder implements BuilderContract
         if ($method === 'macro') {
             $this->localMacros[$parameters[0]] = $parameters[1];
 
-            return;
+            return null;
         }
 
         if ($this->hasMacro($method)) {
@@ -1962,13 +1962,13 @@ class Builder implements BuilderContract
         if ($method === 'macro') {
             static::$macros[$parameters[0]] = $parameters[1];
 
-            return;
+            return null;
         }
 
         if ($method === 'mixin') {
             static::registerMixin($parameters[0], $parameters[1] ?? true);
 
-            return;
+            return null;
         }
 
         if (! static::hasGlobalMacro($method)) {
