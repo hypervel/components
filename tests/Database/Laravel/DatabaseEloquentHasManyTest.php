@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentHasManyTest;
 
 use Exception;
 use Hypervel\Database\Eloquent\Builder;
@@ -37,7 +37,7 @@ class DatabaseEloquentHasManyTest extends TestCase
         ];
 
         // Use concrete stub to properly test distinct instances and save() behavior
-        EloquentHasManyRelatedStub::resetState();
+        RelatedStub::resetState();
         $relation = $this->getRelationWithConcreteRelated();
 
         $instances = $relation->makeMany($records);
@@ -47,7 +47,7 @@ class DatabaseEloquentHasManyTest extends TestCase
         // Verify distinct instances were created (not the same object)
         $this->assertNotSame($instances[0], $instances[1]);
         // Verify save() was never called
-        $this->assertFalse(EloquentHasManyRelatedStub::$saveCalled);
+        $this->assertFalse(RelatedStub::$saveCalled);
         // Verify foreign key was set on each instance
         $this->assertEquals(1, $instances[0]->getAttribute('foreign_key'));
         $this->assertEquals(1, $instances[1]->getAttribute('foreign_key'));
@@ -312,9 +312,9 @@ class DatabaseEloquentHasManyTest extends TestCase
         $relation->getParent()->shouldReceive('getKeyName')->once()->andReturn('id');
         $relation->getParent()->shouldReceive('getKeyType')->once()->andReturn('int');
         $relation->getQuery()->shouldReceive('whereIntegerInRaw')->once()->with('table.foreign_key', [1, 2]);
-        $model1 = new EloquentHasManyModelStub();
+        $model1 = new ModelStub();
         $model1->id = 1;
-        $model2 = new EloquentHasManyModelStub();
+        $model2 = new ModelStub();
         $model2->id = 2;
         $relation->addEagerConstraints([$model1, $model2]);
     }
@@ -325,9 +325,9 @@ class DatabaseEloquentHasManyTest extends TestCase
         $relation->getParent()->shouldReceive('getKeyName')->once()->andReturn('id');
         $relation->getParent()->shouldReceive('getKeyType')->once()->andReturn('string');
         $relation->getQuery()->shouldReceive('whereIn')->once()->with('table.foreign_key', [1, 2]);
-        $model1 = new EloquentHasManyModelStub();
+        $model1 = new ModelStub();
         $model1->id = 1;
-        $model2 = new EloquentHasManyModelStub();
+        $model2 = new ModelStub();
         $model2->id = 2;
         $relation->addEagerConstraints([$model1, $model2]);
     }
@@ -336,18 +336,18 @@ class DatabaseEloquentHasManyTest extends TestCase
     {
         $relation = $this->getRelation();
 
-        $result1 = new EloquentHasManyModelStub();
+        $result1 = new ModelStub();
         $result1->foreign_key = 1;
-        $result2 = new EloquentHasManyModelStub();
+        $result2 = new ModelStub();
         $result2->foreign_key = 2;
-        $result3 = new EloquentHasManyModelStub();
+        $result3 = new ModelStub();
         $result3->foreign_key = 2;
 
-        $model1 = new EloquentHasManyModelStub();
+        $model1 = new ModelStub();
         $model1->id = 1;
-        $model2 = new EloquentHasManyModelStub();
+        $model2 = new ModelStub();
         $model2->id = 2;
-        $model3 = new EloquentHasManyModelStub();
+        $model3 = new ModelStub();
         $model3->id = 3;
 
         $relation->getRelated()->shouldReceive('newCollection')->andReturnUsing(function ($array) {
@@ -406,7 +406,7 @@ class DatabaseEloquentHasManyTest extends TestCase
         $builder->shouldReceive('where')->with('table.foreign_key', '=', 1);
 
         // Use concrete stub instead of mock
-        $related = new EloquentHasManyRelatedStub();
+        $related = new RelatedStub();
         $builder->shouldReceive('getModel')->andReturn($related);
 
         $parent = m::mock(Model::class);
@@ -451,7 +451,7 @@ class DatabaseEloquentHasManyTest extends TestCase
     }
 }
 
-class EloquentHasManyModelStub extends Model
+class ModelStub extends Model
 {
     public string|int $foreign_key = 'foreign.value';
 }
@@ -460,7 +460,7 @@ class EloquentHasManyModelStub extends Model
  * Concrete test stub that tracks save() calls and returns distinct instances from newInstance().
  * Used to test makeMany() behavior where we need to verify distinct instances are created.
  */
-class EloquentHasManyRelatedStub extends Model
+class RelatedStub extends Model
 {
     public static bool $saveCalled = false;
 
