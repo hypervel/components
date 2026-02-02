@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentHasOneThroughOfManyTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Connection;
@@ -80,19 +80,19 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testItGuessesRelationName(): void
     {
-        $user = HasOneThroughOfManyTestUser::make();
+        $user = User::make();
         $this->assertSame('latest_login', $user->latest_login()->getRelationName());
     }
 
     public function testItGuessesRelationNameAndAddsOfManyWhenTableNameIsRelationName(): void
     {
-        $model = HasOneThroughOfManyTestModel::make();
+        $model = TestModel::make();
         $this->assertSame('logins_of_many', $model->logins()->getRelationName());
     }
 
     public function testRelationNameCanBeSet(): void
     {
-        $user = HasOneThroughOfManyTestUser::create();
+        $user = User::create();
 
         $relation = $user->latest_login()->ofMany('id', 'max', 'foo');
         $this->assertSame('foo', $relation->getRelationName());
@@ -106,14 +106,14 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testCorrectLatestOfManyQuery(): void
     {
-        $user = HasOneThroughOfManyTestUser::create();
+        $user = User::create();
         $relation = $user->latest_login();
         $this->assertSame('select "logins".* from "logins" inner join "intermediates" on "intermediates"."id" = "logins"."intermediate_id" inner join (select MAX("logins"."id") as "id_aggregate", "intermediates"."user_id" from "logins" inner join "intermediates" on "intermediates"."id" = "logins"."intermediate_id" where "intermediates"."user_id" = ? group by "intermediates"."user_id") as "latest_login" on "latest_login"."id_aggregate" = "logins"."id" and "latest_login"."user_id" = "intermediates"."user_id" where "intermediates"."user_id" = ?', $relation->getQuery()->toSql());
     }
 
     public function testEagerLoadingAppliesConstraintsToInnerJoinSubQuery(): void
     {
-        $user = HasOneThroughOfManyTestUser::create();
+        $user = User::create();
         $relation = $user->latest_login();
         $relation->addEagerConstraints([$user]);
         $this->assertSame('select MAX("logins"."id") as "id_aggregate", "intermediates"."user_id" from "logins" inner join "intermediates" on "intermediates"."id" = "logins"."intermediate_id" where "intermediates"."user_id" = ? and "intermediates"."user_id" in (1) group by "intermediates"."user_id"', $relation->getOneOfManySubQuery()->toSql());
@@ -121,7 +121,7 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testEagerLoadingAppliesConstraintsToQuery(): void
     {
-        $user = HasOneThroughOfManyTestUser::create();
+        $user = User::create();
         $relation = $user->latest_login();
         $relation->addEagerConstraints([$user]);
         $this->assertSame('select "logins".* from "logins" inner join "intermediates" on "intermediates"."id" = "logins"."intermediate_id" inner join (select MAX("logins"."id") as "id_aggregate", "intermediates"."user_id" from "logins" inner join "intermediates" on "intermediates"."id" = "logins"."intermediate_id" where "intermediates"."user_id" = ? and "intermediates"."user_id" in (1) group by "intermediates"."user_id") as "latest_login" on "latest_login"."id_aggregate" = "logins"."id" and "latest_login"."user_id" = "intermediates"."user_id" where "intermediates"."user_id" = ?', $relation->getQuery()->toSql());
@@ -129,36 +129,36 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testGlobalScopeIsNotAppliedWhenRelationIsDefinedWithoutGlobalScope(): void
     {
-        HasOneThroughOfManyTestLogin::addGlobalScope('test', function ($query) {
+        Login::addGlobalScope('test', function ($query) {
             $query->orderBy($query->qualifyColumn('id'));
         });
 
-        $user = HasOneThroughOfManyTestUser::create();
+        $user = User::create();
         $relation = $user->latest_login_without_global_scope();
         $relation->addEagerConstraints([$user]);
         $this->assertSame('select "logins".* from "logins" inner join "intermediates" on "intermediates"."id" = "logins"."intermediate_id" inner join (select MAX("logins"."id") as "id_aggregate", "intermediates"."user_id" from "logins" inner join "intermediates" on "intermediates"."id" = "logins"."intermediate_id" where "intermediates"."user_id" = ? and "intermediates"."user_id" in (1) group by "intermediates"."user_id") as "latestOfMany" on "latestOfMany"."id_aggregate" = "logins"."id" and "latestOfMany"."user_id" = "intermediates"."user_id" where "intermediates"."user_id" = ?', $relation->getQuery()->toSql());
 
-        HasOneThroughOfManyTestLogin::addGlobalScope('test', function ($query) {
+        Login::addGlobalScope('test', function ($query) {
         });
     }
 
     public function testGlobalScopeIsNotAppliedWhenRelationIsDefinedWithoutGlobalScopeWithComplexQuery(): void
     {
-        HasOneThroughOfManyTestPrice::addGlobalScope('test', function ($query) {
+        Price::addGlobalScope('test', function ($query) {
             $query->orderBy($query->qualifyColumn('id'));
         });
 
-        $user = HasOneThroughOfManyTestUser::create();
+        $user = User::create();
         $relation = $user->price_without_global_scope();
         $this->assertSame('select "prices".* from "prices" inner join "intermediates" on "intermediates"."id" = "prices"."intermediate_id" inner join (select max("prices"."id") as "id_aggregate", min("prices"."published_at") as "published_at_aggregate", "intermediates"."user_id" from "prices" inner join "intermediates" on "intermediates"."id" = "prices"."intermediate_id" inner join (select max("prices"."published_at") as "published_at_aggregate", "intermediates"."user_id" from "prices" inner join "intermediates" on "intermediates"."id" = "prices"."intermediate_id" where "published_at" < ? and "intermediates"."user_id" = ? group by "intermediates"."user_id") as "price_without_global_scope" on "price_without_global_scope"."published_at_aggregate" = "prices"."published_at" and "price_without_global_scope"."user_id" = "intermediates"."user_id" where "published_at" < ? group by "intermediates"."user_id") as "price_without_global_scope" on "price_without_global_scope"."id_aggregate" = "prices"."id" and "price_without_global_scope"."published_at_aggregate" = "prices"."published_at" and "price_without_global_scope"."user_id" = "intermediates"."user_id" where "intermediates"."user_id" = ?', $relation->getQuery()->toSql());
 
-        HasOneThroughOfManyTestPrice::addGlobalScope('test', function ($query) {
+        Price::addGlobalScope('test', function ($query) {
         });
     }
 
     public function testQualifyingSubSelectColumn(): void
     {
-        $user = HasOneThroughOfManyTestUser::make();
+        $user = User::make();
         $this->assertSame('latest_login.id', $user->latest_login()->qualifySubSelectColumn('id'));
     }
 
@@ -166,13 +166,13 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Invalid aggregate [count] used within ofMany relation. Available aggregates: MIN, MAX');
-        $user = HasOneThroughOfManyTestUser::make();
+        $user = User::make();
         $user->latest_login_with_invalid_aggregate();
     }
 
     public function testItGetsCorrectResults(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user = User::factory()->hasIntermediates(2)->create();
         $previousLogin = $user->intermediates->last()->logins()->create();
         $latestLogin = $user->intermediates->first()->logins()->create();
 
@@ -183,7 +183,7 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testResultDoesNotHaveAggregateColumn(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(1)->create();
+        $user = User::factory()->hasIntermediates(1)->create();
         $user->intermediates->first()->logins()->create();
 
         $result = $user->latest_login()->getResults();
@@ -193,7 +193,7 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testItGetsCorrectResultsUsingShortcutMethod(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user = User::factory()->hasIntermediates(2)->create();
         $previousLogin = $user->intermediates->last()->logins()->create();
         $latestLogin = $user->intermediates->first()->logins()->create();
 
@@ -204,7 +204,7 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testItGetsCorrectResultsUsingShortcutReceivingMultipleColumnsMethod(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user = User::factory()->hasIntermediates(2)->create();
         $user->intermediates->last()->prices()->create([
             'published_at' => '2021-05-01 00:00:00',
         ]);
@@ -219,7 +219,7 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testKeyIsAddedToAggregatesWhenMissing(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user = User::factory()->hasIntermediates(2)->create();
         $user->intermediates->last()->prices()->create([
             'published_at' => '2021-05-01 00:00:00',
         ]);
@@ -234,7 +234,7 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testItGetsWithConstraintsCorrectResults(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user = User::factory()->hasIntermediates(2)->create();
         $previousLogin = $user->intermediates->last()->logins()->create();
         $user->intermediates->first()->logins()->create();
 
@@ -244,11 +244,11 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testItEagerLoadsCorrectModels(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user = User::factory()->hasIntermediates(2)->create();
         $user->intermediates->last()->logins()->create();
         $latestLogin = $user->intermediates->first()->logins()->create();
 
-        $user = HasOneThroughOfManyTestUser::with('latest_login')->first();
+        $user = User::with('latest_login')->first();
 
         $this->assertTrue($user->relationLoaded('latest_login'));
         $this->assertSame($latestLogin->id, $user->latest_login->id);
@@ -256,7 +256,7 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testItJoinsOtherTableInSubQuery(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user = User::factory()->hasIntermediates(2)->create();
         $user->intermediates->first()->logins()->create();
 
         $this->assertNull($user->latest_login_with_foo_state);
@@ -272,16 +272,16 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testHasNested(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user = User::factory()->hasIntermediates(2)->create();
         $previousLogin = $user->intermediates->first()->logins()->create();
         $latestLogin = $user->intermediates->last()->logins()->create();
 
-        $found = HasOneThroughOfManyTestUser::whereHas('latest_login', function ($query) use ($latestLogin) {
+        $found = User::whereHas('latest_login', function ($query) use ($latestLogin) {
             $query->where('logins.id', $latestLogin->id);
         })->exists();
         $this->assertTrue($found);
 
-        $found = HasOneThroughOfManyTestUser::whereHas('latest_login', function ($query) use ($previousLogin) {
+        $found = User::whereHas('latest_login', function ($query) use ($previousLogin) {
             $query->where('logins.id', $previousLogin->id);
         })->exists();
         $this->assertFalse($found);
@@ -289,11 +289,11 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testWithHasNested(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user = User::factory()->hasIntermediates(2)->create();
         $previousLogin = $user->intermediates->first()->logins()->create();
         $latestLogin = $user->intermediates->last()->logins()->create();
 
-        $found = HasOneThroughOfManyTestUser::withWhereHas('latest_login', function ($query) use ($latestLogin) {
+        $found = User::withWhereHas('latest_login', function ($query) use ($latestLogin) {
             $query->where('logins.id', $latestLogin->id);
         })->first();
 
@@ -301,7 +301,7 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
         $this->assertTrue($found->relationLoaded('latest_login'));
         $this->assertEquals($found->latest_login->id, $latestLogin->id);
 
-        $found = HasOneThroughOfManyTestUser::withWhereHas('latest_login', function ($query) use ($previousLogin) {
+        $found = User::withWhereHas('latest_login', function ($query) use ($previousLogin) {
             $query->where('logins.id', $previousLogin->id);
         })->exists();
 
@@ -310,17 +310,17 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testHasCount(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user = User::factory()->hasIntermediates(2)->create();
         $user->intermediates->last()->logins()->create();
         $user->intermediates->first()->logins()->create();
 
-        $user = HasOneThroughOfManyTestUser::withCount('latest_login')->first();
+        $user = User::withCount('latest_login')->first();
         $this->assertEquals(1, $user->latest_login_count);
     }
 
     public function testExists(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user = User::factory()->hasIntermediates(2)->create();
         $previousLogin = $user->intermediates->last()->logins()->create();
         $latestLogin = $user->intermediates->first()->logins()->create();
 
@@ -330,7 +330,7 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testIsMethod(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user = User::factory()->hasIntermediates(2)->create();
         $login1 = $user->intermediates->last()->logins()->create();
         $login2 = $user->intermediates->first()->logins()->create();
 
@@ -340,7 +340,7 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testIsNotMethod(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user = User::factory()->hasIntermediates(2)->create();
         $login1 = $user->intermediates->last()->logins()->create();
         $login2 = $user->intermediates->first()->logins()->create();
 
@@ -350,7 +350,7 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testGet(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user = User::factory()->hasIntermediates(2)->create();
         $previousLogin = $user->intermediates->last()->logins()->create();
         $latestLogin = $user->intermediates->first()->logins()->create();
 
@@ -364,7 +364,7 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testCount(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user = User::factory()->hasIntermediates(2)->create();
         $user->intermediates->last()->logins()->create();
         $user->intermediates->first()->logins()->create();
 
@@ -373,17 +373,17 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testAggregate(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user = User::factory()->hasIntermediates(2)->create();
         $firstLogin = $user->intermediates->first()->logins()->create();
         $user->intermediates->last()->logins()->create();
 
-        $user = HasOneThroughOfManyTestUser::first();
+        $user = User::first();
         $this->assertSame($firstLogin->id, $user->first_login->id);
     }
 
     public function testJoinConstraints(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user = User::factory()->hasIntermediates(2)->create();
         $user->intermediates->last()->states()->create([
             'type' => 'foo',
             'state' => 'draft',
@@ -397,13 +397,13 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
             'state' => 'baz',
         ]);
 
-        $user = HasOneThroughOfManyTestUser::first();
+        $user = User::first();
         $this->assertSame($currentForState->id, $user->foo_state->id);
     }
 
     public function testMultipleAggregates(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user = User::factory()->hasIntermediates(2)->create();
         $user->intermediates->last()->prices()->create([
             'published_at' => '2021-05-01 00:00:00',
         ]);
@@ -411,14 +411,14 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
             'published_at' => '2021-05-01 00:00:00',
         ]);
 
-        $user = HasOneThroughOfManyTestUser::first();
+        $user = User::first();
         $this->assertSame($price->id, $user->price->id);
     }
 
     public function testEagerLoadingWithMultipleAggregates(): void
     {
-        $user1 = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
-        $user2 = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user1 = User::factory()->hasIntermediates(2)->create();
+        $user2 = User::factory()->hasIntermediates(2)->create();
 
         $user1->intermediates->last()->prices()->create([
             'published_at' => '2021-05-01 00:00:00',
@@ -437,7 +437,7 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
             'published_at' => '2021-04-01 00:00:00',
         ]);
 
-        $users = HasOneThroughOfManyTestUser::with('price')->get();
+        $users = User::with('price')->get();
 
         $this->assertNotNull($users[0]->price);
         $this->assertSame($user1Price->id, $users[0]->price->id);
@@ -448,20 +448,20 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testWithExists(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(1)->create();
+        $user = User::factory()->hasIntermediates(1)->create();
 
-        $user = HasOneThroughOfManyTestUser::withExists('latest_login')->first();
+        $user = User::withExists('latest_login')->first();
         $this->assertFalse($user->latest_login_exists);
 
         $user->intermediates->first()->logins()->create();
-        $user = HasOneThroughOfManyTestUser::withExists('latest_login')->first();
+        $user = User::withExists('latest_login')->first();
         $this->assertTrue($user->latest_login_exists);
     }
 
     public function testWithExistsWithConstraintsInJoinSubSelect(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(1)->create();
-        $user = HasOneThroughOfManyTestUser::withExists('foo_state')->first();
+        $user = User::factory()->hasIntermediates(1)->create();
+        $user = User::withExists('foo_state')->first();
 
         $this->assertFalse($user->foo_state_exists);
 
@@ -469,13 +469,13 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
             'type' => 'foo',
             'state' => 'bar',
         ]);
-        $user = HasOneThroughOfManyTestUser::withExists('foo_state')->first();
+        $user = User::withExists('foo_state')->first();
         $this->assertTrue($user->foo_state_exists);
     }
 
     public function testWithSoftDeletes(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(1)->create();
+        $user = User::factory()->hasIntermediates(1)->create();
         $user->intermediates->first()->logins()->create();
         $user->latest_login_with_soft_deletes;
         $this->assertNotNull($user->latest_login_with_soft_deletes);
@@ -483,7 +483,7 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testWithConstraintNotInAggregate(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user = User::factory()->hasIntermediates(2)->create();
 
         $previousFoo = $user->intermediates->last()->states()->create([
             'type' => 'foo',
@@ -506,7 +506,7 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
 
     public function testItGetsCorrectResultUsingAtLeastTwoAggregatesDistinctFromId(): void
     {
-        $user = HasOneThroughOfManyTestUser::factory()->hasIntermediates(2)->create();
+        $user = User::factory()->hasIntermediates(2)->create();
 
         $expectedState = $user->intermediates->last()->states()->create([
             'state' => 'state',
@@ -536,7 +536,7 @@ class DatabaseEloquentHasOneThroughOfManyTest extends TestCase
     }
 }
 
-class HasOneThroughOfManyTestUser extends Eloquent
+class User extends Eloquent
 {
     use HasFactory;
 
@@ -546,11 +546,11 @@ class HasOneThroughOfManyTestUser extends Eloquent
 
     public bool $timestamps = false;
 
-    protected static string $factory = HasOneThroughOfManyTestUserFactory::class;
+    protected static string $factory = UserFactory::class;
 
     public function intermediates(): HasMany
     {
-        return $this->hasMany(HasOneThroughOfManyTestIntermediate::class, 'user_id');
+        return $this->hasMany(Intermediate::class, 'user_id');
     }
 
     public function logins(): HasManyThrough
@@ -561,8 +561,8 @@ class HasOneThroughOfManyTestUser extends Eloquent
     public function latest_login(): HasOneThrough
     {
         return $this->hasOneThrough(
-            HasOneThroughOfManyTestLogin::class,
-            HasOneThroughOfManyTestIntermediate::class,
+            Login::class,
+            Intermediate::class,
             'user_id',
             'intermediate_id'
         )->ofMany();
@@ -571,8 +571,8 @@ class HasOneThroughOfManyTestUser extends Eloquent
     public function latest_login_with_soft_deletes(): HasOneThrough
     {
         return $this->hasOneThrough(
-            HasOneThroughOfManyTestLoginWithSoftDeletes::class,
-            HasOneThroughOfManyTestIntermediate::class,
+            LoginWithSoftDeletes::class,
+            Intermediate::class,
             'user_id',
             'intermediate_id',
         )->ofMany();
@@ -679,7 +679,7 @@ class HasOneThroughOfManyTestUser extends Eloquent
     }
 }
 
-class HasOneThroughOfManyTestIntermediate extends Eloquent
+class Intermediate extends Eloquent
 {
     use HasFactory;
 
@@ -689,38 +689,38 @@ class HasOneThroughOfManyTestIntermediate extends Eloquent
 
     public bool $timestamps = false;
 
-    protected static string $factory = HasOneThroughOfManyTestIntermediateFactory::class;
+    protected static string $factory = IntermediateFactory::class;
 
     public function logins(): HasMany
     {
-        return $this->hasMany(HasOneThroughOfManyTestLogin::class, 'intermediate_id');
+        return $this->hasMany(Login::class, 'intermediate_id');
     }
 
     public function states(): HasMany
     {
-        return $this->hasMany(HasOneThroughOfManyTestState::class, 'intermediate_id');
+        return $this->hasMany(State::class, 'intermediate_id');
     }
 
     public function prices(): HasMany
     {
-        return $this->hasMany(HasOneThroughOfManyTestPrice::class, 'intermediate_id');
+        return $this->hasMany(Price::class, 'intermediate_id');
     }
 }
 
-class HasOneThroughOfManyTestModel extends Eloquent
+class TestModel extends Eloquent
 {
     public function logins(): HasOneThrough
     {
         return $this->hasOneThrough(
-            HasOneThroughOfManyTestLogin::class,
-            HasOneThroughOfManyTestIntermediate::class,
+            Login::class,
+            Intermediate::class,
             'user_id',
             'intermediate_id',
         )->ofMany();
     }
 }
 
-class HasOneThroughOfManyTestLogin extends Eloquent
+class Login extends Eloquent
 {
     protected ?string $table = 'logins';
 
@@ -729,7 +729,7 @@ class HasOneThroughOfManyTestLogin extends Eloquent
     public bool $timestamps = false;
 }
 
-class HasOneThroughOfManyTestLoginWithSoftDeletes extends Eloquent
+class LoginWithSoftDeletes extends Eloquent
 {
     use SoftDeletes;
 
@@ -740,7 +740,7 @@ class HasOneThroughOfManyTestLoginWithSoftDeletes extends Eloquent
     public bool $timestamps = false;
 }
 
-class HasOneThroughOfManyTestState extends Eloquent
+class State extends Eloquent
 {
     protected ?string $table = 'states';
 
@@ -751,7 +751,7 @@ class HasOneThroughOfManyTestState extends Eloquent
     protected array $fillable = ['type', 'state', 'updated_at'];
 }
 
-class HasOneThroughOfManyTestPrice extends Eloquent
+class Price extends Eloquent
 {
     protected ?string $table = 'prices';
 
@@ -764,9 +764,9 @@ class HasOneThroughOfManyTestPrice extends Eloquent
     protected array $casts = ['published_at' => 'datetime'];
 }
 
-class HasOneThroughOfManyTestUserFactory extends Factory
+class UserFactory extends Factory
 {
-    protected ?string $model = HasOneThroughOfManyTestUser::class;
+    protected ?string $model = User::class;
 
     public function definition(): array
     {
@@ -774,12 +774,12 @@ class HasOneThroughOfManyTestUserFactory extends Factory
     }
 }
 
-class HasOneThroughOfManyTestIntermediateFactory extends Factory
+class IntermediateFactory extends Factory
 {
-    protected ?string $model = HasOneThroughOfManyTestIntermediate::class;
+    protected ?string $model = Intermediate::class;
 
     public function definition(): array
     {
-        return ['user_id' => HasOneThroughOfManyTestUser::factory()];
+        return ['user_id' => User::factory()];
     }
 }
