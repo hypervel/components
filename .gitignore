@@ -7,3 +7,4 @@ composer.lock
 !tests/Foundation/fixtures/hyperf1/composer.lock
 tests/Http/fixtures
 .env
+testing
