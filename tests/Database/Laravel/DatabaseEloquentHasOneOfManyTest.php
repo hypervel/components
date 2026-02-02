@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentHasOneOfManyTest;
 
 use Hypervel\Database\Capsule\Manager as DB;
 use Hypervel\Database\Eloquent\Model as Eloquent;
@@ -78,19 +78,19 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testItGuessesRelationName()
     {
-        $user = HasOneOfManyTestUser::make();
+        $user = User::make();
         $this->assertSame('latest_login', $user->latest_login()->getRelationName());
     }
 
     public function testItGuessesRelationNameAndAddsOfManyWhenTableNameIsRelationName()
     {
-        $model = HasOneOfManyTestModel::make();
+        $model = TestModel::make();
         $this->assertSame('logins_of_many', $model->logins()->getRelationName());
     }
 
     public function testRelationNameCanBeSet()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
 
         // Using "ofMany"
         $relation = $user->latest_login()->ofMany('id', 'max', 'foo');
@@ -107,14 +107,14 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testCorrectLatestOfManyQuery(): void
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $relation = $user->latest_login();
         $this->assertSame('select "logins".* from "logins" inner join (select MAX("logins"."id") as "id_aggregate", "logins"."user_id" from "logins" where "logins"."user_id" = ? and "logins"."user_id" is not null group by "logins"."user_id") as "latest_login" on "latest_login"."id_aggregate" = "logins"."id" and "latest_login"."user_id" = "logins"."user_id" where "logins"."user_id" = ? and "logins"."user_id" is not null', $relation->getQuery()->toSql());
     }
 
     public function testEagerLoadingAppliesConstraintsToInnerJoinSubQuery()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $relation = $user->latest_login();
         $relation->addEagerConstraints([$user]);
         $this->assertSame('select MAX("logins"."id") as "id_aggregate", "logins"."user_id" from "logins" where "logins"."user_id" = ? and "logins"."user_id" is not null and "logins"."user_id" in (1) group by "logins"."user_id"', $relation->getOneOfManySubQuery()->toSql());
@@ -122,36 +122,36 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testGlobalScopeIsNotAppliedWhenRelationIsDefinedWithoutGlobalScope()
     {
-        HasOneOfManyTestLogin::addGlobalScope('test', function ($query) {
+        Login::addGlobalScope('test', function ($query) {
             $query->orderBy('id');
         });
 
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $relation = $user->latest_login_without_global_scope();
         $relation->addEagerConstraints([$user]);
         $this->assertSame('select "logins".* from "logins" inner join (select MAX("logins"."id") as "id_aggregate", "logins"."user_id" from "logins" where "logins"."user_id" = ? and "logins"."user_id" is not null and "logins"."user_id" in (1) group by "logins"."user_id") as "latestOfMany" on "latestOfMany"."id_aggregate" = "logins"."id" and "latestOfMany"."user_id" = "logins"."user_id" where "logins"."user_id" = ? and "logins"."user_id" is not null', $relation->getQuery()->toSql());
 
-        HasOneOfManyTestLogin::addGlobalScope('test', function ($query) {
+        Login::addGlobalScope('test', function ($query) {
         });
     }
 
     public function testGlobalScopeIsNotAppliedWhenRelationIsDefinedWithoutGlobalScopeWithComplexQuery()
     {
-        HasOneOfManyTestPrice::addGlobalScope('test', function ($query) {
+        Price::addGlobalScope('test', function ($query) {
             $query->orderBy('id');
         });
 
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $relation = $user->price_without_global_scope();
         $this->assertSame('select "prices".* from "prices" inner join (select max("prices"."id") as "id_aggregate", min("prices"."published_at") as "published_at_aggregate", "prices"."user_id" from "prices" inner join (select max("prices"."published_at") as "published_at_aggregate", "prices"."user_id" from "prices" where "published_at" < ? and "prices"."user_id" = ? and "prices"."user_id" is not null group by "prices"."user_id") as "price_without_global_scope" on "price_without_global_scope"."published_at_aggregate" = "prices"."published_at" and "price_without_global_scope"."user_id" = "prices"."user_id" where "published_at" < ? group by "prices"."user_id") as "price_without_global_scope" on "price_without_global_scope"."id_aggregate" = "prices"."id" and "price_without_global_scope"."published_at_aggregate" = "prices"."published_at" and "price_without_global_scope"."user_id" = "prices"."user_id" where "prices"."user_id" = ? and "prices"."user_id" is not null', $relation->getQuery()->toSql());
 
-        HasOneOfManyTestPrice::addGlobalScope('test', function ($query) {
+        Price::addGlobalScope('test', function ($query) {
         });
     }
 
     public function testQualifyingSubSelectColumn()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $this->assertSame('latest_login.id', $user->latest_login()->qualifySubSelectColumn('id'));
     }
 
@@ -159,13 +159,13 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
     {
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Invalid aggregate [count] used within ofMany relation. Available aggregates: MIN, MAX');
-        $user = HasOneOfManyTestUser::make();
+        $user = User::make();
         $user->latest_login_with_invalid_aggregate();
     }
 
     public function testItGetsCorrectResults()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $previousLogin = $user->logins()->create();
         $latestLogin = $user->logins()->create();
 
@@ -176,7 +176,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testResultDoesNotHaveAggregateColumn()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $user->logins()->create();
 
         $result = $user->latest_login()->getResults();
@@ -186,7 +186,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testItGetsCorrectResultsUsingShortcutMethod()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $previousLogin = $user->logins()->create();
         $latestLogin = $user->logins()->create();
 
@@ -197,7 +197,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testItGetsCorrectResultsUsingShortcutReceivingMultipleColumnsMethod()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $user->prices()->create([
             'published_at' => '2021-05-01 00:00:00',
         ]);
@@ -212,7 +212,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testKeyIsAddedToAggregatesWhenMissing()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $user->prices()->create([
             'published_at' => '2021-05-01 00:00:00',
         ]);
@@ -227,7 +227,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testItGetsWithConstraintsCorrectResults()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $previousLogin = $user->logins()->create();
         $user->logins()->create();
 
@@ -237,11 +237,11 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testItEagerLoadsCorrectModels()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $user->logins()->create();
         $latestLogin = $user->logins()->create();
 
-        $user = HasOneOfManyTestUser::with('latest_login')->first();
+        $user = User::with('latest_login')->first();
 
         $this->assertTrue($user->relationLoaded('latest_login'));
         $this->assertSame($latestLogin->id, $user->latest_login->id);
@@ -249,7 +249,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testItJoinsOtherTableInSubQuery()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $user->logins()->create();
 
         $this->assertNull($user->latest_login_with_foo_state);
@@ -265,16 +265,16 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testHasNested()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $previousLogin = $user->logins()->create();
         $latestLogin = $user->logins()->create();
 
-        $found = HasOneOfManyTestUser::whereHas('latest_login', function ($query) use ($latestLogin) {
+        $found = User::whereHas('latest_login', function ($query) use ($latestLogin) {
             $query->where('logins.id', $latestLogin->id);
         })->exists();
         $this->assertTrue($found);
 
-        $found = HasOneOfManyTestUser::whereHas('latest_login', function ($query) use ($previousLogin) {
+        $found = User::whereHas('latest_login', function ($query) use ($previousLogin) {
             $query->where('logins.id', $previousLogin->id);
         })->exists();
         $this->assertFalse($found);
@@ -282,11 +282,11 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testWithHasNested()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $previousLogin = $user->logins()->create();
         $latestLogin = $user->logins()->create();
 
-        $found = HasOneOfManyTestUser::withWhereHas('latest_login', function ($query) use ($latestLogin) {
+        $found = User::withWhereHas('latest_login', function ($query) use ($latestLogin) {
             $query->where('logins.id', $latestLogin->id);
         })->first();
 
@@ -294,7 +294,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
         $this->assertTrue($found->relationLoaded('latest_login'));
         $this->assertEquals($found->latest_login->id, $latestLogin->id);
 
-        $found = HasOneOfManyTestUser::withWhereHas('latest_login', function ($query) use ($previousLogin) {
+        $found = User::withWhereHas('latest_login', function ($query) use ($previousLogin) {
             $query->where('logins.id', $previousLogin->id);
         })->exists();
 
@@ -303,17 +303,17 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testHasCount()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $user->logins()->create();
         $user->logins()->create();
 
-        $user = HasOneOfManyTestUser::withCount('latest_login')->first();
+        $user = User::withCount('latest_login')->first();
         $this->assertEquals(1, $user->latest_login_count);
     }
 
     public function testExists()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $previousLogin = $user->logins()->create();
         $latestLogin = $user->logins()->create();
 
@@ -323,7 +323,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testIsMethod()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $login1 = $user->latest_login()->create();
         $login2 = $user->latest_login()->create();
 
@@ -333,7 +333,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testIsNotMethod()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $login1 = $user->latest_login()->create();
         $login2 = $user->latest_login()->create();
 
@@ -343,7 +343,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testGet()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $previousLogin = $user->logins()->create();
         $latestLogin = $user->logins()->create();
 
@@ -357,7 +357,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testCount()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $user->logins()->create();
         $user->logins()->create();
 
@@ -366,17 +366,17 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testAggregate()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $firstLogin = $user->logins()->create();
         $user->logins()->create();
 
-        $user = HasOneOfManyTestUser::first();
+        $user = User::first();
         $this->assertSame($firstLogin->id, $user->first_login->id);
     }
 
     public function testJoinConstraints()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $user->states()->create([
             'type' => 'foo',
             'state' => 'draft',
@@ -390,13 +390,13 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
             'state' => 'baz',
         ]);
 
-        $user = HasOneOfManyTestUser::first();
+        $user = User::first();
         $this->assertSame($currentForState->id, $user->foo_state->id);
     }
 
     public function testMultipleAggregates()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
 
         $user->prices()->create([
             'published_at' => '2021-05-01 00:00:00',
@@ -405,14 +405,14 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
             'published_at' => '2021-05-01 00:00:00',
         ]);
 
-        $user = HasOneOfManyTestUser::first();
+        $user = User::first();
         $this->assertSame($price->id, $user->price->id);
     }
 
     public function testEagerLoadingWithMultipleAggregates()
     {
-        $user1 = HasOneOfManyTestUser::create();
-        $user2 = HasOneOfManyTestUser::create();
+        $user1 = User::create();
+        $user2 = User::create();
 
         $user1->prices()->create([
             'published_at' => '2021-05-01 00:00:00',
@@ -431,7 +431,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
             'published_at' => '2021-04-01 00:00:00',
         ]);
 
-        $users = HasOneOfManyTestUser::with('price')->get();
+        $users = User::with('price')->get();
 
         $this->assertNotNull($users[0]->price);
         $this->assertSame($user1Price->id, $users[0]->price->id);
@@ -442,21 +442,21 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testWithExists()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
 
-        $user = HasOneOfManyTestUser::withExists('latest_login')->first();
+        $user = User::withExists('latest_login')->first();
         $this->assertFalse($user->latest_login_exists);
 
         $user->logins()->create();
-        $user = HasOneOfManyTestUser::withExists('latest_login')->first();
+        $user = User::withExists('latest_login')->first();
         $this->assertTrue($user->latest_login_exists);
     }
 
     public function testWithExistsWithConstraintsInJoinSubSelect()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
 
-        $user = HasOneOfManyTestUser::withExists('foo_state')->first();
+        $user = User::withExists('foo_state')->first();
 
         $this->assertFalse($user->foo_state_exists);
 
@@ -464,13 +464,13 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
             'type' => 'foo',
             'state' => 'bar',
         ]);
-        $user = HasOneOfManyTestUser::withExists('foo_state')->first();
+        $user = User::withExists('foo_state')->first();
         $this->assertTrue($user->foo_state_exists);
     }
 
     public function testWithSoftDeletes()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
         $user->logins()->create();
         $user->latest_login_with_soft_deletes;
         $this->assertNotNull($user->latest_login_with_soft_deletes);
@@ -478,7 +478,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testWithConstraintNotInAggregate()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
 
         $previousFoo = $user->states()->create([
             'type' => 'foo',
@@ -501,7 +501,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 
     public function testItGetsCorrectResultUsingAtLeastTwoAggregatesDistinctFromId()
     {
-        $user = HasOneOfManyTestUser::create();
+        $user = User::create();
 
         $expectedState = $user->states()->create([
             'state' => 'state',
@@ -544,7 +544,7 @@ class DatabaseEloquentHasOneOfManyTest extends TestCase
 /**
  * Eloquent Models...
  */
-class HasOneOfManyTestUser extends Eloquent
+class User extends Eloquent
 {
     protected ?string $table = 'users';
 
@@ -554,42 +554,42 @@ class HasOneOfManyTestUser extends Eloquent
 
     public function logins()
     {
-        return $this->hasMany(HasOneOfManyTestLogin::class, 'user_id');
+        return $this->hasMany(Login::class, 'user_id');
     }
 
     public function latest_login()
     {
-        return $this->hasOne(HasOneOfManyTestLogin::class, 'user_id')->ofMany();
+        return $this->hasOne(Login::class, 'user_id')->ofMany();
     }
 
     public function latest_login_with_soft_deletes()
     {
-        return $this->hasOne(HasOneOfManyTestLoginWithSoftDeletes::class, 'user_id')->ofMany();
+        return $this->hasOne(LoginWithSoftDeletes::class, 'user_id')->ofMany();
     }
 
     public function latest_login_with_shortcut()
     {
-        return $this->hasOne(HasOneOfManyTestLogin::class, 'user_id')->latestOfMany();
+        return $this->hasOne(Login::class, 'user_id')->latestOfMany();
     }
 
     public function latest_login_with_invalid_aggregate()
     {
-        return $this->hasOne(HasOneOfManyTestLogin::class, 'user_id')->ofMany('id', 'count');
+        return $this->hasOne(Login::class, 'user_id')->ofMany('id', 'count');
     }
 
     public function latest_login_without_global_scope()
     {
-        return $this->hasOne(HasOneOfManyTestLogin::class, 'user_id')->withoutGlobalScopes()->latestOfMany();
+        return $this->hasOne(Login::class, 'user_id')->withoutGlobalScopes()->latestOfMany();
     }
 
     public function first_login()
     {
-        return $this->hasOne(HasOneOfManyTestLogin::class, 'user_id')->ofMany('id', 'min');
+        return $this->hasOne(Login::class, 'user_id')->ofMany('id', 'min');
     }
 
     public function latest_login_with_foo_state()
     {
-        return $this->hasOne(HasOneOfManyTestLogin::class, 'user_id')->ofMany(
+        return $this->hasOne(Login::class, 'user_id')->ofMany(
             ['id' => 'max'],
             function ($query) {
                 $query->join('states', 'states.user_id', 'logins.user_id')
@@ -600,12 +600,12 @@ class HasOneOfManyTestUser extends Eloquent
 
     public function states()
     {
-        return $this->hasMany(HasOneOfManyTestState::class, 'user_id');
+        return $this->hasMany(State::class, 'user_id');
     }
 
     public function foo_state()
     {
-        return $this->hasOne(HasOneOfManyTestState::class, 'user_id')->ofMany(
+        return $this->hasOne(State::class, 'user_id')->ofMany(
             [], // should automatically add 'id' => 'max'
             function ($q) {
                 $q->where('type', 'foo');
@@ -615,7 +615,7 @@ class HasOneOfManyTestUser extends Eloquent
 
     public function last_updated_foo_state()
     {
-        return $this->hasOne(HasOneOfManyTestState::class, 'user_id')->ofMany([
+        return $this->hasOne(State::class, 'user_id')->ofMany([
             'updated_at' => 'max',
             'id' => 'max',
         ], function ($q) {
@@ -625,12 +625,12 @@ class HasOneOfManyTestUser extends Eloquent
 
     public function prices()
     {
-        return $this->hasMany(HasOneOfManyTestPrice::class, 'user_id');
+        return $this->hasMany(Price::class, 'user_id');
     }
 
     public function price()
     {
-        return $this->hasOne(HasOneOfManyTestPrice::class, 'user_id')->ofMany([
+        return $this->hasOne(Price::class, 'user_id')->ofMany([
             'published_at' => 'max',
             'id' => 'max',
         ], function ($q) {
@@ -640,17 +640,17 @@ class HasOneOfManyTestUser extends Eloquent
 
     public function price_without_key_in_aggregates()
     {
-        return $this->hasOne(HasOneOfManyTestPrice::class, 'user_id')->ofMany(['published_at' => 'MAX']);
+        return $this->hasOne(Price::class, 'user_id')->ofMany(['published_at' => 'MAX']);
     }
 
     public function price_with_shortcut()
     {
-        return $this->hasOne(HasOneOfManyTestPrice::class, 'user_id')->latestOfMany(['published_at', 'id']);
+        return $this->hasOne(Price::class, 'user_id')->latestOfMany(['published_at', 'id']);
     }
 
     public function price_without_global_scope()
     {
-        return $this->hasOne(HasOneOfManyTestPrice::class, 'user_id')->withoutGlobalScopes()->ofMany([
+        return $this->hasOne(Price::class, 'user_id')->withoutGlobalScopes()->ofMany([
             'published_at' => 'max',
             'id' => 'max',
         ], function ($q) {
@@ -660,22 +660,22 @@ class HasOneOfManyTestUser extends Eloquent
 
     public function latest_updated_latest_created_state()
     {
-        return $this->hasOne(HasOneOfManyTestState::class, 'user_id')->ofMany([
+        return $this->hasOne(State::class, 'user_id')->ofMany([
             'updated_at' => 'max',
             'created_at' => 'max',
         ]);
     }
 }
 
-class HasOneOfManyTestModel extends Eloquent
+class TestModel extends Eloquent
 {
     public function logins()
     {
-        return $this->hasOne(HasOneOfManyTestLogin::class)->ofMany();
+        return $this->hasOne(Login::class)->ofMany();
     }
 }
 
-class HasOneOfManyTestLogin extends Eloquent
+class Login extends Eloquent
 {
     protected ?string $table = 'logins';
 
@@ -684,7 +684,7 @@ class HasOneOfManyTestLogin extends Eloquent
     public bool $timestamps = false;
 }
 
-class HasOneOfManyTestLoginWithSoftDeletes extends Eloquent
+class LoginWithSoftDeletes extends Eloquent
 {
     use SoftDeletes;
 
@@ -695,7 +695,7 @@ class HasOneOfManyTestLoginWithSoftDeletes extends Eloquent
     public bool $timestamps = false;
 }
 
-class HasOneOfManyTestState extends Eloquent
+class State extends Eloquent
 {
     protected ?string $table = 'states';
 
@@ -706,7 +706,7 @@ class HasOneOfManyTestState extends Eloquent
     protected array $fillable = ['type', 'state', 'updated_at'];
 }
 
-class HasOneOfManyTestPrice extends Eloquent
+class Price extends Eloquent
 {
     protected ?string $table = 'prices';
 
