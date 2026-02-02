@@ -9,6 +9,7 @@ use Hypervel\Database\Query\IndexHint;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use InvalidArgumentException;
 use Override;
 
 class SQLiteGrammar extends Grammar
@@ -132,12 +133,22 @@ class SQLiteGrammar extends Grammar
 
     /**
      * Compile the index hints for the query.
+     *
+     * @throws InvalidArgumentException
      */
     protected function compileIndexHint(Builder $query, IndexHint $indexHint): string
     {
-        return $indexHint->type === 'force'
-            ? "indexed by {$indexHint->index}"
-            : '';
+        if ($indexHint->type !== 'force') {
+            return '';
+        }
+
+        $index = $indexHint->index;
+
+        if (! preg_match('/^[a-zA-Z0-9_$]+$/', $index)) {
+            throw new InvalidArgumentException('Index name contains invalid characters.');
+        }
+
+        return "indexed by {$index}";
     }
 
     /**

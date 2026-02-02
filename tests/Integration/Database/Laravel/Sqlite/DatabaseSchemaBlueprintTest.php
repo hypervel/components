@@ -25,10 +25,8 @@ class DatabaseSchemaBlueprintTest extends TestCase
         $app['config']->set('database.connections.sqlite.foreign_key_constraints', false);
     }
 
-    protected function setUp(): void
+    protected function setUpInCoroutine(): void
     {
-        parent::setUp();
-
         // Purge and reconnect to apply the foreign_key_constraints config
         DB::purge();
         Schema::dropAllTables();

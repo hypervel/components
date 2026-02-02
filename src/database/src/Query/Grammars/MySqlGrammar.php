@@ -9,6 +9,7 @@ use Hypervel\Database\Query\IndexHint;
 use Hypervel\Database\Query\JoinLateralClause;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use InvalidArgumentException;
 use Override;
 
 class MySqlGrammar extends Grammar
@@ -86,13 +87,25 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile the index hints for the query.
+     *
+     * @throws InvalidArgumentException
      */
     protected function compileIndexHint(Builder $query, IndexHint $indexHint): string
     {
+        $index = $indexHint->index;
+
+        $indexes = array_map('trim', explode(',', $index));
+
+        foreach ($indexes as $i) {
+            if (! preg_match('/^[a-zA-Z0-9_$]+$/', $i)) {
+                throw new InvalidArgumentException('Index name contains invalid characters.');
+            }
+        }
+
         return match ($indexHint->type) {
-            'hint' => "use index ({$indexHint->index})",
-            'force' => "force index ({$indexHint->index})",
-            default => "ignore index ({$indexHint->index})",
+            'hint' => "use index ({$index})",
+            'force' => "force index ({$index})",
+            default => "ignore index ({$index})",
         };
     }
 
@@ -230,10 +243,20 @@ class MySqlGrammar extends Grammar
 
     /**
      * Compile the random statement into SQL.
+     *
+     * @throws InvalidArgumentException
      */
     public function compileRandom(string|int $seed): string
     {
-        return 'RAND(' . $seed . ')';
+        if ($seed === '') {
+            return 'RAND()';
+        }
+
+        if (! is_numeric($seed)) {
+            throw new InvalidArgumentException('The seed value must be numeric.');
+        }
+
+        return 'RAND(' . (int) $seed . ')';
     }
 
     /**
@@ -311,6 +334,14 @@ class MySqlGrammar extends Grammar
     }
 
     /**
+     * Determine if the grammar supports straight joins.
+     */
+    protected function supportsStraightJoins(): bool
+    {
+        return true;
+    }
+
+    /**
      * Prepare a JSON column being updated using the JSON_SET function.
      */
     protected function compileJsonUpdateColumn(string $key, mixed $value): string
@@ -372,6 +403,27 @@ class MySqlGrammar extends Grammar
         // When using MySQL, delete statements may contain order by statements and limits
         // so we will compile both of those here. Once we have finished compiling this
         // we will return the completed SQL statement so it will be executed for us.
+        if (! empty($query->orders)) {
+            $sql .= ' ' . $this->compileOrders($query, $query->orders);
+        }
+
+        if (isset($query->limit)) {
+            $sql .= ' ' . $this->compileLimit($query, $query->limit);
+        }
+
+        return $sql;
+    }
+
+    /**
+     * Compile a delete query that uses joins.
+     *
+     * Adds ORDER BY and LIMIT if present, for platforms that allow them (e.g., PlanetScale).
+     * Standard MySQL does not support ORDER BY or LIMIT with joined deletes and will throw a syntax error.
+     */
+    protected function compileDeleteWithJoins(Builder $query, string $table, string $where): string
+    {
+        $sql = parent::compileDeleteWithJoins($query, $table, $where);
+
         if (! empty($query->orders)) {
             $sql .= ' ' . $this->compileOrders($query, $query->orders);
         }

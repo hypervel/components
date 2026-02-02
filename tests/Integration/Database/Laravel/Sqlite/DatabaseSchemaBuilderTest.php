@@ -18,10 +18,8 @@ use Hypervel\Testbench\TestCase;
 #[RequiresDatabase('sqlite')]
 class DatabaseSchemaBuilderTest extends TestCase
 {
-    protected function setUp(): void
+    protected function setUpInCoroutine(): void
     {
-        parent::setUp();
-
         // Clean up all connections before each test
         Schema::dropAllTables();
         Schema::connection('sqlite-with-prefix')->dropAllTables();
