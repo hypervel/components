@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentRelationTest;
 
 use Exception;
 use Hypervel\Database\Connection;
@@ -28,8 +28,8 @@ class DatabaseEloquentRelationTest extends TestCase
 {
     public function testSetRelationFail()
     {
-        $parent = new EloquentRelationResetModelStub();
-        $relation = new EloquentRelationResetModelStub();
+        $parent = new ResetModelStub();
+        $relation = new ResetModelStub();
         $parent->setRelation('test', $relation);
         $parent->setRelation('foo', 'bar');
         $this->assertArrayNotHasKey('foo', $parent->toArray());
@@ -37,8 +37,8 @@ class DatabaseEloquentRelationTest extends TestCase
 
     public function testUnsetExistingRelation()
     {
-        $parent = new EloquentRelationResetModelStub();
-        $relation = new EloquentRelationResetModelStub();
+        $parent = new ResetModelStub();
+        $relation = new ResetModelStub();
         $parent->setRelation('foo', $relation);
         $parent->unsetRelation('foo');
         $this->assertFalse($parent->relationLoaded('foo'));
@@ -49,7 +49,7 @@ class DatabaseEloquentRelationTest extends TestCase
         $builder = m::mock(Builder::class);
         $parent = m::mock(Model::class);
         $parent->shouldReceive('getAttribute')->with('id')->andReturn(1);
-        $related = m::mock(EloquentNoTouchingModelStub::class)->makePartial();
+        $related = m::mock(NoTouchingModelStub::class)->makePartial();
         $builder->shouldReceive('getModel')->andReturn($related);
         $builder->shouldReceive('whereNotNull');
         $builder->shouldReceive('where');
@@ -66,8 +66,8 @@ class DatabaseEloquentRelationTest extends TestCase
 
     public function testCanDisableParentTouchingForAllModels()
     {
-        /** @var \Illuminate\Tests\Database\EloquentNoTouchingModelStub $related */
-        $related = m::mock(EloquentNoTouchingModelStub::class)->makePartial();
+        /** @var \Illuminate\Tests\Database\NoTouchingModelStub $related */
+        $related = m::mock(NoTouchingModelStub::class)->makePartial();
         $related->shouldReceive('getUpdatedAtColumn')->never();
         $related->shouldReceive('freshTimestampString')->never();
 
@@ -95,16 +95,16 @@ class DatabaseEloquentRelationTest extends TestCase
 
     public function testCanDisableTouchingForSpecificModel()
     {
-        $related = m::mock(EloquentNoTouchingModelStub::class)->makePartial();
+        $related = m::mock(NoTouchingModelStub::class)->makePartial();
         $related->shouldReceive('getUpdatedAtColumn')->never();
         $related->shouldReceive('freshTimestampString')->never();
 
-        $anotherRelated = m::mock(EloquentNoTouchingAnotherModelStub::class)->makePartial();
+        $anotherRelated = m::mock(NoTouchingAnotherModelStub::class)->makePartial();
 
         $this->assertFalse($related::isIgnoringTouch());
         $this->assertFalse($anotherRelated::isIgnoringTouch());
 
-        EloquentNoTouchingModelStub::withoutTouching(function () use ($related, $anotherRelated) {
+        NoTouchingModelStub::withoutTouching(function () use ($related, $anotherRelated) {
             $this->assertTrue($related::isIgnoringTouch());
             $this->assertFalse($anotherRelated::isIgnoringTouch());
 
@@ -143,18 +143,18 @@ class DatabaseEloquentRelationTest extends TestCase
 
     public function testParentModelIsNotTouchedWhenChildModelIsIgnored()
     {
-        $related = m::mock(EloquentNoTouchingModelStub::class)->makePartial();
+        $related = m::mock(NoTouchingModelStub::class)->makePartial();
         $related->shouldReceive('getUpdatedAtColumn')->never();
         $related->shouldReceive('freshTimestampString')->never();
 
-        $relatedChild = m::mock(EloquentNoTouchingChildModelStub::class)->makePartial();
+        $relatedChild = m::mock(NoTouchingChildModelStub::class)->makePartial();
         $relatedChild->shouldReceive('getUpdatedAtColumn')->never();
         $relatedChild->shouldReceive('freshTimestampString')->never();
 
         $this->assertFalse($related::isIgnoringTouch());
         $this->assertFalse($relatedChild::isIgnoringTouch());
 
-        EloquentNoTouchingModelStub::withoutTouching(function () use ($related, $relatedChild) {
+        NoTouchingModelStub::withoutTouching(function () use ($related, $relatedChild) {
             $this->assertTrue($related::isIgnoringTouch());
             $this->assertTrue($relatedChild::isIgnoringTouch());
 
@@ -191,11 +191,11 @@ class DatabaseEloquentRelationTest extends TestCase
 
     public function testIgnoredModelsStateIsResetWhenThereAreExceptions()
     {
-        $related = m::mock(EloquentNoTouchingModelStub::class)->makePartial();
+        $related = m::mock(NoTouchingModelStub::class)->makePartial();
         $related->shouldReceive('getUpdatedAtColumn')->never();
         $related->shouldReceive('freshTimestampString')->never();
 
-        $relatedChild = m::mock(EloquentNoTouchingChildModelStub::class)->makePartial();
+        $relatedChild = m::mock(NoTouchingChildModelStub::class)->makePartial();
         $relatedChild->shouldReceive('getUpdatedAtColumn')->never();
         $relatedChild->shouldReceive('freshTimestampString')->never();
 
@@ -203,7 +203,7 @@ class DatabaseEloquentRelationTest extends TestCase
         $this->assertFalse($relatedChild::isIgnoringTouch());
 
         try {
-            EloquentNoTouchingModelStub::withoutTouching(function () use ($related, $relatedChild) {
+            NoTouchingModelStub::withoutTouching(function () use ($related, $relatedChild) {
                 $this->assertTrue($related::isIgnoringTouch());
                 $this->assertTrue($relatedChild::isIgnoringTouch());
 
@@ -221,10 +221,10 @@ class DatabaseEloquentRelationTest extends TestCase
 
     public function testSettingMorphMapWithNumericArrayUsesTheTableNames()
     {
-        Relation::morphMap([EloquentRelationResetModelStub::class]);
+        Relation::morphMap([ResetModelStub::class]);
 
         $this->assertEquals([
-            'reset' => EloquentRelationResetModelStub::class,
+            'reset' => ResetModelStub::class,
         ], Relation::morphMap());
 
         Relation::morphMap([], false);
@@ -251,7 +251,7 @@ class DatabaseEloquentRelationTest extends TestCase
 
     public function testWithoutRelations()
     {
-        $original = new EloquentNoTouchingModelStub();
+        $original = new NoTouchingModelStub();
 
         $original->setRelation('foo', 'baz');
 
@@ -259,13 +259,13 @@ class DatabaseEloquentRelationTest extends TestCase
 
         $model = $original->withoutRelations();
 
-        $this->assertInstanceOf(EloquentNoTouchingModelStub::class, $model);
+        $this->assertInstanceOf(NoTouchingModelStub::class, $model);
         $this->assertTrue($original->relationLoaded('foo'));
         $this->assertFalse($model->relationLoaded('foo'));
 
         $model = $original->unsetRelations();
 
-        $this->assertInstanceOf(EloquentNoTouchingModelStub::class, $model);
+        $this->assertInstanceOf(NoTouchingModelStub::class, $model);
         $this->assertFalse($original->relationLoaded('foo'));
         $this->assertFalse($model->relationLoaded('foo'));
     }
@@ -276,7 +276,7 @@ class DatabaseEloquentRelationTest extends TestCase
             return 'foo';
         });
 
-        $model = new EloquentRelationResetModelStub();
+        $model = new ResetModelStub();
         $model->setConnectionResolver($resolver = m::mock(ConnectionResolverInterface::class));
         $resolver->shouldReceive('connection')->andReturn($connection = m::mock(Connection::class));
         $connection->shouldReceive('getQueryGrammar')->andReturn($grammar = m::mock(Grammar::class));
@@ -286,7 +286,7 @@ class DatabaseEloquentRelationTest extends TestCase
             return new QueryBuilder($connection, $grammar, $processor);
         });
 
-        $relation = new EloquentRelationStub($model->newQuery(), $model);
+        $relation = new RelationStub($model->newQuery(), $model);
 
         $result = $relation->foo();
         $this->assertSame('foo', $result);
@@ -294,14 +294,14 @@ class DatabaseEloquentRelationTest extends TestCase
 
     public function testIsRelationIgnoresAttribute()
     {
-        $model = new EloquentRelationAndAttributeModelStub();
+        $model = new RelationAndAttributeModelStub();
 
         $this->assertTrue($model->isRelation('parent'));
         $this->assertFalse($model->isRelation('field'));
     }
 }
 
-class EloquentRelationResetModelStub extends Model
+class ResetModelStub extends Model
 {
     protected ?string $table = 'reset';
 
@@ -313,7 +313,7 @@ class EloquentRelationResetModelStub extends Model
     }
 }
 
-class EloquentRelationStub extends Relation
+class RelationStub extends Relation
 {
     public function addConstraints(): void
     {
@@ -339,7 +339,7 @@ class EloquentRelationStub extends Relation
     }
 }
 
-class EloquentNoTouchingModelStub extends Model
+class NoTouchingModelStub extends Model
 {
     protected ?string $table = 'table';
 
@@ -348,11 +348,11 @@ class EloquentNoTouchingModelStub extends Model
     ];
 }
 
-class EloquentNoTouchingChildModelStub extends EloquentNoTouchingModelStub
+class NoTouchingChildModelStub extends NoTouchingModelStub
 {
 }
 
-class EloquentNoTouchingAnotherModelStub extends Model
+class NoTouchingAnotherModelStub extends Model
 {
     protected ?string $table = 'another_table';
 
@@ -361,7 +361,7 @@ class EloquentNoTouchingAnotherModelStub extends Model
     ];
 }
 
-class EloquentRelationAndAttributeModelStub extends Model
+class RelationAndAttributeModelStub extends Model
 {
     protected ?string $table = 'one_more_table';
 

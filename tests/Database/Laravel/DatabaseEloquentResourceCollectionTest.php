@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentResourceCollectionTest;
 
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Http\Resources\Json\AnonymousResourceCollection;

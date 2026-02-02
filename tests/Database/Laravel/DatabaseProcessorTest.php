@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseProcessorTest;
 
 use Hypervel\Database\Connection;
 use Hypervel\Database\Query\Builder;
@@ -19,7 +19,7 @@ class DatabaseProcessorTest extends TestCase
 {
     public function testInsertGetIdProcessing()
     {
-        $pdo = $this->createMock(ProcessorTestPDOStub::class);
+        $pdo = $this->createMock(PDOStub::class);
         $pdo->expects($this->once())->method('lastInsertId')->with($this->equalTo('id'))->willReturn('1');
         $connection = m::mock(Connection::class);
         $connection->shouldReceive('insert')->once()->with('sql', ['foo']);
@@ -32,7 +32,7 @@ class DatabaseProcessorTest extends TestCase
     }
 }
 
-class ProcessorTestPDOStub extends PDO
+class PDOStub extends PDO
 {
     public function __construct()
     {

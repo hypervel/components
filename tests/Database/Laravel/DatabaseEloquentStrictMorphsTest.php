@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentStrictMorphsTest;
 
 use Hypervel\Database\ClassMorphViolationException;
 use Hypervel\Database\Eloquent\Model;
@@ -27,17 +27,17 @@ class DatabaseEloquentStrictMorphsTest extends TestCase
     {
         $this->expectException(ClassMorphViolationException::class);
 
-        $model = new StrictMorphsTestModel();
+        $model = new ModelStub();
 
         $model->getMorphClass();
     }
 
     public function testStrictModeDoesNotThrowExceptionWhenMorphMap()
     {
-        $model = new StrictMorphsTestModel();
+        $model = new ModelStub();
 
         Relation::morphMap([
-            'test' => StrictMorphsTestModel::class,
+            'test' => ModelStub::class,
         ]);
 
         $morphName = $model->getMorphClass();
@@ -46,12 +46,12 @@ class DatabaseEloquentStrictMorphsTest extends TestCase
 
     public function testMapsCanBeEnforcedInOneMethod()
     {
-        $model = new StrictMorphsTestModel();
+        $model = new ModelStub();
 
         Relation::requireMorphMap(false);
 
         Relation::enforceMorphMap([
-            'test' => StrictMorphsTestModel::class,
+            'test' => ModelStub::class,
         ]);
 
         $morphName = $model->getMorphClass();
@@ -69,7 +69,7 @@ class DatabaseEloquentStrictMorphsTest extends TestCase
     {
         $this->expectException(ClassMorphViolationException::class);
 
-        $pivotModel = new TestPivotModel();
+        $pivotModel = new PivotStub();
 
         $pivotModel->getMorphClass();
     }
@@ -83,10 +83,10 @@ class DatabaseEloquentStrictMorphsTest extends TestCase
     }
 }
 
-class StrictMorphsTestModel extends Model
+class ModelStub extends Model
 {
 }
 
-class TestPivotModel extends Pivot
+class PivotStub extends Pivot
 {
 }

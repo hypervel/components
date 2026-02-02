@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseSoftDeletingTraitTest;
 
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Support\Carbon;
@@ -18,7 +18,7 @@ class DatabaseSoftDeletingTraitTest extends TestCase
 {
     public function testDeleteSetsSoftDeletedColumn()
     {
-        $model = m::mock(DatabaseSoftDeletingTraitStub::class);
+        $model = m::mock(Stub::class);
         $model->makePartial();
         $model->shouldReceive('newModelQuery')->andReturn($query = m::mock(stdClass::class));
         $query->shouldReceive('where')->once()->with('id', '=', 1)->andReturn($query);
@@ -38,7 +38,7 @@ class DatabaseSoftDeletingTraitTest extends TestCase
 
     public function testRestore()
     {
-        $model = m::mock(DatabaseSoftDeletingTraitStub::class);
+        $model = m::mock(Stub::class);
         $model->makePartial();
         $model->shouldReceive('fireModelEvent')->with('restoring')->andReturn(true);
         $model->shouldReceive('save')->once();
@@ -51,7 +51,7 @@ class DatabaseSoftDeletingTraitTest extends TestCase
 
     public function testRestoreCancel()
     {
-        $model = m::mock(DatabaseSoftDeletingTraitStub::class);
+        $model = m::mock(Stub::class);
         $model->makePartial();
         $model->shouldReceive('fireModelEvent')->with('restoring')->andReturn(false);
         $model->shouldReceive('save')->never();
@@ -60,7 +60,7 @@ class DatabaseSoftDeletingTraitTest extends TestCase
     }
 }
 
-class DatabaseSoftDeletingTraitStub
+class Stub
 {
     use SoftDeletes;
 

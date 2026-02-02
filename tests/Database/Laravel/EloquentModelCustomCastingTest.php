@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\EloquentModelCustomCastingTest;
 
 use Brick\Math\BigNumber;
 use GMP;

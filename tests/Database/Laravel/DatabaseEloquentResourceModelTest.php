@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Database\Laravel;
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentResourceModelTest;
 
 use Hypervel\Tests\Database\Laravel\Fixtures\Models\EloquentResourceTestResourceModel;
 use Hypervel\Tests\Database\Laravel\Fixtures\Models\EloquentResourceTestResourceModelWithGuessableResource;
