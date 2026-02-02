@@ -19,7 +19,7 @@ class SchemaStateTest extends SqliteTestCase
     use InteractsWithPublishedFiles;
 
     protected $files = [
-        'database/schema',
+        'database/schema/*',
     ];
 
     protected function setUp(): void
@@ -32,6 +32,9 @@ class SchemaStateTest extends SqliteTestCase
     protected function tearDown(): void
     {
         remote('db:wipe')->mustRun();
+
+        // Restore migrations table for parent's migrate:rollback
+        remote('migrate:install')->mustRun();
 
         parent::tearDown();
     }

@@ -64,6 +64,9 @@ class DatabaseSchemaBuilderTest extends SqliteTestCase
 
         $this->assertFalse(Schema::hasTable('table1'));
         $this->assertFalse(Schema::hasTable('table2'));
+
+        // Restore migrations table for teardown's migrate:rollback
+        $this->artisan('migrate:install');
     }
 
     public function testHasColumnAndIndexWithPrefixIndexDisabled()
