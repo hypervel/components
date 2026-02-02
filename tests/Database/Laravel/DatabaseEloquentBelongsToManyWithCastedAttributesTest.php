@@ -8,10 +8,10 @@ use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use stdClass;
 
 /**
  * @internal
@@ -69,7 +69,7 @@ class DatabaseEloquentBelongsToManyWithCastedAttributesTest extends TestCase
         $related->shouldReceive('qualifyColumn');
         $builder->shouldReceive('join', 'where');
         $builder->shouldReceive('getQuery')->andReturn(
-            m::mock(stdClass::class, ['getGrammar' => m::mock(Grammar::class, ['isExpression' => false])])
+            m::mock(QueryBuilder::class, ['getGrammar' => m::mock(Grammar::class, ['isExpression' => false])])
         );
 
         return new BelongsToMany(

@@ -7,10 +7,10 @@ namespace Hypervel\Tests\Database\Laravel;
 use Hypervel\Database\Eloquent\Builder;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Eloquent\Relations\BelongsToMany;
+use Hypervel\Database\Query\Builder as QueryBuilder;
 use Hypervel\Database\Query\Grammars\Grammar;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use stdClass;
 
 /**
  * @internal
@@ -38,7 +38,7 @@ class DatabaseEloquentBelongsToManyWithoutTouchingTest extends TestCase
             $builder->shouldReceive('getModel')->andReturn($related);
             $builder->shouldReceive('where');
             $builder->shouldReceive('getQuery')->andReturn(
-                m::mock(stdClass::class, ['getGrammar' => m::mock(Grammar::class, ['isExpression' => false])])
+                m::mock(QueryBuilder::class, ['getGrammar' => m::mock(Grammar::class, ['isExpression' => false])])
             );
             $relation = new BelongsToMany($builder, $parent, 'article_users', 'user_id', 'article_id', 'id', 'id');
             $builder->shouldReceive('update')->never();

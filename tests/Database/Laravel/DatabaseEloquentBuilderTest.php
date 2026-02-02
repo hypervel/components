@@ -214,7 +214,8 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->getQuery()->shouldReceive('whereIntegerInRaw')->with('foo_table.foo', [1, 2, 3])->once();
         $builder->shouldReceive('get')->andReturn(new Collection([$model1, $model2]))->once();
         $builder->shouldReceive('get')->with(['column'])->andReturn(new Collection([$model1, $model2]))->once();
-        // Return empty collection to trigger callback (count mismatch with requested IDs)
+        // findOr with multiple IDs always returns Collection (even empty) - callback is NOT triggered
+        // because find() only returns null for single non-existent ID, not for arrays
         $builder->shouldReceive('get')->andReturn(new Collection())->once();
 
         $result = $builder->findOr([1, 2], fn () => 'callback result');
@@ -227,8 +228,10 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame($model1, $result[0]);
         $this->assertSame($model2, $result[1]);
 
+        // When no models found, still returns empty Collection (not callback result)
         $result = $builder->findOr([1, 2, 3], fn () => 'callback result');
-        $this->assertSame('callback result', $result);
+        $this->assertInstanceOf(Collection::class, $result);
+        $this->assertCount(0, $result);
     }
 
     public function testFindOrMethodWithManyUsingCollection()
@@ -243,7 +246,7 @@ class DatabaseEloquentBuilderTest extends TestCase
         $builder->getQuery()->shouldReceive('whereIntegerInRaw')->with('foo_table.foo', [1, 2, 3])->once();
         $builder->shouldReceive('get')->andReturn(new Collection([$model1, $model2]))->once();
         $builder->shouldReceive('get')->with(['column'])->andReturn(new Collection([$model1, $model2]))->once();
-        // Return empty collection to trigger callback (count mismatch with requested IDs)
+        // findOr with multiple IDs always returns Collection (even empty) - callback is NOT triggered
         $builder->shouldReceive('get')->andReturn(new Collection())->once();
 
         $result = $builder->findOr(new Collection([1, 2]), fn () => 'callback result');
@@ -256,8 +259,10 @@ class DatabaseEloquentBuilderTest extends TestCase
         $this->assertSame($model1, $result[0]);
         $this->assertSame($model2, $result[1]);
 
+        // When no models found, still returns empty Collection (not callback result)
         $result = $builder->findOr(new Collection([1, 2, 3]), fn () => 'callback result');
-        $this->assertSame('callback result', $result);
+        $this->assertInstanceOf(Collection::class, $result);
+        $this->assertCount(0, $result);
     }
 
     public function testFirstOrFailMethodThrowsModelNotFoundException()
@@ -376,8 +381,8 @@ class DatabaseEloquentBuilderTest extends TestCase
     public function testValueOrFailMethodWithModelFound()
     {
         $builder = m::mock(Builder::class . '[first]', [$this->getMockQueryBuilder()]);
-        $mockModel = m::mock(Model::class);
-        $mockModel->name = 'foo';
+        $mockModel = m::mock(Model::class)->makePartial();
+        $mockModel->forceFill(['name' => 'foo']);
         $builder->shouldReceive('first')->with(['name'])->andReturn($mockModel);
 
         $this->assertSame('foo', $builder->valueOrFail('name'));
