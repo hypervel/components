@@ -1036,7 +1036,7 @@ class Connection implements ConnectionInterface
      *
      * @throws RuntimeException
      */
-    public function escape(string|float|int|bool|null $value, bool $binary = false): string
+    public function escape(mixed $value, bool $binary = false): string
     {
         if ($value === null) {
             return 'null';
@@ -1049,6 +1049,9 @@ class Connection implements ConnectionInterface
         }
         if (is_bool($value)) {
             return $this->escapeBool($value);
+        }
+        if (is_array($value)) {
+            throw new RuntimeException('The database connection does not support escaping arrays.');
         }
         if (str_contains($value, "\00")) {
             throw new RuntimeException('Strings with null bytes cannot be escaped. Use the binary escape option.');

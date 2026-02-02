@@ -238,6 +238,6 @@ class UserWithUpdatedAtViaMutator extends Model
             return;
         }
 
-        $this->updated_at = $value;
+        $this->attributes['updated_at'] = $value;
     }
 }
