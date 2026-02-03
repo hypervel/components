@@ -221,8 +221,7 @@ class Mailable implements MailableContract, Renderable
      */
     protected function newQueuedJob(): mixed
     {
-        return ApplicationContext::getContainer()
-            ->get(SendQueuedMailable::class)
+        return make(SendQueuedMailable::class, ['mailable' => $this])
             ->through(array_merge(
                 method_exists($this, 'middleware') ? $this->middleware() : [],
                 $this->middleware ?? []
