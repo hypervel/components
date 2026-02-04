@@ -280,7 +280,6 @@ class Comment extends Model
  */
 class CommonBuilder extends Builder
 {
-    /** @return $this */
     public function foo(): static
     {
         return $this->where('foo', 'bar');

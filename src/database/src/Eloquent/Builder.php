@@ -779,7 +779,7 @@ class Builder implements BuilderContract
     /**
      * Execute the query as a "select" statement.
      *
-     * @return BaseCollection|Collection<int, TModel>
+     * @phpstan-return Collection<int, TModel>
      */
     public function get(array|string $columns = ['*']): BaseCollection
     {
