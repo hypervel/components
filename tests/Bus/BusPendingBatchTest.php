@@ -15,6 +15,24 @@ use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
+use TypeError;
+
+enum PendingBatchTestConnectionEnum: string
+{
+    case Redis = 'redis';
+    case Database = 'database';
+}
+
+enum PendingBatchTestConnectionUnitEnum
+{
+    case sync;
+    case async;
+}
+
+enum PendingBatchTestConnectionIntEnum: int
+{
+    case Primary = 1;
+}
 
 /**
  * @internal
@@ -217,6 +235,37 @@ class BusPendingBatchTest extends TestCase
         $pendingBatch->dispatch();
 
         $this->assertTrue($beforeCalled);
+    }
+
+    public function testOnConnectionAcceptsStringBackedEnum(): void
+    {
+        $container = $this->getContainer();
+        $pendingBatch = new PendingBatch($container, new Collection([]));
+
+        $pendingBatch->onConnection(PendingBatchTestConnectionEnum::Redis);
+
+        $this->assertSame('redis', $pendingBatch->connection());
+    }
+
+    public function testOnConnectionAcceptsUnitEnum(): void
+    {
+        $container = $this->getContainer();
+        $pendingBatch = new PendingBatch($container, new Collection([]));
+
+        $pendingBatch->onConnection(PendingBatchTestConnectionUnitEnum::sync);
+
+        $this->assertSame('sync', $pendingBatch->connection());
+    }
+
+    public function testOnConnectionWithIntBackedEnumThrowsTypeError(): void
+    {
+        $this->expectException(TypeError::class);
+
+        $container = $this->getContainer();
+        $pendingBatch = new PendingBatch($container, new Collection([]));
+
+        $pendingBatch->onConnection(PendingBatchTestConnectionIntEnum::Primary);
+        $pendingBatch->connection(); // TypeError thrown here on return type mismatch
     }
 
     protected function getContainer(array $bindings = []): Container

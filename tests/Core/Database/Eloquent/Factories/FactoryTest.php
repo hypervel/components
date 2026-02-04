@@ -20,6 +20,25 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Core\Database\Fixtures\Models\Price;
 use Mockery as m;
 use ReflectionClass;
+use TypeError;
+
+enum FactoryTestStringBackedConnection: string
+{
+    case Default = 'default';
+    case Testing = 'testing';
+}
+
+enum FactoryTestIntBackedConnection: int
+{
+    case Default = 1;
+    case Testing = 2;
+}
+
+enum FactoryTestUnitConnection
+{
+    case default;
+    case testing;
+}
 
 /**
  * @internal
@@ -847,6 +866,43 @@ class FactoryTest extends TestCase
 
         // After flush, namespace should be reset
         $this->assertSame('Database\Factories\\', Factory::$namespace);
+    }
+
+    public function testConnectionAcceptsStringBackedEnum()
+    {
+        $factory = FactoryTestUserFactory::new()->connection(FactoryTestStringBackedConnection::Testing);
+
+        $this->assertSame('testing', $factory->getConnectionName());
+    }
+
+    public function testConnectionWithIntBackedEnumThrowsTypeError()
+    {
+        $factory = FactoryTestUserFactory::new()->connection(FactoryTestIntBackedConnection::Testing);
+
+        // Int-backed enum causes TypeError because getConnectionName() returns ?string
+        $this->expectException(TypeError::class);
+        $factory->getConnectionName();
+    }
+
+    public function testConnectionAcceptsUnitEnum()
+    {
+        $factory = FactoryTestUserFactory::new()->connection(FactoryTestUnitConnection::testing);
+
+        $this->assertSame('testing', $factory->getConnectionName());
+    }
+
+    public function testConnectionAcceptsString()
+    {
+        $factory = FactoryTestUserFactory::new()->connection('mysql');
+
+        $this->assertSame('mysql', $factory->getConnectionName());
+    }
+
+    public function testGetConnectionNameReturnsNullByDefault()
+    {
+        $factory = FactoryTestUserFactory::new();
+
+        $this->assertNull($factory->getConnectionName());
     }
 }
 

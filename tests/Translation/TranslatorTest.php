@@ -15,6 +15,21 @@ use PHPUnit\Framework\TestCase;
 
 use function Hypervel\Coroutine\run;
 
+enum TranslatorTestStringBackedEnum: string
+{
+    case February = 'February';
+}
+
+enum TranslatorTestIntBackedEnum: int
+{
+    case Thirteen = 13;
+}
+
+enum TranslatorTestUnitEnum
+{
+    case Hosni;
+}
+
 /**
  * @internal
  * @coversNothing
@@ -289,6 +304,35 @@ class TranslatorTest extends TestCase
         $this->assertSame(
             'the date is 1st Jan 1970',
             $translator->get('test', ['date' => $date])
+        );
+    }
+
+    public function testGetJsonReplacesWithEnums()
+    {
+        $translator = new Translator($this->getLoader(), 'en');
+        $translator->getLoader()
+            ->shouldReceive('load')
+            ->once()
+            ->with('en', '*', '*')
+            ->andReturn([
+                'string_backed_enum' => 'Laravel 12 was released in :month 2025',
+                'int_backed_enum' => 'Stay tuned for Laravel v:version',
+                'unit_enum' => ':person gets excited about every new Laravel release',
+            ]);
+
+        $this->assertSame(
+            'Laravel 12 was released in February 2025',
+            $translator->get('string_backed_enum', ['month' => TranslatorTestStringBackedEnum::February])
+        );
+
+        $this->assertSame(
+            'Stay tuned for Laravel v13',
+            $translator->get('int_backed_enum', ['version' => TranslatorTestIntBackedEnum::Thirteen])
+        );
+
+        $this->assertSame(
+            'Hosni gets excited about every new Laravel release',
+            $translator->get('unit_enum', ['person' => TranslatorTestUnitEnum::Hosni])
         );
     }
 
