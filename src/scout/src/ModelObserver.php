@@ -78,7 +78,7 @@ class ModelObserver
      *
      * Uses Context for coroutine-safe state management.
      *
-     * @param object|class-string<Model> $class
+     * @param class-string<Model>|object $class
      */
     public static function syncingDisabledFor(object|string $class): bool
     {
@@ -98,13 +98,13 @@ class ModelObserver
             return;
         }
 
-        /** @phpstan-ignore method.notFound (provided by Searchable trait) */
+        /* @phpstan-ignore method.notFound (provided by Searchable trait) */
         if (! $this->forceSaving && ! $model->searchIndexShouldBeUpdated()) {
             return;
         }
 
         if (! $model->shouldBeSearchable()) {
-            /** @phpstan-ignore method.notFound (provided by Searchable trait) */
+            /* @phpstan-ignore method.notFound (provided by Searchable trait) */
             if ($model->wasSearchableBeforeUpdate()) {
                 $model->unsearchable();
             }
@@ -126,7 +126,7 @@ class ModelObserver
             return;
         }
 
-        /** @phpstan-ignore method.notFound (provided by Searchable trait) */
+        /* @phpstan-ignore method.notFound (provided by Searchable trait) */
         if (! $model->wasSearchableBeforeDelete()) {
             return;
         }

@@ -83,7 +83,7 @@ abstract class MeilisearchScoutIntegrationTestCase extends MeilisearchIntegratio
             '--database' => $this->getRefreshConnection(),
             '--realpath' => true,
             '--path' => [
-                dirname(__DIR__, 2) . '/migrations',
+                dirname(__DIR__, 3) . '/Scout/migrations',
             ],
         ];
     }

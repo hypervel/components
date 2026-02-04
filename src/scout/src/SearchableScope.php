@@ -42,7 +42,7 @@ class SearchableScope implements Scope
 
             $builder->chunkById($chunkSize, function (Collection $models) {
                 /** @var EloquentCollection<int, Model&SearchableInterface> $models */
-                /** @phpstan-ignore method.notFound (searchable() added via Searchable trait) */
+                /* @phpstan-ignore method.notFound (searchable() added via Searchable trait) */
                 $models->filter(fn ($m) => $m->shouldBeSearchable())->searchable();
 
                 static::dispatchEvent(new ModelsImported($models));
@@ -57,7 +57,7 @@ class SearchableScope implements Scope
 
             $builder->chunkById($chunkSize, function (Collection $models) {
                 /** @var EloquentCollection<int, Model&SearchableInterface> $models */
-                /** @phpstan-ignore method.notFound (unsearchable() added via Searchable trait) */
+                /* @phpstan-ignore method.notFound (unsearchable() added via Searchable trait) */
                 $models->unsearchable();
 
                 static::dispatchEvent(new ModelsFlushed($models));

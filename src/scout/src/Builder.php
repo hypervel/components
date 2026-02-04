@@ -382,7 +382,7 @@ class Builder
         )->all();
         $results = $this->model->newCollection($mappedModels);
 
-        return (new Paginator($results, $perPage, $page, [ /** @phpstan-ignore-line */
+        return (new Paginator($results, $perPage, $page, [/* @phpstan-ignore-line */
             'path' => Paginator::resolveCurrentPath(),
             'pageName' => $pageName,
         ]))->hasMorePagesWhen(
@@ -421,7 +421,7 @@ class Builder
         $results = $this->model->newCollection($mappedModels);
 
         return (new LengthAwarePaginator(
-            $results, /** @phpstan-ignore-line */
+            $results, /* @phpstan-ignore-line */
             $this->getTotalCount($rawResults),
             $perPage,
             $page,
