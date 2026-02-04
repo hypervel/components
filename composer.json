@@ -63,6 +63,7 @@
             "Hypervel\\Redis\\": "src/redis/src/",
             "Hypervel\\Router\\": "src/router/src/",
             "Hypervel\\Sanctum\\": "src/sanctum/src/",
+            "Hypervel\\Scout\\": "src/scout/src/",
             "Hypervel\\Session\\": "src/session/src/",
             "Hypervel\\Socialite\\": "src/socialite/src/",
             "Hypervel\\Support\\": ["src/collections/src/", "src/conditionable/src/", "src/macroable/src/", "src/reflection/src/", "src/support/src/"],
@@ -204,6 +205,8 @@
         "hypervel/redis": "self.version",
         "hypervel/reflection": "self.version",
         "hypervel/router": "self.version",
+        "hypervel/sanctum": "self.version",
+        "hypervel/scout": "self.version",
         "hypervel/session": "self.version",
         "hypervel/socialite": "self.version",
         "hypervel/support": "self.version",
@@ -225,7 +228,9 @@
         "symfony/mailgun-mailer": "Required to enable support for the Mailgun mail transport (^6.2).",
         "symfony/postmark-mailer": "Required to enable support for the Postmark mail transport (^6.2).",
         "ably/ably-php": "Required to use the Ably broadcast driver (^1.0).",
-        "pusher/pusher-php-server": "Required to use the Pusher broadcast driver (^6.0|^7.0)."
+        "pusher/pusher-php-server": "Required to use the Pusher broadcast driver (^6.0|^7.0).",
+        "meilisearch/meilisearch-php": "Required to use the Meilisearch Scout driver (^1.16).",
+        "typesense/typesense-php": "Required to use the Typesense Scout driver (^5.2)."
     },
     "require-dev": {
         "ably/ably-php": "^1.0",
@@ -242,6 +247,7 @@
         "league/flysystem-google-cloud-storage": "^3.0",
         "league/flysystem-path-prefixing": "^3.3",
         "league/flysystem-read-only": "^3.3",
+        "meilisearch/meilisearch-php": "^1.16",
         "mockery/mockery": "1.6.x-dev",
         "nunomaduro/collision": "^8.5",
         "pda/pheanstalk": "v5.0.9",
@@ -249,7 +255,8 @@
         "phpunit/phpunit": "10.5.45",
         "pusher/pusher-php-server": "^7.2",
         "swoole/ide-helper": "~5.1.0",
-        "symfony/yaml": "^7.3"
+        "symfony/yaml": "^7.3",
+        "typesense/typesense-php": "^5.2"
     },
     "config": {
         "sort-packages": true,
@@ -295,6 +302,7 @@
         "hypervel": {
             "providers": [
                 "Hypervel\\Notifications\\NotificationServiceProvider",
+                "Hypervel\\Scout\\ScoutServiceProvider",
                 "Hypervel\\Telescope\\TelescopeServiceProvider",
                 "Hypervel\\Sentry\\SentryServiceProvider"
             ]
