@@ -5,18 +5,18 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use Hyperf\Contract\ConfigInterface;
+use Hypervel\Foundation\Testing\Concerns\InteractsWithMeilisearch;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Testbench\TestCase;
-use Meilisearch\Client as MeilisearchClient;
 use Throwable;
 
 /**
  * Base test case for Meilisearch integration tests.
  *
- * Provides parallel-safe Meilisearch testing infrastructure:
- * - Uses TEST_TOKEN env var (from paratest) to create unique index prefixes
- * - Configures Meilisearch client from environment variables
- * - Cleans up test indexes in setUp/tearDown
+ * Uses InteractsWithMeilisearch trait for:
+ * - Auto-skip: Skips tests if Meilisearch is unavailable (no env var needed)
+ * - Parallel-safe: Uses TEST_TOKEN for unique index prefixes
+ * - Auto-cleanup: Removes test indexes in teardown
  *
  * NOTE: This base class does NOT include RunTestsInCoroutine. Subclasses
  * should add the trait if they need coroutine context for their tests.
@@ -26,6 +26,8 @@ use Throwable;
  */
 abstract class MeilisearchIntegrationTestCase extends TestCase
 {
+    use InteractsWithMeilisearch;
+
     /**
      * Base index prefix for integration tests.
      */
@@ -37,11 +39,6 @@ abstract class MeilisearchIntegrationTestCase extends TestCase
     protected string $testPrefix;
 
     /**
-     * The Meilisearch client instance.
-     */
-    protected MeilisearchClient $meilisearch;
-
-    /**
      * Track indexes created during tests for cleanup.
      *
      * @var array<string>
@@ -50,13 +47,8 @@ abstract class MeilisearchIntegrationTestCase extends TestCase
 
     protected function setUp(): void
     {
-        if (! env('RUN_MEILISEARCH_INTEGRATION_TESTS', false)) {
-            $this->markTestSkipped(
-                'Meilisearch integration tests are disabled. Set RUN_MEILISEARCH_INTEGRATION_TESTS=true to enable.'
-            );
-        }
-
         $this->computeTestPrefix();
+        $this->meilisearchTestPrefix = $this->testPrefix; // Sync trait's prefix
 
         parent::setUp();
 
@@ -69,18 +61,18 @@ abstract class MeilisearchIntegrationTestCase extends TestCase
      *
      * Subclasses using RunTestsInCoroutine should call this in setUpInCoroutine().
      * Subclasses NOT using the trait should call this at the end of setUp().
+     *
+     * Uses the trait's auto-skip logic - skips if Meilisearch is unavailable.
      */
     protected function initializeMeilisearch(): void
     {
-        $this->meilisearch = $this->app->get(MeilisearchClient::class);
-        $this->cleanupTestIndexes();
+        $this->setUpInteractsWithMeilisearch();
     }
 
     protected function tearDown(): void
     {
-        if (isset($this->meilisearch)) {
-            $this->cleanupTestIndexes();
-        }
+        $this->tearDownInteractsWithMeilisearch();
+        $this->createdIndexes = [];
 
         parent::tearDown();
     }
