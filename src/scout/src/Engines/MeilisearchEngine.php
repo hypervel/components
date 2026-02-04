@@ -271,7 +271,7 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
         /** @var EloquentCollection<int, Model&SearchableInterface> $scoutModels */
         $scoutModels = $model->getScoutModelsByIds($builder, $objectIds);
 
-        return $scoutModels
+        $mapped = $scoutModels
             ->filter(fn ($m) => in_array($m->getScoutKey(), $objectIds))
             ->map(function ($m) use ($results, $objectIdPositions) {
                 /** @var Model&SearchableInterface $m */
@@ -287,6 +287,8 @@ class MeilisearchEngine extends Engine implements UpdatesIndexSettings
             })
             ->sortBy(fn ($m) => $objectIdPositions[$m->getScoutKey()])
             ->values();
+
+        return $model->newCollection($mapped->all());
     }
 
     /**
