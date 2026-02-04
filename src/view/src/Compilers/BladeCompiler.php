@@ -370,7 +370,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
     protected function getComponentTagCompiler(): ComponentTagCompiler
     {
         if (isset($this->componentTagCompiler)) {
-            $this->componentTagCompiler;
+            return $this->componentTagCompiler;
         }
 
         return $this->componentTagCompiler = new ComponentTagCompiler(
