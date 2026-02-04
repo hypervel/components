@@ -19,6 +19,20 @@ use Hypervel\Database\SimpleConnectionResolver;
 use Hypervel\Support\Traits\CapsuleManagerTrait;
 use PDO;
 
+/**
+ * Standalone database manager for non-production use outside full application bootstrap.
+ *
+ * Capsule provides quick Eloquent/Query Builder access for unit tests and basic scripts
+ * without requiring the full Hypervel infrastructure. It uses SimpleConnectionResolver
+ * (non-pooled) because:
+ * - No high-concurrency requirements in these contexts
+ * - Avoids dependency on PoolFactory/ConfigInterface infrastructure
+ * - Ensures same connection is reused (important for in-memory SQLite tests)
+ * - Enables direct porting of Laravel tests that use Capsule
+ *
+ * For production Swoole applications with connection pooling, use the full
+ * Hypervel application with ConnectionResolver instead.
+ */
 class Manager
 {
     use CapsuleManagerTrait;
