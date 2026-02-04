@@ -63,6 +63,22 @@ class MailableQueuedTest extends TestCase
         $queueFake->assertPushedOn(null, SendQueuedMailable::class);
     }
 
+    public function testQueuedMailableReceivesMailableInstance()
+    {
+        $queueFake = new QueueFake($this->app);
+        $mailer = $this->getMockBuilder(Mailer::class)
+            ->setConstructorArgs($this->getMocks())
+            ->onlyMethods(['createMessage', 'to'])
+            ->getMock();
+        $mailer->setQueue($queueFake);
+        $mailable = new MailableQueueableStub();
+        $mailer->send($mailable);
+
+        $queueFake->assertPushed(SendQueuedMailable::class, function (SendQueuedMailable $job) use ($mailable) {
+            return $job->mailable === $mailable;
+        });
+    }
+
     public function testQueuedMailableWithAttachmentFromDiskSent()
     {
         $this->getMockBuilder(Filesystem::class)
