@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Scout\Integration\Meilisearch;
+namespace Hypervel\Tests\Integration\Scout\Meilisearch;
 
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Tests\Scout\Models\SearchableModel;

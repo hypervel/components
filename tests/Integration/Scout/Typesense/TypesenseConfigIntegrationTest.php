@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Scout\Integration\Typesense;
+namespace Hypervel\Tests\Integration\Scout\Typesense;
 
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;

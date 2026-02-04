@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Scout\Integration\Meilisearch;
+namespace Hypervel\Tests\Integration\Scout\Meilisearch;
 
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Tests\Scout\Models\SearchableModel;

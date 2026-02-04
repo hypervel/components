@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Scout\Integration\Typesense;
+namespace Hypervel\Tests\Integration\Scout\Typesense;
 
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\Support\TypesenseIntegrationTestCase;
