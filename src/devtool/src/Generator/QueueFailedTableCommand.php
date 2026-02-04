@@ -9,6 +9,7 @@ use Hyperf\Contract\ConfigInterface;
 use Hyperf\Devtool\Generator\GeneratorCommand;
 use Hypervel\Context\ApplicationContext;
 use Symfony\Component\Console\Input\InputInterface;
+use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
 
 class QueueFailedTableCommand extends GeneratorCommand
@@ -80,7 +81,13 @@ class QueueFailedTableCommand extends GeneratorCommand
 
     protected function getOptions(): array
     {
-        return parent::getOptions();
+        $options = array_filter(parent::getOptions(), function ($item) {
+            return $item[0] !== 'path';
+        });
+
+        return array_merge(array_values($options), [
+            ['path', 'p', InputOption::VALUE_OPTIONAL, 'The path of the failed jobs table migration.'],
+        ]);
     }
 
     protected function getDefaultNamespace(): string
