@@ -7,7 +7,6 @@ namespace Hypervel\Scout;
 use Closure;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Context\ApplicationContext;
-use Hypervel\Context\Context;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
@@ -41,68 +40,9 @@ trait Searchable
     {
         static::addGlobalScope(new SearchableScope());
 
+        static::observe(new ModelObserver());
+
         (new static())->registerSearchableMacros();
-
-        static::registerCallback('saved', function ($model): void {
-            if (! static::isSearchSyncingEnabled()) {
-                return;
-            }
-
-            if (! $model->searchIndexShouldBeUpdated()) {
-                return;
-            }
-
-            if (! $model->shouldBeSearchable()) {
-                if ($model->wasSearchableBeforeUpdate()) {
-                    $model->unsearchable();
-                }
-                return;
-            }
-
-            $model->searchable();
-        });
-
-        static::registerCallback('deleted', function ($model): void {
-            if (! static::isSearchSyncingEnabled()) {
-                return;
-            }
-
-            if (! $model->wasSearchableBeforeDelete()) {
-                return;
-            }
-
-            if (static::usesSoftDelete() && static::getScoutConfig('soft_delete', false)) {
-                $model->searchable();
-            } else {
-                $model->unsearchable();
-            }
-        });
-
-        static::registerCallback('forceDeleted', function ($model): void {
-            if (! static::isSearchSyncingEnabled()) {
-                return;
-            }
-
-            $model->unsearchable();
-        });
-
-        static::registerCallback('restored', function ($model): void {
-            if (! static::isSearchSyncingEnabled()) {
-                return;
-            }
-
-            // Note: restored is a "forced update" - we don't check searchIndexShouldBeUpdated()
-            // because restored models should always be re-indexed
-
-            if (! $model->shouldBeSearchable()) {
-                if ($model->wasSearchableBeforeUpdate()) {
-                    $model->unsearchable();
-                }
-                return;
-            }
-
-            $model->searchable();
-        });
     }
 
     /**
@@ -388,7 +328,7 @@ trait Searchable
      */
     public static function enableSearchSyncing(): void
     {
-        Context::set('__scout.syncing_disabled.' . static::class, false);
+        ModelObserver::enableSyncingFor(static::class);
     }
 
     /**
@@ -396,7 +336,7 @@ trait Searchable
      */
     public static function disableSearchSyncing(): void
     {
-        Context::set('__scout.syncing_disabled.' . static::class, true);
+        ModelObserver::disableSyncingFor(static::class);
     }
 
     /**
@@ -404,7 +344,7 @@ trait Searchable
      */
     public static function isSearchSyncingEnabled(): bool
     {
-        return ! Context::get('__scout.syncing_disabled.' . static::class, false);
+        return ! ModelObserver::syncingDisabledFor(static::class);
     }
 
     /**

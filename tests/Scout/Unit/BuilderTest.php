@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit;
 
-use Hyperf\Paginator\LengthAwarePaginator;
-use Hyperf\Paginator\Paginator;
+use Hypervel\Pagination\LengthAwarePaginator;
+use Hypervel\Pagination\Paginator;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Scout\Builder;
