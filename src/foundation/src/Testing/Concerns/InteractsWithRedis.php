@@ -47,24 +47,32 @@ trait InteractsWithRedis
 
     /**
      * Set up Redis for testing (auto-called by setUpTraits).
+     *
+     * Follows Laravel's InteractsWithRedis pattern:
+     * - Only skips if using default host/port AND no explicit REDIS_HOST env var
+     * - If explicit config exists and fails, the exception propagates (misconfiguration)
      */
     protected function setUpInteractsWithRedis(): void
     {
         if (static::$connectionFailedOnceWithDefaultsSkip) {
             $this->markTestSkipped(
-                'Redis connection failed. Set REDIS_HOST environment variable to enable ' . static::class
+                'Redis connection failed with defaults. Set REDIS_HOST & REDIS_PORT to enable ' . static::class
             );
         }
+
+        $host = env('REDIS_HOST', '127.0.0.1');
+        $port = (int) env('REDIS_PORT', 6379);
 
         try {
             $this->flushRedis();
         } catch (Throwable $e) {
-            if (! $this->hasExplicitRedisConfig()) {
+            if ($host === '127.0.0.1' && $port === 6379 && env('REDIS_HOST') === null) {
                 static::$connectionFailedOnceWithDefaultsSkip = true;
                 $this->markTestSkipped(
-                    'Redis connection failed. Set REDIS_HOST environment variable to enable ' . static::class
+                    'Redis connection failed with defaults. Set REDIS_HOST & REDIS_PORT to enable ' . static::class
                 );
             }
+            // Explicit config exists but failed - rethrow so test fails (misconfiguration)
             throw $e;
         }
     }
