@@ -19,6 +19,8 @@ class ScopedNodeTest extends TestCase
 {
     use RefreshDatabase;
 
+    protected bool $migrateRefresh = true;
+
     protected function migrateFreshUsing(): array
     {
         return [
