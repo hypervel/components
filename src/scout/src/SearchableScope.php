@@ -5,16 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Scout;
 
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Database\Model\Builder as HyperfBuilder;
-use Hyperf\Database\Model\Model as HyperfModel;
-use Hyperf\Database\Model\Scope;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Scope;
 use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Events\ModelsFlushed;
 use Hypervel\Scout\Events\ModelsImported;
+use Hypervel\Support\Collection;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
@@ -25,7 +24,7 @@ class SearchableScope implements Scope
     /**
      * Apply the scope to a given Eloquent query builder.
      */
-    public function apply(HyperfBuilder $builder, HyperfModel $model): void
+    public function apply(EloquentBuilder $builder, Model $model): void
     {
         // This scope doesn't modify queries, only extends the builder
     }
@@ -41,11 +40,11 @@ class SearchableScope implements Scope
             $scoutKeyName = $model->getScoutKeyName();
             $chunkSize = $chunk ?? static::getScoutConfig('chunk.searchable', 500);
 
-            $builder->chunkById($chunkSize, function (EloquentCollection $models) {
-                /* @phpstan-ignore-next-line method.notFound, argument.type */
+            $builder->chunkById($chunkSize, function (Collection $models) {
+                /** @var EloquentCollection<int, Model&SearchableInterface> $models */
+                /** @phpstan-ignore method.notFound (searchable() added via Searchable trait) */
                 $models->filter(fn ($m) => $m->shouldBeSearchable())->searchable();
 
-                /* @phpstan-ignore-next-line argument.type */
                 static::dispatchEvent(new ModelsImported($models));
             }, $builder->qualifyColumn($scoutKeyName), $scoutKeyName);
         });
@@ -56,11 +55,11 @@ class SearchableScope implements Scope
             $scoutKeyName = $model->getScoutKeyName();
             $chunkSize = $chunk ?? static::getScoutConfig('chunk.unsearchable', 500);
 
-            $builder->chunkById($chunkSize, function (EloquentCollection $models) {
-                /* @phpstan-ignore-next-line method.notFound */
+            $builder->chunkById($chunkSize, function (Collection $models) {
+                /** @var EloquentCollection<int, Model&SearchableInterface> $models */
+                /** @phpstan-ignore method.notFound (unsearchable() added via Searchable trait) */
                 $models->unsearchable();
 
-                /* @phpstan-ignore-next-line argument.type */
                 static::dispatchEvent(new ModelsFlushed($models));
             }, $builder->qualifyColumn($scoutKeyName), $scoutKeyName);
         });
