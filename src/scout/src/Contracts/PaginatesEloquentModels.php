@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Contracts;
 
-use Hyperf\Contract\LengthAwarePaginatorInterface;
-use Hyperf\Contract\PaginatorInterface;
+use Hypervel\Contracts\Pagination\LengthAwarePaginator;
+use Hypervel\Contracts\Pagination\Paginator;
 use Hypervel\Scout\Builder;
 
 /**
@@ -20,10 +20,10 @@ interface PaginatesEloquentModels
     /**
      * Paginate the given search on the engine.
      */
-    public function paginate(Builder $builder, int $perPage, int $page): LengthAwarePaginatorInterface;
+    public function paginate(Builder $builder, int $perPage, int $page): LengthAwarePaginator;
 
     /**
      * Paginate the given search on the engine using simple pagination.
      */
-    public function simplePaginate(Builder $builder, int $perPage, int $page): PaginatorInterface;
+    public function simplePaginate(Builder $builder, int $perPage, int $page): Paginator;
 }

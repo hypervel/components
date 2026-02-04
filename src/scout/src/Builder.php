@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace Hypervel\Scout;
 
 use Closure;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\LengthAwarePaginatorInterface;
-use Hyperf\Contract\PaginatorInterface;
-use Hyperf\Database\Connection;
-use Hyperf\Paginator\LengthAwarePaginator;
-use Hyperf\Paginator\Paginator;
+use Hypervel\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
+use Hypervel\Contracts\Pagination\Paginator as PaginatorContract;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Database\Connection;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
+use Hypervel\Pagination\LengthAwarePaginator;
+use Hypervel\Pagination\Paginator;
 use Hypervel\Scout\Contracts\PaginatesEloquentModels;
 use Hypervel\Scout\Contracts\PaginatesEloquentModelsUsingDatabase;
 use Hypervel\Scout\Contracts\SearchableInterface;
@@ -21,8 +21,6 @@ use Hypervel\Support\LazyCollection;
 use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\Tappable;
-
-use function Hyperf\Tappable\tap;
 
 /**
  * Fluent search query builder for searchable models.
@@ -361,7 +359,7 @@ class Builder
         ?int $perPage = null,
         string $pageName = 'page',
         ?int $page = null
-    ): PaginatorInterface {
+    ): PaginatorContract {
         $engine = $this->engine();
 
         $page = $page ?? Paginator::resolveCurrentPage($pageName);
@@ -384,7 +382,7 @@ class Builder
         )->all();
         $results = $this->model->newCollection($mappedModels);
 
-        return (new Paginator($results, $perPage, $page, [
+        return (new Paginator($results, $perPage, $page, [ /** @phpstan-ignore-line */
             'path' => Paginator::resolveCurrentPath(),
             'pageName' => $pageName,
         ]))->hasMorePagesWhen(
@@ -399,7 +397,7 @@ class Builder
         ?int $perPage = null,
         string $pageName = 'page',
         ?int $page = null
-    ): LengthAwarePaginatorInterface {
+    ): LengthAwarePaginatorContract {
         $engine = $this->engine();
 
         $page = $page ?? Paginator::resolveCurrentPage($pageName);
@@ -423,7 +421,7 @@ class Builder
         $results = $this->model->newCollection($mappedModels);
 
         return (new LengthAwarePaginator(
-            $results,
+            $results, /** @phpstan-ignore-line */
             $this->getTotalCount($rawResults),
             $perPage,
             $page,
