@@ -10,9 +10,6 @@ use Hypervel\Tests\Support\MeilisearchIntegrationTestCase;
 /**
  * Basic connectivity test for Meilisearch.
  *
- * @group integration
- * @group meilisearch-integration
- *
  * @internal
  * @coversNothing
  */

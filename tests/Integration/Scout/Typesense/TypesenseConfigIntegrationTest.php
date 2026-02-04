@@ -13,9 +13,6 @@ use Throwable;
 /**
  * Integration tests for Typesense configuration options.
  *
- * @group integration
- * @group typesense-integration
- *
  * @internal
  * @coversNothing
  */

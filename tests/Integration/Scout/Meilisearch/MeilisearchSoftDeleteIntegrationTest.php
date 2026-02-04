@@ -11,9 +11,6 @@ use Hypervel\Tests\Scout\Models\SoftDeleteSearchableModel;
 /**
  * Integration tests for Scout soft delete behavior with Meilisearch.
  *
- * @group integration
- * @group meilisearch-integration
- *
  * @internal
  * @coversNothing
  */

@@ -10,9 +10,6 @@ use Hypervel\Tests\Scout\Models\TypesenseSearchableModel;
 /**
  * Integration tests for TypesenseEngine core operations.
  *
- * @group integration
- * @group typesense-integration
- *
  * @internal
  * @coversNothing
  */

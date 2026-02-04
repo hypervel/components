@@ -9,9 +9,6 @@ use Hypervel\Tests\Scout\Models\SearchableModel;
 /**
  * Integration tests for Scout console commands with Meilisearch.
  *
- * @group integration
- * @group meilisearch-integration
- *
  * @internal
  * @coversNothing
  */

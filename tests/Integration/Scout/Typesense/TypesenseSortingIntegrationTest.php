@@ -10,9 +10,6 @@ use Hypervel\Tests\Scout\Models\TypesenseSearchableModel;
 /**
  * Integration tests for Typesense sorting operations.
  *
- * @group integration
- * @group typesense-integration
- *
  * @internal
  * @coversNothing
  */

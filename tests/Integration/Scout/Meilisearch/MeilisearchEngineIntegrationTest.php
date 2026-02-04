@@ -10,9 +10,6 @@ use Hypervel\Tests\Scout\Models\SearchableModel;
 /**
  * Integration tests for MeilisearchEngine core operations.
  *
- * @group integration
- * @group meilisearch-integration
- *
  * @internal
  * @coversNothing
  */

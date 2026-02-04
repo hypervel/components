@@ -22,9 +22,6 @@ use Hypervel\Tests\Support\TypesenseIntegrationTestCase;
  * Extends the generic Typesense test case with Scout-specific setup:
  * database migrations, Scout commands, and engine initialization.
  *
- * @group integration
- * @group typesense-integration
- *
  * @internal
  * @coversNothing
  */

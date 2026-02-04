@@ -10,9 +10,6 @@ use Hypervel\Tests\Support\TypesenseIntegrationTestCase;
 /**
  * Basic connectivity test for Typesense.
  *
- * @group integration
- * @group typesense-integration
- *
  * @internal
  * @coversNothing
  */

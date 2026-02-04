@@ -23,9 +23,6 @@ use Hypervel\Tests\Support\MeilisearchIntegrationTestCase;
  * Extends the generic Meilisearch test case with Scout-specific setup:
  * database migrations, Scout commands, and engine initialization.
  *
- * @group integration
- * @group meilisearch-integration
- *
  * @internal
  * @coversNothing
  */

@@ -21,9 +21,6 @@ use Typesense\Client as TypesenseClient;
  * NOTE: This base class does NOT include RunTestsInCoroutine. Subclasses
  * should add the trait if they need coroutine context for their tests.
  *
- * NOTE: Concrete test classes extending this MUST add @group integration
- * and @group typesense-integration for proper test filtering in CI.
- *
  * @internal
  * @coversNothing
  */
