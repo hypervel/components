@@ -568,7 +568,7 @@ class ViewFactoryTest extends TestCase
         $factory = $this->getFactory();
         $factory->getDispatcher()->shouldReceive('listen')->once()->with('composing: foo', m::type(Closure::class));
         $factory->setContainer($container = m::mock(Container::class));
-        $container->shouldReceive('make')->once()->with('FooComposer')->andReturn($composer = m::mock(stdClass::class));
+        $container->shouldReceive('get')->once()->with('FooComposer')->andReturn($composer = m::mock(stdClass::class));
         $composer->shouldReceive('compose')->once()->with('view')->andReturn('composed');
         $callback = $factory->composer('foo', 'FooComposer');
         $callback = $callback[0];
@@ -581,7 +581,7 @@ class ViewFactoryTest extends TestCase
         $factory = $this->getFactory();
         $factory->getDispatcher()->shouldReceive('listen')->once()->with('composing: foo', m::type(Closure::class));
         $factory->setContainer($container = m::mock(Container::class));
-        $container->shouldReceive('make')->once()->with('FooComposer')->andReturn($composer = m::mock(stdClass::class));
+        $container->shouldReceive('get')->once()->with('FooComposer')->andReturn($composer = m::mock(stdClass::class));
         $composer->shouldReceive('doComposer')->once()->with('view')->andReturn('composed');
         $callback = $factory->composer('foo', 'FooComposer@doComposer');
         $callback = $callback[0];
@@ -805,7 +805,7 @@ class ViewFactoryTest extends TestCase
         $translator = m::mock(stdClass::class);
         $translator->shouldReceive('get')->with('Foo', ['name' => 'taylor'])->andReturn('Bar');
         $container = m::mock(Container::class);
-        $container->shouldReceive('make')->with('translator')->andReturn($translator);
+        $container->shouldReceive('get')->with('translator')->andReturn($translator);
         $factory = $this->getFactory();
         $factory->setContainer($container);
         $factory->startTranslation(['name' => 'taylor']);

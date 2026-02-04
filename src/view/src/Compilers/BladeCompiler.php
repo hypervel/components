@@ -143,6 +143,11 @@ class BladeCompiler extends Compiler implements CompilerInterface
     protected bool $compilesComponentTags = true;
 
     /**
+     * The component tag compiler instance.
+     */
+    protected ComponentTagCompiler $componentTagCompiler;
+
+    /**
      * Compile the view at the given path.
      */
     public function compile(string $path): void
@@ -259,7 +264,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
         };
 
         $view = Container::getInstance()
-            ->make(ViewFactory::class)
+            ->get(ViewFactory::class)
             ->make($component->resolveView(), $data);
 
         return tap($view->render(), function () use ($view, $deleteCachedView) {
@@ -285,7 +290,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
             return $view->toHtml();
         }
         return Container::getInstance()
-            ->make(ViewFactory::class)
+            ->get(ViewFactory::class)
             ->make($view, $data)
             ->render();
     }
@@ -359,11 +364,20 @@ class BladeCompiler extends Compiler implements CompilerInterface
             return $value;
         }
 
-        return (new ComponentTagCompiler(
+        return $this->getComponentTagCompiler()->compile($value);
+    }
+
+    protected function getComponentTagCompiler(): ComponentTagCompiler
+    {
+        if (isset($this->componentTagCompiler)) {
+            $this->componentTagCompiler;
+        }
+
+        return $this->componentTagCompiler = new ComponentTagCompiler(
             $this->classComponentAliases,
             $this->classComponentNamespaces,
             $this
-        ))->compile($value);
+        );
     }
 
     /**
@@ -684,7 +698,7 @@ class BladeCompiler extends Compiler implements CompilerInterface
         ];
 
         Container::getInstance()
-            ->make(ViewFactory::class)
+            ->get(ViewFactory::class)
             ->addNamespace($prefixHash, $path);
     }
 

@@ -12,6 +12,11 @@ use Hypervel\View\Contracts\View as ViewContract;
 trait ManagesEvents
 {
     /**
+     * Indicates if view event handling is enabled.
+     */
+    protected bool $eventEnabled;
+
+    /**
      * Register a view creator event.
      */
     public function creator(array|string $views, Closure|string $callback): array
@@ -100,7 +105,7 @@ trait ManagesEvents
         // the instance out of the IoC container and call the method on it with the
         // given arguments that are passed to the Closure as the composer's data.
         return function () use ($class, $method) {
-            return $this->container->make($class)->{$method}(...func_get_args());
+            return $this->container->get($class)->{$method}(...func_get_args());
         };
     }
 
@@ -139,11 +144,18 @@ trait ManagesEvents
      */
     public function callComposer(ViewContract $view): void
     {
-        if ($this->getContainer()->get(ConfigInterface::class)->get('view.event.enable', false)
-            && $this->events->hasListeners($event = 'composing: ' . $view->name())
-        ) {
+        if ($this->isEventEnabled() && $this->events->hasListeners($event = 'composing: ' . $view->name())) {
             $this->events->dispatch($event, [$view]);
         }
+    }
+
+    protected function isEventEnabled(): bool
+    {
+        if (isset($this->eventEnabled)) {
+            return $this->eventEnabled;
+        }
+
+        return $this->eventEnabled = $this->getContainer()->get(ConfigInterface::class)->get('view.event.enable', false);
     }
 
     /**

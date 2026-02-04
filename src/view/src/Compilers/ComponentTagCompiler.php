@@ -30,6 +30,11 @@ class ComponentTagCompiler
     protected BladeCompiler $blade;
 
     /**
+     * The application namespace.
+     */
+    protected string $namespace;
+
+    /**
      * Create a new component tag compiler.
      */
     public function __construct(
@@ -231,7 +236,7 @@ class ComponentTagCompiler
         // can be accessed within the component and we can render out the view.
         if (! class_exists($class)) {
             $view = Str::startsWith($component, 'mail::')
-                ? "\$__env->getContainer()->make(Hypervel\\View\\Factory::class)->make('{$component}')"
+                ? "\$__env->getContainer()->get(Hypervel\\View\\Factory::class)->make('{$component}')"
                 : "'{$class}'";
 
             $parameters = [
@@ -391,13 +396,22 @@ class ComponentTagCompiler
      */
     public function guessClassName(string $component): string
     {
-        $namespace = Container::getInstance()
-            ->get(Application::class)
-            ->getNamespace();
+        $namespace = $this->getNamespace();
 
         $class = $this->formatClassName($component);
 
         return $namespace . 'View\Components\\' . $class;
+    }
+
+    protected function getNamespace(): string
+    {
+        if (isset($this->namespace)) {
+            return $this->namespace;
+        }
+
+        return $this->namespace = Container::getInstance()
+            ->get(Application::class)
+            ->getNamespace();
     }
 
     /**

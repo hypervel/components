@@ -33,6 +33,8 @@ class Kernel extends HyperfServer implements MiddlewareContract
 {
     use HasMiddleware;
 
+    protected bool $enableHttpMethodParameterOverride;
+
     public function initCoreMiddleware(string $serverName): void
     {
         $this->serverName = $serverName;
@@ -193,7 +195,11 @@ class Kernel extends HyperfServer implements MiddlewareContract
 
     protected function enableHttpMethodParameterOverride(): bool
     {
-        return $this->container->get(ConfigInterface::class)->get('view.enable_override_http_method', false);
+        if (isset($this->enableHttpMethodParameterOverride)) {
+            return $this->enableHttpMethodParameterOverride;
+        }
+
+        return $this->enableHttpMethodParameterOverride = $this->container->get(ConfigInterface::class)->get('view.enable_override_http_method', false);
     }
 
     protected function overrideHttpMethod($psr7Request): void
