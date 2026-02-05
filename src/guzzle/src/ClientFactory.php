@@ -1,33 +1,30 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Guzzle;
+namespace Hypervel\Guzzle;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\HandlerStack;
-use Hyperf\Coroutine\Coroutine;
-use Hyperf\Di\Container;
+use Hypervel\Coroutine\Coroutine;
 use Psr\Container\ContainerInterface;
 use Swoole\Runtime;
 
-/**
- * @property Container $container
- */
 class ClientFactory
 {
+    /**
+     * Whether Swoole extension is loaded.
+     */
     protected bool $runInSwoole = false;
 
+    /**
+     * The native curl hook flag value.
+     */
     protected int $nativeCurlHook = 0;
 
+    /**
+     * Create a new client factory instance.
+     */
     public function __construct(private ContainerInterface $container)
     {
         $this->runInSwoole = extension_loaded('swoole');
@@ -36,6 +33,9 @@ class ClientFactory
         }
     }
 
+    /**
+     * Create a new Guzzle client instance.
+     */
     public function create(array $options = []): Client
     {
         $stack = null;
