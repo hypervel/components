@@ -1,16 +1,8 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Guzzle;
+namespace Hypervel\Guzzle;
 
 use Exception;
 use GuzzleHttp;
@@ -23,8 +15,8 @@ use GuzzleHttp\Psr7\Uri;
 use GuzzleHttp\Psr7\Utils;
 use GuzzleHttp\RequestOptions;
 use GuzzleHttp\TransferStats;
-use Hyperf\Engine\Http\Client;
-use Hyperf\Engine\Http\RawResponse;
+use Hypervel\Engine\Http\Client;
+use Hypervel\Engine\Http\RawResponse;
 use InvalidArgumentException;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\StreamInterface;
@@ -44,9 +36,9 @@ class CoroutineHandler
     ];
 
     /**
-     * @return PromiseInterface
+     * Handle the HTTP request.
      */
-    public function __invoke(RequestInterface $request, array $options)
+    public function __invoke(RequestInterface $request, array $options): PromiseInterface
     {
         $uri = $request->getUri();
         $host = $uri->getHost();
@@ -89,11 +81,17 @@ class CoroutineHandler
         return new FulfilledPromise($response);
     }
 
+    /**
+     * Create a new HTTP client instance.
+     */
     protected function makeClient(string $host, int $port, bool $ssl): Client
     {
         return new Client($host, $port, $ssl);
     }
 
+    /**
+     * Initialize the request headers.
+     */
     protected function initHeaders(RequestInterface $request, array $options): array
     {
         $headers = $request->getHeaders();
@@ -105,14 +103,21 @@ class CoroutineHandler
         return $this->rewriteHeaders($headers);
     }
 
+    /**
+     * Rewrite headers to be compatible with Swoole's HTTP client.
+     */
     protected function rewriteHeaders(array $headers): array
     {
-        // Unknown reason, Content-Length will cause 400 some time.
-        // Expect header is not supported by \Swoole\Coroutine\Http\Client.
+        // Content-Length can cause 400 errors in some cases.
+        // Expect header is not supported by Swoole's coroutine HTTP client.
         unset($headers['Content-Length'], $headers['Expect']);
+
         return $headers;
     }
 
+    /**
+     * Get the Swoole client settings from request options.
+     */
     protected function getSettings(RequestInterface $request, array $options): array
     {
         $settings = [];
@@ -120,7 +125,7 @@ class CoroutineHandler
             usleep(intval($options['delay'] * 1000));
         }
 
-        // 验证服务端证书
+        // SSL certificate verification
         if (isset($options['verify'])) {
             $settings['ssl_verify_peer'] = false;
             if ($options['verify'] !== false) {
@@ -144,7 +149,7 @@ class CoroutineHandler
             }
         }
 
-        // 超时
+        // Timeout
         if (isset($options['timeout']) && $options['timeout'] > 0) {
             $settings['timeout'] = $options['timeout'];
         }
@@ -189,7 +194,10 @@ class CoroutineHandler
         return $settings;
     }
 
-    protected function getResponse(RawResponse $raw, RequestInterface $request, array $options, float $transferTime)
+    /**
+     * Create a PSR-7 response from the raw response.
+     */
+    protected function getResponse(RawResponse $raw, RequestInterface $request, array $options, float $transferTime): Psr7\Response
     {
         $body = $raw->body;
         $sink = $options['sink'] ?? null;
@@ -218,13 +226,19 @@ class CoroutineHandler
         return $response;
     }
 
+    /**
+     * Create a stream from the response body.
+     */
     protected function createStream(string $body): StreamInterface
     {
         return Utils::streamFor($body);
     }
 
     /**
+     * Write the response body to a sink.
+     *
      * @param resource|string $stream
+     * @return resource
      */
     protected function createSink(string $body, $stream)
     {
@@ -239,6 +253,8 @@ class CoroutineHandler
     }
 
     /**
+     * Get the port from the URI.
+     *
      * @throws InvalidArgumentException
      */
     protected function getPort(UriInterface $uri): int
