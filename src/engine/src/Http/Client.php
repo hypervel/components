@@ -21,7 +21,7 @@ class Client extends HttpClient implements ClientInterface
     /**
      * Send an HTTP request.
      *
-     * @param string[][] $headers
+     * @param array<string, string|string[]> $headers
      */
     public function request(string $method = 'GET', string $path = '/', array $headers = [], string $contents = '', string $version = '1.1'): RawResponse
     {
@@ -43,8 +43,8 @@ class Client extends HttpClient implements ClientInterface
     /**
      * Decode headers from Swoole format to standard format.
      *
-     * @param string[] $headers
-     * @return string[][]
+     * @param array<string, string|string[]> $headers
+     * @return array<string, string[]>
      */
     private function decodeHeaders(array $headers): array
     {
@@ -66,8 +66,8 @@ class Client extends HttpClient implements ClientInterface
     /**
      * Encode headers for Swoole (does not support two-dimensional arrays).
      *
-     * @param string[][] $headers
-     * @return string[]
+     * @param array<string, string|string[]> $headers
+     * @return array<string, string>
      */
     private function encodeHeaders(array $headers): array
     {
