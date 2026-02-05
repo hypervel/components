@@ -30,7 +30,8 @@ class ClientTest extends EngineIntegrationTestCase
     public function testClientSocketConnectionRefused(): void
     {
         try {
-            $client = new Client('127.0.0.1', 19501);
+            // Use a port that definitely has no server running
+            $client = new Client('127.0.0.1', 29501);
             $client->request('GET', '/timeout?time=1');
             $this->fail('Expected HttpClientException to be thrown');
         } catch (Throwable $exception) {
