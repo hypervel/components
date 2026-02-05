@@ -6,7 +6,7 @@ namespace Hypervel\Cache\Redis\Console\Benchmark;
 
 use Exception;
 use Hyperf\Command\Command;
-use Hypervel\Cache\Contracts\Factory as CacheContract;
+use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Cache\Redis\Exceptions\BenchmarkMemoryException;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
@@ -60,7 +60,7 @@ class BenchmarkContext
      *
      * @return Repository
      */
-    public function getStore(): \Hypervel\Cache\Contracts\Repository
+    public function getStore(): \Hypervel\Contracts\Cache\Repository
     {
         /** @var Repository */
         return $this->cacheManager->store($this->storeName);

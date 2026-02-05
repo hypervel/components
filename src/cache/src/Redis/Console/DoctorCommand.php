@@ -8,7 +8,7 @@ use Exception;
 use Hyperf\Command\Command;
 use Hyperf\Command\Concerns\Prohibitable;
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Cache\Contracts\Factory as CacheContract;
+use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Cache\Redis\Console\Concerns\DetectsRedisStore;
 use Hypervel\Cache\Redis\Console\Doctor\CheckResult;
 use Hypervel\Cache\Redis\Console\Doctor\Checks\AddOperationsCheck;

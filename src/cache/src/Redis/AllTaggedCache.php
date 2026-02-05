@@ -7,7 +7,7 @@ namespace Hypervel\Cache\Redis;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Cache\Contracts\Store;
+use Hypervel\Contracts\Cache\Store;
 use Hypervel\Cache\Events\CacheFlushed;
 use Hypervel\Cache\Events\CacheFlushing;
 use Hypervel\Cache\Events\CacheHit;
