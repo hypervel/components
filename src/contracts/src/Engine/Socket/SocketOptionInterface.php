@@ -18,7 +18,7 @@ interface SocketOptionInterface
     /**
      * Get the Swoole protocol configuration.
      *
-     * @return array{
+     * @return array{}|array{
      *     open_length_check: bool,
      *     package_max_length: int,
      *     package_length_type: string,
