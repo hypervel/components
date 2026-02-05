@@ -73,7 +73,8 @@
             "Hypervel\\Translation\\": "src/translation/src/",
             "Hypervel\\Validation\\": "src/validation/src/",
             "Hypervel\\Permission\\": "src/permission/src/",
-            "Hypervel\\Sentry\\": "src/sentry/src/"
+            "Hypervel\\Sentry\\": "src/sentry/src/",
+            "Hypervel\\Engine\\": "src/engine/src/"
         },
         "files": [
             "src/auth/src/Functions.php",
@@ -183,6 +184,7 @@
         "hypervel/devtool": "self.version",
         "hypervel/dispatcher": "self.version",
         "hypervel/encryption": "self.version",
+        "hypervel/engine": "self.version",
         "hypervel/event": "self.version",
         "hypervel/filesystem": "self.version",
         "hypervel/foundation": "self.version",
@@ -282,6 +284,7 @@
                 "Hypervel\\Devtool\\ConfigProvider",
                 "Hypervel\\Dispatcher\\ConfigProvider",
                 "Hypervel\\Encryption\\ConfigProvider",
+                "Hypervel\\Engine\\ConfigProvider",
                 "Hypervel\\Event\\ConfigProvider",
                 "Hypervel\\Filesystem\\ConfigProvider",
                 "Hypervel\\Foundation\\ConfigProvider",
