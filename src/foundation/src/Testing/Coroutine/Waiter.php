@@ -9,13 +9,13 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exception\ExceptionThrower;
 use Hypervel\Coroutine\Exception\WaitTimeoutException;
 use Hypervel\Coroutine\Waiter as BaseWaiter;
-use Hyperf\Engine\Channel;
+use Hypervel\Engine\Channel;
 use Hypervel\Context\Context;
 use Throwable;
 
 class Waiter extends BaseWaiter
 {
-    public function wait(Closure $closure, ?float $timeout = null)
+    public function wait(Closure $closure, ?float $timeout = null): mixed
     {
         if ($timeout === null) {
             $timeout = $this->popTimeout;
