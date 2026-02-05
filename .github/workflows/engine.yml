@@ -1,11 +1,11 @@
-name: http-integration
+name: engine
 
 on:
   push:
   pull_request:
 
 jobs:
-  http-integration:
+  engine:
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: true
 
-    name: HTTP Server Integration Tests
+    name: Engine Integration Tests
 
     steps:
       - name: Checkout code
