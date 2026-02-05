@@ -120,7 +120,7 @@ class Client implements ClientInterface
         $req->headers = $request->getHeaders();
         $req->data = $request->getBody();
         $req->pipeline = $request->isPipeline();
-        $req->usePipelineRead = $request->isPipeline();
+        $req->usePipelineRead = $request->isPipeline(); // @phpstan-ignore property.notFound (exists in Swoole 5.1.0+)
         return $req;
     }
 }
