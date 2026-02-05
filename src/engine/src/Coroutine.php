@@ -117,6 +117,7 @@ class Coroutine implements CoroutineInterface
      * Yield the current coroutine.
      *
      * @param mixed $data only supported in Swow
+     * @return bool
      */
     public static function yield(mixed $data = null): mixed
     {
@@ -127,6 +128,7 @@ class Coroutine implements CoroutineInterface
      * Resume a coroutine by ID.
      *
      * @param mixed $data only supported in Swow
+     * @return bool
      */
     public static function resumeById(int $id, mixed ...$data): mixed
     {

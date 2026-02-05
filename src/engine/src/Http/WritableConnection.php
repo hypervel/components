@@ -26,6 +26,8 @@ class WritableConnection implements Writable
 
     /**
      * Get the underlying socket.
+     *
+     * @return Response
      */
     public function getSocket(): mixed
     {
