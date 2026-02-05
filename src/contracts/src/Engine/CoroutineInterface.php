@@ -23,9 +23,7 @@ interface CoroutineInterface
     public function getId(): int;
 
     /**
-     * @param callable $callable [required]
-     * @param mixed ...$data
-     * @return $this
+     * Create and execute a new coroutine.
      */
     public static function create(callable $callable, ...$data): static;
 
