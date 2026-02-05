@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Coroutine;
 
 use Hypervel\Coroutine\Coroutine;
+use Swoole\Runtime;
 
 use function Hypervel\Coroutine\run;
 
@@ -26,5 +27,21 @@ class CoroutineNonCoroutineContextTest extends CoroutineTestCase
         run(function () {
             $this->assertSame(0, Coroutine::parentId());
         });
+    }
+
+    public function testRun(): void
+    {
+        $asserts = [
+            SWOOLE_HOOK_ALL,
+            SWOOLE_HOOK_SLEEP,
+            SWOOLE_HOOK_CURL,
+        ];
+
+        foreach ($asserts as $flags) {
+            run(function () use ($flags) {
+                $this->assertTrue(Coroutine::inCoroutine());
+                $this->assertSame($flags, Runtime::getHookFlags());
+            }, $flags);
+        }
     }
 }
