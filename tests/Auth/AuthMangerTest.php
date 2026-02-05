@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Auth;
 
 use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Coroutine\Coroutine;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Auth\AuthManager;
@@ -19,6 +18,7 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Contracts\Hashing\Hasher as HashContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;

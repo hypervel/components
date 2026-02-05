@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\ObjectPool;
 
-use Hypervel\Coroutine\Coroutine;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\ObjectPool\Stub\FooPool;
 use Hypervel\Tests\TestCase;

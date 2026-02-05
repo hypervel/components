@@ -125,7 +125,7 @@ class CoroutineTest extends CoroutineTestCase
         $count = 0;
 
         Coroutine::afterCreated(function () use (&$count) {
-            $count++;
+            ++$count;
         });
 
         Coroutine::create(function () {});

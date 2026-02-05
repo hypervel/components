@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\Eloquent;
 
-use Hypervel\Engine\Channel;
 use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Engine\Channel;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Tests\Integration\Database\DatabaseTestCase;
 use RuntimeException;

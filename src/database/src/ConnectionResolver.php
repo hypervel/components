@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
-use Hypervel\Coroutine\Coroutine;
 use Hypervel\Context\Context;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolFactory;
 use Psr\Container\ContainerInterface;

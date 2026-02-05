@@ -6,10 +6,10 @@ namespace Hypervel\Bus;
 
 use Closure;
 use Hyperf\Conditionable\Conditionable;
-use Hypervel\Coroutine\Coroutine;
 use Hypervel\Bus\Events\BatchDispatched;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Laravel\SerializableClosure\SerializableClosure;

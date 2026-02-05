@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Signal;
 
-use Hypervel\Engine\Coroutine;
 use Hyperf\Signal\Handler\WorkerStopHandler as HyperfWorkerStopHandler;
+use Hypervel\Engine\Coroutine;
 
 class WorkerStopHandler extends HyperfWorkerStopHandler
 {

@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Coroutine;
 
 use Closure;
+use Hypervel\Context\Context;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exception\ExceptionThrower;
 use Hypervel\Coroutine\Exception\WaitTimeoutException;
 use Hypervel\Coroutine\Waiter as BaseWaiter;
 use Hypervel\Engine\Channel;
-use Hypervel\Context\Context;
 use Throwable;
 
 class Waiter extends BaseWaiter

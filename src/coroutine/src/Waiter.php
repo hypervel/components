@@ -26,7 +26,7 @@ class Waiter
      *
      * @template TReturn
      * @param Closure():TReturn $closure
-     * @param float|null $timeout Timeout in seconds (null uses default)
+     * @param null|float $timeout Timeout in seconds (null uses default)
      * @return TReturn
      * @throws WaitTimeoutException When the wait times out
      */

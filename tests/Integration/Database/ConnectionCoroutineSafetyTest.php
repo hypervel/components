@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database;
 
-use Hypervel\Engine\Channel;
 use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Engine\Channel;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use RuntimeException;

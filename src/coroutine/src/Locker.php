@@ -9,7 +9,7 @@ use Hypervel\Engine\Channel;
 class Locker
 {
     /**
-     * @var array<string, Channel|null>
+     * @var array<string, null|Channel>
      */
     protected static array $channels = [];
 

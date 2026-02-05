@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Closure;
-use Hypervel\Coroutine\Coroutine;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Bus\QueueingDispatcher;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Support\Collection;
