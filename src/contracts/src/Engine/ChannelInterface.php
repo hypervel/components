@@ -11,13 +11,13 @@ interface ChannelInterface
 {
     /**
      * @param TValue $data
-     * @param float|int $timeout seconds [optional] = -1
+     * @param float $timeout Timeout in seconds (-1 for unlimited)
      */
     public function push(mixed $data, float $timeout = -1): bool;
 
     /**
-     * @param float $timeout seconds [optional] = -1
-     * @return false|TValue when pop failed, return false
+     * @param float $timeout Timeout in seconds (-1 for unlimited)
+     * @return false|TValue Returns false when pop fails
      */
     public function pop(float $timeout = -1): mixed;
 
