@@ -6,7 +6,7 @@ namespace Hypervel\Bus;
 
 use Closure;
 use Hyperf\Conditionable\Conditionable;
-use Hyperf\Coroutine\Coroutine;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Bus\Events\BatchDispatched;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;

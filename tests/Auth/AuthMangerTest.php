@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Auth;
 
 use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Coroutine\Coroutine;
+use Hypervel\Coroutine\Coroutine;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Auth\AuthManager;

@@ -20,7 +20,7 @@ use Hypervel\Testbench\Bootstrapper;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Workbench\App\Exceptions\ExceptionHandler;
 
-use function Hyperf\Coroutine\run;
+use function Hypervel\Coroutine\run;
 
 Bootstrapper::bootstrap();
 

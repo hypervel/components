@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Database;
 
-use Hyperf\Coroutine\Coroutine;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Context\Context;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolFactory;
 use Psr\Container\ContainerInterface;
 use UnitEnum;
 
-use function Hyperf\Coroutine\defer;
+use function Hypervel\Coroutine\defer;
 use function Hypervel\Support\enum_value;
 
 /**

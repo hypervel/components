@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Coroutine;
 
 use Closure;
-use Hyperf\Coroutine\Coroutine;
-use Hyperf\Coroutine\Exception\ExceptionThrower;
-use Hyperf\Coroutine\Exception\WaitTimeoutException;
-use Hyperf\Coroutine\Waiter as HyperfWaiter;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Coroutine\Exception\ExceptionThrower;
+use Hypervel\Coroutine\Exception\WaitTimeoutException;
+use Hypervel\Coroutine\Waiter as BaseWaiter;
 use Hyperf\Engine\Channel;
 use Hypervel\Context\Context;
 use Throwable;
 
-class Waiter extends HyperfWaiter
+class Waiter extends BaseWaiter
 {
     public function wait(Closure $closure, ?float $timeout = null)
     {

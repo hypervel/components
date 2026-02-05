@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\ObjectPool;
 
-use Hyperf\Coroutine\Coroutine;
+use Hypervel\Coroutine\Coroutine;
 use Hyperf\Engine\Channel as CoChannel;
 use SplQueue;
 

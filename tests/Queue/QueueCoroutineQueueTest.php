@@ -17,7 +17,7 @@ use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
-use function Hyperf\Coroutine\run;
+use function Hypervel\Coroutine\run;
 
 /**
  * @internal

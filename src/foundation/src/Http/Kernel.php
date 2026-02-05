@@ -23,7 +23,7 @@ use Hypervel\Http\UploadedFile;
 use Psr\Http\Message\ResponseInterface;
 use Throwable;
 
-use function Hyperf\Coroutine\defer;
+use function Hypervel\Coroutine\defer;
 
 class Kernel extends HyperfServer implements MiddlewareContract
 {

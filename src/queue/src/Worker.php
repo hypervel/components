@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue;
 
 use Hyperf\Coordinator\Timer;
-use Hyperf\Coroutine\Concurrent;
+use Hypervel\Coroutine\Concurrent;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;

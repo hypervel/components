@@ -15,7 +15,7 @@ use Throwable;
 class CoroutineAspect extends AbstractAspect
 {
     public array $classes = [
-        'Hyperf\Coroutine\Coroutine::create',
+        'Hypervel\Coroutine\Coroutine::create',
     ];
 
     protected array $keys = [

@@ -21,7 +21,7 @@ use Hypervel\Telescope\Jobs\ProcessPendingUpdates;
 use Psr\Container\ContainerInterface;
 use Throwable;
 
-use function Hyperf\Coroutine\defer;
+use function Hypervel\Coroutine\defer;
 use function Hypervel\Cache\cache;
 use function Hypervel\Config\config;
 use function Hypervel\Event\event;

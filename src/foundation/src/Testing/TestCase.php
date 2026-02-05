@@ -7,7 +7,7 @@ namespace Hypervel\Foundation\Testing;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Faker\Generator as FakerGenerator;
-use Hyperf\Coroutine\Coroutine;
+use Hypervel\Coroutine\Coroutine;
 use Hypervel\Context\Context;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
@@ -21,7 +21,7 @@ use Hypervel\Foundation\Testing\Concerns\MocksApplicationServices;
 use Hypervel\Support\Facades\Facade;
 use Throwable;
 
-use function Hyperf\Coroutine\run;
+use function Hypervel\Coroutine\run;
 
 abstract class TestCase extends \PHPUnit\Framework\TestCase
 {

@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Filesystem;
 
 use Carbon\Carbon;
 use GuzzleHttp\Psr7\Stream;
-use Hyperf\Coroutine\Coroutine;
+use Hypervel\Coroutine\Coroutine;
 use Hyperf\HttpMessage\Upload\UploadedFile;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
