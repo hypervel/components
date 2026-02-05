@@ -1,16 +1,8 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Guzzle;
+namespace Hypervel\Guzzle;
 
 use GuzzleHttp\Middleware;
 use Psr\Http\Message\RequestInterface;
@@ -18,10 +10,18 @@ use Psr\Http\Message\ResponseInterface;
 
 class RetryMiddleware implements MiddlewareInterface
 {
-    public function __construct(protected int $retries = 1, protected int $delay = 0)
-    {
+    /**
+     * Create a new retry middleware instance.
+     */
+    public function __construct(
+        protected int $retries = 1,
+        protected int $delay = 0,
+    ) {
     }
 
+    /**
+     * Get the middleware callable.
+     */
     public function getMiddleware(): callable
     {
         return Middleware::retry(function ($retries, RequestInterface $request, ?ResponseInterface $response = null) {
@@ -35,7 +35,7 @@ class RetryMiddleware implements MiddlewareInterface
     }
 
     /**
-     * Check the response status is correct.
+     * Check if the response status is successful.
      */
     protected function isOk(?ResponseInterface $response): bool
     {
