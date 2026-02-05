@@ -22,6 +22,8 @@ class WebSocket implements WebSocketInterface
 
     /**
      * Create a new WebSocket instance.
+     *
+     * @phpstan-ignore constructor.unusedParameter (request kept for API consistency)
      */
     public function __construct(Response $connection, Request $request, protected ?LoggerInterface $logger = null)
     {
@@ -44,7 +46,7 @@ class WebSocket implements WebSocketInterface
     {
         while (true) {
             /** @var false|string|SwFrame $frame */
-            $frame = $this->connection->recv(-1);
+            $frame = $this->connection->recv(-1); // @phpstan-ignore arguments.count (recv accepts timeout parameter)
             if ($frame === false) {
                 $this->logger?->warning(
                     sprintf(
