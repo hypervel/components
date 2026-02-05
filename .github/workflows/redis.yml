@@ -20,8 +20,9 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+    # Swoole 6.1+ required for phpredis 6.3.0+ (HSETEX support for "any" tag mode)
     container:
-      image: phpswoole/swoole:6.0.2-php8.4
+      image: phpswoole/swoole:6.1.4-php8.4
 
     strategy:
       fail-fast: true
@@ -66,8 +67,9 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+    # Swoole 6.1+ required for phpredis 6.3.0+ (HSETEX support for "any" tag mode)
     container:
-      image: phpswoole/swoole:6.0.2-php8.4
+      image: phpswoole/swoole:6.1.4-php8.4
 
     strategy:
       fail-fast: true
