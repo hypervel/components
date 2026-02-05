@@ -3,8 +3,7 @@
 # Start all engine test servers for integration testing.
 #
 # Usage:
-#   ./bin/test-servers.sh        # Recommended for long-running use
-#   composer test-servers        # Will timeout after 300s (composer default)
+#   ./bin/test-servers.sh
 #
 # Servers:
 #   - HTTP server on port 19501
@@ -13,9 +12,6 @@
 #   - HTTP v2 server on port 19505
 #
 # Press Ctrl+C to stop all servers.
-#
-# Note: If composer times out, it sends SIGKILL which cannot be trapped.
-# Orphaned servers can be killed with: pkill -f "engine/examples/.*_server.php"
 
 set -e
 
@@ -31,12 +27,10 @@ cleanup() {
     for pid in "${PIDS[@]}"; do
         kill "$pid" 2>/dev/null || true
     done
-    # Also kill by pattern in case PIDs were missed
-    pkill -f "engine/examples/.*_server.php" 2>/dev/null || true
     exit 0
 }
 
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
 
 echo "Starting engine test servers..."
 
