@@ -1,41 +1,38 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Guzzle;
+namespace Hypervel\Guzzle;
 
 use Exception;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\FulfilledPromise;
-use Hyperf\Engine\Http\Client;
-use Hyperf\Pool\Pool;
-use Hyperf\Pool\SimplePool\PoolFactory;
+use GuzzleHttp\Promise\PromiseInterface;
+use Hypervel\Engine\Http\Client;
+use Hypervel\Pool\Pool;
+use Hypervel\Pool\SimplePool\PoolFactory;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\UriInterface;
 
 class PoolHandler extends CoroutineHandler
 {
     /**
-     * @param array $option The option of pool
+     * Create a new pool handler instance.
+     *
      * @see Pool::initOption()
      */
     public function __construct(
         protected PoolFactory $factory,
         protected array $option = [],
-        protected bool $isCookiePersistent = true
+        protected bool $isCookiePersistent = true,
     ) {
     }
 
-    public function __invoke(RequestInterface $request, array $options)
+    /**
+     * Handle the HTTP request using a pooled connection.
+     */
+    public function __invoke(RequestInterface $request, array $options): PromiseInterface
     {
         $uri = $request->getUri();
         $host = $uri->getHost();
@@ -95,7 +92,10 @@ class PoolHandler extends CoroutineHandler
         return new FulfilledPromise($response);
     }
 
-    protected function getPoolName(UriInterface $uri)
+    /**
+     * Get the pool name for the given URI.
+     */
+    protected function getPoolName(UriInterface $uri): string
     {
         return sprintf('guzzle.handler.%s.%d.%s', $uri->getHost(), $uri->getPort(), $uri->getScheme());
     }
