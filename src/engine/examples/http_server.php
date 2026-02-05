@@ -5,7 +5,7 @@ declare(strict_types=1);
 /**
  * HTTP test server for engine integration tests.
  *
- * Listens on port 9501 and handles various test endpoints.
+ * Listens on port 19501 and handles various test endpoints.
  */
 
 use Hypervel\Engine\Coroutine;
@@ -22,7 +22,7 @@ Coroutine::set([
 ]);
 
 $callback = function () {
-    $server = new Server('0.0.0.0', 9501);
+    $server = new Server('0.0.0.0', 19501);
     $server->handle('/', function (Request $request, Response $response) {
         $response->setHeader('Server', 'Hyperf');
         switch ($request->server['request_uri']) {

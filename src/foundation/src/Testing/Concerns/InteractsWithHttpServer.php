@@ -16,11 +16,11 @@ use Throwable;
  * - Auto-skip: Skips tests if HTTP server unavailable on configured host/port
  * - Fast-fail: Once connection fails with defaults, all subsequent tests skip immediately
  *
- * Usage: Add `use InteractsWithHttpServer;` to your test case.
+ * Usage: Add `use InteractsWithHttpServer;` to your test case. Override $httpServerPort
+ * in your test class to connect to a different server port.
  *
  * Environment Variables:
  * - ENGINE_TEST_SERVER_HOST: Server host (default: 127.0.0.1)
- * - ENGINE_TEST_SERVER_PORT: Server port (default: 9501)
  */
 trait InteractsWithHttpServer
 {
@@ -36,24 +36,26 @@ trait InteractsWithHttpServer
 
     /**
      * The HTTP server port for testing.
+     *
+     * Override this in your test class to connect to a different port.
      */
-    protected int $httpServerPort = 9501;
+    protected int $httpServerPort = 19501;
 
     /**
      * Set up HTTP server connection check (auto-called by setUpTraits).
      *
-     * Follows the same pattern as InteractsWithMeilisearch:
-     * - Only skips if using default host/port AND no explicit env var
-     * - If explicit config exists and fails, the exception propagates (misconfiguration)
+     * Checks if the server is reachable on the configured host/port.
+     * If not reachable and using default host, skips the test.
+     * If not reachable and using explicit host, fails the test (misconfiguration).
      */
     protected function setUpInteractsWithHttpServer(): void
     {
+        // Only override host from env, not port - each test class sets its own port
         $this->httpServerHost = env('ENGINE_TEST_SERVER_HOST', '127.0.0.1');
-        $this->httpServerPort = (int) env('ENGINE_TEST_SERVER_PORT', 9501);
 
         if (static::$httpServerConnectionFailed) {
             $this->markTestSkipped(
-                'HTTP server connection failed with defaults. Set ENGINE_TEST_SERVER_HOST & ENGINE_TEST_SERVER_PORT to enable ' . static::class
+                'HTTP server connection failed with defaults. Set ENGINE_TEST_SERVER_HOST to enable ' . static::class
             );
         }
 
@@ -61,12 +63,12 @@ trait InteractsWithHttpServer
             if ($this->isUsingDefaultHttpServerConfig()) {
                 static::$httpServerConnectionFailed = true;
                 $this->markTestSkipped(
-                    'HTTP server connection failed with defaults. Set ENGINE_TEST_SERVER_HOST & ENGINE_TEST_SERVER_PORT to enable ' . static::class
+                    'HTTP server connection failed with defaults. Set ENGINE_TEST_SERVER_HOST to enable ' . static::class
                 );
             }
             // Explicit config exists but failed - throw so test fails (misconfiguration)
             $this->fail(sprintf(
-                'Cannot connect to HTTP server at %s:%d. Check your ENGINE_TEST_SERVER_HOST and ENGINE_TEST_SERVER_PORT configuration.',
+                'Cannot connect to HTTP server at %s:%d. Check your ENGINE_TEST_SERVER_HOST configuration.',
                 $this->httpServerHost,
                 $this->httpServerPort
             ));
@@ -95,8 +97,7 @@ trait InteractsWithHttpServer
      */
     protected function isUsingDefaultHttpServerConfig(): bool
     {
-        return env('ENGINE_TEST_SERVER_HOST') === null
-            && env('ENGINE_TEST_SERVER_PORT') === null;
+        return env('ENGINE_TEST_SERVER_HOST') === null;
     }
 
     /**

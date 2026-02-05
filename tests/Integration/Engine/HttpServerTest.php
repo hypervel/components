@@ -20,7 +20,7 @@ class HttpServerTest extends EngineIntegrationTestCase
     /**
      * The HTTP server port for these tests.
      */
-    protected int $httpServerPort = 9505;
+    protected int $httpServerPort = 19505;
 
     public function testHttpServerHelloWorld(): void
     {

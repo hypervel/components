@@ -21,7 +21,7 @@ class WebSocketTest extends EngineIntegrationTestCase
     /**
      * The WebSocket server port for these tests.
      */
-    protected int $httpServerPort = 9503;
+    protected int $httpServerPort = 19503;
 
     public function testWebSocket(): void
     {

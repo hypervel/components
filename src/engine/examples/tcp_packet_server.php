@@ -5,7 +5,7 @@ declare(strict_types=1);
 /**
  * TCP packet test server for engine integration tests.
  *
- * Listens on port 9502 and handles length-prefixed packets.
+ * Listens on port 19502 and handles length-prefixed packets.
  */
 
 use Hypervel\Engine\Coroutine;
@@ -26,7 +26,7 @@ function p(string $data): string
 }
 
 run(function () {
-    $server = new Server('0.0.0.0', 9502);
+    $server = new Server('0.0.0.0', 19502);
     $server->set([
         'open_length_check' => true,
         'package_max_length' => 1024 * 1024 * 2,

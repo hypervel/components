@@ -5,7 +5,7 @@ declare(strict_types=1);
 /**
  * WebSocket test server for engine integration tests.
  *
- * Listens on port 9503 and handles WebSocket connections.
+ * Listens on port 19503 and handles WebSocket connections.
  */
 
 use Hypervel\Engine\Coroutine;
@@ -24,7 +24,7 @@ Coroutine::set([
 ]);
 
 run(function () {
-    $server = new Server('0.0.0.0', 9503, false);
+    $server = new Server('0.0.0.0', 19503, false);
     $server->set(['open_websocket_ping_frame' => true]);
 
     $server->handle('/', function (Request $request, Response $connection) {

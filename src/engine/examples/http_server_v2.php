@@ -5,7 +5,7 @@ declare(strict_types=1);
 /**
  * HTTP/2 test server for engine integration tests.
  *
- * Listens on port 9505 and handles cookie-based test endpoints.
+ * Listens on port 19505 and handles cookie-based test endpoints.
  * This is a simplified version that doesn't require HttpMessage classes.
  */
 
@@ -23,7 +23,7 @@ Coroutine::set([
 ]);
 
 $callback = function () {
-    $server = new Server('0.0.0.0', 9505);
+    $server = new Server('0.0.0.0', 19505);
     $server->handle('/', function (Request $request, Response $response) {
         $path = $request->server['request_uri'];
 
@@ -33,7 +33,7 @@ $callback = function () {
                 $cookies = $request->cookie ?? [];
 
                 // Parse JSON body for cookies to set
-                $body = $request->getContent();
+                $body = $request->rawContent();
                 $json = $body ? json_decode($body, true) : [];
 
                 // Set cookies from JSON body
@@ -49,7 +49,7 @@ $callback = function () {
                 $response->end(json_encode($cookies));
             })(),
             default => (function () use ($request, $response) {
-                $body = $request->getContent();
+                $body = $request->rawContent();
                 $ret = 'Hello World.';
                 if ($body) {
                     $ret = 'Received: ' . $body;

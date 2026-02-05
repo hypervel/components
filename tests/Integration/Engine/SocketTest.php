@@ -20,7 +20,7 @@ class SocketTest extends EngineIntegrationTestCase
     /**
      * The TCP server port for socket tests.
      */
-    protected int $httpServerPort = 9502;
+    protected int $httpServerPort = 19502;
 
     public function testSocketRecvPacketFromTcpServer(): void
     {
