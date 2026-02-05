@@ -6,9 +6,6 @@ namespace Hypervel\Coroutine\Exception;
 
 use RuntimeException;
 
-/**
- * Exception thrown when attempting to use a closed channel.
- */
 class ChannelClosedException extends RuntimeException
 {
 }
