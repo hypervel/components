@@ -1,27 +1,22 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Guzzle;
+namespace Hypervel\Guzzle;
 
 use GuzzleHttp\HandlerStack;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Coroutine\Coroutine;
-use Hyperf\Di\Container;
-use Hyperf\Pool\SimplePool\PoolFactory;
+use Hypervel\Container\Container;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Coroutine\Coroutine;
+use Hypervel\Pool\SimplePool\PoolFactory;
 
-use function Hyperf\Support\make;
+use function app;
 
 class HandlerStackFactory
 {
+    /**
+     * The default pool options.
+     */
     protected array $option = [
         'min_connections' => 1,
         'max_connections' => 30,
@@ -29,12 +24,21 @@ class HandlerStackFactory
         'max_idle_time' => 60,
     ];
 
+    /**
+     * The default middlewares.
+     */
     protected array $middlewares = [
         'retry' => [RetryMiddleware::class, [1, 10]],
     ];
 
+    /**
+     * Whether to use the pool handler.
+     */
     protected bool $usePoolHandler = false;
 
+    /**
+     * Create a new handler stack factory instance.
+     */
     public function __construct()
     {
         if (class_exists(ApplicationContext::class)) {
@@ -42,6 +46,9 @@ class HandlerStackFactory
         }
     }
 
+    /**
+     * Create a new handler stack.
+     */
     public function create(array $option = [], array $middlewares = []): HandlerStack
     {
         $handler = null;
@@ -68,16 +75,19 @@ class HandlerStackFactory
         return $stack;
     }
 
-    protected function getHandler(array $option)
+    /**
+     * Get the appropriate handler based on the environment.
+     */
+    protected function getHandler(array $option): CoroutineHandler
     {
         if ($this->usePoolHandler) {
-            return make(PoolHandler::class, [
+            return app(PoolHandler::class, [
                 'option' => $option,
             ]);
         }
 
         if (class_exists(ApplicationContext::class)) {
-            return make(CoroutineHandler::class);
+            return app(CoroutineHandler::class);
         }
 
         return new CoroutineHandler();
