@@ -1,29 +1,23 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Engine;
+namespace Hypervel\Engine;
 
-use Hyperf\Engine\Contract\ChannelInterface;
-use Hyperf\Engine\Exception\RuntimeException;
+use Hypervel\Contracts\Engine\ChannelInterface;
+use Hypervel\Engine\Exception\RuntimeException;
 
 /**
  * @template TValue of mixed
- * @implements ChannelInterface
+ * @implements ChannelInterface<TValue>
  */
 class Channel extends \Swoole\Coroutine\Channel implements ChannelInterface
 {
     protected bool $closed = false;
 
     /**
+     * Push data into the channel.
+     *
      * @param TValue $data
      * @param float|int $timeout seconds [optional] = -1
      */
@@ -33,6 +27,8 @@ class Channel extends \Swoole\Coroutine\Channel implements ChannelInterface
     }
 
     /**
+     * Pop data from the channel.
+     *
      * @param float $timeout seconds [optional] = -1
      * @return false|TValue when pop failed, return false
      */
@@ -41,52 +37,90 @@ class Channel extends \Swoole\Coroutine\Channel implements ChannelInterface
         return parent::pop($timeout);
     }
 
+    /**
+     * Get the channel capacity.
+     */
     public function getCapacity(): int
     {
         return $this->capacity;
     }
 
+    /**
+     * Get the current length of the channel.
+     */
     public function getLength(): int
     {
         return $this->length();
     }
 
+    /**
+     * Determine if the channel is available.
+     */
     public function isAvailable(): bool
     {
         return ! $this->isClosing();
     }
 
+    /**
+     * Close the channel.
+     */
     public function close(): bool
     {
         $this->closed = true;
         return parent::close();
     }
 
+    /**
+     * Determine if the channel has producers waiting.
+     *
+     * @throws RuntimeException Not supported in Swoole.
+     */
     public function hasProducers(): bool
     {
         throw new RuntimeException('Not supported.');
     }
 
+    /**
+     * Determine if the channel has consumers waiting.
+     *
+     * @throws RuntimeException Not supported in Swoole.
+     */
     public function hasConsumers(): bool
     {
         throw new RuntimeException('Not supported.');
     }
 
+    /**
+     * Determine if the channel is readable.
+     *
+     * @throws RuntimeException Not supported in Swoole.
+     */
     public function isReadable(): bool
     {
         throw new RuntimeException('Not supported.');
     }
 
+    /**
+     * Determine if the channel is writable.
+     *
+     * @throws RuntimeException Not supported in Swoole.
+     */
     public function isWritable(): bool
     {
         throw new RuntimeException('Not supported.');
     }
 
+    /**
+     * Determine if the channel is closing or closed.
+     */
     public function isClosing(): bool
     {
         return $this->closed || $this->errCode === SWOOLE_CHANNEL_CLOSED;
     }
 
+    /**
+     * Determine if the last operation timed out.
+     */
     public function isTimeout(): bool
     {
         return ! $this->closed && $this->errCode === SWOOLE_CHANNEL_TIMEOUT;

@@ -1,29 +1,26 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Engine\Http;
+namespace Hypervel\Engine\Http;
 
-use Hyperf\Engine\Contract\Http\ClientInterface;
-use Hyperf\Engine\Exception\HttpClientException;
+use Hypervel\Contracts\Engine\Http\ClientInterface;
+use Hypervel\Engine\Exception\HttpClientException;
 use Swoole\Coroutine\Http\Client as HttpClient;
 
 class Client extends HttpClient implements ClientInterface
 {
+    /**
+     * Set the client settings.
+     */
     public function set(array $settings): bool
     {
         return parent::set($settings);
     }
 
     /**
+     * Send an HTTP request.
+     *
      * @param string[][] $headers
      */
     public function request(string $method = 'GET', string $path = '/', array $headers = [], string $contents = '', string $version = '1.1'): RawResponse
@@ -44,6 +41,8 @@ class Client extends HttpClient implements ClientInterface
     }
 
     /**
+     * Decode headers from Swoole format to standard format.
+     *
      * @param string[] $headers
      * @return string[][]
      */
@@ -65,7 +64,8 @@ class Client extends HttpClient implements ClientInterface
     }
 
     /**
-     * Swoole engine not support two-dimensional array.
+     * Encode headers for Swoole (does not support two-dimensional arrays).
+     *
      * @param string[][] $headers
      * @return string[]
      */

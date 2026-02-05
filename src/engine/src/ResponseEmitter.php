@@ -1,33 +1,30 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Engine;
+namespace Hypervel\Engine;
 
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hyperf\Engine\Contract\ResponseEmitterInterface;
 use Hyperf\HttpMessage\Cookie\Cookie;
 use Hyperf\HttpMessage\Server\Response as HyperfResponse;
 use Hyperf\HttpMessage\Stream\FileInterface;
+use Hypervel\Contracts\Engine\ResponseEmitterInterface;
 use Psr\Http\Message\ResponseInterface;
 use Swoole\Http\Response;
 use Throwable;
 
 class ResponseEmitter implements ResponseEmitterInterface
 {
+    /**
+     * Create a new response emitter instance.
+     */
     public function __construct(protected ?StdoutLoggerInterface $logger)
     {
     }
 
     /**
+     * Emit the response to the client.
+     *
      * @param Response $connection
      */
     public function emit(ResponseInterface $response, mixed $connection, bool $withContent = true): void
@@ -53,6 +50,9 @@ class ResponseEmitter implements ResponseEmitterInterface
         }
     }
 
+    /**
+     * Build the Swoole response from a PSR-7 response.
+     */
     protected function buildSwooleResponse(Response $swooleResponse, ResponseInterface $response): void
     {
         // Headers
@@ -83,6 +83,9 @@ class ResponseEmitter implements ResponseEmitterInterface
         $swooleResponse->status($response->getStatusCode(), $response->getReasonPhrase());
     }
 
+    /**
+     * Determine if all methods exist on an object.
+     */
     protected function isMethodsExists(object $object, array $methods): bool
     {
         foreach ($methods as $method) {

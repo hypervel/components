@@ -1,21 +1,16 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Engine\Http;
+namespace Hypervel\Engine\Http;
 
 use Swoole\Http\Response;
 
 class FdGetter
 {
+    /**
+     * Get the file descriptor from a response.
+     */
     public function get(Response $response): int
     {
         return $response->fd;

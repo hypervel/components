@@ -1,20 +1,14 @@
 <?php
 
 declare(strict_types=1);
+
+namespace Hypervel\Engine;
+
+use Hypervel\Contracts\Engine\WebSocket\FrameInterface;
+
 /**
- * This file is part of Hyperf.
+ * Get Swoole WebSocket flags from a frame.
  *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
-
-namespace Hyperf\Engine;
-
-use Hyperf\Engine\Contract\WebSocket\FrameInterface;
-
-/**
  * @internal
  */
 function swoole_get_flags_from_frame(FrameInterface $frame): int

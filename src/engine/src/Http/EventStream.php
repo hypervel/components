@@ -1,23 +1,18 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Engine\Http;
+namespace Hypervel\Engine\Http;
 
-use Hyperf\Engine\Contract\Http\Writable;
+use Hypervel\Contracts\Engine\Http\Writable;
 use Psr\Http\Message\ResponseInterface;
 use Swoole\Http\Response;
 
 class EventStream
 {
+    /**
+     * Create a new event stream instance.
+     */
     public function __construct(protected Writable $connection, ?ResponseInterface $response = null)
     {
         /** @var Response $socket */
@@ -30,12 +25,18 @@ class EventStream
         }
     }
 
+    /**
+     * Write data to the event stream.
+     */
     public function write(string $data): self
     {
         $this->connection->write($data);
         return $this;
     }
 
+    /**
+     * End the event stream.
+     */
     public function end(): void
     {
         $this->connection->end();

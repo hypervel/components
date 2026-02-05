@@ -1,22 +1,14 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Engine;
+namespace Hypervel\Engine;
 
 use ArrayObject;
-use Hyperf\Engine\Contract\CoroutineInterface;
-use Hyperf\Engine\Exception\CoroutineDestroyedException;
-use Hyperf\Engine\Exception\RunningInNonCoroutineException;
-use Hyperf\Engine\Exception\RuntimeException;
+use Hypervel\Contracts\Engine\CoroutineInterface;
+use Hypervel\Engine\Exception\CoroutineDestroyedException;
+use Hypervel\Engine\Exception\RunningInNonCoroutineException;
+use Hypervel\Engine\Exception\RuntimeException;
 use Swoole\Coroutine as SwooleCo;
 
 class Coroutine implements CoroutineInterface
@@ -28,11 +20,17 @@ class Coroutine implements CoroutineInterface
 
     private ?int $id = null;
 
+    /**
+     * Create a new coroutine instance.
+     */
     public function __construct(callable $callable)
     {
         $this->callable = $callable;
     }
 
+    /**
+     * Create and execute a new coroutine.
+     */
     public static function create(callable $callable, ...$data): static
     {
         $coroutine = new static($callable);
@@ -40,12 +38,18 @@ class Coroutine implements CoroutineInterface
         return $coroutine;
     }
 
+    /**
+     * Execute the coroutine.
+     */
     public function execute(...$data): static
     {
         $this->id = SwooleCo::create($this->callable, ...$data);
         return $this;
     }
 
+    /**
+     * Get the coroutine ID.
+     */
     public function getId(): int
     {
         if (is_null($this->id)) {
@@ -54,11 +58,17 @@ class Coroutine implements CoroutineInterface
         return $this->id;
     }
 
+    /**
+     * Get the current coroutine ID.
+     */
     public static function id(): int
     {
         return SwooleCo::getCid();
     }
 
+    /**
+     * Get the parent coroutine ID.
+     */
     public static function pid(?int $id = null): int
     {
         if ($id) {
@@ -75,11 +85,17 @@ class Coroutine implements CoroutineInterface
         return max(0, $cid);
     }
 
+    /**
+     * Set the coroutine configuration.
+     */
     public static function set(array $config): void
     {
         SwooleCo::set($config);
     }
 
+    /**
+     * Get the coroutine context.
+     */
     public static function getContextFor(?int $id = null): ?ArrayObject
     {
         if ($id === null) {
@@ -89,6 +105,9 @@ class Coroutine implements CoroutineInterface
         return SwooleCo::getContext($id);
     }
 
+    /**
+     * Register a callback to be executed when the coroutine ends.
+     */
     public static function defer(callable $callable): void
     {
         SwooleCo::defer($callable);
@@ -96,8 +115,8 @@ class Coroutine implements CoroutineInterface
 
     /**
      * Yield the current coroutine.
-     * @param mixed $data only Support Swow
-     * @return bool
+     *
+     * @param mixed $data only supported in Swow
      */
     public static function yield(mixed $data = null): mixed
     {
@@ -105,9 +124,9 @@ class Coroutine implements CoroutineInterface
     }
 
     /**
-     * Resume the coroutine by coroutine Id.
-     * @param mixed $data only Support Swow
-     * @return bool
+     * Resume a coroutine by ID.
+     *
+     * @param mixed $data only supported in Swow
      */
     public static function resumeById(int $id, mixed ...$data): mixed
     {
@@ -115,19 +134,24 @@ class Coroutine implements CoroutineInterface
     }
 
     /**
-     * Get the coroutine stats.
+     * Get the coroutine statistics.
      */
     public static function stats(): array
     {
         return SwooleCo::stats();
     }
 
+    /**
+     * Determine if a coroutine exists.
+     */
     public static function exists(?int $id = null): bool
     {
         return SwooleCo::exists($id);
     }
 
     /**
+     * Get all coroutine IDs.
+     *
      * @return iterable<int>
      */
     public static function list(): iterable

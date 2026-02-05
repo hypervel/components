@@ -1,40 +1,51 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Engine\Socket;
+namespace Hypervel\Engine\Socket;
 
-use Hyperf\Engine\Contract\Socket\SocketOptionInterface;
+use Hypervel\Contracts\Engine\Socket\SocketOptionInterface;
 
 class SocketOption implements SocketOptionInterface
 {
-    public function __construct(protected string $host, protected int $port, protected ?float $timeout = null, protected array $protocol = [])
-    {
+    /**
+     * Create a new socket option instance.
+     */
+    public function __construct(
+        protected string $host,
+        protected int $port,
+        protected ?float $timeout = null,
+        protected array $protocol = []
+    ) {
     }
 
+    /**
+     * Get the host.
+     */
     public function getHost(): string
     {
         return $this->host;
     }
 
+    /**
+     * Get the port.
+     */
     public function getPort(): int
     {
         return $this->port;
     }
 
+    /**
+     * Get the connection timeout in seconds.
+     */
     public function getTimeout(): ?float
     {
         return $this->timeout;
     }
 
+    /**
+     * Get the protocol configuration.
+     */
     public function getProtocol(): array
     {
         return $this->protocol;

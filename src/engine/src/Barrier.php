@@ -1,27 +1,25 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Engine;
+namespace Hypervel\Engine;
 
-use Hyperf\Engine\Contract\BarrierInterface;
+use Hypervel\Contracts\Engine\BarrierInterface;
 use Swoole\Coroutine\Barrier as SwooleBarrier;
 
 class Barrier implements BarrierInterface
 {
+    /**
+     * Wait for the barrier to be released.
+     */
     public static function wait(object &$barrier, int $timeout = -1): void
     {
         SwooleBarrier::wait($barrier, $timeout);
     }
 
+    /**
+     * Create a new barrier instance.
+     */
     public static function create(): object
     {
         return SwooleBarrier::make();

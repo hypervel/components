@@ -1,19 +1,11 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Engine\Http;
+namespace Hypervel\Engine\Http;
 
 use BadMethodCallException;
-use Hyperf\Engine\Exception\RuntimeException;
+use Hypervel\Engine\Exception\RuntimeException;
 use Psr\Http\Message\StreamInterface;
 use Stringable;
 use Throwable;
@@ -25,7 +17,7 @@ class Stream implements StreamInterface, Stringable
     protected bool $writable;
 
     /**
-     * SwooleStream constructor.
+     * Create a new stream instance.
      */
     public function __construct(protected string $contents = '')
     {

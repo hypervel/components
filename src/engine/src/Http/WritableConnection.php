@@ -1,39 +1,40 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Engine\Http;
+namespace Hypervel\Engine\Http;
 
-use Hyperf\Engine\Contract\Http\Writable;
+use Hypervel\Contracts\Engine\Http\Writable;
 use Swoole\Http\Response;
 
 class WritableConnection implements Writable
 {
+    /**
+     * Create a new writable connection instance.
+     */
     public function __construct(protected Response $response)
     {
     }
 
+    /**
+     * Write data to the connection.
+     */
     public function write(string $data): bool
     {
         return $this->response->write($data);
     }
 
     /**
-     * @return Response
+     * Get the underlying socket.
      */
     public function getSocket(): mixed
     {
         return $this->response;
     }
 
+    /**
+     * End the connection.
+     */
     public function end(): ?bool
     {
         return $this->response->end();

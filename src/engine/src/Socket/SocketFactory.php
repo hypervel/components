@@ -1,25 +1,20 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Engine\Socket;
+namespace Hypervel\Engine\Socket;
 
-use Hyperf\Engine\Contract\Socket\SocketFactoryInterface;
-use Hyperf\Engine\Contract\Socket\SocketOptionInterface;
-use Hyperf\Engine\Contract\SocketInterface;
-use Hyperf\Engine\Exception\SocketConnectException;
-use Hyperf\Engine\Socket;
+use Hypervel\Contracts\Engine\Socket\SocketFactoryInterface;
+use Hypervel\Contracts\Engine\Socket\SocketOptionInterface;
+use Hypervel\Contracts\Engine\SocketInterface;
+use Hypervel\Engine\Exception\SocketConnectException;
+use Hypervel\Engine\Socket;
 
 class SocketFactory implements SocketFactoryInterface
 {
+    /**
+     * Create a new socket connection.
+     */
     public function make(SocketOptionInterface $option): SocketInterface
     {
         $socket = new Socket(AF_INET, SOCK_STREAM, 0);

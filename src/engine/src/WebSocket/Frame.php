@@ -1,24 +1,16 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Engine\WebSocket;
+namespace Hypervel\Engine\WebSocket;
 
-use Hyperf\Engine\Contract\WebSocket\FrameInterface;
-use Hyperf\Engine\Exception\InvalidArgumentException;
-use Hyperf\Engine\Http\Stream;
+use Hypervel\Contracts\Engine\WebSocket\FrameInterface;
+use Hypervel\Engine\Exception\InvalidArgumentException;
+use Hypervel\Engine\Http\Stream;
 use Psr\Http\Message\StreamInterface;
 use Swoole\WebSocket\Frame as SwooleFrame;
 
-use function Hyperf\Engine\swoole_get_flags_from_frame;
+use function Hypervel\Engine\swoole_get_flags_from_frame;
 
 class Frame implements FrameInterface
 {

@@ -1,35 +1,33 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Engine\WebSocket;
+namespace Hypervel\Engine\WebSocket;
 
-use Hyperf\Engine\Contract\WebSocket\FrameInterface;
-use Hyperf\Engine\Contract\WebSocket\ResponseInterface;
-use Hyperf\Engine\Exception\InvalidArgumentException;
+use Hypervel\Contracts\Engine\WebSocket\FrameInterface;
+use Hypervel\Contracts\Engine\WebSocket\ResponseInterface;
+use Hypervel\Engine\Exception\InvalidArgumentException;
 use Swoole\Http\Request;
 use Swoole\Http\Response as SwooleResponse;
 use Swoole\WebSocket\Frame as SwooleFrame;
 use Swoole\WebSocket\Server;
 
-use function Hyperf\Engine\swoole_get_flags_from_frame;
+use function Hypervel\Engine\swoole_get_flags_from_frame;
 
 class Response implements ResponseInterface
 {
     protected int $fd = 0;
 
+    /**
+     * Create a new WebSocket response instance.
+     */
     public function __construct(protected mixed $connection)
     {
     }
 
+    /**
+     * Push a frame to the WebSocket connection.
+     */
     public function push(FrameInterface $frame): bool
     {
         $data = (string) $frame->getPayloadData();
@@ -48,6 +46,9 @@ class Response implements ResponseInterface
         throw new InvalidArgumentException('The websocket connection is invalid.');
     }
 
+    /**
+     * Initialize the file descriptor from a frame or request.
+     */
     public function init(mixed $frame): static
     {
         switch (true) {
@@ -62,11 +63,17 @@ class Response implements ResponseInterface
         return $this;
     }
 
+    /**
+     * Get the file descriptor.
+     */
     public function getFd(): int
     {
         return $this->fd;
     }
 
+    /**
+     * Close the WebSocket connection.
+     */
     public function close(): bool
     {
         if ($this->connection instanceof SwooleResponse) {

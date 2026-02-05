@@ -1,21 +1,13 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Engine;
+namespace Hypervel\Engine;
 
-use Hyperf\Engine\Contract\Socket\SocketOptionInterface;
-use Hyperf\Engine\Contract\SocketInterface;
-use Hyperf\Engine\Exception\SocketClosedException;
-use Hyperf\Engine\Exception\SocketTimeoutException;
+use Hypervel\Contracts\Engine\Socket\SocketOptionInterface;
+use Hypervel\Contracts\Engine\SocketInterface;
+use Hypervel\Engine\Exception\SocketClosedException;
+use Hypervel\Engine\Exception\SocketTimeoutException;
 use Psr\Log\LoggerInterface;
 use Swoole\Coroutine\Socket;
 use Throwable;
@@ -28,6 +20,9 @@ class SafeSocket implements SocketInterface
 
     protected ?SocketOptionInterface $option = null;
 
+    /**
+     * Create a new safe socket instance.
+     */
     public function __construct(
         protected Socket $socket,
         int $capacity = 65535,
@@ -37,17 +32,25 @@ class SafeSocket implements SocketInterface
         $this->channel = new Channel($capacity);
     }
 
+    /**
+     * Set the socket option.
+     */
     public function setSocketOption(SocketOptionInterface $option): void
     {
         $this->option = $option;
     }
 
+    /**
+     * Get the socket option.
+     */
     public function getSocketOption(): ?SocketOptionInterface
     {
         return $this->option;
     }
 
     /**
+     * Send all data to the socket.
+     *
      * @throws SocketTimeoutException when send data timeout
      * @throws SocketClosedException when the client is closed
      */
@@ -70,6 +73,8 @@ class SafeSocket implements SocketInterface
     }
 
     /**
+     * Receive all data from the socket.
+     *
      * @throws SocketTimeoutException when send data timeout
      * @throws SocketClosedException when the client is closed
      */
@@ -88,6 +93,8 @@ class SafeSocket implements SocketInterface
     }
 
     /**
+     * Receive a packet from the socket.
+     *
      * @throws SocketTimeoutException when send data timeout
      * @throws SocketClosedException when the client is closed
      */
@@ -105,6 +112,9 @@ class SafeSocket implements SocketInterface
         return $res;
     }
 
+    /**
+     * Close the socket.
+     */
     public function close(): bool
     {
         $this->channel->close();
@@ -112,12 +122,18 @@ class SafeSocket implements SocketInterface
         return $this->socket->close();
     }
 
+    /**
+     * Set the logger.
+     */
     public function setLogger(?LoggerInterface $logger): static
     {
         $this->logger = $logger;
         return $this;
     }
 
+    /**
+     * Start the send loop.
+     */
     protected function loop(): void
     {
         if ($this->loop) {

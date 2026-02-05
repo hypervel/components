@@ -1,22 +1,17 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Engine;
+namespace Hypervel\Engine;
 
-use Hyperf\Engine\Contract\SignalInterface;
+use Hypervel\Contracts\Engine\SignalInterface;
 use Swoole\Coroutine\System;
 
 class Signal implements SignalInterface
 {
+    /**
+     * Wait for a signal.
+     */
     public static function wait(int $signo, float $timeout = -1): bool
     {
         return System::waitSignal($signo, $timeout) !== false;

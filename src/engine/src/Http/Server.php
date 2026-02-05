@@ -1,20 +1,12 @@
 <?php
 
 declare(strict_types=1);
-/**
- * This file is part of Hyperf.
- *
- * @link     https://www.hyperf.io
- * @document https://hyperf.wiki
- * @contact  group@hyperf.io
- * @license  https://github.com/hyperf/hyperf/blob/master/LICENSE
- */
 
-namespace Hyperf\Engine\Http;
+namespace Hypervel\Engine\Http;
 
-use Hyperf\Engine\Contract\Http\ServerInterface;
-use Hyperf\Engine\Coroutine;
 use Hyperf\HttpMessage\Server\Request;
+use Hypervel\Contracts\Engine\Http\ServerInterface;
+use Hypervel\Engine\Coroutine;
 use Psr\Log\LoggerInterface;
 use Swoole\Coroutine\Http\Server as HttpServer;
 use Throwable;
@@ -32,10 +24,16 @@ class Server implements ServerInterface
 
     protected HttpServer $server;
 
+    /**
+     * Create a new server instance.
+     */
     public function __construct(protected LoggerInterface $logger)
     {
     }
 
+    /**
+     * Bind the server to a host and port.
+     */
     public function bind(string $name, int $port = 0): static
     {
         $this->host = $name;
@@ -45,12 +43,18 @@ class Server implements ServerInterface
         return $this;
     }
 
+    /**
+     * Set the request handler.
+     */
     public function handle(callable $callable): static
     {
         $this->handler = $callable;
         return $this;
     }
 
+    /**
+     * Start the server.
+     */
     public function start(): void
     {
         $this->server->handle('/', function ($request, $response) {
@@ -68,6 +72,9 @@ class Server implements ServerInterface
         $this->server->start();
     }
 
+    /**
+     * Close the server.
+     */
     public function close(): bool
     {
         $this->server->shutdown();
