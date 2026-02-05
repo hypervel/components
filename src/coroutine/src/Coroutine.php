@@ -19,7 +19,7 @@ class Coroutine
     /**
      * @var array<callable>
      */
-    private static array $afterCreatedCallbacks = [];
+    protected static array $afterCreatedCallbacks = [];
 
     /**
      * Returns the current coroutine ID.

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database;
 
-use Hypervel\Coroutine\Channel;
+use Hypervel\Engine\Channel;
 use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionResolverInterface;
