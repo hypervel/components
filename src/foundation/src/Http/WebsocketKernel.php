@@ -6,8 +6,8 @@ namespace Hypervel\Foundation\Http;
 
 use Hyperf\Coordinator\Constants;
 use Hyperf\Coordinator\CoordinatorManager;
-use Hyperf\Engine\Constant;
-use Hyperf\Engine\WebSocket\WebSocket;
+use Hypervel\Engine\Constant;
+use Hypervel\Engine\WebSocket\WebSocket;
 use Hyperf\HttpMessage\Base\Response;
 use Hyperf\HttpMessage\Server\Response as Psr7Response;
 use Hyperf\Support\SafeCaller;

@@ -8,7 +8,7 @@ use Closure;
 use Hyperf\Contract\ConnectionInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Coordinator\Timer;
-use Hyperf\Engine\Channel;
+use Hypervel\Engine\Channel;
 use Hypervel\Pool\Exception\InvalidArgumentException;
 use Hypervel\Pool\Exception\SocketPopException;
 use Psr\Container\ContainerInterface;

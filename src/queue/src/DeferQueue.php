@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
-use Hyperf\Engine\Coroutine;
+use Hypervel\Engine\Coroutine;
 use Throwable;
 
 class DeferQueue extends SyncQueue

@@ -6,7 +6,7 @@ namespace Hypervel\Pool;
 
 use Hyperf\Contract\ConnectionInterface;
 use Hypervel\Coroutine\Coroutine;
-use Hyperf\Engine\Channel as CoChannel;
+use Hypervel\Engine\Channel as CoChannel;
 use SplQueue;
 
 /**

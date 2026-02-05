@@ -13,7 +13,7 @@ class ConfigProviderRegister
         \Hyperf\DbConnection\ConfigProvider::class,
         \Hyperf\Di\ConfigProvider::class,
         \Hyperf\Dispatcher\ConfigProvider::class,
-        \Hyperf\Engine\ConfigProvider::class,
+        \Hypervel\Engine\ConfigProvider::class,
         \Hyperf\Event\ConfigProvider::class,
         \Hyperf\ExceptionHandler\ConfigProvider::class,
         \Hyperf\Framework\ConfigProvider::class,

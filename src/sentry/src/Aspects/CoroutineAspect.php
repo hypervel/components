@@ -6,7 +6,7 @@ namespace Hypervel\Sentry\Aspects;
 
 use Hyperf\Di\Aop\AbstractAspect;
 use Hyperf\Di\Aop\ProceedingJoinPoint;
-use Hyperf\Engine\Coroutine;
+use Hypervel\Engine\Coroutine;
 use Hypervel\Coroutine\Coroutine as HypervelCoroutine;
 use Hypervel\Sentry\Switcher;
 use Sentry\SentrySdk;
