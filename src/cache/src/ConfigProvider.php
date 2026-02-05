@@ -8,6 +8,9 @@ use Hypervel\Cache\Console\ClearCommand;
 use Hypervel\Cache\Console\PruneDbExpiredCommand;
 use Hypervel\Cache\Listeners\CreateSwooleTable;
 use Hypervel\Cache\Listeners\CreateTimer;
+use Hypervel\Cache\Redis\Console\BenchmarkCommand;
+use Hypervel\Cache\Redis\Console\DoctorCommand;
+use Hypervel\Cache\Redis\Console\PruneStaleTagsCommand;
 use Hypervel\Contracts\Cache\Factory;
 use Hypervel\Contracts\Cache\Store;
 
@@ -25,8 +28,11 @@ class ConfigProvider
                 CreateTimer::class,
             ],
             'commands' => [
+                BenchmarkCommand::class,
                 ClearCommand::class,
+                DoctorCommand::class,
                 PruneDbExpiredCommand::class,
+                PruneStaleTagsCommand::class,
             ],
             'publish' => [
                 [

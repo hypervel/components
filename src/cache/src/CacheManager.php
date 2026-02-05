@@ -236,6 +236,7 @@ class CacheManager implements FactoryContract
         $connection = $config['connection'] ?? 'default';
 
         $store = new RedisStore($redis, $this->getPrefix($config), $connection);
+        $store->setTagMode($config['tag_mode'] ?? 'all');
 
         return $this->repository(
             $store->setLockConnection($config['lock_connection'] ?? $connection),
