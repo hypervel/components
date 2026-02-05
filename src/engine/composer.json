@@ -1,0 +1,56 @@
+{
+    "name": "hypervel/engine",
+    "description": "Coroutine engine for Hypervel powered by Swoole.",
+    "license": "MIT",
+    "keywords": [
+        "php",
+        "hyperf",
+        "hypervel",
+        "engine",
+        "swoole",
+        "coroutine"
+    ],
+    "support": {
+        "issues": "https://github.com/hypervel/components/issues",
+        "source": "https://github.com/hypervel/components"
+    },
+    "authors": [
+        {
+            "name": "Albert Chen",
+            "email": "albert@hypervel.org"
+        }
+    ],
+    "require": {
+        "php": "^8.2",
+        "hypervel/contracts": "^0.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "Hypervel\\Engine\\": "src/"
+        },
+        "files": [
+            "src/Functions.php"
+        ]
+    },
+    "suggest": {
+        "ext-sockets": "*",
+        "ext-swoole": ">=5.0",
+        "psr/http-message": "Required to use WebSocket Frame.",
+        "hyperf/http-message": "Required to use ResponseEmitter."
+    },
+    "conflict": {
+        "ext-swoole": "<5.0"
+    },
+    "extra": {
+        "hyperf": {
+            "config": "Hypervel\\Engine\\ConfigProvider"
+        },
+        "branch-alias": {
+            "dev-main": "0.3-dev"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "minimum-stability": "dev"
+}
