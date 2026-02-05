@@ -21,7 +21,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: phpswoole/swoole:6.1.4-php8.4
+      image: phpswoole/swoole:6.0.2-php8.4
 
     strategy:
       fail-fast: true
@@ -30,10 +30,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /root/.composer/cache
           key: composer-8.4-${{ hashFiles('composer.lock') }}
@@ -67,7 +67,7 @@ jobs:
           --health-retries 5
 
     container:
-      image: phpswoole/swoole:6.1.4-php8.4
+      image: phpswoole/swoole:6.0.2-php8.4
 
     strategy:
       fail-fast: true
@@ -76,10 +76,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Cache Composer dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: /root/.composer/cache
           key: composer-8.4-${{ hashFiles('composer.lock') }}
