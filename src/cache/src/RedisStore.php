@@ -8,7 +8,6 @@ use Closure;
 use Hyperf\Redis\Pool\PoolFactory;
 use Hyperf\Redis\RedisFactory;
 use Hyperf\Redis\RedisProxy;
-use Hypervel\Contracts\Cache\LockProvider;
 use Hypervel\Cache\Redis\AllTaggedCache;
 use Hypervel\Cache\Redis\AllTagSet;
 use Hypervel\Cache\Redis\AnyTaggedCache;
@@ -31,6 +30,7 @@ use Hypervel\Cache\Redis\Operations\RememberForever;
 use Hypervel\Cache\Redis\Support\Serialization;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Cache\Redis\TagMode;
+use Hypervel\Contracts\Cache\LockProvider;
 
 class RedisStore extends TaggableStore implements LockProvider
 {

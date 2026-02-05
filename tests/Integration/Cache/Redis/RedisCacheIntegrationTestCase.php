@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Cache\Redis;
 
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Cache\Contracts\Repository;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Support\Facades\Cache;

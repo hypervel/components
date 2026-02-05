@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Redis\Console;
 
 use Hyperf\Command\Command;
-use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
 use Symfony\Component\Console\Input\InputArgument;
 

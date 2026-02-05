@@ -6,13 +6,13 @@ namespace Hypervel\Tests\Cache\Redis\Console;
 
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Cache\CacheManager;
-use Hypervel\Cache\Contracts\Factory as CacheContract;
-use Hypervel\Cache\Contracts\Repository;
-use Hypervel\Cache\Contracts\Store;
 use Hypervel\Cache\Redis\Console\DoctorCommand;
 use Hypervel\Cache\Redis\Support\StoreContext;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
+use Hypervel\Contracts\Cache\Factory as CacheContract;
+use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Contracts\Cache\Store;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;

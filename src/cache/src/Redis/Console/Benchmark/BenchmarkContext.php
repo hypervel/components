@@ -6,11 +6,11 @@ namespace Hypervel\Cache\Redis\Console\Benchmark;
 
 use Exception;
 use Hyperf\Command\Command;
-use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Cache\Redis\Exceptions\BenchmarkMemoryException;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\Repository;
+use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\SystemInfo;
 use RuntimeException;
