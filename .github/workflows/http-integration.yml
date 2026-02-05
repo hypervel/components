@@ -1,11 +1,11 @@
-name: engine
+name: http-integration
 
 on:
   push:
   pull_request:
 
 jobs:
-  engine:
+  http-integration:
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: true
 
-    name: Engine Integration Tests
+    name: HTTP Server Integration Tests
 
     steps:
       - name: Checkout code
@@ -42,4 +42,4 @@ jobs:
       - name: Execute integration tests
         env:
           ENGINE_TEST_SERVER_HOST: 127.0.0.1
-        run: vendor/bin/phpunit tests/Integration/Engine
+        run: vendor/bin/phpunit tests/Integration/Engine tests/Integration/Guzzle
