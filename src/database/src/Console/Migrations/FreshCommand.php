@@ -6,6 +6,7 @@ namespace Hypervel\Database\Console\Migrations;
 
 use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
+use Hypervel\Console\Prohibitable;
 use Hypervel\Database\Events\DatabaseRefreshed;
 use Hypervel\Database\Migrations\Migrator;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -13,6 +14,7 @@ use Psr\EventDispatcher\EventDispatcherInterface;
 class FreshCommand extends Command
 {
     use ConfirmableTrait;
+    use Prohibitable;
 
     protected ?string $signature = 'migrate:fresh
         {--database= : The database connection to use}
@@ -40,7 +42,7 @@ class FreshCommand extends Command
      */
     public function handle(): int
     {
-        if (! $this->confirmToProceed()) {
+        if ($this->isProhibited() || ! $this->confirmToProceed()) {
             return self::FAILURE;
         }
 

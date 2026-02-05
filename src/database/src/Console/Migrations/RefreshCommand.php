@@ -6,12 +6,14 @@ namespace Hypervel\Database\Console\Migrations;
 
 use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
+use Hypervel\Console\Prohibitable;
 use Hypervel\Database\Events\DatabaseRefreshed;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 class RefreshCommand extends Command
 {
     use ConfirmableTrait;
+    use Prohibitable;
 
     protected ?string $signature = 'migrate:refresh
         {--database= : The database connection to use}
@@ -35,7 +37,7 @@ class RefreshCommand extends Command
      */
     public function handle(): int
     {
-        if (! $this->confirmToProceed()) {
+        if ($this->isProhibited() || ! $this->confirmToProceed()) {
             return self::FAILURE;
         }
 
