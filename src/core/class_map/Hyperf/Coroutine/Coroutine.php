@@ -2,20 +2,19 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Coroutine;
+namespace Hyperf\Coroutine;
 
+use Hyperf\Contract\StdoutLoggerInterface;
+use Hyperf\Engine\Coroutine as Co;
+use Hyperf\Engine\Exception\CoroutineDestroyedException;
+use Hyperf\Engine\Exception\RunningInNonCoroutineException;
+use Hyperf\ExceptionHandler\Formatter\FormatterInterface;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Engine\Coroutine as Co;
-use Hypervel\Engine\Exception\CoroutineDestroyedException;
-use Hypervel\Engine\Exception\RunningInNonCoroutineException;
 use Throwable;
 
 class Coroutine
 {
-    protected static bool $enableReportException = true;
-
     /**
      * @var array<callable>
      */
@@ -23,7 +22,6 @@ class Coroutine
 
     /**
      * Returns the current coroutine ID.
-     *
      * Returns -1 when running in non-coroutine context.
      */
     public static function id(): int
@@ -39,17 +37,6 @@ class Coroutine
         static::$afterCreatedCallbacks[] = $callback;
     }
 
-    /**
-     * Flush after created callbacks.
-     */
-    public static function flushAfterCreated(): void
-    {
-        static::$afterCreatedCallbacks = [];
-    }
-
-    /**
-     * Register a callback to be executed when the coroutine exits.
-     */
     public static function defer(callable $callable): void
     {
         Co::defer(static function () use ($callable) {
@@ -61,9 +48,6 @@ class Coroutine
         });
     }
 
-    /**
-     * Sleep for the given number of seconds.
-     */
     public static function sleep(float $seconds): void
     {
         usleep(intval($seconds * 1000 * 1000));
@@ -71,11 +55,10 @@ class Coroutine
 
     /**
      * Returns the parent coroutine ID.
-     *
      * Returns 0 when running in the top level coroutine.
      *
-     * @throws RunningInNonCoroutineException When running in non-coroutine context
-     * @throws CoroutineDestroyedException When the coroutine has been destroyed
+     * @throws RunningInNonCoroutineException when running in non-coroutine context
+     * @throws CoroutineDestroyedException when the coroutine has been destroyed
      */
     public static function parentId(?int $coroutineId = null): int
     {
@@ -83,10 +66,10 @@ class Coroutine
     }
 
     /**
-     * Alias of Coroutine::parentId().
+     * The alias of Coroutine::parentId().
      *
-     * @throws RunningInNonCoroutineException When running in non-coroutine context
-     * @throws CoroutineDestroyedException When the coroutine has been destroyed
+     * @throws CoroutineDestroyedException when running in non-coroutine context
+     * @throws RunningInNonCoroutineException when the coroutine has been destroyed
      */
     public static function pid(?int $coroutineId = null): int
     {
@@ -94,9 +77,8 @@ class Coroutine
     }
 
     /**
-     * Create a new coroutine.
-     *
-     * @return int The coroutine ID, or -1 if creation failed
+     * @return int Returns the coroutine ID of the coroutine just created.
+     *             Returns -1 when coroutine create failed.
      */
     public static function create(callable $callable): int
     {
@@ -116,17 +98,11 @@ class Coroutine
             }
         });
 
-        try {
-            return $coroutine->getId();
-        } catch (Throwable) {
-            return -1;
-        }
+        return $coroutine->getId();
     }
 
     /**
      * Create a coroutine with a copy of the parent coroutine context.
-     *
-     * @param array<string> $keys Context keys to copy (empty = all keys)
      */
     public static function fork(callable $callable, array $keys = []): int
     {
@@ -139,33 +115,22 @@ class Coroutine
         return static::create($callable);
     }
 
-    /**
-     * Determine if currently running in a coroutine.
-     */
     public static function inCoroutine(): bool
     {
         return Co::id() > 0;
     }
 
-    /**
-     * Get coroutine statistics.
-     */
     public static function stats(): array
     {
         return Co::stats();
     }
 
-    /**
-     * Determine if a coroutine with the given ID exists.
-     */
     public static function exists(int $id): bool
     {
         return Co::exists($id);
     }
 
     /**
-     * Get a list of all coroutine IDs.
-     *
      * @return iterable<int>
      */
     public static function list(): iterable
@@ -174,27 +139,26 @@ class Coroutine
     }
 
     /**
-     * Enable or disable exception reporting in coroutines.
+     * Flush after created callbacks.
      */
-    public static function enableReportException(bool $enableReportException): void
+    public static function flushAfterCreated(): void
     {
-        static::$enableReportException = $enableReportException;
+        static::$afterCreatedCallbacks = [];
     }
 
-    /**
-     * Report an exception through the exception handler.
-     */
-    protected static function printLog(Throwable $throwable): void
+    private static function printLog(Throwable $throwable): void
     {
-        if (! ApplicationContext::hasContainer() || ! static::$enableReportException) {
-            return;
-        }
-
-        $container = ApplicationContext::getContainer();
-
-        if ($container->has(ExceptionHandlerContract::class)) {
-            $container->get(ExceptionHandlerContract::class)
-                ->report($throwable);
+        if (ApplicationContext::hasContainer()) {
+            $container = ApplicationContext::getContainer();
+            if ($container->has(StdoutLoggerInterface::class)) {
+                $logger = $container->get(StdoutLoggerInterface::class);
+                if ($container->has(FormatterInterface::class)) {
+                    $formatter = $container->get(FormatterInterface::class);
+                    $logger->warning($formatter->format($throwable));
+                } else {
+                    $logger->warning((string) $throwable);
+                }
+            }
         }
     }
 }
