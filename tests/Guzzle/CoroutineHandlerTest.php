@@ -17,6 +17,8 @@ use Hypervel\Tests\Guzzle\Stub\CoroutineHandlerStub;
 use Mockery;
 use PHPUnit\Framework\Attributes\CoversNothing;
 
+use const BASE_PATH;
+
 /**
  * Tests for CoroutineHandler.
  *
@@ -338,7 +340,7 @@ class CoroutineHandlerTest extends GuzzleTestCase
      */
     public function testSink(): void
     {
-        $dir = \BASE_PATH . '/runtime/guzzle/';
+        $dir = BASE_PATH . '/runtime/guzzle/';
         @mkdir($dir, 0755, true);
 
         $handler = new CoroutineHandlerStub();
@@ -358,7 +360,7 @@ class CoroutineHandlerTest extends GuzzleTestCase
      */
     public function testResourceSink(): void
     {
-        $dir = \BASE_PATH . '/runtime/guzzle/';
+        $dir = BASE_PATH . '/runtime/guzzle/';
         @mkdir($dir, 0755, true);
         $sink = fopen($file = $dir . uniqid(), 'w+');
         $handler = new CoroutineHandlerStub();
