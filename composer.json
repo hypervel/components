@@ -82,6 +82,7 @@
             "src/cache/src/Functions.php",
             "src/config/src/Functions.php",
             "src/coroutine/src/Functions.php",
+            "src/engine/src/Functions.php",
             "src/event/src/Functions.php",
             "src/filesystem/src/Functions.php",
             "src/foundation/src/helpers.php",
