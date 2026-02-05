@@ -74,7 +74,7 @@ class ResponseEmitter implements ResponseEmitterInterface
             }
 
             // Trailers
-            foreach ($response->getTrailers() ?? [] as $key => $value) {
+            foreach ($response->getTrailers() as $key => $value) {
                 $swooleResponse->trailer($key, $value);
             }
         }
