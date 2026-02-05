@@ -16,13 +16,15 @@ interface SocketOptionInterface
     public function getTimeout(): ?float;
 
     /**
-     * @return [
-     *     'open_length_check' => true,
-     *     'package_max_length' => 1024 * 1024 * 2,
-     *     'package_length_type' => 'N',
-     *     'package_length_offset' => 0,
-     *     'package_body_offset' => 4,
-     * ]
+     * Get the Swoole protocol configuration.
+     *
+     * @return array{
+     *     open_length_check: bool,
+     *     package_max_length: int,
+     *     package_length_type: string,
+     *     package_length_offset: int,
+     *     package_body_offset: int,
+     * }
      */
     public function getProtocol(): array;
 }
