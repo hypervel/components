@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Engine;
 
+use GuzzleHttp;
 use Hypervel\Engine\Exception\HttpClientException;
 use Hypervel\Engine\Http\Client;
+use Hypervel\Guzzle\CoroutineHandler;
 use Throwable;
 
 /**
@@ -83,21 +85,18 @@ class ClientTest extends EngineIntegrationTestCase
 
     public function testGuzzleClientWithCookies(): void
     {
-        // TODO: Enable this test once the hypervel/guzzle package is ported from Hyperf
-        $this->markTestSkipped('Requires hypervel/guzzle package (CoroutineHandler)');
+        $client = new GuzzleHttp\Client([
+            'base_uri' => sprintf('http://%s:%d/', $this->getHttpServerHost(), $this->getHttpServerPort()),
+            'handler' => GuzzleHttp\HandlerStack::create(new CoroutineHandler()),
+            'cookies' => true,
+        ]);
 
-        // $client = new GuzzleHttp\Client([
-        //     'base_uri' => sprintf('http://%s:%d/', $this->getHttpServerHost(), $this->getHttpServerPort()),
-        //     'handler' => GuzzleHttp\HandlerStack::create(new CoroutineHandler()),
-        //     'cookies' => true,
-        // ]);
-        //
-        // $response = $client->get('cookies');
-        //
-        // $cookies = $client->getConfig('cookies');
-        //
-        // $this->assertSame((string) $response->getBody(), $cookies->toArray()[0]['Value']);
-        // $this->assertSame('Hyperf', $cookies->toArray()[1]['Value']);
+        $response = $client->get('cookies');
+
+        $cookies = $client->getConfig('cookies');
+
+        $this->assertSame((string) $response->getBody(), $cookies->toArray()[0]['Value']);
+        $this->assertSame('Hyperf', $cookies->toArray()[1]['Value']);
     }
 
     public function testServerHeaders(): void
