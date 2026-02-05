@@ -13,8 +13,6 @@ interface BarrierInterface
 
     /**
      * Create a new barrier instance.
-     *
-     * @return BarrierInterface
      */
     public static function create(): object;
 }

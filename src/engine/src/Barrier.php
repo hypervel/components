@@ -14,7 +14,7 @@ class Barrier implements BarrierInterface
      */
     public static function wait(object &$barrier, int $timeout = -1): void
     {
-        SwooleBarrier::wait($barrier, $timeout);
+        SwooleBarrier::wait($barrier, $timeout); // @phpstan-ignore parameterByRef.type (callers must pass valid barrier from create())
     }
 
     /**
