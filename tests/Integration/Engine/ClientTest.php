@@ -110,29 +110,28 @@ class ClientTest extends EngineIntegrationTestCase
             $this->assertSame($response->body, implode(',', $response->headers['x-id']));
         }
 
-        // TODO: Enable Guzzle tests once the hypervel/guzzle package is ported from Hyperf
-        // $client = new GuzzleHttp\Client([
-        //     'base_uri' => sprintf('http://%s:%d/', $this->getHttpServerHost(), $this->getHttpServerPort()),
-        //     'handler' => GuzzleHttp\HandlerStack::create(new CoroutineHandler()),
-        // ]);
-        //
-        // $response = $client->get('/header');
-        // if (SWOOLE_VERSION_ID >= 60000) {
-        //     $this->assertSame((string) $response->getBody(), $response->getHeader('x-id')[1]);
-        // } else {
-        //     // Co Client Won't support to get multi response headers.
-        //     $this->assertSame((string) $response->getBody(), $response->getHeaderLine('x-id'));
-        // }
-        //
-        // // When Swoole version > 4.5, The native curl support to get multi response headers.
-        // if (SWOOLE_VERSION_ID >= 40600) {
-        //     $client = new GuzzleHttp\Client([
-        //         'base_uri' => sprintf('http://%s:%d/', $this->getHttpServerHost(), $this->getHttpServerPort()),
-        //     ]);
-        //     $response = $client->get('/header');
-        //     $this->assertSame(2, count($response->getHeader('x-id')));
-        //     $this->assertSame((string) $response->getBody(), $response->getHeader('x-id')[1]);
-        // }
+        $client = new GuzzleHttp\Client([
+            'base_uri' => sprintf('http://%s:%d/', $this->getHttpServerHost(), $this->getHttpServerPort()),
+            'handler' => GuzzleHttp\HandlerStack::create(new CoroutineHandler()),
+        ]);
+
+        $response = $client->get('/header');
+        if (SWOOLE_VERSION_ID >= 60000) {
+            $this->assertSame((string) $response->getBody(), $response->getHeader('x-id')[1]);
+        } else {
+            // Co Client Won't support to get multi response headers.
+            $this->assertSame((string) $response->getBody(), $response->getHeaderLine('x-id'));
+        }
+
+        // When Swoole version > 4.5, The native curl support to get multi response headers.
+        if (SWOOLE_VERSION_ID >= 40600) {
+            $client = new GuzzleHttp\Client([
+                'base_uri' => sprintf('http://%s:%d/', $this->getHttpServerHost(), $this->getHttpServerPort()),
+            ]);
+            $response = $client->get('/header');
+            $this->assertSame(2, count($response->getHeader('x-id')));
+            $this->assertSame((string) $response->getBody(), $response->getHeader('x-id')[1]);
+        }
     }
 
     public function testClientNotFound(): void
