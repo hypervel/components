@@ -31,7 +31,7 @@ cleanup() {
     exit 0
 }
 
-trap cleanup SIGINT SIGTERM
+trap cleanup EXIT
 
 echo "Starting engine test servers..."
 
