@@ -73,7 +73,7 @@ class Channel extends \Swoole\Coroutine\Channel implements ChannelInterface
     /**
      * Determine if the channel has producers waiting.
      *
-     * @throws RuntimeException Not supported in Swoole.
+     * @throws RuntimeException not supported in Swoole
      */
     public function hasProducers(): bool
     {
@@ -83,7 +83,7 @@ class Channel extends \Swoole\Coroutine\Channel implements ChannelInterface
     /**
      * Determine if the channel has consumers waiting.
      *
-     * @throws RuntimeException Not supported in Swoole.
+     * @throws RuntimeException not supported in Swoole
      */
     public function hasConsumers(): bool
     {
@@ -93,7 +93,7 @@ class Channel extends \Swoole\Coroutine\Channel implements ChannelInterface
     /**
      * Determine if the channel is readable.
      *
-     * @throws RuntimeException Not supported in Swoole.
+     * @throws RuntimeException not supported in Swoole
      */
     public function isReadable(): bool
     {
@@ -103,7 +103,7 @@ class Channel extends \Swoole\Coroutine\Channel implements ChannelInterface
     /**
      * Determine if the channel is writable.
      *
-     * @throws RuntimeException Not supported in Swoole.
+     * @throws RuntimeException not supported in Swoole
      */
     public function isWritable(): bool
     {

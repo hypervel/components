@@ -18,13 +18,13 @@ interface SocketOptionInterface
     /**
      * Get the Swoole protocol configuration.
      *
-     * @return array{}|array{
+     * @return array{
      *     open_length_check: bool,
      *     package_max_length: int,
      *     package_length_type: string,
      *     package_length_offset: int,
      *     package_body_offset: int,
-     * }
+     * }|array{}
      */
     public function getProtocol(): array;
 }
