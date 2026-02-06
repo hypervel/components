@@ -560,7 +560,7 @@ Each external service has a corresponding trait that auto-skips tests when the s
 | Trait | Service | Key Env Vars |
 |-------|---------|-------------|
 | `InteractsWithRedis` | Redis/Valkey | `REDIS_HOST`, `REDIS_PORT` |
-| `InteractsWithHttpServer` | HTTP test server | `ENGINE_TEST_SERVER_HOST` |
+| `InteractsWithServer` | Engine test servers (HTTP, TCP, WebSocket, HTTP/2) | `ENGINE_TEST_SERVER_HOST` |
 
 These traits follow a consistent pattern: try to connect, skip with defaults if unavailable, fail if explicit config is set but unreachable (misconfiguration). When porting integration tests for a new service type, create a new trait following this same pattern.
 

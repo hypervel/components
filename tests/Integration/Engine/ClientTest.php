@@ -22,7 +22,7 @@ class ClientTest extends EngineIntegrationTestCase
 {
     public function testClientRequest()
     {
-        $client = new Client($this->getHttpServerHost(), $this->getHttpServerPort());
+        $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/');
         $this->assertSame(200, $response->statusCode);
         $this->assertSame(['Hyperf'], $response->headers['server']);
@@ -45,7 +45,7 @@ class ClientTest extends EngineIntegrationTestCase
 
     public function testClientJsonRequest()
     {
-        $client = new Client($this->getHttpServerHost(), $this->getHttpServerPort());
+        $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request(
             'POST',
             '/',
@@ -60,7 +60,7 @@ class ClientTest extends EngineIntegrationTestCase
     public function testClientSocketConnectionTimeout()
     {
         try {
-            $client = new Client($this->getHttpServerHost(), $this->getHttpServerPort());
+            $client = new Client($this->getServerHost(), $this->getServerPort());
             $client->set(['timeout' => 0.1]);
             $client->request('GET', '/timeout?time=1');
             $this->fail('Expected HttpClientException to be thrown');
@@ -73,7 +73,7 @@ class ClientTest extends EngineIntegrationTestCase
 
     public function testClientCookies()
     {
-        $client = new Client($this->getHttpServerHost(), $this->getHttpServerPort());
+        $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/cookies');
         $this->assertSame(200, $response->statusCode);
         $this->assertSame(['Hyperf'], $response->headers['server']);
@@ -86,7 +86,7 @@ class ClientTest extends EngineIntegrationTestCase
     public function testGuzzleClientWithCookies()
     {
         $client = new GuzzleHttp\Client([
-            'base_uri' => sprintf('http://%s:%d/', $this->getHttpServerHost(), $this->getHttpServerPort()),
+            'base_uri' => sprintf('http://%s:%d/', $this->getServerHost(), $this->getServerPort()),
             'handler' => GuzzleHttp\HandlerStack::create(new CoroutineHandler()),
             'cookies' => true,
         ]);
@@ -101,7 +101,7 @@ class ClientTest extends EngineIntegrationTestCase
 
     public function testServerHeaders()
     {
-        $client = new Client($this->getHttpServerHost(), $this->getHttpServerPort());
+        $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/header');
         if (SWOOLE_VERSION_ID >= 60000) {
             $this->assertSame($response->body, $response->headers['x-id'][1]);
@@ -111,7 +111,7 @@ class ClientTest extends EngineIntegrationTestCase
         }
 
         $client = new GuzzleHttp\Client([
-            'base_uri' => sprintf('http://%s:%d/', $this->getHttpServerHost(), $this->getHttpServerPort()),
+            'base_uri' => sprintf('http://%s:%d/', $this->getServerHost(), $this->getServerPort()),
             'handler' => GuzzleHttp\HandlerStack::create(new CoroutineHandler()),
         ]);
 
@@ -126,7 +126,7 @@ class ClientTest extends EngineIntegrationTestCase
         // When Swoole version > 4.5, The native curl support to get multi response headers.
         if (SWOOLE_VERSION_ID >= 40600) {
             $client = new GuzzleHttp\Client([
-                'base_uri' => sprintf('http://%s:%d/', $this->getHttpServerHost(), $this->getHttpServerPort()),
+                'base_uri' => sprintf('http://%s:%d/', $this->getServerHost(), $this->getServerPort()),
             ]);
             $response = $client->get('/header');
             $this->assertSame(2, count($response->getHeader('x-id')));
@@ -136,7 +136,7 @@ class ClientTest extends EngineIntegrationTestCase
 
     public function testClientNotFound()
     {
-        $client = new Client($this->getHttpServerHost(), $this->getHttpServerPort());
+        $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/not_found');
         $this->assertSame(404, $response->statusCode);
     }

@@ -20,11 +20,11 @@ class HttpServerTest extends EngineIntegrationTestCase
     /**
      * The HTTP server port for these tests.
      */
-    protected int $httpServerPort = 19505;
+    protected int $serverPort = 19505;
 
     public function testHttpServerHelloWorld()
     {
-        $client = new Client($this->getHttpServerHost(), $this->getHttpServerPort());
+        $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('GET', '/');
         $this->assertSame(200, $response->statusCode);
         $this->assertSame('Hello World.', $response->body);
@@ -32,7 +32,7 @@ class HttpServerTest extends EngineIntegrationTestCase
 
     public function testHttpServerReceived()
     {
-        $client = new Client($this->getHttpServerHost(), $this->getHttpServerPort());
+        $client = new Client($this->getServerHost(), $this->getServerPort());
         $response = $client->request('POST', '/', contents: 'Hyperf');
         $this->assertSame(200, $response->statusCode);
         $this->assertSame('Received: Hyperf', $response->body);
@@ -40,7 +40,7 @@ class HttpServerTest extends EngineIntegrationTestCase
 
     public function testHttpServerCookies()
     {
-        $client = new Client($this->getHttpServerHost(), $this->getHttpServerPort());
+        $client = new Client($this->getServerHost(), $this->getServerPort());
 
         $client->setCookies(['key' => 'value']);
 

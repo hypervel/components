@@ -20,7 +20,7 @@ class SocketTest extends EngineIntegrationTestCase
     /**
      * The TCP server port for socket tests.
      */
-    protected int $httpServerPort = 19502;
+    protected int $serverPort = 19502;
 
     public function testSocketRecvPacketFromTcpServer()
     {
@@ -32,7 +32,7 @@ class SocketTest extends EngineIntegrationTestCase
             'package_length_offset' => 0,
             'package_body_offset' => 4,
         ]);
-        $socket->connect($this->getHttpServerHost(), $this->getHttpServerPort());
+        $socket->connect($this->getServerHost(), $this->getServerPort());
         $socket->sendAll(pack('N', 4) . 'ping');
         $this->assertSame('pong', substr($socket->recvPacket(), 4));
 
@@ -44,8 +44,8 @@ class SocketTest extends EngineIntegrationTestCase
     public function testSocketRecvPacketFromTcpServerViaFactory()
     {
         $socket = (new Socket\SocketFactory())->make(new Socket\SocketOption(
-            $this->getHttpServerHost(),
-            $this->getHttpServerPort(),
+            $this->getServerHost(),
+            $this->getServerPort(),
             protocol: [
                 'open_length_check' => true,
                 'package_max_length' => 1024 * 1024 * 2,
@@ -65,7 +65,7 @@ class SocketTest extends EngineIntegrationTestCase
     public function testSocketRecvAllFromTcpServer()
     {
         $socket = new Socket(AF_INET, SOCK_STREAM, 0);
-        $socket->connect($this->getHttpServerHost(), $this->getHttpServerPort());
+        $socket->connect($this->getServerHost(), $this->getServerPort());
         $socket->sendAll(pack('N', 4) . 'ping');
         $res = $socket->recvAll(4);
         $this->assertSame(4, unpack('Nlen', $res)['len']);

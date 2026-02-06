@@ -52,7 +52,7 @@ class PoolHandlerTest extends GuzzleIntegrationTestCase
         $container = $this->getContainer();
         $client = new Client([
             'handler' => $handler = new PoolHandlerStub($container->get(PoolFactory::class), []),
-            'base_uri' => sprintf('http://%s:%d', $this->getHttpServerHost(), $this->getHttpServerPort()),
+            'base_uri' => sprintf('http://%s:%d', $this->getServerHost(), $this->getServerPort()),
         ]);
 
         $response = $client->get('/');

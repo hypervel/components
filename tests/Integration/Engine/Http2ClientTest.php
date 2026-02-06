@@ -19,7 +19,7 @@ class Http2ClientTest extends EngineIntegrationTestCase
 {
     public function testHttp2ServerReceived()
     {
-        $client = new Client($this->getHttpServerHost(), $this->getHttpServerPort());
+        $client = new Client($this->getServerHost(), $this->getServerPort());
         $client->send(new Request('/'));
         $response = $client->recv(1);
         $this->assertSame('Hello World.', $response->getBody());

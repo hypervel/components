@@ -21,11 +21,11 @@ class WebSocketTest extends EngineIntegrationTestCase
     /**
      * The WebSocket server port for these tests.
      */
-    protected int $httpServerPort = 19503;
+    protected int $serverPort = 19503;
 
     public function testWebSocket()
     {
-        $client = new Client($this->getHttpServerHost(), $this->getHttpServerPort(), false);
+        $client = new Client($this->getServerHost(), $this->getServerPort(), false);
         $client->set(['open_websocket_pong_frame' => true]);
         $client->upgrade('/');
 
