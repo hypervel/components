@@ -9,13 +9,12 @@ use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Coordinator\Constants;
 use Hypervel\Coordinator\CoordinatorManager;
-use Hypervel\Coordinator\Timer;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Support\ClassInvoker;
 use Hypervel\Tests\Pool\Stub\HeartbeatPoolStub;
 use Hypervel\Tests\Pool\Stub\KeepaliveConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use ReflectionProperty;
 
 /**
  * @internal
@@ -90,12 +89,10 @@ class HeartbeatConnectionTest extends TestCase
         $connection = $pool->get();
         $connection->reconnect();
         $timer = $connection->timer;
-        $closures = (new ReflectionProperty(Timer::class, 'closures'))->getValue($timer);
-        $this->assertSame(1, count($closures));
+        $this->assertSame(1, count((new ClassInvoker($timer))->closures));
         $this->assertTrue($connection->check());
         $connection->close();
-        $closures = (new ReflectionProperty(Timer::class, 'closures'))->getValue($timer);
-        $this->assertSame(0, count($closures));
+        $this->assertSame(0, count((new ClassInvoker($timer))->closures));
         $this->assertFalse($connection->check());
         $this->assertSame('close protocol', Context::get('test.pool.heartbeat_connection')['close']);
     }
