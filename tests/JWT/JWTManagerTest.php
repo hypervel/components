@@ -14,7 +14,7 @@ use Hypervel\JWT\JWTManager;
 use Hypervel\JWT\Providers\Lcobucci;
 use Hypervel\Tests\JWT\Stub\ValidationStub;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use Mockery\MockInterface;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactoryInterface;
@@ -229,24 +229,24 @@ class JWTManagerTest extends TestCase
 
     private function mockContainer()
     {
-        $this->container = Mockery::mock(ContainerInterface::class);
+        $this->container = m::mock(ContainerInterface::class);
     }
 
     private function mockConfig()
     {
-        $this->config = Mockery::mock(ConfigInterface::class);
+        $this->config = m::mock(ConfigInterface::class);
 
         $this->container->shouldReceive('get')->with(ConfigInterface::class)->andReturn($this->config);
     }
 
     private function mockProvider()
     {
-        $this->provider = Mockery::mock(Lcobucci::class);
+        $this->provider = m::mock(Lcobucci::class);
     }
 
     private function mockBlacklist()
     {
-        $this->blacklist = Mockery::mock(BlacklistContract::class);
+        $this->blacklist = m::mock(BlacklistContract::class);
 
         $this->container->shouldReceive('get')->with(BlacklistContract::class)->andReturn($this->blacklist);
     }
@@ -269,13 +269,13 @@ class JWTManagerTest extends TestCase
         }
 
         /** @var MockInterface|UuidFactoryInterface */
-        $factory = Mockery::mock(UuidFactoryInterface::class);
+        $factory = m::mock(UuidFactoryInterface::class);
 
         // Ignore Serializable interface deprecation warnings in PHP 8.1+
         /** @var MockInterface|UuidInterface */
         $uuid = $this->runInSpecifyErrorReportingLevel(
             E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED,
-            fn () => Mockery::mock(UuidInterface::class)
+            fn () => m::mock(UuidInterface::class)
         );
 
         $uuid->shouldReceive('__toString')->andReturn($value);

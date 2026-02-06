@@ -7,7 +7,7 @@ namespace Hypervel\Tests\JWT\Storage;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\JWT\Storage\TaggedCache;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use Mockery\MockInterface;
 
 /**
@@ -26,7 +26,7 @@ class TaggedCacheTest extends TestCase
     protected function setUp(): void
     {
         /** @var CacheRepository|MockInterface */
-        $cache = Mockery::mock(CacheRepository::class);
+        $cache = m::mock(CacheRepository::class);
 
         $this->cache = $cache;
         $this->storage = new TaggedCache($this->cache);
