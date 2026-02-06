@@ -15,11 +15,6 @@ use PHPUnit\Framework\TestCase;
  */
 class ResourceCollectionTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testResourceCollection()
     {
         $resourceA = new class {

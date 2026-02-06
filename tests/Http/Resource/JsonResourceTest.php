@@ -16,11 +16,6 @@ use PHPUnit\Framework\TestCase;
  */
 class JsonResourceTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testAnonymousResourceCollection()
     {
         $resource = new class {

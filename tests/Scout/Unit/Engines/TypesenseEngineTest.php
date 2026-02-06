@@ -27,12 +27,6 @@ use Typesense\Exceptions\TypesenseClientError;
  */
 class TypesenseEngineTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-        parent::tearDown();
-    }
-
     protected function createEngine(?MockInterface $client = null): TypesenseEngine
     {
         $client = $client ?? m::mock(TypesenseClient::class);

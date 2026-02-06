@@ -19,12 +19,6 @@ use Mockery as m;
  */
 class RemoveFromSearchTest extends ScoutTestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-        parent::tearDown();
-    }
-
     public function testHandleCallsEngineDelete(): void
     {
         $model1 = new SearchableModel(['title' => 'First', 'body' => 'Content']);

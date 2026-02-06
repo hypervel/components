@@ -19,12 +19,6 @@ use Mockery as m;
  */
 class FlushByPatternTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-        parent::tearDown();
-    }
-
     /**
      * Create a RedisConnection wrapping a FakeRedisClient for testing.
      *

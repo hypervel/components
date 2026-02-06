@@ -19,12 +19,6 @@ use Mockery as m;
  */
 class MakeSearchableUsingTest extends ScoutTestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-        parent::tearDown();
-    }
-
     public function testSyncMakeSearchablePassesFilteredCollectionToEngine(): void
     {
         // Create models - one published, one draft
