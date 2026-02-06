@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Http\Resource;
 
 use Hypervel\Http\Request;
 use Hypervel\Http\Resources\Json\ResourceCollection;
-use Mockery;
+use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -17,7 +17,7 @@ class ResourceCollectionTest extends TestCase
 {
     protected function tearDown(): void
     {
-        Mockery::close();
+        m::close();
     }
 
     public function testResourceCollection()
@@ -36,7 +36,7 @@ class ResourceCollectionTest extends TestCase
         };
 
         $collection = new ResourceCollection([$resourceA, $resourceB]);
-        $request = Mockery::mock(Request::class);
+        $request = m::mock(Request::class);
 
         $this->assertSame(
             [

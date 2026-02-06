@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Http\Resource;
 use Hypervel\Http\Request;
 use Hypervel\Http\Resources\Json\AnonymousResourceCollection;
 use Hypervel\Http\Resources\Json\JsonResource;
-use Mockery;
+use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -18,7 +18,7 @@ class JsonResourceTest extends TestCase
 {
     protected function tearDown(): void
     {
-        Mockery::close();
+        m::close();
     }
 
     public function testAnonymousResourceCollection()
@@ -31,7 +31,7 @@ class JsonResourceTest extends TestCase
         };
 
         $collection = JsonResource::collection([$resource]);
-        $request = Mockery::mock(Request::class);
+        $request = m::mock(Request::class);
 
         $this->assertInstanceOf(AnonymousResourceCollection::class, $collection);
         $this->assertSame([['foo' => 'bar']], $collection->toArray($request));
