@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hyperf\Coordinator\Constants;
-use Hyperf\Coordinator\CoordinatorManager;
+use Hypervel\Coordinator\Constants;
+use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Context\Context;
 use Hypervel\Support\Collection;
 use Swoole\Coroutine;

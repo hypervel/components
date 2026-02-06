@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http;
 
-use Hyperf\Coordinator\Constants;
-use Hyperf\Coordinator\CoordinatorManager;
+use Hypervel\Coordinator\Constants;
+use Hypervel\Coordinator\CoordinatorManager;
 use Hyperf\HttpMessage\Base\Response;
 use Hyperf\HttpMessage\Server\Response as Psr7Response;
 use Hyperf\Support\SafeCaller;

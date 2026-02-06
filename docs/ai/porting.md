@@ -1,4 +1,81 @@
-# Porting from Laravel
+# Porting Guide
+
+## Background
+
+Hypervel is a Laravel-style Swoole framework originally built on top of Hyperf. We are decoupling from Hyperf and making Hypervel as close to 1:1 with Laravel as possible. This involves porting packages from both Hyperf (Swoole/coroutine infrastructure) and Laravel (application-level features).
+
+When porting, we keep packages as close to 1:1 with the originals as possible so merging upstream changes is easy later. The exceptions are:
+- Modernising PHP types (PHP 8.4+ features, strict types)
+- Adding Laravel-style title docblocks to methods (not classes — see rules below)
+- For ported Laravel packages: making them coroutine-safe and adding Swoole performance enhancements (e.g., static property caching)
+- General performance improvements — but stop and explain the opportunity first for approval
+
+## Directory Reference
+
+**Working directory for ALL operations (porting, commits, tests, phpstan, etc.) is `contrib/hypervel/components/`.** This is the Hypervel repo. Always `cd` into it before doing anything.
+
+Source references (read-only, for copying from):
+
+| Path (relative to monorepo root) | Description |
+|------|-------------|
+| `examples/laravel/framework/` | Laravel source reference |
+| `examples/hyperf/hyperf/` | Hyperf source reference |
+
+## Porting Packages
+
+### Workflow
+
+#### 1. Package skeleton
+
+If the Hypervel version of the package doesn't exist yet, create the skeleton using an existing package as a template:
+- **Porting a Hyperf package:** Use the `pool` package as reference
+- **Porting a Laravel package:** Use the `cache` package as reference
+
+Read the reference package's `composer.json`, `LICENSE.md`, and `README.md`. Then read the components repo's root `composer.json` and add the new package following existing patterns.
+
+#### 2. Audit existing Hypervel package (if it exists)
+
+Read all files in the existing Hypervel package and categorise them:
+- **Empty extensions** (class just extends Hyperf, no overrides/additions/properties): Delete these — they'll be replaced by ported versions
+- **Custom classes** (don't extend Hyperf): Keep as-is
+- **Extended classes with additions** (extend Hyperf + add overrides, methods, properties): Keep — the Hyperf parent's code must be merged into these
+
+#### 3. Create the todo list
+
+Check the source package (Hyperf or Laravel) to see what classes exist. Create a comprehensive todo list with a separate entry for each file to port. Each entry must clearly state the strategy:
+- **Copy and update** — new file, no existing Hypervel equivalent
+- **Merge** — existing Hypervel file with additions that must be preserved
+
+#### 4. Work through files one at a time, alphabetically
+
+**For newly copied files (copy and update):**
+1. Copy the file using `cp` (never read → write)
+2. Read the ENTIRE copied file (if small enough for one read) to understand context
+3. Update namespaces, modernise types, add method docblocks, etc.
+
+**For merged files:**
+1. Read BOTH the Hyperf/Laravel file AND the existing Hypervel file
+2. Carefully merge the source file into the Hypervel file, preserving all Hypervel additions
+3. Update namespaces, modernise types, add method docblocks, etc.
+
+**For large files that can't be read in one go:**
+Work through in chunks from top to bottom — read a chunk, update, read next chunk, update. Do NOT try to search for patterns and update scattered bits.
+
+#### 5. Run phpstan
+
+After porting is complete, run phpstan on the newly ported package and fix errors. Investigate each error properly — don't reach for ignores without thinking it through.
+
+### Rules
+
+- **Never use bulk modification tools** — no `sed`, `replace_all`, scripted loops, etc. All edits must be manual and targeted.
+- **One file at a time** — never work on multiple files simultaneously.
+- **Never use Write to overwrite files** — always use Edit for targeted updates.
+- **Always use `cp` to copy files and `mv` to move/rename** — never read → write → delete.
+- **No class docblocks unless warranted** — only add a class docblock if something unusual or complex needs explanation. Method docblocks (title only, Laravel-style) are always added.
+- **Preserve existing comments** — do not remove them. Translate non-English comments to English and improve grammar when appropriate.
+- **Stop on anything unusual** — missing dependencies, logic needing special consideration, things that don't make sense for Hypervel, etc. Explain the situation and your recommended solution. Do not proceed without approval.
+- **Never skip or stub things out** — no removing code, no commenting out with "TODO once X is ported" placeholders. If such a situation arises, stop and explain with your recommendation.
+- **Stop on non-trivial phpstan errors** — if an error exposes a source code bug or isn't a straightforward fix, investigate, then stop and explain with your recommended fix.
 
 ## Tests
 

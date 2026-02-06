@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\ObjectPool\Contracts;
 
 use DateTime;
-use Hyperf\Coordinator\Timer;
+use Hypervel\Coordinator\Timer;
 use RuntimeException;
 
 interface Recycler
