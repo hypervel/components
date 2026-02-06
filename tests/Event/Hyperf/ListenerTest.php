@@ -15,8 +15,8 @@ use Hypervel\Tests\Event\Hyperf\Event\Beta;
 use Hypervel\Tests\Event\Hyperf\Listener\AlphaListener;
 use Hypervel\Tests\Event\Hyperf\Listener\BetaListener;
 use Hypervel\Tests\TestCase;
-use Mockery as m;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
+use Mockery as m;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\ListenerProviderInterface;
 
