@@ -11,7 +11,7 @@ use function Hypervel\Coroutine\go;
 
 class Timer
 {
-    public const string STOP = 'stop';
+    public const STOP = 'stop';
 
     private array $closures = [];
 

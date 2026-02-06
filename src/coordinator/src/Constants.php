@@ -9,10 +9,10 @@ class Constants
     /**
      * Swoole onWorkerStart event.
      */
-    public const string WORKER_START = 'workerStart';
+    public const WORKER_START = 'workerStart';
 
     /**
      * Swoole onWorkerExit event.
      */
-    public const string WORKER_EXIT = 'workerExit';
+    public const WORKER_EXIT = 'workerExit';
 }
