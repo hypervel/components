@@ -18,7 +18,7 @@ class CoordinatorManager
      */
     public static function initialize(string $identifier): void
     {
-        static::$container[$identifier] = new Coordinator();
+        self::$container[$identifier] = new Coordinator();
     }
 
     /**
@@ -26,11 +26,11 @@ class CoordinatorManager
      */
     public static function until(string $identifier): Coordinator
     {
-        if (! isset(static::$container[$identifier])) {
-            static::$container[$identifier] = new Coordinator();
+        if (! isset(self::$container[$identifier])) {
+            self::$container[$identifier] = new Coordinator();
         }
 
-        return static::$container[$identifier];
+        return self::$container[$identifier];
     }
 
     /**
@@ -38,6 +38,6 @@ class CoordinatorManager
      */
     public static function clear(string $identifier): void
     {
-        unset(static::$container[$identifier]);
+        unset(self::$container[$identifier]);
     }
 }

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Pool;
 
-use Hyperf\Coordinator\Timer;
+use Hypervel\Coordinator\Timer;
 
 /**
  * A frequency implementation that flushes connections at a constant interval.

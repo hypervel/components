@@ -7,7 +7,7 @@ namespace Hypervel\Pool;
 use Closure;
 use Hyperf\Contract\ConnectionInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hyperf\Coordinator\Timer;
+use Hypervel\Coordinator\Timer;
 use Hypervel\Engine\Channel;
 use Hypervel\Pool\Exception\InvalidArgumentException;
 use Hypervel\Pool\Exception\SocketPopException;

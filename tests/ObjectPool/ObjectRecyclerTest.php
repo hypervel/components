@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\ObjectPool;
 
 use Carbon\Carbon;
-use Hyperf\Coordinator\Timer;
+use Hypervel\Coordinator\Timer;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\Contracts\ObjectPool;
 use Hypervel\ObjectPool\ObjectRecycler;

@@ -61,7 +61,11 @@ Check the source package (Hyperf or Laravel) to see what classes exist. Create a
 **For large files that can't be read in one go:**
 Work through in chunks from top to bottom — read a chunk, update, read next chunk, update. Do NOT try to search for patterns and update scattered bits.
 
-#### 5. Run phpstan
+#### 5. Update consumers
+
+Search **both `src/` and `tests/`** for any `use` statements or references to the old namespace (e.g., `Hyperf\Coordinator\`) and update them to the new Hypervel namespace. Verify zero remaining references before proceeding.
+
+#### 6. Run phpstan
 
 After porting is complete, run phpstan on the newly ported package and fix errors. Investigate each error properly — don't reach for ignores without thinking it through.
 

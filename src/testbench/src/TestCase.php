@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench;
 
-use Hyperf\Coordinator\Constants;
-use Hyperf\Coordinator\CoordinatorManager;
+use Hypervel\Coordinator\Constants;
+use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;

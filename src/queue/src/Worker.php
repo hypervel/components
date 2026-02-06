@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
-use Hyperf\Coordinator\Timer;
+use Hypervel\Coordinator\Timer;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
