@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Testbench;
 
-use Hypervel\Coordinator\Constants;
-use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Coordinator\Constants;
+use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Foundation\Testing\DatabaseMigrations;

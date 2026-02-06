@@ -6,11 +6,11 @@ require __DIR__ . '/../../vendor/autoload.php';
 
 use Hyperf\Contract\ApplicationInterface;
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Coordinator\Constants;
-use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Coordinator\Constants;
+use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Console\Kernel as ConsoleKernel;
 use Hypervel\Horizon\HorizonServiceProvider;

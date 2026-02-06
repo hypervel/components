@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http;
 
-use Hypervel\Coordinator\Constants;
-use Hypervel\Coordinator\CoordinatorManager;
 use Hyperf\HttpMessage\Server\Request;
 use Hyperf\HttpMessage\Server\Response;
 use Hyperf\HttpMessage\Upload\UploadedFile as HyperfUploadedFile;
@@ -16,6 +14,8 @@ use Hyperf\HttpServer\Server as HyperfServer;
 use Hyperf\Support\SafeCaller;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Coordinator\Constants;
+use Hypervel\Coordinator\CoordinatorManager;
 use Hypervel\Foundation\Exceptions\Handler as ExceptionHandler;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Foundation\Http\Traits\HasMiddleware;

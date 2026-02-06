@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
-use Hypervel\Coordinator\Timer;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\Factory as QueueManager;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
+use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Concurrent;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Database\DetectsLostConnections;
