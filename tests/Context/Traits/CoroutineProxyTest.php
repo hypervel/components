@@ -1,0 +1,57 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Context\Traits;
+
+use Hypervel\Context\Context;
+use Hypervel\Context\Traits\CoroutineProxy;
+use Hypervel\Tests\TestCase;
+use RuntimeException;
+
+/**
+ * @internal
+ * @coversNothing
+ */
+class CoroutineProxyTest extends TestCase
+{
+    public function testCoroutineProxy()
+    {
+        Context::set('bar', new Bar());
+        $foo = new Foo();
+        $this->assertSame('bar', $foo->callBar());
+        $this->assertSame('bar', $foo->bar);
+        $foo->bar = 'foo';
+        $this->assertSame('foo', $foo->bar);
+    }
+
+    public function testCoroutineProxyException()
+    {
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Missing $proxyKey property in Hypervel\Tests\Context\Traits\Foo2.');
+        $foo = new Foo2();
+        $foo->callBar();
+    }
+}
+
+class Bar
+{
+    public $bar = 'bar';
+
+    public function callBar()
+    {
+        return 'bar';
+    }
+}
+
+class Foo
+{
+    use CoroutineProxy;
+
+    protected $proxyKey = 'bar';
+}
+
+class Foo2
+{
+    use CoroutineProxy;
+}
