@@ -19,7 +19,7 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\DataObject;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Validation\Rule;
-use Mockery;
+use Mockery as m;
 use Psr\Http\Message\ServerRequestInterface;
 use Swow\Psr7\Message\ServerRequestPlusInterface;
 
@@ -36,7 +36,7 @@ class CustomCastingTest extends TestCase
      */
     public function testEnumCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn([
             'status' => 'active',
         ]);
@@ -56,7 +56,7 @@ class CustomCastingTest extends TestCase
      */
     public function testEnumCastingAll()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn([
             'status' => 'active',
             'name' => 'Test',
@@ -82,7 +82,7 @@ class CustomCastingTest extends TestCase
      */
     public function testCustomClassCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn([
             'price' => '1000',
         ]);
@@ -103,7 +103,7 @@ class CustomCastingTest extends TestCase
      */
     public function testNullValueHandling()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn([
             'status' => null,
         ]);
@@ -122,7 +122,7 @@ class CustomCastingTest extends TestCase
      */
     public function testNonExistentField()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn([
             'status' => 'active',
             'name' => 'Test',
@@ -142,7 +142,7 @@ class CustomCastingTest extends TestCase
      */
     public function testAsEnumArrayObjectCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn([
             'statuses' => ['active', 'inactive'],
         ]);
@@ -164,7 +164,7 @@ class CustomCastingTest extends TestCase
      */
     public function testAsEnumCollectionCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn([
             'statuses' => ['active', 'inactive', 'pending'],
         ]);
@@ -187,7 +187,7 @@ class CustomCastingTest extends TestCase
      */
     public function testCastedWithoutValidation()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn([
             'status' => 'active',
             'extra_field' => 'extra_value',
@@ -214,7 +214,7 @@ class CustomCastingTest extends TestCase
      */
     public function testPrimitiveIntCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn([
             'age' => '25',
         ]);
@@ -234,7 +234,7 @@ class CustomCastingTest extends TestCase
      */
     public function testPrimitiveFloatCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn([
             'price' => '19.99',
         ]);
@@ -254,7 +254,7 @@ class CustomCastingTest extends TestCase
      */
     public function testPrimitiveBoolCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn([
             'is_active' => '1',
         ]);
@@ -274,7 +274,7 @@ class CustomCastingTest extends TestCase
      */
     public function testPrimitiveArrayCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn([
             'tags' => '["tag1","tag2"]',
         ]);
@@ -294,7 +294,7 @@ class CustomCastingTest extends TestCase
      */
     public function testPrimitiveCollectionCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn([
             'items' => json_encode(['item1', 'item2']),
         ]);
@@ -314,7 +314,7 @@ class CustomCastingTest extends TestCase
      */
     public function testPrimitiveDatetimeCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn([
             'created_at' => 1705315800, // 2024-01-15 10:50:00 UTC
             'published_date' => '2024-01-15',
@@ -348,7 +348,7 @@ class CustomCastingTest extends TestCase
      */
     public function testDataObjectCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn([
             'contact' => ['name' => 'Jane', 'email' => 'jane@example.com'],
         ]);
@@ -369,7 +369,7 @@ class CustomCastingTest extends TestCase
      */
     public function testAsArrayObjectCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn([
             'contacts' => [
                 ['name' => 'John', 'email' => 'john@example.com'],
@@ -395,7 +395,7 @@ class CustomCastingTest extends TestCase
      */
     public function testAsCollectionCasting()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn([
             'products' => [
                 ['sku' => 'ABC123', 'name' => 'Product A', 'price' => 100],

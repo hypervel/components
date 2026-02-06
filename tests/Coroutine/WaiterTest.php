@@ -12,7 +12,7 @@ use Hypervel\Coroutine\Waiter;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use RuntimeException;
 
 use function Hypervel\Coroutine\wait;
@@ -29,7 +29,7 @@ class WaiterTest extends TestCase
     {
         parent::setUp();
 
-        $container = Mockery::mock(ContainerContract::class);
+        $container = m::mock(ContainerContract::class);
         ApplicationContext::setContainer($container);
         $container->shouldReceive('get')->with(Waiter::class)->andReturn(new Waiter());
     }

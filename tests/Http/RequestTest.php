@@ -21,7 +21,7 @@ use Hypervel\Router\RouteHandler;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Stringable;
 use Hypervel\Support\Uri;
-use Mockery;
+use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use Psr\Http\Message\ServerRequestInterface;
 use RuntimeException;
@@ -43,7 +43,7 @@ class RequestTest extends TestCase
 
     public function testAllFiles()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([
             'file' => new UploadedFile('/tmp/tmp_name', 32, 0),
         ]);
@@ -55,7 +55,7 @@ class RequestTest extends TestCase
 
     public function testAnyFilled()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John', 'email' => '']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -67,7 +67,7 @@ class RequestTest extends TestCase
 
     public function testAll()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John', 'email' => '']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn(['foo' => 'bar']);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([
@@ -97,7 +97,7 @@ class RequestTest extends TestCase
 
     public function testBoolean()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['active' => '1', 'inactive' => '0']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -110,7 +110,7 @@ class RequestTest extends TestCase
 
     public function testCollect()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John', 'age' => 30]);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
@@ -127,7 +127,7 @@ class RequestTest extends TestCase
 
     public function testDate()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['created_at' => '2023-05-15']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -143,7 +143,7 @@ class RequestTest extends TestCase
 
     public function testEnum()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['status' => 'active']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -156,7 +156,7 @@ class RequestTest extends TestCase
 
     public function testExcept()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John', 'age' => 30, 'email' => 'john@example.com']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
@@ -169,7 +169,7 @@ class RequestTest extends TestCase
 
     public function testExists()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -181,7 +181,7 @@ class RequestTest extends TestCase
 
     public function testFilled()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John', 'email' => '']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -194,7 +194,7 @@ class RequestTest extends TestCase
 
     public function testFloat()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['price' => '10.5']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -206,7 +206,7 @@ class RequestTest extends TestCase
 
     public function testString()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -219,7 +219,7 @@ class RequestTest extends TestCase
 
     public function testHasAny()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John', 'age' => 30]);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
@@ -232,7 +232,7 @@ class RequestTest extends TestCase
 
     public function testGetHost()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('hasHeader')->with('HOST')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('HOST')->andReturn('example.com:8080');
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -243,7 +243,7 @@ class RequestTest extends TestCase
 
     public function testGetHttpHost()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('hasHeader')->with('HOST')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('HOST')->andReturn('example.com:8080');
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -254,7 +254,7 @@ class RequestTest extends TestCase
 
     public function testGetPort()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('hasHeader')->with('HOST')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('HOST')->andReturn('example.com:8080');
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -265,7 +265,7 @@ class RequestTest extends TestCase
 
     public function testGetSchemeWithHttp()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getUri')->andReturn(
             new HyperfUri('http://localhost/path')
         );
@@ -277,7 +277,7 @@ class RequestTest extends TestCase
 
     public function testGetSchemeWithHttps()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getUri')->andReturn(
             new HyperfUri('https://localhost/path')
         );
@@ -289,7 +289,7 @@ class RequestTest extends TestCase
 
     public function testIsSecureWithHttp()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getUri')->andReturn(
             new HyperfUri('http://localhost/path')
         );
@@ -301,7 +301,7 @@ class RequestTest extends TestCase
 
     public function testIsSecureWithHttps()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getUri')->andReturn(
             new HyperfUri('https://localhost/path')
         );
@@ -313,7 +313,7 @@ class RequestTest extends TestCase
 
     public function testInteger()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['age' => '30']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -325,7 +325,7 @@ class RequestTest extends TestCase
 
     public function testIsEmptyString()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => '', 'age' => '30']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -337,7 +337,7 @@ class RequestTest extends TestCase
 
     public function testIsJson()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('hasHeader')->with('CONTENT_TYPE')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('CONTENT_TYPE')->andReturn('application/json');
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -348,7 +348,7 @@ class RequestTest extends TestCase
 
     public function testIsNotFilled()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => '', 'age' => '30']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -360,7 +360,7 @@ class RequestTest extends TestCase
 
     public function testKeys()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John', 'age' => 30]);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
@@ -372,7 +372,7 @@ class RequestTest extends TestCase
 
     public function testMerge()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
 
@@ -385,7 +385,7 @@ class RequestTest extends TestCase
 
     public function testReplace()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
 
@@ -398,7 +398,7 @@ class RequestTest extends TestCase
 
     public function testMergeIfMissing()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
@@ -411,7 +411,7 @@ class RequestTest extends TestCase
 
     public function testMissing()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -423,7 +423,7 @@ class RequestTest extends TestCase
 
     public function testOnly()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John', 'age' => 30, 'email' => 'john@example.com']);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
@@ -436,7 +436,7 @@ class RequestTest extends TestCase
 
     public function testSchemeAndHttpHost()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('hasHeader')->with('HOST')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('HOST')->andReturn('example.com:8080');
         $psrRequest->shouldReceive('getUri')->andReturn(
@@ -450,7 +450,7 @@ class RequestTest extends TestCase
 
     public function testExpectsJson()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('hasHeader')->with('X-Requested-With')->andReturn(true);
         $psrRequest->shouldReceive('hasHeader')->with('X-PJAX')->andReturn(false);
         $psrRequest->shouldReceive('hasHeader')->with('Accept')->andReturn(false);
@@ -464,7 +464,7 @@ class RequestTest extends TestCase
 
     public function testWantsJson()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('hasHeader')->with('Accept')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('Accept')->andReturn('application/json');
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -475,7 +475,7 @@ class RequestTest extends TestCase
 
     public function testAccepts()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('hasHeader')->with('Accept')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('Accept')->andReturn('application/json');
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -486,7 +486,7 @@ class RequestTest extends TestCase
 
     public function testPrefers()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('hasHeader')->with('Accept')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('Accept')->andReturn('application/json,text/html');
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -497,7 +497,7 @@ class RequestTest extends TestCase
 
     public function testAcceptsAnyContentType()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('hasHeader')->with('Accept')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('Accept')->andReturn('*/*');
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -508,7 +508,7 @@ class RequestTest extends TestCase
 
     public function testAcceptsJson()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('hasHeader')->with('Accept')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('Accept')->andReturn('application/json');
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -519,7 +519,7 @@ class RequestTest extends TestCase
 
     public function testAcceptsHtml()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('hasHeader')->with('Accept')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('Accept')->andReturn('text/html');
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -530,7 +530,7 @@ class RequestTest extends TestCase
 
     public function testWhenFilled()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['key' => 'value']);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
@@ -552,7 +552,7 @@ class RequestTest extends TestCase
 
     public function testWhenHas()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['key' => 'value']);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
@@ -574,7 +574,7 @@ class RequestTest extends TestCase
 
     public function testGetClientIp()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getHeaderLine')->with('x-real-ip')->andReturn('127.0.0.1');
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
@@ -584,7 +584,7 @@ class RequestTest extends TestCase
 
     public function testIp()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getHeaderLine')->with('x-real-ip')->andReturn('127.0.0.1');
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
@@ -594,7 +594,7 @@ class RequestTest extends TestCase
 
     public function testFullUrlWithQuery()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getQueryParams')->andReturn(['key' => 'value']);
         $psrRequest->shouldReceive('getServerParams')->andReturn([]);
         $psrRequest->shouldReceive('getUri')->andReturn(
@@ -609,7 +609,7 @@ class RequestTest extends TestCase
 
     public function testFullUrlWithoutQuery()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getQueryParams')->andReturn(['key' => 'value', 'foo' => 'bar']);
         $psrRequest->shouldReceive('getServerParams')->andReturn([]);
         $psrRequest->shouldReceive('getUri')->andReturn(
@@ -623,7 +623,7 @@ class RequestTest extends TestCase
 
     public function testRoot()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('hasHeader')->with('HOST')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('HOST')->andReturn('example.com:8080');
         $psrRequest->shouldReceive('getUri')->andReturn(
@@ -637,7 +637,7 @@ class RequestTest extends TestCase
 
     public function testMethod()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getMethod')->andReturn('GET');
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
@@ -647,7 +647,7 @@ class RequestTest extends TestCase
 
     public function testUri()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getQueryParams')->andReturn(['key' => 'value']);
         $psrRequest->shouldReceive('getServerParams')->andReturn([]);
         $psrRequest->shouldReceive('getUri')->andReturn(
@@ -663,7 +663,7 @@ class RequestTest extends TestCase
 
     public function testBearerToken()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('hasHeader')->with('Authorization')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('Authorization')->andReturn('Bearer token');
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -674,7 +674,7 @@ class RequestTest extends TestCase
 
     public function testGetAcceptableContentTypes()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('hasHeader')->with('Accept')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('Accept')->andReturn('application/json,text/html');
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -685,7 +685,7 @@ class RequestTest extends TestCase
 
     public function testGetMimeType()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
 
@@ -694,7 +694,7 @@ class RequestTest extends TestCase
 
     public function testGetMimeTypes()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
 
@@ -703,7 +703,7 @@ class RequestTest extends TestCase
 
     public function testIsXmlHttpRequest()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('hasHeader')->with('X-Requested-With')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('X-Requested-With')->andReturn('XMLHttpRequest');
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -714,7 +714,7 @@ class RequestTest extends TestCase
 
     public function testAjax()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('hasHeader')->with('X-Requested-With')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('X-Requested-With')->andReturn('XMLHttpRequest');
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -725,7 +725,7 @@ class RequestTest extends TestCase
 
     public function testPrefetch()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('hasHeader')->with('X-MOZ')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('X-MOZ')->andReturn('prefetch');
 
@@ -737,7 +737,7 @@ class RequestTest extends TestCase
 
     public function testPjax()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('hasHeader')->with('X-PJAX')->andReturn(true);
         $psrRequest->shouldReceive('getHeaderLine')->with('X-PJAX')->andReturn('true');
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -748,13 +748,13 @@ class RequestTest extends TestCase
 
     public function testHasSession()
     {
-        $container = Mockery::mock(Container::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('has')
             ->with(SessionContract::class)
             ->andReturn(true);
 
         ApplicationContext::setContainer($container);
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
 
@@ -763,13 +763,13 @@ class RequestTest extends TestCase
 
     public function testSession()
     {
-        $container = Mockery::mock(Container::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('get')
             ->with(SessionContract::class)
-            ->andReturn($session = Mockery::mock(SessionContract::class));
+            ->andReturn($session = m::mock(SessionContract::class));
 
         ApplicationContext::setContainer($container);
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
 
@@ -778,7 +778,7 @@ class RequestTest extends TestCase
 
     public function testGetPsr7Request()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
 
@@ -787,14 +787,14 @@ class RequestTest extends TestCase
 
     public function testValidate()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         $psrRequest->shouldReceive('getParsedBody')->andReturn(['name' => 'John Doe']);
         $psrRequest->shouldReceive('getUploadedFiles')->andReturn([]);
         Context::set(ServerRequestInterface::class, $psrRequest);
         $request = new Request();
 
-        $validatorFactory = Mockery::mock(ValidatorFactoryContract::class);
+        $validatorFactory = m::mock(ValidatorFactoryContract::class);
         $validatorFactory->shouldReceive('validate')
             ->once()
             ->with(
@@ -805,7 +805,7 @@ class RequestTest extends TestCase
             )
             ->andReturn(['name' => 'John Doe']);
 
-        $container = Mockery::mock(Container::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('get')
             ->with(ValidatorFactoryContract::class)
             ->andReturn($validatorFactory);
@@ -832,13 +832,13 @@ class RequestTest extends TestCase
     {
         $request = new Request();
 
-        $urlGenerator = Mockery::mock(UrlGeneratorContract::class);
+        $urlGenerator = m::mock(UrlGeneratorContract::class);
         $urlGenerator->shouldReceive('hasValidSignature')
             ->once()
             ->with($request, true)
             ->andReturn(true);
 
-        $container = Mockery::mock(Container::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('get')
             ->with(UrlGeneratorContract::class)
             ->once()
@@ -852,13 +852,13 @@ class RequestTest extends TestCase
     {
         $request = new Request();
 
-        $urlGenerator = Mockery::mock(UrlGeneratorContract::class);
+        $urlGenerator = m::mock(UrlGeneratorContract::class);
         $urlGenerator->shouldReceive('hasValidSignature')
             ->once()
             ->with($request, false)
             ->andReturn(true);
 
-        $container = Mockery::mock(Container::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('get')
             ->with(UrlGeneratorContract::class)
             ->once()
@@ -872,13 +872,13 @@ class RequestTest extends TestCase
     {
         $request = new Request();
 
-        $urlGenerator = Mockery::mock(UrlGeneratorContract::class);
+        $urlGenerator = m::mock(UrlGeneratorContract::class);
         $urlGenerator->shouldReceive('hasValidSignature')
             ->once()
             ->with($request, true, [])
             ->andReturn(true);
 
-        $container = Mockery::mock(Container::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('get')
             ->with(UrlGeneratorContract::class)
             ->once()
@@ -892,13 +892,13 @@ class RequestTest extends TestCase
     {
         $request = new Request();
 
-        $urlGenerator = Mockery::mock(UrlGeneratorContract::class);
+        $urlGenerator = m::mock(UrlGeneratorContract::class);
         $urlGenerator->shouldReceive('hasValidSignature')
             ->once()
             ->with($request, false, [])
             ->andReturn(true);
 
-        $container = Mockery::mock(Container::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('get')
             ->with(UrlGeneratorContract::class)
             ->once()
@@ -923,7 +923,7 @@ class RequestTest extends TestCase
         $handler = new RouteHandler('TestController@index', '/test', ['as' => 'test.index']);
         $dispatched = new DispatchedRoute([1, $handler, ['id' => '123']]);
 
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getAttribute')
             ->with(Dispatched::class)
             ->andReturn($dispatched);
@@ -938,7 +938,7 @@ class RequestTest extends TestCase
 
     public function testSegment()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getServerParams')
             ->andReturn(['request_uri' => '/users/123/posts/456']);
 
@@ -955,7 +955,7 @@ class RequestTest extends TestCase
 
     public function testSegmentWithRootPath()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getServerParams')
             ->andReturn(['request_uri' => '/']);
 
@@ -968,7 +968,7 @@ class RequestTest extends TestCase
 
     public function testSegments()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getServerParams')->andReturn(['request_uri' => '/api/v1/users/123']);
 
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -980,7 +980,7 @@ class RequestTest extends TestCase
 
     public function testSegmentsWithRootPath()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getServerParams')->andReturn(['request_uri' => '/']);
 
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -992,7 +992,7 @@ class RequestTest extends TestCase
 
     public function testSegmentsWithSingleSegment()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getServerParams')->andReturn(['request_uri' => '/home']);
 
         Context::set(ServerRequestInterface::class, $psrRequest);
@@ -1007,7 +1007,7 @@ class RequestTest extends TestCase
         $handler = new RouteHandler('TestController@index', '/test', ['as' => 'user.profile']);
         $dispatched = new DispatchedRoute([1, $handler, []]);
 
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getAttribute')
             ->with(Dispatched::class)
             ->andReturn($dispatched);
@@ -1031,7 +1031,7 @@ class RequestTest extends TestCase
         $handler = new RouteHandler('TestController@index', '/test', []);
         $dispatched = new DispatchedRoute([1, $handler, []]);
 
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getAttribute')
             ->with(Dispatched::class)
             ->andReturn($dispatched);
@@ -1045,7 +1045,7 @@ class RequestTest extends TestCase
 
     public function testFullUrlIs()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getQueryParams')->andReturn(['key' => 'value']);
         $psrRequest->shouldReceive('getServerParams')->andReturn(['query_string' => 'key=value', 'request_uri' => '/api/users?key=value']);
         $psrRequest->shouldReceive('getUri')->andReturn(new HyperfUri('http://localhost/api/users'));
@@ -1066,7 +1066,7 @@ class RequestTest extends TestCase
 
     public function testFullUrlIsWithoutQuery()
     {
-        $psrRequest = Mockery::mock(ServerRequestPlusInterface::class);
+        $psrRequest = m::mock(ServerRequestPlusInterface::class);
         $psrRequest->shouldReceive('getQueryParams')->andReturn([]);
         $psrRequest->shouldReceive('getServerParams')->andReturn(['query_string' => '', 'request_uri' => '/api/users']);
         $psrRequest->shouldReceive('getUri')->andReturn(new HyperfUri('http://localhost/api/users'));

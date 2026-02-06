@@ -17,7 +17,7 @@ use Hypervel\Tests\Event\Hyperf\Event\PriorityEvent;
 use Hypervel\Tests\Event\Hyperf\Listener\AlphaListener;
 use Hypervel\Tests\Event\Hyperf\Listener\BetaListener;
 use Hypervel\Tests\Event\Hyperf\Listener\PriorityListener;
-use Mockery;
+use Mockery as m;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
@@ -35,14 +35,14 @@ class EventDispatcherTest extends TestCase
 
     public function testInvokeDispatcher()
     {
-        $listeners = Mockery::mock(ListenerProviderContract::class);
+        $listeners = m::mock(ListenerProviderContract::class);
         $this->assertInstanceOf(EventDispatcherInterface::class, new EventDispatcher($listeners));
     }
 
     public function testInvokeDispatcherWithStdoutLogger()
     {
-        $listeners = Mockery::mock(ListenerProviderContract::class);
-        $logger = Mockery::mock(StdoutLoggerInterface::class);
+        $listeners = m::mock(ListenerProviderContract::class);
+        $logger = m::mock(StdoutLoggerInterface::class);
         $this->assertInstanceOf(EventDispatcherInterface::class, $instance = new EventDispatcher($listeners, $logger));
         $reflectionClass = new ReflectionClass($instance);
         $loggerProperty = $reflectionClass->getProperty('logger');
@@ -51,7 +51,7 @@ class EventDispatcherTest extends TestCase
 
     public function testInvokeDispatcherByFactory()
     {
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = m::mock(ContainerInterface::class);
         $container->shouldReceive('get')->with(ConfigInterface::class)->andReturn(new Config([]));
         $config = $container->get(ConfigInterface::class);
         $container->shouldReceive('get')->with(PsrListenerProviderInterface::class)->andReturn(new ListenerProvider());
@@ -75,7 +75,7 @@ class EventDispatcherTest extends TestCase
 
     public function testLoggerDump()
     {
-        $logger = Mockery::mock(StdoutLoggerInterface::class);
+        $logger = m::mock(StdoutLoggerInterface::class);
         $logger->shouldReceive('debug')->once();
         $listenerProvider = new ListenerProvider();
         $listenerProvider->on(Alpha::class, [new AlphaListener(), 'process']);

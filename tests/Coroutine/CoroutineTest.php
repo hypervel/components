@@ -13,7 +13,7 @@ use Hypervel\Engine\Channel;
 use Hypervel\Engine\Exception\CoroutineDestroyedException;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use Throwable;
 
 use function Hypervel\Coroutine\defer;
@@ -59,13 +59,13 @@ class CoroutineTest extends TestCase
 
     public function testCoroutineAndDeferWithException()
     {
-        $container = Mockery::mock(ContainerContract::class);
+        $container = m::mock(ContainerContract::class);
         ApplicationContext::setContainer($container);
 
         $exception = new Exception();
         $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturnTrue();
         $container->shouldReceive('get')->with(ExceptionHandlerContract::class)
-            ->andReturn($handler = Mockery::mock(ExceptionHandlerContract::class));
+            ->andReturn($handler = m::mock(ExceptionHandlerContract::class));
         $handler->shouldReceive('report')->with($exception)->twice();
 
         $chan = new Channel(1);
@@ -143,11 +143,11 @@ class CoroutineTest extends TestCase
 
     public function testAfterCreatedCallbackExceptionDoesNotStopOthers()
     {
-        $container = Mockery::mock(ContainerContract::class);
+        $container = m::mock(ContainerContract::class);
         ApplicationContext::setContainer($container);
         $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturnTrue();
         $container->shouldReceive('get')->with(ExceptionHandlerContract::class)
-            ->andReturn($handler = Mockery::mock(ExceptionHandlerContract::class));
+            ->andReturn($handler = m::mock(ExceptionHandlerContract::class));
         $handler->shouldReceive('report')->once();
 
         $secondCallbackRan = false;

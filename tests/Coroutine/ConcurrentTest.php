@@ -10,7 +10,7 @@ use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Coroutine\Concurrent;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use Swoole\Coroutine;
 
 /**
@@ -79,7 +79,7 @@ class ConcurrentTest extends TestCase
 
     protected function getContainer(): void
     {
-        $container = Mockery::mock(ContainerContract::class);
+        $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->andReturn(false);
 
         ApplicationContext::setContainer($container);

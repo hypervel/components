@@ -19,7 +19,7 @@ use Hypervel\Pool\SimplePool\PoolFactory;
 use Hypervel\Tests\Guzzle\Stub\CoroutineHandlerStub;
 use Hypervel\Tests\Guzzle\Stub\HandlerStackFactoryStub;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use ReflectionClass;
 use Throwable;
 
@@ -36,9 +36,9 @@ class HandlerStackFactoryTest extends TestCase
      */
     public function testCreateCoroutineHandler()
     {
-        $container = Mockery::mock(ContainerContract::class);
+        $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->with(CoroutineHandler::class)->andReturnFalse();
-        $container->shouldReceive('make')->with(CoroutineHandler::class, Mockery::any())->andReturn(new CoroutineHandler());
+        $container->shouldReceive('make')->with(CoroutineHandler::class, m::any())->andReturn(new CoroutineHandler());
         ApplicationContext::setContainer($container);
 
         $factory = new HandlerStackFactory();
@@ -62,10 +62,10 @@ class HandlerStackFactoryTest extends TestCase
      */
     public function testMakeCoroutineHandler()
     {
-        $container = Mockery::mock(Container::class);
+        $container = m::mock(Container::class);
         ApplicationContext::setContainer($container);
         $container->shouldReceive('has')->with(CoroutineHandler::class)->andReturnFalse();
-        $container->shouldReceive('make')->with(CoroutineHandler::class, Mockery::any())->andReturn(new CoroutineHandler());
+        $container->shouldReceive('make')->with(CoroutineHandler::class, m::any())->andReturn(new CoroutineHandler());
 
         $factory = new HandlerStackFactoryStub();
         $stack = $factory->create();
@@ -186,9 +186,9 @@ class HandlerStackFactoryTest extends TestCase
      */
     protected function setContainer()
     {
-        $container = Mockery::mock(Container::class);
+        $container = m::mock(Container::class);
         $factory = new PoolFactory($container);
-        $container->shouldReceive('make')->with(PoolHandler::class, Mockery::any())->andReturnUsing(function ($class, $args) use ($factory) {
+        $container->shouldReceive('make')->with(PoolHandler::class, m::any())->andReturnUsing(function ($class, $args) use ($factory) {
             return new PoolHandler($factory, $args['option']);
         });
 

@@ -180,6 +180,8 @@ A per-package base class is only justified when there is shared setUp logic beyo
 
 #### Mockery
 
+**Always import as `m`:** Use `use Mockery as m;` and call `m::mock()`, `m::spy()`, etc. Never use the full `Mockery::` prefix.
+
 **Never add `Mockery::close()` to tearDown.** It's handled globally by `AfterEachTestExtension` for all tests.
 
 #### Docblocks and Types
@@ -261,7 +263,7 @@ $container = Mockery::mock(ContainerInterface::class);
 
 // Hypervel
 use Hypervel\Contracts\Container\Container as ContainerContract;
-$container = Mockery::mock(ContainerContract::class);
+$container = m::mock(ContainerContract::class);
 ```
 
 #### Error Handler Mocking
@@ -280,7 +282,7 @@ $formatter->shouldReceive('format')->with($exception)->twice()->andReturn('unit'
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturnTrue();
 $container->shouldReceive('get')->with(ExceptionHandlerContract::class)
-    ->andReturn($handler = Mockery::mock(ExceptionHandlerContract::class));
+    ->andReturn($handler = m::mock(ExceptionHandlerContract::class));
 $handler->shouldReceive('report')->with($exception)->twice();
 ```
 

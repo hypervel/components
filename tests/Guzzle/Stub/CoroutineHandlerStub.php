@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Guzzle\Stub;
 use Hypervel\Engine\Http\Client;
 use Hypervel\Engine\Http\RawResponse;
 use Hypervel\Guzzle\CoroutineHandler;
-use Mockery;
+use Mockery as m;
 
 /**
  * Test stub for CoroutineHandler that mocks the HTTP client.
@@ -51,7 +51,7 @@ class CoroutineHandlerStub extends CoroutineHandler
      */
     protected function makeClient(string $host, int $port, bool $ssl): Client
     {
-        $client = Mockery::mock(Client::class . '[request]', [$host, $port, $ssl]);
+        $client = m::mock(Client::class . '[request]', [$host, $port, $ssl]);
         $client->shouldReceive('request')->withAnyArgs()->andReturnUsing(function ($method, $path, $headers, $body) use ($host, $port, $ssl, $client) {
             ++$this->count;
             $body = json_encode([

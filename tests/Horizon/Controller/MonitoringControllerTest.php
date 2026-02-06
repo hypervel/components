@@ -8,7 +8,7 @@ use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Contracts\TagRepository;
 use Hypervel\Horizon\JobPayload;
 use Hypervel\Tests\Horizon\ControllerTestCase;
-use Mockery;
+use Mockery as m;
 
 /**
  * @internal
@@ -18,7 +18,7 @@ class MonitoringControllerTest extends ControllerTestCase
 {
     public function testMonitoredTagsAndJobCountsAreReturned()
     {
-        $tags = Mockery::mock(TagRepository::class);
+        $tags = m::mock(TagRepository::class);
 
         $tags->shouldReceive('monitoring')->andReturn(['first', 'second']);
         $tags->shouldReceive('count')->with('first')->andReturn(1);

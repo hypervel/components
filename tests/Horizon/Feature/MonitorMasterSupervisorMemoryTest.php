@@ -9,7 +9,7 @@ use Hypervel\Horizon\Listeners\MonitorMasterSupervisorMemory;
 use Hypervel\Horizon\MasterSupervisor;
 use Hypervel\Support\Environment;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
-use Mockery;
+use Mockery as m;
 
 /**
  * @internal
@@ -21,7 +21,7 @@ class MonitorMasterSupervisorMemoryTest extends IntegrationTestCase
     {
         parent::setUp();
 
-        $environment = Mockery::mock(Environment::class);
+        $environment = m::mock(Environment::class);
         $environment->shouldReceive('isTesting')->andReturn(false);
         $this->app->instance(Environment::class, $environment);
     }
@@ -30,7 +30,7 @@ class MonitorMasterSupervisorMemoryTest extends IntegrationTestCase
     {
         $monitor = new MonitorMasterSupervisorMemory();
 
-        $master = Mockery::mock(MasterSupervisor::class);
+        $master = m::mock(MasterSupervisor::class);
 
         $master->shouldReceive('memoryUsage')->andReturn(192);
         $master->shouldReceive('output')->once()->with('error', 'Memory limit exceeded: Using 192/64MB. Consider increasing horizon.memory_limit.');
@@ -43,7 +43,7 @@ class MonitorMasterSupervisorMemoryTest extends IntegrationTestCase
     {
         $monitor = new MonitorMasterSupervisorMemory();
 
-        $master = Mockery::mock(MasterSupervisor::class);
+        $master = m::mock(MasterSupervisor::class);
 
         $master->shouldReceive('memoryUsage')->andReturn(16);
         $master->shouldReceive('terminate')->never();

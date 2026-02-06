@@ -11,7 +11,7 @@ use Hypervel\Horizon\Listeners\MonitorWaitTimes;
 use Hypervel\Horizon\WaitTimeCalculator;
 use Hypervel\Support\Facades\Event;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
-use Mockery;
+use Mockery as m;
 
 /**
  * @internal
@@ -23,7 +23,7 @@ class MonitorWaitTimesTest extends IntegrationTestCase
     {
         Event::fake();
 
-        $calc = Mockery::mock(WaitTimeCalculator::class);
+        $calc = m::mock(WaitTimeCalculator::class);
         $calc->shouldReceive('calculate')->andReturn([
             'redis:test-queue' => 10,
             'redis:test-queue-2' => 80,
@@ -45,7 +45,7 @@ class MonitorWaitTimesTest extends IntegrationTestCase
 
         Event::fake();
 
-        $calc = Mockery::mock(WaitTimeCalculator::class);
+        $calc = m::mock(WaitTimeCalculator::class);
         $calc->expects('calculate')->andReturn([
             'redis:ignore-queue' => 10,
         ]);
@@ -62,11 +62,11 @@ class MonitorWaitTimesTest extends IntegrationTestCase
     {
         Event::fake();
 
-        $calc = Mockery::mock(WaitTimeCalculator::class);
+        $calc = m::mock(WaitTimeCalculator::class);
         $calc->expects('calculate')->never();
         $this->app->instance(WaitTimeCalculator::class, $calc);
 
-        $metrics = Mockery::mock(MetricsRepository::class);
+        $metrics = m::mock(MetricsRepository::class);
         $metrics->shouldReceive('acquireWaitTimeMonitorLock')->once()->andReturnFalse();
         $this->app->instance(MetricsRepository::class, $metrics);
 
@@ -81,11 +81,11 @@ class MonitorWaitTimesTest extends IntegrationTestCase
     {
         Event::fake();
 
-        $calc = Mockery::mock(WaitTimeCalculator::class);
+        $calc = m::mock(WaitTimeCalculator::class);
         $calc->expects('calculate')->never();
         $this->app->instance(WaitTimeCalculator::class, $calc);
 
-        $metrics = Mockery::mock(MetricsRepository::class);
+        $metrics = m::mock(MetricsRepository::class);
         $metrics->shouldReceive('acquireWaitTimeMonitorLock')->never();
         $this->app->instance(MetricsRepository::class, $metrics);
 
@@ -103,13 +103,13 @@ class MonitorWaitTimesTest extends IntegrationTestCase
 
         Event::fake();
 
-        $calc = Mockery::mock(WaitTimeCalculator::class);
+        $calc = m::mock(WaitTimeCalculator::class);
         $calc->expects('calculate')->once()->andReturn([
             'redis:default' => 70,
         ]);
         $this->app->instance(WaitTimeCalculator::class, $calc);
 
-        $metrics = Mockery::mock(MetricsRepository::class);
+        $metrics = m::mock(MetricsRepository::class);
         $metrics->shouldReceive('acquireWaitTimeMonitorLock')->once()->andReturnTrue();
         $this->app->instance(MetricsRepository::class, $metrics);
 
@@ -133,13 +133,13 @@ class MonitorWaitTimesTest extends IntegrationTestCase
 
         Event::fake();
 
-        $calc = Mockery::mock(WaitTimeCalculator::class);
+        $calc = m::mock(WaitTimeCalculator::class);
         $calc->expects('calculate')->once()->andReturn([
             'redis:default' => 70,
         ]);
         $this->app->instance(WaitTimeCalculator::class, $calc);
 
-        $metrics = Mockery::mock(MetricsRepository::class);
+        $metrics = m::mock(MetricsRepository::class);
         $metrics->shouldReceive('acquireWaitTimeMonitorLock')->once()->andReturnTrue();
         $this->app->instance(MetricsRepository::class, $metrics);
 

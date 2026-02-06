@@ -11,7 +11,7 @@ use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
 use Hypervel\Testbench\TestCase;
-use Mockery;
+use Mockery as m;
 
 /**
  * @internal
@@ -30,7 +30,7 @@ class InteractsWithAuthenticationTest extends TestCase
 
     public function testAssertAsGuest()
     {
-        $guard = Mockery::mock(Guard::class);
+        $guard = m::mock(Guard::class);
         $guard->shouldReceive('check')
             ->twice()
             ->andReturn(false);
@@ -51,13 +51,13 @@ class InteractsWithAuthenticationTest extends TestCase
 
     public function testAssertActingAs()
     {
-        $guard = Mockery::mock(Guard::class);
+        $guard = m::mock(Guard::class);
         $guard->shouldReceive('check')
             ->once()
             ->andReturn(true);
         $guard->shouldReceive('setUser')
             ->once()
-            ->andReturn($user = Mockery::mock(UserContract::class));
+            ->andReturn($user = m::mock(UserContract::class));
         $guard->shouldReceive('user')
             ->once()
             ->andReturn($user);

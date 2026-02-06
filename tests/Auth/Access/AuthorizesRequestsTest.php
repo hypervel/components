@@ -11,7 +11,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Tests\Auth\Stub\AuthorizesRequestsStub;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use Mockery\MockInterface;
 
 /**
@@ -22,7 +22,7 @@ class AuthorizesRequestsTest extends TestCase
 {
     public function testAuthorize()
     {
-        $response = Mockery::mock(Response::class);
+        $response = m::mock(Response::class);
 
         $gate = $this->mockGate();
 
@@ -34,7 +34,7 @@ class AuthorizesRequestsTest extends TestCase
     public function testAuthorizeMayBeGuessedPassingModelInstance()
     {
         $model = new class extends Model {};
-        $response = Mockery::mock(Response::class);
+        $response = m::mock(Response::class);
 
         $gate = $this->mockGate();
 
@@ -46,7 +46,7 @@ class AuthorizesRequestsTest extends TestCase
     public function testAuthorizeMayBeGuessedPassingClassName()
     {
         $class = Model::class;
-        $response = Mockery::mock(Response::class);
+        $response = m::mock(Response::class);
 
         $gate = $this->mockGate();
 
@@ -58,7 +58,7 @@ class AuthorizesRequestsTest extends TestCase
     public function testAuthorizeMayBeGuessedAndNormalized()
     {
         $model = new class extends Model {};
-        $response = Mockery::mock(Response::class);
+        $response = m::mock(Response::class);
 
         $gate = $this->mockGate();
 
@@ -77,10 +77,10 @@ class AuthorizesRequestsTest extends TestCase
      */
     private function mockGate(): Gate
     {
-        $gate = Mockery::mock(Gate::class);
+        $gate = m::mock(Gate::class);
 
         /** @var Container|MockInterface */
-        $container = Mockery::mock(Container::class);
+        $container = m::mock(Container::class);
 
         $container->shouldReceive('get')->with(Gate::class)->andReturn($gate);
 

@@ -25,7 +25,7 @@ use Hypervel\Tests\Horizon\Feature\Fixtures\FakeSilencedJob;
 use Hypervel\Tests\Horizon\Feature\Fixtures\SilencedMailable;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
 use Illuminate\Events\CallQueuedListener;
-use Mockery;
+use Mockery as m;
 use StdClass;
 
 /**
@@ -44,7 +44,7 @@ class RedisPayloadTest extends IntegrationTestCase
         $JobPayload->prepare(new CallQueuedListener('stdClass', 'method', [new StdClass()]));
         $this->assertSame('event', $JobPayload->decoded['type']);
 
-        $JobPayload->prepare(new SendQueuedMailable(Mockery::mock(Mailable::class)));
+        $JobPayload->prepare(new SendQueuedMailable(m::mock(Mailable::class)));
         $this->assertSame('mail', $JobPayload->decoded['type']);
 
         $JobPayload->prepare(new SendQueuedNotifications([], new StdClass(), ['mail']));
@@ -172,7 +172,7 @@ class RedisPayloadTest extends IntegrationTestCase
     {
         $JobPayload = new JobPayload(json_encode(['id' => 1]));
 
-        $mailableMock = Mockery::mock(SilencedMailable::class);
+        $mailableMock = m::mock(SilencedMailable::class);
         config(['horizon.silenced' => [get_class($mailableMock)]]);
         $JobPayload->prepare(new SendQueuedMailable($mailableMock));
         $this->assertTrue($JobPayload->isSilenced());

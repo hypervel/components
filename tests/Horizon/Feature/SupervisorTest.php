@@ -22,7 +22,7 @@ use Hypervel\Support\Facades\Event;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
-use Mockery;
+use Mockery as m;
 
 /**
  * @internal
@@ -176,7 +176,7 @@ class SupervisorTest extends IntegrationTestCase
 
     public function testExceptionsAreCaughtAndHandledDuringLoop()
     {
-        $exceptions = Mockery::mock(ExceptionHandler::class);
+        $exceptions = m::mock(ExceptionHandler::class);
         $exceptions->shouldReceive('report')->once();
         $this->app->instance(ExceptionHandler::class, $exceptions);
 
@@ -422,7 +422,7 @@ class SupervisorTest extends IntegrationTestCase
         $this->supervisor = $supervisor = new Supervisor($options);
 
         // Mock the scaler...
-        $autoScaler = Mockery::mock(AutoScaler::class);
+        $autoScaler = m::mock(AutoScaler::class);
         $autoScaler->shouldReceive('scale')->once()->with($supervisor);
         $this->app->bind(AutoScaler::class, fn () => $autoScaler);
 

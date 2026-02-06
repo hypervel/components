@@ -10,7 +10,7 @@ use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Contracts\SupervisorRepository;
 use Hypervel\Horizon\WaitTimeCalculator;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
-use Mockery;
+use Mockery as m;
 
 /**
  * @internal
@@ -159,10 +159,10 @@ class WaitTimeCalculatorTest extends IntegrationTestCase
 
     protected function with_scenario(array $supervisorSettings, array $queues)
     {
-        $queue = Mockery::mock(Queue::class);
-        $queueFactory = Mockery::mock(QueueFactory::class);
-        $supervisors = Mockery::mock(SupervisorRepository::class);
-        $metrics = Mockery::mock(MetricsRepository::class);
+        $queue = m::mock(Queue::class);
+        $queueFactory = m::mock(QueueFactory::class);
+        $supervisors = m::mock(SupervisorRepository::class);
+        $metrics = m::mock(MetricsRepository::class);
 
         $supervisors->shouldReceive('all')->andReturn($supervisorSettings);
         $queueFactory->shouldReceive('connection')->andReturn($queue);

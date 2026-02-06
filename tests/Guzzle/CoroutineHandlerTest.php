@@ -16,7 +16,7 @@ use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Guzzle\CoroutineHandler;
 use Hypervel\Tests\Guzzle\Stub\CoroutineHandlerStub;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 
 /**
  * @internal
@@ -391,7 +391,7 @@ class CoroutineHandlerTest extends TestCase
         $this->assertArrayNotHasKey('Content-Length', $data['headers']);
         $this->assertArrayNotHasKey('Expect', $data['headers']);
 
-        $stub = Mockery::mock(CoroutineHandlerStub::class . '[rewriteHeaders]');
+        $stub = m::mock(CoroutineHandlerStub::class . '[rewriteHeaders]');
         $stub->shouldReceive('rewriteHeaders')->withAnyArgs()->andReturnUsing(function ($headers) {
             return $headers;
         });

@@ -11,7 +11,7 @@ use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use Mockery\MockInterface;
 use Psr\Container\ContainerInterface;
 
@@ -30,7 +30,7 @@ class EventsDispatcherTest extends TestCase
     {
         parent::setUp();
 
-        $this->container = Mockery::mock(ContainerInterface::class);
+        $this->container = m::mock(ContainerInterface::class);
     }
 
     public function testBasicEventExecution()
@@ -820,7 +820,7 @@ class EventsDispatcherTest extends TestCase
 
     public function testDispatchWithAfterCommit()
     {
-        $transactionResolver = Mockery::mock(DatabaseTransactionsManager::class);
+        $transactionResolver = m::mock(DatabaseTransactionsManager::class);
         $transactionResolver
             ->shouldReceive('addCallback')
             ->once();

@@ -12,7 +12,7 @@ use Hypervel\Hashing\ArgonHasher;
 use Hypervel\Hashing\BcryptHasher;
 use Hypervel\Hashing\HashManager;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use RuntimeException;
 
 /**
@@ -129,7 +129,7 @@ class HasherTest extends TestCase
 
     protected function getContainer()
     {
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = m::mock(ContainerInterface::class);
         $container->shouldReceive('get')
             ->with(ConfigInterface::class)
             ->andReturn($config = new Config([
