@@ -34,7 +34,7 @@ class PoolHandlerTest extends GuzzleIntegrationTestCase
     /**
      * Test that try/finally works correctly (basic PHP behavior sanity check).
      */
-    public function testTryFinally(): void
+    public function testTryFinally()
     {
         $this->get();
 
@@ -47,7 +47,7 @@ class PoolHandlerTest extends GuzzleIntegrationTestCase
      * Makes two requests and verifies the handler only creates one client,
      * proving that connections are being pooled and reused.
      */
-    public function testPoolHandler(): void
+    public function testPoolHandler()
     {
         $container = $this->getContainer();
         $client = new Client([

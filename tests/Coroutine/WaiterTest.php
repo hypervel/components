@@ -10,6 +10,8 @@ use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exception\WaitTimeoutException;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Engine\Channel;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Tests\TestCase;
 use Mockery;
 use RuntimeException;
 
@@ -19,8 +21,10 @@ use function Hypervel\Coroutine\wait;
  * @internal
  * @coversNothing
  */
-class WaiterTest extends CoroutineTestCase
+class WaiterTest extends TestCase
 {
+    use RunTestsInCoroutine;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -30,7 +34,7 @@ class WaiterTest extends CoroutineTestCase
         $container->shouldReceive('get')->with(Waiter::class)->andReturn(new Waiter());
     }
 
-    public function testWait(): void
+    public function testWait()
     {
         $id = uniqid();
         $result = wait(function () use ($id) {
@@ -47,7 +51,7 @@ class WaiterTest extends CoroutineTestCase
         $this->assertSame($id + 1, $result);
     }
 
-    public function testWaitNone(): void
+    public function testWaitNone()
     {
         $callback = function () {
         };
@@ -63,7 +67,7 @@ class WaiterTest extends CoroutineTestCase
         $this->assertSame(null, $result);
     }
 
-    public function testWaitException(): void
+    public function testWaitException()
     {
         $message = uniqid();
         $callback = function () use ($message) {
@@ -75,7 +79,7 @@ class WaiterTest extends CoroutineTestCase
         wait($callback);
     }
 
-    public function testWaitReturnException(): void
+    public function testWaitReturnException()
     {
         $message = uniqid();
         $callback = function () use ($message) {
@@ -87,14 +91,14 @@ class WaiterTest extends CoroutineTestCase
         $this->assertSame($message, $result->getMessage());
     }
 
-    public function testPushTimeout(): void
+    public function testPushTimeout()
     {
         $channel = new Channel(1);
         $this->assertSame(true, $channel->push(1, 1));
         $this->assertSame(false, $channel->push(1, 1));
     }
 
-    public function testTimeout(): void
+    public function testTimeout()
     {
         $callback = function () {
             Coroutine::sleep(0.5);

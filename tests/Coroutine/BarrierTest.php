@@ -6,14 +6,18 @@ namespace Hypervel\Tests\Coroutine;
 
 use Hypervel\Coroutine\Barrier;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Tests\TestCase;
 
 /**
  * @internal
  * @coversNothing
  */
-class BarrierTest extends CoroutineTestCase
+class BarrierTest extends TestCase
 {
-    public function testBarrier(): void
+    use RunTestsInCoroutine;
+
+    public function testBarrier()
     {
         $barrier = Barrier::create();
         $N = 10;

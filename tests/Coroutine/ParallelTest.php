@@ -8,6 +8,8 @@ use Exception;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\Exception\ParallelExecutionException;
 use Hypervel\Coroutine\Parallel;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Tests\TestCase;
 use RuntimeException;
 use Throwable;
 
@@ -17,9 +19,11 @@ use function Hypervel\Coroutine\parallel;
  * @internal
  * @coversNothing
  */
-class ParallelTest extends CoroutineTestCase
+class ParallelTest extends TestCase
 {
-    public function testParallel(): void
+    use RunTestsInCoroutine;
+
+    public function testParallel()
     {
         // Closure
         $parallel = new Parallel();
@@ -42,7 +46,7 @@ class ParallelTest extends CoroutineTestCase
         $this->assertSame([$id, $id + 1, $id + 2], $result);
     }
 
-    public function testParallelConcurrent(): void
+    public function testParallelConcurrent()
     {
         $parallel = new Parallel();
         $num = 0;
@@ -85,7 +89,7 @@ class ParallelTest extends CoroutineTestCase
         $this->assertSame([12, 13, 14, 14], array_values($res));
     }
 
-    public function testParallelCallbackCount(): void
+    public function testParallelCallbackCount()
     {
         $parallel = new Parallel();
         $callback = function () {
@@ -104,7 +108,7 @@ class ParallelTest extends CoroutineTestCase
         $this->assertEquals(count($res), 8);
     }
 
-    public function testParallelClear(): void
+    public function testParallelClear()
     {
         $parallel = new Parallel();
         $callback = function () {
@@ -125,7 +129,7 @@ class ParallelTest extends CoroutineTestCase
         $this->assertEquals(count($res), 4);
     }
 
-    public function testParallelKeys(): void
+    public function testParallelKeys()
     {
         $parallel = new Parallel();
         $callback = function () {
@@ -158,7 +162,7 @@ class ParallelTest extends CoroutineTestCase
         $this->assertSame([1 => 1], $res);
     }
 
-    public function testParallelThrows(): void
+    public function testParallelThrows()
     {
         $parallel = new Parallel();
         $err = function () {
@@ -177,7 +181,7 @@ class ParallelTest extends CoroutineTestCase
         $res = $parallel->wait();
     }
 
-    public function testParallelResultsAndThrows(): void
+    public function testParallelResultsAndThrows()
     {
         $parallel = new Parallel();
 
@@ -212,7 +216,7 @@ class ParallelTest extends CoroutineTestCase
         }
     }
 
-    public function testParallelCount(): void
+    public function testParallelCount()
     {
         $parallel = new Parallel();
         $id = 0;
@@ -231,7 +235,7 @@ class ParallelTest extends CoroutineTestCase
         $this->assertSame(4, $id);
     }
 
-    public function testTheResultSort(): void
+    public function testTheResultSort()
     {
         $res = parallel(['a' => function () {
             usleep(1000);
@@ -251,7 +255,7 @@ class ParallelTest extends CoroutineTestCase
         $this->assertSame(['a' => 1, 'b' => null], $res);
     }
 
-    public function testThrowExceptionInParallel(): void
+    public function testThrowExceptionInParallel()
     {
         try {
             parallel([

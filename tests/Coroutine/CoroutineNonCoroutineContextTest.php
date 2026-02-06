@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Coroutine;
 
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Tests\TestCase;
 use Swoole\Runtime;
 
 use function Hypervel\Coroutine\run;
@@ -12,24 +13,19 @@ use function Hypervel\Coroutine\run;
 /**
  * Tests that must run outside coroutine context.
  *
- * These tests verify behavior when NOT already in a coroutine,
- * so we disable RunTestsInCoroutine's automatic coroutine wrapping.
- *
  * @internal
  * @coversNothing
  */
-class CoroutineNonCoroutineContextTest extends CoroutineTestCase
+class CoroutineNonCoroutineContextTest extends TestCase
 {
-    protected bool $enableCoroutine = false;
-
-    public function testCoroutineInTopCoroutine(): void
+    public function testCoroutineInTopCoroutine()
     {
         run(function () {
             $this->assertSame(0, Coroutine::parentId());
         });
     }
 
-    public function testRun(): void
+    public function testRun()
     {
         $asserts = [
             SWOOLE_HOOK_ALL,

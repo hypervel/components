@@ -22,7 +22,7 @@ class HttpServerTest extends EngineIntegrationTestCase
      */
     protected int $httpServerPort = 19505;
 
-    public function testHttpServerHelloWorld(): void
+    public function testHttpServerHelloWorld()
     {
         $client = new Client($this->getHttpServerHost(), $this->getHttpServerPort());
         $response = $client->request('GET', '/');
@@ -30,7 +30,7 @@ class HttpServerTest extends EngineIntegrationTestCase
         $this->assertSame('Hello World.', $response->body);
     }
 
-    public function testHttpServerReceived(): void
+    public function testHttpServerReceived()
     {
         $client = new Client($this->getHttpServerHost(), $this->getHttpServerPort());
         $response = $client->request('POST', '/', contents: 'Hyperf');
@@ -38,7 +38,7 @@ class HttpServerTest extends EngineIntegrationTestCase
         $this->assertSame('Received: Hyperf', $response->body);
     }
 
-    public function testHttpServerCookies(): void
+    public function testHttpServerCookies()
     {
         $client = new Client($this->getHttpServerHost(), $this->getHttpServerPort());
 

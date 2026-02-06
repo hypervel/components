@@ -12,22 +12,20 @@ use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\RequestOptions;
 use GuzzleHttp\TransferStats;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Guzzle\CoroutineHandler;
 use Hypervel\Tests\Guzzle\Stub\CoroutineHandlerStub;
+use Hypervel\Tests\TestCase;
 use Mockery;
-use PHPUnit\Framework\Attributes\CoversNothing;
 
 /**
- * Tests for CoroutineHandler.
- *
- * Tests the Guzzle handler that uses Swoole/Swow coroutine HTTP client.
- *
  * @internal
  * @coversNothing
  */
-#[CoversNothing]
-class CoroutineHandlerTest extends GuzzleTestCase
+class CoroutineHandlerTest extends TestCase
 {
+    use RunTestsInCoroutine;
+
     /**
      * Test that connection errors are properly caught and converted to ConnectException.
      */
@@ -37,7 +35,7 @@ class CoroutineHandlerTest extends GuzzleTestCase
      * The handler wraps underlying connection errors in a ConnectException with
      * a standardized message format: "Failed to connecting to {host} port {port}, {error}"
      */
-    public function testCreatesCurlErrors(): void
+    public function testCreatesCurlErrors()
     {
         $handler = new CoroutineHandler();
         $request = new Request('GET', 'http://localhost:123');
@@ -54,7 +52,7 @@ class CoroutineHandlerTest extends GuzzleTestCase
     /**
      * Test that the handler returns promises for async requests.
      */
-    public function testReusesHandles(): void
+    public function testReusesHandles()
     {
         $handler = new CoroutineHandler();
         $request = new Request('GET', 'https://pokeapi.co/api/v2/pokemon/');
@@ -69,7 +67,7 @@ class CoroutineHandlerTest extends GuzzleTestCase
     /**
      * Test that the delay option causes the handler to sleep.
      */
-    public function testDoesSleep(): void
+    public function testDoesSleep()
     {
         $handler = new CoroutineHandlerStub();
         $request = new Request('GET', 'https://pokeapi.co/api/v2/pokemon/');
@@ -83,7 +81,7 @@ class CoroutineHandlerTest extends GuzzleTestCase
     /**
      * Test that connection errors include handler context with error code.
      */
-    public function testCreatesErrorsWithContext(): void
+    public function testCreatesErrorsWithContext()
     {
         $handler = new CoroutineHandler();
         $request = new Request('GET', 'http://localhost:123');
@@ -100,7 +98,7 @@ class CoroutineHandlerTest extends GuzzleTestCase
     /**
      * Test that the handler works correctly with a Guzzle client.
      */
-    public function testGuzzleClient(): void
+    public function testGuzzleClient()
     {
         $client = new Client([
             'base_uri' => 'http://127.0.0.1:8080',
@@ -139,7 +137,7 @@ class CoroutineHandlerTest extends GuzzleTestCase
     /**
      * Test that Swoole-specific settings are passed through.
      */
-    public function testSwooleSetting(): void
+    public function testSwooleSetting()
     {
         $client = new Client([
             'base_uri' => 'http://127.0.0.1:8080',
@@ -160,7 +158,7 @@ class CoroutineHandlerTest extends GuzzleTestCase
     /**
      * Test that proxy settings are correctly configured.
      */
-    public function testProxy(): void
+    public function testProxy()
     {
         $client = new Client([
             'base_uri' => 'http://127.0.0.1:8080',
@@ -181,7 +179,7 @@ class CoroutineHandlerTest extends GuzzleTestCase
     /**
      * Test that proxy array selects HTTP proxy for HTTP scheme.
      */
-    public function testProxyArrayHttpScheme(): void
+    public function testProxyArrayHttpScheme()
     {
         $client = new Client([
             'base_uri' => 'http://127.0.0.1:8080',
@@ -206,7 +204,7 @@ class CoroutineHandlerTest extends GuzzleTestCase
     /**
      * Test that proxy array selects HTTPS proxy for HTTPS scheme.
      */
-    public function testProxyArrayHttpsScheme(): void
+    public function testProxyArrayHttpsScheme()
     {
         $client = new Client([
             'base_uri' => 'https://www.baidu.com',
@@ -231,7 +229,7 @@ class CoroutineHandlerTest extends GuzzleTestCase
     /**
      * Test that proxy is skipped when host matches no-proxy list.
      */
-    public function testProxyArrayHostInNoproxy(): void
+    public function testProxyArrayHostInNoproxy()
     {
         $client = new Client([
             'base_uri' => 'https://www.baidu.cn',
@@ -254,7 +252,7 @@ class CoroutineHandlerTest extends GuzzleTestCase
     /**
      * Test that SSL key and certificate options are passed through.
      */
-    public function testSslKeyAndCert(): void
+    public function testSslKeyAndCert()
     {
         $client = new Client([
             'base_uri' => 'http://127.0.0.1:8080',
@@ -284,7 +282,7 @@ class CoroutineHandlerTest extends GuzzleTestCase
     /**
      * Test that user info in URI is converted to Basic auth header.
      */
-    public function testUserInfo(): void
+    public function testUserInfo()
     {
         $url = 'https://username:password@127.0.0.1:8080';
         $handler = new CoroutineHandlerStub();
@@ -300,7 +298,7 @@ class CoroutineHandlerTest extends GuzzleTestCase
     /**
      * Test that ON_STATS callback is called with transfer stats.
      */
-    public function testRequestOptionOnStats(): void
+    public function testRequestOptionOnStats()
     {
         $url = 'http://127.0.0.1:9501';
         $handler = new CoroutineHandlerStub();
@@ -317,7 +315,7 @@ class CoroutineHandlerTest extends GuzzleTestCase
     /**
      * Test that ON_STATS callback works when configured on client.
      */
-    public function testRequestOptionOnStatsInClient(): void
+    public function testRequestOptionOnStatsInClient()
     {
         $called = false;
         $url = 'http://127.0.0.1:9501';
@@ -336,7 +334,7 @@ class CoroutineHandlerTest extends GuzzleTestCase
     /**
      * Test that response body can be written to a file sink.
      */
-    public function testSink(): void
+    public function testSink()
     {
         $dir = sys_get_temp_dir() . '/hypervel-guzzle-test/';
         @mkdir($dir, 0755, true);
@@ -356,7 +354,7 @@ class CoroutineHandlerTest extends GuzzleTestCase
     /**
      * Test that response body can be written to a resource sink.
      */
-    public function testResourceSink(): void
+    public function testResourceSink()
     {
         $dir = sys_get_temp_dir() . '/hypervel-guzzle-test/';
         @mkdir($dir, 0755, true);
@@ -376,7 +374,7 @@ class CoroutineHandlerTest extends GuzzleTestCase
      *
      * These headers can cause issues with Swoole's coroutine HTTP client.
      */
-    public function testExpect100Continue(): void
+    public function testExpect100Continue()
     {
         $url = 'http://127.0.0.1:9501';
         $client = new Client([

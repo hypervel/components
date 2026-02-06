@@ -17,7 +17,7 @@ use Hypervel\Engine\Http\V2\Request;
  */
 class Http2ClientTest extends EngineIntegrationTestCase
 {
-    public function testHttp2ServerReceived(): void
+    public function testHttp2ServerReceived()
     {
         $client = new Client($this->getHttpServerHost(), $this->getHttpServerPort());
         $client->send(new Request('/'));

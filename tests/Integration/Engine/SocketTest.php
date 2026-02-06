@@ -22,7 +22,7 @@ class SocketTest extends EngineIntegrationTestCase
      */
     protected int $httpServerPort = 19502;
 
-    public function testSocketRecvPacketFromTcpServer(): void
+    public function testSocketRecvPacketFromTcpServer()
     {
         $socket = new Socket(AF_INET, SOCK_STREAM, 0);
         $socket->setProtocol([
@@ -41,7 +41,7 @@ class SocketTest extends EngineIntegrationTestCase
         $this->assertSame('recv:' . $id, substr($socket->recvPacket(), 4));
     }
 
-    public function testSocketRecvPacketFromTcpServerViaFactory(): void
+    public function testSocketRecvPacketFromTcpServerViaFactory()
     {
         $socket = (new Socket\SocketFactory())->make(new Socket\SocketOption(
             $this->getHttpServerHost(),
@@ -62,7 +62,7 @@ class SocketTest extends EngineIntegrationTestCase
         $this->assertSame('recv:' . $id, substr($socket->recvPacket(), 4));
     }
 
-    public function testSocketRecvAllFromTcpServer(): void
+    public function testSocketRecvAllFromTcpServer()
     {
         $socket = new Socket(AF_INET, SOCK_STREAM, 0);
         $socket->connect($this->getHttpServerHost(), $this->getHttpServerPort());

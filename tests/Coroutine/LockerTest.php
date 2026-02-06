@@ -6,6 +6,8 @@ namespace Hypervel\Tests\Coroutine;
 
 use Hypervel\Coroutine\Locker;
 use Hypervel\Engine\Channel;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Tests\TestCase;
 
 use function Hypervel\Coroutine\go;
 
@@ -13,9 +15,11 @@ use function Hypervel\Coroutine\go;
  * @internal
  * @coversNothing
  */
-class LockerTest extends CoroutineTestCase
+class LockerTest extends TestCase
 {
-    public function testLockAndUnlock(): void
+    use RunTestsInCoroutine;
+
+    public function testLockAndUnlock()
     {
         $chan = new Channel(10);
         go(function () use ($chan) {

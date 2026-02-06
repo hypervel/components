@@ -23,7 +23,7 @@ class WebSocketTest extends EngineIntegrationTestCase
      */
     protected int $httpServerPort = 19503;
 
-    public function testWebSocket(): void
+    public function testWebSocket()
     {
         $client = new Client($this->getHttpServerHost(), $this->getHttpServerPort(), false);
         $client->set(['open_websocket_pong_frame' => true]);

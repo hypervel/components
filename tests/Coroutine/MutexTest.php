@@ -7,6 +7,8 @@ namespace Hypervel\Tests\Coroutine;
 use Hypervel\Coroutine\Mutex;
 use Hypervel\Coroutine\WaitGroup;
 use Hypervel\Engine\Channel;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Tests\TestCase;
 
 use function Hypervel\Coroutine\go;
 
@@ -14,9 +16,11 @@ use function Hypervel\Coroutine\go;
  * @internal
  * @coversNothing
  */
-class MutexTest extends CoroutineTestCase
+class MutexTest extends TestCase
 {
-    public function testMutexLock(): void
+    use RunTestsInCoroutine;
+
+    public function testMutexLock()
     {
         $chan = new Channel(5);
         $func = function (string $value) use ($chan) {

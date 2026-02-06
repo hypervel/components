@@ -8,6 +8,8 @@ use Hypervel\Engine\Exception\SocketClosedException;
 use Hypervel\Engine\Exception\SocketConnectException;
 use Hypervel\Engine\SafeSocket;
 use Hypervel\Engine\Socket;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Tests\TestCase;
 use Swoole\Coroutine\Server;
 use Throwable;
 
@@ -15,8 +17,10 @@ use Throwable;
  * @internal
  * @coversNothing
  */
-class SocketTest extends EngineTestCase
+class SocketTest extends TestCase
 {
+    use RunTestsInCoroutine;
+
     public function testSocketConnectFailed()
     {
         try {

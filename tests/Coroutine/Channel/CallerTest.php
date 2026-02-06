@@ -6,7 +6,8 @@ namespace Hypervel\Tests\Coroutine\Channel;
 
 use Hypervel\Coroutine\Channel\Caller;
 use Hypervel\Coroutine\Exception\WaitTimeoutException;
-use Hypervel\Tests\Coroutine\CoroutineTestCase;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Tests\TestCase;
 use stdClass;
 
 use function Hypervel\Coroutine\go;
@@ -15,9 +16,11 @@ use function Hypervel\Coroutine\go;
  * @internal
  * @coversNothing
  */
-class CallerTest extends CoroutineTestCase
+class CallerTest extends TestCase
 {
-    public function testCallerWithNull(): void
+    use RunTestsInCoroutine;
+
+    public function testCallerWithNull()
     {
         $caller = new Caller(static function () {
             return null;
@@ -36,7 +39,7 @@ class CallerTest extends CoroutineTestCase
         $this->assertSame(2, $id);
     }
 
-    public function testCaller(): void
+    public function testCaller()
     {
         $obj = new stdClass();
         $obj->id = uniqid();
@@ -55,7 +58,7 @@ class CallerTest extends CoroutineTestCase
         });
     }
 
-    public function testCallerPopTimeout(): void
+    public function testCallerPopTimeout()
     {
         $obj = new stdClass();
         $obj->id = uniqid();

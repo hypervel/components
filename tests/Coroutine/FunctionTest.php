@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Coroutine;
 
 use Hypervel\Engine\Channel;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Tests\TestCase;
 
 use function Hypervel\Coroutine\defer;
 use function Hypervel\Coroutine\go;
@@ -14,9 +16,11 @@ use function Hypervel\Coroutine\parallel;
  * @internal
  * @coversNothing
  */
-class FunctionTest extends CoroutineTestCase
+class FunctionTest extends TestCase
 {
-    public function testReturnOfGo(): void
+    use RunTestsInCoroutine;
+
+    public function testReturnOfGo()
     {
         $uniqid = uniqid();
         $id = go(function () use (&$uniqid) {
@@ -27,7 +31,7 @@ class FunctionTest extends CoroutineTestCase
         $this->assertSame('Hypervel', $uniqid);
     }
 
-    public function testDefer(): void
+    public function testDefer()
     {
         $channel = new Channel(10);
         parallel([function () use ($channel) {

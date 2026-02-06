@@ -10,6 +10,7 @@ use GuzzleHttp\HandlerStack;
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Guzzle\CoroutineHandler;
 use Hypervel\Guzzle\HandlerStackFactory;
 use Hypervel\Guzzle\PoolHandler;
@@ -17,27 +18,23 @@ use Hypervel\Guzzle\RetryMiddleware;
 use Hypervel\Pool\SimplePool\PoolFactory;
 use Hypervel\Tests\Guzzle\Stub\CoroutineHandlerStub;
 use Hypervel\Tests\Guzzle\Stub\HandlerStackFactoryStub;
+use Hypervel\Tests\TestCase;
 use Mockery;
-use PHPUnit\Framework\Attributes\CoversNothing;
 use ReflectionClass;
 use Throwable;
 
 /**
- * Tests for HandlerStackFactory.
- *
- * Tests the factory that creates Guzzle handler stacks with
- * CoroutineHandler or PoolHandler depending on the environment.
- *
  * @internal
  * @coversNothing
  */
-#[CoversNothing]
-class HandlerStackFactoryTest extends GuzzleTestCase
+class HandlerStackFactoryTest extends TestCase
 {
+    use RunTestsInCoroutine;
+
     /**
      * Test that factory creates a CoroutineHandler when pool is not available.
      */
-    public function testCreateCoroutineHandler(): void
+    public function testCreateCoroutineHandler()
     {
         $container = Mockery::mock(ContainerContract::class);
         $container->shouldReceive('has')->with(CoroutineHandler::class)->andReturnFalse();
@@ -63,7 +60,7 @@ class HandlerStackFactoryTest extends GuzzleTestCase
     /**
      * Test that factory uses container to make CoroutineHandler when available.
      */
-    public function testMakeCoroutineHandler(): void
+    public function testMakeCoroutineHandler()
     {
         $container = Mockery::mock(Container::class);
         ApplicationContext::setContainer($container);
@@ -89,7 +86,7 @@ class HandlerStackFactoryTest extends GuzzleTestCase
     /**
      * Test that factory creates a PoolHandler when pool factory is available.
      */
-    public function testCreatePoolHandler(): void
+    public function testCreatePoolHandler()
     {
         $this->setContainer();
 
@@ -112,7 +109,7 @@ class HandlerStackFactoryTest extends GuzzleTestCase
     /**
      * Test that pool options are passed through to the handler.
      */
-    public function testPoolHandlerOption(): void
+    public function testPoolHandlerOption()
     {
         $this->setContainer();
 
@@ -132,7 +129,7 @@ class HandlerStackFactoryTest extends GuzzleTestCase
     /**
      * Test that custom middleware can be added to the handler stack.
      */
-    public function testPoolHandlerMiddleware(): void
+    public function testPoolHandlerMiddleware()
     {
         $this->setContainer();
 
@@ -148,7 +145,7 @@ class HandlerStackFactoryTest extends GuzzleTestCase
     /**
      * Test that retry middleware retries failed requests.
      */
-    public function testRetryMiddleware(): void
+    public function testRetryMiddleware()
     {
         $this->setContainer();
 
@@ -187,7 +184,7 @@ class HandlerStackFactoryTest extends GuzzleTestCase
     /**
      * Set up a mock container with pool factory for testing.
      */
-    protected function setContainer(): void
+    protected function setContainer()
     {
         $container = Mockery::mock(Container::class);
         $factory = new PoolFactory($container);

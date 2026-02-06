@@ -8,6 +8,8 @@ use Exception;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Coroutine\Concurrent;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Tests\TestCase;
 use Mockery;
 use Swoole\Coroutine;
 
@@ -15,15 +17,17 @@ use Swoole\Coroutine;
  * @internal
  * @coversNothing
  */
-class ConcurrentTest extends CoroutineTestCase
+class ConcurrentTest extends TestCase
 {
+    use RunTestsInCoroutine;
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->getContainer();
     }
 
-    public function testConcurrent(): void
+    public function testConcurrent()
     {
         $concurrent = new Concurrent($limit = 10);
         $this->assertSame($limit, $concurrent->getLimit());
@@ -51,7 +55,7 @@ class ConcurrentTest extends CoroutineTestCase
         $this->assertSame(15, $count);
     }
 
-    public function testException(): void
+    public function testException()
     {
         $con = new Concurrent(10);
         $count = 0;

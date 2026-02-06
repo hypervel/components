@@ -7,14 +7,18 @@ namespace Hypervel\Tests\Engine;
 use Hypervel\Contracts\Engine\ChannelInterface;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Coroutine;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Tests\TestCase;
 use stdClass;
 
 /**
  * @internal
  * @coversNothing
  */
-class ChannelTest extends EngineTestCase
+class ChannelTest extends TestCase
 {
+    use RunTestsInCoroutine;
+
     public function testChannelPushAndPop()
     {
         $result = [

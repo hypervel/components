@@ -11,6 +11,8 @@ use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
 use Hypervel\Engine\Exception\CoroutineDestroyedException;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Tests\TestCase;
 use Mockery;
 use Throwable;
 
@@ -21,9 +23,11 @@ use function Hypervel\Coroutine\go;
  * @internal
  * @coversNothing
  */
-class CoroutineTest extends CoroutineTestCase
+class CoroutineTest extends TestCase
 {
-    public function testCoroutineParentId(): void
+    use RunTestsInCoroutine;
+
+    public function testCoroutineParentId()
     {
         $pid = Coroutine::id();
         Coroutine::create(function () use ($pid) {
@@ -40,7 +44,7 @@ class CoroutineTest extends CoroutineTestCase
         });
     }
 
-    public function testCoroutineParentIdHasBeenDestroyed(): void
+    public function testCoroutineParentIdHasBeenDestroyed()
     {
         $id = Coroutine::create(function () {
         });
@@ -53,7 +57,7 @@ class CoroutineTest extends CoroutineTestCase
         }
     }
 
-    public function testCoroutineAndDeferWithException(): void
+    public function testCoroutineAndDeferWithException()
     {
         $container = Mockery::mock(ContainerContract::class);
         ApplicationContext::setContainer($container);
@@ -80,7 +84,7 @@ class CoroutineTest extends CoroutineTestCase
         $this->assertTrue(true);
     }
 
-    public function testAfterCreatedCallbacksAreExecuted(): void
+    public function testAfterCreatedCallbacksAreExecuted()
     {
         $executed = false;
 
@@ -98,7 +102,7 @@ class CoroutineTest extends CoroutineTestCase
         Coroutine::flushAfterCreated();
     }
 
-    public function testAfterCreatedCallbacksExecuteInOrder(): void
+    public function testAfterCreatedCallbacksExecuteInOrder()
     {
         $order = [];
 
@@ -120,7 +124,7 @@ class CoroutineTest extends CoroutineTestCase
         Coroutine::flushAfterCreated();
     }
 
-    public function testFlushAfterCreatedClearsCallbacks(): void
+    public function testFlushAfterCreatedClearsCallbacks()
     {
         $count = 0;
 
@@ -137,7 +141,7 @@ class CoroutineTest extends CoroutineTestCase
         $this->assertSame(1, $count); // Should still be 1, callback was flushed
     }
 
-    public function testAfterCreatedCallbackExceptionDoesNotStopOthers(): void
+    public function testAfterCreatedCallbackExceptionDoesNotStopOthers()
     {
         $container = Mockery::mock(ContainerContract::class);
         ApplicationContext::setContainer($container);
