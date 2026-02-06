@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Redis\Stubs;
 
 use Hyperf\Contract\PoolInterface;
 use Hypervel\Redis\RedisConnection;
-use Mockery;
+use Mockery as m;
 use Psr\Container\ContainerInterface;
 use Redis;
 use RedisCluster;
@@ -50,7 +50,7 @@ class RedisConnectionStub extends RedisConnection
         // Use shouldIgnoreMissing() to prevent falling through to real Redis
         // methods when expectations don't match (which causes "Redis server went away")
         $connection = $this->redisConnection
-            ?? Mockery::mock(Redis::class)->shouldIgnoreMissing();
+            ?? m::mock(Redis::class)->shouldIgnoreMissing();
 
         return $this->connection = $connection;
     }

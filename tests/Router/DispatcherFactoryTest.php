@@ -13,7 +13,7 @@ use Hypervel\Router\RouteCollector;
 use Hypervel\Router\RouteFileCollector;
 use Hypervel\Router\Router;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use Mockery\MockInterface;
 
 /**
@@ -38,7 +38,7 @@ class DispatcherFactoryTest extends TestCase
         }
 
         /** @var MockInterface|RouteCollector */
-        $routeCollector = Mockery::mock(RouteCollector::class);
+        $routeCollector = m::mock(RouteCollector::class);
 
         $getContainer = $this->getContainer([
             HyperfRouteCollector::class => fn () => $routeCollector,
@@ -57,7 +57,7 @@ class DispatcherFactoryTest extends TestCase
         }
 
         /** @var MockInterface|RouteCollector */
-        $routeCollector = Mockery::mock(RouteCollector::class);
+        $routeCollector = m::mock(RouteCollector::class);
         $routeCollector->shouldReceive('get')->with('/foo', 'Handler::Foo')->once();
         $routeCollector->shouldReceive('get')->with('/bar', 'Handler::Bar')->once();
 
@@ -90,7 +90,7 @@ class DispatcherFactoryTest extends TestCase
         }
 
         /** @var MockInterface|RouteCollector */
-        $routeCollector = Mockery::mock(RouteCollector::class);
+        $routeCollector = m::mock(RouteCollector::class);
 
         // Initial route from foo.php
         $routeCollector->shouldReceive('get')->with('/foo', 'Handler::Foo')->once();

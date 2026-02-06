@@ -15,7 +15,7 @@ use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Sentry\Features\RedisFeature;
 use Hypervel\Session\SessionManager;
 use Hypervel\Tests\Sentry\SentryTestCase;
-use Mockery;
+use Mockery as m;
 
 /**
  * @internal
@@ -213,16 +213,16 @@ class RedisFeatureTest extends SentryTestCase
     private function setupMocks(string $connectionName = 'default', int $database = 0): void
     {
         // Mock PoolFactory
-        $poolOption = Mockery::mock(PoolOptionInterface::class);
+        $poolOption = m::mock(PoolOptionInterface::class);
         $poolOption->shouldReceive('getMaxConnections')->andReturn(10);
         $poolOption->shouldReceive('getMaxIdleTime')->andReturn(60.0);
 
-        $pool = Mockery::mock(RedisPool::class);
+        $pool = m::mock(RedisPool::class);
         $pool->shouldReceive('getOption')->andReturn($poolOption);
         $pool->shouldReceive('getConnectionsInChannel')->andReturn(5);
         $pool->shouldReceive('getCurrentConnections')->andReturn(2);
 
-        $poolFactory = Mockery::mock(PoolFactory::class);
+        $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->shouldReceive('getPool')->with($connectionName)->andReturn($pool);
 
         $this->app->instance(PoolFactory::class, $poolFactory);
@@ -234,6 +234,6 @@ class RedisFeatureTest extends SentryTestCase
 
     private function createRedisConnection(string $name): RedisConnection
     {
-        return Mockery::mock(RedisConnection::class);
+        return m::mock(RedisConnection::class);
     }
 }

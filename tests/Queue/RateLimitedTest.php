@@ -9,7 +9,7 @@ use Hypervel\Cache\RateLimiter;
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Queue\Middleware\RateLimited;
-use Mockery;
+use Mockery as m;
 use Mockery\MockInterface;
 use PHPUnit\Framework\TestCase;
 use TypeError;
@@ -90,7 +90,7 @@ class RateLimitedTest extends TestCase
      */
     protected function mockRateLimiter(): RateLimiter&MockInterface
     {
-        $limiter = Mockery::mock(RateLimiter::class);
+        $limiter = m::mock(RateLimiter::class);
 
         $container = new Container(
             new DefinitionSource([

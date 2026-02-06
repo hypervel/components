@@ -21,7 +21,7 @@ use Hypervel\Router\UrlGenerator;
 use Hypervel\Tests\Router\Stub\UrlRoutableStub;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
-use Mockery;
+use Mockery as m;
 use Mockery\MockInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use ReflectionMethod;
@@ -62,7 +62,7 @@ class UrlGeneratorTest extends TestCase
 
         $this->mockRouter();
 
-        $config = Mockery::mock(ConfigInterface::class);
+        $config = m::mock(ConfigInterface::class);
         $config->shouldReceive('get')
             ->with('app.url')
             ->andReturn('http://example.com');
@@ -325,7 +325,7 @@ class UrlGeneratorTest extends TestCase
         );
 
         // Mock ConfigInterface for app.url
-        $mockConfig = Mockery::mock(ConfigInterface::class);
+        $mockConfig = m::mock(ConfigInterface::class);
         $mockConfig->shouldReceive('get')
             ->with('app.url')
             ->andReturn('http://example.com');
@@ -641,7 +641,7 @@ class UrlGeneratorTest extends TestCase
     private function mockContainer()
     {
         /** @var ContainerInterface|MockInterface */
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = m::mock(ContainerInterface::class);
 
         $container->shouldReceive('get')
             ->with(RequestInterface::class)
@@ -655,10 +655,10 @@ class UrlGeneratorTest extends TestCase
     private function mockRouter(?RouteCollector $router = null)
     {
         /** @var DispatcherFactory|MockInterface */
-        $factory = Mockery::mock(DispatcherFactory::class);
+        $factory = m::mock(DispatcherFactory::class);
 
         /** @var MockInterface|RouteCollector */
-        $router = $router ?: Mockery::mock(RouteCollector::class);
+        $router = $router ?: m::mock(RouteCollector::class);
 
         $this->container
             ->shouldReceive('get')

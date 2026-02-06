@@ -12,7 +12,7 @@ use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Tests\Redis\Stubs\RedisConnectionStub;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use Psr\Container\ContainerInterface;
 use Redis;
 use RedisCluster;
@@ -697,7 +697,7 @@ class RedisConnectionTest extends TestCase
         $connection = $this->mockRedisConnection();
 
         // Set a RedisCluster mock as the active connection
-        $clusterMock = Mockery::mock(RedisCluster::class)->shouldIgnoreMissing();
+        $clusterMock = m::mock(RedisCluster::class)->shouldIgnoreMissing();
         $connection->setActiveConnection($clusterMock);
 
         $this->assertTrue($connection->isCluster());
@@ -895,9 +895,9 @@ class RedisConnectionTest extends TestCase
 
     protected function getMockedPool(): PoolInterface
     {
-        $pool = Mockery::mock(PoolInterface::class);
+        $pool = m::mock(PoolInterface::class);
         $pool->shouldReceive('getOption')
-            ->andReturn(Mockery::mock(PoolOption::class));
+            ->andReturn(m::mock(PoolOption::class));
 
         return $pool;
     }

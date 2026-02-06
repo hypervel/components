@@ -16,7 +16,7 @@ use Hypervel\Sanctum\TransientToken;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Sanctum\Stub\TestUser;
-use Mockery;
+use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
@@ -281,7 +281,7 @@ class GuardTest extends TestCase
         $realDispatcher = $this->app->get(EventDispatcherInterface::class);
 
         // Create a partial mock that delegates to the real dispatcher
-        $events = Mockery::mock($realDispatcher);
+        $events = m::mock($realDispatcher);
         $events->makePartial(); // This makes it a partial mock
 
         // Only spy on dispatch calls, don't change behavior
