@@ -18,7 +18,7 @@ use Hypervel\Notifications\Slack\BlockKit\Blocks\SectionBlock;
 use Hypervel\Notifications\Slack\SlackMessage;
 use Hypervel\Notifications\Slack\SlackRoute;
 use LogicException;
-use Mockery;
+use Mockery as m;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -716,7 +716,7 @@ class SlackMessageTest extends TestCase
     protected function getSlackChannel(): SlackWebApiChannel
     {
         return new SlackWebApiChannel(
-            $this->client = Mockery::mock(HttpClient::class),
+            $this->client = m::mock(HttpClient::class),
             $this->config = new Config([])
         );
     }
