@@ -50,7 +50,7 @@ jobs:
           REDIS_DB: 8
         run: |
           vendor/bin/phpunit tests/Integration/Cache/Redis
-          vendor/bin/phpunit tests/Redis/Integration
+          vendor/bin/phpunit tests/Integration/Redis
 
   valkey_9:
     runs-on: ubuntu-latest
@@ -97,4 +97,4 @@ jobs:
           REDIS_DB: 8
         run: |
           vendor/bin/phpunit tests/Integration/Cache/Redis
-          vendor/bin/phpunit tests/Redis/Integration
+          vendor/bin/phpunit tests/Integration/Redis
