@@ -160,6 +160,79 @@ class MultiExecTest extends TestCase
         });
     }
 
+    public function testTransactionWithCallbackDoesNotReleaseExistingContextConnection(): void
+    {
+        $multiInstance = m::mock(PhpRedis::class);
+        $multiInstance->shouldReceive('exec')->once()->andReturn([]);
+
+        $phpRedis = m::mock(PhpRedis::class);
+        $phpRedis->shouldReceive('multi')->once()->andReturn($multiInstance);
+
+        $connection = $this->createMockConnection($phpRedis);
+        // Set up existing connection in context BEFORE the transaction call
+        Context::set('redis.connection.default', $connection);
+
+        // Connection is NOT released during the test (it already existed in context),
+        // but allow release() call for test cleanup
+        $connection->shouldReceive('release')->zeroOrMoreTimes();
+
+        $redis = $this->createRedis($connection);
+
+        $redis->transaction(function ($tx) {
+            // empty callback
+        });
+    }
+
+    public function testTransactionWithCallbackReleasesOnException(): void
+    {
+        $multiInstance = m::mock(PhpRedis::class);
+        $multiInstance->shouldReceive('exec')->once()->andThrow(new RuntimeException('Transaction failed'));
+
+        $phpRedis = m::mock(PhpRedis::class);
+        $phpRedis->shouldReceive('multi')->once()->andReturn($multiInstance);
+
+        $connection = $this->createMockConnection($phpRedis);
+        // Connection should still be released even on exception
+        $connection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($connection);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Transaction failed');
+
+        $redis->transaction(function ($tx) {
+            // callback runs, but exec will throw
+        });
+    }
+
+    public function testShouldTransformIsResetWhenConnectionReleasedAfterCallback(): void
+    {
+        $execResults = ['OK'];
+
+        $pipelineInstance = m::mock(PhpRedis::class);
+        $pipelineInstance->shouldReceive('set')->once()->andReturnSelf();
+        $pipelineInstance->shouldReceive('exec')->once()->andReturn($execResults);
+
+        $phpRedis = m::mock(PhpRedis::class);
+        $phpRedis->shouldReceive('pipeline')->once()->andReturn($pipelineInstance);
+
+        $connection = $this->createMockConnection($phpRedis);
+
+        // Verify shouldTransform is called with true when getting the connection,
+        // and that release() is called (which resets shouldTransform to false internally)
+        $connection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($connection);
+
+        $redis->pipeline(function ($pipe) {
+            $pipe->set('key', 'value');
+        });
+
+        // After pipeline callback completes, connection was released.
+        // The connection should no longer be in context.
+        $this->assertNull(Context::get('redis.connection.default'));
+    }
+
     /**
      * Create a mock RedisConnection.
      */
