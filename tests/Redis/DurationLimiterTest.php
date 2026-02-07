@@ -38,6 +38,30 @@ class DurationLimiterTest extends TestCase
         $this->assertSame(4, $limiter->remaining);
     }
 
+    public function testAcquireUsesTransformedEvalSignature(): void
+    {
+        $redis = $this->mockRedis();
+        $redis->shouldReceive('eval')
+            ->once()
+            ->withArgs(function (string $script, int $numberOfKeys, string $name, float $microtime, int $timestamp, int $decay, int $maxLocks): bool {
+                $this->assertNotSame('', $script);
+                $this->assertSame(1, $numberOfKeys);
+                $this->assertSame('test-key', $name);
+                $this->assertGreaterThan(0.0, $microtime);
+                $this->assertGreaterThan(0, $timestamp);
+                $this->assertSame(60, $decay);
+                $this->assertSame(5, $maxLocks);
+
+                return true;
+            })
+            ->andReturn([1, time() + 60, 4]);
+
+        $factory = $this->createFactory($redis);
+        $limiter = new DurationLimiter($factory, 'default', 'test-key', 5, 60);
+
+        $this->assertTrue($limiter->acquire());
+    }
+
     public function testAcquireFailsWhenAtLimit(): void
     {
         $redis = $this->mockRedis();
@@ -101,6 +125,31 @@ class DurationLimiterTest extends TestCase
 
         $this->assertFalse($result);
         $this->assertSame(3, $limiter->remaining);
+    }
+
+    public function testTooManyAttemptsUsesTransformedEvalSignature(): void
+    {
+        $redis = $this->mockRedis();
+        $redis->shouldReceive('eval')
+            ->once()
+            ->withArgs(function (string $script, int $numberOfKeys, string $name, float $microtime, int $timestamp, int $decay, int $maxLocks): bool {
+                $this->assertNotSame('', $script);
+                $this->assertSame(1, $numberOfKeys);
+                $this->assertSame('test-key', $name);
+                $this->assertGreaterThan(0.0, $microtime);
+                $this->assertGreaterThan(0, $timestamp);
+                $this->assertSame(60, $decay);
+                $this->assertSame(5, $maxLocks);
+
+                return true;
+            })
+            ->andReturn([time() + 60, 2]);
+
+        $factory = $this->createFactory($redis);
+        $limiter = new DurationLimiter($factory, 'default', 'test-key', 5, 60);
+
+        $this->assertFalse($limiter->tooManyAttempts());
+        $this->assertSame(2, $limiter->remaining);
     }
 
     public function testClearDeletesKey(): void
