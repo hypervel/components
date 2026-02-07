@@ -425,7 +425,7 @@ class RedisConnection extends BaseConnection
     public function reconnect(): bool
     {
         $auth = $this->config['auth'] ?? null;
-        $db = $this->config['db'];
+        $db = (int) ($this->config['db'] ?? 0);
         $cluster = $this->config['cluster']['enable'] ?? false;
         $sentinel = $this->config['sentinel']['enable'] ?? false;
 
@@ -493,8 +493,9 @@ class RedisConnection extends BaseConnection
         $this->shouldTransform = false;
 
         try {
-            if ($this->database !== null && $this->database !== (int) $this->config['db']) {
-                $this->select((int) $this->config['db']);
+            $defaultDb = (int) ($this->config['db'] ?? 0);
+            if ($this->database !== null && $this->database !== $defaultDb) {
+                $this->select($defaultDb);
                 $this->database = null;
             }
 

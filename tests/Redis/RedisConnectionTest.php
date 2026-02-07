@@ -47,6 +47,34 @@ class RedisConnectionTest extends TestCase
         $this->assertFalse($connection->getShouldTransform());
     }
 
+    public function testReleaseDefaultsToDatabaseZeroWhenDbConfigIsMissing(): void
+    {
+        $pool = $this->getMockedPool();
+        $pool->shouldReceive('release')->once();
+
+        $redis = m::mock(Redis::class);
+        $redis->shouldReceive('select')->once()->with(0)->andReturn(true);
+
+        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends RedisConnection {
+            public function __construct(
+                ContainerInterface $container,
+                PoolInterface $pool,
+                array $config,
+                private Redis $fakeRedis
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return $this->fakeRedis;
+            }
+        };
+
+        $connection->setDatabase(5);
+        $connection->release();
+    }
+
     public function testCallGet(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
