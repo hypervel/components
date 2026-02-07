@@ -111,7 +111,6 @@ class FoundationServiceProvider extends ServiceProvider
             'app_name' => $this->config->get('app.name'),
             'app_env' => $this->config->get('app.env'),
             StdoutLoggerInterface::class . '.log_level' => $this->config->get('app.stdout_log_level'),
-            'redis' => $this->getRedisConfig(),
         ];
 
         foreach ($configs as $key => $value) {
@@ -121,19 +120,6 @@ class FoundationServiceProvider extends ServiceProvider
         }
 
         $this->config->set('middlewares', $this->getMiddlewareConfig());
-    }
-
-    protected function getRedisConfig(): array
-    {
-        $redisConfig = $this->config->get('database.redis', []);
-        $redisOptions = $redisConfig['options'] ?? [];
-        unset($redisConfig['options']);
-
-        return array_map(function (array $config) use ($redisOptions) {
-            return array_merge($config, [
-                'options' => $redisOptions,
-            ]);
-        }, $redisConfig);
     }
 
     protected function getMiddlewareConfig(): array
