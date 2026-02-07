@@ -56,6 +56,28 @@ class RedisSubscribeIntegrationTest extends TestCase
         $this->connectionName = $this->createRedisConnectionWithPrefix('');
     }
 
+    public function testSubscribeExitsCleanlyWithNoMessages()
+    {
+        $channelName = 'test_redis_noop_' . uniqid();
+        $subscribed = new Channel(1);
+
+        go(function () use ($channelName, $subscribed) {
+            Redis::connection($this->connectionName)->subscribe([$channelName], function () use ($subscribed) {
+                $subscribed->push(true);
+            });
+        });
+
+        // Wait for the subscriber to be established, then let the test end.
+        // The WORKER_EXIT shutdown watcher should cleanly interrupt the
+        // subscriber — without it, the orphaned socket recv coroutine
+        // would block Swoole's run() indefinitely.
+        usleep(100_000);
+
+        // No message published — subscriber received nothing.
+        // If we reach this assertion, the test didn't hang.
+        $this->assertTrue(true);
+    }
+
     public function testSubscribeReceivesMessageViaCallback()
     {
         $channelName = 'test_redis_sub_' . uniqid();
