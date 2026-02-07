@@ -87,6 +87,58 @@ class RedisProxyIntegrationTest extends TestCase
         $this->assertFalse($redis->pfAdd('test:hyperloglog3', []));
     }
 
+    public function testZSetAddAnd(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $key = 'test:zset:add:remove';
+
+        $redis->zAdd($key, microtime(true) * 1000 + 100, 'test');
+        usleep(1_000);
+
+        $result = $redis->zRangeByScore($key, '0', (string) (microtime(true) * 1000));
+        $this->assertEmpty($result);
+    }
+
+    public function testPipelineReturnsNativeRedisInstanceAndExecutesCallback(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $pipeline = $redis->pipeline();
+        $this->assertInstanceOf(PhpRedis::class, $pipeline);
+
+        $key = 'pipeline:' . uniqid();
+        $results = $redis->pipeline(function (PhpRedis $pipe) use ($key) {
+            $pipe->incr($key);
+            $pipe->incr($key);
+            $pipe->incr($key);
+        });
+
+        $this->assertSame([1, 2, 3], $results);
+        $this->assertSame('3', $redis->get($key));
+    }
+
+    public function testTransactionReturnsNativeRedisInstanceAndExecutesCallback(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $transaction = $redis->transaction();
+        $this->assertInstanceOf(PhpRedis::class, $transaction);
+
+        $key = 'transaction:' . uniqid();
+        $results = $redis->transaction(function (PhpRedis $tx) use ($key) {
+            $tx->incr($key);
+            $tx->incr($key);
+            $tx->incr($key);
+        });
+
+        $this->assertSame([1, 2, 3], $results);
+        $this->assertSame('3', $redis->get($key));
+    }
+
     public function testScanReturnsCursorAndKeysTuple(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
