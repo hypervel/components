@@ -13,6 +13,7 @@ use Hypervel\Redis\RedisFactory;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
 use Redis as PhpRedis;
+use Throwable;
 
 use function Hypervel\Coroutine\go;
 
@@ -315,12 +316,144 @@ class RedisProxyIntegrationTest extends TestCase
         $this->assertSame('3', $redis->get($key));
     }
 
+    public function testConcurrentPipelineCallbacksWithLimitedConnectionPool(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithOptions(
+            name: 'test_concurrent_pipeline_callbacks',
+            options: ['prefix' => ''],
+            maxConnections: 3,
+        ));
+        $redis->flushdb();
+
+        $concurrentOperations = 20;
+        $channels = [];
+
+        for ($i = 0; $i < $concurrentOperations; ++$i) {
+            $channels[$i] = new Channel(1);
+        }
+
+        for ($i = 0; $i < $concurrentOperations; ++$i) {
+            go(function () use ($redis, $channels, $i) {
+                try {
+                    $key = "concurrent_pipeline_test_{$i}";
+
+                    $results = $redis->pipeline(function (PhpRedis $pipe) use ($key) {
+                        $pipe->set($key, "value_{$key}");
+                        $pipe->incr("{$key}_counter");
+                        $pipe->get($key);
+                        $pipe->get("{$key}_counter");
+                    });
+
+                    sleep(1);
+
+                    $this->assertCount(4, $results);
+                    $this->assertTrue($results[0]);
+                    $this->assertSame(1, $results[1]);
+                    $this->assertSame("value_{$key}", $results[2]);
+                    $this->assertSame('1', $results[3]);
+
+                    $channels[$i]->push(['success' => true, 'operation' => 'pipeline']);
+                } catch (Throwable $exception) {
+                    $channels[$i]->push(['success' => false, 'error' => $exception->getMessage()]);
+                }
+            });
+        }
+
+        $successCount = 0;
+        for ($i = 0; $i < $concurrentOperations; ++$i) {
+            $result = $channels[$i]->pop(10.0);
+            $this->assertNotFalse($result, "Operation {$i} timed out - possible connection pool exhaustion");
+
+            if ($result['success']) {
+                ++$successCount;
+            } else {
+                $this->fail("Concurrent operation {$i} failed: " . $result['error']);
+            }
+        }
+
+        $this->assertSame(
+            $concurrentOperations,
+            $successCount,
+            "All {$concurrentOperations} concurrent pipeline operations should succeed with only 3 max connections",
+        );
+
+        for ($i = 0; $i < $concurrentOperations; ++$i) {
+            $redis->del("concurrent_pipeline_test_{$i}");
+            $redis->del("concurrent_pipeline_test_{$i}_counter");
+        }
+    }
+
+    public function testConcurrentTransactionCallbacksWithLimitedConnectionPool(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithOptions(
+            name: 'test_concurrent_transaction_callbacks',
+            options: ['prefix' => ''],
+            maxConnections: 3,
+        ));
+        $redis->flushdb();
+
+        $concurrentOperations = 20;
+        $channels = [];
+
+        for ($i = 0; $i < $concurrentOperations; ++$i) {
+            $channels[$i] = new Channel(1);
+        }
+
+        for ($i = 0; $i < $concurrentOperations; ++$i) {
+            go(function () use ($redis, $channels, $i) {
+                try {
+                    $key = "concurrent_transaction_test_{$i}";
+
+                    $results = $redis->transaction(function (PhpRedis $transaction) use ($key) {
+                        $transaction->set($key, "tx_value_{$key}");
+                        $transaction->incr("{$key}_counter");
+                        $transaction->get($key);
+                    });
+
+                    sleep(1);
+
+                    $this->assertCount(3, $results);
+                    $this->assertTrue($results[0]);
+                    $this->assertSame(1, $results[1]);
+                    $this->assertSame("tx_value_{$key}", $results[2]);
+
+                    $channels[$i]->push(['success' => true, 'operation' => 'transaction']);
+                } catch (Throwable $exception) {
+                    $channels[$i]->push(['success' => false, 'error' => $exception->getMessage()]);
+                }
+            });
+        }
+
+        $successCount = 0;
+        for ($i = 0; $i < $concurrentOperations; ++$i) {
+            $result = $channels[$i]->pop(10.0);
+            $this->assertNotFalse($result, "Transaction operation {$i} timed out - possible connection pool exhaustion");
+
+            if ($result['success']) {
+                ++$successCount;
+            } else {
+                $this->fail("Concurrent transaction {$i} failed: " . $result['error']);
+            }
+        }
+
+        $this->assertSame(
+            $concurrentOperations,
+            $successCount,
+            "All {$concurrentOperations} concurrent transaction operations should succeed with only 3 max connections",
+        );
+
+        for ($i = 0; $i < $concurrentOperations; ++$i) {
+            $redis->del("concurrent_transaction_test_{$i}");
+            $redis->del("concurrent_transaction_test_{$i}_counter");
+        }
+    }
+
     /**
      * Create a Redis connection with custom options for integration assertions.
      *
      * @param array<string, mixed> $options
      */
-    private function createRedisConnectionWithOptions(string $name, array $options): string
+    private function createRedisConnectionWithOptions(string $name, array $options, int $maxConnections = 10): string
     {
         $config = $this->app->get(ConfigInterface::class);
 
@@ -335,7 +468,7 @@ class RedisProxyIntegrationTest extends TestCase
             'db' => (int) env('REDIS_DB', $this->redisTestDatabase),
             'pool' => [
                 'min_connections' => 1,
-                'max_connections' => 10,
+                'max_connections' => $maxConnections,
                 'connect_timeout' => 10.0,
                 'wait_timeout' => 3.0,
                 'heartbeat' => -1,
