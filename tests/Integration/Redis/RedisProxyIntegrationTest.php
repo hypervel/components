@@ -87,6 +87,54 @@ class RedisProxyIntegrationTest extends TestCase
         $this->assertFalse($redis->pfAdd('test:hyperloglog3', []));
     }
 
+    public function testScanReturnsCursorAndKeysTuple(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $expected = ['scan:1', 'scan:2', 'scan:3', 'scan:4'];
+        foreach ($expected as $value) {
+            $redis->set($value, '1');
+        }
+
+        $cursor = null;
+        $collected = [];
+        while (($chunk = $redis->scan($cursor, 'scan:*', 2)) !== false) {
+            [$cursor, $keys] = $chunk;
+            $collected = array_merge($collected, $keys);
+        }
+
+        $collected = array_values(array_unique($collected));
+        sort($collected);
+
+        $this->assertSame($expected, $collected);
+        $this->assertSame(0, $cursor);
+    }
+
+    public function testHscanReturnsCursorAndFieldMapTuple(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $expected = ['scan:1', 'scan:2', 'scan:3', 'scan:4'];
+        foreach ($expected as $value) {
+            $redis->hSet('scaner', $value, '1');
+        }
+
+        $cursor = null;
+        $fields = [];
+        while (($chunk = $redis->hscan('scaner', $cursor, 'scan:*', 2)) !== false) {
+            [$cursor, $map] = $chunk;
+            $fields = array_merge($fields, array_keys($map));
+        }
+
+        $fields = array_values(array_unique($fields));
+        sort($fields);
+
+        $this->assertSame($expected, $fields);
+        $this->assertSame(0, $cursor);
+    }
+
     public function testPipelineCallbackRunsCommands(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
