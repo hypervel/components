@@ -16,6 +16,8 @@ use Hypervel\Sentry\Features\RedisFeature;
 use Hypervel\Session\SessionManager;
 use Hypervel\Tests\Sentry\SentryTestCase;
 use Mockery as m;
+use Sentry\SentrySdk;
+use Sentry\State\HubInterface;
 
 /**
  * @internal
@@ -208,6 +210,29 @@ class RedisFeatureTest extends SentryTestCase
         $this->assertEquals('cache', $spanData['db.redis.connection']);
         $this->assertEquals(1, $spanData['db.redis.database_index']);
         $this->assertEquals(10.0, $spanData['duration']);
+    }
+
+    public function testRedisFeatureWorksAfterReplacingStaleGlobalHub(): void
+    {
+        $staleHub = m::mock(HubInterface::class);
+        SentrySdk::setCurrentHub($staleHub);
+
+        $this->refreshApplication();
+        $this->setupMocks();
+
+        $transaction = $this->startTransaction();
+
+        $dispatcher = $this->app->get(Dispatcher::class);
+        $connection = $this->createRedisConnection('default');
+        $event = new CommandExecuted('GET', ['test-key'], 0.005, $connection, 'default', 'value', null);
+
+        $dispatcher->dispatch($event);
+
+        $this->assertNotSame($staleHub, SentrySdk::getCurrentHub());
+        $this->assertSame($this->app->get(HubInterface::class), SentrySdk::getCurrentHub());
+
+        $spans = $transaction->getSpanRecorder()->getSpans();
+        $this->assertCount(2, $spans);
     }
 
     private function setupMocks(string $connectionName = 'default', int $database = 0): void
