@@ -321,10 +321,6 @@ class RedisConnection extends BaseConnection
     protected ?EventDispatcherInterface $eventDispatcher = null;
 
     protected array $config = [
-        'host' => 'localhost',
-        'port' => 6379,
-        'auth' => null,
-        'db' => 0,
         'timeout' => 0.0,
         'reserved' => null,
         'retry_interval' => 0,
@@ -428,7 +424,7 @@ class RedisConnection extends BaseConnection
      */
     public function reconnect(): bool
     {
-        $auth = $this->config['auth'];
+        $auth = $this->config['auth'] ?? null;
         $db = $this->config['db'];
         $cluster = $this->config['cluster']['enable'] ?? false;
         $sentinel = $this->config['sentinel']['enable'] ?? false;
@@ -639,8 +635,8 @@ class RedisConnection extends BaseConnection
     protected function createRedis(array $config): Redis
     {
         $parameters = [
-            $config['host'] ?? '',
-            (int) ($config['port'] ?? 6379),
+            $config['host'],
+            (int) $config['port'],
             $config['timeout'] ?? 0.0,
             $config['reserved'] ?? null,
             $config['retry_interval'] ?? 0,
