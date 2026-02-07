@@ -5,8 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
 use Hyperf\HttpMessage\Base\Response;
-use Hyperf\Support\MessageBag;
-use Hyperf\ViewEngine\ViewErrorBag;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\Http\ServerResponse;
 use Hypervel\Foundation\Testing\Http\TestResponse;
@@ -14,6 +12,8 @@ use Hypervel\Foundation\Testing\Stubs\FakeMiddleware;
 use Hypervel\Router\RouteFileCollector;
 use Hypervel\Session\ArraySessionHandler;
 use Hypervel\Session\Store;
+use Hypervel\Support\MessageBag;
+use Hypervel\Support\ViewErrorBag;
 use Hypervel\Testbench\TestCase;
 use PHPUnit\Framework\AssertionFailedError;
 

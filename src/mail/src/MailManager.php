@@ -10,7 +10,6 @@ use Closure;
 use Hyperf\Collection\Arr;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Stringable\Str;
-use Hyperf\ViewEngine\Contract\FactoryInterface;
 use Hypervel\Log\LogManager;
 use Hypervel\Mail\Contracts\Factory as FactoryContract;
 use Hypervel\Mail\Contracts\Mailer as MailerContract;
@@ -21,6 +20,7 @@ use Hypervel\Mail\Transport\SesV2Transport;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Queue\Contracts\Factory as QueueFactory;
 use Hypervel\Support\ConfigurationUrlParser;
+use Hypervel\View\Contracts\Factory as ViewFactoryContract;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -128,7 +128,7 @@ class MailManager implements FactoryContract
         // for maximum testability on said classes instead of passing Closures.
         $mailer = new Mailer(
             $name,
-            $this->app->get(FactoryInterface::class),
+            $this->app->get(ViewFactoryContract::class),
             $this->createSymfonyTransport($config, $hasPool ? $name : null),
             $this->app->get(EventDispatcherInterface::class)
         );

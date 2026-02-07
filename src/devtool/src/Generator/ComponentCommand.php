@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Devtool\Generator;
 
 use Hyperf\Devtool\Generator\GeneratorCommand;
+use Hypervel\Support\Str;
 
 class ComponentCommand extends GeneratorCommand
 {
@@ -27,7 +28,7 @@ class ComponentCommand extends GeneratorCommand
 
     protected function getDefaultNamespace(): string
     {
-        return $this->getConfig()['namespace'] ?? 'App\View\Component';
+        return $this->getConfig()['namespace'] ?? 'App\View\Components';
     }
 
     protected function buildClass(string $name): string
@@ -37,7 +38,12 @@ class ComponentCommand extends GeneratorCommand
 
     protected function replaceView(string $stub, string $name): string
     {
-        $view = lcfirst(str_replace($this->getNamespace($name) . '\\', '', $name));
+        $view = str_replace($this->getDefaultNamespace() . '\\', '', $name);
+        $view = array_map(
+            fn ($part) => Str::snake($part),
+            explode('\\', $view)
+        );
+        $view = implode('.', $view);
 
         return str_replace(
             ['%VIEW%'],

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Filesystem;
 
 use Hyperf\Support\Filesystem\Filesystem as HyperfFilesystem;
+use Hypervel\Http\Exceptions\FileNotFoundException;
 
 class Filesystem extends HyperfFilesystem
 {
@@ -16,5 +17,26 @@ class Filesystem extends HyperfFilesystem
         if (! $this->isDirectory($path)) {
             $this->makeDirectory($path, $mode, $recursive);
         }
+    }
+
+    /**
+     * Get the returned value of a file.
+     *
+     * @throws FileNotFoundException
+     */
+    public function getRequire(string $path, array $data = [[]])
+    {
+        if ($this->isFile($path)) {
+            $__path = $path;
+            $__data = $data;
+
+            return (static function () use ($__path, $__data) {
+                extract($__data, EXTR_SKIP);
+
+                return require $__path;
+            })();
+        }
+
+        throw new FileNotFoundException("File does not exist at path {$path}.");
     }
 }

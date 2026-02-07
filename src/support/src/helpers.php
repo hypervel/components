@@ -55,7 +55,7 @@ if (! function_exists('e')) {
     /**
      * Encode HTML special characters in a string.
      */
-    function e(BackedEnum|DeferringDisplayableValue|float|Htmlable|int|string|null $value, bool $doubleEncode = true): string
+    function e(BackedEnum|DeferringDisplayableValue|Stringable|float|Htmlable|int|string|null $value, bool $doubleEncode = true): string
     {
         if ($value instanceof DeferringDisplayableValue) {
             $value = $value->resolveDisplayableValue();
@@ -69,7 +69,7 @@ if (! function_exists('e')) {
             $value = $value->value;
         }
 
-        return htmlspecialchars($value ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', $doubleEncode);
+        return htmlspecialchars((string) ($value ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', $doubleEncode);
     }
 }
 
