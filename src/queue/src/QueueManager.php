@@ -6,7 +6,7 @@ namespace Hypervel\Queue;
 
 use Closure;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Redis\RedisFactory;
+use Hypervel\Redis\RedisFactory;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Contracts\Queue\Monitor as MonitorContract;
 use Hypervel\Contracts\Queue\Queue;
