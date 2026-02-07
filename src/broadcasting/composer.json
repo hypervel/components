@@ -41,7 +41,7 @@
     },
     "suggest": {
         "ext-hash": "Required to use the Ably and Pusher broadcast drivers.",
-        "hyperf/redis": "Required to use the Redis broadcast driver (~3.1.0).",
+        "hypervel/redis": "Required to use the Redis broadcast driver (~0.3).",
         "ably/ably-php": "Required to use the Ably broadcast driver (^1.0).",
         "pusher/pusher-php-server": "Required to use the Pusher broadcast driver (^6.0|^7.0)."
     },

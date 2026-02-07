@@ -227,7 +227,7 @@
         "hypervel/sentry": "self.version"
     },
     "suggest": {
-        "hyperf/redis": "Required to use redis driver. (^3.1).",
+        "hypervel/redis": "Required to use redis driver. (^0.3).",
         "hypervel/session": "Required to use session guard. (^3.1).",
         "friendsofhyperf/tinker": "Required to use the tinker console command (^3.1).",
         "league/flysystem-read-only": "Required to use read-only disks (^3.3)",
@@ -246,7 +246,7 @@
         "filp/whoops": "^2.15",
         "friendsofphp/php-cs-fixer": "^3.57.2",
         "hyperf/devtool": "~3.1.0",
-        "hyperf/redis": "~3.1.0",
+        "hypervel/redis": "~0.3.0",
         "hyperf/testing": "~3.1.0",
         "hyperf/view-engine": "~3.1.0",
         "hypervel/facade-documenter": "dev-main",

@@ -40,7 +40,7 @@
         "psr/simple-cache": "^3.0"
     },
     "suggest": {
-        "hyperf/redis": "Required to use redis driver. (~3.1.0)",
+        "hypervel/redis": "Required to use redis driver. (~0.3).",
         "hypervel/cache": "Required to use file lock. (~0.1.0)"
     },
     "config": {
