@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Horizon;
 
 use Closure;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Horizon\Contracts\JobRepository;

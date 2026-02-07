@@ -5,12 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis;
 
 use Carbon\Carbon;
-use Hyperf\Redis\Pool\PoolFactory;
-use Hyperf\Redis\Pool\RedisPool;
-use Hyperf\Redis\RedisFactory as HyperfRedisFactory;
+use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\RedisPool;
+use Hypervel\Redis\RedisFactory;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Redis\RedisConnection;
-use Hypervel\Redis\RedisFactory as HypervelRedisFactory;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Redis\Stub\FakeRedisClient;
@@ -189,12 +188,12 @@ abstract class RedisCacheTestCase extends TestCase
         $redisProxy->shouldReceive('withConnection')
             ->andReturnUsing(fn (callable $callback) => $callback($connection));
 
-        $redisFactory = m::mock(HypervelRedisFactory::class);
+        $redisFactory = m::mock(RedisFactory::class);
         $redisFactory->shouldReceive('get')
             ->with($connectionName)
             ->andReturn($redisProxy);
 
-        $this->instance(HypervelRedisFactory::class, $redisFactory);
+        $this->instance(RedisFactory::class, $redisFactory);
     }
 
     /**
@@ -215,7 +214,7 @@ abstract class RedisCacheTestCase extends TestCase
         $this->registerRedisFactoryMock($connection, $connectionName);
 
         $store = new RedisStore(
-            m::mock(HyperfRedisFactory::class),
+            m::mock(RedisFactory::class),
             $prefix,
             $connectionName,
             $this->createPoolFactory($connection, $connectionName)
@@ -259,7 +258,7 @@ abstract class RedisCacheTestCase extends TestCase
         $this->registerRedisFactoryMock($connection, $connectionName);
 
         $store = new RedisStore(
-            m::mock(HyperfRedisFactory::class),
+            m::mock(RedisFactory::class),
             $prefix,
             $connectionName,
             $this->createPoolFactory($connection, $connectionName)

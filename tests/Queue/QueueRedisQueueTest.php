@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Hyperf\Di\Container;
-use Hyperf\Redis\RedisFactory;
-use Hyperf\Redis\RedisProxy;
+use Hypervel\Redis\RedisFactory;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Queue\LuaScripts;
 use Hypervel\Queue\Queue;
 use Hypervel\Queue\RedisQueue;
