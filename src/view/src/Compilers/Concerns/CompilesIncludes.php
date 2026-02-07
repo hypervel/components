@@ -63,4 +63,14 @@ trait CompilesIncludes
 
         return "<?php echo \$__env->first({$expression}, array_diff_key(get_defined_vars(), ['__data' => 1, '__path' => 1]))->render(); ?>";
     }
+
+    /**
+     * Compile the include-isolated statements into valid PHP.
+     */
+    protected function compileIncludeIsolated(string $expression): string
+    {
+        $expression = $this->stripParentheses($expression);
+
+        return "<?php echo \$__env->make({$expression})->render(); ?>";
+    }
 }
