@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Connectors;
 
-use Hyperf\Redis\RedisFactory;
+use Hypervel\Redis\RedisFactory;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\RedisQueue;
 

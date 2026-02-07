@@ -6,7 +6,7 @@ namespace Hypervel\Cache;
 
 use Closure;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Redis\RedisFactory;
+use Hypervel\Redis\RedisFactory;
 use Hypervel\Contracts\Cache\Factory as FactoryContract;
 use Hypervel\Contracts\Cache\Repository as RepositoryContract;
 use Hypervel\Contracts\Cache\Store;

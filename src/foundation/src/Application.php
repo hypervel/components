@@ -619,7 +619,7 @@ class Application extends Container implements ApplicationContract
                 'jwt',
                 \Hypervel\JWT\JWTManager::class,
             ],
-            \Hyperf\Redis\Redis::class => ['redis'],
+            \Hypervel\Redis\Redis::class => ['redis'],
             \Hypervel\Router\Router::class => ['router'],
             \Hypervel\Contracts\Router\UrlGenerator::class => [
                 'url',

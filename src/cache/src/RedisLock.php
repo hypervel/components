@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Hyperf\Redis\Redis;
+use Hypervel\Redis\Redis;
 use Hypervel\Contracts\Cache\RefreshableLock;
 use InvalidArgumentException;
 
