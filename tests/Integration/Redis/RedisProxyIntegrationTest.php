@@ -9,6 +9,7 @@ use Hypervel\Engine\Channel;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Redis\RedisFactory;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
@@ -314,6 +315,44 @@ class RedisProxyIntegrationTest extends TestCase
 
         $this->assertSame([1, 2, 3], $results);
         $this->assertSame('3', $redis->get($key));
+    }
+
+    public function testWithConnectionTransformFalseSupportsPipelineCallbacks(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $key = 'pipeline:transform_off:' . uniqid();
+        $results = $redis->withConnection(function (RedisConnection $connection) use ($key) {
+            $connection->pipeline();
+            $connection->set($key, 'value', 600);
+            $connection->get($key);
+
+            return $connection->exec();
+        }, transform: false);
+
+        $this->assertIsArray($results);
+        $this->assertCount(2, $results);
+        $this->assertSame('value', $redis->get($key));
+    }
+
+    public function testWithConnectionTransformFalseSupportsTransactionCallbacks(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $key = 'transaction:transform_off:' . uniqid();
+        $results = $redis->withConnection(function (RedisConnection $connection) use ($key) {
+            $connection->multi();
+            $connection->set($key, '0', 600);
+            $connection->incr($key);
+
+            return $connection->exec();
+        }, transform: false);
+
+        $this->assertIsArray($results);
+        $this->assertCount(2, $results);
+        $this->assertSame('1', $redis->get($key));
     }
 
     public function testConcurrentPipelineCallbacksWithLimitedConnectionPool(): void
