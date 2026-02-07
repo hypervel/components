@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Redis;
 use Exception;
 use Hyperf\Pool\PoolOption;
 use Hypervel\Redis\Events\CommandExecuted;
+use Hypervel\Engine\Channel;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Context\Context;
@@ -22,6 +23,8 @@ use RedisSentinel;
 use ReflectionClass;
 use RuntimeException;
 use Throwable;
+
+use function Hypervel\Coroutine\go;
 
 /**
  * Tests for the Redis class - the main public API.
@@ -115,6 +118,83 @@ class RedisTest extends TestCase
         $this->assertTrue(Context::has('redis.connection.default'));
     }
 
+    public function testSelectPinnedConnectionDoesNotLeakAcrossCoroutines(): void
+    {
+        $setConnection = $this->mockConnection();
+        $setConnection->shouldReceive('set')->once()->with('xxxx', 'yyyy')->andReturn('db:0 name:set argument:xxxx,yyyy');
+        $setConnection->shouldReceive('release')->once();
+
+        $selectedConnection = $this->mockConnection();
+        $selectedConnection->shouldReceive('select')->once()->with(2)->andReturn(true);
+        $selectedConnection->shouldReceive('setDatabase')->once()->with(2);
+        $selectedConnection->shouldReceive('get')->once()->with('xxxx')->andReturn('db:2 name:get argument:xxxx');
+        $selectedConnection->shouldReceive('release')->once();
+
+        $otherCoroutineConnection = $this->mockConnection();
+        $otherCoroutineConnection->shouldReceive('get')->once()->with('xxxx')->andReturn('db:0 name:get argument:xxxx');
+        $otherCoroutineConnection->shouldReceive('release')->once();
+
+        $pool = m::mock(RedisPool::class);
+        $pool->shouldReceive('get')->times(3)->andReturn(
+            $setConnection,
+            $selectedConnection,
+            $otherCoroutineConnection,
+        );
+        $pool->shouldReceive('getOption')->andReturn(m::mock(PoolOption::class));
+
+        $poolFactory = m::mock(PoolFactory::class);
+        $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
+
+        $redis = new Redis($poolFactory);
+
+        $this->assertSame('db:0 name:set argument:xxxx,yyyy', $redis->set('xxxx', 'yyyy'));
+        $this->assertTrue($redis->select(2));
+        $this->assertSame('db:2 name:get argument:xxxx', $redis->get('xxxx'));
+
+        $channel = new Channel(1);
+        go(static function () use ($redis, $channel) {
+            $channel->push($redis->get('xxxx'));
+        });
+
+        $this->assertSame('db:0 name:get argument:xxxx', $channel->pop());
+    }
+
+    public function testPinnedConnectionInOneCoroutineIsNotReusedInAnotherCoroutine(): void
+    {
+        $pipeline = m::mock(PhpRedis::class);
+
+        $pinnedConnection = $this->mockConnection();
+        $pinnedConnection->shouldReceive('multi')->once()->andReturn($pipeline);
+        $pinnedConnection->shouldReceive('set')->once()->with('id', '123')->andReturnSelf();
+        $pinnedConnection->shouldReceive('exec')->once()->andReturn([]);
+        $pinnedConnection->shouldReceive('release')->once();
+
+        $otherCoroutineConnection = $this->mockConnection();
+        $otherCoroutineConnection->shouldReceive('get')->once()->with('id')->andReturn('from-other-connection');
+        $otherCoroutineConnection->shouldReceive('release')->once();
+
+        $pool = m::mock(RedisPool::class);
+        $pool->shouldReceive('get')->times(2)->andReturn($pinnedConnection, $otherCoroutineConnection);
+        $pool->shouldReceive('getOption')->andReturn(m::mock(PoolOption::class));
+
+        $poolFactory = m::mock(PoolFactory::class);
+        $poolFactory->shouldReceive('getPool')->with('default')->andReturn($pool);
+
+        $redis = new Redis($poolFactory);
+
+        $redis->multi();
+        $redis->set('id', '123');
+
+        $channel = new Channel(1);
+        go(static function () use ($redis, $channel) {
+            $channel->push($redis->get('id'));
+        });
+
+        $this->assertSame('from-other-connection', $channel->pop());
+
+        $this->assertSame([], $redis->exec());
+    }
+
     public function testExistingContextConnectionIsReused(): void
     {
         $connection = $this->mockConnection();
@@ -150,6 +230,24 @@ class RedisTest extends TestCase
         $this->expectExceptionMessage('Redis error');
 
         $redis->get('key');
+    }
+
+    public function testReleasesConnectionWhenUnderlyingGetConnectionFails(): void
+    {
+        $connection = m::mock(RedisConnection::class);
+        $connection->shouldReceive('shouldTransform')->andReturnSelf();
+        $connection->shouldReceive('getEventDispatcher')->andReturnNull();
+        $connection->shouldReceive('getConnection')
+            ->once()
+            ->andThrow(new RuntimeException('Get connection failed.'));
+        $connection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($connection);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Get connection failed.');
+
+        $redis->set('xxxx', 'yyyy');
     }
 
     public function testExceptionWithContextConnectionDoesNotReleaseConnection(): void
