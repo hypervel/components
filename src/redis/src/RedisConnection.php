@@ -478,7 +478,7 @@ class RedisConnection extends BaseConnection
      */
     public function close(): bool
     {
-        unset($this->connection);
+        $this->connection = null;
 
         return true;
     }
