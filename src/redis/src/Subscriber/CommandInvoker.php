@@ -8,6 +8,7 @@ use Hyperf\Contract\StdoutLoggerInterface;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel;
+use Hypervel\Redis\Subscriber\Exceptions\SocketException;
 use Throwable;
 
 class CommandInvoker
