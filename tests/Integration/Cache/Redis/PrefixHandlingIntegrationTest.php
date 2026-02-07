@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Cache\Redis;
 
-use Hyperf\Redis\RedisFactory;
+use Hypervel\Redis\RedisFactory;
 use Hypervel\Cache\Redis\AnyTaggedCache;
 use Hypervel\Cache\Redis\AnyTagSet;
 use Hypervel\Cache\Redis\TagMode;
