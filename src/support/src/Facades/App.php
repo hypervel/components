@@ -44,6 +44,8 @@ namespace Hypervel\Support\Facades;
  * @method static string getFallbackLocale()
  * @method static void setLocale(string $locale)
  * @method static string getNamespace()
+ * @method static bool runningInConsole()
+ * @method static void markAsRunningInConsole()
  * @method static mixed make(string $name, array $parameters = [])
  * @method static mixed get(string $id)
  * @method static void set(string $name, mixed $entry)

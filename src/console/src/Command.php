@@ -44,7 +44,17 @@ abstract class Command extends HyperfCommand
         $this->replaceOutput();
         $method = method_exists($this, 'handle') ? 'handle' : '__invoke';
 
-        $callback = function () use ($method): int {
+        // Capture console state before potentially spawning a new coroutine.
+        // This preserves the context set by Kernel::handle() across coroutine boundaries.
+        $shouldRunInConsole = $this->app->runningInConsole();
+
+        $callback = function () use ($method, $shouldRunInConsole): int {
+            // Re-establish console context in the new coroutine if it was set
+            // by Kernel::handle() (CLI entry point) before spawning.
+            if ($shouldRunInConsole) {
+                $this->app->markAsRunningInConsole();
+            }
+
             try {
                 $this->eventDispatcher?->dispatch(new BeforeHandle($this));
                 /* @phpstan-ignore-next-line */

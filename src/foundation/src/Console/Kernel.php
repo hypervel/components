@@ -94,6 +94,8 @@ class Kernel implements KernelContract
      */
     public function handle(InputInterface $input, ?OutputInterface $output = null): mixed
     {
+        $this->app->markAsRunningInConsole();
+
         return $this->getArtisan()->run($input, $output);
     }
 
