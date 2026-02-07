@@ -10,6 +10,7 @@ use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Traits\MultiExec;
+use Hypervel\Redis\Traits\ScanCaller;
 use Throwable;
 use UnitEnum;
 
@@ -20,6 +21,7 @@ use function Hypervel\Support\enum_value;
  */
 class Redis
 {
+    use ScanCaller;
     use MultiExec;
 
     protected string $poolName = 'default';
