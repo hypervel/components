@@ -299,7 +299,7 @@ abstract class RedisCacheTestCase extends TestCase
         $this->registerRedisFactoryMock($connection, $connectionName);
 
         $store = new RedisStore(
-            m::mock(HyperfRedisFactory::class),
+            m::mock(RedisFactory::class),
             $prefix,
             $connectionName,
             $this->createPoolFactory($connection, $connectionName)

@@ -245,6 +245,12 @@ trait InteractsWithRedis
 
         $config->set("redis.{$connectionName}", $connectionConfig);
 
+        // RedisFactory caches proxies at construction time. Drop the singleton so
+        // test-created connections are visible on the next resolve.
+        if (method_exists($this->app, 'forgetInstance') && class_exists(\Hypervel\Redis\RedisFactory::class)) {
+            $this->app->forgetInstance(\Hypervel\Redis\RedisFactory::class);
+        }
+
         return $connectionName;
     }
 }
