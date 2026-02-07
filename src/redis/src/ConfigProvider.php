@@ -15,14 +15,6 @@ class ConfigProvider
             'dependencies' => [
                 \Redis::class => Redis::class,
             ],
-            'publish' => [
-                [
-                    'id' => 'config',
-                    'description' => 'The config of redis client.',
-                    'source' => __DIR__ . '/../publish/redis.php',
-                    'destination' => BASE_PATH . '/config/autoload/redis.php',
-                ],
-            ],
         ];
     }
 }
