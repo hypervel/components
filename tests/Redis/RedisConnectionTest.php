@@ -9,6 +9,7 @@ use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\Pool\PoolOption;
+use Hypervel\Pool\Exception\ConnectionException;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Tests\Redis\Stubs\RedisConnectionStub;
@@ -131,6 +132,113 @@ class RedisConnectionTest extends TestCase
 
         $connection->setDatabase(2);
         $connection->reconnect();
+    }
+
+    public function testConnectionConfigMergesDefaults(): void
+    {
+        $connection = new RedisConnectionStub(
+            $this->getContainer(),
+            $this->getMockedPool(),
+            [
+                'host' => 'redis',
+                'port' => 16379,
+                'auth' => 'redis',
+                'db' => 0,
+                'retry_interval' => 5,
+                'read_timeout' => 3.0,
+                'context' => [
+                    'stream' => ['cafile' => 'foo-cafile', 'verify_peer' => true],
+                ],
+                'cluster' => [
+                    'enable' => false,
+                    'name' => null,
+                    'seeds' => ['127.0.0.1:6379'],
+                    'context' => [
+                        'stream' => ['cafile' => 'foo-cafile', 'verify_peer' => true],
+                    ],
+                ],
+                'pool' => [
+                    'min_connections' => 1,
+                    'max_connections' => 30,
+                    'connect_timeout' => 10.0,
+                    'wait_timeout' => 3.0,
+                    'heartbeat' => -1,
+                    'max_idle_time' => 1,
+                ],
+            ],
+        );
+
+        $this->assertSame(
+            [
+                'timeout' => 0.0,
+                'reserved' => null,
+                'retry_interval' => 5,
+                'read_timeout' => 3.0,
+                'cluster' => [
+                    'enable' => false,
+                    'name' => null,
+                    'seeds' => ['127.0.0.1:6379'],
+                    'read_timeout' => 0.0,
+                    'persistent' => false,
+                    'context' => [
+                        'stream' => ['cafile' => 'foo-cafile', 'verify_peer' => true],
+                    ],
+                ],
+                'sentinel' => [
+                    'enable' => false,
+                    'master_name' => '',
+                    'nodes' => [],
+                    'persistent' => '',
+                    'read_timeout' => 0,
+                ],
+                'options' => [],
+                'context' => [
+                    'stream' => ['cafile' => 'foo-cafile', 'verify_peer' => true],
+                ],
+                'event' => [
+                    'enable' => false,
+                ],
+                'host' => 'redis',
+                'port' => 16379,
+                'auth' => 'redis',
+                'db' => 0,
+                'pool' => [
+                    'min_connections' => 1,
+                    'max_connections' => 30,
+                    'connect_timeout' => 10.0,
+                    'wait_timeout' => 3.0,
+                    'heartbeat' => -1,
+                    'max_idle_time' => 1,
+                ],
+            ],
+            $connection->getConfigForTest(),
+        );
+    }
+
+    public function testClusterReconnectFailureThrowsConnectionException(): void
+    {
+        if (version_compare((string) phpversion('redis'), '6.0.0', '<')) {
+            $this->markTestSkipped('Cluster constructor typing differs on redis extension < 6.');
+        }
+
+        $this->expectException(ConnectionException::class);
+        $this->expectExceptionMessage('Connection reconnect failed');
+
+        new class($this->getContainer(), $this->getMockedPool(), [
+            'cluster' => [
+                'enable' => true,
+                'name' => 'mycluster',
+                'seeds' => [],
+                'read_timeout' => 1.0,
+                'persistent' => false,
+            ],
+            'timeout' => 1.0,
+        ]) extends RedisConnection {
+            protected function createRedis(array $config): Redis
+            {
+                throw new \RuntimeException('createRedis should not be called for cluster config.');
+            }
+        };
     }
 
     public function testQueueingModeBypassesTransformedSet(): void

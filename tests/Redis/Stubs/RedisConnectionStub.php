@@ -75,6 +75,16 @@ class RedisConnectionStub extends RedisConnection
         return $this->connection;
     }
 
+    /**
+     * Get the merged connection configuration.
+     *
+     * @return array<string, mixed>
+     */
+    public function getConfigForTest(): array
+    {
+        return $this->config;
+    }
+
     protected function retry($name, $arguments, Throwable $exception): mixed
     {
         throw $exception;
