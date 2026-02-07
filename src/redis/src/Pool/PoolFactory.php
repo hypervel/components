@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis\Pool;
 
-use Hyperf\Di\Container;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 
 class PoolFactory
 {
@@ -15,7 +14,7 @@ class PoolFactory
     protected array $pools = [];
 
     public function __construct(
-        protected ContainerInterface $container
+        protected ContainerContract $container
     ) {
     }
 
@@ -28,12 +27,6 @@ class PoolFactory
             return $this->pools[$name];
         }
 
-        if ($this->container instanceof Container) {
-            $pool = $this->container->make(RedisPool::class, ['name' => $name]);
-        } else {
-            $pool = new RedisPool($this->container, $name);
-        }
-
-        return $this->pools[$name] = $pool;
+        return $this->pools[$name] = $this->container->make(RedisPool::class, ['name' => $name]);
     }
 }
