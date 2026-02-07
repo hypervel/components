@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Redis\Event\CommandExecuted;
-use Hyperf\Redis\RedisConnection;
+use Hypervel\Redis\Events\CommandExecuted;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\RedisWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;

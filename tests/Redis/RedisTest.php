@@ -6,9 +6,9 @@ namespace Hypervel\Tests\Redis;
 
 use Exception;
 use Hyperf\Pool\PoolOption;
-use Hyperf\Redis\Event\CommandExecuted;
-use Hyperf\Redis\Pool\PoolFactory;
-use Hyperf\Redis\Pool\RedisPool;
+use Hypervel\Redis\Events\CommandExecuted;
+use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Context\Context;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Redis\Redis;
