@@ -110,4 +110,116 @@ class RedisConfigTest extends TestCase
 
         (new RedisConfig($config))->connectionConfig('default');
     }
+
+    public function testConnectionNamesAcceptsClusterConnectionWithoutHostAndPort(): void
+    {
+        $config = m::mock(ConfigInterface::class);
+        $config->shouldReceive('get')->with('database.redis')->andReturn([
+            'clustered' => [
+                'db' => 0,
+                'cluster' => [
+                    'enable' => true,
+                    'seeds' => ['127.0.0.1:7000', '127.0.0.1:7001'],
+                ],
+            ],
+        ]);
+
+        $this->assertSame(['clustered'], (new RedisConfig($config))->connectionNames());
+    }
+
+    public function testConnectionNamesThrowsWhenClusterEnabledWithoutSeeds(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The redis connection [clustered] cluster seeds must be a non-empty array.');
+
+        $config = m::mock(ConfigInterface::class);
+        $config->shouldReceive('get')->with('database.redis')->andReturn([
+            'clustered' => [
+                'cluster' => [
+                    'enable' => true,
+                    'seeds' => [],
+                ],
+            ],
+        ]);
+
+        (new RedisConfig($config))->connectionNames();
+    }
+
+    public function testConnectionNamesAcceptsSentinelConnectionWithoutHostAndPort(): void
+    {
+        $config = m::mock(ConfigInterface::class);
+        $config->shouldReceive('get')->with('database.redis')->andReturn([
+            'sentinel' => [
+                'db' => 0,
+                'sentinel' => [
+                    'enable' => true,
+                    'nodes' => ['tcp://127.0.0.1:26379'],
+                    'master_name' => 'mymaster',
+                ],
+            ],
+        ]);
+
+        $this->assertSame(['sentinel'], (new RedisConfig($config))->connectionNames());
+    }
+
+    public function testConnectionNamesThrowsWhenSentinelEnabledWithoutNodes(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The redis connection [sentinel] sentinel nodes must be a non-empty array.');
+
+        $config = m::mock(ConfigInterface::class);
+        $config->shouldReceive('get')->with('database.redis')->andReturn([
+            'sentinel' => [
+                'sentinel' => [
+                    'enable' => true,
+                    'nodes' => [],
+                    'master_name' => 'mymaster',
+                ],
+            ],
+        ]);
+
+        (new RedisConfig($config))->connectionNames();
+    }
+
+    public function testConnectionNamesThrowsWhenSentinelEnabledWithoutMasterName(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The redis connection [sentinel] sentinel master name must be configured.');
+
+        $config = m::mock(ConfigInterface::class);
+        $config->shouldReceive('get')->with('database.redis')->andReturn([
+            'sentinel' => [
+                'sentinel' => [
+                    'enable' => true,
+                    'nodes' => ['tcp://127.0.0.1:26379'],
+                    'master_name' => '',
+                ],
+            ],
+        ]);
+
+        (new RedisConfig($config))->connectionNames();
+    }
+
+    public function testConnectionNamesThrowsWhenClusterAndSentinelBothEnabled(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('The redis connection [mixed] cannot enable both cluster and sentinel.');
+
+        $config = m::mock(ConfigInterface::class);
+        $config->shouldReceive('get')->with('database.redis')->andReturn([
+            'mixed' => [
+                'cluster' => [
+                    'enable' => true,
+                    'seeds' => ['127.0.0.1:7000'],
+                ],
+                'sentinel' => [
+                    'enable' => true,
+                    'nodes' => ['tcp://127.0.0.1:26379'],
+                    'master_name' => 'mymaster',
+                ],
+            ],
+        ]);
+
+        (new RedisConfig($config))->connectionNames();
+    }
 }
