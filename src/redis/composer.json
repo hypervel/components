@@ -31,7 +31,10 @@
     },
     "require": {
         "php": "^8.2",
-        "hyperf/redis": "~3.1.0",
+        "ext-redis": "*",
+        "hyperf/contract": "~3.1.0",
+        "hyperf/di": "~3.1.0",
+        "hyperf/support": "~3.1.0",
         "hypervel/pool": "~0.3",        
         "hypervel/support": "^0.3"
     },
