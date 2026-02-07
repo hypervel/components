@@ -202,6 +202,11 @@ class Worker
             );
 
             if (! is_null($status)) {
+                // Ensure in-flight job coroutines finish before daemon() reports completion.
+                while (! $concurrent->isEmpty()) {
+                    usleep(1000);
+                }
+
                 return $this->stop($status, $options);
             }
         }
