@@ -29,7 +29,7 @@ class RedisConfig
                 continue;
             }
 
-            $this->assertConnectionConfig($name, $connectionConfig);
+            $this->validateConnectionConfig($name, $connectionConfig);
 
             $names[] = $name;
         }
@@ -46,7 +46,7 @@ class RedisConfig
     {
         $redisConfig = $this->all();
         $connectionConfig = $redisConfig[$name] ?? null;
-        $this->assertConnectionConfig($name, $connectionConfig);
+        $this->validateConnectionConfig($name, $connectionConfig);
 
         $sharedOptions = $redisConfig['options'] ?? [];
         if (! is_array($sharedOptions)) {
@@ -81,7 +81,7 @@ class RedisConfig
     /**
      * Validate a redis connection config entry.
      */
-    private function assertConnectionConfig(string $name, mixed $connectionConfig): void
+    private function validateConnectionConfig(string $name, mixed $connectionConfig): void
     {
         if (! is_array($connectionConfig)) {
             throw new InvalidArgumentException(sprintf('The redis connection [%s] must be an array.', $name));

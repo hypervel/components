@@ -41,7 +41,8 @@ class RedisWatcher extends Watcher
     public static function enableRedisEvents(ContainerInterface $app): void
     {
         $config = $app->get(ConfigInterface::class);
-        foreach (RedisConfig::connectionNames($config->get('database.redis')) as $connection) {
+        $redisConfig = $app->get(RedisConfig::class);
+        foreach ($redisConfig->connectionNames() as $connection) {
             $config->set("database.redis.{$connection}.event.enable", true);
         }
 

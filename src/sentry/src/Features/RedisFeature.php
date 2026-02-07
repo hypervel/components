@@ -29,9 +29,9 @@ class RedisFeature extends Feature
     public function onBoot(): void
     {
         $config = $this->container->get(ConfigInterface::class);
-        $redisConfig = $config->get('database.redis');
+        $redisConfig = $this->container->get(RedisConfig::class);
 
-        foreach (RedisConfig::connectionNames($redisConfig) as $connection) {
+        foreach ($redisConfig->connectionNames() as $connection) {
             $config->set("database.redis.{$connection}.event.enable", true);
         }
 
@@ -49,8 +49,8 @@ class RedisFeature extends Feature
         }
 
         $pool = $this->container->get(PoolFactory::class)->getPool($event->connectionName);
-        $redisConfig = $this->container->get(ConfigInterface::class)->get('database.redis');
-        $config = RedisConfig::connectionConfig($redisConfig, $event->connectionName);
+        $redisConfig = $this->container->get(RedisConfig::class);
+        $config = $redisConfig->connectionConfig($event->connectionName);
 
         $keyForDescription = '';
 
