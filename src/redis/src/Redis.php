@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis;
 
-use Hyperf\Redis\Event\CommandExecuted;
-use Hyperf\Redis\Exception\InvalidRedisConnectionException;
-use Hyperf\Redis\Pool\PoolFactory;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
+use Hypervel\Redis\Events\CommandExecuted;
+use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
+use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Traits\MultiExec;
 use Throwable;
 use UnitEnum;
@@ -106,7 +106,7 @@ class Redis
             'multi',
             'pipeline',
             'select',
-        ]);
+        ], true);
     }
 
     /**
