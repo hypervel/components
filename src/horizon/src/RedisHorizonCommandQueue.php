@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon;
 
-use Hyperf\Redis\RedisFactory;
-use Hyperf\Redis\RedisProxy;
+use Hypervel\Redis\RedisFactory;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Horizon\Contracts\HorizonCommandQueue;
 
 class RedisHorizonCommandQueue implements HorizonCommandQueue

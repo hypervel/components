@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Horizon;
 
-use Hyperf\Redis\RedisFactory;
+use Hypervel\Redis\RedisFactory;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Horizon\Connectors\RedisConnector;
 use Hypervel\Queue\QueueManager;

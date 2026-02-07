@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Redis\Event\CommandExecuted;
-use Hyperf\Redis\Redis;
+use Hypervel\Redis\Events\CommandExecuted;
+use Hypervel\Redis\Redis;
 use Hypervel\Support\Collection;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
