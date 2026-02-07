@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Broadcasting\Broadcasters;
 
 use Hyperf\HttpServer\Contract\RequestInterface;
-use Hyperf\Redis\RedisFactory;
+use Hypervel\Redis\RedisFactory;
 use Hypervel\Broadcasting\BroadcastException;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Hypervel\Pool\Exception\ConnectionException;
