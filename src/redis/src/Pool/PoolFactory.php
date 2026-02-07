@@ -19,6 +19,16 @@ class PoolFactory
     }
 
     /**
+     * Flush all connections from all pools.
+     */
+    public function flushAll(): void
+    {
+        foreach ($this->pools as $pool) {
+            $pool->flushAll();
+        }
+    }
+
+    /**
      * Get or create a pool for the given connection name.
      */
     public function getPool(string $name): RedisPool

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Redis;
 
 use Exception;
 use Hyperf\Pool\PoolOption;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
@@ -14,6 +15,8 @@ use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\Redis;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\RedisFactory;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -594,6 +597,47 @@ class RedisTest extends TestCase
 
         $this->assertIsArray($nodes);
         $this->assertSame(3, count($nodes));
+    }
+
+    public function testConnectionReturnsNamedProxy()
+    {
+        $proxy = m::mock(RedisProxy::class);
+
+        $factory = m::mock(RedisFactory::class);
+        $factory->shouldReceive('get')
+            ->once()
+            ->with('cache')
+            ->andReturn($proxy);
+
+        $container = m::mock(\Hypervel\Contracts\Container\Container::class);
+        $container->shouldReceive('get')
+            ->with(RedisFactory::class)
+            ->once()
+            ->andReturn($factory);
+
+        ApplicationContext::setContainer($container);
+
+        $redis = $this->createRedis($this->mockConnection());
+
+        $result = $redis->connection('cache');
+
+        $this->assertSame($proxy, $result);
+    }
+
+    public function testFlushByPatternDelegatestoConnection()
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('flushByPattern')
+            ->once()
+            ->with('cache:*')
+            ->andReturn(42);
+        $connection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($connection);
+
+        $result = $redis->flushByPattern('cache:*');
+
+        $this->assertSame(42, $result);
     }
 
     /**
