@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Broadcasting\Broadcasters;
 
 use Hyperf\HttpServer\Contract\RequestInterface;
-use Hypervel\Redis\RedisFactory;
 use Hypervel\Broadcasting\BroadcastException;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Hypervel\Pool\Exception\ConnectionException;
+use Hypervel\Redis\RedisFactory;
 use Hypervel\Support\Arr;
 use Psr\Container\ContainerInterface;
 use RedisException;

@@ -6,15 +6,15 @@ namespace Hypervel\Tests\Cache;
 
 use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Redis\Pool\PoolFactory;
-use Hypervel\Redis\Pool\RedisPool;
-use Hypervel\Redis\RedisFactory;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\NullStore;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\RedisFactory;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;

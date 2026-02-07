@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Horizon;
 use Closure;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
-use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Contracts\TagRepository;
@@ -18,6 +17,7 @@ use Hypervel\Horizon\SupervisorCommandString;
 use Hypervel\Horizon\WorkerCommandString;
 use Hypervel\Queue\Worker;
 use Hypervel\Queue\WorkerOptions;
+use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
 

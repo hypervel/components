@@ -20,6 +20,8 @@ use Psr\Log\LogLevel;
 use Redis;
 use RedisCluster;
 use RedisException;
+use RuntimeException;
+use TypeError;
 
 /**
  * @internal
@@ -224,19 +226,10 @@ class RedisConnectionTest extends TestCase
         $this->expectException(ConnectionException::class);
         $this->expectExceptionMessage('Connection reconnect failed');
 
-        new class($this->getContainer(), $this->getMockedPool(), [
-            'cluster' => [
-                'enable' => true,
-                'name' => 'mycluster',
-                'seeds' => [],
-                'read_timeout' => 1.0,
-                'persistent' => false,
-            ],
-            'timeout' => 1.0,
-        ]) extends RedisConnection {
+        new class($this->getContainer(), $this->getMockedPool(), ['cluster' => ['enable' => true, 'name' => 'mycluster', 'seeds' => [], 'read_timeout' => 1.0, 'persistent' => false], 'timeout' => 1.0]) extends RedisConnection {
             protected function createRedis(array $config): Redis
             {
-                throw new \RuntimeException('createRedis should not be called for cluster config.');
+                throw new RuntimeException('createRedis should not be called for cluster config.');
             }
         };
     }
@@ -294,7 +287,7 @@ class RedisConnectionTest extends TestCase
         $redis->shouldReceive('getMode')->once()->andReturn(Redis::ATOMIC);
         $connection->setActiveConnection($redis);
 
-        $this->expectException(\TypeError::class);
+        $this->expectException(TypeError::class);
 
         $connection->__call('set', ['key', 'value', 600]);
     }

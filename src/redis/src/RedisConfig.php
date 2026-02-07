@@ -12,7 +12,9 @@ class RedisConfig
     /**
      * Create a new redis config helper.
      */
-    public function __construct(private ConfigInterface $config) {}
+    public function __construct(private ConfigInterface $config)
+    {
+    }
 
     /**
      * Get the configured Redis connection names.

@@ -6,12 +6,12 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\PoolOptionInterface;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConnection;
-use Hypervel\Contracts\Event\Dispatcher;
-use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Sentry\Features\RedisFeature;
 use Hypervel\Session\SessionManager;
 use Hypervel\Tests\Sentry\SentryTestCase;

@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Repositories;
 
 use Carbon\CarbonImmutable;
+use Hypervel\Horizon\Contracts\ProcessRepository;
 use Hypervel\Redis\RedisFactory;
 use Hypervel\Redis\RedisProxy;
-use Hypervel\Horizon\Contracts\ProcessRepository;
 
 class RedisProcessRepository implements ProcessRepository
 {

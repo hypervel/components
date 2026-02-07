@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
-use Hypervel\Redis\Redis;
 use Hypervel\Cache\RedisLock;
+use Hypervel\Redis\Redis;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use RuntimeException;

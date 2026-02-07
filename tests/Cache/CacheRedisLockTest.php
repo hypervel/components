@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
-use Hypervel\Redis\Redis;
 use Hypervel\Cache\RedisLock;
 use Hypervel\Contracts\Cache\RefreshableLock;
+use Hypervel\Redis\Redis;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;

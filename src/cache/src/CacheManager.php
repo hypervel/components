@@ -6,10 +6,10 @@ namespace Hypervel\Cache;
 
 use Closure;
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Redis\RedisFactory;
 use Hypervel\Contracts\Cache\Factory as FactoryContract;
 use Hypervel\Contracts\Cache\Repository as RepositoryContract;
 use Hypervel\Contracts\Cache\Store;
+use Hypervel\Redis\RedisFactory;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface as DispatcherContract;

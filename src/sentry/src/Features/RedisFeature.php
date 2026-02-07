@@ -6,12 +6,12 @@ namespace Hypervel\Sentry\Features;
 
 use Exception;
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Redis\Events\CommandExecuted;
-use Hypervel\Redis\Pool\PoolFactory;
-use Hypervel\Redis\RedisConfig;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Coroutine\Coroutine;
+use Hypervel\Redis\Events\CommandExecuted;
+use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\RedisConfig;
 use Hypervel\Sentry\Traits\ResolvesEventOrigin;
 use Hypervel\Support\Str;
 use Sentry\SentrySdk;

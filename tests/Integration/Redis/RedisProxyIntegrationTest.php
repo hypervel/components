@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Redis;
 
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Engine\Channel;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Redis\RedisConnection;

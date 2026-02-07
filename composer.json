@@ -323,6 +323,17 @@
             "dev-main": "0.3-dev"
         }
     },
+    "scripts": {
+        "test": "phpunit",
+        "analyse": "phpstan analyse",
+        "lint": "php-cs-fixer fix --diff --dry-run",
+        "lint:fix": "php-cs-fixer fix",
+        "check": [
+            "@test",
+            "@analyse",
+            "@lint"
+        ]
+    },
     "minimum-stability": "dev",
     "prefer-stable": true
 }

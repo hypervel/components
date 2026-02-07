@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
-use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Redis\Exceptions\InvalidRedisProxyException;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisFactory;
 use Hypervel\Redis\RedisProxy;
-use Hypervel\Redis\Exceptions\InvalidRedisProxyException;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use ReflectionClass;

@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache\Redis;
 
 use Carbon\Carbon;
+use Hypervel\Cache\RedisStore;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
-use Hypervel\Redis\RedisFactory;
-use Hypervel\Cache\RedisStore;
 use Hypervel\Redis\RedisConnection;
+use Hypervel\Redis\RedisFactory;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Redis\Stub\FakeRedisClient;

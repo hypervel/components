@@ -8,6 +8,7 @@ trait ScanCaller
 {
     /**
      * Scan keys.
+     * @param mixed $cursor
      */
     public function scan(&$cursor, ...$arguments)
     {
@@ -16,6 +17,8 @@ trait ScanCaller
 
     /**
      * Scan hash fields.
+     * @param mixed $key
+     * @param mixed $cursor
      */
     public function hScan($key, &$cursor, ...$arguments)
     {
@@ -24,6 +27,8 @@ trait ScanCaller
 
     /**
      * Scan sorted set members.
+     * @param mixed $key
+     * @param mixed $cursor
      */
     public function zScan($key, &$cursor, ...$arguments)
     {
@@ -32,6 +37,8 @@ trait ScanCaller
 
     /**
      * Scan set members.
+     * @param mixed $key
+     * @param mixed $cursor
      */
     public function sScan($key, &$cursor, ...$arguments)
     {

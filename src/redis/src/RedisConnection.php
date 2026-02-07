@@ -324,7 +324,7 @@ use Throwable;
  */
 class RedisConnection extends BaseConnection
 {
-    protected null|Redis|RedisCluster $connection = null;
+    protected Redis|RedisCluster|null $connection = null;
 
     protected ?EventDispatcherInterface $eventDispatcher = null;
 
@@ -548,6 +548,7 @@ class RedisConnection extends BaseConnection
      * Retry redis command on failure.
      *
      * @param array<int, mixed> $arguments
+     * @param mixed $name
      */
     protected function retry($name, $arguments, RedisException $exception): mixed
     {
