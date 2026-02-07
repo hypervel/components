@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
+use Hyperf\Contract\ConfigInterface;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
+use Mockery as m;
 
 /**
  * @internal
@@ -24,7 +26,10 @@ class RedisConfigTest extends TestCase
             'cache' => ['host' => '127.0.0.1', 'port' => 6379, 'db' => 1],
         ];
 
-        $this->assertSame(['default', 'cache'], RedisConfig::connectionNames($redisConfig));
+        $config = m::mock(ConfigInterface::class);
+        $config->shouldReceive('get')->with('database.redis')->andReturn($redisConfig);
+
+        $this->assertSame(['default', 'cache'], (new RedisConfig($config))->connectionNames());
     }
 
     public function testConnectionNamesThrowsForNonArrayConnectionEntry(): void
@@ -32,19 +37,25 @@ class RedisConfigTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The redis connection [default] must be an array.');
 
-        RedisConfig::connectionNames([
+        $config = m::mock(ConfigInterface::class);
+        $config->shouldReceive('get')->with('database.redis')->andReturn([
             'default' => 'tcp://127.0.0.1:6379',
         ]);
+
+        (new RedisConfig($config))->connectionNames();
     }
 
-    public function testConnectionNamesThrowsForUnknownArrayShape(): void
+    public function testConnectionNamesThrowsWhenHostPortMissingForDirectConnection(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('The redis connection [custom] does not have a valid connection shape.');
+        $this->expectExceptionMessage('The redis connection [custom] must define host and port.');
 
-        RedisConfig::connectionNames([
+        $config = m::mock(ConfigInterface::class);
+        $config->shouldReceive('get')->with('database.redis')->andReturn([
             'custom' => ['foo' => 'bar'],
         ]);
+
+        (new RedisConfig($config))->connectionNames();
     }
 
     public function testConnectionConfigMergesSharedAndConnectionOptions(): void
@@ -59,7 +70,10 @@ class RedisConfigTest extends TestCase
             ],
         ];
 
-        $connectionConfig = RedisConfig::connectionConfig($redisConfig, 'default');
+        $config = m::mock(ConfigInterface::class);
+        $config->shouldReceive('get')->with('database.redis')->andReturn($redisConfig);
+
+        $connectionConfig = (new RedisConfig($config))->connectionConfig('default');
 
         $this->assertSame(
             ['prefix' => 'default:', 'serializer' => 1],
@@ -72,7 +86,10 @@ class RedisConfigTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The redis connection [default] must be an array.');
 
-        RedisConfig::connectionConfig([], 'default');
+        $config = m::mock(ConfigInterface::class);
+        $config->shouldReceive('get')->with('database.redis')->andReturn([]);
+
+        (new RedisConfig($config))->connectionConfig('default');
     }
 
     public function testConnectionConfigThrowsForInvalidConnectionOptions(): void
@@ -80,7 +97,8 @@ class RedisConfigTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The redis connection [default] options must be an array.');
 
-        RedisConfig::connectionConfig([
+        $config = m::mock(ConfigInterface::class);
+        $config->shouldReceive('get')->with('database.redis')->andReturn([
             'options' => ['prefix' => 'global:'],
             'default' => [
                 'host' => '127.0.0.1',
@@ -88,6 +106,8 @@ class RedisConfigTest extends TestCase
                 'db' => 0,
                 'options' => 'invalid',
             ],
-        ], 'default');
+        ]);
+
+        (new RedisConfig($config))->connectionConfig('default');
     }
 }

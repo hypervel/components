@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis\Pool;
 
-use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\ConnectionInterface;
 use Hypervel\Pool\Pool;
 use Hypervel\Redis\Frequency;
@@ -24,9 +23,8 @@ class RedisPool extends Pool
         ContainerInterface $container,
         protected string $name
     ) {
-        $configService = $container->get(ConfigInterface::class);
-        $redisConfig = $configService->get('database.redis');
-        $this->config = RedisConfig::connectionConfig($redisConfig, $this->name);
+        $configService = $container->get(RedisConfig::class);
+        $this->config = $configService->connectionConfig($this->name);
         $poolOptions = Arr::get($this->config, 'pool', []);
 
         $this->frequency = new Frequency($this);

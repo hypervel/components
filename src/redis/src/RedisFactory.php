@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Redis;
 
 use Hypervel\Contracts\Container\Container as ContainerContract;
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Redis\Exceptions\InvalidRedisProxyException;
 
 class RedisFactory
@@ -18,11 +17,9 @@ class RedisFactory
     /**
      * Create a new Redis factory instance.
      */
-    public function __construct(ConfigInterface $config, ContainerContract $container)
+    public function __construct(RedisConfig $config, ContainerContract $container)
     {
-        $redisConfig = $config->get('database.redis');
-
-        foreach (RedisConfig::connectionNames($redisConfig) as $poolName) {
+        foreach ($config->connectionNames() as $poolName) {
             $this->proxies[$poolName] = $container->make(RedisProxy::class, ['pool' => $poolName]);
         }
     }

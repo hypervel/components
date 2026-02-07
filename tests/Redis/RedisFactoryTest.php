@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Redis;
 
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hyperf\Contract\ConfigInterface;
+use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisFactory;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Redis\Exceptions\InvalidRedisProxyException;
@@ -86,9 +87,10 @@ class RedisFactoryTest extends TestCase
         // Create factory with empty config (no pools created)
         $config = m::mock(ConfigInterface::class);
         $config->shouldReceive('get')->with('database.redis')->andReturn([]);
+        $redisConfig = new RedisConfig($config);
         $container = m::mock(ContainerContract::class);
 
-        $factory = new RedisFactory($config, $container);
+        $factory = new RedisFactory($redisConfig, $container);
 
         // Inject proxies via reflection
         $reflection = new ReflectionClass($factory);
