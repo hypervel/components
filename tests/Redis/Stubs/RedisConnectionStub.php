@@ -75,7 +75,7 @@ class RedisConnectionStub extends RedisConnection
         return $this->connection;
     }
 
-    protected function retry($name, $arguments, Throwable $exception)
+    protected function retry($name, $arguments, Throwable $exception): mixed
     {
         throw $exception;
     }
