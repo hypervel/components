@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Redis;
 
 use Hyperf\Contract\PoolInterface;
+use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\Pool\PoolOption;
@@ -14,6 +15,7 @@ use Hypervel\Tests\Redis\Stubs\RedisConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\Container\ContainerInterface;
+use Psr\Log\LogLevel;
 use Redis;
 use RedisCluster;
 
@@ -47,6 +49,35 @@ class RedisConnectionTest extends TestCase
         $this->assertFalse($connection->getShouldTransform());
     }
 
+    public function testReleaseResetsDatabaseToConfiguredDefault(): void
+    {
+        $pool = $this->getMockedPool();
+        $pool->shouldReceive('release')->once();
+
+        $redis = m::mock(Redis::class);
+        $redis->shouldReceive('select')->once()->with(1)->andReturn(true);
+        $redis->shouldReceive('select')->once()->with(1)->andReturn(true);
+
+        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'db' => 1], $redis) extends RedisConnection {
+            public function __construct(
+                ContainerInterface $container,
+                PoolInterface $pool,
+                array $config,
+                private Redis $fakeRedis
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return $this->fakeRedis;
+            }
+        };
+
+        $connection->setDatabase(2);
+        $connection->release();
+    }
+
     public function testReleaseDefaultsToDatabaseZeroWhenDbConfigIsMissing(): void
     {
         $pool = $this->getMockedPool();
@@ -73,6 +104,70 @@ class RedisConnectionTest extends TestCase
 
         $connection->setDatabase(5);
         $connection->release();
+    }
+
+    public function testReconnectUsesCurrentDatabaseWhenSet(): void
+    {
+        $pool = $this->getMockedPool();
+        $redis = m::mock(Redis::class);
+        $redis->shouldReceive('select')->once()->with(2)->andReturn(true);
+
+        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'db' => 0], $redis) extends RedisConnection {
+            public function __construct(
+                ContainerInterface $container,
+                PoolInterface $pool,
+                array $config,
+                private Redis $fakeRedis
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return $this->fakeRedis;
+            }
+        };
+
+        $connection->setDatabase(2);
+        $connection->reconnect();
+    }
+
+    public function testLogWritesToStdoutLogger(): void
+    {
+        $pool = $this->getMockedPool();
+        $redis = m::mock(Redis::class);
+        $logger = m::mock(StdoutLoggerInterface::class);
+        $logger->shouldReceive('log')
+            ->once()
+            ->with(LogLevel::ERROR, 'unit');
+
+        $container = m::mock(ContainerInterface::class);
+        $container->shouldReceive('has')->with(\Psr\EventDispatcher\EventDispatcherInterface::class)->andReturn(false);
+        $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(true);
+        $container->shouldReceive('get')->with(StdoutLoggerInterface::class)->andReturn($logger);
+
+        $connection = new class($container, $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends RedisConnection {
+            public function __construct(
+                ContainerInterface $container,
+                PoolInterface $pool,
+                array $config,
+                private Redis $fakeRedis
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return $this->fakeRedis;
+            }
+
+            public function callLog(string $message, string $level): void
+            {
+                $this->log($message, $level);
+            }
+        };
+
+        $connection->callLog('unit', LogLevel::ERROR);
     }
 
     public function testCallGet(): void
