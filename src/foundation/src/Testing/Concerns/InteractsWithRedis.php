@@ -120,11 +120,7 @@ trait InteractsWithRedis
             ],
         ];
 
-        // Set both locations - database.redis.* (source) and redis.* (runtime)
-        // FoundationServiceProvider copies database.redis.* to redis.* at boot,
-        // but tests run AFTER boot, so we must set redis.* directly
         $config->set('database.redis.default', $connectionConfig);
-        $config->set('redis.default', $connectionConfig);
     }
 
     /**
@@ -221,7 +217,7 @@ trait InteractsWithRedis
         $config = $this->app->get(ConfigInterface::class);
 
         // Check if already exists
-        if ($config->get("redis.{$connectionName}") !== null) {
+        if ($config->get("database.redis.{$connectionName}") !== null) {
             return $connectionName;
         }
 
@@ -243,7 +239,7 @@ trait InteractsWithRedis
             ],
         ];
 
-        $config->set("redis.{$connectionName}", $connectionConfig);
+        $config->set("database.redis.{$connectionName}", $connectionConfig);
 
         // RedisFactory snapshots configured pools in __construct, so reset it after adding runtime test pools.
         $this->app->forgetInstance(\Hypervel\Redis\RedisFactory::class);
