@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Redis\Integration;
+namespace Hypervel\Tests\Integration\Redis;
 
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
