@@ -20,9 +20,13 @@ class RedisFactory
      */
     public function __construct(ConfigInterface $config, ContainerContract $container)
     {
-        $redisConfig = $config->get('redis');
+        $redisConfig = $config->get('database.redis');
 
         foreach ($redisConfig as $poolName => $item) {
+            if ($poolName === 'client' || $poolName === 'options') {
+                continue;
+            }
+
             $this->proxies[$poolName] = $container->make(RedisProxy::class, ['pool' => $poolName]);
         }
     }

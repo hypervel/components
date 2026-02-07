@@ -85,7 +85,7 @@ class RedisFactoryTest extends TestCase
     {
         // Create factory with empty config (no pools created)
         $config = m::mock(ConfigInterface::class);
-        $config->shouldReceive('get')->with('redis')->andReturn([]);
+        $config->shouldReceive('get')->with('database.redis')->andReturn([]);
         $container = m::mock(ContainerContract::class);
 
         $factory = new RedisFactory($config, $container);
