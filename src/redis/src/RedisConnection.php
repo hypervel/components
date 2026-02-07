@@ -31,14 +31,21 @@ use Throwable;
  * @method bool set(string $key, mixed $value, mixed $expireResolution = null, mixed $expireTTL = null, mixed $flag = null) Set the value of a key
  * @method array mget(array $keys) Get the values of multiple keys
  * @method int setnx(string $key, string $value) Set key if not exists
+ * @method int setNx(string $key, string $value) Set key if not exists
  * @method array hmget(string $key, mixed ...$fields) Get hash field values
  * @method bool hmset(string $key, mixed ...$dictionary) Set hash field values
  * @method int hsetnx(string $hash, string $key, string $value) Set hash field if not exists
+ * @method mixed hget(string $key, string $member) Get hash field value
+ * @method false|int hset(string $key, mixed ...$fields_and_vals) Set hash field values
  * @method false|int lrem(string $key, int $count, mixed $value) Remove list elements
+ * @method false|int llen(string $key) Get list length
  * @method null|array blpop(mixed ...$arguments) Blocking left pop from list
  * @method null|array brpop(mixed ...$arguments) Blocking right pop from list
  * @method mixed spop(string $key, int $count = 1) Remove and return random set member
+ * @method false|int sRem(string $key, mixed $value, mixed ...$other_values) Remove members from set
  * @method int zadd(string $key, mixed ...$dictionary) Add members to sorted set
+ * @method false|int zcard(string $key) Get sorted set cardinality
+ * @method false|int zcount(string $key, int|string $start, int|string $end) Count sorted set members by score range
  * @method array zrangebyscore(string $key, mixed $min, mixed $max, array $options = []) Get sorted set members by score range
  * @method array zrevrangebyscore(string $key, mixed $min, mixed $max, array $options = []) Get sorted set members by score range (reverse)
  * @method int zinterstore(string $output, array $keys, array $options = []) Intersect sorted sets
@@ -47,6 +54,7 @@ use Throwable;
  * @method mixed evalsha(string $script, int $numkeys, mixed ...$arguments) Evaluate Lua script by SHA1
  * @method mixed flushdb(mixed ...$arguments) Flush database
  * @method mixed executeRaw(array $parameters) Execute raw Redis command
+ * @method mixed pipeline(callable|null $callback = null) Execute commands in a pipeline
  * @method array smembers(string $key) Get all set members
  * @method false|int hdel(string $key, string ...$fields) Delete hash fields
  * @method false|int zrem(string $key, string ...$members) Remove sorted set members
