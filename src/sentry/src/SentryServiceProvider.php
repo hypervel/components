@@ -21,6 +21,7 @@ use Hypervel\Support\ServiceProvider;
 use Sentry\ClientBuilder;
 use Sentry\ClientInterface;
 use Sentry\HttpClient\HttpClientInterface;
+use Sentry\SentrySdk;
 use Sentry\State\HubInterface;
 use Throwable;
 
@@ -28,6 +29,9 @@ class SentryServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
+        // Keep Sentry's global singleton hub aligned with the current application container.
+        SentrySdk::setCurrentHub($this->app->get(HubInterface::class));
+
         $this->bootFeatures();
         $this->registerPublishing();
         $this->registerCommands();
