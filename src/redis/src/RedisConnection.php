@@ -5,14 +5,23 @@ declare(strict_types=1);
 namespace Hypervel\Redis;
 
 use Generator;
-use Hyperf\Redis\RedisConnection as HyperfRedisConnection;
+use Hyperf\Contract\PoolInterface;
+use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Pool\Connection as BaseConnection;
+use Hypervel\Pool\Exception\ConnectionException;
+use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
+use Hypervel\Redis\Exceptions\InvalidRedisOptionException;
 use Hypervel\Redis\Exceptions\LuaScriptException;
 use Hypervel\Redis\Operations\FlushByPattern;
 use Hypervel\Redis\Operations\SafeScan;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Psr\Container\ContainerInterface;
+use Psr\EventDispatcher\EventDispatcherInterface;
+use Psr\Log\LogLevel;
 use Redis;
 use RedisCluster;
+use RedisException;
 use Throwable;
 
 /**
@@ -305,17 +314,70 @@ use Throwable;
  * @method false|int|Redis zintercard(array $keys, int $limit = -1)
  * @method array|false|Redis zunion(array $keys, array|null $weights = null, array|null $options = null)
  */
-class RedisConnection extends HyperfRedisConnection
+class RedisConnection extends BaseConnection
 {
+    protected null|Redis|RedisCluster $connection = null;
+
+    protected ?EventDispatcherInterface $eventDispatcher = null;
+
+    protected array $config = [
+        'host' => 'localhost',
+        'port' => 6379,
+        'auth' => null,
+        'db' => 0,
+        'timeout' => 0.0,
+        'reserved' => null,
+        'retry_interval' => 0,
+        'read_timeout' => 0.0,
+        'cluster' => [
+            'enable' => false,
+            'name' => null,
+            'seeds' => [],
+            'read_timeout' => 0.0,
+            'persistent' => false,
+            'context' => [],
+        ],
+        'sentinel' => [
+            'enable' => false,
+            'master_name' => '',
+            'nodes' => [],
+            'persistent' => '',
+            'read_timeout' => 0,
+        ],
+        'options' => [],
+        'context' => [],
+        'event' => [
+            'enable' => false,
+        ],
+    ];
+
+    /**
+     * Current redis database.
+     */
+    protected ?int $database = null;
+
     /**
      * Determine if the connection calls should be transformed to Laravel style.
      */
     protected bool $shouldTransform = false;
 
+    /**
+     * Create a new Redis connection instance.
+     *
+     * @param array<string, mixed> $config
+     */
+    public function __construct(ContainerInterface $container, PoolInterface $pool, array $config)
+    {
+        parent::__construct($container, $pool);
+        $this->config = array_replace_recursive($this->config, $config);
+
+        $this->reconnect();
+    }
+
     public function __call($name, $arguments)
     {
         try {
-            if (in_array($name, ['subscribe', 'psubscribe'])) {
+            if (in_array($name, ['subscribe', 'psubscribe'], true)) {
                 return $this->callSubscribe($name, $arguments);
             }
 
@@ -334,11 +396,277 @@ class RedisConnection extends HyperfRedisConnection
         return $result;
     }
 
+    /**
+     * Get the active connection.
+     */
+    public function getActiveConnection(): static
+    {
+        if ($this->check()) {
+            return $this;
+        }
+
+        if (! $this->reconnect()) {
+            throw new ConnectionException('Connection reconnect failed.');
+        }
+
+        return $this;
+    }
+
+    /**
+     * Get the event dispatcher instance.
+     */
+    public function getEventDispatcher(): ?EventDispatcherInterface
+    {
+        return $this->eventDispatcher;
+    }
+
+    /**
+     * Reconnect to Redis.
+     *
+     * @throws RedisException
+     * @throws ConnectionException
+     */
+    public function reconnect(): bool
+    {
+        $auth = $this->config['auth'];
+        $db = $this->config['db'];
+        $cluster = $this->config['cluster']['enable'] ?? false;
+        $sentinel = $this->config['sentinel']['enable'] ?? false;
+
+        $redis = match (true) {
+            $cluster => $this->createRedisCluster(),
+            $sentinel => $this->createRedisSentinel(),
+            default => $this->createRedis($this->config),
+        };
+
+        $options = $this->config['options'] ?? [];
+
+        foreach ($options as $name => $value) {
+            if (is_string($name)) {
+                $name = match (strtolower($name)) {
+                    'serializer' => Redis::OPT_SERIALIZER,
+                    'prefix' => Redis::OPT_PREFIX,
+                    'read_timeout' => Redis::OPT_READ_TIMEOUT,
+                    'scan' => Redis::OPT_SCAN,
+                    'failover' => defined(Redis::class . '::OPT_SLAVE_FAILOVER') ? Redis::OPT_SLAVE_FAILOVER : 5,
+                    'keepalive' => Redis::OPT_TCP_KEEPALIVE,
+                    'compression' => Redis::OPT_COMPRESSION,
+                    'reply_literal' => Redis::OPT_REPLY_LITERAL,
+                    'compression_level' => Redis::OPT_COMPRESSION_LEVEL,
+                    default => throw new InvalidRedisOptionException(sprintf('The redis option key `%s` is invalid.', $name)),
+                };
+            }
+
+            $redis->setOption($name, $value);
+        }
+
+        if ($redis instanceof Redis && isset($auth) && $auth !== '') {
+            $redis->auth($auth);
+        }
+
+        $database = $this->database ?? $db;
+        if ($database > 0) {
+            $redis->select($database);
+        }
+
+        $this->connection = $redis;
+        $this->lastUseTime = microtime(true);
+
+        if (($this->config['event']['enable'] ?? false) && $this->container->has(EventDispatcherInterface::class)) {
+            $this->eventDispatcher = $this->container->get(EventDispatcherInterface::class);
+        }
+
+        return true;
+    }
+
+    /**
+     * Close the current connection.
+     */
+    public function close(): bool
+    {
+        unset($this->connection);
+
+        return true;
+    }
+
+    /**
+     * Release the connection back to pool.
+     */
     public function release(): void
     {
         $this->shouldTransform = false;
 
-        parent::release();
+        try {
+            if ($this->database !== null && $this->database !== (int) $this->config['db']) {
+                $this->select((int) $this->config['db']);
+                $this->database = null;
+            }
+
+            parent::release();
+        } catch (Throwable $exception) {
+            $this->log('Release connection failed, caused by ' . $exception, LogLevel::CRITICAL);
+        }
+    }
+
+    /**
+     * Set current redis database.
+     */
+    public function setDatabase(?int $database): void
+    {
+        $this->database = $database;
+    }
+
+    /**
+     * Create a redis cluster connection.
+     */
+    protected function createRedisCluster(): RedisCluster
+    {
+        try {
+            $parameters = [];
+            $parameters[] = $this->config['cluster']['name'] ?? null;
+            $parameters[] = $this->config['cluster']['seeds'] ?? [];
+            $parameters[] = $this->config['timeout'] ?? 0.0;
+            $parameters[] = $this->config['cluster']['read_timeout'] ?? 0.0;
+            $parameters[] = $this->config['cluster']['persistent'] ?? false;
+            $parameters[] = $this->config['auth'] ?? null;
+            if (! empty($this->config['cluster']['context'])) {
+                $parameters[] = $this->config['cluster']['context'];
+            }
+
+            $redis = new RedisCluster(...$parameters);
+        } catch (Throwable $exception) {
+            throw new ConnectionException('Connection reconnect failed ' . $exception->getMessage());
+        }
+
+        return $redis;
+    }
+
+    /**
+     * Retry redis command on failure.
+     *
+     * @param array<int, mixed> $arguments
+     */
+    protected function retry($name, $arguments, Throwable $exception): mixed
+    {
+        $this->log('Redis::__call failed, because ' . $exception->getMessage());
+
+        try {
+            $this->reconnect();
+            $result = $this->connection->{$name}(...$arguments);
+        } catch (Throwable $exception) {
+            $this->lastUseTime = 0.0;
+            throw $exception;
+        }
+
+        return $result;
+    }
+
+    /**
+     * Create a redis sentinel connection.
+     *
+     * @throws ConnectionException
+     */
+    protected function createRedisSentinel(): Redis
+    {
+        try {
+            $nodes = $this->config['sentinel']['nodes'] ?? [];
+            $timeout = $this->config['timeout'] ?? 0;
+            $persistent = $this->config['sentinel']['persistent'] ?? null;
+            $retryInterval = $this->config['retry_interval'] ?? 0;
+            $readTimeout = $this->config['sentinel']['read_timeout'] ?? 0;
+            $masterName = $this->config['sentinel']['master_name'] ?? '';
+            $auth = $this->config['sentinel']['auth'] ?? null;
+
+            shuffle($nodes);
+
+            $host = null;
+            $port = null;
+            foreach ($nodes as $node) {
+                try {
+                    $resolved = parse_url($node);
+                    if (! isset($resolved['host'], $resolved['port'])) {
+                        $this->log(sprintf('The redis sentinel node [%s] is invalid.', $node), LogLevel::ERROR);
+                        continue;
+                    }
+
+                    $options = [
+                        'host' => $resolved['host'],
+                        'port' => (int) $resolved['port'],
+                        'connectTimeout' => $timeout,
+                        'persistent' => $persistent,
+                        'retryInterval' => $retryInterval,
+                        'readTimeout' => $readTimeout,
+                        ...($auth ? ['auth' => $auth] : []),
+                    ];
+
+                    $sentinel = $this->container->get(RedisSentinelFactory::class)->create($options);
+                    $masterInfo = $sentinel->getMasterAddrByName($masterName);
+                    if (is_array($masterInfo) && count($masterInfo) >= 2) {
+                        [$host, $port] = $masterInfo;
+                        break;
+                    }
+                } catch (Throwable $exception) {
+                    $this->log('Redis sentinel connection failed, caused by ' . $exception->getMessage());
+                    continue;
+                }
+            }
+
+            if ($host === null && $port === null) {
+                throw new InvalidRedisConnectionException('Connect sentinel redis server failed.');
+            }
+
+            $redis = $this->createRedis([
+                'host' => $host,
+                'port' => $port,
+                'timeout' => $timeout,
+                'retry_interval' => $retryInterval,
+                'read_timeout' => $readTimeout,
+            ]);
+        } catch (Throwable $exception) {
+            throw new ConnectionException('Connection reconnect failed ' . $exception->getMessage());
+        }
+
+        return $redis;
+    }
+
+    /**
+     * Create a redis connection.
+     *
+     * @param array<string, mixed> $config
+     * @throws ConnectionException
+     * @throws RedisException
+     */
+    protected function createRedis(array $config): Redis
+    {
+        $parameters = [
+            $config['host'] ?? '',
+            (int) ($config['port'] ?? 6379),
+            $config['timeout'] ?? 0.0,
+            $config['reserved'] ?? null,
+            $config['retry_interval'] ?? 0,
+            $config['read_timeout'] ?? 0.0,
+        ];
+
+        if (! empty($config['context'])) {
+            $parameters[] = $config['context'];
+        }
+
+        $redis = new Redis();
+        if (! $redis->connect(...$parameters)) {
+            throw new ConnectionException('Connection reconnect failed.');
+        }
+
+        return $redis;
+    }
+
+    /**
+     * Log a redis connection message.
+     */
+    protected function log(string $message, string $level = LogLevel::WARNING): void
+    {
+        if ($this->container->has(StdoutLoggerInterface::class) && $logger = $this->container->get(StdoutLoggerInterface::class)) {
+            $logger->log($level, $message);
+        }
     }
 
     /**
@@ -579,7 +907,7 @@ class RedisConnection extends HyperfRedisConnection
     public function scan(&$cursor, ...$arguments): mixed
     {
         if (! $this->shouldTransform) {
-            return parent::scan($cursor, ...$arguments);
+            return $this->__call('scan', array_merge([&$cursor], $arguments));
         }
 
         $options = $this->getScanOptions($arguments);
@@ -607,7 +935,7 @@ class RedisConnection extends HyperfRedisConnection
     public function zscan($key, &$cursor, ...$arguments): mixed
     {
         if (! $this->shouldTransform) {
-            return parent::zScan($key, $cursor, ...$arguments);
+            return $this->__call('zScan', array_merge([$key, &$cursor], $arguments));
         }
 
         $options = $this->getScanOptions($arguments);
@@ -636,7 +964,7 @@ class RedisConnection extends HyperfRedisConnection
     public function hscan($key, &$cursor, ...$arguments): mixed
     {
         if (! $this->shouldTransform) {
-            return parent::hScan($key, $cursor, ...$arguments);
+            return $this->__call('hScan', array_merge([$key, &$cursor], $arguments));
         }
 
         $options = $this->getScanOptions($arguments);
@@ -665,7 +993,7 @@ class RedisConnection extends HyperfRedisConnection
     public function sscan($key, &$cursor, ...$arguments): mixed
     {
         if (! $this->shouldTransform) {
-            return parent::sScan($key, $cursor, ...$arguments);
+            return $this->__call('sScan', array_merge([$key, &$cursor], $arguments));
         }
 
         $options = $this->getScanOptions($arguments);
