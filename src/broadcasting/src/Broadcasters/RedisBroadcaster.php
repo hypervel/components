@@ -97,8 +97,9 @@ class RedisBroadcaster extends Broadcaster
         try {
             $connection->eval(
                 $this->broadcastMultipleChannelsScript(),
-                [$payload, ...$this->formatChannels($channels)],
                 0,
+                $payload,
+                ...$this->formatChannels($channels),
             );
         } catch (ConnectionException|RedisException $e) {
             throw new BroadcastException(

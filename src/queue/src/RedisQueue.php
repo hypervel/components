@@ -53,12 +53,10 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
 
         return $this->getConnection()->eval(
             LuaScripts::size(),
-            [
-                $queue,
-                $queue . ':delayed',
-                $queue . ':reserved',
-            ],
             3,
+            $queue,
+            $queue . ':delayed',
+            $queue . ':reserved',
         );
     }
 
@@ -145,12 +143,10 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
     {
         $this->getConnection()->eval(
             LuaScripts::push(),
-            [
-                $this->getQueue($queue),
-                $this->getQueue($queue) . ':notify',
-                $payload,
-            ],
             2,
+            $this->getQueue($queue),
+            $this->getQueue($queue) . ':notify',
+            $payload,
         );
 
         return json_decode($payload, true)['id'] ?? null;
@@ -246,14 +242,12 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
     {
         return $this->getConnection()->eval(
             LuaScripts::migrateExpiredJobs(),
-            [
-                $from,
-                $to,
-                $to . ':notify',
-                $this->currentTime(),
-                $this->migrationBatchSize,
-            ],
             3,
+            $from,
+            $to,
+            $to . ':notify',
+            $this->currentTime(),
+            $this->migrationBatchSize,
         );
     }
 
@@ -264,13 +258,11 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
     {
         $nextJob = $this->getConnection()->eval(
             LuaScripts::pop(),
-            [
-                $queue,
-                $queue . ':reserved',
-                $queue . ':notify',
-                $this->availableAt($this->retryAfter),
-            ],
             3,
+            $queue,
+            $queue . ':reserved',
+            $queue . ':notify',
+            $this->availableAt($this->retryAfter),
         );
 
         if (empty($nextJob)) {
@@ -305,13 +297,11 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
 
         $this->getConnection()->eval(
             LuaScripts::release(),
-            [
-                $queue . ':delayed',
-                $queue . ':reserved',
-                $job->getReservedJob(),
-                $this->availableAt($delay),
-            ],
             2,
+            $queue . ':delayed',
+            $queue . ':reserved',
+            $job->getReservedJob(),
+            $this->availableAt($delay),
         );
     }
 
@@ -325,13 +315,11 @@ class RedisQueue extends Queue implements QueueContract, ClearableQueue
         return $this->getConnection()
             ->eval(
                 LuaScripts::clear(),
-                [
-                    $queue,
-                    $queue . ':delayed',
-                    $queue . ':reserved',
-                    $queue . ':notify',
-                ],
                 4,
+                $queue,
+                $queue . ':delayed',
+                $queue . ':reserved',
+                $queue . ':notify',
             );
     }
 

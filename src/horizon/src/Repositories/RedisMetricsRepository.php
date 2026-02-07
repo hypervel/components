@@ -144,12 +144,10 @@ class RedisMetricsRepository implements MetricsRepository
     {
         $this->connection()->eval(
             LuaScripts::updateMetrics(),
-            [
-                'job:' . $job,
-                'measured_jobs',
-                str_replace(',', '.', (string) $runtime),
-            ],
             2,
+            'job:' . $job,
+            'measured_jobs',
+            str_replace(',', '.', (string) $runtime),
         );
     }
 
@@ -160,12 +158,10 @@ class RedisMetricsRepository implements MetricsRepository
     {
         $this->connection()->eval(
             LuaScripts::updateMetrics(),
-            [
-                'queue:' . $queue,
-                'measured_queues',
-                str_replace(',', '.', (string) $runtime),
-            ],
             2,
+            'queue:' . $queue,
+            'measured_queues',
+            str_replace(',', '.', (string) $runtime),
         );
     }
 

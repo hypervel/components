@@ -73,7 +73,7 @@ class RedisLockTest extends TestCase
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('eval')
             ->once()
-            ->with(m::type('string'), ['lock:foo', 'owner123'], 1)
+            ->with(m::type('string'), 1, 'lock:foo', 'owner123')
             ->andReturn(1);
 
         $lock = new RedisLock($redis, 'lock:foo', 60, 'owner123');
@@ -86,7 +86,7 @@ class RedisLockTest extends TestCase
         $redis = m::mock(Redis::class);
         $redis->shouldReceive('eval')
             ->once()
-            ->with(m::type('string'), ['lock:foo', 'owner123'], 1)
+            ->with(m::type('string'), 1, 'lock:foo', 'owner123')
             ->andReturn(0);
 
         $lock = new RedisLock($redis, 'lock:foo', 60, 'owner123');
