@@ -18,6 +18,7 @@ use Psr\Container\ContainerInterface;
 use Psr\Log\LogLevel;
 use Redis;
 use RedisCluster;
+use RedisException;
 
 /**
  * @internal
@@ -130,6 +131,71 @@ class RedisConnectionTest extends TestCase
 
         $connection->setDatabase(2);
         $connection->reconnect();
+    }
+
+    public function testQueueingModeBypassesTransformedSet(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+        $redis = m::mock(Redis::class);
+
+        $redis->shouldReceive('getMode')->once()->andReturn(Redis::MULTI);
+        $redis->shouldReceive('set')->once()->with('key', 'value', 600)->andReturnSelf();
+
+        $connection->setActiveConnection($redis);
+
+        $result = $connection->__call('set', ['key', 'value', 600]);
+
+        $this->assertSame($redis, $result);
+    }
+
+    public function testTypeErrorsAreNotRetried(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+        $redis = m::mock(Redis::class);
+
+        $redis->shouldReceive('getMode')->once()->andReturn(Redis::ATOMIC);
+        $connection->setActiveConnection($redis);
+
+        $this->expectException(\TypeError::class);
+
+        $connection->__call('set', ['key', 'value', 600]);
+    }
+
+    public function testRedisExceptionIsRetried(): void
+    {
+        $pool = $this->getMockedPool();
+        $redis = m::mock(Redis::class);
+
+        $redis->shouldReceive('get')
+            ->once()
+            ->with('foo')
+            ->andThrow(new RedisException('network'));
+        $redis->shouldReceive('get')
+            ->once()
+            ->with('foo')
+            ->andReturn('bar');
+
+        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends RedisConnection {
+            public function __construct(
+                ContainerInterface $container,
+                PoolInterface $pool,
+                array $config,
+                private Redis $fakeRedis
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return $this->fakeRedis;
+            }
+        };
+
+        $connection->shouldTransform(false);
+
+        $result = $connection->__call('get', ['foo']);
+
+        $this->assertSame('bar', $result);
     }
 
     public function testLogWritesToStdoutLogger(): void

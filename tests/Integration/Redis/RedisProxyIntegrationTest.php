@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Redis;
 
 use Hyperf\Contract\ConfigInterface;
+use Hypervel\Engine\Channel;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
@@ -12,6 +13,8 @@ use Hypervel\Redis\RedisFactory;
 use Hypervel\Support\Facades\Redis;
 use Hypervel\Testbench\TestCase;
 use Redis as PhpRedis;
+
+use function Hypervel\Coroutine\go;
 
 /**
  * @group integration
@@ -185,6 +188,97 @@ class RedisProxyIntegrationTest extends TestCase
 
         $this->assertSame($expected, $fields);
         $this->assertSame(0, $cursor);
+    }
+
+    public function testRedisPipelineConcurrentExecs(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $redis->rPush('pipeline:list', 'A');
+        $redis->rPush('pipeline:list', 'B');
+        $redis->rPush('pipeline:list', 'C');
+        $redis->rPush('pipeline:list', 'D');
+        $redis->rPush('pipeline:list', 'E');
+
+        $first = new Channel(1);
+        $second = new Channel(1);
+
+        go(static function () use ($redis, $first) {
+            $redis->pipeline();
+            usleep(2_000);
+            $redis->lRange('pipeline:list', 0, 1);
+            $redis->lTrim('pipeline:list', 2, -1);
+            usleep(1_000);
+            $first->push($redis->exec());
+        });
+
+        go(static function () use ($redis, $second) {
+            $redis->pipeline();
+            usleep(1_000);
+            $redis->lRange('pipeline:list', 0, 1);
+            $redis->lTrim('pipeline:list', 2, -1);
+            usleep(20_000);
+            $second->push($redis->exec());
+        });
+
+        $this->assertSame([['A', 'B'], true], $first->pop());
+        $this->assertSame([['C', 'D'], true], $second->pop());
+    }
+
+    public function testPipelineCallbackAndSelect(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $redis->select(1);
+        $redis->set('concurrent_pipeline_test_callback_and_select_value', $id = uniqid(), 'EX', 600);
+
+        $key = 'concurrent_pipeline_test_callback_and_select';
+        $results = $redis->pipeline(function (PhpRedis $pipe) use ($key) {
+            $pipe->set($key, "value_{$key}");
+            $pipe->incr("{$key}_counter");
+            $pipe->get($key);
+            $pipe->get("{$key}_counter");
+        });
+
+        $this->assertCount(4, $results);
+        $this->assertSame($id, $redis->get('concurrent_pipeline_test_callback_and_select_value'));
+    }
+
+    public function testPipelineCallbackAndPipeline(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $openPipeline = $redis->pipeline();
+        // This uses integer expiry while a pipeline is open to assert queue-mode bypasses transformed callSet().
+        $redis->set('concurrent_pipeline_test_callback_and_select_value', $id = uniqid(), 600);
+
+        $key = 'concurrent_pipeline_test_callback_and_select';
+        $callbackResults = $redis->pipeline(function (PhpRedis $pipe) use ($key) {
+            $pipe->set($key, "value_{$key}");
+            $pipe->incr("{$key}_counter");
+            $pipe->get($key);
+            $pipe->get("{$key}_counter");
+        });
+
+        go(static function () use ($redis) {
+            $redis->select(1);
+            $redis->set('xxx', 'x');
+            $redis->set('xxx', 'x');
+            $redis->set('xxx', 'x');
+        });
+
+        $openPipeline->set('xxxxxx', 'x');
+        $openPipeline->set('xxxxxx', 'x');
+        $openPipeline->set('xxxxxx', 'x');
+        $openPipeline->set('xxxxxx', 'x');
+
+        $this->assertInstanceOf(PhpRedis::class, $openPipeline);
+        // The pre-callback set() is queued on the open pipeline connection, so callback exec includes 5 queued results.
+        $this->assertCount(5, $callbackResults);
+        $this->assertSame($id, $redis->get('concurrent_pipeline_test_callback_and_select_value'));
     }
 
     public function testPipelineCallbackRunsCommands(): void

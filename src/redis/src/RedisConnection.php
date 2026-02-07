@@ -377,7 +377,7 @@ class RedisConnection extends BaseConnection
                 return $this->callSubscribe($name, $arguments);
             }
 
-            if ($this->shouldTransform) {
+            if ($this->shouldTransform && ! $this->isQueueingMode()) {
                 $method = 'call' . ucfirst($name);
                 if (method_exists($this, $method)) {
                     return $this->{$method}(...$arguments);
@@ -385,11 +385,9 @@ class RedisConnection extends BaseConnection
             }
 
             return $this->connection->{$name}(...$arguments);
-        } catch (Throwable $exception) {
-            $result = $this->retry($name, $arguments, $exception);
+        } catch (RedisException $exception) {
+            return $this->retry($name, $arguments, $exception);
         }
-
-        return $result;
     }
 
     /**
@@ -543,7 +541,7 @@ class RedisConnection extends BaseConnection
      *
      * @param array<int, mixed> $arguments
      */
-    protected function retry($name, $arguments, Throwable $exception): mixed
+    protected function retry($name, $arguments, RedisException $exception): mixed
     {
         $this->log('Redis::__call failed, because ' . $exception->getMessage());
 
@@ -556,6 +554,14 @@ class RedisConnection extends BaseConnection
         }
 
         return $result;
+    }
+
+    /**
+     * Determine if the underlying Redis client is in pipeline/multi mode.
+     */
+    protected function isQueueingMode(): bool
+    {
+        return $this->connection instanceof Redis && $this->connection->getMode() !== Redis::ATOMIC;
     }
 
     /**
