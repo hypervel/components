@@ -381,21 +381,31 @@ class RedisConnection extends BaseConnection
     public function __call($name, $arguments)
     {
         try {
-            if (in_array($name, ['subscribe', 'psubscribe'], true)) {
-                return $this->callSubscribe($name, $arguments);
-            }
-
-            if ($this->shouldTransform && ! $this->isQueueingMode()) {
-                $method = 'call' . ucfirst($name);
-                if (method_exists($this, $method)) {
-                    return $this->{$method}(...$arguments);
-                }
-            }
-
-            return $this->connection->{$name}(...$arguments);
+            return $this->executeCommand($name, $arguments);
         } catch (RedisException $exception) {
             return $this->retry($name, $arguments, $exception);
         }
+    }
+
+    /**
+     * Execute a Redis command, applying transforms when enabled.
+     *
+     * @param array<int, mixed> $arguments
+     */
+    private function executeCommand(string $name, array $arguments): mixed
+    {
+        if (in_array($name, ['subscribe', 'psubscribe'], true)) {
+            return $this->callSubscribe($name, $arguments);
+        }
+
+        if ($this->shouldTransform && ! $this->isQueueingMode()) {
+            $method = 'call' . ucfirst($name);
+            if (method_exists($this, $method)) {
+                return $this->{$method}(...$arguments);
+            }
+        }
+
+        return $this->connection->{$name}(...$arguments);
     }
 
     /**
@@ -545,24 +555,22 @@ class RedisConnection extends BaseConnection
     }
 
     /**
-     * Retry redis command on failure.
+     * Retry a redis command after reconnecting.
      *
      * @param array<int, mixed> $arguments
-     * @param mixed $name
      */
-    protected function retry($name, $arguments, RedisException $exception): mixed
+    protected function retry(string $name, array $arguments, RedisException $exception): mixed
     {
         $this->log('Redis::__call failed, because ' . $exception->getMessage());
 
         try {
             $this->reconnect();
-            $result = $this->connection->{$name}(...$arguments);
+
+            return $this->executeCommand($name, $arguments);
         } catch (Throwable $exception) {
             $this->lastUseTime = 0.0;
             throw $exception;
         }
-
-        return $result;
     }
 
     /**
@@ -806,13 +814,18 @@ class RedisConnection extends BaseConnection
     }
 
     /**
-     * Removes and returns a random element from the set value at key.
+     * Removes and returns random elements from the set value at key.
      *
-     * @return false|mixed
+     * When called without count, returns a single element (string|false).
+     * When called with count, returns an array of elements.
      */
-    protected function callSpop(string $key, ?int $count = 1): mixed
+    protected function callSpop(string $key, ?int $count = null): mixed
     {
-        return $this->connection->sPop($key, $count);
+        if ($count !== null) {
+            return $this->connection->sPop($key, $count);
+        }
+
+        return $this->connection->sPop($key);
     }
 
     /**
@@ -1096,7 +1109,7 @@ class RedisConnection extends BaseConnection
 
         return [
             $channels,
-            $callback = fn ($redis, $pattern, $channel, $message) => $callback($message, $channel),
+            fn ($redis, $pattern, $channel, $message) => $callback($message, $channel),
         ];
     }
 

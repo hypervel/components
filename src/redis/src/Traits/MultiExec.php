@@ -11,8 +11,6 @@ use RedisCluster;
 
 /**
  * Coroutine multi-exec trait.
- *
- * @see Hypervel\Redis\Traits\MultiExec
  */
 trait MultiExec
 {

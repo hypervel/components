@@ -10,7 +10,7 @@ use Mockery as m;
 use Psr\Container\ContainerInterface;
 use Redis;
 use RedisCluster;
-use Throwable;
+use RedisException;
 
 class RedisConnectionStub extends RedisConnection
 {
@@ -85,7 +85,7 @@ class RedisConnectionStub extends RedisConnection
         return $this->config;
     }
 
-    protected function retry($name, $arguments, Throwable $exception): mixed
+    protected function retry(string $name, array $arguments, RedisException $exception): mixed
     {
         throw $exception;
     }

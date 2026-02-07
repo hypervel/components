@@ -1198,6 +1198,139 @@ class RedisConnectionTest extends TestCase
         $this->assertEquals('ok', $result);
     }
 
+    public function testRetryAppliesGetTransform(): void
+    {
+        $pool = $this->getMockedPool();
+        $redis = m::mock(Redis::class);
+
+        // First get() throws RedisException, triggering retry
+        $redis->shouldReceive('getMode')->andReturn(Redis::ATOMIC);
+        $redis->shouldReceive('get')
+            ->once()
+            ->with('missing')
+            ->andThrow(new RedisException('connection lost'));
+
+        // After reconnect, get() returns false (key not found)
+        $redis->shouldReceive('get')
+            ->once()
+            ->with('missing')
+            ->andReturn(false);
+
+        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends RedisConnection {
+            public function __construct(
+                ContainerInterface $container,
+                PoolInterface $pool,
+                array $config,
+                private Redis $fakeRedis
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return $this->fakeRedis;
+            }
+        };
+
+        $connection->shouldTransform(true);
+
+        // With transform enabled, retry should return null (not false)
+        $result = $connection->__call('get', ['missing']);
+
+        $this->assertNull($result);
+    }
+
+    public function testRetryAppliesSetnxTransform(): void
+    {
+        $pool = $this->getMockedPool();
+        $redis = m::mock(Redis::class);
+
+        $redis->shouldReceive('getMode')->andReturn(Redis::ATOMIC);
+
+        // First setNx() throws RedisException, triggering retry
+        $redis->shouldReceive('setNx')
+            ->once()
+            ->with('key', 'value')
+            ->andThrow(new RedisException('connection lost'));
+
+        // After reconnect, setNx() returns true (phpredis bool)
+        // Transform should cast to int (1)
+        $redis->shouldReceive('setNx')
+            ->once()
+            ->with('key', 'value')
+            ->andReturn(true);
+
+        $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends RedisConnection {
+            public function __construct(
+                ContainerInterface $container,
+                PoolInterface $pool,
+                array $config,
+                private Redis $fakeRedis
+            ) {
+                parent::__construct($container, $pool, $config);
+            }
+
+            protected function createRedis(array $config): Redis
+            {
+                return $this->fakeRedis;
+            }
+        };
+
+        $connection->shouldTransform(true);
+
+        // Laravel setnx returns int (1), not bool (true)
+        $result = $connection->__call('setnx', ['key', 'value']);
+
+        $this->assertSame(1, $result);
+    }
+
+    public function testSpopWithoutCountReturnsSingleElement(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        // Without count, phpredis sPop returns a single string
+        $connection->getConnection()
+            ->shouldReceive('sPop')
+            ->once()
+            ->with('myset')
+            ->andReturn('member1');
+
+        $result = $connection->__call('spop', ['myset']);
+
+        $this->assertSame('member1', $result);
+    }
+
+    public function testSpopWithCountReturnsArray(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        // With count, phpredis sPop returns an array
+        $connection->getConnection()
+            ->shouldReceive('sPop')
+            ->once()
+            ->with('myset', 3)
+            ->andReturn(['member1', 'member2', 'member3']);
+
+        $result = $connection->__call('spop', ['myset', 3]);
+
+        $this->assertSame(['member1', 'member2', 'member3'], $result);
+    }
+
+    public function testSpopWithoutCountReturnsFalseForEmptySet(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+
+        $connection->getConnection()
+            ->shouldReceive('sPop')
+            ->once()
+            ->with('emptyset')
+            ->andReturn(false);
+
+        $result = $connection->__call('spop', ['emptyset']);
+
+        $this->assertFalse($result);
+    }
+
     protected function mockRedisConnection(?ContainerInterface $container = null, ?PoolInterface $pool = null, array $options = [], bool $transform = false): RedisConnection
     {
         $connection = new RedisConnectionStub(
