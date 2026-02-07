@@ -1077,6 +1077,17 @@ class RedisConnection extends BaseConnection
         return $this->connection->rawCommand(...$parameters);
     }
 
+    /**
+     * Execute a subscribe or psubscribe command.
+     *
+     * WARNING: phpredis subscribe/psubscribe blocks the calling coroutine for
+     * the lifetime of the subscription. This holds a connection pool slot until
+     * the subscription ends. Always run in a dedicated coroutine and be mindful
+     * of pool size when using multiple subscribers.
+     *
+     * @TODO Explore non-blocking alternatives such as Swoole\Coroutine\Redis
+     *       or a channel-based subscriber that doesn't hold a pool connection.
+     */
     protected function callSubscribe(string $name, array $arguments): mixed
     {
         $timeout = $this->connection->getOption(Redis::OPT_READ_TIMEOUT);
@@ -1095,6 +1106,13 @@ class RedisConnection extends BaseConnection
         }
     }
 
+    /**
+     * Build the arguments for a subscribe or psubscribe call.
+     *
+     * Wraps the user callback to reorder phpredis's callback arguments
+     * from ($redis, $channel, $message) to Laravel's ($message, $channel).
+     * For psubscribe, phpredis sends ($redis, $pattern, $channel, $message).
+     */
     protected function getSubscribeArguments(string $name, array $arguments): array
     {
         $channels = Arr::wrap($arguments[0]);

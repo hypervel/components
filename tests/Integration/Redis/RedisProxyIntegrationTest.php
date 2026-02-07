@@ -192,6 +192,55 @@ class RedisProxyIntegrationTest extends TestCase
         $this->assertSame(0, $cursor);
     }
 
+    public function testSscanReturnsCursorAndMembersTuple(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $expected = ['member:1', 'member:2', 'member:3', 'member:4'];
+        foreach ($expected as $member) {
+            $redis->sAdd('scanset', $member);
+        }
+
+        $cursor = null;
+        $collected = [];
+        while (($chunk = $redis->sscan('scanset', $cursor, 'member:*', 2)) !== false) {
+            [$cursor, $members] = $chunk;
+            $collected = array_merge($collected, $members);
+        }
+
+        $collected = array_values(array_unique($collected));
+        sort($collected);
+
+        $this->assertSame($expected, $collected);
+        $this->assertSame(0, $cursor);
+    }
+
+    public function testZscanReturnsCursorAndScoreMapTuple(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $members = ['zmem:1' => 1.0, 'zmem:2' => 2.0, 'zmem:3' => 3.0, 'zmem:4' => 4.0];
+        foreach ($members as $member => $score) {
+            $redis->zadd('scanzset', $score, $member);
+        }
+
+        $cursor = null;
+        $collected = [];
+        while (($chunk = $redis->zscan('scanzset', $cursor, 'zmem:*', 2)) !== false) {
+            [$cursor, $map] = $chunk;
+            foreach ($map as $member => $score) {
+                $collected[$member] = $score;
+            }
+        }
+
+        ksort($collected);
+
+        $this->assertSame($members, $collected);
+        $this->assertSame(0, $cursor);
+    }
+
     public function testRedisPipelineConcurrentExecs(): void
     {
         $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
@@ -281,6 +330,41 @@ class RedisProxyIntegrationTest extends TestCase
         // The pre-callback set() is queued on the open pipeline connection, so callback exec includes 5 queued results.
         $this->assertCount(5, $callbackResults);
         $this->assertSame($id, $redis->get('concurrent_pipeline_test_callback_and_select_value'));
+    }
+
+    public function testSelectIsolationAcrossCoroutines(): void
+    {
+        $redis = Redis::connection($this->createRedisConnectionWithPrefix(''));
+        $redis->flushdb();
+
+        $uniqueKey = 'select_isolation_' . uniqid();
+
+        $channelA = new Channel(1);
+        $channelB = new Channel(1);
+
+        // Coroutine A: select db 1, set a key
+        go(static function () use ($redis, $uniqueKey, $channelA) {
+            $redis->select(1);
+            $redis->set($uniqueKey, 'from_db1');
+            $channelA->push($redis->get($uniqueKey));
+        });
+
+        // Coroutine B: stays on default db 0, should NOT see the key
+        go(static function () use ($redis, $uniqueKey, $channelB) {
+            // Small delay to let coroutine A execute first
+            usleep(5_000);
+            $channelB->push($redis->get($uniqueKey));
+        });
+
+        // Coroutine A should see its key on db 1
+        $this->assertSame('from_db1', $channelA->pop());
+
+        // Coroutine B should NOT see the key (it's on db 0)
+        $this->assertNull($channelB->pop());
+
+        // Clean up db 1
+        $redis->select(1);
+        $redis->del($uniqueKey);
     }
 
     public function testPipelineCallbackRunsCommands(): void
