@@ -148,6 +148,36 @@ class RedisConnectionTest extends TestCase
         $this->assertSame($redis, $result);
     }
 
+    public function testPipelineModeBypassesTransformedSet(): void
+    {
+        $connection = $this->mockRedisConnection(transform: true);
+        $redis = m::mock(Redis::class);
+
+        $redis->shouldReceive('getMode')->once()->andReturn(Redis::PIPELINE);
+        $redis->shouldReceive('set')->once()->with('key', 'value', 600)->andReturnSelf();
+
+        $connection->setActiveConnection($redis);
+
+        $result = $connection->__call('set', ['key', 'value', 600]);
+
+        $this->assertSame($redis, $result);
+    }
+
+    public function testTransformDisabledSetUsesNativeSignatureWithoutInspectingMode(): void
+    {
+        $connection = $this->mockRedisConnection(transform: false);
+        $redis = m::mock(Redis::class);
+
+        $redis->shouldReceive('getMode')->never();
+        $redis->shouldReceive('set')->once()->with('key', 'value', 600)->andReturn(true);
+
+        $connection->setActiveConnection($redis);
+
+        $result = $connection->__call('set', ['key', 'value', 600]);
+
+        $this->assertTrue($result);
+    }
+
     public function testTypeErrorsAreNotRetried(): void
     {
         $connection = $this->mockRedisConnection(transform: true);
