@@ -246,7 +246,6 @@
         "filp/whoops": "^2.15",
         "friendsofphp/php-cs-fixer": "^3.57.2",
         "hyperf/devtool": "~3.1.0",
-        "hypervel/redis": "~0.3.0",
         "hyperf/testing": "~3.1.0",
         "hyperf/view-engine": "~3.1.0",
         "hypervel/facade-documenter": "dev-main",
