@@ -25,13 +25,16 @@ class RedisPool extends Pool
         protected string $name
     ) {
         $configService = $container->get(ConfigInterface::class);
-        $key = sprintf('redis.%s', $this->name);
+        $key = sprintf('database.redis.%s', $this->name);
 
         if (! $configService->has($key)) {
             throw new InvalidArgumentException(sprintf('config[%s] is not exist!', $key));
         }
 
         $this->config = $configService->get($key);
+        $sharedOptions = $configService->get('database.redis.options');
+        $connectionOptions = Arr::get($this->config, 'options', []);
+        $this->config['options'] = array_replace($sharedOptions, $connectionOptions);
         $poolOptions = Arr::get($this->config, 'pool', []);
 
         $this->frequency = new Frequency($this);
