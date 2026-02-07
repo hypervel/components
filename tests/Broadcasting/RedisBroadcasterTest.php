@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Broadcasting;
 
 use Hyperf\HttpServer\Request;
-use Hyperf\Redis\RedisFactory;
+use Hypervel\Redis\RedisFactory;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Broadcasting\Broadcasters\RedisBroadcaster;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;

@@ -6,9 +6,9 @@ namespace Hypervel\Tests\Cache;
 
 use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Redis\Pool\PoolFactory;
-use Hyperf\Redis\Pool\RedisPool;
-use Hyperf\Redis\RedisFactory;
+use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\RedisPool;
+use Hypervel\Redis\RedisFactory;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\NullStore;
 use Hypervel\Cache\Redis\TagMode;

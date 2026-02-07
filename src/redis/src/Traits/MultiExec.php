@@ -12,7 +12,7 @@ use RedisCluster;
 /**
  * Coroutine multi-exec trait.
  *
- * @see Hyperf\Redis\Traits\MultiExec
+ * @see Hypervel\Redis\Traits\MultiExec
  */
 trait MultiExec
 {
