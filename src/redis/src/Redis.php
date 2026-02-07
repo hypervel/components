@@ -62,8 +62,8 @@ class Redis
                 // Connection is already in context, don't release
             } elseif ($exception === null && $this->shouldUseSameConnection($name)) {
                 // On success with same-connection command: store in context for reuse
-                if ($name === 'select' && $db = $arguments[0]) {
-                    $connection->setDatabase((int) $db);
+                if ($name === 'select' && array_key_exists(0, $arguments)) {
+                    $connection->setDatabase((int) $arguments[0]);
                 }
                 Context::set($this->getContextKey(), $connection);
                 defer(function () {

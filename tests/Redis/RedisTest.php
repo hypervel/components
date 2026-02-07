@@ -118,6 +118,21 @@ class RedisTest extends TestCase
         $this->assertTrue(Context::has('redis.connection.default'));
     }
 
+    public function testConnectionIsStoredInContextForSelectZeroDatabase(): void
+    {
+        $connection = $this->mockConnection();
+        $connection->shouldReceive('select')->once()->with(0)->andReturn(true);
+        $connection->shouldReceive('setDatabase')->once()->with(0);
+        $connection->shouldReceive('release')->once();
+
+        $redis = $this->createRedis($connection);
+
+        $result = $redis->select(0);
+
+        $this->assertTrue($result);
+        $this->assertTrue(Context::has('redis.connection.default'));
+    }
+
     public function testSelectPinnedConnectionDoesNotLeakAcrossCoroutines(): void
     {
         $setConnection = $this->mockConnection();
