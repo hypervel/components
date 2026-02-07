@@ -29,9 +29,6 @@ class CommandInvoker
         $this->loop();
     }
 
-    /**
-     * @param null|int|string|array<mixed> $command
-     */
     public function invoke(null|int|string|array $command, int $number): array
     {
         try {
