@@ -202,6 +202,14 @@ class Worker
             );
 
             if (! is_null($status)) {
+                if ($status === static::EXIT_MEMORY_LIMIT) {
+                    // Memory-exit should be graceful: finish already-dispatched job coroutines
+                    // before stopping so post-job events (e.g. JobProcessed/JobAttempted) fire.
+                    while (! $concurrent->isEmpty() || $this->hasActiveCoroutines()) {
+                        $this->sleep(0.1);
+                    }
+                }
+
                 return $this->stop($status, $options);
             }
         }
