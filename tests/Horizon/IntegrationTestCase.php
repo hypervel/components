@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Horizon;
 
 use Closure;
 use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Redis\Pool\PoolFactory;
-use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Horizon\Contracts\JobRepository;
 use Hypervel\Horizon\Contracts\TagRepository;
@@ -176,7 +176,7 @@ abstract class IntegrationTestCase extends TestCase
     /**
      * Get the service providers for the package.
      */
-    protected function getPackageProviders(Application $app): array
+    protected function getPackageProviders(ApplicationContract $app): array
     {
         return ['Hypervel\Horizon\HorizonServiceProvider'];
     }
@@ -184,7 +184,7 @@ abstract class IntegrationTestCase extends TestCase
     /**
      * Configure the environment.
      */
-    protected function getEnvironmentSetUp(Application $app): void
+    protected function getEnvironmentSetUp(ApplicationContract $app): void
     {
         $app['config']->set('queue.default', 'redis');
     }
