@@ -17,6 +17,8 @@ class CommandBuilder
 {
     /**
      * Build a RESP (Redis Serialization Protocol) command string.
+     *
+     * @param null|int|string|array<mixed> $args
      */
     public static function build(mixed $args): string
     {
