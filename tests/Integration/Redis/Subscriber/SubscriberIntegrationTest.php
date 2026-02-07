@@ -12,6 +12,7 @@ use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Redis\Subscriber\Subscriber;
 use Hypervel\Testbench\TestCase;
+use Redis;
 
 use function Hypervel\Coroutine\go;
 
@@ -248,7 +249,7 @@ class SubscriberIntegrationTest extends TestCase
      */
     private function publishViaRawClient(string $channel, string $message): void
     {
-        $client = new \Redis();
+        $client = new Redis();
         $client->connect(
             env('REDIS_HOST', '127.0.0.1'),
             (int) env('REDIS_PORT', 6379)

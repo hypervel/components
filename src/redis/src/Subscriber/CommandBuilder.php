@@ -16,7 +16,7 @@ class CommandBuilder
     /**
      * Build a RESP (Redis Serialization Protocol) command string.
      */
-    public static function build(null|int|string|array $args): string
+    public static function build(int|string|array|null $args): string
     {
         if ($args === 'ping') {
             return 'PING' . Constants::CRLF;

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Redis\Subscriber;
 
 use Hypervel\Redis\Subscriber\Message;
 use Hypervel\Tests\TestCase;
+use ReflectionClass;
 
 /**
  * @internal
@@ -35,7 +36,7 @@ class MessageTest extends TestCase
     {
         $message = new Message(channel: 'ch', payload: 'msg');
 
-        $reflection = new \ReflectionClass($message);
+        $reflection = new ReflectionClass($message);
 
         $this->assertTrue($reflection->getProperty('channel')->isReadOnly());
         $this->assertTrue($reflection->getProperty('payload')->isReadOnly());

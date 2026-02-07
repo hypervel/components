@@ -28,9 +28,10 @@ class CommandInvoker
         $this->messageChannel = new Channel(100);
         $this->timer = new Timer();
         $this->loop();
+        $this->watchForShutdown();
     }
 
-    public function invoke(null|int|string|array $command, int $number): array
+    public function invoke(int|string|array|null $command, int $number): array
     {
         try {
             $this->connection->send(CommandBuilder::build($command));
@@ -157,6 +158,21 @@ class CommandInvoker
                 continue;
             }
         }
+    }
+
+    /**
+     * Watch for worker shutdown and interrupt the connection.
+     *
+     * Without this, the receive loop's socket recv blocks indefinitely
+     * and Swoole's coroutine scheduler cannot detect the deadlock (active
+     * I/O keeps the event loop alive). This provides a deterministic
+     * shutdown path that doesn't depend on coroutine scheduling order.
+     */
+    protected function watchForShutdown(): void
+    {
+        $this->timer->until(function () {
+            $this->interrupt();
+        });
     }
 
     protected function loop(): void
