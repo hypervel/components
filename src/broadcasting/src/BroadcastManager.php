@@ -10,7 +10,7 @@ use GuzzleHttp\Client as GuzzleClient;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Router\DispatcherFactory as RouterDispatcherFactory;
-use Hyperf\Redis\RedisFactory;
+use Hypervel\Redis\RedisFactory;
 use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\LogBroadcaster;
 use Hypervel\Broadcasting\Broadcasters\NullBroadcaster;
