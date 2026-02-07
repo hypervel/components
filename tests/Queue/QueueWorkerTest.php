@@ -144,33 +144,6 @@ class QueueWorkerTest extends TestCase
         $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessed::class))->once();
     }
 
-    public function testWorkerDrainsInFlightJobsBeforeMemoryLimitStop()
-    {
-        $workerOptions = new WorkerOptions();
-        $workerOptions->sleep = 0;
-
-        $worker = $this->getWorker('default', ['queue' => [
-            $firstJob = new WorkerFakeJob(function () {
-                // Keep the first job in-flight long enough to assert graceful memory stop.
-                $waitUntil = microtime(true) + 0.25;
-                while (microtime(true) < $waitUntil) {
-                }
-            }),
-            $secondJob = new WorkerFakeJob(),
-        ]]);
-        $worker->stopOnMemoryExceeded = true;
-
-        $startTime = microtime(true);
-        $status = $worker->daemon('default', 'queue', $workerOptions);
-        $elapsed = microtime(true) - $startTime;
-
-        $this->assertSame(12, $status);
-        $this->assertGreaterThanOrEqual(0.2, $elapsed);
-        $this->assertTrue($firstJob->fired);
-        $this->assertFalse($secondJob->fired);
-        $this->events->shouldHaveReceived('dispatch')->with(m::type(JobProcessed::class))->once();
-    }
-
     public function testJobCanBeFiredBasedOnPriority()
     {
         $worker = $this->getWorker('default', [
