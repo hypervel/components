@@ -41,10 +41,10 @@ class RedisConnectionStub extends RedisConnection
         return true;
     }
 
-    public function getActiveConnection(): Redis|RedisCluster
+    public function getActiveConnection(): static
     {
         if ($this->connection !== null) {
-            return $this->connection;
+            return $this;
         }
 
         // Use shouldIgnoreMissing() to prevent falling through to real Redis
@@ -52,7 +52,9 @@ class RedisConnectionStub extends RedisConnection
         $connection = $this->redisConnection
             ?? m::mock(Redis::class)->shouldIgnoreMissing();
 
-        return $this->connection = $connection;
+        $this->connection = $connection;
+
+        return $this;
     }
 
     public function setActiveConnection(Redis|RedisCluster $connection): static
@@ -68,7 +70,9 @@ class RedisConnectionStub extends RedisConnection
      */
     public function getConnection(): Redis|RedisCluster
     {
-        return $this->getActiveConnection();
+        $this->getActiveConnection();
+
+        return $this->connection;
     }
 
     protected function retry($name, $arguments, Throwable $exception)
