@@ -17,6 +17,9 @@ use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Redis as PhpRedis;
+use RedisCluster;
+use RedisSentinel;
+use ReflectionClass;
 use RuntimeException;
 use Throwable;
 
@@ -32,6 +35,15 @@ use Throwable;
 class RedisTest extends TestCase
 {
     use RunTestsInCoroutine;
+
+    protected bool $isOlderThan6 = false;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->isOlderThan6 = version_compare((string) phpversion('redis'), '6.0.0', '<');
+    }
 
     protected function tearDown(): void
     {
@@ -399,6 +411,76 @@ class RedisTest extends TestCase
         });
 
         $this->assertSame('NOSCRIPT No matching script', $result);
+    }
+
+    public function testRedisClusterConstructorSignature(): void
+    {
+        $reflection = new ReflectionClass(RedisCluster::class);
+        $method = $reflection->getMethod('__construct');
+        $names = [
+            ['name', 'string'],
+            ['seeds', 'array'],
+            ['timeout', ['int', 'float']],
+            ['read_timeout', ['int', 'float']],
+            ['persistent', 'bool'],
+            ['auth', 'mixed'],
+            ['context', 'array'],
+        ];
+
+        foreach ($method->getParameters() as $parameter) {
+            [$name, $type] = array_shift($names);
+            $this->assertSame($name, $parameter->getName());
+
+            if ($parameter->getName() === 'seeds') {
+                $this->assertSame('array', $parameter->getType()?->getName());
+                continue;
+            }
+
+            if ($this->isOlderThan6) {
+                $this->assertNull($parameter->getType());
+                continue;
+            }
+
+            if (is_array($type)) {
+                foreach ($parameter->getType()?->getTypes() ?? [] as $namedType) {
+                    $this->assertTrue(in_array($namedType->getName(), $type, true));
+                }
+
+                continue;
+            }
+
+            $this->assertSame($type, $parameter->getType()?->getName());
+        }
+    }
+
+    public function testRedisSentinelConstructorSignature(): void
+    {
+        $reflection = new ReflectionClass(RedisSentinel::class);
+        $method = $reflection->getMethod('__construct');
+        $count = count($method->getParameters());
+
+        if (! $this->isOlderThan6) {
+            $this->assertSame(1, $count);
+            $this->assertSame('options', $method->getParameters()[0]->getName());
+
+            return;
+        }
+
+        if ($count === 6) {
+            $this->markTestIncomplete('RedisSentinel does not support auth in this extension variant.');
+        }
+
+        $this->assertSame(7, $count);
+    }
+
+    public function testShuffleNodesMaintainsNodeCount(): void
+    {
+        $nodes = ['127.0.0.1:6379', '127.0.0.1:6378', '127.0.0.1:6377'];
+
+        shuffle($nodes);
+
+        $this->assertIsArray($nodes);
+        $this->assertSame(3, count($nodes));
     }
 
     /**
