@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis\Limiters;
 
-use Hyperf\Redis\RedisFactory;
-use Hyperf\Redis\RedisProxy;
+use Hypervel\Redis\RedisFactory;
+use Hypervel\Redis\RedisProxy;
 
 class DurationLimiter
 {
