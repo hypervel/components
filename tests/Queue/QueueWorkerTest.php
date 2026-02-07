@@ -153,8 +153,7 @@ class QueueWorkerTest extends TestCase
             $firstJob = new WorkerFakeJob(function () {
                 // Keep the first job in-flight long enough to assert graceful memory stop.
                 $waitUntil = microtime(true) + 0.25;
-                while (microtime(true) < $waitUntil) {
-                }
+                while (microtime(true) < $waitUntil);
             }),
             $secondJob = new WorkerFakeJob(),
         ]]);
