@@ -28,7 +28,11 @@ class RedisWatcherTest extends FeatureTestCase
                 RedisWatcher::class => true,
             ]);
         $this->app->get(ConfigInterface::class)
-            ->set('redis.foo', []);
+            ->set('database.redis.foo', [
+                'host' => '127.0.0.1',
+                'port' => 6379,
+                'db' => 0,
+            ]);
 
         RedisWatcher::enableRedisEvents($this->app);
 
@@ -39,7 +43,7 @@ class RedisWatcherTest extends FeatureTestCase
     {
         $this->assertTrue(
             $this->app->get(ConfigInterface::class)
-                ->get('redis.foo.event.enable', false)
+                ->get('database.redis.foo.event.enable', false)
         );
     }
 

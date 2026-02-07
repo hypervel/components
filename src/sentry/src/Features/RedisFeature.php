@@ -8,6 +8,7 @@ use Exception;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\RedisConfig;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Coroutine\Coroutine;
@@ -28,9 +29,12 @@ class RedisFeature extends Feature
     public function onBoot(): void
     {
         $config = $this->container->get(ConfigInterface::class);
-        if ($config->has('database.connections.redis.event')) {
-            $config->set('database.connections.redis.event', true);
+        $redisConfig = $config->get('database.redis');
+
+        foreach (RedisConfig::connectionNames($redisConfig) as $connection) {
+            $config->set("database.redis.{$connection}.event.enable", true);
         }
+
         $dispatcher = $this->container->get(Dispatcher::class);
         $dispatcher->listen(CommandExecuted::class, [$this, 'handleRedisCommands']);
     }
@@ -45,7 +49,8 @@ class RedisFeature extends Feature
         }
 
         $pool = $this->container->get(PoolFactory::class)->getPool($event->connectionName);
-        $config = $this->container->get(ConfigInterface::class)->get('redis.' . $event->connectionName, []);
+        $redisConfig = $this->container->get(ConfigInterface::class)->get('database.redis');
+        $config = RedisConfig::connectionConfig($redisConfig, $event->connectionName);
 
         $keyForDescription = '';
 

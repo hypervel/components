@@ -229,7 +229,11 @@ class RedisFeatureTest extends SentryTestCase
 
         // Mock Redis config
         $config = $this->app->get(ConfigInterface::class);
-        $config->set("redis.{$connectionName}", ['db' => $database]);
+        $config->set("database.redis.{$connectionName}", [
+            'host' => '127.0.0.1',
+            'port' => 6379,
+            'db' => $database,
+        ]);
     }
 
     private function createRedisConnection(string $name): RedisConnection

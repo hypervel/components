@@ -6,6 +6,7 @@ namespace Hypervel\Telescope\Watchers;
 
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Redis\Events\CommandExecuted;
+use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\Redis;
 use Hypervel\Support\Collection;
 use Hypervel\Telescope\IncomingEntry;
@@ -40,8 +41,8 @@ class RedisWatcher extends Watcher
     public static function enableRedisEvents(ContainerInterface $app): void
     {
         $config = $app->get(ConfigInterface::class);
-        foreach (array_keys($config->get('redis', [])) as $connection) {
-            $config->set("redis.{$connection}.event.enable", true);
+        foreach (RedisConfig::connectionNames($config->get('database.redis')) as $connection) {
+            $config->set("database.redis.{$connection}.event.enable", true);
         }
 
         static::$eventsEnabled = true;
