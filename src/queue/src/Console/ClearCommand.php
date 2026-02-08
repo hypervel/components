@@ -6,7 +6,6 @@ namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
 use Hypervel\Console\ConfirmableTrait;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Support\Str;
@@ -40,7 +39,7 @@ class ClearCommand extends Command
         }
 
         $connection = $this->argument('connection')
-            ?: $this->app->get(Repository::class)->get('queue.default');
+            ?: $this->app->get('config')->get('queue.default');
 
         // We need to get the right queue for the connection which is set in the queue
         // configuration file for the application. We will pull it based on the set
@@ -67,7 +66,7 @@ class ClearCommand extends Command
      */
     protected function getQueue(string $connection): string
     {
-        return $this->option('queue') ?: $this->app->get(Repository::class)->get(
+        return $this->option('queue') ?: $this->app->get('config')->get(
             "queue.connections.{$connection}.queue",
             'default'
         );

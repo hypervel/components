@@ -6,7 +6,7 @@ namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Failed;
 
 use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Database\ConnectionResolverInterface;
 use Psr\Container\ContainerInterface;
 
@@ -13,7 +12,7 @@ class FailedJobProviderFactory
 {
     public function __invoke(ContainerInterface $container)
     {
-        $config = $container->get(Repository::class)
+        $config = $container->get('config')
             ->get('queue.failed', []);
 
         if (array_key_exists('driver', $config)

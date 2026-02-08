@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Hypervel\Queue\Listener;
 use Hypervel\Queue\ListenerOptions;
 use Hypervel\Support\Str;
