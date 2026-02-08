@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use FastRoute\Dispatcher;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\HttpMessage\Server\ResponsePlusProxy;
 use Hyperf\HttpMessage\Stream\SwooleStream;
 use Hyperf\HttpServer\Contract\CoreMiddlewareInterface;
@@ -54,7 +54,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
     {
         if ($response instanceof Renderable) {
             if ($response instanceof ViewInterface) {
-                if ($this->container->get(ConfigInterface::class)->get('view.event.enable', false)) {
+                if ($this->container->get(Repository::class)->get('view.event.enable', false)) {
                     $this->container->get(EventDispatcherInterface::class)
                         ->dispatch(new ViewRendered($response));
                 }

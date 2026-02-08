@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Http\Middleware;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Http\Cors;
@@ -26,7 +26,7 @@ class HandleCors implements MiddlewareInterface
         protected RequestContract $request,
         protected Cors $cors,
     ) {
-        $this->config = $container->get(ConfigInterface::class)->get('cors', []);
+        $this->config = $container->get(Repository::class)->get('cors', []);
     }
 
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
