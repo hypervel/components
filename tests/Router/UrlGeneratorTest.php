@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Router;
 
-use Hyperf\Config\Config;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\Contract\ContainerInterface;
 use Hyperf\Contract\SessionInterface;
 use Hyperf\HttpMessage\Server\Request as ServerRequest;
@@ -62,12 +62,12 @@ class UrlGeneratorTest extends TestCase
 
         $this->mockRouter();
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')
             ->with('app.url')
             ->andReturn('http://example.com');
         $this->container->shouldReceive('get')
-            ->with(ConfigInterface::class)
+            ->with(Repository::class)
             ->andReturn($config);
 
         $this->router
@@ -252,7 +252,7 @@ class UrlGeneratorTest extends TestCase
     {
         $urlGenerator = new UrlGenerator($this->container);
 
-        $this->container->shouldReceive('get')->with(ConfigInterface::class)->andReturn(new Config([
+        $this->container->shouldReceive('get')->with(Repository::class)->andReturn(new ConfigRepository([
             'app' => [
                 'url' => 'http://localhost',
             ],
@@ -324,13 +324,13 @@ class UrlGeneratorTest extends TestCase
             )
         );
 
-        // Mock ConfigInterface for app.url
-        $mockConfig = m::mock(ConfigInterface::class);
+        // Mock config Repository for app.url
+        $mockConfig = m::mock(Repository::class);
         $mockConfig->shouldReceive('get')
             ->with('app.url')
             ->andReturn('http://example.com');
         $this->container->shouldReceive('get')
-            ->with(ConfigInterface::class)
+            ->with(Repository::class)
             ->andReturn($mockConfig);
 
         // Test with referer header
