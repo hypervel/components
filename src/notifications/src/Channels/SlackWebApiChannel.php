@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Notifications\Channels;
 
 use GuzzleHttp\Client as HttpClient;
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\Slack\SlackMessage;
 use Hypervel\Notifications\Slack\SlackRoute;

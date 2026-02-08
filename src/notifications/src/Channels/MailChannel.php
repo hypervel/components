@@ -6,7 +6,6 @@ namespace Hypervel\Notifications\Channels;
 
 use Closure;
 use Hypervel\Context\ApplicationContext;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Mail\Factory as MailFactory;
 use Hypervel\Contracts\Mail\Mailable;
 use Hypervel\Contracts\Queue\ShouldQueue;
@@ -114,7 +113,7 @@ class MailChannel
     protected function markdownRenderer(MailMessage $message): Markdown
     {
         $config = ApplicationContext::getContainer()
-            ->get(Repository::class);
+            ->get('config');
 
         $theme = $message->theme ?? $config->get('mail.markdown.theme', 'default');
 
