@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Scout\Meilisearch;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Tests\Scout\Models\SoftDeleteSearchableModel;
 
@@ -21,7 +20,7 @@ class MeilisearchSoftDeleteIntegrationTest extends MeilisearchScoutIntegrationTe
         parent::setUp();
 
         // Enable soft delete support in Scout
-        $this->app->get(Repository::class)->set('scout.soft_delete', true);
+        $this->app->get('config')->set('scout.soft_delete', true);
     }
 
     protected function setUpInCoroutine(): void
