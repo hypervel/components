@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Throwable;
 use Typesense\Client as TypesenseClient;
 
@@ -104,7 +104,7 @@ trait InteractsWithTypesense
      *
      * Call from defineEnvironment() to set up Scout config.
      */
-    protected function configureTypesenseForTesting(ConfigInterface $config): void
+    protected function configureTypesenseForTesting(Repository $config): void
     {
         $this->computeTypesenseTestPrefix();
 

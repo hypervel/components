@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Console\Commands;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Console\Command;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Composer;
@@ -20,7 +20,7 @@ class AboutCommand extends Command
     protected string $description = 'Display basic information about your application';
 
     public function __construct(
-        protected ConfigInterface $config,
+        protected Repository $config,
         protected Composer $composer,
     ) {
         parent::__construct();

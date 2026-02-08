@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Auth\Authenticatable as UserContract;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
@@ -37,7 +37,7 @@ class InteractsWithAuthenticationTest extends TestCase
 
         $this->app->get(AuthFactoryContract::class)
             ->extend('foo', fn () => $guard);
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('auth.guards.foo', [
                 'driver' => 'foo',
                 'provider' => 'users',
@@ -67,7 +67,7 @@ class InteractsWithAuthenticationTest extends TestCase
 
         $this->app->get(AuthFactoryContract::class)
             ->extend('foo', fn () => $guard);
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('auth.guards.foo', [
                 'driver' => 'foo',
                 'provider' => 'users',

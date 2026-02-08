@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Support\Collection;
 use Hypervel\Testbench\TestCase;
@@ -78,7 +78,7 @@ class InteractsWithDatabaseTest extends TestCase
     public function testFactoryUsesConfiguredFakerLocale()
     {
         $locale = 'fr_FR';
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('app.faker_locale', $locale);
 
         $factory = User::factory();

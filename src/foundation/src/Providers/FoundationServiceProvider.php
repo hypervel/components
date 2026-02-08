@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Providers;
 
 use Hyperf\Command\Event\FailToHandle;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\HttpServer\MiddlewareManager;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
@@ -32,13 +32,13 @@ use Throwable;
 
 class FoundationServiceProvider extends ServiceProvider
 {
-    protected ConfigInterface $config;
+    protected Repository $config;
 
     protected ConsoleOutputInterface $output;
 
     public function __construct(protected ApplicationContract $app)
     {
-        $this->config = $app->get(ConfigInterface::class);
+        $this->config = $app->get(Repository::class);
         $this->output = new ConsoleOutput();
 
         if ($app->hasDebugModeEnabled()) {

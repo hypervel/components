@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation\Testing;
 
 use Hyperf\Config\Config;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\DatabaseManager;
@@ -64,7 +64,7 @@ class RefreshDatabaseTest extends TestCase
             ])->andReturn(0);
 
         $this->app = $this->getApplication([
-            ConfigInterface::class => fn () => $this->getConfig(),
+            Repository::class => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
             DatabaseManager::class => fn () => $this->getMockedDatabase(),
         ]);
@@ -85,7 +85,7 @@ class RefreshDatabaseTest extends TestCase
                 '--seed' => false,
             ])->andReturn(0);
         $this->app = $this->getApplication([
-            ConfigInterface::class => fn () => $this->getConfig(),
+            Repository::class => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
             DatabaseManager::class => fn () => $this->getMockedDatabase(),
         ]);
@@ -106,7 +106,7 @@ class RefreshDatabaseTest extends TestCase
                 '--seed' => true,
             ])->andReturn(0);
         $this->app = $this->getApplication([
-            ConfigInterface::class => fn () => $this->getConfig(),
+            Repository::class => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
             DatabaseManager::class => fn () => $this->getMockedDatabase(),
         ]);
@@ -127,7 +127,7 @@ class RefreshDatabaseTest extends TestCase
                 '--seeder' => 'seeder',
             ])->andReturn(0);
         $this->app = $this->getApplication([
-            ConfigInterface::class => fn () => $this->getConfig(),
+            Repository::class => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
             DatabaseManager::class => fn () => $this->getMockedDatabase(),
         ]);

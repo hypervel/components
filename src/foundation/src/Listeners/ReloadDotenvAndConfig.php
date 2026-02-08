@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Listeners;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Framework\Event\BeforeWorkerStart;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
@@ -20,7 +20,7 @@ class ReloadDotenvAndConfig implements ListenerInterface
     {
         $this->setConfigCallback();
 
-        $container->afterResolving(ConfigInterface::class, function (ConfigInterface $config) {
+        $container->afterResolving(Repository::class, function (Repository $config) {
             if (static::$stopCallback) {
                 return;
             }
@@ -48,7 +48,7 @@ class ReloadDotenvAndConfig implements ListenerInterface
 
     protected function reloadConfig(): void
     {
-        $this->container->unbind(ConfigInterface::class);
+        $this->container->unbind(Repository::class);
     }
 
     protected function reloadDotenv(): void
@@ -63,7 +63,7 @@ class ReloadDotenvAndConfig implements ListenerInterface
 
     protected function setConfigCallback(): void
     {
-        $this->container->get(ConfigInterface::class)
+        $this->container->get(Repository::class)
             ->afterSettingCallback(function (array $values) {
                 static::$modifiedItems = array_replace(
                     static::$modifiedItems,

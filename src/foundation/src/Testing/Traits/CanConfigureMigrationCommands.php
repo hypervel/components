@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Traits;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 
 trait CanConfigureMigrationCommands
 {
@@ -15,7 +15,7 @@ trait CanConfigureMigrationCommands
     {
         $seeder = $this->seeder();
         $connection = $this->app
-            ->get(ConfigInterface::class)
+            ->get(Repository::class)
             ->get('database.default');
 
         return array_merge(

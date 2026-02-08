@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Bootstrap;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
 use Hypervel\Support\Composer;
 use Hypervel\Support\ServiceProvider;
@@ -29,7 +29,7 @@ class RegisterProvidersTest extends TestCase
 
     public function testRegisterProviders()
     {
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')
             ->with('app.providers', [])
             ->once()
@@ -38,7 +38,7 @@ class RegisterProvidersTest extends TestCase
             ]);
 
         $app = $this->getApplication([
-            ConfigInterface::class => fn () => $config,
+            Repository::class => fn () => $config,
         ]);
 
         Composer::setBasePath(dirname(__DIR__) . '/fixtures/hyperf1');

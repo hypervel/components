@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Meilisearch\Client as MeilisearchClient;
 use Throwable;
 
@@ -106,7 +106,7 @@ trait InteractsWithMeilisearch
      *
      * Call from defineEnvironment() to set up Scout config.
      */
-    protected function configureMeilisearchForTesting(ConfigInterface $config): void
+    protected function configureMeilisearchForTesting(Repository $config): void
     {
         $this->computeMeilisearchTestPrefix();
 

@@ -8,7 +8,7 @@ use Closure;
 use Exception;
 use Hyperf\Command\Annotation\Command as AnnotationCommand;
 use Hyperf\Contract\ApplicationInterface;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\Di\Annotation\AnnotationCollector;
 use Hyperf\Di\ReflectionManager;
 use Hyperf\Framework\Event\BootApplication;
@@ -154,7 +154,7 @@ class Kernel implements KernelContract
         // Load commands from Hyperf config for compatibility.
         $configReflections = array_map(function (string $class) {
             return ReflectionManager::reflectClass($class);
-        }, $this->app->get(ConfigInterface::class)->get('commands', []));
+        }, $this->app->get(Repository::class)->get('commands', []));
 
         // Load commands that defined by annotation.
         $annotationReflections = [];

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http\Middleware;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\HttpServer\Request;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Session\Session as SessionContract;
@@ -46,7 +46,7 @@ class VerifyCsrfToken implements MiddlewareInterface
      */
     public function __construct(
         protected ContainerInterface $app,
-        protected ConfigInterface $config,
+        protected Repository $config,
         protected Request $request
     ) {
     }

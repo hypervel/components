@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Support\Facades\Redis;
 use Throwable;
 
@@ -98,7 +98,7 @@ trait InteractsWithRedis
      *
      * Call from defineEnvironment() to set up Redis config.
      */
-    protected function configureRedisForTesting(ConfigInterface $config): void
+    protected function configureRedisForTesting(Repository $config): void
     {
         $this->computeRedisTestPrefix();
 

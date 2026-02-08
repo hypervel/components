@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Concerns;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Testbench\TestCase;
 
@@ -30,7 +30,7 @@ class InteractsWithSessionTest extends TestCase
     {
         // Use cache driver which has strict type hints on sessionId
         // This tests that startSession() properly initializes a session ID
-        $this->app->get(ConfigInterface::class)->set('session.driver', 'redis');
+        $this->app->get(Repository::class)->set('session.driver', 'redis');
 
         $this->withSession(['cache_test' => 'value']);
 

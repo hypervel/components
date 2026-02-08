@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Console\Commands;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
@@ -19,7 +19,7 @@ class ServerReloadCommand extends Command
 
     public function __construct(
         protected ContainerInterface $container,
-        protected ConfigInterface $config,
+        protected Repository $config,
         protected Filesystem $filesystem
     ) {
         parent::__construct();

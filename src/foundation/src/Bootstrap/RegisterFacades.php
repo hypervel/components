@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Bootstrap;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Composer;
@@ -27,7 +27,7 @@ class RegisterFacades
             // do nothing
         }
 
-        $configAliases = $app->get(ConfigInterface::class)
+        $configAliases = $app->get(Repository::class)
             ->get('app.aliases', []);
         $aliases = array_merge($composerAliases, $configAliases);
 

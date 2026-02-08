@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Console\Commands;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Console\Command;
 use Hypervel\Support\Arr;
 
@@ -15,7 +15,7 @@ class ConfigShowCommand extends Command
     protected string $description = 'Display all of the values for a given configuration file or key';
 
     public function __construct(
-        protected ConfigInterface $config
+        protected Repository $config
     ) {
         parent::__construct();
     }

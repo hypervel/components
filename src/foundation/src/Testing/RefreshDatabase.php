@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Database\Connection as DatabaseConnection;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Model;
@@ -73,7 +73,7 @@ trait RefreshDatabase
      */
     protected function usingInMemoryDatabase(): bool
     {
-        $config = $this->app->get(ConfigInterface::class);
+        $config = $this->app->get(Repository::class);
 
         return $config->get("database.connections.{$this->getRefreshConnection()}.database") === ':memory:';
     }
@@ -250,7 +250,7 @@ trait RefreshDatabase
     protected function getRefreshConnection(): string
     {
         return $this->app
-            ->get(ConfigInterface::class)
+            ->get(Repository::class)
             ->get('database.default');
     }
 }

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation;
 
 use Exception;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository as RepositoryContract;
 use Hyperf\Contract\SessionInterface;
 use Hyperf\Di\MethodDefinitionCollector;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
@@ -70,7 +70,7 @@ class FoundationExceptionHandlerTest extends TestCase
         $this->config = $this->getConfig();
         $this->request = m::mock(Request::class);
         $this->container = $this->getApplication([
-            ConfigInterface::class => fn () => $this->config,
+            RepositoryContract::class => fn () => $this->config,
             FactoryInterface::class => fn () => new stdClass(),
             Request::class => fn () => $this->request,
             ServerRequestInterface::class => fn () => m::mock(ServerRequestInterface::class),
