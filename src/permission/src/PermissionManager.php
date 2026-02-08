@@ -6,7 +6,6 @@ namespace Hypervel\Permission;
 
 use Hypervel\Contracts\Cache\Factory as CacheManager;
 use Hypervel\Contracts\Cache\Repository;
-use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Permission\Models\Permission;
 use Hypervel\Permission\Models\Role;
 use InvalidArgumentException;
@@ -87,7 +86,7 @@ class PermissionManager implements Contracts\Factory
 
     protected function getConfig(string $name): mixed
     {
-        return $this->app->get(ConfigRepository::class)->get("permission.{$name}");
+        return $this->app->get('config')->get("permission.{$name}");
     }
 
     public function getCache(): Repository
