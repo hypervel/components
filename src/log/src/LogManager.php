@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Log;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Context\Context;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Environment;
@@ -40,7 +40,7 @@ class LogManager implements LoggerInterface
     /**
      * The config for log.
      */
-    protected ConfigInterface $config;
+    protected Repository $config;
 
     /**
      * The array of resolved channels.
@@ -63,7 +63,7 @@ class LogManager implements LoggerInterface
     public function __construct(
         protected ContainerInterface $app
     ) {
-        $this->config = $this->app->get(ConfigInterface::class);
+        $this->config = $this->app->get(Repository::class);
     }
 
     /**

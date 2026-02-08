@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Log\Adapter;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Psr\Container\ContainerInterface;
 
 class HyperfLogFactory
@@ -13,7 +13,7 @@ class HyperfLogFactory
     {
         return new LogFactoryAdapter(
             $container,
-            $container->get(ConfigInterface::class)
+            $container->get(Repository::class)
         );
     }
 }
