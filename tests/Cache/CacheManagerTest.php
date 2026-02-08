@@ -10,7 +10,6 @@ use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConnection;
@@ -165,7 +164,7 @@ class CacheManagerTest extends TestCase
 
         $cacheManager->setDefaultDriver('><((((@>');
 
-        $this->assertEquals('><((((@>', $app->get(Repository::class)->get('cache.default'));
+        $this->assertEquals('><((((@>', $app->get('config')->get('cache.default'));
     }
 
     public function testItPurgesMemoizedStoreObjects()
@@ -396,7 +395,7 @@ class CacheManagerTest extends TestCase
     {
         /** @var ContainerInterface|MockInterface */
         $app = m::mock(ContainerInterface::class);
-        $app->shouldReceive('get')->with(Repository::class)->andReturn(new ConfigRepository($userConfig));
+        $app->shouldReceive('get')->with('config')->andReturn(new ConfigRepository($userConfig));
 
         return $app;
     }
