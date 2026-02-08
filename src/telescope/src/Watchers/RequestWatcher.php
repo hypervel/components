@@ -9,7 +9,6 @@ use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\HttpServer\Server as HttpServer;
 use Hyperf\Server\Event;
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
@@ -61,7 +60,7 @@ class RequestWatcher extends Watcher
 
     protected function enableRequestEvents(ContainerInterface $app): void
     {
-        $config = $app->get(Repository::class);
+        $config = $app->get('config');
         $servers = $config->get('server.servers', []);
 
         foreach ($servers as &$server) {

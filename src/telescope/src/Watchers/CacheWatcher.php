@@ -8,7 +8,6 @@ use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\KeyForgotten;
 use Hypervel\Cache\Events\KeyWritten;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
@@ -45,7 +44,7 @@ class CacheWatcher extends Watcher
      */
     public static function enableCacheEvents(ContainerInterface $app): void
     {
-        $config = $app->get(Repository::class);
+        $config = $app->get('config');
         foreach (array_keys($config->get('cache.stores', [])) as $store) {
             $config->set("cache.stores.{$store}.events", true);
         }
