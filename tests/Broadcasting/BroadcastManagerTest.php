@@ -18,7 +18,7 @@ use Hypervel\Contracts\Broadcasting\ShouldBroadcastNow;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Contracts\Bus\QueueingDispatcher;
 use Hypervel\Contracts\Cache\Factory as Cache;
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Http\Kernel;
@@ -47,7 +47,7 @@ class BroadcastManagerTest extends TestCase
         $this->container = new Application(
             new DefinitionSource([
                 BusDispatcherContract::class => fn () => m::mock(QueueingDispatcher::class),
-                Repository::class => fn () => m::mock(Repository::class),
+                'config' => fn () => m::mock(Repository::class),
                 QueueFactoryContract::class => fn () => m::mock(QueueFactoryContract::class),
                 BroadcastingFactoryContract::class => fn ($container) => new BroadcastManager($container),
             ]),
@@ -112,7 +112,7 @@ class BroadcastManagerTest extends TestCase
         $config->shouldReceive('get')->with('broadcasting.connections.alien_connection')->andReturn(null);
 
         $app = m::mock(ContainerInterface::class);
-        $app->shouldReceive('get')->with(Repository::class)->andReturn($config);
+        $app->shouldReceive('get')->with('config')->andReturn($config);
 
         $broadcastManager = new BroadcastManager($app);
 
@@ -143,7 +143,7 @@ class BroadcastManagerTest extends TestCase
 
         $app = m::mock(ContainerInterface::class);
         $app->shouldReceive('has')->with(Kernel::class)->andReturn(true);
-        $app->shouldReceive('get')->with(Repository::class)->andReturn($config);
+        $app->shouldReceive('get')->with('config')->andReturn($config);
         $app->shouldReceive('get')->with(RouterDispatcherFactory::class)->andReturn($routerFactory);
 
         $broadcastManager = new BroadcastManager($app);
