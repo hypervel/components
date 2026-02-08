@@ -7,7 +7,7 @@ namespace Hypervel\Broadcasting;
 use Ably\AblyRest;
 use Closure;
 use GuzzleHttp\Client as GuzzleClient;
-use Hypervel\Contracts\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Router\DispatcherFactory as RouterDispatcherFactory;
 use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
@@ -80,7 +80,7 @@ class BroadcastManager implements BroadcastingFactoryContract
             ];
         }
 
-        $kernels = $this->app->get(ConfigRepository::class)
+        $kernels = $this->app->get(Repository::class)
             ->get('server.kernels', []);
         foreach (array_keys($kernels) as $kernel) {
             $this->app->get(RouterDispatcherFactory::class)
@@ -358,7 +358,7 @@ class BroadcastManager implements BroadcastingFactoryContract
             $this->app,
             $this->app->get(RedisFactory::class),
             $config['connection'] ?? 'default',
-            $this->app->get(ConfigRepository::class)->get('database.redis.options.prefix', ''),
+            $this->app->get(Repository::class)->get('database.redis.options.prefix', ''),
         );
     }
 
@@ -384,7 +384,7 @@ class BroadcastManager implements BroadcastingFactoryContract
     protected function getConfig(string $name): ?array
     {
         if ($name !== 'null') {
-            return $this->app->get(ConfigRepository::class)->get("broadcasting.connections.{$name}");
+            return $this->app->get(Repository::class)->get("broadcasting.connections.{$name}");
         }
 
         return ['driver' => 'null'];
@@ -395,7 +395,7 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->app->get(ConfigRepository::class)->get('broadcasting.default');
+        return $this->app->get(Repository::class)->get('broadcasting.default');
     }
 
     /**
@@ -403,7 +403,7 @@ class BroadcastManager implements BroadcastingFactoryContract
      */
     public function setDefaultDriver(string $name): void
     {
-        $this->app->get(ConfigRepository::class)->set('broadcasting.default', $name);
+        $this->app->get(Repository::class)->set('broadcasting.default', $name);
     }
 
     /**
