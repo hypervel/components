@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis;
 
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use InvalidArgumentException;
 
 class RedisConfig
