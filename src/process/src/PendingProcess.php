@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Process;
 
 use Closure;
-use Hyperf\Conditionable\Conditionable;
+use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Process\Contracts\InvokedProcess as InvokedProcessContract;
 use Hypervel\Process\Contracts\ProcessResult as ProcessResultContract;
 use Hypervel\Process\Exceptions\ProcessTimedOutException;

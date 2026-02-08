@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Notifications\Slack;
 
 use Closure;
-use Hyperf\Conditionable\Conditionable;
+use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ActionsBlock;
 use Hypervel\Notifications\Slack\BlockKit\Blocks\ContextBlock;

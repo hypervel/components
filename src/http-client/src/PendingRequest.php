@@ -16,7 +16,7 @@ use GuzzleHttp\Middleware;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\TransferStats;
 use GuzzleHttp\UriTemplate\UriTemplate;
-use Hyperf\Conditionable\Conditionable;
+use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\HttpClient\Events\ConnectionFailed;
 use Hypervel\HttpClient\Events\RequestSending;

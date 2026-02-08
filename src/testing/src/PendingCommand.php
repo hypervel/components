@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Testing;
 
 use Hyperf\Command\Event\FailToHandle;
-use Hyperf\Conditionable\Conditionable;
+use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Support\Arrayable;

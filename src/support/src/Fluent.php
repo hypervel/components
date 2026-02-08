@@ -7,7 +7,7 @@ namespace Hypervel\Support;
 use ArrayAccess;
 use ArrayIterator;
 use Closure;
-use Hyperf\Conditionable\Conditionable;
+use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Support\Traits\InteractsWithData;

@@ -7,7 +7,7 @@ namespace Hypervel\Bus;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Conditionable\Conditionable;
+use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Queue\CallQueuedClosure;

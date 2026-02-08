@@ -8,7 +8,7 @@ use BadMethodCallException;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Conditionable\Conditionable;
+use Hypervel\Support\Traits\Conditionable;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Support\Traits\ForwardsCalls;
 use Hypervel\Context\ApplicationContext;

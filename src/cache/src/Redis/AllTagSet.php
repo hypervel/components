@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis;
 
-use Hyperf\Collection\LazyCollection;
+use Hypervel\Support\LazyCollection;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Cache\TagSet;
 use Hypervel\Contracts\Cache\Store;

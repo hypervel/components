@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Closure;
-use Hyperf\Conditionable\Conditionable;
+use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Bus\Events\BatchDispatched;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;

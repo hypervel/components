@@ -6,7 +6,7 @@ namespace Hypervel\Mail;
 
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Conditionable\Conditionable;
+use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Contracts\Mail\Mailable as MailableContract;
 use Hypervel\Contracts\Mail\Mailer as MailerContract;
 

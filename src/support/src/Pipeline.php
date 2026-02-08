@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
-use Hyperf\Conditionable\Conditionable;
+use Hypervel\Support\Traits\Conditionable;
 use Hyperf\Pipeline\Pipeline as BasePipeline;
 use Hypervel\Context\ApplicationContext;
 
