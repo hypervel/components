@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Console\Doctor\Checks;
 
-use Hyperf\Stringable\Str;
+use Hypervel\Support\Str;
 use Hypervel\Cache\Redis\Console\Doctor\CheckResult;
 use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
 use Hypervel\Coroutine\Coroutine;

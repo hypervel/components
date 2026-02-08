@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Cache;
 
 use Carbon\Carbon;
 use Exception;
-use Hyperf\Support\Filesystem\FileNotFoundException;
+use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Cache\FileStore;
 use Hypervel\Tests\TestCase;
