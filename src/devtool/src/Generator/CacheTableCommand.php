@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Devtool\Generator;
 
 use Carbon\Carbon;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\Devtool\Generator\GeneratorCommand;
 use Hypervel\Context\ApplicationContext;
 use Symfony\Component\Console\Input\InputInterface;
@@ -100,7 +100,7 @@ class CacheTableCommand extends GeneratorCommand
     protected function migrationTableName(): string
     {
         return ApplicationContext::getContainer()
-            ->get(ConfigInterface::class)
+            ->get(Repository::class)
             ->get('cache.stores.database.table', 'cache');
     }
 }

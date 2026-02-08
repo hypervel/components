@@ -6,7 +6,7 @@ namespace Hypervel\Devtool\Commands;
 
 use Hyperf\Command\Command as HyperfCommand;
 use Hyperf\Command\Concerns\NullDisableEventDispatcher;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\Watcher\Option;
 use Hyperf\Watcher\Watcher;
 use Psr\Container\ContainerInterface;
@@ -35,7 +35,7 @@ class WatchCommand extends HyperfCommand
             return;
         }
 
-        $options = $this->container->get(ConfigInterface::class)->get('watcher', []);
+        $options = $this->container->get(Repository::class)->get('watcher', []);
         if (empty($options)
             && file_exists($defaultConfigPath = BASE_PATH . '/vendor/hyperf/watcher/publish/watcher.php')
         ) {

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Devtool\Generator;
 
 use Carbon\Carbon;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\Devtool\Generator\GeneratorCommand;
 use Hypervel\Context\ApplicationContext;
 use Symfony\Component\Console\Input\InputInterface;
@@ -101,7 +101,7 @@ class BatchesTableCommand extends GeneratorCommand
     protected function migrationTableName(): string
     {
         return ApplicationContext::getContainer()
-            ->get(ConfigInterface::class)
+            ->get(Repository::class)
             ->get('queue.batching.table', 'job_batches');
     }
 }
