@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Permission;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Testbench\TestCase;
@@ -25,7 +24,7 @@ class PermissionTestCase extends TestCase
     {
         parent::setUp();
 
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('cache', [
                 'default' => env('CACHE_DRIVER', 'array'),
                 'stores' => [
@@ -36,7 +35,7 @@ class PermissionTestCase extends TestCase
                 'prefix' => env('CACHE_PREFIX', 'hypervel_cache'),
             ]);
 
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('permission', [
                 'models' => [
                     'role' => \Hypervel\Permission\Models\Role::class,
