@@ -10,7 +10,7 @@ use DateInterval;
 use DateTimeInterface;
 use Hypervel\Support\Traits\Conditionable;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Support\Traits\ForwardsCalls;
+use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Mail\Attachable;

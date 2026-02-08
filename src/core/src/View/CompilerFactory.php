@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\View;
 
-use Hyperf\Support\Filesystem\Filesystem;
+use Hypervel\Filesystem\Filesystem;
 use Hyperf\ViewEngine\Blade;
 use Hypervel\View\Compilers\BladeCompiler;
 use Psr\Container\ContainerInterface;

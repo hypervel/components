@@ -15,7 +15,7 @@ use Hyperf\Contract\SessionInterface;
 use Hyperf\HttpMessage\Uri\Uri;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Router\DispatcherFactory;
-use Hyperf\Support\Traits\InteractsWithTime;
+use Hypervel\Support\InteractsWithTime;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;

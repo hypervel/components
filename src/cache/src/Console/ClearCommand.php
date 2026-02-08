@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Console;
 
 use Hyperf\Command\Command;
-use Hyperf\Support\Filesystem\Filesystem;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;

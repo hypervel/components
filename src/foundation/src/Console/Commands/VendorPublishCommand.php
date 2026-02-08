@@ -6,7 +6,7 @@ namespace Hypervel\Foundation\Console\Commands;
 
 use Hyperf\Contract\ContainerInterface;
 use Hyperf\Support\Composer;
-use Hyperf\Support\Filesystem\Filesystem;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Console\Command;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;

@@ -8,7 +8,7 @@ use DateTimeImmutable;
 use Hyperf\HttpMessage\Server\Chunk\Chunkable;
 use Hyperf\HttpMessage\Stream\SwooleStream;
 use Hyperf\HttpServer\Response as HyperfResponse;
-use Hyperf\Support\Filesystem\Filesystem;
+use Hypervel\Filesystem\Filesystem;
 use Hyperf\View\RenderInterface;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;

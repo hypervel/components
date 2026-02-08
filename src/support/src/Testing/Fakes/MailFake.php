@@ -7,7 +7,7 @@ namespace Hypervel\Support\Testing\Fakes;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Support\Traits\ForwardsCalls;
+use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Contracts\Mail\Factory;
 use Hypervel\Contracts\Mail\Mailable;
 use Hypervel\Contracts\Mail\Mailer;

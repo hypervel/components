@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Cache;
 use Carbon\Carbon;
 use Exception;
 use Hyperf\Support\Filesystem\FileNotFoundException;
-use Hyperf\Support\Filesystem\Filesystem;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Cache\FileStore;
 use Hypervel\Tests\TestCase;
 use Mockery as m;

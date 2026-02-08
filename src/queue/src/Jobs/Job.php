@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Jobs;
 
-use Hyperf\Support\Traits\InteractsWithTime;
+use Hypervel\Support\InteractsWithTime;
 use Hypervel\Bus\Batchable;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Queue\Job as JobContract;

@@ -13,7 +13,7 @@ use GuzzleHttp\Client as HttpClient;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\ClientInterface as HttpClientInterface;
 use GuzzleHttp\Exception\TransferException;
-use Hyperf\Support\Filesystem\Filesystem;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Console\Kernel as KernelContract;

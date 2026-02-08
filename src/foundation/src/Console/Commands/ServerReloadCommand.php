@@ -6,7 +6,7 @@ namespace Hypervel\Foundation\Console\Commands;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Support\Filesystem\FileNotFoundException;
-use Hyperf\Support\Filesystem\Filesystem;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Console\Command;
 use Psr\Container\ContainerInterface;
 use Throwable;
