@@ -6,7 +6,7 @@ namespace Hypervel\Tests\JWT;
 
 use Carbon\Carbon;
 use Hyperf\Contract\ContainerInterface;
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Hypervel\JWT\Contracts\BlacklistContract;
 use Hypervel\JWT\Exceptions\JWTException;
 use Hypervel\JWT\Exceptions\TokenBlacklistedException;
@@ -236,7 +236,7 @@ class JWTManagerTest extends TestCase
     {
         $this->config = m::mock(Repository::class);
 
-        $this->container->shouldReceive('get')->with(Repository::class)->andReturn($this->config);
+        $this->container->shouldReceive('get')->with('config')->andReturn($this->config);
     }
 
     private function mockProvider()
