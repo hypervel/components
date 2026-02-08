@@ -8,6 +8,7 @@ use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
@@ -343,9 +344,11 @@ class QueuedEventsTest extends TestCase
 
     private function getContainer(): Container
     {
+        $config = new Repository([]);
         $container = new Container(
             new DefinitionSource([
-                'config' => fn () => new Repository([]),
+                'config' => fn () => $config,
+                ConfigContract::class => fn () => $config,
             ])
         );
 
