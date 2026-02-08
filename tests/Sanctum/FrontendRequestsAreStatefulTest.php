@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Auth\Middleware\Authenticate;
 use Hypervel\Foundation\Http\Middleware\VerifyCsrfToken;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
@@ -44,7 +44,7 @@ class FrontendRequestsAreStatefulTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)->set([
+        $this->app->get(Repository::class)->set([
             'auth.guards.sanctum.driver' => 'sanctum',
             'auth.guards.sanctum.provider' => 'users',
             'auth.providers.users.model' => User::class,
