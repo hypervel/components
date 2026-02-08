@@ -7,7 +7,6 @@ namespace Hypervel\Event;
 use Hyperf\Di\Annotation\AnnotationCollector;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
-use Hypervel\Contracts\Config\Repository;
 use Psr\Container\ContainerInterface;
 
 /**
@@ -37,7 +36,7 @@ class ListenerProviderFactory
      */
     protected function registerConfig(ListenerProvider $provider, ContainerInterface $container): void
     {
-        $config = $container->get(Repository::class);
+        $config = $container->get('config');
 
         foreach ($config->get('listeners', []) as $key => $value) {
             // Support both indexed array and associative (legacy priority) format
