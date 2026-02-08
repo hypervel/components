@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Cache\Redis;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
@@ -39,7 +39,7 @@ abstract class RedisCacheIntegrationTestCase extends TestCase
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $config = $app->get(Repository::class);
+        $config = $app->get(ConfigRepository::class);
 
         // Configure Redis (prefix comes from REDIS_PREFIX env var set by bootstrap)
         $this->configureRedisForTesting($config);
