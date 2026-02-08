@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
 use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Testbench\TestCase;
@@ -25,7 +25,7 @@ class MailFailoverTransportTest extends TestCase
 
     public function testGetFailoverTransportWithConfiguredTransports()
     {
-        $this->app->get(ConfigInterface::class)->set('mail', [
+        $this->app->get(Repository::class)->set('mail', [
             'default' => 'failover',
             'mailers' => [
                 'failover' => [
@@ -55,7 +55,7 @@ class MailFailoverTransportTest extends TestCase
 
     public function testGetFailoverTransportWithLaravel6StyleMailConfiguration()
     {
-        $this->app->get(ConfigInterface::class)->set('mail', [
+        $this->app->get(Repository::class)->set('mail', [
             'driver' => 'failover',
             'mailers' => ['sendmail', 'array'],
             'sendmail' => '/usr/sbin/sendmail -bs',

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\TransportPoolProxy;
@@ -31,7 +31,7 @@ class MailManagerTest extends TestCase
      */
     public function testEmptyTransportConfig($transport)
     {
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('mail.mailers.custom_smtp', [
                 'transport' => $transport,
                 'host' => null,
@@ -60,7 +60,7 @@ class MailManagerTest extends TestCase
 
     public function testMailUrlConfig()
     {
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('mail.mailers.smtp_url', [
                 'url' => 'smtp://usr:pwd@127.0.0.2:5876',
             ]);
@@ -79,7 +79,7 @@ class MailManagerTest extends TestCase
 
     public function testPoolableMailUrlConfig()
     {
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('mail.mailers.smtp_url', [
                 'url' => 'smtp://usr:pwd@127.0.0.2:5876',
             ]);
