@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache;
 
-use Hyperf\Config\Config;
-use Hyperf\Contract\ConfigInterface;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\NullStore;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
-use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Cache\Repository as CacheRepository;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConnection;
@@ -43,7 +43,7 @@ class CacheManagerTest extends TestCase
 
         $app = $this->getApp($userConfig);
         $cacheManager = new CacheManager($app);
-        $repository = m::mock(Repository::class);
+        $repository = m::mock(CacheRepository::class);
         $cacheManager->extend('foo', fn () => $repository);
         $this->assertEquals($repository, $cacheManager->store('foo'));
     }
@@ -63,8 +63,8 @@ class CacheManagerTest extends TestCase
         $app = $this->getApp($userConfig);
         $cacheManager = new CacheManager($app);
 
-        /** @var MockInterface|Repository */
-        $repository = m::mock(Repository::class);
+        /** @var MockInterface|CacheRepository */
+        $repository = m::mock(CacheRepository::class);
         $repository->shouldReceive('get')->with('foo')->andReturn('bar');
 
         $cacheManager->extend('array', fn () => $repository);
@@ -165,7 +165,7 @@ class CacheManagerTest extends TestCase
 
         $cacheManager->setDefaultDriver('><((((@>');
 
-        $this->assertEquals('><((((@>', $app->get(ConfigInterface::class)->get('cache.default'));
+        $this->assertEquals('><((((@>', $app->get(Repository::class)->get('cache.default'));
     }
 
     public function testItPurgesMemoizedStoreObjects()
@@ -220,7 +220,7 @@ class CacheManagerTest extends TestCase
         $cacheManager->shouldReceive('resolve')
             ->withArgs(['array'])
             ->times(4)
-            ->andReturn(m::mock(Repository::class));
+            ->andReturn(m::mock(CacheRepository::class));
 
         $cacheManager->shouldReceive('getDefaultDriver')
             ->once()
@@ -253,8 +253,8 @@ class CacheManagerTest extends TestCase
 
         $cacheManager = new CacheManager($app);
         $cacheManager->extend('forget', function () use (&$count) {
-            /** @var MockInterface|Repository */
-            $repository = m::mock(Repository::class);
+            /** @var MockInterface|CacheRepository */
+            $repository = m::mock(CacheRepository::class);
 
             if ($count++ === 0) {
                 $repository->shouldReceive('forever')->with('foo', 'bar')->once();
@@ -396,7 +396,7 @@ class CacheManagerTest extends TestCase
     {
         /** @var ContainerInterface|MockInterface */
         $app = m::mock(ContainerInterface::class);
-        $app->shouldReceive('get')->with(ConfigInterface::class)->andReturn(new Config($userConfig));
+        $app->shouldReceive('get')->with(Repository::class)->andReturn(new ConfigRepository($userConfig));
 
         return $app;
     }

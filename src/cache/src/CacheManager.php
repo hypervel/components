@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Closure;
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Cache\Factory as FactoryContract;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
@@ -96,7 +96,7 @@ class CacheManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->app->get(Repository::class)
+        return $this->app->get(ConfigRepository::class)
             ->get('cache.default', 'file');
     }
 
@@ -105,7 +105,7 @@ class CacheManager implements FactoryContract
      */
     public function setDefaultDriver(string $name): void
     {
-        $this->app->get(Repository::class)
+        $this->app->get(ConfigRepository::class)
             ->set('cache.default', $name);
     }
 
@@ -318,7 +318,7 @@ class CacheManager implements FactoryContract
      */
     protected function getPrefix(array $config): string
     {
-        return $config['prefix'] ?? $this->app->get(Repository::class)->get('cache.prefix');
+        return $config['prefix'] ?? $this->app->get(ConfigRepository::class)->get('cache.prefix');
     }
 
     /**
@@ -327,7 +327,7 @@ class CacheManager implements FactoryContract
     protected function getConfig(string $name): ?array
     {
         if ($name !== 'null') {
-            return $this->app->get(Repository::class)->get("cache.stores.{$name}");
+            return $this->app->get(ConfigRepository::class)->get("cache.stores.{$name}");
         }
 
         return ['driver' => 'null'];
