@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Queue\Factory;
 use Hypervel\Queue\Events\QueueBusy;
 use Hypervel\Support\Collection;
@@ -39,7 +39,7 @@ class MonitorCommand extends Command
     public function __construct(
         protected Factory $manager,
         protected EventDispatcherInterface $events,
-        protected ConfigInterface $config,
+        protected Repository $config,
     ) {
         parent::__construct();
     }

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\Events\JobFailed;
@@ -75,7 +75,7 @@ class WorkCommand extends Command
      */
     public function __construct(
         protected ContainerInterface $container,
-        protected ConfigInterface $config,
+        protected Repository $config,
         protected Worker $worker,
         protected CacheFactory $cache
     ) {

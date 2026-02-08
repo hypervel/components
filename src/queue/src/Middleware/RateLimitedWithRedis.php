@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Middleware;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Redis\Limiters\DurationLimiter;
 use Hypervel\Redis\RedisFactory;
@@ -80,7 +80,7 @@ class RateLimitedWithRedis extends RateLimited
     protected function getConnectionName(): string
     {
         return ApplicationContext::getContainer()
-            ->get(ConfigInterface::class)
+            ->get(Repository::class)
             ->get('queue.connections.redis.connection', 'default');
     }
 

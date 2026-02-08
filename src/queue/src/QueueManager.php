@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Contracts\Queue\Monitor as MonitorContract;
 use Hypervel\Contracts\Queue\Queue;
@@ -36,7 +36,7 @@ class QueueManager implements FactoryContract, MonitorContract
     /**
      * The config instance.
      */
-    protected ConfigInterface $config;
+    protected Repository $config;
 
     /**
      * The array of resolved queue connections.
@@ -64,7 +64,7 @@ class QueueManager implements FactoryContract, MonitorContract
     public function __construct(
         protected ContainerInterface $app
     ) {
-        $this->config = $app->get(ConfigInterface::class);
+        $this->config = $app->get(Repository::class);
 
         $this->registerConnectors();
     }
