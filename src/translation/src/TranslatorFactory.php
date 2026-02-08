@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Translation;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Translation\Loader as LoaderContract;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Psr\Container\ContainerInterface;
@@ -13,7 +13,7 @@ class TranslatorFactory
 {
     public function __invoke(ContainerInterface $container): TranslatorContract
     {
-        $config = $container->get(ConfigInterface::class);
+        $config = $container->get(Repository::class);
 
         // When registering the translator component, we'll need to set the default
         // locale as well as the fallback locale. So, we'll grab the application
