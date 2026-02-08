@@ -5,10 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Filesystem;
 
 use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Filesystem\Filesystem;
 use Hypervel\Filesystem\FilesystemManager;
 use Hypervel\Filesystem\FilesystemPoolProxy;
@@ -278,11 +277,11 @@ class FilesystemManagerTest extends TestCase
 
     protected function getContainer(array $config = []): ContainerInterface
     {
-        $config = new ConfigRepository(['filesystems' => $config]);
+        $config = new Repository(['filesystems' => $config]);
 
         return new Container(
             new DefinitionSource([
-                Repository::class => fn () => $config,
+                'config' => fn () => $config,
                 PoolFactory::class => PoolManager::class,
             ])
         );
