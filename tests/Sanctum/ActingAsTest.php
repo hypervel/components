@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Sanctum\Sanctum;
 use Hypervel\Sanctum\SanctumServiceProvider;
 use Hypervel\Testbench\TestCase;
@@ -26,7 +25,7 @@ class ActingAsTest extends TestCase
         $this->app->register(SanctumServiceProvider::class);
 
         // Configure auth guards
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set([
                 'auth.guards.sanctum' => [
                     'driver' => 'sanctum',

@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\SanctumServiceProvider;
@@ -29,7 +28,7 @@ class SimpleGuardTest extends TestCase
 
         $this->app->register(SanctumServiceProvider::class);
 
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set([
                 'auth.guards.sanctum' => [
                     'driver' => 'sanctum',

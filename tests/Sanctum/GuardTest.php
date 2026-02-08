@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Sanctum;
 
 use Hypervel\Auth\AuthManager;
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
@@ -36,7 +35,7 @@ class GuardTest extends TestCase
 
         $this->app->register(SanctumServiceProvider::class);
 
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set([
                 'auth.guards.sanctum' => [
                     'driver' => 'sanctum',
