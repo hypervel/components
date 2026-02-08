@@ -17,7 +17,6 @@ use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Sentry\Integrations\Integration;
@@ -45,7 +44,7 @@ class CacheFeature extends Feature
 
     public function onBoot(): void
     {
-        $config = $this->container->get(Repository::class);
+        $config = $this->container->get('config');
         $stores = array_keys($config->get('cache.stores', []));
         foreach ($stores as $store) {
             $config->set("cache.stores.{$store}.events", true);
