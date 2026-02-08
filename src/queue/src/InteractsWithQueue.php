@@ -6,10 +6,10 @@ namespace Hypervel\Queue;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Support\InteractsWithTime;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Queue\Exceptions\ManuallyFailedException;
 use Hypervel\Queue\Jobs\FakeJob;
+use Hypervel\Support\InteractsWithTime;
 use PHPUnit\Framework\Assert as PHPUnit;
 use RuntimeException;
 use Throwable;

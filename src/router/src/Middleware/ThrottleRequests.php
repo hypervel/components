@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Router\Middleware;
 
 use Closure;
-use Hypervel\Support\InteractsWithTime;
 use Hypervel\Cache\RateLimiter;
 use Hypervel\Cache\RateLimiting\Unlimited;
 use Hypervel\Contracts\Auth\Authenticatable;
@@ -14,6 +13,7 @@ use Hypervel\HttpMessage\Exceptions\HttpResponseException;
 use Hypervel\HttpMessage\Exceptions\ThrottleRequestsException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Facades\Auth;
+use Hypervel\Support\InteractsWithTime;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;

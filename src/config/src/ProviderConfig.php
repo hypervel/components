@@ -6,8 +6,8 @@ namespace Hypervel\Config;
 
 use Hyperf\Config\ProviderConfig as HyperfProviderConfig;
 use Hyperf\Di\Definition\PriorityDefinition;
-use Hyperf\Support\Composer;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Composer;
 use Hypervel\Support\ServiceProvider;
 use Throwable;
 

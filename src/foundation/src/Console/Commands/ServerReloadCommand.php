@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Console\Commands;
 
 use Hyperf\Contract\ConfigInterface;
+use Hypervel\Console\Command;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
-use Hypervel\Console\Command;
 use Psr\Container\ContainerInterface;
 use Throwable;
 

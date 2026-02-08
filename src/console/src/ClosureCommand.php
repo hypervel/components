@@ -6,10 +6,10 @@ namespace Hypervel\Console;
 
 use BadMethodCallException;
 use Closure;
-use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Console\Scheduling\Event;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Support\Facades\Schedule;
+use Hypervel\Support\Traits\ForwardsCalls;
 use ReflectionFunction;
 
 /**

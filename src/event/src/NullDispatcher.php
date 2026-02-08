@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Event;
 
 use Closure;
-use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Support\Traits\ForwardsCalls;
 
 class NullDispatcher implements Dispatcher
 {

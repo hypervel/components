@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
-use Hypervel\Support\Traits\Conditionable;
 use Hyperf\Pipeline\Pipeline as BasePipeline;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Support\Traits\Conditionable;
 
 class Pipeline extends BasePipeline
 {

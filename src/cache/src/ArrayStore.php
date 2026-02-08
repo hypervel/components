@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Hypervel\Support\InteractsWithTime;
 use Hypervel\Contracts\Cache\LockProvider;
+use Hypervel\Support\InteractsWithTime;
 
 class ArrayStore extends TaggableStore implements LockProvider
 {

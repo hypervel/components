@@ -6,9 +6,9 @@ namespace Hypervel\Mail;
 
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Contracts\Mail\Mailable as MailableContract;
 use Hypervel\Contracts\Mail\Mailer as MailerContract;
+use Hypervel\Support\Traits\Conditionable;
 
 class PendingMail
 {

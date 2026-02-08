@@ -7,8 +7,8 @@ namespace Hypervel\Foundation\Listeners;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Framework\Event\BeforeWorkerStart;
-use Hyperf\Support\DotenvManager;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Support\DotenvManager;
 
 class ReloadDotenvAndConfig implements ListenerInterface
 {

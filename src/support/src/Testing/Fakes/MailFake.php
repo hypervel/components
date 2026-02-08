@@ -7,7 +7,6 @@ namespace Hypervel\Support\Testing\Fakes;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Contracts\Mail\Factory;
 use Hypervel\Contracts\Mail\Mailable;
 use Hypervel\Contracts\Mail\Mailer;
@@ -18,6 +17,7 @@ use Hypervel\Mail\PendingMail;
 use Hypervel\Mail\SentMessage;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Traits\ForwardsCalls;
 use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
 

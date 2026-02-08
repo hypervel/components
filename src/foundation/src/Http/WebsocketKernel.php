@@ -6,7 +6,6 @@ namespace Hypervel\Foundation\Http;
 
 use Hyperf\HttpMessage\Base\Response;
 use Hyperf\HttpMessage\Server\Response as Psr7Response;
-use Hyperf\Support\SafeCaller;
 use Hyperf\WebSocketServer\Collector\FdCollector;
 use Hyperf\WebSocketServer\Context as WsContext;
 use Hyperf\WebSocketServer\CoreMiddleware;
@@ -22,6 +21,7 @@ use Hypervel\Engine\WebSocket\WebSocket;
 use Hypervel\Foundation\Exceptions\Handler as ExceptionHandler;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Foundation\Http\Traits\HasMiddleware;
+use Hypervel\Support\SafeCaller;
 use Psr\Http\Message\ResponseInterface;
 use Swoole\Http\Request;
 use Swoole\Http\Response as SwooleResponse;

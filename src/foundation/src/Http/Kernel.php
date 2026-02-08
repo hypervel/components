@@ -11,7 +11,6 @@ use Hyperf\HttpServer\Event\RequestHandled;
 use Hyperf\HttpServer\Event\RequestReceived;
 use Hyperf\HttpServer\Event\RequestTerminated;
 use Hyperf\HttpServer\Server as HyperfServer;
-use Hyperf\Support\SafeCaller;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coordinator\Constants;
@@ -20,6 +19,7 @@ use Hypervel\Foundation\Exceptions\Handler as ExceptionHandler;
 use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Foundation\Http\Traits\HasMiddleware;
 use Hypervel\Http\UploadedFile;
+use Hypervel\Support\SafeCaller;
 use Psr\Http\Message\ResponseInterface;
 use Throwable;
 

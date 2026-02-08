@@ -7,10 +7,10 @@ namespace Hypervel\Foundation;
 use Hyperf\Di\LazyLoader\LazyLoader;
 use Hyperf\Di\ScanHandler\PcntlScanHandler;
 use Hyperf\Di\ScanHandler\ScanHandlerInterface;
-use Hyperf\Support\DotenvManager;
 use Hypervel\Container\ScanConfig;
 use Hypervel\Container\Scanner as AnnotationScanner;
 use Hypervel\Support\Composer;
+use Hypervel\Support\DotenvManager;
 
 class ClassLoader
 {

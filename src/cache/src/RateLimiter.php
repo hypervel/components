@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Closure;
-use Hypervel\Support\InteractsWithTime;
 use Hypervel\Contracts\Cache\Factory as Cache;
+use Hypervel\Support\InteractsWithTime;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;

@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Console;
 
 use Hyperf\Command\Command;
-use Hypervel\Filesystem\Filesystem;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Input\InputArgument;

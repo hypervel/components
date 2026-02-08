@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Jobs;
 
-use Hypervel\Support\InteractsWithTime;
 use Hypervel\Bus\Batchable;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Exceptions\ManuallyFailedException;
 use Hypervel\Queue\Exceptions\TimeoutExceededException;
+use Hypervel\Support\InteractsWithTime;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;

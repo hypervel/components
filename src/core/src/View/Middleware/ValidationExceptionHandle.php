@@ -6,10 +6,10 @@ namespace Hypervel\View\Middleware;
 
 use Hyperf\Contract\MessageBag as MessageBagContract;
 use Hyperf\Contract\MessageProvider;
-use Hypervel\Support\MessageBag;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
 use Hyperf\ViewEngine\ViewErrorBag;
 use Hypervel\Contracts\Session\Session as SessionContract;
+use Hypervel\Support\MessageBag;
 use Hypervel\Validation\ValidationException;
 use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;

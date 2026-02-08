@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail\Mailables;
 
-use Hypervel\Support\Traits\Conditionable;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
+use Hypervel\Support\Traits\Conditionable;
 
 class Headers
 {
