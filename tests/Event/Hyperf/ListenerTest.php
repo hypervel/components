@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Event\Hyperf;
 
 use Hyperf\Event\Annotation\Listener as ListenerAnnotation;
-use Hypervel\Config\Repository as ConfigRepository;
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
 use Hypervel\Event\ListenerProviderFactory;
@@ -62,7 +61,7 @@ class ListenerTest extends TestCase
     public function testListenerInvokeByFactory()
     {
         $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')->once()->with(Repository::class)->andReturn(new ConfigRepository([]));
+        $container->shouldReceive('get')->once()->with('config')->andReturn(new Repository([]));
         $container->shouldReceive('get')
             ->once()
             ->with(ListenerProviderInterface::class)
@@ -74,7 +73,7 @@ class ListenerTest extends TestCase
     public function testListenerInvokeByFactoryWithConfig()
     {
         $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')->once()->with(Repository::class)->andReturn(new ConfigRepository([
+        $container->shouldReceive('get')->once()->with('config')->andReturn(new Repository([
             'listeners' => [
                 AlphaListener::class,
                 BetaListener::class,
@@ -110,7 +109,7 @@ class ListenerTest extends TestCase
         $listenerAnnotation->collectClass(BetaListener::class, ListenerAnnotation::class);
 
         $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')->once()->with(Repository::class)->andReturn(new ConfigRepository([]));
+        $container->shouldReceive('get')->once()->with('config')->andReturn(new Repository([]));
         $container->shouldReceive('get')
             ->with(AlphaListener::class)
             ->andReturn($alphaListener = new AlphaListener());

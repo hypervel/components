@@ -6,8 +6,7 @@ namespace Hypervel\Tests\Event\Hyperf;
 
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Framework\Logger\StdoutLogger;
-use Hypervel\Config\Repository as ConfigRepository;
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\EventDispatcherFactory;
@@ -52,8 +51,8 @@ class EventDispatcherTest extends TestCase
     public function testInvokeDispatcherByFactory()
     {
         $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')->with(Repository::class)->andReturn(new ConfigRepository([]));
-        $config = $container->get(Repository::class);
+        $container->shouldReceive('get')->with('config')->andReturn(new Repository([]));
+        $config = $container->get('config');
         $container->shouldReceive('get')->with(PsrListenerProviderInterface::class)->andReturn(new ListenerProvider());
         $container->shouldReceive('get')->with(StdoutLoggerInterface::class)->andReturn(new StdoutLogger($config));
         $this->assertInstanceOf(EventDispatcherInterface::class, $instance = (new EventDispatcherFactory())($container));
