@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\JWT;
 
 use Hypervel\Contracts\Cache\Factory as CacheManager;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\JWT\Contracts\BlacklistContract;
 use Hypervel\JWT\Storage\TaggedCache;
 use Psr\Container\ContainerInterface;
@@ -14,7 +13,7 @@ class BlacklistFactory
 {
     public function __invoke(ContainerInterface $container): BlacklistContract
     {
-        $config = $container->get(Repository::class);
+        $config = $container->get('config');
 
         $storageClass = $config->get('jwt.providers.storage');
         $storage = match ($storageClass) {
