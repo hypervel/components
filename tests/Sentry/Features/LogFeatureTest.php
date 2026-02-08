@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry\Features;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Sentry\Features\LogFeature;
@@ -31,7 +31,7 @@ class LogFeatureTest extends SentryTestCase
     {
         parent::defineEnvironment($app);
 
-        tap($app->get(ConfigInterface::class), static function (ConfigInterface $config) {
+        tap($app->get(Repository::class), static function (Repository $config) {
             $config->set('logging.channels.sentry', [
                 'driver' => 'sentry',
             ]);

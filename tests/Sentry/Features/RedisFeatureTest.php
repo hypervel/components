@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry\Features;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\Contract\PoolOptionInterface;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
@@ -253,7 +253,7 @@ class RedisFeatureTest extends SentryTestCase
         $this->app->instance(PoolFactory::class, $poolFactory);
 
         // Mock Redis config
-        $config = $this->app->get(ConfigInterface::class);
+        $config = $this->app->get(Repository::class);
         $config->set("database.redis.{$connectionName}", [
             'host' => '127.0.0.1',
             'port' => 6379,

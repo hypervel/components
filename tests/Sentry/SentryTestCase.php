@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Sentry\SentryServiceProvider;
 use Hypervel\Testbench\ConfigProviderRegister;
@@ -41,7 +41,7 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
         self::$lastSentryEvents = [];
         $this->setupGlobalEventProcessor();
 
-        $app->get(ConfigInterface::class)
+        $app->get(Repository::class)
             ->set('cache', [
                 'default' => env('CACHE_DRIVER', 'array'),
                 'stores' => [
@@ -52,7 +52,7 @@ class SentryTestCase extends \Hypervel\Testbench\TestCase
                 'prefix' => env('CACHE_PREFIX', 'hypervel_cache'),
             ]);
 
-        tap($app->get(ConfigInterface::class), function (ConfigInterface $config) {
+        tap($app->get(Repository::class), function (Repository $config) {
             $config->set('sentry.before_send', static function (Event $event, ?EventHint $hint) {
                 self::$lastSentryEvents[] = [$event, $hint];
 
