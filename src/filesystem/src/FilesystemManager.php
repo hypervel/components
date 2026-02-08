@@ -7,7 +7,6 @@ namespace Hypervel\Filesystem;
 use Aws\S3\S3Client;
 use Closure;
 use Google\Cloud\Storage\StorageClient as GcsClient;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Filesystem\Cloud;
 use Hypervel\Contracts\Filesystem\Factory as FactoryContract;
 use Hypervel\Contracts\Filesystem\Filesystem;
@@ -419,7 +418,7 @@ class FilesystemManager implements FactoryContract
      */
     protected function getConfig(string $name): array
     {
-        return $this->app->get(Repository::class)
+        return $this->app->get('config')
             ->get("filesystems.disks.{$name}", []);
     }
 
@@ -428,7 +427,7 @@ class FilesystemManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->app->get(Repository::class)
+        return $this->app->get('config')
             ->get('filesystems.default');
     }
 
@@ -437,7 +436,7 @@ class FilesystemManager implements FactoryContract
      */
     public function getDefaultCloudDriver(): string
     {
-        return $this->app->get(Repository::class)
+        return $this->app->get('config')
             ->get('filesystems.cloud', 's3');
     }
 
