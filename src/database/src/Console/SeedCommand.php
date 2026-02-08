@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Console;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Console\Prohibitable;
@@ -97,7 +97,7 @@ class SeedCommand extends Command
         $database = $this->input->getOption('database');
 
         return $database
-            ?: $this->app->get(ConfigInterface::class)
+            ?: $this->app->get(Repository::class)
                 ->get('database.default');
     }
 

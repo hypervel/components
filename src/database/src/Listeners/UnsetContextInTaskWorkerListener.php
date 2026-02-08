@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Listeners;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Framework\Event\BeforeWorkerStart;
 use Hypervel\Context\Context;
@@ -22,7 +22,7 @@ class UnsetContextInTaskWorkerListener implements ListenerInterface
 {
     public function __construct(
         protected ContainerInterface $container,
-        protected ConfigInterface $config
+        protected Repository $config
     ) {
     }
 
