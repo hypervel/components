@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Scout\Typesense;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Tests\Scout\Models\ConfigBasedTypesenseModel;
@@ -23,7 +23,7 @@ class TypesenseConfigIntegrationTest extends TypesenseScoutIntegrationTestCase
         $modelClass = ConfigBasedTypesenseModel::class;
 
         // Configure collection schema via config
-        $this->app->get(ConfigInterface::class)->set("scout.typesense.model-settings.{$modelClass}", [
+        $this->app->get(Repository::class)->set("scout.typesense.model-settings.{$modelClass}", [
             'collection-schema' => [
                 'fields' => [
                     ['name' => 'id', 'type' => 'string'],
@@ -57,7 +57,7 @@ class TypesenseConfigIntegrationTest extends TypesenseScoutIntegrationTestCase
         $modelClass = ConfigBasedTypesenseModel::class;
 
         // Configure with specific query_by that only searches title
-        $this->app->get(ConfigInterface::class)->set("scout.typesense.model-settings.{$modelClass}", [
+        $this->app->get(Repository::class)->set("scout.typesense.model-settings.{$modelClass}", [
             'collection-schema' => [
                 'fields' => [
                     ['name' => 'id', 'type' => 'string'],
@@ -92,7 +92,7 @@ class TypesenseConfigIntegrationTest extends TypesenseScoutIntegrationTestCase
         $modelClass = ConfigBasedTypesenseModel::class;
 
         // Configure collection schema
-        $this->app->get(ConfigInterface::class)->set("scout.typesense.model-settings.{$modelClass}", [
+        $this->app->get(Repository::class)->set("scout.typesense.model-settings.{$modelClass}", [
             'collection-schema' => [
                 'fields' => [
                     ['name' => 'id', 'type' => 'string'],
@@ -106,7 +106,7 @@ class TypesenseConfigIntegrationTest extends TypesenseScoutIntegrationTestCase
         ]);
 
         // Set max_total_results to a low value
-        $this->app->get(ConfigInterface::class)->set('scout.typesense.max_total_results', 3);
+        $this->app->get(Repository::class)->set('scout.typesense.max_total_results', 3);
 
         // Clear cached engines to pick up new config
         $this->app->get(EngineManager::class)->forgetEngines();
@@ -144,7 +144,7 @@ class TypesenseConfigIntegrationTest extends TypesenseScoutIntegrationTestCase
         $modelClass = ConfigBasedTypesenseModel::class;
 
         // Configure collection schema
-        $this->app->get(ConfigInterface::class)->set("scout.typesense.model-settings.{$modelClass}", [
+        $this->app->get(Repository::class)->set("scout.typesense.model-settings.{$modelClass}", [
             'collection-schema' => [
                 'fields' => [
                     ['name' => 'id', 'type' => 'string'],
@@ -158,7 +158,7 @@ class TypesenseConfigIntegrationTest extends TypesenseScoutIntegrationTestCase
         ]);
 
         // Set import_action to 'upsert' (default) - allows insert and update
-        $this->app->get(ConfigInterface::class)->set('scout.typesense.import_action', 'upsert');
+        $this->app->get(Repository::class)->set('scout.typesense.import_action', 'upsert');
 
         // Clear cached engines
         $this->app->get(EngineManager::class)->forgetEngines();

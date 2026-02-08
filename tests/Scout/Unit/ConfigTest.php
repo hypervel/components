@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Scout\Events\ModelsFlushed;
@@ -37,7 +37,7 @@ class ConfigTest extends ScoutTestCase
         $this->resetScoutRunner();
 
         // Set a specific concurrency value
-        $this->app->get(ConfigInterface::class)->set('scout.command_concurrency', 25);
+        $this->app->get(Repository::class)->set('scout.command_concurrency', 25);
 
         // Define SCOUT_COMMAND to trigger the command path
         if (! defined('SCOUT_COMMAND')) {
@@ -70,7 +70,7 @@ class ConfigTest extends ScoutTestCase
     public function testChunkSearchableConfigAffectsImportEvents(): void
     {
         // Set a small chunk size to verify multiple events are fired
-        $this->app->get(ConfigInterface::class)->set('scout.chunk.searchable', 2);
+        $this->app->get(Repository::class)->set('scout.chunk.searchable', 2);
 
         // Create 5 models
         for ($i = 1; $i <= 5; ++$i) {
@@ -95,7 +95,7 @@ class ConfigTest extends ScoutTestCase
     public function testChunkUnsearchableConfigAffectsFlushEvents(): void
     {
         // Set a small chunk size
-        $this->app->get(ConfigInterface::class)->set('scout.chunk.unsearchable', 2);
+        $this->app->get(Repository::class)->set('scout.chunk.unsearchable', 2);
 
         // Create 5 models
         for ($i = 1; $i <= 5; ++$i) {

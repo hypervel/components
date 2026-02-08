@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Scout\Engine;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Scout\Engines\CollectionEngine;
@@ -278,7 +278,7 @@ class EngineManagerTest extends TestCase
     {
         $container = m::mock(ContainerInterface::class);
 
-        $configService = m::mock(ConfigInterface::class);
+        $configService = m::mock(Repository::class);
         $configService->shouldReceive('get')
             ->with('scout.driver', m::any())
             ->andReturn($config['driver'] ?? null);
@@ -287,7 +287,7 @@ class EngineManagerTest extends TestCase
             ->andReturn($config['soft_delete'] ?? false);
 
         $container->shouldReceive('get')
-            ->with(ConfigInterface::class)
+            ->with(Repository::class)
             ->andReturn($configService);
 
         return $container;
@@ -297,7 +297,7 @@ class EngineManagerTest extends TestCase
     {
         $container = m::mock(ContainerInterface::class);
 
-        $configService = m::mock(ConfigInterface::class);
+        $configService = m::mock(Repository::class);
         $configService->shouldReceive('get')
             ->with('scout.driver', m::any())
             ->andReturn($config['driver'] ?? null);
@@ -309,7 +309,7 @@ class EngineManagerTest extends TestCase
             ->andReturn($config['max_total_results'] ?? 1000);
 
         $container->shouldReceive('get')
-            ->with(ConfigInterface::class)
+            ->with(Repository::class)
             ->andReturn($configService);
 
         return $container;

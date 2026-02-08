@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Scout\Typesense;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Tests\Scout\Models\TypesenseSoftDeleteSearchableModel;
 
@@ -21,7 +21,7 @@ class TypesenseSoftDeleteIntegrationTest extends TypesenseScoutIntegrationTestCa
         parent::setUp();
 
         // Enable soft delete support in Scout
-        $this->app->get(ConfigInterface::class)->set('scout.soft_delete', true);
+        $this->app->get(Repository::class)->set('scout.soft_delete', true);
     }
 
     public function testDefaultSearchExcludesSoftDeletedModels(): void
