@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Engines;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -639,7 +639,7 @@ class TypesenseEngine extends Engine
     protected function getConfig(string $key, mixed $default = null): mixed
     {
         return ApplicationContext::getContainer()
-            ->get(ConfigInterface::class)
+            ->get(Repository::class)
             ->get("scout.{$key}", $default);
     }
 

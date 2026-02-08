@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Scout\Console\DeleteAllIndexesCommand;
 use Hypervel\Scout\Console\DeleteIndexCommand;
 use Hypervel\Scout\Console\FlushCommand;
@@ -30,7 +30,7 @@ class ScoutServiceProvider extends ServiceProvider
         $this->app->bind(EngineManager::class, EngineManager::class);
 
         $this->app->bind(MeilisearchClient::class, function () {
-            $config = $this->app->get(ConfigInterface::class);
+            $config = $this->app->get(Repository::class);
 
             return new MeilisearchClient(
                 $config->get('scout.meilisearch.host', 'http://localhost:7700'),
@@ -39,7 +39,7 @@ class ScoutServiceProvider extends ServiceProvider
         });
 
         $this->app->bind(TypesenseClient::class, function () {
-            $config = $this->app->get(ConfigInterface::class);
+            $config = $this->app->get(Repository::class);
 
             return new TypesenseClient(
                 $config->get('scout.typesense.client-settings', [])

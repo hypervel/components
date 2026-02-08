@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
@@ -71,7 +71,7 @@ class SearchableScope implements Scope
     protected static function getScoutConfig(string $key, mixed $default = null): mixed
     {
         return ApplicationContext::getContainer()
-            ->get(ConfigInterface::class)
+            ->get(Repository::class)
             ->get("scout.{$key}", $default);
     }
 

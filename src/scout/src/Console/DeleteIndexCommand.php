@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Console;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Console\Command;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Support\Str;
@@ -28,7 +28,7 @@ class DeleteIndexCommand extends Command
     /**
      * Execute the console command.
      */
-    public function handle(EngineManager $manager, ConfigInterface $config): int
+    public function handle(EngineManager $manager, Repository $config): int
     {
         $name = $this->indexName((string) $this->argument('name'), $config);
 
@@ -42,7 +42,7 @@ class DeleteIndexCommand extends Command
     /**
      * Get the fully-qualified index name for the given index.
      */
-    protected function indexName(string $name, ConfigInterface $config): string
+    protected function indexName(string $name, Repository $config): string
     {
         if (class_exists($name)) {
             return (new $name())->indexableAs();
