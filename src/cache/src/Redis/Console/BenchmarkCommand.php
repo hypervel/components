@@ -24,7 +24,6 @@ use Hypervel\Cache\Redis\Support\MonitoringDetector;
 use Hypervel\Cache\Redis\TagMode;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\SystemInfo;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
@@ -240,7 +239,7 @@ class BenchmarkCommand extends Command
      */
     protected function checkMonitoringTools(): bool
     {
-        $config = $this->app->get(Repository::class);
+        $config = $this->app->get('config');
         $monitoringTools = (new MonitoringDetector($config))->detect();
 
         if (! empty($monitoringTools) && ! $this->option('force')) {
@@ -280,7 +279,7 @@ class BenchmarkCommand extends Command
             return true;
         }
 
-        $config = $this->app->get(Repository::class);
+        $config = $this->app->get('config');
         $env = $config->get('app.env', 'production');
         $scale = $this->option('scale');
 
@@ -551,7 +550,7 @@ class BenchmarkCommand extends Command
      */
     protected function displayMemoryError(BenchmarkMemoryException $e): void
     {
-        $config = $this->app->get(Repository::class);
+        $config = $this->app->get('config');
 
         $this->newLine();
         $this->error('Benchmark aborted due to memory constraints.');

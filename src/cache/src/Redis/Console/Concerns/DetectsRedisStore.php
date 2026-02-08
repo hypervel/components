@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Console\Concerns;
 
-use Hypervel\Contracts\Config\Repository;
-
 /**
  * Provides store detection functionality for commands.
  */
@@ -16,7 +14,7 @@ trait DetectsRedisStore
      */
     protected function detectRedisStore(): ?string
     {
-        $config = $this->app->get(Repository::class);
+        $config = $this->app->get('config');
         $stores = $config->get('cache.stores', []);
 
         foreach ($stores as $name => $storeConfig) {

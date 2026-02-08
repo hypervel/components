@@ -36,7 +36,6 @@ use Hypervel\Cache\Redis\Console\Doctor\Checks\TaggedRememberCheck;
 use Hypervel\Cache\Redis\Console\Doctor\DoctorContext;
 use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
 use Symfony\Component\Console\Input\InputOption;
@@ -310,7 +309,7 @@ class DoctorCommand extends Command
         $this->line('  Framework: <fg=cyan>Hypervel</>');
 
         // Cache Store
-        $config = $this->app->get(Repository::class);
+        $config = $this->app->get('config');
         $defaultStore = $config->get('cache.default', 'file');
         $this->line("  Default Cache Store: <fg=cyan>{$defaultStore}</>");
 

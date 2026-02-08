@@ -8,7 +8,6 @@ use Closure;
 use Hypervel\Contracts\Cache\Factory as FactoryContract;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
-use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Redis\RedisFactory;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;
@@ -96,7 +95,7 @@ class CacheManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->app->get(ConfigRepository::class)
+        return $this->app->get('config')
             ->get('cache.default', 'file');
     }
 
@@ -105,7 +104,7 @@ class CacheManager implements FactoryContract
      */
     public function setDefaultDriver(string $name): void
     {
-        $this->app->get(ConfigRepository::class)
+        $this->app->get('config')
             ->set('cache.default', $name);
     }
 
@@ -318,7 +317,7 @@ class CacheManager implements FactoryContract
      */
     protected function getPrefix(array $config): string
     {
-        return $config['prefix'] ?? $this->app->get(ConfigRepository::class)->get('cache.prefix');
+        return $config['prefix'] ?? $this->app->get('config')->get('cache.prefix');
     }
 
     /**
@@ -327,7 +326,7 @@ class CacheManager implements FactoryContract
     protected function getConfig(string $name): ?array
     {
         if ($name !== 'null') {
-            return $this->app->get(ConfigRepository::class)->get("cache.stores.{$name}");
+            return $this->app->get('config')->get("cache.stores.{$name}");
         }
 
         return ['driver' => 'null'];
