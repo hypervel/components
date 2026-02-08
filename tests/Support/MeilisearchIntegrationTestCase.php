@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithMeilisearch;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Testbench\TestCase;
@@ -96,7 +96,7 @@ abstract class MeilisearchIntegrationTestCase extends TestCase
      */
     protected function configureMeilisearch(): void
     {
-        $config = $this->app->get(ConfigInterface::class);
+        $config = $this->app->get(Repository::class);
 
         $host = env('MEILISEARCH_HOST', '127.0.0.1');
         $port = env('MEILISEARCH_PORT', '7700');
