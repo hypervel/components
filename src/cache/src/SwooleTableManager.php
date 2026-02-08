@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;
 use Swoole\Table;
@@ -55,7 +55,7 @@ class SwooleTableManager
     protected function getConfig(string $name): ?array
     {
         if ($name !== 'null') {
-            return $this->app->get(ConfigInterface::class)->get("cache.swoole_tables.{$name}");
+            return $this->app->get(Repository::class)->get("cache.swoole_tables.{$name}");
         }
 
         return null;

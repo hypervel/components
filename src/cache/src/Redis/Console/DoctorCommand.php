@@ -7,7 +7,7 @@ namespace Hypervel\Cache\Redis\Console;
 use Exception;
 use Hyperf\Command\Command;
 use Hyperf\Command\Concerns\Prohibitable;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Cache\Redis\Console\Concerns\DetectsRedisStore;
 use Hypervel\Cache\Redis\Console\Doctor\CheckResult;
 use Hypervel\Cache\Redis\Console\Doctor\Checks\AddOperationsCheck;
@@ -310,7 +310,7 @@ class DoctorCommand extends Command
         $this->line('  Framework: <fg=cyan>Hypervel</>');
 
         // Cache Store
-        $config = $this->app->get(ConfigInterface::class);
+        $config = $this->app->get(Repository::class);
         $defaultStore = $config->get('cache.default', 'file');
         $this->line("  Default Cache Store: <fg=cyan>{$defaultStore}</>");
 

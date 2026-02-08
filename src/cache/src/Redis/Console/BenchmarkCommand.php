@@ -7,7 +7,7 @@ namespace Hypervel\Cache\Redis\Console;
 use Exception;
 use Hyperf\Command\Command;
 use Hyperf\Command\Concerns\Prohibitable;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Cache\Redis\Console\Benchmark\BenchmarkContext;
 use Hypervel\Cache\Redis\Console\Benchmark\ResultsFormatter;
 use Hypervel\Cache\Redis\Console\Benchmark\ScenarioResult;
@@ -240,7 +240,7 @@ class BenchmarkCommand extends Command
      */
     protected function checkMonitoringTools(): bool
     {
-        $config = $this->app->get(ConfigInterface::class);
+        $config = $this->app->get(Repository::class);
         $monitoringTools = (new MonitoringDetector($config))->detect();
 
         if (! empty($monitoringTools) && ! $this->option('force')) {
@@ -280,7 +280,7 @@ class BenchmarkCommand extends Command
             return true;
         }
 
-        $config = $this->app->get(ConfigInterface::class);
+        $config = $this->app->get(Repository::class);
         $env = $config->get('app.env', 'production');
         $scale = $this->option('scale');
 
@@ -551,7 +551,7 @@ class BenchmarkCommand extends Command
      */
     protected function displayMemoryError(BenchmarkMemoryException $e): void
     {
-        $config = $this->app->get(ConfigInterface::class);
+        $config = $this->app->get(Repository::class);
 
         $this->newLine();
         $this->error('Benchmark aborted due to memory constraints.');

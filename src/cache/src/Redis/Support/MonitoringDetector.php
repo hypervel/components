@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Redis\Support;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Telescope\Telescope;
 
 /**
@@ -16,7 +16,7 @@ use Hypervel\Telescope\Telescope;
 class MonitoringDetector
 {
     public function __construct(
-        private readonly ConfigInterface $config,
+        private readonly Repository $config,
     ) {
     }
 

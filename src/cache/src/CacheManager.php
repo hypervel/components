@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Cache\Factory as FactoryContract;
-use Hypervel\Contracts\Cache\Repository as RepositoryContract;
+use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Redis\RedisFactory;
 use InvalidArgumentException;
@@ -52,7 +52,7 @@ class CacheManager implements FactoryContract
     /**
      * Get a cache store instance by name, wrapped in a repository.
      */
-    public function store(?string $name = null): RepositoryContract
+    public function store(?string $name = null): CacheRepository
     {
         $name = $name ?: $this->getDefaultDriver();
 
@@ -62,7 +62,7 @@ class CacheManager implements FactoryContract
     /**
      * Get a cache driver instance.
      */
-    public function driver(?string $driver = null): RepositoryContract
+    public function driver(?string $driver = null): CacheRepository
     {
         return $this->store($driver);
     }
@@ -96,7 +96,7 @@ class CacheManager implements FactoryContract
      */
     public function getDefaultDriver(): string
     {
-        return $this->app->get(ConfigInterface::class)
+        return $this->app->get(Repository::class)
             ->get('cache.default', 'file');
     }
 
@@ -105,7 +105,7 @@ class CacheManager implements FactoryContract
      */
     public function setDefaultDriver(string $name): void
     {
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('cache.default', $name);
     }
 
@@ -158,7 +158,7 @@ class CacheManager implements FactoryContract
     /**
      * Attempt to get the store from the local cache.
      */
-    protected function getStore(string $name): RepositoryContract
+    protected function getStore(string $name): CacheRepository
     {
         return $this->stores[$name] ?? $this->resolve($name);
     }
@@ -168,7 +168,7 @@ class CacheManager implements FactoryContract
      *
      * @throws InvalidArgumentException
      */
-    protected function resolve(string $name): RepositoryContract
+    protected function resolve(string $name): CacheRepository
     {
         $config = $this->getConfig($name);
 
@@ -192,7 +192,7 @@ class CacheManager implements FactoryContract
     /**
      * Call a custom driver creator.
      */
-    protected function callCustomCreator(array $config): RepositoryContract
+    protected function callCustomCreator(array $config): CacheRepository
     {
         return $this->customCreators[$config['driver']]($this->app, $config);
     }
@@ -318,7 +318,7 @@ class CacheManager implements FactoryContract
      */
     protected function getPrefix(array $config): string
     {
-        return $config['prefix'] ?? $this->app->get(ConfigInterface::class)->get('cache.prefix');
+        return $config['prefix'] ?? $this->app->get(Repository::class)->get('cache.prefix');
     }
 
     /**
@@ -327,7 +327,7 @@ class CacheManager implements FactoryContract
     protected function getConfig(string $name): ?array
     {
         if ($name !== 'null') {
-            return $this->app->get(ConfigInterface::class)->get("cache.stores.{$name}");
+            return $this->app->get(Repository::class)->get("cache.stores.{$name}");
         }
 
         return ['driver' => 'null'];
