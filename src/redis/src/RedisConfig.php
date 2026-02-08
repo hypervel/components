@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use InvalidArgumentException;
 
 class RedisConfig
@@ -12,7 +12,7 @@ class RedisConfig
     /**
      * Create a new redis config helper.
      */
-    public function __construct(private ConfigInterface $config)
+    public function __construct(private Repository $config)
     {
     }
 
