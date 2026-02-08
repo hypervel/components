@@ -13,7 +13,7 @@ use Hypervel\Context\Context;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\StatefulGuard;
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\JWT\JWTManager;
 use InvalidArgumentException;
@@ -48,7 +48,7 @@ class AuthManager implements AuthFactoryContract
     public function __construct(
         protected ContainerInterface $app
     ) {
-        $this->config = $this->app->get(Repository::class);
+        $this->config = $this->app->get('config');
         $this->userResolver = function ($guard = null) {
             return $this->guard($guard)->user();
         };
