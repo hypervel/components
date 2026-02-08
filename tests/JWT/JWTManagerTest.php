@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\JWT;
 
 use Carbon\Carbon;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\Contract\ContainerInterface;
 use Hypervel\JWT\Contracts\BlacklistContract;
 use Hypervel\JWT\Exceptions\JWTException;
@@ -32,9 +32,9 @@ class JWTManagerTest extends TestCase
     private ContainerInterface $container;
 
     /**
-     * @var ConfigInterface|MockInterface
+     * @var Repository|MockInterface
      */
-    private ConfigInterface $config;
+    private Repository $config;
 
     /**
      * @var Lcobucci|MockInterface
@@ -234,9 +234,9 @@ class JWTManagerTest extends TestCase
 
     private function mockConfig()
     {
-        $this->config = m::mock(ConfigInterface::class);
+        $this->config = m::mock(Repository::class);
 
-        $this->container->shouldReceive('get')->with(ConfigInterface::class)->andReturn($this->config);
+        $this->container->shouldReceive('get')->with(Repository::class)->andReturn($this->config);
     }
 
     private function mockProvider()
