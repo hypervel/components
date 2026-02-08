@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Broadcasting;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\HttpServer\Router\DispatcherFactory as RouterDispatcherFactory;
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\BroadcastManager;
@@ -47,7 +47,7 @@ class BroadcastManagerTest extends TestCase
         $this->container = new Application(
             new DefinitionSource([
                 BusDispatcherContract::class => fn () => m::mock(QueueingDispatcher::class),
-                ConfigInterface::class => fn () => m::mock(ConfigInterface::class),
+                Repository::class => fn () => m::mock(Repository::class),
                 QueueFactoryContract::class => fn () => m::mock(QueueFactoryContract::class),
                 BroadcastingFactoryContract::class => fn ($container) => new BroadcastManager($container),
             ]),
@@ -112,7 +112,7 @@ class BroadcastManagerTest extends TestCase
         $config->shouldReceive('get')->with('broadcasting.connections.alien_connection')->andReturn(null);
 
         $app = m::mock(ContainerInterface::class);
-        $app->shouldReceive('get')->with(ConfigInterface::class)->andReturn($config);
+        $app->shouldReceive('get')->with(Repository::class)->andReturn($config);
 
         $broadcastManager = new BroadcastManager($app);
 
@@ -136,14 +136,14 @@ class BroadcastManagerTest extends TestCase
             ->with('http')
             ->andReturn($router);
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')
             ->with('server.kernels', [])
             ->andReturn(['http' => []]);
 
         $app = m::mock(ContainerInterface::class);
         $app->shouldReceive('has')->with(Kernel::class)->andReturn(true);
-        $app->shouldReceive('get')->with(ConfigInterface::class)->andReturn($config);
+        $app->shouldReceive('get')->with(Repository::class)->andReturn($config);
         $app->shouldReceive('get')->with(RouterDispatcherFactory::class)->andReturn($routerFactory);
 
         $broadcastManager = new BroadcastManager($app);
