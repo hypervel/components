@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Context\Context;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Sentry\Aspects\CoroutineAspect;
@@ -71,7 +71,7 @@ class SentryServiceProvider extends ServiceProvider
                 new Pool(
                     $builder->getOptions(),
                     $this->app,
-                    $this->app->get(ConfigInterface::class)->get('pools.sentry', [])
+                    $this->app->get(Repository::class)->get('pools.sentry', [])
                 )
             );
 
@@ -113,7 +113,7 @@ class SentryServiceProvider extends ServiceProvider
 
     protected function registerFeatures(): void
     {
-        $features = $this->app->get(ConfigInterface::class)->get('sentry.features', []);
+        $features = $this->app->get(Repository::class)->get('sentry.features', []);
         foreach ($features as $feature) {
             $this->app->bind($feature, $feature);
         }
@@ -132,7 +132,7 @@ class SentryServiceProvider extends ServiceProvider
 
     protected function bootFeatures(): void
     {
-        $features = $this->app->get(ConfigInterface::class)->get('sentry.features', []);
+        $features = $this->app->get(Repository::class)->get('sentry.features', []);
         foreach ($features as $feature) {
             try {
                 /** @var Feature $featureInstance */

@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 
 class Switcher
 {
-    public function __construct(protected ConfigInterface $config)
+    public function __construct(protected Repository $config)
     {
     }
 

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Features;
 
 use Exception;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Coroutine\Coroutine;
@@ -28,7 +28,7 @@ class RedisFeature extends Feature
 
     public function onBoot(): void
     {
-        $config = $this->container->get(ConfigInterface::class);
+        $config = $this->container->get(Repository::class);
         $redisConfig = $this->container->get(RedisConfig::class);
 
         foreach ($redisConfig->connectionNames() as $connection) {

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Factory;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Sentry\Integrations\ExceptionContextIntegration;
 use Hypervel\Sentry\Integrations\Integration;
@@ -34,7 +34,7 @@ class ClientBuilderFactory
 
     public function __invoke(Application $container)
     {
-        $userConfig = $container->get(ConfigInterface::class)->get('sentry', []);
+        $userConfig = $container->get(Repository::class)->get('sentry', []);
         $userConfig['enable_tracing'] ??= true;
 
         foreach (static::SPECIFIC_OPTIONS as $specificOptionName) {
@@ -85,7 +85,7 @@ class ClientBuilderFactory
     protected function resolveIntegrations(Application $container, ClientBuilder $clientBuilder): void
     {
         $options = $clientBuilder->getOptions();
-        $userConfig = (array) $container->get(ConfigInterface::class)->get('sentry', []);
+        $userConfig = (array) $container->get(Repository::class)->get('sentry', []);
 
         /** @var array<array-key, class-string>|callable $userIntegrationOption */
         $userIntegrationOption = $userConfig['integrations'] ?? [];

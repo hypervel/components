@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry\Features;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Foundation\Application;
 use Hypervel\Sentry\Switcher;
 use Sentry\SentrySdk;
@@ -79,7 +79,7 @@ abstract class Feature
      */
     protected function getUserConfig(): array
     {
-        $config = $this->container->get(ConfigInterface::class)->get('sentry', []);
+        $config = $this->container->get(Repository::class)->get('sentry', []);
 
         return empty($config) ? [] : $config;
     }
