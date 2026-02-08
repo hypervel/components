@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hyperf\Config\Config;
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Config\Repository;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Container\Container;
@@ -108,7 +108,7 @@ class QueueManagerTest extends TestCase
     {
         $container = new Container(
             new DefinitionSource([
-                Repository::class => fn () => new Config([]),
+                Repository::class => fn () => new ConfigRepository([]),
                 Encrypter::class => fn () => m::mock(Encrypter::class),
                 PoolFactory::class => PoolManager::class,
             ])
