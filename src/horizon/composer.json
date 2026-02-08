@@ -20,7 +20,7 @@
     ],
     "require": {
         "php": "^8.4",
-        "hyperf/context": "~3.1.0",
+        "hypervel/context": "~0.3.0",
         "nesbot/carbon": "^2.72.6",
         "hypervel/support": "^0.3",
         "hypervel/cache": "^0.3",

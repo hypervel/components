@@ -35,7 +35,7 @@
     },
     "require": {
         "php": "^8.4",
-        "hyperf/conditionable": "~3.1.0",
+        "hypervel/conditionable": "~0.3.0",
         "hypervel/macroable": "~0.3.0",
         "hypervel/contracts": "~0.3.0"
     },

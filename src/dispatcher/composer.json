@@ -22,7 +22,7 @@
     ],
     "require": {
         "php": "^8.4",
-        "hyperf/context": "~3.1.0",
+        "hypervel/context": "~0.3.0",
         "hyperf/dispatcher": "~3.1.0",
         "hyperf/pipeline": "~3.1.0"
     },

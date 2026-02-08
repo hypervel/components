@@ -33,7 +33,7 @@
         "hypervel/collections": "~0.3.0",
         "hypervel/macroable": "~0.3.0",
         "hyperf/support": "~3.1.0",
-        "hyperf/conditionable": "~3.1.0",
+        "hypervel/conditionable": "~0.3.0",
         "hypervel/object-pool": "^0.3"
     },
     "suggest": {

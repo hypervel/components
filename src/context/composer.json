@@ -22,7 +22,7 @@
     ],
     "require": {
         "php": "^8.4",
-        "hyperf/engine": "^2.1"
+        "hypervel/engine": "~0.3.0"
     },
     "autoload": {
         "psr-4": {

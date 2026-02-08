@@ -28,7 +28,7 @@
     "require": {
         "php": "^8.4",
         "hyperf/config": "~3.1.0",
-        "hyperf/context": "~3.1.0",
+        "hypervel/context": "~0.3.0",
         "hyperf/support": "~3.1.0"
     },
     "config": {
