@@ -8,7 +8,6 @@ use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Queue\Queue;
 use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
@@ -28,7 +27,7 @@ class QueueManagerTest extends TestCase
     public function testDefaultConnectionCanBeResolved()
     {
         $container = $this->getContainer();
-        $config = $container->get(Repository::class);
+        $config = $container->get('config');
         $config->set('queue.default', 'sync');
         $config->set('queue.connections.sync', ['driver' => 'sync']);
 
@@ -49,7 +48,7 @@ class QueueManagerTest extends TestCase
     public function testOtherConnectionCanBeResolved()
     {
         $container = $this->getContainer();
-        $config = $container->get(Repository::class);
+        $config = $container->get('config');
         $config->set('queue.default', 'sync');
         $config->set('queue.connections.foo', ['driver' => 'bar']);
 
@@ -70,7 +69,7 @@ class QueueManagerTest extends TestCase
     public function testNullConnectionCanBeResolved()
     {
         $container = $this->getContainer();
-        $config = $container->get(Repository::class);
+        $config = $container->get('config');
         $config->set('queue.default', 'null');
 
         $manager = new QueueManager($container);
@@ -90,7 +89,7 @@ class QueueManagerTest extends TestCase
     public function testAddPoolableConnector()
     {
         $container = $this->getContainer();
-        $config = $container->get(Repository::class);
+        $config = $container->get('config');
         $config->set('queue.default', 'sync');
         $config->set('queue.connections.foo', ['driver' => 'bar']);
 
@@ -108,7 +107,7 @@ class QueueManagerTest extends TestCase
     {
         $container = new Container(
             new DefinitionSource([
-                Repository::class => fn () => new ConfigRepository([]),
+                'config' => fn () => new ConfigRepository([]),
                 Encrypter::class => fn () => m::mock(Encrypter::class),
                 PoolFactory::class => PoolManager::class,
             ])
