@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
 use Hypervel\Cache\Events\KeyForgotten;
@@ -45,7 +45,7 @@ class CacheWatcher extends Watcher
      */
     public static function enableCacheEvents(ContainerInterface $app): void
     {
-        $config = $app->get(ConfigInterface::class);
+        $config = $app->get(Repository::class);
         foreach (array_keys($config->get('cache.stores', [])) as $store) {
             $config->set("cache.stores.{$store}.events", true);
         }

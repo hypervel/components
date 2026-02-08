@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\HttpServer\Event\RequestHandled;
 use Hyperf\HttpServer\Router\Dispatched;
 use Hyperf\HttpServer\Server as HttpServer;
@@ -61,7 +61,7 @@ class RequestWatcher extends Watcher
 
     protected function enableRequestEvents(ContainerInterface $app): void
     {
-        $config = $app->get(ConfigInterface::class);
+        $config = $app->get(Repository::class);
         $servers = $config->get('server.servers', []);
 
         foreach ($servers as &$server) {

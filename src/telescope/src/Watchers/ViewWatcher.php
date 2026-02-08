@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\ViewEngine\Contract\ViewInterface;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -24,7 +24,7 @@ class ViewWatcher extends Watcher
      */
     public function register(ContainerInterface $app): void
     {
-        $app->get(ConfigInterface::class)
+        $app->get(Repository::class)
             ->set('view.event.enable', true);
 
         $app->get(EventDispatcherInterface::class)
