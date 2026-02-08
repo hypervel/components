@@ -26,7 +26,7 @@ trait HandlesDatabases
             return false;
         }
 
-        /** @var \Hypervel\Contracts\Config\Repository $config */
+        /** @var \Hypervel\Config\Repository $config */
         $config = $this->app->make('config');
 
         $connection ??= $config->get('database.default');
