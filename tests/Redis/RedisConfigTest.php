@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;

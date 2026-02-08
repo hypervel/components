@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Redis\Exceptions\InvalidRedisProxyException;
 use Hypervel\Redis\RedisConfig;
