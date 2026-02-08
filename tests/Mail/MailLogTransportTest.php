@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Mail;
 
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Mail\Attachment;
 use Hypervel\Mail\Message;
@@ -31,11 +30,11 @@ class MailLogTransportTest extends TestCase
 
     public function testGetLogTransportWithConfiguredChannel()
     {
-        $this->app->get(Repository::class)->set('mail', [
+        $this->app->get('config')->set('mail', [
             'driver' => 'log',
             'log_channel' => 'mail',
         ]);
-        $this->app->get(Repository::class)->set('logging', [
+        $this->app->get('config')->set('logging', [
             'channels' => [
                 'mail' => [
                     'driver' => 'single',
@@ -105,7 +104,7 @@ class MailLogTransportTest extends TestCase
 
     public function testGetLogTransportWithPsrLogger()
     {
-        $this->app->get(Repository::class)->set('mail', [
+        $this->app->get('config')->set('mail', [
             'driver' => 'log',
         ]);
 

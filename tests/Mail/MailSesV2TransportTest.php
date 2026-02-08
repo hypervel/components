@@ -8,7 +8,6 @@ use Aws\Command;
 use Aws\Exception\AwsException;
 use Aws\SesV2\SesV2Client;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\Transport\SesV2Transport;
 use Hypervel\Testbench\TestCase;
@@ -32,7 +31,7 @@ class MailSesV2TransportTest extends TestCase
 
     public function testGetTransport()
     {
-        $this->app->get(Repository::class)->set('services.ses', [
+        $this->app->get('config')->set('services.ses', [
             'key' => 'foo',
             'secret' => 'bar',
             'region' => 'us-east-1',
@@ -98,7 +97,7 @@ class MailSesV2TransportTest extends TestCase
 
     public function testSesV2LocalConfiguration()
     {
-        $this->app->get(Repository::class)->set('mail', [
+        $this->app->get('config')->set('mail', [
             'mailers' => [
                 'ses' => [
                     'transport' => 'ses-v2',
@@ -112,7 +111,7 @@ class MailSesV2TransportTest extends TestCase
                 ],
             ],
         ]);
-        $this->app->get(Repository::class)->set('services', [
+        $this->app->get('config')->set('services', [
             'ses' => [
                 'region' => 'us-east-1',
             ],
