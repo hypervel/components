@@ -7,7 +7,7 @@ namespace Hypervel\Database\Listeners;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Framework\Event\BeforeWorkerStart;
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Hypervel\Database\ConnectionResolverInterface;
 use Psr\Container\ContainerInterface;
 

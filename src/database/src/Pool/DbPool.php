@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Database\Pool;
 
 use Hyperf\Contract\ConnectionInterface;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Pool\Frequency;
 use Hypervel\Pool\Pool;
@@ -38,7 +37,7 @@ class DbPool extends Pool
         ContainerInterface $container,
         protected string $name
     ) {
-        $configService = $container->get(Repository::class);
+        $configService = $container->get('config');
         $key = sprintf('database.connections.%s', $this->name);
 
         if (! $configService->has($key)) {
