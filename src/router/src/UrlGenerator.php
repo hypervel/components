@@ -16,7 +16,6 @@ use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Router\DispatcherFactory;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Contracts\Router\UrlRoutable;
 use Hypervel\Support\Arr;
@@ -480,7 +479,7 @@ class UrlGenerator implements UrlGeneratorContract
             return $this->signedKey;
         }
 
-        return $this->container->get(Repository::class)
+        return $this->container->get('config')
             ->get('app.key');
     }
 
@@ -514,6 +513,6 @@ class UrlGenerator implements UrlGeneratorContract
             return $this->container->get(RequestInterface::class)->getUri();
         }
 
-        return new Uri($this->container->get(Repository::class)->get('app.url'));
+        return new Uri($this->container->get('config')->get('app.url'));
     }
 }
