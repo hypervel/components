@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Foundation\Http;
 
 use Hypervel\Config\Repository;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Foundation\Http\HtmlDumper;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
@@ -33,7 +34,7 @@ class HtmlDumperTest extends TestCase
         $this->config = $this->getConfig();
 
         $this->container = $this->getApplication([
-            'config' => fn () => $this->config,
+            ConfigContract::class => fn () => $this->config,
         ]);
 
         HtmlDumper::resolveDumpSourceUsing(function () {
