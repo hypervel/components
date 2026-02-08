@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;
 
@@ -14,7 +14,7 @@ abstract class Manager
     /**
      * The configuration repository instance.
      */
-    protected ConfigInterface $config;
+    protected Repository $config;
 
     /**
      * The registered custom driver creators.
@@ -32,7 +32,7 @@ abstract class Manager
     public function __construct(
         protected ContainerInterface $container
     ) {
-        $this->config = $container->get(ConfigInterface::class);
+        $this->config = $container->get(Repository::class);
     }
 
     /**

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\Contract\TranslatorLoaderInterface;
 use Hyperf\ViewEngine\Compiler\BladeCompiler;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactoryContract;
@@ -96,7 +96,7 @@ abstract class ServiceProvider
      */
     protected function mergeConfigFrom(string $path, string $key): void
     {
-        $config = $this->app->get(ConfigInterface::class);
+        $config = $this->app->get(Repository::class);
         $config->set($key, array_merge(
             require $path,
             $config->get($key, [])
@@ -118,7 +118,7 @@ abstract class ServiceProvider
     protected function loadViewsFrom(array|string $path, string $namespace): void
     {
         $this->callAfterResolving(ViewFactoryContract::class, function ($view) use ($path, $namespace) {
-            $viewPath = $this->app->get(ConfigInterface::class)
+            $viewPath = $this->app->get(Repository::class)
                 ->get('view.config.view_path', null);
 
             if (is_dir($appPath = $viewPath . '/vendor/' . $namespace)) {

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\FilesystemManager;
@@ -131,7 +131,7 @@ class Storage extends Facade
     public static function fake(UnitEnum|string|null $disk = null, array $config = [])
     {
         $disk = enum_value($disk) ?: ApplicationContext::getContainer()
-            ->get(ConfigInterface::class)
+            ->get(Repository::class)
             ->get('filesystems.default');
 
         $root = storage_path('framework/testing/disks/' . $disk);
@@ -155,7 +155,7 @@ class Storage extends Facade
     public static function persistentFake(UnitEnum|string|null $disk = null, array $config = [])
     {
         $disk = enum_value($disk) ?: ApplicationContext::getContainer()
-            ->get(ConfigInterface::class)
+            ->get(Repository::class)
             ->get('filesystems.default');
 
         static::set($disk, $fake = static::createLocalDriver(array_merge($config, [
