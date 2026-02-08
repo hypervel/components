@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Auth;
 
 use Closure;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Auth\Guards\JwtGuard;
 use Hypervel\Auth\Guards\RequestGuard;
@@ -43,12 +43,12 @@ class AuthManager implements AuthFactoryContract
     /**
      * The auth configuration.
      */
-    protected ConfigInterface $config;
+    protected ConfigRepository $config;
 
     public function __construct(
         protected ContainerInterface $app
     ) {
-        $this->config = $this->app->get(ConfigInterface::class);
+        $this->config = $this->app->get(ConfigRepository::class);
         $this->userResolver = function ($guard = null) {
             return $this->guard($guard)->user();
         };
