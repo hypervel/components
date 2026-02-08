@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\Sqlite;
 
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Database\Connectors\SQLiteConnector;
@@ -38,13 +37,13 @@ class InMemorySqliteSharedPdoTest extends TestCase
         $this->configureInMemoryDatabase();
 
         // Suppress expected log output from reconnect tests
-        $config = $this->app->get(Repository::class);
+        $config = $this->app->get('config');
         $config->set(StdoutLoggerInterface::class . '.log_level', []);
     }
 
     protected function configureInMemoryDatabase(): void
     {
-        $config = $this->app->get(Repository::class);
+        $config = $this->app->get('config');
 
         $this->app->set('db.connector.sqlite', new SQLiteConnector());
 
@@ -79,7 +78,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
      */
     public function testIsInMemorySqliteDetection(string $database, bool $expected): void
     {
-        $config = $this->app->get(Repository::class);
+        $config = $this->app->get('config');
 
         $connectionConfig = [
             'driver' => 'sqlite',
@@ -123,7 +122,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
 
     public function testNonSqliteDriverIsNotInMemorySqlite(): void
     {
-        $config = $this->app->get(Repository::class);
+        $config = $this->app->get('config');
 
         $connectionConfig = [
             'driver' => 'mysql',
@@ -164,7 +163,7 @@ class InMemorySqliteSharedPdoTest extends TestCase
 
     public function testFileSqlitePoolDoesNotHaveSharedPdo(): void
     {
-        $config = $this->app->get(Repository::class);
+        $config = $this->app->get('config');
 
         $tempFile = sys_get_temp_dir() . '/test_no_shared_pdo.db';
         @touch($tempFile);

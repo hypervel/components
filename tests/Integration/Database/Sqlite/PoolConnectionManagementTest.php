@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Integration\Database\Sqlite;
 
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\SQLiteConnector;
 use Hypervel\Database\DatabaseManager;
@@ -65,13 +64,13 @@ class PoolConnectionManagementTest extends TestCase
         $this->createTestTable();
 
         // Suppress expected error logs from transaction rollback tests
-        $config = $this->app->get(Repository::class);
+        $config = $this->app->get('config');
         $config->set('Hyperf\Contract\StdoutLoggerInterface.log_level', []);
     }
 
     protected function configureDatabase(): void
     {
-        $config = $this->app->get(Repository::class);
+        $config = $this->app->get('config');
 
         $this->app->set('db.connector.sqlite', new SQLiteConnector());
 
