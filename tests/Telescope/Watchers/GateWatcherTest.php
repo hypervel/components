@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use Exception;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Auth\Access\AuthorizesRequests;
 use Hypervel\Auth\Access\Gate;
 use Hypervel\Auth\Access\Response;
@@ -25,7 +25,7 @@ class GateWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('telescope.watchers', [
                 GateWatcher::class => true,
             ]);

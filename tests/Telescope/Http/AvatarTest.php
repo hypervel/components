@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Http;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Telescope\Http\Middleware\Authorize;
@@ -25,11 +25,11 @@ class AvatarTest extends FeatureTestCase
 
         $this->withoutMiddleware(Authorize::class);
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('telescope.watchers', [
                 LogWatcher::class => true,
             ]);
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('logging.default', 'null');
 
         $this->startTelescope();

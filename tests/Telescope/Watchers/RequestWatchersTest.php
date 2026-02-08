@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\HttpServer\Server as HttpServer;
 use Hyperf\Server\Event;
 use Hypervel\Http\UploadedFile;
@@ -26,11 +26,11 @@ class RequestWatchersTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('telescope.watchers', [
                 RequestWatcher::class => true,
             ]);
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('server.servers', [
                 'http' => [
                     'name' => 'http',
@@ -47,7 +47,7 @@ class RequestWatchersTest extends FeatureTestCase
     public function testRegisterEnableRequestEvents()
     {
         $this->assertTrue(
-            $this->app->get(ConfigInterface::class)
+            $this->app->get(Repository::class)
                 ->get('server.servers.http.options.enable_request_lifecycle', false)
         );
     }

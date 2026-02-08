@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\LogWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
@@ -38,11 +38,11 @@ class LogWatcherTest extends FeatureTestCase
             'testLogWatcherRegistersRetryWithExceptionKey' => true,
         };
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('telescope.watchers', [
                 LogWatcher::class => $config,
             ]);
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('logging.default', 'null');
 
         $this->startTelescope();

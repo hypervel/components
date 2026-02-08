@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use Exception;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Support\Carbon;
@@ -28,7 +28,7 @@ class QueryWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('telescope.watchers', [
                 QueryWatcher::class => [
                     'enabled' => true,

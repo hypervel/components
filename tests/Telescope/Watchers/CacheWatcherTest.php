@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Cache\Factory as FactoryContract;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Telescope;
@@ -21,7 +21,7 @@ class CacheWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('telescope.watchers', [
                 CacheWatcher::class => [
                     'enabled' => true,

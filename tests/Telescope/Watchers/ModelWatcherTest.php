@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\EntryType;
@@ -22,7 +22,7 @@ class ModelWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('telescope.watchers', [
                 ModelWatcher::class => [
                     'enabled' => true,

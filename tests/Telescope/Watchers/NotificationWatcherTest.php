@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\Events\NotificationSent;
 use Hypervel\Notifications\Notification;
@@ -23,7 +23,7 @@ class NotificationWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('telescope.watchers', [
                 NotificationWatcher::class => true,
             ]);

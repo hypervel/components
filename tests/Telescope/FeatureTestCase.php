@@ -6,7 +6,7 @@ namespace Hypervel\Tests\Telescope;
 
 use Faker\Factory as FakerFactory;
 use Faker\Generator;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Collection;
@@ -49,7 +49,7 @@ class FeatureTestCase extends TestCase
             EntriesRepository::class,
             fn ($container) => $container->get(DatabaseEntriesRepository::class)
         );
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('telescope', [
                 'enabled' => true,
                 'path' => 'telescope',
@@ -58,9 +58,9 @@ class FeatureTestCase extends TestCase
                 ],
                 'defer' => false,
             ]);
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('cache.default', 'array');
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('cache.stores.array', [
                 'driver' => 'array',
                 'serialize' => false,

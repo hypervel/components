@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use Exception;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Dispatchable;
 use Hypervel\Contracts\Bus\BatchRepository;
@@ -31,7 +31,7 @@ class JobWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('telescope.watchers', [
                 JobWatcher::class => true,
             ]);

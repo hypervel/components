@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Console\Events\ScheduledTaskFinished;
 use Hypervel\Console\Events\ScheduledTaskStarting;
 use Hypervel\Console\Scheduling\Event;
@@ -24,7 +24,7 @@ class ScheduleWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(ConfigInterface::class)
+        $this->app->get(Repository::class)
             ->set('telescope.watchers', [
                 ScheduleWatcher::class => true,
             ]);
