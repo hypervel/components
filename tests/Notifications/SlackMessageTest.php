@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Notifications;
 use Closure;
 use GuzzleHttp\Client as HttpClient;
 use GuzzleHttp\Psr7\Response;
-use Hyperf\Config\Config;
+use Hypervel\Config\Repository;
 use Hypervel\Notifications\Channels\SlackWebApiChannel;
 use Hypervel\Notifications\Notifiable;
 use Hypervel\Notifications\Notification;
@@ -34,7 +34,7 @@ class SlackMessageTest extends TestCase
 
     protected ?HttpClient $client = null;
 
-    protected ?Config $config = null;
+    protected ?Repository $config = null;
 
     public function setUp(): void
     {
@@ -717,7 +717,7 @@ class SlackMessageTest extends TestCase
     {
         return new SlackWebApiChannel(
             $this->client = m::mock(HttpClient::class),
-            $this->config = new Config([])
+            $this->config = new Repository([])
         );
     }
 

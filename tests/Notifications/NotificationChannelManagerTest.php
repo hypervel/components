@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Notifications;
 
-use Hyperf\Config\Config;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Bus\Queueable;
 use Hypervel\Container\Container;
@@ -127,7 +127,7 @@ class NotificationChannelManagerTest extends TestCase
     {
         $container = new Container(
             new DefinitionSource([
-                ConfigInterface::class => fn () => new Config([]),
+                Repository::class => fn () => new ConfigRepository([]),
                 BusDispatcherContract::class => fn () => m::mock(BusDispatcherContract::class),
                 EventDispatcherInterface::class => fn () => m::mock(EventDispatcherInterface::class),
                 PoolFactory::class => PoolManager::class,
