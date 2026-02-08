@@ -19,6 +19,7 @@ use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Contracts\Bus\QueueingDispatcher;
 use Hypervel\Contracts\Cache\Factory as Cache;
 use Hypervel\Config\Repository;
+use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Http\Kernel;
@@ -47,7 +48,7 @@ class BroadcastManagerTest extends TestCase
         $this->container = new Application(
             new DefinitionSource([
                 BusDispatcherContract::class => fn () => m::mock(QueueingDispatcher::class),
-                \Hypervel\Contracts\Config\Repository::class => fn () => m::mock(Repository::class),
+                ConfigContract::class => fn () => m::mock(Repository::class),
                 QueueFactoryContract::class => fn () => m::mock(QueueFactoryContract::class),
                 BroadcastingFactoryContract::class => fn ($container) => new BroadcastManager($container),
             ]),

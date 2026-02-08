@@ -13,6 +13,7 @@ use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -69,7 +70,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.redis.connection', 'default')
             ->andReturn('default');
 
-        $this->app->set(\Hypervel\Contracts\Config\Repository::class, $config);
+        $this->app->set(ConfigContract::class, $config);
 
         // Mock Redis store
         $context = m::mock(StoreContext::class);
@@ -125,7 +126,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.custom-redis.connection', 'default')
             ->andReturn('custom');
 
-        $this->app->set(\Hypervel\Contracts\Config\Repository::class, $config);
+        $this->app->set(ConfigContract::class, $config);
 
         // Mock Redis store
         $context = m::mock(StoreContext::class);
@@ -171,7 +172,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.redis.connection', 'default')
             ->andReturn('default');
 
-        $this->app->set(\Hypervel\Contracts\Config\Repository::class, $config);
+        $this->app->set(ConfigContract::class, $config);
 
         // Mock Redis store with 'all' mode
         $context = m::mock(StoreContext::class);
@@ -220,7 +221,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.default', 'file')
             ->andReturn('file');
 
-        $this->app->set(\Hypervel\Contracts\Config\Repository::class, $config);
+        $this->app->set(ConfigContract::class, $config);
 
         $command = new DoctorCommand();
         $output = new BufferedOutput();
@@ -246,7 +247,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.redis.connection', 'default')
             ->andReturn('default');
 
-        $this->app->set(\Hypervel\Contracts\Config\Repository::class, $config);
+        $this->app->set(ConfigContract::class, $config);
 
         $context = m::mock(StoreContext::class);
         $context->shouldReceive('withConnection')
