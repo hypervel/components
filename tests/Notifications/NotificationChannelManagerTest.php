@@ -10,7 +10,6 @@ use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Notifications\ChannelManager;
 use Hypervel\Notifications\Channels\MailChannel;
@@ -127,7 +126,7 @@ class NotificationChannelManagerTest extends TestCase
     {
         $container = new Container(
             new DefinitionSource([
-                Repository::class => fn () => new ConfigRepository([]),
+                'config' => fn () => new ConfigRepository([]),
                 BusDispatcherContract::class => fn () => m::mock(BusDispatcherContract::class),
                 EventDispatcherInterface::class => fn () => m::mock(EventDispatcherInterface::class),
                 PoolFactory::class => PoolManager::class,
