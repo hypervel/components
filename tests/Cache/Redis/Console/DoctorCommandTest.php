@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Console;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\Redis\Console\DoctorCommand;
 use Hypervel\Cache\Redis\Support\StoreContext;
@@ -55,7 +55,7 @@ class DoctorCommandTest extends TestCase
     public function testDoctorDetectsRedisStoreFromConfig(): void
     {
         // Set up config with a redis store
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(ConfigRepository::class);
         $config->shouldReceive('get')
             ->with('cache.stores', [])
             ->andReturn([
@@ -69,7 +69,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.redis.connection', 'default')
             ->andReturn('default');
 
-        $this->app->set(ConfigInterface::class, $config);
+        $this->app->set(ConfigRepository::class, $config);
 
         // Mock Redis store
         $context = m::mock(StoreContext::class);
@@ -117,7 +117,7 @@ class DoctorCommandTest extends TestCase
             return;
         }
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(ConfigRepository::class);
         $config->shouldReceive('get')
             ->with('cache.default', 'file')
             ->andReturn('file');
@@ -125,7 +125,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.custom-redis.connection', 'default')
             ->andReturn('custom');
 
-        $this->app->set(ConfigInterface::class, $config);
+        $this->app->set(ConfigRepository::class, $config);
 
         // Mock Redis store
         $context = m::mock(StoreContext::class);
@@ -163,7 +163,7 @@ class DoctorCommandTest extends TestCase
 
     public function testDoctorDisplaysTagMode(): void
     {
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(ConfigRepository::class);
         $config->shouldReceive('get')
             ->with('cache.default', 'file')
             ->andReturn('redis');
@@ -171,7 +171,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.redis.connection', 'default')
             ->andReturn('default');
 
-        $this->app->set(ConfigInterface::class, $config);
+        $this->app->set(ConfigRepository::class, $config);
 
         // Mock Redis store with 'all' mode
         $context = m::mock(StoreContext::class);
@@ -209,7 +209,7 @@ class DoctorCommandTest extends TestCase
     public function testDoctorFailsWhenNoRedisStoreDetected(): void
     {
         // Set up config with NO redis stores
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(ConfigRepository::class);
         $config->shouldReceive('get')
             ->with('cache.stores', [])
             ->andReturn([
@@ -220,7 +220,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.default', 'file')
             ->andReturn('file');
 
-        $this->app->set(ConfigInterface::class, $config);
+        $this->app->set(ConfigRepository::class, $config);
 
         $command = new DoctorCommand();
         $output = new BufferedOutput();
@@ -233,7 +233,7 @@ class DoctorCommandTest extends TestCase
 
     public function testDoctorDisplaysSystemInformation(): void
     {
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(ConfigRepository::class);
         $config->shouldReceive('get')
             ->with('cache.stores', [])
             ->andReturn([
@@ -246,7 +246,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.redis.connection', 'default')
             ->andReturn('default');
 
-        $this->app->set(ConfigInterface::class, $config);
+        $this->app->set(ConfigRepository::class, $config);
 
         $context = m::mock(StoreContext::class);
         $context->shouldReceive('withConnection')

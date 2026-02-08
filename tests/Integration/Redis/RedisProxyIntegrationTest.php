@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Redis;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Engine\Channel;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
@@ -32,7 +32,7 @@ class RedisProxyIntegrationTest extends TestCase
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $config = $app->get(ConfigInterface::class);
+        $config = $app->get(Repository::class);
         $this->configureRedisForTesting($config);
     }
 
@@ -578,7 +578,7 @@ class RedisProxyIntegrationTest extends TestCase
      */
     private function createRedisConnectionWithOptions(string $name, array $options, int $maxConnections = 10): string
     {
-        $config = $this->app->get(ConfigInterface::class);
+        $config = $this->app->get(Repository::class);
 
         if ($config->get("database.redis.{$name}") !== null) {
             return $name;

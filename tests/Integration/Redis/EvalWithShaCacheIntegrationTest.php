@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Redis;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithRedis;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
@@ -33,7 +33,7 @@ class EvalWithShaCacheIntegrationTest extends TestCase
 
     protected function defineEnvironment(ApplicationContract $app): void
     {
-        $config = $app->get(ConfigInterface::class);
+        $config = $app->get(Repository::class);
         $this->configureRedisForTesting($config);
     }
 

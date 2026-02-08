@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
@@ -26,7 +26,7 @@ class RedisConfigTest extends TestCase
             'cache' => ['host' => '127.0.0.1', 'port' => 6379, 'db' => 1],
         ];
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')->with('database.redis')->andReturn($redisConfig);
 
         $this->assertSame(['default', 'cache'], (new RedisConfig($config))->connectionNames());
@@ -37,7 +37,7 @@ class RedisConfigTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The redis connection [default] must be an array.');
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')->with('database.redis')->andReturn([
             'default' => 'tcp://127.0.0.1:6379',
         ]);
@@ -50,7 +50,7 @@ class RedisConfigTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The redis connection [custom] must define host and port.');
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')->with('database.redis')->andReturn([
             'custom' => ['foo' => 'bar'],
         ]);
@@ -70,7 +70,7 @@ class RedisConfigTest extends TestCase
             ],
         ];
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')->with('database.redis')->andReturn($redisConfig);
 
         $connectionConfig = (new RedisConfig($config))->connectionConfig('default');
@@ -86,7 +86,7 @@ class RedisConfigTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The redis connection [default] must be an array.');
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')->with('database.redis')->andReturn([]);
 
         (new RedisConfig($config))->connectionConfig('default');
@@ -97,7 +97,7 @@ class RedisConfigTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The redis connection [default] options must be an array.');
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')->with('database.redis')->andReturn([
             'options' => ['prefix' => 'global:'],
             'default' => [
@@ -113,7 +113,7 @@ class RedisConfigTest extends TestCase
 
     public function testConnectionNamesAcceptsClusterConnectionWithoutHostAndPort(): void
     {
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')->with('database.redis')->andReturn([
             'clustered' => [
                 'db' => 0,
@@ -132,7 +132,7 @@ class RedisConfigTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The redis connection [clustered] cluster seeds must be a non-empty array.');
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')->with('database.redis')->andReturn([
             'clustered' => [
                 'cluster' => [
@@ -147,7 +147,7 @@ class RedisConfigTest extends TestCase
 
     public function testConnectionNamesAcceptsSentinelConnectionWithoutHostAndPort(): void
     {
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')->with('database.redis')->andReturn([
             'sentinel' => [
                 'db' => 0,
@@ -167,7 +167,7 @@ class RedisConfigTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The redis connection [sentinel] sentinel nodes must be a non-empty array.');
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')->with('database.redis')->andReturn([
             'sentinel' => [
                 'sentinel' => [
@@ -186,7 +186,7 @@ class RedisConfigTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The redis connection [sentinel] sentinel master name must be configured.');
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')->with('database.redis')->andReturn([
             'sentinel' => [
                 'sentinel' => [
@@ -205,7 +205,7 @@ class RedisConfigTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('The redis connection [mixed] cannot enable both cluster and sentinel.');
 
-        $config = m::mock(ConfigInterface::class);
+        $config = m::mock(Repository::class);
         $config->shouldReceive('get')->with('database.redis')->andReturn([
             'mixed' => [
                 'cluster' => [
