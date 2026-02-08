@@ -47,7 +47,7 @@ class BroadcastManagerTest extends TestCase
         $this->container = new Application(
             new DefinitionSource([
                 BusDispatcherContract::class => fn () => m::mock(QueueingDispatcher::class),
-                'config' => fn () => m::mock(Repository::class),
+                \Hypervel\Contracts\Config\Repository::class => fn () => m::mock(Repository::class),
                 QueueFactoryContract::class => fn () => m::mock(QueueFactoryContract::class),
                 BroadcastingFactoryContract::class => fn ($container) => new BroadcastManager($container),
             ]),
