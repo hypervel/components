@@ -33,7 +33,7 @@
         ]
     },
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "hyperf/config": "~3.1.0",
         "hyperf/support": "~3.1.0",
         "laravel/serializable-closure": "^1.3",

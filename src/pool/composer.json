@@ -30,7 +30,7 @@
         }
     },
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "hyperf/contract": "~3.1.0",
         "hyperf/coroutine": "~3.1.0",
         "hyperf/engine": "^2.11",

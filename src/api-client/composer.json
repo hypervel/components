@@ -21,7 +21,7 @@
         }
     ],
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "hypervel/support": "^0.3",
         "hypervel/http-client": "^0.3"
     },

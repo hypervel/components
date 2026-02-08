@@ -29,7 +29,7 @@
         ]
     },
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "ext-session": "*",
         "hyperf/context": "~3.1.0",
         "hypervel/collections": "~0.3.0",

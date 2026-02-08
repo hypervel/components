@@ -26,7 +26,7 @@
         }
     },
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "hyperf/config": "~3.1.0",
         "monolog/monolog": "^3.1",
         "hyperf/contract": "~3.1.0",

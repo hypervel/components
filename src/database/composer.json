@@ -31,7 +31,7 @@
         }
     },
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "hypervel/pool": "~0.3"
     },
     "require-dev": {

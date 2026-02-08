@@ -26,7 +26,7 @@
         }
     },
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "hypervel/auth": "^0.3",
         "hypervel/cache": "^0.3",
         "hypervel/console": "^0.3",

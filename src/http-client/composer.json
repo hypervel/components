@@ -26,7 +26,7 @@
         }
     },
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "hypervel/macroable": "~0.3.0",
         "guzzlehttp/guzzle": "^7.8.2",
         "guzzlehttp/uri-template": "^1.0",

@@ -33,7 +33,7 @@
         }
     },
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "hypervel/config": "^0.3",
         "hypervel/console": "^0.3",
         "hypervel/core": "^0.3",

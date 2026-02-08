@@ -19,7 +19,7 @@
         ]
     },
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "ext-mbstring": "*",
         "composer-runtime-api": "^2.2",
         "symfony/console": "^6.2|^7.0",

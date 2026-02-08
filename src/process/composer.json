@@ -20,7 +20,7 @@
         }
     ],
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "hypervel/support": "^0.3",
         "hypervel/collections": "~0.3.0",
         "hypervel/macroable": "~0.3.0",
