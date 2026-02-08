@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Scout\Engines;
 
 use Hypervel\Context\ApplicationContext;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Pagination\LengthAwarePaginator as LengthAwarePaginatorContract;
 use Hypervel\Contracts\Pagination\Paginator as PaginatorContract;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
@@ -506,7 +505,7 @@ class DatabaseEngine extends Engine implements PaginatesEloquentModelsUsingDatab
     protected function getConfig(string $key, mixed $default = null): mixed
     {
         return ApplicationContext::getContainer()
-            ->get(Repository::class)
+            ->get('config')
             ->get("scout.{$key}", $default);
     }
 }

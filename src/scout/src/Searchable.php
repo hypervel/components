@@ -6,7 +6,6 @@ namespace Hypervel\Scout;
 
 use Closure;
 use Hypervel\Context\ApplicationContext;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
@@ -512,7 +511,7 @@ trait Searchable
     protected static function getScoutConfig(string $key, mixed $default = null): mixed
     {
         return ApplicationContext::getContainer()
-            ->get(Repository::class)
+            ->get('config')
             ->get("scout.{$key}", $default);
     }
 }

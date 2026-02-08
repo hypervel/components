@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Scout\Console;
 
 use Hypervel\Console\Command;
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Hypervel\Database\Eloquent\SoftDeletes;
 use Hypervel\Scout\Contracts\UpdatesIndexSettings;
 use Hypervel\Scout\EngineManager;

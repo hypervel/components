@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Scout;
 
 use Closure;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Scout\Engines\CollectionEngine;
 use Hypervel\Scout\Engines\DatabaseEngine;
 use Hypervel\Scout\Engines\MeilisearchEngine;
@@ -217,6 +216,6 @@ class EngineManager
      */
     protected function getConfig(string $key, mixed $default = null): mixed
     {
-        return $this->container->get(Repository::class)->get("scout.{$key}", $default);
+        return $this->container->get('config')->get("scout.{$key}", $default);
     }
 }
