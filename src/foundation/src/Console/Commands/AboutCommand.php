@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Console\Commands;
 
 use Closure;
-use Hypervel\Console\Command;
 use Hypervel\Config\Repository;
+use Hypervel\Console\Command;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Composer;
 use Hypervel\Support\Str;

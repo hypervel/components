@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Console\Commands;
 
-use Hypervel\Console\Command;
 use Hypervel\Config\Repository;
+use Hypervel\Console\Command;
 use Hypervel\Support\Arr;
 
 class ConfigShowCommand extends Command

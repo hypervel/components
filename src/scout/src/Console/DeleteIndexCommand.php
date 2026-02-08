@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Scout\Console;
 
-use Hypervel\Console\Command;
 use Hypervel\Config\Repository;
+use Hypervel\Console\Command;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Support\Str;
 

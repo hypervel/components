@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Console\Commands;
 
-use Hypervel\Console\Command;
 use Hypervel\Config\Repository;
+use Hypervel\Console\Command;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Psr\Container\ContainerInterface;

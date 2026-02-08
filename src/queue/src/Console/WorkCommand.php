@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
-use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Config\Repository;
+use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
