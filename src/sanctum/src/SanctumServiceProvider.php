@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Sanctum\Console\Commands\PruneExpired;
@@ -57,7 +57,7 @@ class SanctumServiceProvider extends ServiceProvider
                 }
 
                 // Get expiration from sanctum config
-                $expiration = $this->app->get(ConfigInterface::class)->get('sanctum.expiration');
+                $expiration = $this->app->get(Repository::class)->get('sanctum.expiration');
 
                 return new SanctumGuard(
                     name: $name,
