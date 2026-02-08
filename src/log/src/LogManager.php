@@ -6,7 +6,7 @@ namespace Hypervel\Log;
 
 use Closure;
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Environment;
 use Hypervel\Support\Str;
@@ -63,7 +63,7 @@ class LogManager implements LoggerInterface
     public function __construct(
         protected ContainerInterface $app
     ) {
-        $this->config = $this->app->get(Repository::class);
+        $this->config = $this->app->get('config');
     }
 
     /**
