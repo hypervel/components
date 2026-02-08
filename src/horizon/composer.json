@@ -20,14 +20,14 @@
     ],
     "require": {
         "php": "^8.4",
-        "hypervel/context": "~0.3.0",
+        "hypervel/context": "^0.4",
         "nesbot/carbon": "^2.72.6",
-        "hypervel/support": "^0.3",
-        "hypervel/cache": "^0.3",
-        "hypervel/core": "^0.3",
-        "hypervel/console": "^0.3",
-        "hypervel/event": "^0.3",
-        "hypervel/queue": "^0.3"
+        "hypervel/support": "^0.4",
+        "hypervel/cache": "^0.4",
+        "hypervel/core": "^0.4",
+        "hypervel/console": "^0.4",
+        "hypervel/event": "^0.4",
+        "hypervel/queue": "^0.4"
     },
     "autoload": {
         "psr-4": {
@@ -36,7 +36,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         },
         "hypervel": {
             "providers": [

@@ -22,11 +22,11 @@
     "require": {
         "php": "^8.4",
         "nesbot/carbon": "^2.72.6",
-        "hypervel/collections": "~0.3.0",
+        "hypervel/collections": "^0.4",
         "lcobucci/jwt": "^5.0",
         "psr/simple-cache": "^3.0",
         "ramsey/uuid": "^4.7",
-        "hypervel/cache": "^0.3"
+        "hypervel/cache": "^0.4"
     },
     "autoload": {
         "psr-4": {
@@ -38,7 +38,7 @@
             "config": "Hypervel\\JWT\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     },
     "config": {

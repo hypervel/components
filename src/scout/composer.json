@@ -34,13 +34,13 @@
     },
     "require": {
         "php": "^8.4",
-        "hypervel/config": "^0.3",
-        "hypervel/console": "^0.3",
-        "hypervel/core": "^0.3",
-        "hypervel/coroutine": "^0.3",
-        "hypervel/event": "^0.3",
-        "hypervel/queue": "^0.3",
-        "hypervel/support": "^0.3"
+        "hypervel/config": "^0.4",
+        "hypervel/console": "^0.4",
+        "hypervel/core": "^0.4",
+        "hypervel/coroutine": "^0.4",
+        "hypervel/event": "^0.4",
+        "hypervel/queue": "^0.4",
+        "hypervel/support": "^0.4"
     },
     "suggest": {
         "meilisearch/meilisearch-php": "Required for Meilisearch driver (^1.0)",
@@ -51,7 +51,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         },
         "hypervel": {
             "providers": [

@@ -32,8 +32,8 @@
     "require": {
         "php": "^8.4",
         "hyperf/contract": "~3.1.0",
-        "hypervel/coroutine": "~0.3.0",
-        "hypervel/engine": "~0.3.0",
+        "hypervel/coroutine": "^0.4",
+        "hypervel/engine": "^0.4",
         "psr/container": "^1.0|^2.0"
     },
     "config": {
@@ -41,7 +41,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

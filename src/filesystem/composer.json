@@ -30,11 +30,11 @@
     },
     "require": {
         "php": "^8.4",
-        "hypervel/collections": "~0.3.0",
-        "hypervel/macroable": "~0.3.0",
+        "hypervel/collections": "^0.4",
+        "hypervel/macroable": "^0.4",
         "hyperf/support": "~3.1.0",
-        "hypervel/conditionable": "~0.3.0",
-        "hypervel/object-pool": "^0.3"
+        "hypervel/conditionable": "^0.4",
+        "hypervel/object-pool": "^0.4"
     },
     "suggest": {
         "ext-fileinfo": "Required to use the Filesystem class.",
@@ -57,7 +57,7 @@
             "config": "Hypervel\\Filesystem\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

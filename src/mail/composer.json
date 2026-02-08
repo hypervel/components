@@ -27,13 +27,13 @@
     },
     "require": {
         "php": "^8.4",
-        "hypervel/collections": "~0.3.0",
-        "hypervel/conditionable": "~0.3.0",
-        "hypervel/macroable": "~0.3.0",
+        "hypervel/collections": "^0.4",
+        "hypervel/conditionable": "^0.4",
+        "hypervel/macroable": "^0.4",
         "hyperf/di": "~3.1.0",
-        "hypervel/support": "^0.3",
-        "hypervel/filesystem": "^0.3",
-        "hypervel/object-pool": "^0.3",
+        "hypervel/support": "^0.4",
+        "hypervel/filesystem": "^0.4",
+        "hypervel/object-pool": "^0.4",
         "league/commonmark": "^2.2",
         "psr/log": "^1.0|^2.0|^3.0",
         "symfony/mailer": "^6.2",
@@ -47,7 +47,7 @@
             "config": "Hypervel\\Mail\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     },
     "suggest": {

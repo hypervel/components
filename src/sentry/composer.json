@@ -26,11 +26,11 @@
     },
     "require": {
         "php": "^8.4",
-        "hypervel/cache": "^0.3",
-        "hypervel/console": "^0.3",
-        "hypervel/core": "^0.3",
-        "hypervel/object-pool": "^0.3",
-        "hypervel/support": "^0.3",
+        "hypervel/cache": "^0.4",
+        "hypervel/console": "^0.4",
+        "hypervel/core": "^0.4",
+        "hypervel/object-pool": "^0.4",
+        "hypervel/support": "^0.4",
         "sentry/sentry": "^4.15.0"
     },
     "config": {
@@ -38,7 +38,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         },
         "hypervel": {
             "providers": [

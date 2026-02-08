@@ -27,16 +27,16 @@
     },
     "require": {
         "php": "^8.4",
-        "hypervel/core": "^0.3",
-        "hypervel/database": "^0.3",
-        "hypervel/support": "^0.3"
+        "hypervel/core": "^0.4",
+        "hypervel/database": "^0.4",
+        "hypervel/support": "^0.4"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

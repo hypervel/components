@@ -22,23 +22,23 @@
     "require": {
         "php": "^8.4",
         "nesbot/carbon": "^2.72.6",
-        "hypervel/core": "^0.3",
-        "hypervel/database": "^0.3",
-        "hypervel/filesystem": "^0.3",
-        "hypervel/support": "^0.3",
-        "hypervel/http": "^0.3",
-        "hypervel/validation": "^0.3",
+        "hypervel/core": "^0.4",
+        "hypervel/database": "^0.4",
+        "hypervel/filesystem": "^0.4",
+        "hypervel/support": "^0.4",
+        "hypervel/http": "^0.4",
+        "hypervel/validation": "^0.4",
         "hyperf/config": "~3.1.0",
         "hyperf/di": "~3.1.0",
         "hyperf/support": "~3.1.0",
         "hyperf/command": "~3.1.0",
-        "hypervel/collections": "~0.3.0",
-        "hypervel/context": "~0.3.0",
+        "hypervel/collections": "^0.4",
+        "hypervel/context": "^0.4",
         "hyperf/http-server": "~3.1.0",
         "hyperf/dispatcher": "~3.1.0",
         "hyperf/contract": "~3.1.0",
         "hyperf/signal": "~3.1.0",
-        "hypervel/engine": "~0.3.0",
+        "hypervel/engine": "^0.4",
         "hyperf/framework": "~3.1.0",
         "friendsofhyperf/pretty-console": "~3.1.0",
         "friendsofhyperf/command-signals": "~3.1.0",
@@ -65,7 +65,7 @@
             ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     },
     "config": {

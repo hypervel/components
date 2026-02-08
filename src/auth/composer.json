@@ -22,17 +22,17 @@
     "require": {
         "php": "^8.4",
         "nesbot/carbon": "^2.72.6",
-        "hypervel/context": "~0.3.0",
-        "hypervel/macroable": "~0.3.0",
+        "hypervel/context": "^0.4",
+        "hypervel/macroable": "^0.4",
         "hyperf/contract": "~3.1.0",
         "hyperf/config": "~3.1.0",
         "hyperf/http-server": "~3.1.0",
-        "hypervel/database": "^0.3",
-        "hypervel/hashing": "^0.3",
-        "hypervel/jwt": "^0.3"
+        "hypervel/database": "^0.4",
+        "hypervel/hashing": "^0.4",
+        "hypervel/jwt": "^0.4"
     },
     "suggest": {
-        "hypervel/session": "Required to use session guard. (~0.1.0)"
+        "hypervel/session": "Required to use session guard. (^0.4)"
     },
     "autoload": {
         "psr-4": {
@@ -47,7 +47,7 @@
             "config": "Hypervel\\Auth\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     },
     "config": {

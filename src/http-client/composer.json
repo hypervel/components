@@ -27,17 +27,17 @@
     },
     "require": {
         "php": "^8.4",
-        "hypervel/macroable": "~0.3.0",
+        "hypervel/macroable": "^0.4",
         "guzzlehttp/guzzle": "^7.8.2",
         "guzzlehttp/uri-template": "^1.0",
-        "hypervel/support": "^0.3"
+        "hypervel/support": "^0.4"
     },
     "config": {
         "sort-packages": true
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

@@ -22,7 +22,7 @@
     ],
     "require": {
         "php": "^8.4",
-        "hypervel/context": "~0.3.0",
+        "hypervel/context": "^0.4",
         "hyperf/dispatcher": "~3.1.0",
         "hyperf/pipeline": "~3.1.0"
     },
@@ -36,7 +36,7 @@
             "config": "Hypervel\\Dispatcher\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     },
     "config": {

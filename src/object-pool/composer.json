@@ -22,9 +22,9 @@
     ],
     "require": {
         "php": "^8.4",
-        "hypervel/coroutine": "~0.3.0",
-        "hypervel/engine": "~0.3.0",
-        "hypervel/coordinator": "~0.3.0",
+        "hypervel/coroutine": "^0.4",
+        "hypervel/engine": "^0.4",
+        "hypervel/coordinator": "^0.4",
         "hyperf/contract": "~3.1.0",
         "hyperf/support": "~3.1.0",
         "nesbot/carbon": "^2.72.6"
@@ -39,7 +39,7 @@
             "config": "Hypervel\\ObjectPool\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     },
     "config": {

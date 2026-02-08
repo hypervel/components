@@ -28,7 +28,7 @@
     "require": {
         "php": "^8.4",
         "hyperf/http-message": "~3.1.0",
-        "hypervel/context": "~0.3.0"
+        "hypervel/context": "^0.4"
     },
     "config": {
         "sort-packages": true
@@ -38,7 +38,7 @@
             "config": "Hypervel\\Cookie\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

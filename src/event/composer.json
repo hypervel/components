@@ -32,9 +32,9 @@
     "require": {
         "php": "^8.4",
         "hyperf/event": "~3.1.0",
-        "hypervel/collections": "~0.3.0",
-        "hypervel/context": "~0.3.0",
-        "hypervel/bus": "~0.1",
+        "hypervel/collections": "^0.4",
+        "hypervel/context": "^0.4",
+        "hypervel/bus": "^0.4",
         "laravel/serializable-closure": "^1.3"
     },
     "suggest": {
@@ -48,7 +48,7 @@
             "config": "Hypervel\\Event\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

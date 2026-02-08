@@ -21,7 +21,7 @@
     ],
     "require": {
         "php": "^8.4",
-        "hypervel/context": "~0.3.0",
+        "hypervel/context": "^0.4",
         "hyperf/di": "~3.1.0"
     },
     "autoload": {
@@ -31,7 +31,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     },
     "config": {

@@ -225,7 +225,7 @@
         "hypervel/sentry": "self.version"
     },
     "suggest": {
-        "hypervel/redis": "Required to use redis driver. (^0.3).",
+        "hypervel/redis": "Required to use redis driver. (^0.4).",
         "hypervel/session": "Required to use session guard. (^3.1).",
         "friendsofhyperf/tinker": "Required to use the tinker console command (^3.1).",
         "league/flysystem-read-only": "Required to use read-only disks (^3.3)",
@@ -317,7 +317,7 @@
             ]
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     },
     "scripts": {

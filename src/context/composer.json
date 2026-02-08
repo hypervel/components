@@ -22,7 +22,7 @@
     ],
     "require": {
         "php": "^8.4",
-        "hypervel/engine": "~0.3.0"
+        "hypervel/engine": "^0.4"
     },
     "autoload": {
         "psr-4": {
@@ -34,7 +34,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     },
     "config": {

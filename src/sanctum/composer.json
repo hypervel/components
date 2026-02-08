@@ -24,11 +24,11 @@
     ],
     "require": {
         "php": "^8.4",
-        "hypervel/database": "^0.3",
+        "hypervel/database": "^0.4",
         "hyperf/http-server": "~3.1.0",
-        "hypervel/auth": "^0.3",
-        "hypervel/console": "^0.3",
-        "hypervel/support": "^0.3",
+        "hypervel/auth": "^0.4",
+        "hypervel/console": "^0.4",
+        "hypervel/support": "^0.4",
         "nesbot/carbon": "^2.72.6"
     },
     "autoload": {
@@ -38,7 +38,7 @@
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         },
         "hypervel": {
             "providers": [

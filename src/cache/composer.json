@@ -40,8 +40,8 @@
         "psr/simple-cache": "^3.0"
     },
     "suggest": {
-        "hypervel/redis": "Required to use redis driver. (~0.3).",
-        "hypervel/cache": "Required to use file lock. (~0.1.0)"
+        "hypervel/redis": "Required to use redis driver. (^0.4).",
+        "hypervel/cache": "Required to use file lock. (^0.4)"
     },
     "config": {
         "sort-packages": true
@@ -51,7 +51,7 @@
             "config": "Hypervel\\Cache\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

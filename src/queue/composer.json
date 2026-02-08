@@ -21,18 +21,18 @@
     ],
     "require": {
         "php": "^8.4",
-        "hypervel/coroutine": "~0.3.0",
-        "hypervel/coordinator": "~0.3.0",
+        "hypervel/coroutine": "^0.4",
+        "hypervel/coordinator": "^0.4",
         "hyperf/contract": "~3.1.0",
         "hyperf/support": "~3.1.0",
-        "hypervel/collections": "~0.3.0",
-        "hypervel/database": "^0.3",
+        "hypervel/collections": "^0.4",
+        "hypervel/database": "^0.4",
         "laravel/serializable-closure": "^1.2.2",
         "ramsey/uuid": "^4.7",
         "symfony/process": "^7.0",
-        "hypervel/core": "^0.3",
-        "hypervel/support": "^0.3",
-        "hypervel/encryption": "^0.3"
+        "hypervel/core": "^0.4",
+        "hypervel/support": "^0.4",
+        "hypervel/encryption": "^0.4"
     },
     "autoload": {
         "psr-4": {
@@ -44,7 +44,7 @@
             "config": "Hypervel\\Queue\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     },
     "suggest": {

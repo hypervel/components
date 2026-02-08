@@ -26,12 +26,12 @@
         "nunomaduro/termwind": "^2.0"
     },
     "require-dev": {
-        "hypervel/collections": "~0.3.0",
+        "hypervel/collections": "^0.4",
         "mockery/mockery": "^1.5"
     },
     "extra": {
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     },
     "prefer-stable": true,

@@ -40,7 +40,7 @@
             "config": "Hypervel\\Encryption\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }

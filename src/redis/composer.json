@@ -33,9 +33,9 @@
         "php": "^8.4",
         "ext-redis": "*",
         "hyperf/contract": "~3.1.0",
-        "hypervel/contracts": "^0.3",
-        "hypervel/pool": "~0.3",        
-        "hypervel/support": "^0.3"
+        "hypervel/contracts": "^0.4",
+        "hypervel/pool": "^0.4",        
+        "hypervel/support": "^0.4"
     },
     "config": {
         "sort-packages": true
@@ -45,7 +45,7 @@
             "config": "Hypervel\\Redis\\ConfigProvider"
         },
         "branch-alias": {
-            "dev-main": "0.3-dev"
+            "dev-main": "0.4-dev"
         }
     }
 }
