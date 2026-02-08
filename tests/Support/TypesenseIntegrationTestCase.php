@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithTypesense;
 use Hypervel\Scout\ScoutServiceProvider;
 use Hypervel\Testbench\TestCase;
@@ -96,7 +95,7 @@ abstract class TypesenseIntegrationTestCase extends TestCase
      */
     protected function configureTypesense(): void
     {
-        $config = $this->app->get(Repository::class);
+        $config = $this->app->get('config');
 
         $host = env('TYPESENSE_HOST', '127.0.0.1');
         $port = env('TYPESENSE_PORT', '8108');

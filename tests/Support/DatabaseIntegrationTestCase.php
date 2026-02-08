@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\Connectors\PostgresConnector;
 use Hypervel\Database\Connectors\SQLiteConnector;
@@ -66,7 +65,7 @@ abstract class DatabaseIntegrationTestCase extends TestCase
     protected function configureDatabase(): void
     {
         $driver = $this->getDatabaseDriver();
-        $config = $this->app->get(Repository::class);
+        $config = $this->app->get('config');
 
         $this->registerConnectors($driver);
 
