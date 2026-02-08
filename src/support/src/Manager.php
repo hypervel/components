@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Closure;
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;
 
@@ -32,7 +32,7 @@ abstract class Manager
     public function __construct(
         protected ContainerInterface $container
     ) {
-        $this->config = $container->get(Repository::class);
+        $this->config = $container->get('config');
     }
 
     /**
