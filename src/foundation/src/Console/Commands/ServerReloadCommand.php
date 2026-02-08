@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Console\Commands;
 
 use Hypervel\Console\Command;
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
 use Psr\Container\ContainerInterface;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Hypervel\Support\Facades\Redis;
 use Throwable;
 
@@ -214,7 +214,7 @@ trait InteractsWithRedis
     {
         $connectionName = 'test_opt_' . ($optPrefix === '' ? 'none' : md5($optPrefix));
 
-        $config = $this->app->get(Repository::class);
+        $config = $this->app->get('config');
 
         // Check if already exists
         if ($config->get("database.redis.{$connectionName}") !== null) {

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing;
 
 use Hypervel\Context\ApplicationContext;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Connection;
@@ -124,7 +123,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
 
         // If the pool is enabled, we should use the default connection resolver.
         $poolEnabled = $this->container
-            ->get(Repository::class)
+            ->get('config')
             ->get("database.connections.{$name}.pool.testing_enabled", false);
         if ($poolEnabled) {
             return parent::connection($name);

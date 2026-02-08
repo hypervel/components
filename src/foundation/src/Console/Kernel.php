@@ -15,7 +15,6 @@ use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\ClosureCommand;
 use Hypervel\Console\HasPendingCommand;
 use Hypervel\Console\Scheduling\Schedule;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Console\Application as ApplicationContract;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Foundation\Application as ContainerContract;
@@ -154,7 +153,7 @@ class Kernel implements KernelContract
         // Load commands from Hyperf config for compatibility.
         $configReflections = array_map(function (string $class) {
             return ReflectionManager::reflectClass($class);
-        }, $this->app->get(Repository::class)->get('commands', []));
+        }, $this->app->get('config')->get('commands', []));
 
         // Load commands that defined by annotation.
         $annotationReflections = [];

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Throwable;
 use Typesense\Client as TypesenseClient;
 

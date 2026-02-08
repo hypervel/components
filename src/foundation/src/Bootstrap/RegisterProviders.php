@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Bootstrap;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Providers\FoundationServiceProvider;
 use Hypervel\Support\Arr;
@@ -37,7 +36,7 @@ class RegisterProviders
         $providers = array_unique(
             array_merge(
                 $providers,
-                $app->get(Repository::class)->get('app.providers', [])
+                $app->get('config')->get('app.providers', [])
             )
         );
 

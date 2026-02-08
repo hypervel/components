@@ -14,7 +14,6 @@ use Hyperf\HttpServer\Event\RequestReceived;
 use Hyperf\HttpServer\ResponseEmitter;
 use Hyperf\Testing\HttpMessage\Upload\UploadedFile;
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Http\Kernel as HttpKernel;
 use Hypervel\Foundation\Testing\Coroutine\Waiter;
@@ -40,7 +39,7 @@ class TestClient extends HttpKernel
 
     public function __construct(ContainerInterface $container, $server = 'http')
     {
-        $this->enableEvents = $container->get(Repository::class)
+        $this->enableEvents = $container->get('config')
             ->get("server.servers.{$server}.options.enable_request_lifecycle", false);
         if ($this->enableEvents) {
             $this->event = $container->get(EventDispatcherInterface::class);
@@ -251,7 +250,7 @@ class TestClient extends HttpKernel
 
     protected function loadKernelMiddleware(string $server): void
     {
-        $kernelClass = $this->container->get(Repository::class)
+        $kernelClass = $this->container->get('config')
             ->get("server.kernels.{$server}");
         if (! $kernelClass || ! class_exists($kernelClass)) {
             return;
@@ -273,8 +272,8 @@ class TestClient extends HttpKernel
 
     protected function initBaseUri(string $server): void
     {
-        if ($this->container->has(Repository::class)) {
-            $config = $this->container->get(Repository::class);
+        if ($this->container->has('config')) {
+            $config = $this->container->get('config');
             $servers = $config->get('server.servers', []);
             foreach ($servers as $item) {
                 if ($item['name'] == $server) {

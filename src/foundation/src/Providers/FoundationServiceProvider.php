@@ -8,7 +8,7 @@ use Hyperf\Command\Event\FailToHandle;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\HttpServer\MiddlewareManager;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
@@ -38,7 +38,7 @@ class FoundationServiceProvider extends ServiceProvider
 
     public function __construct(protected ApplicationContract $app)
     {
-        $this->config = $app->get(Repository::class);
+        $this->config = $app->get('config');
         $this->output = new ConsoleOutput();
 
         if ($app->hasDebugModeEnabled()) {
