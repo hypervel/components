@@ -7,7 +7,7 @@ namespace Hypervel\Mail;
 use Aws\Ses\SesClient;
 use Aws\SesV2\SesV2Client;
 use Closure;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
 use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Contracts\Mail\Mailer as MailerContract;
@@ -48,7 +48,7 @@ class MailManager implements FactoryContract
     /**
      * The config instance.
      */
-    protected ConfigInterface $config;
+    protected Repository $config;
 
     /**
      * The array of resolved mailers.
@@ -78,7 +78,7 @@ class MailManager implements FactoryContract
     public function __construct(
         protected ContainerInterface $app
     ) {
-        $this->config = $app->get(ConfigInterface::class);
+        $this->config = $app->get(Repository::class);
     }
 
     /**
@@ -408,7 +408,7 @@ class MailManager implements FactoryContract
 
         if ($logger instanceof LogManager) {
             $logger = $logger->channel(
-                $config['channel'] ?? $this->app->get(ConfigInterface::class)->get('mail.log_channel')
+                $config['channel'] ?? $this->app->get(Repository::class)->get('mail.log_channel')
             );
         }
 

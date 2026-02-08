@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail;
 
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
 
 class MarkdownFactory
 {
     public function __construct(
         protected FactoryInterface $factory,
-        protected ConfigInterface $config,
+        protected Repository $config,
     ) {
     }
 

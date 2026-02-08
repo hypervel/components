@@ -8,7 +8,7 @@ use BadMethodCallException;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Mail\Attachable;
@@ -352,7 +352,7 @@ class Mailable implements MailableContract, Renderable
     {
         return tap(make(Markdown::class), function ($markdown) {
             $markdown->theme(
-                $this->theme ?: ApplicationContext::getContainer()->get(ConfigInterface::class)->get(
+                $this->theme ?: ApplicationContext::getContainer()->get(Repository::class)->get(
                     'mail.markdown.theme',
                     'default'
                 )
