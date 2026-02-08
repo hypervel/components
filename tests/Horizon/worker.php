@@ -6,7 +6,6 @@ require __DIR__ . '/../../vendor/autoload.php';
 
 use Hyperf\Contract\ApplicationInterface;
 use Hypervel\Context\ApplicationContext;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coordinator\Constants;
@@ -31,7 +30,7 @@ $app->bind(ExceptionHandlerContract::class, ExceptionHandler::class);
 ApplicationContext::setContainer($app);
 $app->get(ApplicationInterface::class);
 
-$config = $app->get(Repository::class);
+$config = $app->get('config');
 $config->set('horizon.prefix', IntegrationTestCase::HORIZON_PREFIX);
 $config->set('queue', [
     'default' => 'redis',

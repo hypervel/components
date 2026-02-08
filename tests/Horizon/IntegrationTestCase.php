@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Horizon;
 
 use Closure;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Horizon\Contracts\JobRepository;
@@ -47,7 +46,7 @@ abstract class IntegrationTestCase extends TestCase
 
     protected function tearDown(): void
     {
-        $config = $this->app->get(Repository::class);
+        $config = $this->app->get('config');
         $config->set('queue', $this->originalQueueConfig);
 
         $poolFactory = $this->app->get(PoolFactory::class);
@@ -72,7 +71,7 @@ abstract class IntegrationTestCase extends TestCase
 
     protected function loadServiceProviders(): void
     {
-        $config = $this->app->get(Repository::class);
+        $config = $this->app->get('config');
         $config->set('horizon.middleware', [Authenticate::class]);
         $config->set('horizon.prefix', static::HORIZON_PREFIX);
 

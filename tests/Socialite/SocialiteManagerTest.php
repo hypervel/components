@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Socialite;
 
 use Hypervel\Context\Context;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Socialite\Exceptions\DriverMissingConfigurationException;
 use Hypervel\Socialite\SocialiteManager;
 use Hypervel\Socialite\Two\GithubProvider;
@@ -28,7 +27,7 @@ class SocialiteManagerTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('services.github', [
                 'client_id' => 'github-client-id',
                 'client_secret' => 'github-client-secret',
@@ -48,7 +47,7 @@ class SocialiteManagerTest extends TestCase
     public function testItCanInstantiateTheGithubDriverWithScopesFromConfigArray()
     {
         $factory = $this->app->get(SocialiteManager::class);
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('services.github', [
                 'client_id' => 'github-client-id',
                 'client_secret' => 'github-client-secret',
@@ -69,7 +68,7 @@ class SocialiteManagerTest extends TestCase
     public function testItCanInstantiateTheGithubDriverWithScopesFromConfigArrayMergedByProgrammaticScopesUsingScopesMethod()
     {
         $factory = $this->app->get(SocialiteManager::class);
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('services.github', [
                 'client_id' => 'github-client-id',
                 'client_secret' => 'github-client-secret',
@@ -83,7 +82,7 @@ class SocialiteManagerTest extends TestCase
     public function testItCanInstantiateTheGithubDriverWithScopesFromConfigArrayOverwrittenByProgrammaticScopesUsingSetScopesMethod()
     {
         $factory = $this->app->get(SocialiteManager::class);
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('services.github', [
                 'client_id' => 'github-client-id',
                 'client_secret' => 'github-client-secret',
@@ -101,7 +100,7 @@ class SocialiteManagerTest extends TestCase
 
         $factory = $this->app->get(SocialiteManager::class);
 
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('services.github', [
                 'client_id' => 'github-client-id',
                 'redirect' => 'http://your-callback-url',
@@ -117,7 +116,7 @@ class SocialiteManagerTest extends TestCase
 
         $factory = $this->app->get(SocialiteManager::class);
 
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('services.github', [
                 'client_secret' => 'github-client-secret',
                 'redirect' => 'http://your-callback-url',
@@ -133,7 +132,7 @@ class SocialiteManagerTest extends TestCase
 
         $factory = $this->app->get(SocialiteManager::class);
 
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('services.github', [
                 'client_id' => 'github-client-id',
                 'client_secret' => 'github-client-secret',
@@ -149,7 +148,7 @@ class SocialiteManagerTest extends TestCase
 
         $factory = $this->app->get(SocialiteManager::class);
 
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('services.github', null);
 
         $factory->driver('github');

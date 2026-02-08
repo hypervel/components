@@ -6,7 +6,6 @@ namespace Hypervel\Tests\Hashing;
 
 use Hyperf\Contract\ContainerInterface;
 use Hypervel\Config\Repository as ConfigRepository;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Hashing\Argon2IdHasher;
 use Hypervel\Hashing\ArgonHasher;
 use Hypervel\Hashing\BcryptHasher;
@@ -131,7 +130,7 @@ class HasherTest extends TestCase
     {
         $container = m::mock(ContainerInterface::class);
         $container->shouldReceive('get')
-            ->with(Repository::class)
+            ->with('config')
             ->andReturn($config = new ConfigRepository([
                 'hashing' => [
                     'driver' => 'bcrypt',

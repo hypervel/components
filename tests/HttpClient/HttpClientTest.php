@@ -14,7 +14,6 @@ use GuzzleHttp\TransferStats;
 use Hyperf\Contract\ContainerInterface;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Context\ApplicationContext;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Http\Response as HttpResponse;
 use Hypervel\HttpClient\ConnectionException;
@@ -3240,7 +3239,7 @@ class HttpClientTest extends TestCase
 
         return new \Hypervel\Container\Container(
             new \Hyperf\Di\Definition\DefinitionSource([
-                Repository::class => fn () => $config,
+                'config' => fn () => $config,
                 PoolFactory::class => PoolManager::class,
             ])
         );
