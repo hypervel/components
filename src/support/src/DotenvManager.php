@@ -11,18 +11,18 @@ use Dotenv\Repository\RepositoryBuilder;
 
 class DotenvManager
 {
-    protected static AdapterInterface $adapter;
+    protected static ?AdapterInterface $adapter = null;
 
-    protected static Dotenv $dotenv;
+    protected static ?Dotenv $dotenv = null;
 
-    protected static array $cachedValues;
+    protected static ?array $cachedValues = null;
 
     /**
      * Load environment variables from the given paths.
      */
     public static function load(array $paths): void
     {
-        if (isset(static::$cachedValues)) {
+        if (static::$cachedValues !== null) {
             return;
         }
 
@@ -34,7 +34,7 @@ class DotenvManager
      */
     public static function reload(array $paths, bool $force = false): void
     {
-        if (! isset(static::$cachedValues)) {
+        if (static::$cachedValues === null) {
             static::load($paths);
 
             return;
@@ -48,11 +48,30 @@ class DotenvManager
     }
 
     /**
+     * Reset all static state, allowing load() to run again.
+     *
+     * Removes any previously loaded env vars from putenv before clearing
+     * the internal tracking, so immutable repositories don't see stale values.
+     */
+    public static function reset(): void
+    {
+        if (static::$cachedValues !== null) {
+            foreach (static::$cachedValues as $name => $value) {
+                static::getAdapter()->delete($name);
+            }
+        }
+
+        static::$cachedValues = null;
+        static::$dotenv = null;
+        static::$adapter = null;
+    }
+
+    /**
      * Get or create the Dotenv instance.
      */
     protected static function getDotenv(array $paths, bool $force = false): Dotenv
     {
-        if (isset(static::$dotenv) && ! $force) {
+        if (static::$dotenv !== null && ! $force) {
             return static::$dotenv;
         }
 
@@ -70,7 +89,7 @@ class DotenvManager
      */
     protected static function getAdapter(bool $force = false): AdapterInterface
     {
-        if (isset(static::$adapter) && ! $force) {
+        if (static::$adapter !== null && ! $force) {
             return static::$adapter;
         }
 
