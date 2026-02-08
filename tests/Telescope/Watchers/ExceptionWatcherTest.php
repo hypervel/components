@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Telescope\Watchers;
 use Error;
 use ErrorException;
 use Exception;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\ExceptionWatcher;
@@ -24,11 +23,11 @@ class ExceptionWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('telescope.watchers', [
                 ExceptionWatcher::class => true,
             ]);
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('logging.default', 'null');
 
         $this->startTelescope();

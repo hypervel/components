@@ -8,7 +8,6 @@ use Exception;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Dispatchable;
 use Hypervel\Contracts\Bus\BatchRepository;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
@@ -31,7 +30,7 @@ class JobWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('telescope.watchers', [
                 JobWatcher::class => true,
             ]);

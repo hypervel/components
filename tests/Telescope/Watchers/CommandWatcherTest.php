@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hypervel\Console\Command;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\CommandWatcher;
@@ -21,7 +20,7 @@ class CommandWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('telescope.watchers', [
                 CommandWatcher::class => true,
             ]);

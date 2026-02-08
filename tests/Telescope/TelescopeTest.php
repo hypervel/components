@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope;
 
 use Hypervel\Contracts\Bus\Dispatcher;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\IncomingEntry;
@@ -25,7 +24,7 @@ class TelescopeTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('telescope.watchers', [
                 QueryWatcher::class => [
                     'enabled' => true,

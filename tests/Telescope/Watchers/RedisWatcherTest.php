@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Telescope\EntryType;
@@ -23,11 +22,11 @@ class RedisWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('telescope.watchers', [
                 RedisWatcher::class => true,
             ]);
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('database.redis.foo', [
                 'host' => '127.0.0.1',
                 'port' => 6379,
@@ -42,7 +41,7 @@ class RedisWatcherTest extends FeatureTestCase
     public function testRegisterEnableRedisEvents()
     {
         $this->assertTrue(
-            $this->app->get(Repository::class)
+            $this->app->get('config')
                 ->get('database.redis.foo.event.enable', false)
         );
     }

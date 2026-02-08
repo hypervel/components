@@ -10,7 +10,6 @@ use Hypervel\Auth\Access\Gate;
 use Hypervel\Auth\Access\Response;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Auth\Authenticatable;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\GateWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
@@ -25,7 +24,7 @@ class GateWatcherTest extends FeatureTestCase
     {
         parent::setUp();
 
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('telescope.watchers', [
                 GateWatcher::class => true,
             ]);
