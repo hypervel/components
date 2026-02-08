@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Encryption;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Encryption\Exceptions\MissingAppKeyException;
 use Hypervel\Support\Str;
 use Laravel\SerializableClosure\SerializableClosure;
@@ -14,7 +13,7 @@ class EncryptionFactory
 {
     public function __invoke(ContainerInterface $container): Encrypter
     {
-        $config = $container->get(Repository::class);
+        $config = $container->get('config');
         // Fallback to the encryption config if key is not set in app config.
         $config = ($config->has('app.cipher') && $config->has('app.key'))
             ? $config->get('app')

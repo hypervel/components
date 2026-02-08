@@ -6,7 +6,7 @@ namespace Hypervel\Encryption\Commands;
 
 use Hyperf\Command\Command as HyperfCommand;
 use Hyperf\Command\Concerns\Confirmable as ConfirmableTrait;
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Hypervel\Encryption\Encrypter;
 use Psr\Container\ContainerInterface;
 use Symfony\Component\Console\Input\InputOption;
