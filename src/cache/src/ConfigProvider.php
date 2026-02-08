@@ -6,13 +6,13 @@ namespace Hypervel\Cache;
 
 use Hypervel\Cache\Console\ClearCommand;
 use Hypervel\Cache\Console\PruneDbExpiredCommand;
-use Hypervel\Cache\Contracts\Factory;
-use Hypervel\Cache\Contracts\Store;
 use Hypervel\Cache\Listeners\CreateSwooleTable;
 use Hypervel\Cache\Listeners\CreateTimer;
 use Hypervel\Cache\Redis\Console\BenchmarkCommand;
 use Hypervel\Cache\Redis\Console\DoctorCommand;
 use Hypervel\Cache\Redis\Console\PruneStaleTagsCommand;
+use Hypervel\Contracts\Cache\Factory;
+use Hypervel\Contracts\Cache\Store;
 
 class ConfigProvider
 {

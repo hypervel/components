@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Coroutine;
 
-use Hyperf\Coroutine\Barrier as BaseBarrier;
+use Hypervel\Engine\Barrier as EngineBarrier;
 
-class Barrier extends BaseBarrier
+class Barrier extends EngineBarrier
 {
 }

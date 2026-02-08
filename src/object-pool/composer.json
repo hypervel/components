@@ -21,7 +21,7 @@
         }
     ],
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "hyperf/coroutine": "~3.1.0",
         "hyperf/engine": "^2.1",
         "hyperf/coordinator": "~3.1.0",

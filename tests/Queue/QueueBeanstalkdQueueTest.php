@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hyperf\Stringable\Str;
 use Hypervel\Queue\BeanstalkdQueue;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
+use Hypervel\Support\Str;
 use Mockery as m;
 use Pheanstalk\Contract\JobIdInterface;
 use Pheanstalk\Contract\PheanstalkManagerInterface;
@@ -41,8 +41,6 @@ class QueueBeanstalkdQueueTest extends TestCase
 
     protected function tearDown(): void
     {
-        m::close();
-
         Uuid::setFactory(new UuidFactory());
     }
 

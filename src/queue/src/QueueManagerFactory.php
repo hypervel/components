@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue;
 
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;
 use Throwable;

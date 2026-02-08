@@ -1,0 +1,3140 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentIntegrationTest;
+
+use DateTime;
+use DateTimeInterface;
+use Exception;
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Builder;
+use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Concerns\HasUuids;
+use Hypervel\Database\Eloquent\Model;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
+use Hypervel\Database\Eloquent\Relations\MorphPivot;
+use Hypervel\Database\Eloquent\Relations\Pivot;
+use Hypervel\Database\Eloquent\Relations\Relation;
+use Hypervel\Database\Eloquent\SoftDeletes;
+use Hypervel\Database\Eloquent\SoftDeletingScope;
+use Hypervel\Database\QueryException;
+use Hypervel\Database\Schema\Blueprint;
+use Hypervel\Database\UniqueConstraintViolationException;
+use Hypervel\Pagination\AbstractPaginator as Paginator;
+use Hypervel\Pagination\Cursor;
+use Hypervel\Pagination\CursorPaginator;
+use Hypervel\Pagination\LengthAwarePaginator;
+use Hypervel\Support\Carbon;
+use Hypervel\Support\Facades\Date;
+use Hypervel\Support\Str;
+use Hypervel\Testbench\TestCase;
+use UnitEnum;
+
+/**
+ * @internal
+ * @coversNothing
+ */
+class DatabaseEloquentIntegrationTest extends TestCase
+{
+    /**
+     * Setup the database schema.
+     */
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $db = new DB();
+
+        $db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ]);
+
+        $db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ], 'second_connection');
+
+        $db->bootEloquent();
+        $db->setAsGlobal();
+
+        $this->createSchema();
+    }
+
+    protected function createSchema()
+    {
+        $this->schema('default')->create('test_orders', function ($table) {
+            $table->increments('id');
+            $table->string('item_type');
+            $table->integer('item_id');
+            $table->timestamps();
+        });
+
+        $this->schema('default')->create('with_json', function ($table) {
+            $table->increments('id');
+            $table->text('json')->default(json_encode([]));
+        });
+
+        $this->schema('second_connection')->create('test_items', function ($table) {
+            $table->increments('id');
+            $table->timestamps();
+        });
+
+        $this->schema('default')->create('users_with_space_in_column_name', function ($table) {
+            $table->increments('id');
+            $table->string('name')->nullable();
+            $table->string('email address');
+            $table->timestamps();
+        });
+
+        $this->schema()->create('users_having_uuids', function (Blueprint $table) {
+            $table->id();
+            $table->uuid();
+            $table->string('name');
+            $table->tinyInteger('role');
+            $table->string('role_string');
+        });
+
+        foreach (['default', 'second_connection'] as $connection) {
+            $this->schema($connection)->create('users', function ($table) {
+                $table->increments('id');
+                $table->string('name')->nullable();
+                $table->string('email');
+                $table->timestamp('birthday', 6)->nullable();
+                $table->timestamps();
+            });
+
+            $this->schema($connection)->create('unique_users', function ($table) {
+                $table->increments('id');
+                $table->string('name')->nullable();
+                // Unique constraint will be applied only for non-null values
+                $table->string('screen_name')->nullable()->unique();
+                $table->string('email')->unique();
+                $table->timestamp('birthday', 6)->nullable();
+                $table->timestamps();
+            });
+
+            $this->schema($connection)->create('friends', function ($table) {
+                $table->integer('user_id');
+                $table->integer('friend_id');
+                $table->integer('friend_level_id')->nullable();
+            });
+
+            $this->schema($connection)->create('posts', function ($table) {
+                $table->increments('id');
+                $table->integer('user_id');
+                $table->integer('parent_id')->nullable();
+                $table->string('name');
+                $table->timestamps();
+            });
+
+            $this->schema($connection)->create('comments', function ($table) {
+                $table->increments('id');
+                $table->integer('post_id');
+                $table->string('content');
+                $table->timestamps();
+            });
+
+            $this->schema($connection)->create('friend_levels', function ($table) {
+                $table->increments('id');
+                $table->string('level');
+                $table->timestamps();
+            });
+
+            $this->schema($connection)->create('photos', function ($table) {
+                $table->increments('id');
+                $table->morphs('imageable');
+                $table->string('name');
+                $table->timestamps();
+            });
+
+            $this->schema($connection)->create('soft_deleted_users', function ($table) {
+                $table->increments('id');
+                $table->string('name')->nullable();
+                $table->string('email');
+                $table->timestamps();
+                $table->softDeletes();
+            });
+
+            $this->schema($connection)->create('tags', function ($table) {
+                $table->increments('id');
+                $table->string('name');
+                $table->timestamps();
+            });
+
+            $this->schema($connection)->create('taggables', function ($table) {
+                $table->integer('tag_id');
+                $table->morphs('taggable');
+                $table->string('taxonomy')->nullable();
+            });
+
+            $this->schema($connection)->create('categories', function ($table) {
+                $table->increments('id');
+                $table->string('name');
+                $table->integer('parent_id')->nullable();
+                $table->timestamps();
+            });
+
+            $this->schema($connection)->create('achievements', function ($table) {
+                $table->increments('id');
+                $table->integer('status')->nullable();
+            });
+
+            $this->schema($connection)->create('achievement_user', function ($table) {
+                $table->integer('achievement_id');
+                $table->integer('user_id');
+            });
+        }
+
+        $this->schema($connection)->create('non_incrementing_users', function ($table) {
+            $table->string('name')->nullable();
+        });
+    }
+
+    /**
+     * Tear down the database schema.
+     */
+    protected function tearDown(): void
+    {
+        foreach (['default', 'second_connection'] as $connection) {
+            $this->schema($connection)->drop('users');
+            $this->schema($connection)->drop('friends');
+            $this->schema($connection)->drop('posts');
+            $this->schema($connection)->drop('friend_levels');
+            $this->schema($connection)->drop('photos');
+        }
+
+        Relation::morphMap([], false);
+        Eloquent::unsetConnectionResolver();
+
+        Carbon::setTestNow(null);
+        Str::createUuidsNormally();
+        DB::flushQueryLog();
+
+        parent::tearDown();
+    }
+
+    /**
+     * Tests...
+     */
+    public function testBasicModelRetrieval()
+    {
+        User::insert([['id' => 1, 'email' => 'taylorotwell@gmail.com'], ['id' => 2, 'email' => 'abigailotwell@gmail.com']]);
+
+        $this->assertEquals(2, User::count());
+
+        $this->assertFalse(User::where('email', 'taylorotwell@gmail.com')->doesntExist());
+        $this->assertTrue(User::where('email', 'mohamed@laravel.com')->doesntExist());
+
+        $model = User::where('email', 'taylorotwell@gmail.com')->first();
+        $this->assertSame('taylorotwell@gmail.com', $model->email);
+        $this->assertTrue(isset($model->email));
+        $this->assertTrue(isset($model->friends));
+
+        $model = User::find(1);
+        $this->assertInstanceOf(User::class, $model);
+        $this->assertEquals(1, $model->id);
+
+        $model = User::find(2);
+        $this->assertInstanceOf(User::class, $model);
+        $this->assertEquals(2, $model->id);
+
+        $missing = User::find(3);
+        $this->assertNull($missing);
+
+        $collection = User::find([]);
+        $this->assertInstanceOf(Collection::class, $collection);
+        $this->assertCount(0, $collection);
+
+        $collection = User::find([1, 2, 3]);
+        $this->assertInstanceOf(Collection::class, $collection);
+        $this->assertCount(2, $collection);
+
+        $models = User::where('id', 1)->cursor();
+        foreach ($models as $model) {
+            $this->assertEquals(1, $model->id);
+            $this->assertSame('default', $model->getConnectionName());
+        }
+
+        $records = DB::table('users')->where('id', 1)->cursor();
+        foreach ($records as $record) {
+            $this->assertEquals(1, $record->id);
+        }
+
+        $records = DB::cursor('select * from users where id = ?', [1]);
+        foreach ($records as $record) {
+            $this->assertEquals(1, $record->id);
+        }
+    }
+
+    public function testBasicModelCollectionRetrieval()
+    {
+        User::insert([['id' => 1, 'email' => 'taylorotwell@gmail.com'], ['id' => 2, 'email' => 'abigailotwell@gmail.com']]);
+
+        $models = User::oldest('id')->get();
+
+        $this->assertCount(2, $models);
+        $this->assertInstanceOf(Collection::class, $models);
+        $this->assertInstanceOf(User::class, $models[0]);
+        $this->assertInstanceOf(User::class, $models[1]);
+        $this->assertSame('taylorotwell@gmail.com', $models[0]->email);
+        $this->assertSame('abigailotwell@gmail.com', $models[1]->email);
+    }
+
+    public function testPaginatedModelCollectionRetrieval()
+    {
+        User::insert([
+            ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
+            ['id' => 2, 'email' => 'abigailotwell@gmail.com'],
+            ['id' => 3, 'email' => 'foo@gmail.com'],
+        ]);
+
+        Paginator::currentPageResolver(function () {
+            return 1;
+        });
+        $models = User::oldest('id')->paginate(2);
+
+        $this->assertCount(2, $models);
+        $this->assertInstanceOf(LengthAwarePaginator::class, $models);
+        $this->assertInstanceOf(User::class, $models[0]);
+        $this->assertInstanceOf(User::class, $models[1]);
+        $this->assertSame('taylorotwell@gmail.com', $models[0]->email);
+        $this->assertSame('abigailotwell@gmail.com', $models[1]->email);
+
+        Paginator::currentPageResolver(function () {
+            return 2;
+        });
+        $models = User::oldest('id')->paginate(2);
+
+        $this->assertCount(1, $models);
+        $this->assertInstanceOf(LengthAwarePaginator::class, $models);
+        $this->assertInstanceOf(User::class, $models[0]);
+        $this->assertSame('foo@gmail.com', $models[0]->email);
+    }
+
+    public function testPaginatedModelCollectionRetrievalUsingCallablePerPage()
+    {
+        User::insert([
+            ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
+            ['id' => 2, 'email' => 'abigailotwell@gmail.com'],
+            ['id' => 3, 'email' => 'foo@gmail.com'],
+        ]);
+
+        Paginator::currentPageResolver(function () {
+            return 1;
+        });
+        $models = User::oldest('id')->paginate(function ($total) {
+            return $total <= 3 ? 3 : 2;
+        });
+
+        $this->assertCount(3, $models);
+        $this->assertInstanceOf(LengthAwarePaginator::class, $models);
+        $this->assertInstanceOf(User::class, $models[0]);
+        $this->assertInstanceOf(User::class, $models[1]);
+        $this->assertInstanceOf(User::class, $models[2]);
+        $this->assertSame('taylorotwell@gmail.com', $models[0]->email);
+        $this->assertSame('abigailotwell@gmail.com', $models[1]->email);
+        $this->assertSame('foo@gmail.com', $models[2]->email);
+
+        Paginator::currentPageResolver(function () {
+            return 2;
+        });
+        $models = User::oldest('id')->paginate(function ($total) {
+            return $total <= 3 ? 3 : 2;
+        });
+
+        $this->assertCount(0, $models);
+        $this->assertInstanceOf(LengthAwarePaginator::class, $models);
+
+        User::create(['id' => 4, 'email' => 'bar@gmail.com']);
+
+        Paginator::currentPageResolver(function () {
+            return 1;
+        });
+        $models = User::oldest('id')->paginate(function ($total) {
+            return $total <= 3 ? 3 : 2;
+        });
+
+        $this->assertCount(2, $models);
+        $this->assertInstanceOf(LengthAwarePaginator::class, $models);
+        $this->assertInstanceOf(User::class, $models[0]);
+        $this->assertInstanceOf(User::class, $models[1]);
+        $this->assertSame('taylorotwell@gmail.com', $models[0]->email);
+        $this->assertSame('abigailotwell@gmail.com', $models[1]->email);
+
+        Paginator::currentPageResolver(function () {
+            return 2;
+        });
+        $models = User::oldest('id')->paginate(function ($total) {
+            return $total <= 3 ? 3 : 2;
+        });
+
+        $this->assertCount(2, $models);
+        $this->assertInstanceOf(LengthAwarePaginator::class, $models);
+        $this->assertInstanceOf(User::class, $models[0]);
+        $this->assertInstanceOf(User::class, $models[1]);
+        $this->assertSame('foo@gmail.com', $models[0]->email);
+        $this->assertSame('bar@gmail.com', $models[1]->email);
+    }
+
+    public function testPaginatedModelCollectionRetrievalWhenNoElements()
+    {
+        Paginator::currentPageResolver(function () {
+            return 1;
+        });
+        $models = User::oldest('id')->paginate(2);
+
+        $this->assertCount(0, $models);
+        $this->assertInstanceOf(LengthAwarePaginator::class, $models);
+
+        Paginator::currentPageResolver(function () {
+            return 2;
+        });
+        $models = User::oldest('id')->paginate(2);
+
+        $this->assertCount(0, $models);
+    }
+
+    public function testPaginatedModelCollectionRetrievalWhenNoElementsAndDefaultPerPage()
+    {
+        $models = User::oldest('id')->paginate();
+
+        $this->assertCount(0, $models);
+        $this->assertInstanceOf(LengthAwarePaginator::class, $models);
+    }
+
+    public function testCountForPaginationWithGrouping()
+    {
+        User::insert([
+            ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
+            ['id' => 2, 'email' => 'abigailotwell@gmail.com'],
+            ['id' => 3, 'email' => 'foo@gmail.com'],
+            ['id' => 4, 'email' => 'foo@gmail.com'],
+        ]);
+
+        $query = User::groupBy('email')->getQuery();
+
+        $this->assertEquals(3, $query->getCountForPagination());
+    }
+
+    public function testCountForPaginationWithGroupingAndSubSelects()
+    {
+        User::insert([
+            ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
+            ['id' => 2, 'email' => 'abigailotwell@gmail.com'],
+            ['id' => 3, 'email' => 'foo@gmail.com'],
+            ['id' => 4, 'email' => 'foo@gmail.com'],
+        ]);
+        $user1 = User::find(1);
+
+        $user1->friends()->create(['id' => 5, 'email' => 'friend@gmail.com']);
+
+        $query = User::select([
+            'id',
+            'friends_count' => User::whereColumn('friend_id', 'user_id')->count(),
+        ])->groupBy('email')->getQuery();
+
+        $this->assertEquals(4, $query->getCountForPagination());
+    }
+
+    public function testCursorPaginatedModelCollectionRetrieval()
+    {
+        User::insert([
+            ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
+            $secondParams = ['id' => 2, 'email' => 'abigailotwell@gmail.com'],
+            ['id' => 3, 'email' => 'foo@gmail.com'],
+        ]);
+
+        CursorPaginator::currentCursorResolver(function () {
+            return null;
+        });
+        $models = User::oldest('id')->cursorPaginate(2);
+
+        $this->assertCount(2, $models);
+        $this->assertInstanceOf(CursorPaginator::class, $models);
+        $this->assertInstanceOf(User::class, $models[0]);
+        $this->assertInstanceOf(User::class, $models[1]);
+        $this->assertSame('taylorotwell@gmail.com', $models[0]->email);
+        $this->assertSame('abigailotwell@gmail.com', $models[1]->email);
+        $this->assertTrue($models->hasMorePages());
+        $this->assertTrue($models->hasPages());
+
+        CursorPaginator::currentCursorResolver(function () use ($secondParams) {
+            return new Cursor($secondParams);
+        });
+        $models = User::oldest('id')->cursorPaginate(2);
+
+        $this->assertCount(1, $models);
+        $this->assertInstanceOf(CursorPaginator::class, $models);
+        $this->assertInstanceOf(User::class, $models[0]);
+        $this->assertSame('foo@gmail.com', $models[0]->email);
+        $this->assertFalse($models->hasMorePages());
+        $this->assertTrue($models->hasPages());
+    }
+
+    public function testPreviousCursorPaginatedModelCollectionRetrieval()
+    {
+        User::insert([
+            ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
+            ['id' => 2, 'email' => 'abigailotwell@gmail.com'],
+            $thirdParams = ['id' => 3, 'email' => 'foo@gmail.com'],
+        ]);
+
+        CursorPaginator::currentCursorResolver(function () use ($thirdParams) {
+            return new Cursor($thirdParams, false);
+        });
+        $models = User::oldest('id')->cursorPaginate(2);
+
+        $this->assertCount(2, $models);
+        $this->assertInstanceOf(CursorPaginator::class, $models);
+        $this->assertInstanceOf(User::class, $models[0]);
+        $this->assertInstanceOf(User::class, $models[1]);
+        $this->assertSame('taylorotwell@gmail.com', $models[0]->email);
+        $this->assertSame('abigailotwell@gmail.com', $models[1]->email);
+        $this->assertTrue($models->hasMorePages());
+        $this->assertTrue($models->hasPages());
+    }
+
+    public function testCursorPaginatedModelCollectionRetrievalWhenNoElements()
+    {
+        CursorPaginator::currentCursorResolver(function () {
+            return null;
+        });
+        $models = User::oldest('id')->cursorPaginate(2);
+
+        $this->assertCount(0, $models);
+        $this->assertInstanceOf(CursorPaginator::class, $models);
+
+        Paginator::currentPageResolver(function () {
+            return new Cursor(['id' => 1]);
+        });
+        $models = User::oldest('id')->cursorPaginate(2);
+
+        $this->assertCount(0, $models);
+    }
+
+    public function testCursorPaginatedModelCollectionRetrievalWhenNoElementsAndDefaultPerPage()
+    {
+        $models = User::oldest('id')->cursorPaginate();
+
+        $this->assertCount(0, $models);
+        $this->assertInstanceOf(CursorPaginator::class, $models);
+    }
+
+    public function testFirstOrNew()
+    {
+        $user1 = User::firstOrNew(
+            ['name' => 'Dries Vints'],
+            ['name' => 'Nuno Maduro']
+        );
+
+        $this->assertSame('Nuno Maduro', $user1->name);
+    }
+
+    public function testFirstOrCreate()
+    {
+        $user1 = User::firstOrCreate(['email' => 'taylorotwell@gmail.com']);
+
+        $this->assertSame('taylorotwell@gmail.com', $user1->email);
+        $this->assertNull($user1->name);
+
+        $user2 = User::firstOrCreate(
+            ['email' => 'taylorotwell@gmail.com'],
+            ['name' => 'Taylor Otwell']
+        );
+
+        $this->assertEquals($user1->id, $user2->id);
+        $this->assertSame('taylorotwell@gmail.com', $user2->email);
+        $this->assertNull($user2->name);
+
+        $user3 = User::firstOrCreate(
+            ['email' => 'abigailotwell@gmail.com'],
+            ['name' => 'Abigail Otwell']
+        );
+
+        $this->assertNotEquals($user3->id, $user1->id);
+        $this->assertSame('abigailotwell@gmail.com', $user3->email);
+        $this->assertSame('Abigail Otwell', $user3->name);
+
+        $user4 = User::firstOrCreate(
+            ['name' => 'Dries Vints'],
+            ['name' => 'Nuno Maduro', 'email' => 'nuno@laravel.com']
+        );
+
+        $this->assertSame('Nuno Maduro', $user4->name);
+    }
+
+    public function testCreateOrFirst()
+    {
+        $user1 = UniqueUser::createOrFirst(['email' => 'taylorotwell@gmail.com']);
+
+        $this->assertSame('taylorotwell@gmail.com', $user1->email);
+        $this->assertNull($user1->name);
+
+        $user2 = UniqueUser::createOrFirst(
+            ['email' => 'taylorotwell@gmail.com'],
+            ['name' => 'Taylor Otwell']
+        );
+
+        $this->assertEquals($user1->id, $user2->id);
+        $this->assertSame('taylorotwell@gmail.com', $user2->email);
+        $this->assertNull($user2->name);
+
+        $user3 = UniqueUser::createOrFirst(
+            ['email' => 'abigailotwell@gmail.com'],
+            ['name' => 'Abigail Otwell']
+        );
+
+        $this->assertNotEquals($user3->id, $user1->id);
+        $this->assertSame('abigailotwell@gmail.com', $user3->email);
+        $this->assertSame('Abigail Otwell', $user3->name);
+
+        $user4 = UniqueUser::createOrFirst(
+            ['name' => 'Dries Vints'],
+            ['name' => 'Nuno Maduro', 'email' => 'nuno@laravel.com']
+        );
+
+        $this->assertSame('Nuno Maduro', $user4->name);
+    }
+
+    public function testCreateOrFirstNonAttributeFieldViolation()
+    {
+        // 'email' and 'screen_name' are unique and independent of each other.
+        UniqueUser::create([
+            'email' => 'taylorotwell+foo@gmail.com',
+            'screen_name' => '@taylorotwell',
+        ]);
+
+        $this->expectException(UniqueConstraintViolationException::class);
+
+        // Although 'email' is expected to be unique and is passed as $attributes,
+        // if the 'screen_name' attribute listed in non-unique $values causes a violation,
+        // a UniqueConstraintViolationException should be thrown.
+        UniqueUser::createOrFirst(
+            ['email' => 'taylorotwell+bar@gmail.com'],
+            [
+                'screen_name' => '@taylorotwell',
+            ]
+        );
+    }
+
+    public function testCreateOrFirstWithinTransaction()
+    {
+        $user1 = UniqueUser::create(['email' => 'taylorotwell@gmail.com']);
+
+        DB::transaction(function () use ($user1) {
+            $user2 = UniqueUser::createOrFirst(
+                ['email' => 'taylorotwell@gmail.com'],
+                ['name' => 'Taylor Otwell']
+            );
+
+            $this->assertEquals($user1->id, $user2->id);
+            $this->assertSame('taylorotwell@gmail.com', $user2->email);
+            $this->assertNull($user2->name);
+        });
+    }
+
+    public function testUpdateOrCreate()
+    {
+        $user1 = User::create(['email' => 'taylorotwell@gmail.com']);
+
+        $user2 = User::updateOrCreate(
+            ['email' => 'taylorotwell@gmail.com'],
+            ['name' => 'Taylor Otwell']
+        );
+
+        $this->assertEquals($user1->id, $user2->id);
+        $this->assertSame('taylorotwell@gmail.com', $user2->email);
+        $this->assertSame('Taylor Otwell', $user2->name);
+
+        $user3 = User::updateOrCreate(
+            ['email' => 'themsaid@gmail.com'],
+            ['name' => 'Mohamed Said']
+        );
+
+        $this->assertSame('Mohamed Said', $user3->name);
+        $this->assertEquals(2, User::count());
+    }
+
+    public function testUpdateOrCreateOnDifferentConnection()
+    {
+        User::create(['email' => 'taylorotwell@gmail.com']);
+
+        User::on('second_connection')->updateOrCreate(
+            ['email' => 'taylorotwell@gmail.com'],
+            ['name' => 'Taylor Otwell']
+        );
+
+        User::on('second_connection')->updateOrCreate(
+            ['email' => 'themsaid@gmail.com'],
+            ['name' => 'Mohamed Said']
+        );
+
+        $this->assertEquals(1, User::count());
+        $this->assertEquals(2, User::on('second_connection')->count());
+    }
+
+    public function testCheckAndCreateMethodsOnMultiConnections()
+    {
+        User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        User::on('second_connection')->find(
+            User::on('second_connection')->insert(['id' => 2, 'email' => 'themsaid@gmail.com'])
+        );
+
+        $user1 = User::on('second_connection')->findOrNew(1);
+        $user2 = User::on('second_connection')->findOrNew(2);
+        $this->assertFalse($user1->exists);
+        $this->assertTrue($user2->exists);
+        $this->assertSame('second_connection', $user1->getConnectionName());
+        $this->assertSame('second_connection', $user2->getConnectionName());
+
+        $user1 = User::on('second_connection')->firstOrNew(['email' => 'taylorotwell@gmail.com']);
+        $user2 = User::on('second_connection')->firstOrNew(['email' => 'themsaid@gmail.com']);
+        $this->assertFalse($user1->exists);
+        $this->assertTrue($user2->exists);
+        $this->assertSame('second_connection', $user1->getConnectionName());
+        $this->assertSame('second_connection', $user2->getConnectionName());
+
+        $this->assertEquals(1, User::on('second_connection')->count());
+        $user1 = User::on('second_connection')->firstOrCreate(['email' => 'taylorotwell@gmail.com']);
+        $user2 = User::on('second_connection')->firstOrCreate(['email' => 'themsaid@gmail.com']);
+        $this->assertSame('second_connection', $user1->getConnectionName());
+        $this->assertSame('second_connection', $user2->getConnectionName());
+        $this->assertEquals(2, User::on('second_connection')->count());
+    }
+
+    public function testCreatingModelWithEmptyAttributes()
+    {
+        $model = NonIncrementing::create([]);
+
+        $this->assertFalse($model->exists);
+        $this->assertFalse($model->wasRecentlyCreated);
+    }
+
+    public function testChunk()
+    {
+        User::insert([
+            ['name' => 'First', 'email' => 'first@example.com'],
+            ['name' => 'Second', 'email' => 'second@example.com'],
+            ['name' => 'Third', 'email' => 'third@example.com'],
+        ]);
+
+        $chunks = 0;
+
+        User::query()->orderBy('id', 'asc')->chunk(2, function (Collection $users, $page) use (&$chunks) {
+            if ($page == 1) {
+                $this->assertCount(2, $users);
+                $this->assertSame('First', $users[0]->name);
+                $this->assertSame('Second', $users[1]->name);
+            } else {
+                $this->assertCount(1, $users);
+                $this->assertSame('Third', $users[0]->name);
+            }
+
+            ++$chunks;
+        });
+
+        $this->assertEquals(2, $chunks);
+    }
+
+    public function testChunksWithLimitsWhereLimitIsLessThanTotal()
+    {
+        User::insert([
+            ['name' => 'First', 'email' => 'first@example.com'],
+            ['name' => 'Second', 'email' => 'second@example.com'],
+            ['name' => 'Third', 'email' => 'third@example.com'],
+        ]);
+
+        $chunks = 0;
+
+        User::query()->orderBy('id', 'asc')->limit(2)->chunk(2, function (Collection $users, $page) use (&$chunks) {
+            if ($page == 1) {
+                $this->assertCount(2, $users);
+                $this->assertSame('First', $users[0]->name);
+                $this->assertSame('Second', $users[1]->name);
+            } else {
+                $this->fail('Should only have had one page.');
+            }
+
+            ++$chunks;
+        });
+
+        $this->assertEquals(1, $chunks);
+    }
+
+    public function testChunksWithLimitsWhereLimitIsMoreThanTotal()
+    {
+        User::insert([
+            ['name' => 'First', 'email' => 'first@example.com'],
+            ['name' => 'Second', 'email' => 'second@example.com'],
+            ['name' => 'Third', 'email' => 'third@example.com'],
+        ]);
+
+        $chunks = 0;
+
+        User::query()->orderBy('id', 'asc')->limit(10)->chunk(2, function (Collection $users, $page) use (&$chunks) {
+            if ($page == 1) {
+                $this->assertCount(2, $users);
+                $this->assertSame('First', $users[0]->name);
+                $this->assertSame('Second', $users[1]->name);
+            } elseif ($page === 2) {
+                $this->assertCount(1, $users);
+                $this->assertSame('Third', $users[0]->name);
+            } else {
+                $this->fail('Should have had two pages.');
+            }
+
+            ++$chunks;
+        });
+
+        $this->assertEquals(2, $chunks);
+    }
+
+    public function testChunksWithOffset()
+    {
+        User::insert([
+            ['name' => 'First', 'email' => 'first@example.com'],
+            ['name' => 'Second', 'email' => 'second@example.com'],
+            ['name' => 'Third', 'email' => 'third@example.com'],
+        ]);
+
+        $chunks = 0;
+
+        User::query()->orderBy('id', 'asc')->offset(1)->chunk(2, function (Collection $users, $page) use (&$chunks) {
+            if ($page == 1) {
+                $this->assertCount(2, $users);
+                $this->assertSame('Second', $users[0]->name);
+                $this->assertSame('Third', $users[1]->name);
+            } else {
+                $this->fail('Should only have had one page.');
+            }
+
+            ++$chunks;
+        });
+
+        $this->assertEquals(1, $chunks);
+    }
+
+    public function testChunksWithOffsetWhereMoreThanTotal()
+    {
+        User::insert([
+            ['name' => 'First', 'email' => 'first@example.com'],
+            ['name' => 'Second', 'email' => 'second@example.com'],
+            ['name' => 'Third', 'email' => 'third@example.com'],
+        ]);
+
+        $chunks = 0;
+
+        User::query()->orderBy('id', 'asc')->offset(3)->chunk(2, function () use (&$chunks) {
+            ++$chunks;
+        });
+
+        $this->assertEquals(0, $chunks);
+    }
+
+    public function testChunksWithLimitsAndOffsets()
+    {
+        User::insert([
+            ['name' => 'First', 'email' => 'first@example.com'],
+            ['name' => 'Second', 'email' => 'second@example.com'],
+            ['name' => 'Third', 'email' => 'third@example.com'],
+            ['name' => 'Fourth', 'email' => 'fourth@example.com'],
+            ['name' => 'Fifth', 'email' => 'fifth@example.com'],
+            ['name' => 'Sixth', 'email' => 'sixth@example.com'],
+            ['name' => 'Seventh', 'email' => 'seventh@example.com'],
+        ]);
+
+        $chunks = 0;
+
+        User::query()->orderBy('id', 'asc')->offset(2)->limit(3)->chunk(2, function (Collection $users, $page) use (&$chunks) {
+            if ($page == 1) {
+                $this->assertCount(2, $users);
+                $this->assertSame('Third', $users[0]->name);
+                $this->assertSame('Fourth', $users[1]->name);
+            } elseif ($page == 2) {
+                $this->assertCount(1, $users);
+                $this->assertSame('Fifth', $users[0]->name);
+            } else {
+                $this->fail('Should only have had two pages.');
+            }
+
+            ++$chunks;
+        });
+
+        $this->assertEquals(2, $chunks);
+    }
+
+    public function testChunkByIdWithLimits()
+    {
+        User::insert([
+            ['name' => 'First', 'email' => 'first@example.com'],
+            ['name' => 'Second', 'email' => 'second@example.com'],
+            ['name' => 'Third', 'email' => 'third@example.com'],
+        ]);
+
+        $chunks = 0;
+
+        User::query()->limit(2)->chunkById(2, function (Collection $users, $page) use (&$chunks) {
+            if ($page == 1) {
+                $this->assertCount(2, $users);
+                $this->assertSame('First', $users[0]->name);
+                $this->assertSame('Second', $users[1]->name);
+            } else {
+                $this->fail('Should only have had one page.');
+            }
+
+            ++$chunks;
+        });
+
+        $this->assertEquals(1, $chunks);
+    }
+
+    public function testChunkByIdWithOffsets()
+    {
+        User::insert([
+            ['name' => 'First', 'email' => 'first@example.com'],
+            ['name' => 'Second', 'email' => 'second@example.com'],
+            ['name' => 'Third', 'email' => 'third@example.com'],
+        ]);
+
+        $chunks = 0;
+
+        User::query()->offset(1)->chunkById(2, function (Collection $users, $page) use (&$chunks) {
+            if ($page == 1) {
+                $this->assertCount(2, $users);
+                $this->assertSame('Second', $users[0]->name);
+                $this->assertSame('Third', $users[1]->name);
+            } else {
+                $this->fail('Should only have had one page.');
+            }
+
+            ++$chunks;
+        });
+
+        $this->assertEquals(1, $chunks);
+    }
+
+    public function testChunkByIdWithLimitsAndOffsets()
+    {
+        User::insert([
+            ['name' => 'First', 'email' => 'first@example.com'],
+            ['name' => 'Second', 'email' => 'second@example.com'],
+            ['name' => 'Third', 'email' => 'third@example.com'],
+            ['name' => 'Fourth', 'email' => 'fourth@example.com'],
+            ['name' => 'Fifth', 'email' => 'fifth@example.com'],
+            ['name' => 'Sixth', 'email' => 'sixth@example.com'],
+            ['name' => 'Seventh', 'email' => 'seventh@example.com'],
+        ]);
+
+        $chunks = 0;
+
+        User::query()->offset(2)->limit(3)->chunkById(2, function (Collection $users, $page) use (&$chunks) {
+            if ($page == 1) {
+                $this->assertCount(2, $users);
+                $this->assertSame('Third', $users[0]->name);
+                $this->assertSame('Fourth', $users[1]->name);
+            } elseif ($page == 2) {
+                $this->assertCount(1, $users);
+                $this->assertSame('Fifth', $users[0]->name);
+            } else {
+                $this->fail('Should only have had two pages.');
+            }
+
+            ++$chunks;
+        });
+
+        $this->assertEquals(2, $chunks);
+    }
+
+    public function testChunkByIdWithNonIncrementingKey()
+    {
+        NonIncrementingSecond::insert([
+            ['name' => ' First'],
+            ['name' => ' Second'],
+            ['name' => ' Third'],
+        ]);
+
+        $i = 0;
+        NonIncrementingSecond::query()->chunkById(2, function (Collection $users) use (&$i) {
+            if (! $i) {
+                $this->assertSame(' First', $users[0]->name);
+                $this->assertSame(' Second', $users[1]->name);
+            } else {
+                $this->assertSame(' Third', $users[0]->name);
+            }
+            ++$i;
+        }, 'name');
+        $this->assertEquals(2, $i);
+    }
+
+    public function testEachByIdWithNonIncrementingKey()
+    {
+        NonIncrementingSecond::insert([
+            ['name' => ' First'],
+            ['name' => ' Second'],
+            ['name' => ' Third'],
+        ]);
+
+        $users = [];
+        NonIncrementingSecond::query()->eachById(
+            function (NonIncrementingSecond $user, $i) use (&$users) {
+                $users[] = [$user->name, $i];
+            },
+            2,
+            'name'
+        );
+        $this->assertSame([[' First', 0], [' Second', 1], [' Third', 2]], $users);
+    }
+
+    public function testPluck()
+    {
+        User::insert([
+            ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
+            ['id' => 2, 'email' => 'abigailotwell@gmail.com'],
+        ]);
+
+        $simple = User::oldest('id')->pluck('users.email')->all();
+        $keyed = User::oldest('id')->pluck('users.email', 'users.id')->all();
+
+        $this->assertEquals(['taylorotwell@gmail.com', 'abigailotwell@gmail.com'], $simple);
+        $this->assertEquals([1 => 'taylorotwell@gmail.com', 2 => 'abigailotwell@gmail.com'], $keyed);
+    }
+
+    public function testPluckWithJoin()
+    {
+        $user1 = User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        $user2 = User::create(['id' => 2, 'email' => 'abigailotwell@gmail.com']);
+
+        $user2->posts()->create(['id' => 1, 'name' => 'First post']);
+        $user1->posts()->create(['id' => 2, 'name' => 'Second post']);
+
+        $query = User::join('posts', 'users.id', '=', 'posts.user_id');
+
+        $this->assertEquals([1 => 'First post', 2 => 'Second post'], $query->pluck('posts.name', 'posts.id')->all());
+        $this->assertEquals([2 => 'First post', 1 => 'Second post'], $query->pluck('posts.name', 'users.id')->all());
+        $this->assertEquals(['abigailotwell@gmail.com' => 'First post', 'taylorotwell@gmail.com' => 'Second post'], $query->pluck('posts.name', 'users.email AS user_email')->all());
+    }
+
+    public function testPluckWithColumnNameContainingASpace()
+    {
+        UserWithSpaceInColumnName::insert([
+            ['id' => 1, 'email address' => 'taylorotwell@gmail.com'],
+            ['id' => 2, 'email address' => 'abigailotwell@gmail.com'],
+        ]);
+
+        $simple = UserWithSpaceInColumnName::oldest('id')->pluck('users_with_space_in_column_name.email address')->all();
+        $keyed = UserWithSpaceInColumnName::oldest('id')->pluck('email address', 'id')->all();
+
+        $this->assertEquals(['taylorotwell@gmail.com', 'abigailotwell@gmail.com'], $simple);
+        $this->assertEquals([1 => 'taylorotwell@gmail.com', 2 => 'abigailotwell@gmail.com'], $keyed);
+    }
+
+    public function testFindOrFail()
+    {
+        User::insert([
+            ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
+            ['id' => 2, 'email' => 'abigailotwell@gmail.com'],
+        ]);
+
+        $single = User::findOrFail(1);
+        $multiple = User::findOrFail([1, 2]);
+
+        $this->assertInstanceOf(User::class, $single);
+        $this->assertSame('taylorotwell@gmail.com', $single->email);
+        $this->assertInstanceOf(Collection::class, $multiple);
+        $this->assertInstanceOf(User::class, $multiple[0]);
+        $this->assertInstanceOf(User::class, $multiple[1]);
+    }
+
+    public function testFindOrFailWithSingleIdThrowsModelNotFoundException()
+    {
+        $this->expectException(ModelNotFoundException::class);
+        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\DatabaseEloquentIntegrationTest\User] 1');
+        $this->expectExceptionObject(
+            (new ModelNotFoundException())->setModel(User::class, [1]),
+        );
+
+        User::findOrFail(1);
+    }
+
+    public function testFindOrFailWithMultipleIdsThrowsModelNotFoundException()
+    {
+        $this->expectException(ModelNotFoundException::class);
+        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\DatabaseEloquentIntegrationTest\User] 2, 3');
+        $this->expectExceptionObject(
+            (new ModelNotFoundException())->setModel(User::class, [2, 3]),
+        );
+
+        User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        User::findOrFail([1, 2, 3]);
+    }
+
+    public function testFindOrFailWithMultipleIdsUsingCollectionThrowsModelNotFoundException()
+    {
+        $this->expectException(ModelNotFoundException::class);
+        $this->expectExceptionMessage('No query results for model [Hypervel\Tests\Database\Laravel\DatabaseEloquentIntegrationTest\User] 2, 3');
+        $this->expectExceptionObject(
+            (new ModelNotFoundException())->setModel(User::class, [2, 3]),
+        );
+
+        User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        User::findOrFail(new Collection([1, 1, 2, 3]));
+    }
+
+    public function testOneToOneRelationship()
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $user->post()->create(['name' => 'First Post']);
+
+        $post = $user->post;
+        $user = $post->user;
+
+        $this->assertTrue(isset($user->post->name));
+        $this->assertInstanceOf(User::class, $user);
+        $this->assertInstanceOf(Post::class, $post);
+        $this->assertSame('taylorotwell@gmail.com', $user->email);
+        $this->assertSame('First Post', $post->name);
+    }
+
+    public function testIssetLoadsInRelationshipIfItIsntLoadedAlready()
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $user->post()->create(['name' => 'First Post']);
+
+        $this->assertTrue(isset($user->post->name));
+    }
+
+    public function testOneToManyRelationship()
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $user->posts()->create(['name' => 'First Post']);
+        $user->posts()->create(['name' => 'Second Post']);
+
+        $posts = $user->posts;
+        $post2 = $user->posts()->where('name', 'Second Post')->first();
+
+        $this->assertInstanceOf(Collection::class, $posts);
+        $this->assertCount(2, $posts);
+        $this->assertInstanceOf(Post::class, $posts[0]);
+        $this->assertInstanceOf(Post::class, $posts[1]);
+        $this->assertInstanceOf(Post::class, $post2);
+        $this->assertSame('Second Post', $post2->name);
+        $this->assertInstanceOf(User::class, $post2->user);
+        $this->assertSame('taylorotwell@gmail.com', $post2->user->email);
+    }
+
+    public function testBasicModelHydration()
+    {
+        $user = new User(['email' => 'taylorotwell@gmail.com']);
+        $user->setConnection('second_connection');
+        $user->save();
+
+        $user = new User(['email' => 'abigailotwell@gmail.com']);
+        $user->setConnection('second_connection');
+        $user->save();
+
+        $models = User::on('second_connection')->fromQuery('SELECT * FROM users WHERE email = ?', ['abigailotwell@gmail.com']);
+
+        $this->assertInstanceOf(Collection::class, $models);
+        $this->assertInstanceOf(User::class, $models[0]);
+        $this->assertSame('abigailotwell@gmail.com', $models[0]->email);
+        $this->assertSame('second_connection', $models[0]->getConnectionName());
+        $this->assertCount(1, $models);
+    }
+
+    public function testFirstOrNewOnHasOneRelationShip()
+    {
+        $user1 = User::create(['email' => 'taylorotwell@gmail.com']);
+        $post1 = $user1->post()->firstOrNew(['name' => 'First Post'], ['name' => 'New Post']);
+
+        $this->assertSame('New Post', $post1->name);
+
+        $user2 = User::create(['email' => 'abigailotwell@gmail.com']);
+        $post = $user2->post()->create(['name' => 'First Post']);
+        $post2 = $user2->post()->firstOrNew(['name' => 'First Post'], ['name' => 'New Post']);
+
+        $this->assertSame('First Post', $post2->name);
+        $this->assertSame($post->id, $post2->id);
+    }
+
+    public function testFirstOrCreateOnHasOneRelationShip()
+    {
+        $user1 = User::create(['email' => 'taylorotwell@gmail.com']);
+        $post1 = $user1->post()->firstOrCreate(['name' => 'First Post'], ['name' => 'New Post']);
+
+        $this->assertSame('New Post', $post1->name);
+
+        $user2 = User::create(['email' => 'abigailotwell@gmail.com']);
+        $post = $user2->post()->create(['name' => 'First Post']);
+        $post2 = $user2->post()->firstOrCreate(['name' => 'First Post'], ['name' => 'New Post']);
+
+        $this->assertSame('First Post', $post2->name);
+        $this->assertSame($post->id, $post2->id);
+    }
+
+    public function testHasOnSelfReferencingBelongsToManyRelationship()
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
+
+        $this->assertTrue(isset($user->friends[0]->id));
+
+        $results = User::has('friends')->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('taylorotwell@gmail.com', $results->first()->email);
+    }
+
+    public function testWhereHasOnSelfReferencingBelongsToManyRelationship()
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
+
+        $results = User::whereHas('friends', function ($query) {
+            $query->where('email', 'abigailotwell@gmail.com');
+        })->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('taylorotwell@gmail.com', $results->first()->email);
+    }
+
+    public function testWithWhereHasOnSelfReferencingBelongsToManyRelationship()
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
+
+        $results = User::withWhereHas('friends', function ($query) {
+            $query->where('email', 'abigailotwell@gmail.com');
+        })->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('taylorotwell@gmail.com', $results->first()->email);
+        $this->assertTrue($results->first()->relationLoaded('friends'));
+        $this->assertSame($results->first()->friends->pluck('email')->unique()->toArray(), ['abigailotwell@gmail.com']);
+    }
+
+    public function testHasOnNestedSelfReferencingBelongsToManyRelationship()
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $friend = $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
+        $friend->friends()->create(['email' => 'foo@gmail.com']);
+
+        $results = User::has('friends.friends')->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('taylorotwell@gmail.com', $results->first()->email);
+    }
+
+    public function testWhereHasOnNestedSelfReferencingBelongsToManyRelationship()
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $friend = $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
+        $friend->friends()->create(['email' => 'foo@gmail.com']);
+
+        $results = User::whereHas('friends.friends', function ($query) {
+            $query->where('email', 'foo@gmail.com');
+        })->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('taylorotwell@gmail.com', $results->first()->email);
+    }
+
+    public function testWithWhereHasOnNestedSelfReferencingBelongsToManyRelationship()
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $friend = $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
+        $friend->friends()->create(['email' => 'foo@gmail.com']);
+
+        $results = User::withWhereHas('friends.friends', function ($query) {
+            $query->where('email', 'foo@gmail.com');
+        })->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('taylorotwell@gmail.com', $results->first()->email);
+        $this->assertTrue($results->first()->relationLoaded('friends'));
+        $this->assertSame($results->first()->friends->pluck('email')->unique()->toArray(), ['abigailotwell@gmail.com']);
+        $this->assertSame($results->first()->friends->pluck('friends')->flatten()->pluck('email')->unique()->toArray(), ['foo@gmail.com']);
+    }
+
+    public function testHasOnSelfReferencingBelongsToManyRelationshipWithWherePivot()
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
+
+        $results = User::has('friendsOne')->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('taylorotwell@gmail.com', $results->first()->email);
+    }
+
+    public function testHasOnNestedSelfReferencingBelongsToManyRelationshipWithWherePivot()
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $friend = $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
+        $friend->friends()->create(['email' => 'foo@gmail.com']);
+
+        $results = User::has('friendsOne.friendsTwo')->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('taylorotwell@gmail.com', $results->first()->email);
+    }
+
+    public function testHasOnSelfReferencingBelongsToRelationship()
+    {
+        $parentPost = Post::create(['name' => 'Parent Post', 'user_id' => 1]);
+        Post::create(['name' => 'Child Post', 'parent_id' => $parentPost->id, 'user_id' => 2]);
+
+        $results = Post::has('parentPost')->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('Child Post', $results->first()->name);
+    }
+
+    public function testAggregatedValuesOfDatetimeField()
+    {
+        User::insert([
+            ['id' => 1, 'email' => 'test1@test.test', 'created_at' => '2016-08-10 09:21:00', 'updated_at' => Carbon::now()],
+            ['id' => 2, 'email' => 'test2@test.test', 'created_at' => '2016-08-01 12:00:00', 'updated_at' => Carbon::now()],
+        ]);
+
+        $this->assertSame('2016-08-10 09:21:00', User::max('created_at'));
+        $this->assertSame('2016-08-01 12:00:00', User::min('created_at'));
+    }
+
+    public function testWhereHasOnSelfReferencingBelongsToRelationship()
+    {
+        $parentPost = Post::create(['name' => 'Parent Post', 'user_id' => 1]);
+        Post::create(['name' => 'Child Post', 'parent_id' => $parentPost->id, 'user_id' => 2]);
+
+        $results = Post::whereHas('parentPost', function ($query) {
+            $query->where('name', 'Parent Post');
+        })->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('Child Post', $results->first()->name);
+    }
+
+    public function testWithWhereHasOnSelfReferencingBelongsToRelationship()
+    {
+        $parentPost = Post::create(['name' => 'Parent Post', 'user_id' => 1]);
+        Post::create(['name' => 'Child Post', 'parent_id' => $parentPost->id, 'user_id' => 2]);
+
+        $results = Post::withWhereHas('parentPost', function ($query) {
+            $query->where('name', 'Parent Post');
+        })->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('Child Post', $results->first()->name);
+        $this->assertTrue($results->first()->relationLoaded('parentPost'));
+        $this->assertSame($results->first()->parentPost->name, 'Parent Post');
+    }
+
+    public function testHasOnNestedSelfReferencingBelongsToRelationship()
+    {
+        $grandParentPost = Post::create(['name' => 'Grandparent Post', 'user_id' => 1]);
+        $parentPost = Post::create(['name' => 'Parent Post', 'parent_id' => $grandParentPost->id, 'user_id' => 2]);
+        Post::create(['name' => 'Child Post', 'parent_id' => $parentPost->id, 'user_id' => 3]);
+
+        $results = Post::has('parentPost.parentPost')->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('Child Post', $results->first()->name);
+    }
+
+    public function testWhereHasOnNestedSelfReferencingBelongsToRelationship()
+    {
+        $grandParentPost = Post::create(['name' => 'Grandparent Post', 'user_id' => 1]);
+        $parentPost = Post::create(['name' => 'Parent Post', 'parent_id' => $grandParentPost->id, 'user_id' => 2]);
+        Post::create(['name' => 'Child Post', 'parent_id' => $parentPost->id, 'user_id' => 3]);
+
+        $results = Post::whereHas('parentPost.parentPost', function ($query) {
+            $query->where('name', 'Grandparent Post');
+        })->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('Child Post', $results->first()->name);
+    }
+
+    public function testWithWhereHasOnNestedSelfReferencingBelongsToRelationship()
+    {
+        $grandParentPost = Post::create(['name' => 'Grandparent Post', 'user_id' => 1]);
+        $parentPost = Post::create(['name' => 'Parent Post', 'parent_id' => $grandParentPost->id, 'user_id' => 2]);
+        Post::create(['name' => 'Child Post', 'parent_id' => $parentPost->id, 'user_id' => 3]);
+
+        $results = Post::withWhereHas('parentPost.parentPost', function ($query) {
+            $query->where('name', 'Grandparent Post');
+        })->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('Child Post', $results->first()->name);
+        $this->assertTrue($results->first()->relationLoaded('parentPost'));
+        $this->assertSame($results->first()->parentPost->name, 'Parent Post');
+        $this->assertTrue($results->first()->parentPost->relationLoaded('parentPost'));
+        $this->assertSame($results->first()->parentPost->parentPost->name, 'Grandparent Post');
+    }
+
+    public function testHasOnSelfReferencingHasManyRelationship()
+    {
+        $parentPost = Post::create(['name' => 'Parent Post', 'user_id' => 1]);
+        Post::create(['name' => 'Child Post', 'parent_id' => $parentPost->id, 'user_id' => 2]);
+
+        $results = Post::has('childPosts')->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('Parent Post', $results->first()->name);
+    }
+
+    public function testWhereHasOnSelfReferencingHasManyRelationship()
+    {
+        $parentPost = Post::create(['name' => 'Parent Post', 'user_id' => 1]);
+        Post::create(['name' => 'Child Post', 'parent_id' => $parentPost->id, 'user_id' => 2]);
+
+        $results = Post::whereHas('childPosts', function ($query) {
+            $query->where('name', 'Child Post');
+        })->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('Parent Post', $results->first()->name);
+    }
+
+    public function testWithWhereHasOnSelfReferencingHasManyRelationship()
+    {
+        $parentPost = Post::create(['name' => 'Parent Post', 'user_id' => 1]);
+        Post::create(['name' => 'Child Post', 'parent_id' => $parentPost->id, 'user_id' => 2]);
+
+        $results = Post::withWhereHas('childPosts', function ($query) {
+            $query->where('name', 'Child Post');
+        })->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('Parent Post', $results->first()->name);
+        $this->assertTrue($results->first()->relationLoaded('childPosts'));
+        $this->assertSame($results->first()->childPosts->pluck('name')->unique()->toArray(), ['Child Post']);
+    }
+
+    public function testHasOnNestedSelfReferencingHasManyRelationship()
+    {
+        $grandParentPost = Post::create(['name' => 'Grandparent Post', 'user_id' => 1]);
+        $parentPost = Post::create(['name' => 'Parent Post', 'parent_id' => $grandParentPost->id, 'user_id' => 2]);
+        Post::create(['name' => 'Child Post', 'parent_id' => $parentPost->id, 'user_id' => 3]);
+
+        $results = Post::has('childPosts.childPosts')->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('Grandparent Post', $results->first()->name);
+    }
+
+    public function testWhereHasOnNestedSelfReferencingHasManyRelationship()
+    {
+        $grandParentPost = Post::create(['name' => 'Grandparent Post', 'user_id' => 1]);
+        $parentPost = Post::create(['name' => 'Parent Post', 'parent_id' => $grandParentPost->id, 'user_id' => 2]);
+        Post::create(['name' => 'Child Post', 'parent_id' => $parentPost->id, 'user_id' => 3]);
+
+        $results = Post::whereHas('childPosts.childPosts', function ($query) {
+            $query->where('name', 'Child Post');
+        })->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('Grandparent Post', $results->first()->name);
+    }
+
+    public function testWithWhereHasOnNestedSelfReferencingHasManyRelationship()
+    {
+        $grandParentPost = Post::create(['name' => 'Grandparent Post', 'user_id' => 1]);
+        $parentPost = Post::create(['name' => 'Parent Post', 'parent_id' => $grandParentPost->id, 'user_id' => 2]);
+        Post::create(['name' => 'Child Post', 'parent_id' => $parentPost->id, 'user_id' => 3]);
+
+        $results = Post::withWhereHas('childPosts.childPosts', function ($query) {
+            $query->where('name', 'Child Post');
+        })->get();
+
+        $this->assertCount(1, $results);
+        $this->assertSame('Grandparent Post', $results->first()->name);
+        $this->assertTrue($results->first()->relationLoaded('childPosts'));
+        $this->assertSame($results->first()->childPosts->pluck('name')->unique()->toArray(), ['Parent Post']);
+        $this->assertSame($results->first()->childPosts->pluck('childPosts')->flatten()->pluck('name')->unique()->toArray(), ['Child Post']);
+    }
+
+    public function testHasWithNonWhereBindings()
+    {
+        $user = User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+
+        $user->posts()->create(['name' => 'Post 2'])
+            ->photos()->create(['name' => 'photo.jpg']);
+
+        $query = User::has('postWithPhotos');
+
+        $bindingsCount = count($query->getBindings());
+        $questionMarksCount = substr_count($query->toSql(), '?');
+
+        $this->assertEquals($questionMarksCount, $bindingsCount);
+    }
+
+    public function testHasOnMorphToRelationship()
+    {
+        $post = Post::create(['name' => 'Morph Post', 'user_id' => 1]);
+        (new Photo())->imageable()->associate($post)->fill(['name' => 'Morph Photo'])->save();
+
+        $photos = Photo::has('imageable')->get();
+
+        $this->assertEquals(1, $photos->count());
+    }
+
+    public function testBelongsToManyRelationshipModelsAreProperlyHydratedWithSoleQuery()
+    {
+        $user = UserWithCustomFriendPivot::create(['email' => 'taylorotwell@gmail.com']);
+        $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
+
+        $user->friends()->get()->each(function ($friend) {
+            $this->assertInstanceOf(FriendPivot::class, $friend->pivot);
+        });
+
+        $soleFriend = $user->friends()->where('email', 'abigailotwell@gmail.com')->sole();
+
+        $this->assertInstanceOf(FriendPivot::class, $soleFriend->pivot);
+    }
+
+    public function testBelongsToManyRelationshipMissingModelExceptionWithSoleQueryWorks()
+    {
+        $this->expectException(ModelNotFoundException::class);
+        $user = UserWithCustomFriendPivot::create(['email' => 'taylorotwell@gmail.com']);
+        $user->friends()->where('email', 'abigailotwell@gmail.com')->sole();
+    }
+
+    public function testBelongsToManyRelationshipModelsAreProperlyHydratedOverChunkedRequest()
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $friend = $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
+
+        User::first()->friends()->chunk(2, function ($friends) use ($user, $friend) {
+            $this->assertCount(1, $friends);
+            $this->assertSame('abigailotwell@gmail.com', $friends->first()->email);
+            $this->assertEquals($user->id, $friends->first()->pivot->user_id);
+            $this->assertEquals($friend->id, $friends->first()->pivot->friend_id);
+        });
+    }
+
+    public function testBelongsToManyRelationshipModelsAreProperlyHydratedOverEachRequest()
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $friend = $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
+
+        User::first()->friends()->each(function ($result) use ($user, $friend) {
+            $this->assertSame('abigailotwell@gmail.com', $result->email);
+            $this->assertEquals($user->id, $result->pivot->user_id);
+            $this->assertEquals($friend->id, $result->pivot->friend_id);
+        });
+    }
+
+    public function testBelongsToManyRelationshipModelsAreProperlyHydratedOverCursorRequest()
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $friend = $user->friends()->create(['email' => 'abigailotwell@gmail.com']);
+
+        foreach (User::first()->friends()->cursor() as $result) {
+            $this->assertSame('abigailotwell@gmail.com', $result->email);
+            $this->assertEquals($user->id, $result->pivot->user_id);
+            $this->assertEquals($friend->id, $result->pivot->friend_id);
+        }
+    }
+
+    public function testWhereAttachedTo()
+    {
+        User::insert([
+            ['email' => 'user1@gmail.com'],
+            ['email' => 'user2@gmail.com'],
+            ['email' => 'user3@gmail.com'],
+        ]);
+
+        [$user1, $user2, $user3] = User::get();
+
+        Achievement::fillAndInsert([['status' => 3], [], []]);
+        [$achievement1, $achievement2, $achievement3] = Achievement::get();
+
+        $user1->achievements()->attach([$achievement1]);
+        $user2->achievements()->attach([$achievement1, $achievement3]);
+        $user3->achievements()->attach([$achievement2, $achievement3]);
+
+        $achievedAchievement1 = User::whereAttachedTo($achievement1)->get();
+
+        $this->assertSame(2, $achievedAchievement1->count());
+        $this->assertTrue($achievedAchievement1->contains($user1));
+        $this->assertTrue($achievedAchievement1->contains($user2));
+
+        $achievedByUser1or2 = Achievement::whereAttachedTo(
+            new Collection([$user1, $user2])
+        )->get();
+
+        $this->assertSame(2, $achievedByUser1or2->count());
+        $this->assertTrue($achievedByUser1or2->contains($achievement1));
+        $this->assertTrue($achievedByUser1or2->contains($achievement3));
+    }
+
+    public function testBasicHasManyEagerLoading()
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $user->posts()->create(['name' => 'First Post']);
+        $user = User::with('posts')->where('email', 'taylorotwell@gmail.com')->first();
+
+        $this->assertSame('First Post', $user->posts->first()->name);
+
+        $post = Post::with('user')->where('name', 'First Post')->get();
+        $this->assertSame('taylorotwell@gmail.com', $post->first()->user->email);
+    }
+
+    public function testBasicNestedSelfReferencingHasManyEagerLoading()
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $post = $user->posts()->create(['name' => 'First Post']);
+        $post->childPosts()->create(['name' => 'Child Post', 'user_id' => $user->id]);
+
+        $user = User::with('posts.childPosts')->where('email', 'taylorotwell@gmail.com')->first();
+
+        $this->assertNotNull($user->posts->first());
+        $this->assertSame('First Post', $user->posts->first()->name);
+
+        $this->assertNotNull($user->posts->first()->childPosts->first());
+        $this->assertSame('Child Post', $user->posts->first()->childPosts->first()->name);
+
+        $post = Post::with('parentPost.user')->where('name', 'Child Post')->get();
+        $this->assertNotNull($post->first()->parentPost);
+        $this->assertNotNull($post->first()->parentPost->user);
+        $this->assertSame('taylorotwell@gmail.com', $post->first()->parentPost->user->email);
+    }
+
+    public function testBasicMorphManyRelationship()
+    {
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $user->photos()->create(['name' => 'Avatar 1']);
+        $user->photos()->create(['name' => 'Avatar 2']);
+        $post = $user->posts()->create(['name' => 'First Post']);
+        $post->photos()->create(['name' => 'Hero 1']);
+        $post->photos()->create(['name' => 'Hero 2']);
+
+        $this->assertInstanceOf(Collection::class, $user->photos);
+        $this->assertInstanceOf(Photo::class, $user->photos[0]);
+        $this->assertInstanceOf(Collection::class, $post->photos);
+        $this->assertInstanceOf(Photo::class, $post->photos[0]);
+        $this->assertCount(2, $user->photos);
+        $this->assertCount(2, $post->photos);
+        $this->assertSame('Avatar 1', $user->photos[0]->name);
+        $this->assertSame('Avatar 2', $user->photos[1]->name);
+        $this->assertSame('Hero 1', $post->photos[0]->name);
+        $this->assertSame('Hero 2', $post->photos[1]->name);
+
+        $photos = Photo::orderBy('name')->get();
+
+        $this->assertInstanceOf(Collection::class, $photos);
+        $this->assertCount(4, $photos);
+        $this->assertInstanceOf(User::class, $photos[0]->imageable);
+        $this->assertInstanceOf(Post::class, $photos[2]->imageable);
+        $this->assertSame('taylorotwell@gmail.com', $photos[1]->imageable->email);
+        $this->assertSame('First Post', $photos[3]->imageable->name);
+    }
+
+    public function testMorphMapIsUsedForCreatingAndFetchingThroughRelation()
+    {
+        Relation::morphMap([
+            'user' => User::class,
+            'post' => Post::class,
+        ]);
+
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $user->photos()->create(['name' => 'Avatar 1']);
+        $user->photos()->create(['name' => 'Avatar 2']);
+        $post = $user->posts()->create(['name' => 'First Post']);
+        $post->photos()->create(['name' => 'Hero 1']);
+        $post->photos()->create(['name' => 'Hero 2']);
+
+        $this->assertInstanceOf(Collection::class, $user->photos);
+        $this->assertInstanceOf(Photo::class, $user->photos[0]);
+        $this->assertInstanceOf(Collection::class, $post->photos);
+        $this->assertInstanceOf(Photo::class, $post->photos[0]);
+        $this->assertCount(2, $user->photos);
+        $this->assertCount(2, $post->photos);
+        $this->assertSame('Avatar 1', $user->photos[0]->name);
+        $this->assertSame('Avatar 2', $user->photos[1]->name);
+        $this->assertSame('Hero 1', $post->photos[0]->name);
+        $this->assertSame('Hero 2', $post->photos[1]->name);
+
+        $this->assertSame('user', $user->photos[0]->imageable_type);
+        $this->assertSame('user', $user->photos[1]->imageable_type);
+        $this->assertSame('post', $post->photos[0]->imageable_type);
+        $this->assertSame('post', $post->photos[1]->imageable_type);
+    }
+
+    public function testMorphMapIsUsedWhenFetchingParent()
+    {
+        Relation::morphMap([
+            'user' => User::class,
+            'post' => Post::class,
+        ]);
+
+        $user = User::create(['email' => 'taylorotwell@gmail.com']);
+        $user->photos()->create(['name' => 'Avatar 1']);
+
+        $photo = Photo::first();
+        $this->assertSame('user', $photo->imageable_type);
+        $this->assertInstanceOf(User::class, $photo->imageable);
+    }
+
+    public function testMorphMapIsMergedByDefault()
+    {
+        $map1 = [
+            'user' => User::class,
+        ];
+        $map2 = [
+            'post' => Post::class,
+        ];
+
+        Relation::morphMap($map1);
+        Relation::morphMap($map2);
+
+        $this->assertEquals(array_merge($map1, $map2), Relation::morphMap());
+    }
+
+    public function testMorphMapOverwritesCurrentMap()
+    {
+        $map1 = [
+            'user' => User::class,
+        ];
+        $map2 = [
+            'post' => Post::class,
+        ];
+
+        Relation::morphMap($map1, false);
+        $this->assertEquals($map1, Relation::morphMap());
+        Relation::morphMap($map2, false);
+        $this->assertEquals($map2, Relation::morphMap());
+    }
+
+    public function testEmptyMorphToRelationship()
+    {
+        $photo = new Photo();
+
+        $this->assertNull($photo->imageable);
+    }
+
+    public function testSaveOrFail()
+    {
+        $date = '1970-01-01';
+        $post = new Post([
+            'user_id' => 1, 'name' => 'Post', 'created_at' => $date, 'updated_at' => $date,
+        ]);
+
+        $this->assertTrue($post->saveOrFail());
+        $this->assertEquals(1, Post::count());
+    }
+
+    public function testSavingJSONFields()
+    {
+        $model = WithJSON::create(['json' => ['x' => 0]]);
+        $this->assertEquals(['x' => 0], $model->json);
+
+        $model->fillable(['json->y', 'json->a->b']);
+
+        $model->update(['json->y' => '1']);
+        $this->assertArrayNotHasKey('json->y', $model->toArray());
+        $this->assertEquals(['x' => 0, 'y' => 1], $model->json);
+
+        $model->update(['json->a->b' => '3']);
+        $this->assertArrayNotHasKey('json->a->b', $model->toArray());
+        $this->assertEquals(['x' => 0, 'y' => 1, 'a' => ['b' => 3]], $model->json);
+    }
+
+    public function testSaveOrFailWithDuplicatedEntry()
+    {
+        $this->expectException(QueryException::class);
+        $this->expectExceptionMessage('SQLSTATE[23000]:');
+
+        $date = '1970-01-01';
+        Post::create([
+            'id' => 1, 'user_id' => 1, 'name' => 'Post', 'created_at' => $date, 'updated_at' => $date,
+        ]);
+
+        $post = new Post([
+            'id' => 1, 'user_id' => 1, 'name' => 'Post', 'created_at' => $date, 'updated_at' => $date,
+        ]);
+
+        $post->saveOrFail();
+    }
+
+    public function testMultiInsertsWithDifferentValues()
+    {
+        $date = '1970-01-01';
+        $result = Post::insert([
+            ['user_id' => 1, 'name' => 'Post', 'created_at' => $date, 'updated_at' => $date],
+            ['user_id' => 2, 'name' => 'Post', 'created_at' => $date, 'updated_at' => $date],
+        ]);
+
+        $this->assertTrue($result);
+        $this->assertEquals(2, Post::count());
+    }
+
+    public function testMultiInsertsWithSameValues()
+    {
+        $date = '1970-01-01';
+        $result = Post::insert([
+            ['user_id' => 1, 'name' => 'Post', 'created_at' => $date, 'updated_at' => $date],
+            ['user_id' => 1, 'name' => 'Post', 'created_at' => $date, 'updated_at' => $date],
+        ]);
+
+        $this->assertTrue($result);
+        $this->assertEquals(2, Post::count());
+    }
+
+    public function testNestedTransactions()
+    {
+        $user = User::create(['email' => 'taylor@laravel.com']);
+        $this->connection()->transaction(function () use ($user) {
+            try {
+                $this->connection()->transaction(function () use ($user) {
+                    $user->email = 'otwell@laravel.com';
+                    $user->save();
+                    throw new Exception();
+                });
+            } catch (Exception) {
+                // ignore the exception
+            }
+            $user = User::first();
+            $this->assertSame('taylor@laravel.com', $user->email);
+        });
+    }
+
+    public function testNestedTransactionsUsingSaveOrFailWillSucceed()
+    {
+        $user = User::create(['email' => 'taylor@laravel.com']);
+        $this->connection()->transaction(function () use ($user) {
+            try {
+                $user->email = 'otwell@laravel.com';
+                $user->saveOrFail();
+            } catch (Exception) {
+                // ignore the exception
+            }
+
+            $user = User::first();
+            $this->assertSame('otwell@laravel.com', $user->email);
+            $this->assertEquals(1, $user->id);
+        });
+    }
+
+    public function testNestedTransactionsUsingSaveOrFailWillFails()
+    {
+        $user = User::create(['email' => 'taylor@laravel.com']);
+        $this->connection()->transaction(function () use ($user) {
+            try {
+                $user->id = 'invalid';
+                $user->email = 'otwell@laravel.com';
+                $user->saveOrFail();
+            } catch (Exception) {
+                // ignore the exception
+            }
+
+            $user = User::first();
+            $this->assertSame('taylor@laravel.com', $user->email);
+            $this->assertEquals(1, $user->id);
+        });
+    }
+
+    public function testToArrayIncludesDefaultFormattedTimestamps()
+    {
+        $model = new User();
+
+        $model->setRawAttributes([
+            'created_at' => '2012-12-04',
+            'updated_at' => '2012-12-05',
+        ]);
+
+        $array = $model->toArray();
+
+        $this->assertSame('2012-12-04T00:00:00.000000Z', $array['created_at']);
+        $this->assertSame('2012-12-05T00:00:00.000000Z', $array['updated_at']);
+    }
+
+    public function testToArrayIncludesCustomFormattedTimestamps()
+    {
+        $model = new UserWithCustomDateSerialization();
+
+        $model->setRawAttributes([
+            'created_at' => '2012-12-04',
+            'updated_at' => '2012-12-05',
+        ]);
+
+        $array = $model->toArray();
+
+        $this->assertSame('04-12-12', $array['created_at']);
+        $this->assertSame('05-12-12', $array['updated_at']);
+    }
+
+    public function testIncrementingPrimaryKeysAreCastToIntegersByDefault()
+    {
+        User::create(['email' => 'taylorotwell@gmail.com']);
+
+        $user = User::first();
+        $this->assertIsInt($user->id);
+    }
+
+    public function testDefaultIncrementingPrimaryKeyIntegerCastCanBeOverwritten()
+    {
+        UserWithStringCastId::create(['email' => 'taylorotwell@gmail.com']);
+
+        $user = UserWithStringCastId::first();
+        $this->assertIsString($user->id);
+    }
+
+    public function testRelationsArePreloadedInGlobalScope()
+    {
+        $user = UserWithGlobalScope::create(['email' => 'taylorotwell@gmail.com']);
+        $user->posts()->create(['name' => 'My Post']);
+
+        $result = UserWithGlobalScope::first();
+
+        $this->assertCount(1, $result->getRelations());
+    }
+
+    public function testModelIgnoredByGlobalScopeCanBeRefreshed()
+    {
+        $user = UserWithOmittingGlobalScope::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+
+        $this->assertNotNull($user->fresh());
+    }
+
+    public function testGlobalScopeCanBeRemovedByOtherGlobalScope()
+    {
+        $user = UserWithGlobalScopeRemovingOtherScope::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        $user->delete();
+
+        $this->assertNotNull(UserWithGlobalScopeRemovingOtherScope::find($user->id));
+    }
+
+    public function testForPageBeforeIdCorrectlyPaginates()
+    {
+        User::insert([
+            ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
+            ['id' => 2, 'email' => 'abigailotwell@gmail.com'],
+        ]);
+
+        $results = User::forPageBeforeId(15, 2);
+        $this->assertInstanceOf(Builder::class, $results);
+        $this->assertEquals(1, $results->first()->id);
+
+        $results = User::orderBy('id', 'desc')->forPageBeforeId(15, 2);
+        $this->assertInstanceOf(Builder::class, $results);
+        $this->assertEquals(1, $results->first()->id);
+    }
+
+    public function testForPageAfterIdCorrectlyPaginates()
+    {
+        User::insert([
+            ['id' => 1, 'email' => 'taylorotwell@gmail.com'],
+            ['id' => 2, 'email' => 'abigailotwell@gmail.com'],
+        ]);
+
+        $results = User::forPageAfterId(15, 1);
+        $this->assertInstanceOf(Builder::class, $results);
+        $this->assertEquals(2, $results->first()->id);
+
+        $results = User::orderBy('id', 'desc')->forPageAfterId(15, 1);
+        $this->assertInstanceOf(Builder::class, $results);
+        $this->assertEquals(2, $results->first()->id);
+    }
+
+    public function testMorphToRelationsAcrossDatabaseConnections()
+    {
+        $item = null;
+
+        Item::create(['id' => 1]);
+        Order::create(['id' => 1, 'item_type' => Item::class, 'item_id' => 1]);
+        try {
+            $item = Order::first()->item;
+        } catch (Exception) {
+            // ignore the exception
+        }
+
+        $this->assertInstanceOf(Item::class, $item);
+    }
+
+    public function testEagerLoadedMorphToRelationsOnAnotherDatabaseConnection()
+    {
+        Post::create(['id' => 1, 'name' => 'Default Connection Post', 'user_id' => 1]);
+        Photo::create(['id' => 1, 'imageable_type' => Post::class, 'imageable_id' => 1, 'name' => 'Photo']);
+
+        Post::on('second_connection')
+            ->create(['id' => 1, 'name' => 'Second Connection Post', 'user_id' => 1]);
+        Photo::on('second_connection')
+            ->create(['id' => 1, 'imageable_type' => Post::class, 'imageable_id' => 1, 'name' => 'Photo']);
+
+        $defaultConnectionPost = Photo::with('imageable')->first()->imageable;
+        $secondConnectionPost = Photo::on('second_connection')->with('imageable')->first()->imageable;
+
+        $this->assertSame('Default Connection Post', $defaultConnectionPost->name);
+        $this->assertSame('Second Connection Post', $secondConnectionPost->name);
+    }
+
+    public function testBelongsToManyCustomPivot()
+    {
+        $john = UserWithCustomFriendPivot::create(['id' => 1, 'name' => 'John Doe', 'email' => 'johndoe@example.com']);
+        $jane = UserWithCustomFriendPivot::create(['id' => 2, 'name' => 'Jane Doe', 'email' => 'janedoe@example.com']);
+        $jack = UserWithCustomFriendPivot::create(['id' => 3, 'name' => 'Jack Doe', 'email' => 'jackdoe@example.com']);
+        $jule = UserWithCustomFriendPivot::create(['id' => 4, 'name' => 'Jule Doe', 'email' => 'juledoe@example.com']);
+
+        FriendLevel::insert([
+            ['id' => 1, 'level' => 'acquaintance'],
+            ['id' => 2, 'level' => 'friend'],
+            ['id' => 3, 'level' => 'bff'],
+        ]);
+
+        $john->friends()->attach($jane, ['friend_level_id' => 1]);
+        $john->friends()->attach($jack, ['friend_level_id' => 2]);
+        $john->friends()->attach($jule, ['friend_level_id' => 3]);
+
+        $johnWithFriends = UserWithCustomFriendPivot::with('friends')->find(1);
+
+        $this->assertCount(3, $johnWithFriends->friends);
+        $this->assertSame('friend', $johnWithFriends->friends->find(3)->pivot->level->level);
+        $this->assertSame('Jule Doe', $johnWithFriends->friends->find(4)->pivot->friend->name);
+    }
+
+    public function testIsAfterRetrievingTheSameModel()
+    {
+        $saved = User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        $retrieved = User::find(1);
+
+        $this->assertTrue($saved->is($retrieved));
+    }
+
+    public function testFreshMethodOnModel()
+    {
+        $now = Carbon::now()->startOfSecond();
+        $nowSerialized = $now->toJSON();
+        $nowWithFractionsSerialized = $now->toJSON();
+        Carbon::setTestNow($now);
+
+        $storedUser1 = User::create([
+            'id' => 1,
+            'email' => 'taylorotwell@gmail.com',
+            'birthday' => $now,
+        ]);
+        $storedUser1->newQuery()->update([
+            'email' => 'dev@mathieutu.ovh',
+            'name' => 'Mathieu TUDISCO',
+        ]);
+        $freshStoredUser1 = $storedUser1->fresh();
+
+        $storedUser2 = User::create([
+            'id' => 2,
+            'email' => 'taylorotwell@gmail.com',
+            'birthday' => $now,
+        ]);
+        $storedUser2->newQuery()->update(['email' => 'dev@mathieutu.ovh']);
+        $freshStoredUser2 = $storedUser2->fresh();
+
+        $notStoredUser = new User([
+            'id' => 3,
+            'email' => 'taylorotwell@gmail.com',
+            'birthday' => $now,
+        ]);
+        $freshNotStoredUser = $notStoredUser->fresh();
+
+        $this->assertEquals([
+            'id' => 1,
+            'email' => 'taylorotwell@gmail.com',
+            'birthday' => $nowWithFractionsSerialized,
+            'created_at' => $nowSerialized,
+            'updated_at' => $nowSerialized,
+        ], $storedUser1->toArray());
+        $this->assertEquals([
+            'id' => 1,
+            'name' => 'Mathieu TUDISCO',
+            'email' => 'dev@mathieutu.ovh',
+            'birthday' => $nowWithFractionsSerialized,
+            'created_at' => $nowSerialized,
+            'updated_at' => $nowSerialized,
+        ], $freshStoredUser1->toArray());
+        $this->assertInstanceOf(User::class, $storedUser1);
+
+        $this->assertEquals([
+            'id' => 2,
+            'email' => 'taylorotwell@gmail.com',
+            'birthday' => $nowWithFractionsSerialized,
+            'created_at' => $nowSerialized,
+            'updated_at' => $nowSerialized,
+        ], $storedUser2->toArray());
+        $this->assertEquals([
+            'id' => 2,
+            'name' => null,
+            'email' => 'dev@mathieutu.ovh',
+            'birthday' => $nowWithFractionsSerialized,
+            'created_at' => $nowSerialized,
+            'updated_at' => $nowSerialized,
+        ], $freshStoredUser2->toArray());
+        $this->assertInstanceOf(User::class, $storedUser2);
+
+        $this->assertEquals([
+            'id' => 3,
+            'email' => 'taylorotwell@gmail.com',
+            'birthday' => $nowWithFractionsSerialized,
+        ], $notStoredUser->toArray());
+        $this->assertNull($freshNotStoredUser);
+    }
+
+    public function testFreshMethodOnCollection()
+    {
+        User::insert([['id' => 1, 'email' => 'taylorotwell@gmail.com'], ['id' => 2, 'email' => 'taylorotwell@gmail.com']]);
+
+        $users = User::all()
+            ->add(new User(['id' => 3, 'email' => 'taylorotwell@gmail.com']));
+
+        User::find(1)->update(['name' => 'Mathieu TUDISCO']);
+        User::find(2)->update(['email' => 'dev@mathieutu.ovh']);
+
+        $this->assertCount(3, $users);
+        $this->assertNotSame('Mathieu TUDISCO', $users[0]->name);
+        $this->assertNotSame('dev@mathieutu.ovh', $users[1]->email);
+
+        $refreshedUsers = $users->fresh();
+
+        $this->assertCount(2, $refreshedUsers);
+        $this->assertSame('Mathieu TUDISCO', $refreshedUsers[0]->name);
+        $this->assertSame('dev@mathieutu.ovh', $refreshedUsers[1]->email);
+    }
+
+    public function testTimestampsUsingDefaultDateFormat()
+    {
+        $model = new User();
+        $model->setDateFormat('Y-m-d H:i:s'); // Default MySQL/PostgreSQL/SQLite date format
+        $model->setRawAttributes([
+            'created_at' => '2017-11-14 08:23:19',
+        ]);
+
+        $this->assertSame('2017-11-14 08:23:19', $model->fromDateTime($model->getAttribute('created_at')));
+    }
+
+    public function testTimestampsUsingDefaultSqlServerDateFormat()
+    {
+        $model = new User();
+        $model->setDateFormat('Y-m-d H:i:s.v'); // Default SQL Server date format
+        $model->setRawAttributes([
+            'created_at' => '2017-11-14 08:23:19.000',
+            'updated_at' => '2017-11-14 08:23:19.734',
+        ]);
+
+        $this->assertSame('2017-11-14 08:23:19.000', $model->fromDateTime($model->getAttribute('created_at')));
+        $this->assertSame('2017-11-14 08:23:19.734', $model->fromDateTime($model->getAttribute('updated_at')));
+    }
+
+    public function testTimestampsUsingCustomDateFormat()
+    {
+        // Simulating using custom precisions with timestamps(4)
+        $model = new User();
+        $model->setDateFormat('Y-m-d H:i:s.u'); // Custom date format
+        $model->setRawAttributes([
+            'created_at' => '2017-11-14 08:23:19.0000',
+            'updated_at' => '2017-11-14 08:23:19.7348',
+        ]);
+
+        // Note: when storing databases would truncate the value to the given precision
+        $this->assertSame('2017-11-14 08:23:19.000000', $model->fromDateTime($model->getAttribute('created_at')));
+        $this->assertSame('2017-11-14 08:23:19.734800', $model->fromDateTime($model->getAttribute('updated_at')));
+    }
+
+    public function testTimestampsUsingOldSqlServerDateFormat()
+    {
+        $model = new User();
+        $model->setDateFormat('Y-m-d H:i:s.000'); // Old SQL Server date format
+        $model->setRawAttributes([
+            'created_at' => '2017-11-14 08:23:19.000',
+        ]);
+
+        $this->assertSame('2017-11-14 08:23:19.000', $model->fromDateTime($model->getAttribute('created_at')));
+    }
+
+    public function testTimestampsUsingOldSqlServerDateFormatFallbackToDefaultParsing()
+    {
+        $model = new User();
+        $model->setDateFormat('Y-m-d H:i:s.000'); // Old SQL Server date format
+        $model->setRawAttributes([
+            'updated_at' => '2017-11-14 08:23:19.734',
+        ]);
+
+        $date = $model->getAttribute('updated_at');
+        $this->assertSame('2017-11-14 08:23:19.734', $date->format('Y-m-d H:i:s.v'), 'the date should contains the precision');
+        $this->assertSame('2017-11-14 08:23:19.000', $model->fromDateTime($date), 'the format should trims it');
+        // No longer throwing exception since Laravel 7,
+        // but Date::hasFormat() can be used instead to check date formatting:
+        $this->assertTrue(Date::hasFormat('2017-11-14 08:23:19.000', $model->getDateFormat()));
+        $this->assertFalse(Date::hasFormat('2017-11-14 08:23:19.734', $model->getDateFormat()));
+    }
+
+    public function testSpecialFormats()
+    {
+        $model = new User();
+        $model->setDateFormat('!Y-d-m \Y');
+        $model->setRawAttributes([
+            'updated_at' => '2017-05-11 Y',
+        ]);
+
+        $date = $model->getAttribute('updated_at');
+        $this->assertSame('2017-11-05 00:00:00.000000', $date->format('Y-m-d H:i:s.u'), 'the date should respect the whole format');
+
+        $model->setDateFormat('Y d m|');
+        $model->setRawAttributes([
+            'updated_at' => '2020 11 09',
+        ]);
+
+        $date = $model->getAttribute('updated_at');
+        $this->assertSame('2020-09-11 00:00:00.000000', $date->format('Y-m-d H:i:s.u'), 'the date should respect the whole format');
+
+        $model->setDateFormat('Y d m|*');
+        $model->setRawAttributes([
+            'updated_at' => '2020 11 09 foo',
+        ]);
+
+        $date = $model->getAttribute('updated_at');
+        $this->assertSame('2020-09-11 00:00:00.000000', $date->format('Y-m-d H:i:s.u'), 'the date should respect the whole format');
+    }
+
+    public function testUpdatingChildModelTouchesParent()
+    {
+        $before = Carbon::now();
+
+        $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        $post = TouchingPost::create(['name' => 'Parent Post', 'user_id' => 1]);
+
+        $this->assertTrue($before->isSameDay($user->updated_at));
+        $this->assertTrue($before->isSameDay($post->updated_at));
+
+        Carbon::setTestNow($future = $before->copy()->addDays(3));
+
+        $post->update(['name' => 'Updated']);
+
+        $this->assertTrue($future->isSameDay($post->fresh()->updated_at), 'It is not touching model own timestamps.');
+        $this->assertTrue($future->isSameDay($user->fresh()->updated_at), 'It is not touching models related timestamps.');
+    }
+
+    public function testMultiLevelTouchingWorks()
+    {
+        $before = Carbon::now();
+
+        $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        $post = TouchingPost::create(['id' => 1, 'name' => 'Parent Post', 'user_id' => 1]);
+
+        $this->assertTrue($before->isSameDay($user->updated_at));
+        $this->assertTrue($before->isSameDay($post->updated_at));
+
+        Carbon::setTestNow($future = $before->copy()->addDays(3));
+
+        TouchingComment::create(['content' => 'Comment content', 'post_id' => 1]);
+
+        $this->assertTrue($future->isSameDay($post->fresh()->updated_at), 'It is not touching models related timestamps.');
+        $this->assertTrue($future->isSameDay($user->fresh()->updated_at), 'It is not touching models related timestamps.');
+    }
+
+    public function testDeletingChildModelTouchesParentTimestamps()
+    {
+        $before = Carbon::now();
+
+        $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        $post = TouchingPost::create(['name' => 'Parent Post', 'user_id' => 1]);
+
+        $this->assertTrue($before->isSameDay($user->updated_at));
+        $this->assertTrue($before->isSameDay($post->updated_at));
+
+        Carbon::setTestNow($future = $before->copy()->addDays(3));
+
+        $post->delete();
+
+        $this->assertTrue($future->isSameDay($user->fresh()->updated_at), 'It is not touching models related timestamps.');
+    }
+
+    public function testTouchingChildModelUpdatesParentsTimestamps()
+    {
+        $before = Carbon::now();
+
+        $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        $post = TouchingPost::create(['id' => 1, 'name' => 'Parent Post', 'user_id' => 1]);
+
+        $this->assertTrue($before->isSameDay($user->updated_at));
+        $this->assertTrue($before->isSameDay($post->updated_at));
+
+        Carbon::setTestNow($future = $before->copy()->addDays(3));
+
+        $post->touch();
+
+        $this->assertTrue($future->isSameDay($post->fresh()->updated_at), 'It is not touching model own timestamps.');
+        $this->assertTrue($future->isSameDay($user->fresh()->updated_at), 'It is not touching models related timestamps.');
+    }
+
+    public function testTouchingChildModelRespectsParentNoTouching()
+    {
+        $before = Carbon::now();
+
+        $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        $post = TouchingPost::create(['id' => 1, 'name' => 'Parent Post', 'user_id' => 1]);
+
+        $this->assertTrue($before->isSameDay($user->updated_at));
+        $this->assertTrue($before->isSameDay($post->updated_at));
+
+        Carbon::setTestNow($future = $before->copy()->addDays(3));
+
+        TouchingUser::withoutTouching(function () use ($post) {
+            $post->touch();
+        });
+
+        $this->assertTrue(
+            $future->isSameDay($post->fresh()->updated_at),
+            'It is not touching model own timestamps in withoutTouching scope.'
+        );
+
+        $this->assertTrue(
+            $before->isSameDay($user->fresh()->updated_at),
+            'It is touching model own timestamps in withoutTouching scope, when it should not.'
+        );
+    }
+
+    public function testUpdatingChildPostRespectsNoTouchingDefinition()
+    {
+        $before = Carbon::now();
+
+        $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        $post = TouchingPost::create(['name' => 'Parent Post', 'user_id' => 1]);
+
+        $this->assertTrue($before->isSameDay($user->updated_at));
+        $this->assertTrue($before->isSameDay($post->updated_at));
+
+        Carbon::setTestNow($future = $before->copy()->addDays(3));
+
+        TouchingUser::withoutTouching(function () use ($post) {
+            $post->update(['name' => 'Updated']);
+        });
+
+        $this->assertTrue($future->isSameDay($post->fresh()->updated_at), 'It is not touching model own timestamps when it should.');
+        $this->assertTrue($before->isSameDay($user->fresh()->updated_at), 'It is touching models relationships when it should be disabled.');
+    }
+
+    public function testUpdatingModelInTheDisabledScopeTouchesItsOwnTimestamps()
+    {
+        $before = Carbon::now();
+
+        $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        $post = TouchingPost::create(['name' => 'Parent Post', 'user_id' => 1]);
+
+        $this->assertTrue($before->isSameDay($user->updated_at));
+        $this->assertTrue($before->isSameDay($post->updated_at));
+
+        Carbon::setTestNow($future = $before->copy()->addDays(3));
+
+        Model::withoutTouching(function () use ($post) {
+            $post->update(['name' => 'Updated']);
+        });
+
+        $this->assertTrue($future->isSameDay($post->fresh()->updated_at), 'It is touching models when it should be disabled.');
+        $this->assertTrue($before->isSameDay($user->fresh()->updated_at), 'It is touching models when it should be disabled.');
+    }
+
+    public function testDeletingChildModelRespectsTheNoTouchingRule()
+    {
+        $before = Carbon::now();
+
+        $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        $post = TouchingPost::create(['name' => 'Parent Post', 'user_id' => 1]);
+
+        $this->assertTrue($before->isSameDay($user->updated_at));
+        $this->assertTrue($before->isSameDay($post->updated_at));
+
+        Carbon::setTestNow($future = $before->copy()->addDays(3));
+
+        TouchingUser::withoutTouching(function () use ($post) {
+            $post->delete();
+        });
+
+        $this->assertTrue($before->isSameDay($user->fresh()->updated_at), 'It is touching models when it should be disabled.');
+    }
+
+    public function testRespectedMultiLevelTouchingChain()
+    {
+        $before = Carbon::now();
+
+        $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        $post = TouchingPost::create(['id' => 1, 'name' => 'Parent Post', 'user_id' => 1]);
+
+        $this->assertTrue($before->isSameDay($user->updated_at));
+        $this->assertTrue($before->isSameDay($post->updated_at));
+
+        Carbon::setTestNow($future = $before->copy()->addDays(3));
+
+        TouchingUser::withoutTouching(function () {
+            TouchingComment::create(['content' => 'Comment content', 'post_id' => 1]);
+        });
+
+        $this->assertTrue($future->isSameDay($post->fresh()->updated_at), 'It is touching models when it should be disabled.');
+        $this->assertTrue($before->isSameDay($user->fresh()->updated_at), 'It is touching models when it should be disabled.');
+    }
+
+    public function testTouchesGreatParentEvenWhenParentIsInNoTouchScope()
+    {
+        $before = Carbon::now();
+
+        $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        $post = TouchingPost::create(['id' => 1, 'name' => 'Parent Post', 'user_id' => 1]);
+
+        $this->assertTrue($before->isSameDay($user->updated_at));
+        $this->assertTrue($before->isSameDay($post->updated_at));
+
+        Carbon::setTestNow($future = $before->copy()->addDays(3));
+
+        TouchingPost::withoutTouching(function () {
+            TouchingComment::create(['content' => 'Comment content', 'post_id' => 1]);
+        });
+
+        $this->assertTrue($before->isSameDay($post->fresh()->updated_at), 'It is touching models when it should be disabled.');
+        $this->assertTrue($future->isSameDay($user->fresh()->updated_at), 'It is touching models when it should be disabled.');
+    }
+
+    public function testCanNestCallsOfNoTouching()
+    {
+        $before = Carbon::now();
+
+        $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        $post = TouchingPost::create(['id' => 1, 'name' => 'Parent Post', 'user_id' => 1]);
+
+        $this->assertTrue($before->isSameDay($user->updated_at));
+        $this->assertTrue($before->isSameDay($post->updated_at));
+
+        Carbon::setTestNow($future = $before->copy()->addDays(3));
+
+        TouchingUser::withoutTouching(function () {
+            TouchingPost::withoutTouching(function () {
+                TouchingComment::create(['content' => 'Comment content', 'post_id' => 1]);
+            });
+        });
+
+        $this->assertTrue($before->isSameDay($post->fresh()->updated_at), 'It is touching models when it should be disabled.');
+        $this->assertTrue($before->isSameDay($user->fresh()->updated_at), 'It is touching models when it should be disabled.');
+    }
+
+    public function testCanPassArrayOfModelsToIgnore()
+    {
+        $before = Carbon::now();
+
+        $user = TouchingUser::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        $post = TouchingPost::create(['id' => 1, 'name' => 'Parent Post', 'user_id' => 1]);
+
+        $this->assertTrue($before->isSameDay($user->updated_at));
+        $this->assertTrue($before->isSameDay($post->updated_at));
+
+        Carbon::setTestNow($future = $before->copy()->addDays(3));
+
+        Model::withoutTouchingOn([TouchingUser::class, TouchingPost::class], function () {
+            TouchingComment::create(['content' => 'Comment content', 'post_id' => 1]);
+        });
+
+        $this->assertTrue($before->isSameDay($post->fresh()->updated_at), 'It is touching models when it should be disabled.');
+        $this->assertTrue($before->isSameDay($user->fresh()->updated_at), 'It is touching models when it should be disabled.');
+    }
+
+    public function testWhenBaseModelIsIgnoredAllChildModelsAreIgnored()
+    {
+        $this->assertFalse(Model::isIgnoringTouch());
+        $this->assertFalse(IgnoringTouchUser::isIgnoringTouch());
+
+        Model::withoutTouching(function () {
+            $this->assertTrue(Model::isIgnoringTouch());
+            $this->assertTrue(IgnoringTouchUser::isIgnoringTouch());
+        });
+
+        $this->assertFalse(IgnoringTouchUser::isIgnoringTouch());
+        $this->assertFalse(Model::isIgnoringTouch());
+    }
+
+    public function testChildModelsAreIgnored()
+    {
+        $this->assertFalse(Model::isIgnoringTouch());
+        $this->assertFalse(IgnoringTouchUser::isIgnoringTouch());
+        $this->assertFalse(IgnoringTouchPost::isIgnoringTouch());
+
+        IgnoringTouchUser::withoutTouching(function () {
+            $this->assertFalse(Model::isIgnoringTouch());
+            $this->assertFalse(IgnoringTouchPost::isIgnoringTouch());
+            $this->assertTrue(IgnoringTouchUser::isIgnoringTouch());
+        });
+
+        $this->assertFalse(IgnoringTouchPost::isIgnoringTouch());
+        $this->assertFalse(IgnoringTouchUser::isIgnoringTouch());
+        $this->assertFalse(Model::isIgnoringTouch());
+    }
+
+    public function testPivotsCanBeRefreshed()
+    {
+        FriendLevel::create(['id' => 1, 'level' => 'acquaintance']);
+        FriendLevel::create(['id' => 2, 'level' => 'friend']);
+
+        $user = User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        $user->friends()->create(['id' => 2, 'email' => 'abigailotwell@gmail.com'], ['friend_level_id' => 1]);
+
+        $pivot = $user->friends[0]->pivot;
+
+        // Simulate a change that happened externally
+        DB::table('friends')->where('user_id', 1)->where('friend_id', 2)->update([
+            'friend_level_id' => 2,
+        ]);
+
+        $this->assertInstanceOf(Pivot::class, $freshPivot = $pivot->fresh());
+        $this->assertEquals(2, $freshPivot->friend_level_id);
+
+        $this->assertSame($pivot, $pivot->refresh());
+        $this->assertEquals(2, $pivot->friend_level_id);
+    }
+
+    public function testMorphPivotsCanBeRefreshed()
+    {
+        $post = Post::create(['name' => 'MorphToMany Post', 'user_id' => 1]);
+        $post->tags()->create(['id' => 1, 'name' => 'News']);
+
+        $pivot = $post->tags[0]->pivot;
+
+        // Simulate a change that happened externally
+        DB::table('taggables')
+            ->where([
+                'taggable_type' => Post::class,
+                'taggable_id' => 1,
+                'tag_id' => 1,
+            ])
+            ->update([
+                'taxonomy' => 'primary',
+            ]);
+
+        $this->assertInstanceOf(MorphPivot::class, $freshPivot = $pivot->fresh());
+        $this->assertSame('primary', $freshPivot->taxonomy);
+
+        $this->assertSame($pivot, $pivot->refresh());
+        $this->assertSame('primary', $pivot->taxonomy);
+    }
+
+    public function testTouchingChaperonedChildModelUpdatesParentTimestamps()
+    {
+        $before = Carbon::now();
+
+        $one = TouchingCategory::create(['id' => 1, 'name' => 'One']);
+        $two = $one->children()->create(['id' => 2, 'name' => 'Two']);
+
+        $this->assertTrue($before->isSameDay($one->updated_at));
+        $this->assertTrue($before->isSameDay($two->updated_at));
+
+        Carbon::setTestNow($future = $before->copy()->addDays(3));
+
+        $two->touch();
+
+        $this->assertTrue($future->isSameDay($two->fresh()->updated_at), 'It is not touching model own timestamps.');
+        $this->assertTrue($future->isSameDay($one->fresh()->updated_at), 'It is not touching chaperoned models related timestamps.');
+    }
+
+    public function testTouchingBiDirectionalChaperonedModelUpdatesAllRelatedTimestamps()
+    {
+        $before = Carbon::now();
+
+        TouchingCategory::insert([
+            ['id' => 1, 'name' => 'One', 'parent_id' => null, 'created_at' => $before, 'updated_at' => $before],
+            ['id' => 2, 'name' => 'Two', 'parent_id' => 1, 'created_at' => $before, 'updated_at' => $before],
+            ['id' => 3, 'name' => 'Three', 'parent_id' => 1, 'created_at' => $before, 'updated_at' => $before],
+            ['id' => 4, 'name' => 'Four', 'parent_id' => 2, 'created_at' => $before, 'updated_at' => $before],
+        ]);
+
+        $one = TouchingCategory::find(1);
+        [$two, $three] = $one->children;
+        [$four] = $two->children;
+
+        $this->assertTrue($before->isSameDay($one->updated_at));
+        $this->assertTrue($before->isSameDay($two->updated_at));
+        $this->assertTrue($before->isSameDay($three->updated_at));
+        $this->assertTrue($before->isSameDay($four->updated_at));
+
+        Carbon::setTestNow($future = $before->copy()->addDays(3));
+
+        // Touch a random model and check that all of the others have been updated
+        $models = tap([$one, $two, $three, $four], shuffle(...));
+        $target = array_shift($models);
+        $target->touch();
+
+        $this->assertTrue($future->isSameDay($target->fresh()->updated_at), 'It is not touching model own timestamps.');
+
+        while ($next = array_shift($models)) {
+            $this->assertTrue(
+                $future->isSameDay($next->fresh()->updated_at),
+                'It is not touching related models timestamps.'
+            );
+        }
+    }
+
+    public function testCanFillAndInsert()
+    {
+        DB::enableQueryLog();
+        Carbon::setTestNow('2025-03-15T07:32:00Z');
+
+        $this->assertTrue(User::fillAndInsert([
+            ['email' => 'taylor@laravel.com', 'birthday' => null],
+            ['email' => 'nuno@laravel.com', 'birthday' => new Carbon('1980-01-01')],
+            ['email' => 'tim@laravel.com', 'birthday' => '1987-11-01', 'created_at' => '2025-01-02T02:00:55', 'updated_at' => Carbon::parse('2025-02-19T11:41:13')],
+        ]));
+
+        $this->assertCount(1, DB::getQueryLog());
+
+        $this->assertCount(3, $users = User::get());
+
+        $users->take(2)->each(function (User $user) {
+            $this->assertEquals(Carbon::parse('2025-03-15T07:32:00Z'), $user->created_at);
+            $this->assertEquals(Carbon::parse('2025-03-15T07:32:00Z'), $user->updated_at);
+        });
+
+        $tim = $users->firstWhere('email', 'tim@laravel.com');
+        $this->assertEquals(Carbon::parse('2025-01-02T02:00:55'), $tim->created_at);
+        $this->assertEquals(Carbon::parse('2025-02-19T11:41:13'), $tim->updated_at);
+
+        $this->assertNull($users[0]->birthday);
+        $this->assertInstanceOf(DateTime::class, $users[1]->birthday);
+        $this->assertInstanceOf(DateTime::class, $users[2]->birthday);
+        $this->assertEquals('1987-11-01', $users[2]->birthday->format('Y-m-d'));
+
+        DB::flushQueryLog();
+
+        $this->assertTrue(WithJSON::fillAndInsert([
+            ['id' => 1, 'json' => ['album' => 'Keep It Like a Secret', 'release_date' => '1999-02-02']],
+            ['id' => 2, 'json' => (object) ['album' => 'You In Reverse', 'release_date' => '2006-04-11']],
+        ]));
+
+        $this->assertCount(1, DB::getQueryLog());
+
+        $this->assertCount(2, $testsWithJson = WithJSON::get());
+
+        $testsWithJson->each(function (WithJSON $testWithJson) {
+            $this->assertIsArray($testWithJson->json);
+            $this->assertArrayHasKey('album', $testWithJson->json);
+        });
+    }
+
+    public function testCanFillAndInsertWithUniqueStringIds()
+    {
+        Str::createUuidsUsingSequence([
+            '00000000-0000-7000-0000-000000000000',
+            '11111111-0000-7000-0000-000000000000',
+            '22222222-0000-7000-0000-000000000000',
+        ]);
+
+        $this->assertTrue(ModelWithUniqueStringIds::fillAndInsert([
+            [
+                'name' => 'Taylor', 'role' => IntBackedRole::Admin, 'role_string' => StringBackedRole::Admin,
+            ],
+            [
+                'name' => 'Nuno', 'role' => 3, 'role_string' => 'admin',
+            ],
+            [
+                'name' => 'Dries', 'uuid' => 'bbbb0000-0000-7000-0000-000000000000',
+            ],
+            [
+                'name' => 'Chris',
+            ],
+        ]));
+
+        $models = ModelWithUniqueStringIds::get();
+
+        $taylor = $models->firstWhere('name', 'Taylor');
+        $nuno = $models->firstWhere('name', 'Nuno');
+        $dries = $models->firstWhere('name', 'Dries');
+        $chris = $models->firstWhere('name', 'Chris');
+
+        $this->assertEquals(IntBackedRole::Admin, $taylor->role);
+        $this->assertEquals(StringBackedRole::Admin, $taylor->role_string);
+        $this->assertSame('00000000-0000-7000-0000-000000000000', $taylor->uuid);
+
+        $this->assertEquals(IntBackedRole::Admin, $nuno->role);
+        $this->assertEquals(StringBackedRole::Admin, $nuno->role_string);
+        $this->assertSame('11111111-0000-7000-0000-000000000000', $nuno->uuid);
+
+        $this->assertEquals(IntBackedRole::User, $dries->role);
+        $this->assertEquals(StringBackedRole::User, $dries->role_string);
+        $this->assertSame('bbbb0000-0000-7000-0000-000000000000', $dries->uuid);
+
+        $this->assertEquals(IntBackedRole::User, $chris->role);
+        $this->assertEquals(StringBackedRole::User, $chris->role_string);
+        $this->assertSame('22222222-0000-7000-0000-000000000000', $chris->uuid);
+    }
+
+    public function testFillAndInsertOrIgnore()
+    {
+        Str::createUuidsUsingSequence([
+            '00000000-0000-7000-0000-000000000000',
+            '11111111-0000-7000-0000-000000000000',
+            '22222222-0000-7000-0000-000000000000',
+        ]);
+
+        $this->assertEquals(1, ModelWithUniqueStringIds::fillAndInsertOrIgnore([
+            [
+                'id' => 1, 'name' => 'Taylor', 'role' => IntBackedRole::Admin, 'role_string' => StringBackedRole::Admin,
+            ],
+        ]));
+
+        $this->assertSame(1, ModelWithUniqueStringIds::fillAndInsertOrIgnore([
+            [
+                'id' => 1, 'name' => 'Taylor', 'role' => IntBackedRole::Admin, 'role_string' => StringBackedRole::Admin,
+            ],
+            [
+                'id' => 2, 'name' => 'Nuno',
+            ],
+        ]));
+
+        $models = ModelWithUniqueStringIds::get();
+        $this->assertSame('00000000-0000-7000-0000-000000000000', $models->firstWhere('name', 'Taylor')->uuid);
+        $this->assertSame(
+            ['uuid' => '22222222-0000-7000-0000-000000000000', 'role' => IntBackedRole::User],
+            $models->firstWhere('name', 'Nuno')->only('uuid', 'role')
+        );
+    }
+
+    public function testFillAndInsertGetId()
+    {
+        Str::createUuidsUsingSequence([
+            '00000000-0000-7000-0000-000000000000',
+        ]);
+
+        DB::enableQueryLog();
+
+        $this->assertIsInt($newId = ModelWithUniqueStringIds::fillAndInsertGetId([
+            'name' => 'Taylor',
+            'role' => IntBackedRole::Admin,
+            'role_string' => StringBackedRole::Admin,
+        ]));
+        $this->assertCount(1, DB::getRawQueryLog());
+        $this->assertSame($newId, ModelWithUniqueStringIds::sole()->id);
+    }
+
+    /**
+     * Helpers...
+     * @param mixed $connection
+     */
+
+    /**
+     * Get a database connection instance.
+     *
+     * @return \Illuminate\Database\Connection
+     */
+    protected function connection($connection = 'default')
+    {
+        return Eloquent::getConnectionResolver()->connection($connection);
+    }
+
+    /**
+     * Get a schema builder instance.
+     *
+     * @param mixed $connection
+     * @return \Illuminate\Database\Schema\Builder
+     */
+    protected function schema($connection = 'default')
+    {
+        return $this->connection($connection)->getSchemaBuilder();
+    }
+}
+
+/**
+ * Eloquent Models...
+ */
+class User extends Eloquent
+{
+    protected ?string $table = 'users';
+
+    protected array $casts = ['birthday' => 'datetime'];
+
+    protected array $guarded = [];
+
+    public function friends()
+    {
+        return $this->belongsToMany(self::class, 'friends', 'user_id', 'friend_id');
+    }
+
+    public function friendsOne()
+    {
+        return $this->belongsToMany(self::class, 'friends', 'user_id', 'friend_id')->wherePivot('user_id', 1);
+    }
+
+    public function friendsTwo()
+    {
+        return $this->belongsToMany(self::class, 'friends', 'user_id', 'friend_id')->wherePivot('user_id', 2);
+    }
+
+    public function posts()
+    {
+        return $this->hasMany(Post::class, 'user_id');
+    }
+
+    public function post()
+    {
+        return $this->hasOne(Post::class, 'user_id');
+    }
+
+    public function photos()
+    {
+        return $this->morphMany(Photo::class, 'imageable');
+    }
+
+    public function postWithPhotos()
+    {
+        return $this->post()->join('photo', function ($join) {
+            $join->on('photo.imageable_id', 'post.id');
+            $join->where('photo.imageable_type', 'Post');
+        });
+    }
+
+    public function achievements()
+    {
+        return $this->belongsToMany(Achievement::class);
+    }
+}
+
+class UserWithCustomFriendPivot extends User
+{
+    public function friends()
+    {
+        return $this->belongsToMany(User::class, 'friends', 'user_id', 'friend_id')
+            ->using(FriendPivot::class)->withPivot('user_id', 'friend_id', 'friend_level_id');
+    }
+}
+
+class UserWithSpaceInColumnName extends User
+{
+    protected ?string $table = 'users_with_space_in_column_name';
+}
+
+class NonIncrementing extends Eloquent
+{
+    protected ?string $table = 'non_incrementing_users';
+
+    protected array $guarded = [];
+
+    public bool $incrementing = false;
+
+    public bool $timestamps = false;
+}
+
+class NonIncrementingSecond extends NonIncrementing
+{
+    protected UnitEnum|string|null $connection = 'second_connection';
+}
+
+class UserWithGlobalScope extends User
+{
+    public static function boot(): void
+    {
+        parent::boot();
+
+        static::addGlobalScope(function ($builder) {
+            $builder->with('posts');
+        });
+    }
+}
+
+class UserWithOmittingGlobalScope extends User
+{
+    public static function boot(): void
+    {
+        parent::boot();
+
+        static::addGlobalScope(function ($builder) {
+            $builder->where('email', '!=', 'taylorotwell@gmail.com');
+        });
+    }
+}
+
+class UserWithGlobalScopeRemovingOtherScope extends Eloquent
+{
+    use SoftDeletes;
+
+    protected ?string $table = 'soft_deleted_users';
+
+    protected array $guarded = [];
+
+    public static function boot(): void
+    {
+        static::addGlobalScope(function ($builder) {
+            $builder->withoutGlobalScope(SoftDeletingScope::class);
+        });
+
+        parent::boot();
+    }
+}
+
+class UniqueUser extends Eloquent
+{
+    protected ?string $table = 'unique_users';
+
+    protected array $casts = ['birthday' => 'datetime'];
+
+    protected array $guarded = [];
+}
+
+class Post extends Eloquent
+{
+    protected ?string $table = 'posts';
+
+    protected array $guarded = [];
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function photos()
+    {
+        return $this->morphMany(Photo::class, 'imageable');
+    }
+
+    public function childPosts()
+    {
+        return $this->hasMany(self::class, 'parent_id');
+    }
+
+    public function parentPost()
+    {
+        return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    public function tags()
+    {
+        return $this->morphToMany(Tag::class, 'taggable', Taggable::class, null, 'tag_id')->withPivot('taxonomy');
+    }
+}
+
+class Taggable extends MorphPivot
+{
+    protected ?string $table = 'taggables';
+}
+
+class Tag extends Eloquent
+{
+    protected ?string $table = 'tags';
+
+    protected array $guarded = [];
+}
+
+class FriendLevel extends Eloquent
+{
+    protected ?string $table = 'friend_levels';
+
+    protected array $guarded = [];
+}
+
+class Photo extends Eloquent
+{
+    protected ?string $table = 'photos';
+
+    protected array $guarded = [];
+
+    public function imageable()
+    {
+        return $this->morphTo();
+    }
+}
+
+class UserWithStringCastId extends User
+{
+    protected array $casts = [
+        'id' => 'string',
+    ];
+}
+
+class UserWithCustomDateSerialization extends User
+{
+    protected function serializeDate(DateTimeInterface $date): string
+    {
+        return $date->format('d-m-y');
+    }
+}
+
+class Order extends Eloquent
+{
+    protected array $guarded = [];
+
+    protected ?string $table = 'test_orders';
+
+    protected array $with = ['item'];
+
+    public function item()
+    {
+        return $this->morphTo();
+    }
+}
+
+class Item extends Eloquent
+{
+    protected array $guarded = [];
+
+    protected ?string $table = 'test_items';
+
+    protected UnitEnum|string|null $connection = 'second_connection';
+}
+
+class WithJSON extends Eloquent
+{
+    protected array $guarded = [];
+
+    protected ?string $table = 'with_json';
+
+    public bool $timestamps = false;
+
+    protected array $casts = [
+        'json' => 'array',
+    ];
+}
+
+class FriendPivot extends Pivot
+{
+    protected ?string $table = 'friends';
+
+    protected array $guarded = [];
+
+    public bool $timestamps = false;
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function friend()
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function level()
+    {
+        return $this->belongsTo(FriendLevel::class, 'friend_level_id');
+    }
+}
+
+class TouchingUser extends Eloquent
+{
+    protected ?string $table = 'users';
+
+    protected array $guarded = [];
+}
+
+class TouchingPost extends Eloquent
+{
+    protected ?string $table = 'posts';
+
+    protected array $guarded = [];
+
+    protected array $touches = [
+        'user',
+    ];
+
+    public function user()
+    {
+        return $this->belongsTo(TouchingUser::class, 'user_id');
+    }
+}
+
+class TouchingComment extends Eloquent
+{
+    protected ?string $table = 'comments';
+
+    protected array $guarded = [];
+
+    protected array $touches = [
+        'post',
+    ];
+
+    public function post()
+    {
+        return $this->belongsTo(TouchingPost::class, 'post_id');
+    }
+}
+
+class TouchingCategory extends Eloquent
+{
+    protected ?string $table = 'categories';
+
+    protected array $guarded = [];
+
+    protected array $touches = [
+        'parent',
+        'children',
+    ];
+
+    public function parent()
+    {
+        return $this->belongsTo(TouchingCategory::class, 'parent_id');
+    }
+
+    public function children()
+    {
+        return $this->hasMany(TouchingCategory::class, 'parent_id')->chaperone();
+    }
+}
+
+class Achievement extends Eloquent
+{
+    public bool $timestamps = false;
+
+    protected ?string $table = 'achievements';
+
+    protected array $guarded = [];
+
+    protected array $attributes = ['status' => null];
+
+    public function users()
+    {
+        return $this->belongsToMany(User::class);
+    }
+}
+
+class ModelWithUniqueStringIds extends Eloquent
+{
+    use HasUuids;
+
+    public bool $timestamps = false;
+
+    protected ?string $table = 'users_having_uuids';
+
+    protected array $attributes = [
+        'role' => IntBackedRole::User,
+        'role_string' => StringBackedRole::User,
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'role' => IntBackedRole::class,
+            'role_string' => StringBackedRole::class,
+        ];
+    }
+
+    public function uniqueIds(): array
+    {
+        return ['uuid'];
+    }
+}
+
+enum IntBackedRole: int
+{
+    case User = 1;
+    case Admin = 3;
+}
+
+enum StringBackedRole: string
+{
+    case User = 'user';
+    case Admin = 'admin';
+}
+
+/**
+ * Used for isIgnoringTouch() / withoutTouching() tests.
+ */
+class IgnoringTouchUser extends Eloquent
+{
+    protected array $guarded = [];
+}
+
+class IgnoringTouchPost extends Eloquent
+{
+    protected array $guarded = [];
+}

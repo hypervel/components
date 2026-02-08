@@ -9,7 +9,7 @@ use Hypervel\ObjectPool\Contracts\ObjectPool;
 use Hypervel\ObjectPool\Contracts\Recycler;
 use Hypervel\ObjectPool\Strategies\TimeStrategy;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use Psr\Container\ContainerInterface;
 
 /**
@@ -31,7 +31,7 @@ class TimeStrategyTest extends TestCase
     {
         Carbon::setTestNow('2025-04-01 00:00:00');
 
-        $pool = Mockery::mock(ObjectPool::class);
+        $pool = m::mock(ObjectPool::class);
         $pool->shouldReceive('getLastRecycledAt')
             ->once()
             ->andReturn(Carbon::now()->subSeconds(3));
@@ -47,7 +47,7 @@ class TimeStrategyTest extends TestCase
     {
         Carbon::setTestNow('2025-04-01 00:00:00');
 
-        $pool = Mockery::mock(ObjectPool::class);
+        $pool = m::mock(ObjectPool::class);
         $pool->shouldReceive('getLastRecycledAt')
             ->once()
             ->andReturn(Carbon::now()->subSeconds(30));
@@ -63,7 +63,7 @@ class TimeStrategyTest extends TestCase
     {
         Carbon::setTestNow('2025-04-01 00:00:00');
 
-        $pool = Mockery::mock(ObjectPool::class);
+        $pool = m::mock(ObjectPool::class);
         $pool->shouldReceive('getOption->getRecycleRatio')
             ->once()
             ->andReturn(0.5);
@@ -87,12 +87,12 @@ class TimeStrategyTest extends TestCase
 
     protected function mockContainerWithInterval(float $interval): ContainerInterface
     {
-        $recycler = Mockery::mock(Recycler::class);
+        $recycler = m::mock(Recycler::class);
         $recycler->shouldReceive('getInterval')
             ->once()
             ->andReturn($interval);
 
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = m::mock(ContainerInterface::class);
         $container->shouldReceive('get')
             ->with(Recycler::class)
             ->andReturn($recycler);

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Concerns;
 
-use Hypervel\Session\Contracts\Session;
+use Hypervel\Contracts\Session\Session;
 
 trait InteractsWithSession
 {

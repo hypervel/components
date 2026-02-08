@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Connectors;
 
-use Hyperf\Redis\RedisFactory;
-use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Contracts\Queue\Queue;
 use Hypervel\Queue\RedisQueue;
+use Hypervel\Redis\RedisFactory;
 
 class RedisConnector implements ConnectorInterface
 {

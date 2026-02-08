@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Horizon\Repositories;
 
 use Carbon\CarbonImmutable;
-use Hyperf\Redis\RedisFactory;
-use Hyperf\Redis\RedisProxy;
 use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Lock;
 use Hypervel\Horizon\LuaScripts;
 use Hypervel\Horizon\WaitTimeCalculator;
+use Hypervel\Redis\RedisFactory;
+use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Str;
 
 class RedisMetricsRepository implements MetricsRepository
@@ -144,12 +144,10 @@ class RedisMetricsRepository implements MetricsRepository
     {
         $this->connection()->eval(
             LuaScripts::updateMetrics(),
-            [
-                'job:' . $job,
-                'measured_jobs',
-                str_replace(',', '.', (string) $runtime),
-            ],
             2,
+            'job:' . $job,
+            'measured_jobs',
+            str_replace(',', '.', (string) $runtime),
         );
     }
 
@@ -160,12 +158,10 @@ class RedisMetricsRepository implements MetricsRepository
     {
         $this->connection()->eval(
             LuaScripts::updateMetrics(),
-            [
-                'queue:' . $queue,
-                'measured_queues',
-                str_replace(',', '.', (string) $runtime),
-            ],
             2,
+            'queue:' . $queue,
+            'measured_queues',
+            str_replace(',', '.', (string) $runtime),
         );
     }
 

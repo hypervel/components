@@ -8,7 +8,7 @@ use Error;
 use ErrorException;
 use Exception;
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
+use Hypervel\Contracts\Debug\ExceptionHandler;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\ExceptionWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;

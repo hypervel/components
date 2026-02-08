@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Http\Resource;
 
+use Hypervel\Http\Request;
 use Hypervel\Http\Resources\Json\ResourceCollection;
+use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -28,14 +30,15 @@ class ResourceCollectionTest extends TestCase
             }
         };
 
-        $collection = (new ResourceCollection([$resourceA, $resourceB]));
+        $collection = new ResourceCollection([$resourceA, $resourceB]);
+        $request = m::mock(Request::class);
 
         $this->assertSame(
             [
                 ['foo' => 'bar'],
                 ['hello' => 'world'],
             ],
-            $collection->toArray()
+            $collection->toArray($request)
         );
     }
 }

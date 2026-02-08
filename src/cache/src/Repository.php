@@ -10,10 +10,7 @@ use Carbon\Carbon;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Macroable\Macroable;
 use Hyperf\Support\Traits\InteractsWithTime;
-use Hypervel\Cache\Contracts\Repository as CacheContract;
-use Hypervel\Cache\Contracts\Store;
 use Hypervel\Cache\Events\CacheFlushed;
 use Hypervel\Cache\Events\CacheFlushFailed;
 use Hypervel\Cache\Events\CacheFlushing;
@@ -28,13 +25,16 @@ use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
+use Hypervel\Contracts\Cache\Repository as CacheContract;
+use Hypervel\Contracts\Cache\Store;
+use Hypervel\Support\Traits\Macroable;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
 
 /**
- * @mixin \Hypervel\Cache\Contracts\Store
+ * @mixin \Hypervel\Contracts\Cache\Store
  */
 class Repository implements ArrayAccess, CacheContract
 {

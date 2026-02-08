@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Bus;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
-use Hypervel\Bus\Contracts\BatchRepository;
+use Hypervel\Container\Container;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Bus\BatchRepository;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
@@ -19,11 +19,6 @@ use PHPUnit\Framework\TestCase;
  */
 class BusBatchableTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testBatchMayBeRetrieved()
     {
         $class = new class {

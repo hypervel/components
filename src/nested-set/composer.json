@@ -26,9 +26,9 @@
         }
     },
     "require": {
-        "php": "^8.2",
-        "hyperf/database": "~3.1.0",
+        "php": "^8.4",
         "hypervel/core": "^0.3",
+        "hypervel/database": "^0.3",
         "hypervel/support": "^0.3"
     },
     "config": {

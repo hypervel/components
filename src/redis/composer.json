@@ -14,7 +14,11 @@
         {
             "name": "Albert Chen",
             "email": "albert@hypervel.org"
-        }
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
+        }        
     ],
     "support": {
         "issues": "https://github.com/hypervel/components/issues",
@@ -26,8 +30,11 @@
         }
     },
     "require": {
-        "php": "^8.2",
-        "hyperf/redis": "~3.1.0",
+        "php": "^8.4",
+        "ext-redis": "*",
+        "hyperf/contract": "~3.1.0",
+        "hypervel/contracts": "^0.3",
+        "hypervel/pool": "~0.3",        
         "hypervel/support": "^0.3"
     },
     "config": {

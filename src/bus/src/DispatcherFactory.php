@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use Hypervel\Queue\Contracts\Factory as QueueFactoryContract;
+use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
 use Psr\Container\ContainerInterface;
 
 class DispatcherFactory

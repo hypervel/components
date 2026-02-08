@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Di\Container;
 use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Bus\Contracts\Dispatcher;
 use Hypervel\Bus\PendingDispatch;
 use Hypervel\Bus\Queueable;
-use Hypervel\Queue\Contracts\ShouldQueue;
-use Mockery;
+use Hypervel\Container\Container;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Mockery as m;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -53,7 +53,7 @@ class QueueDelayTest extends TestCase
 
     protected function mockContainer(): void
     {
-        $event = Mockery::mock(Dispatcher::class);
+        $event = m::mock(Dispatcher::class);
         $event->shouldReceive('dispatch');
         $container = new Container(
             new DefinitionSource([

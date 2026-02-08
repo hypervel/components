@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\NestedSet;
 
 use DateTimeInterface;
-use Hyperf\Database\Model\Model;
 use Hypervel\Context\Context;
+use Hypervel\Database\Eloquent\Model;
 
 class NodeContext
 {

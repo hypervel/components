@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Collection\Arr;
-use Hyperf\Database\Model\ModelNotFoundException;
-use Hyperf\Stringable\Str;
-use Hypervel\Bus\Contracts\BatchRepository;
-use Hypervel\Encryption\Contracts\Encrypter;
+use Hypervel\Contracts\Bus\BatchRepository;
+use Hypervel\Contracts\Encryption\Encrypter;
+use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Queue;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\EntryUpdate;
 use Hypervel\Telescope\ExceptionContext;

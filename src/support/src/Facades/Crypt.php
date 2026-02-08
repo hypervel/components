@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Encryption\Contracts\Encrypter as EncrypterContract;
+use Hypervel\Contracts\Encryption\Encrypter as EncrypterContract;
 
 /**
  * @method static bool supported(string $key, string $cipher)

@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Cache;
 
 use Hypervel\Cache\ArrayStore;
-use Hypervel\Cache\Contracts\Store;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\TaggedCache;
+use Hypervel\Contracts\Cache\Store;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface as Dispatcher;

@@ -16,11 +16,15 @@
         {
             "name": "Albert Chen",
             "email": "albert@hypervel.org"
+        },
+        {
+            "name": "Raj Siva-Rajah",
+            "homepage": "https://github.com/binaryfire"
         }
     ],
     "require": {
-        "php": "^8.2",
-        "hyperf/database": "~3.1.0",
+        "php": "^8.4",
+        "hypervel/database": "^0.3",
         "hyperf/http-server": "~3.1.0",
         "hypervel/auth": "^0.3",
         "hypervel/console": "^0.3",

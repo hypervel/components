@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Dispatcher;
 
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hypervel\Dispatcher\AdaptedRequestHandler;
 use Hypervel\Tests\TestCase;
 use Mockery as m;

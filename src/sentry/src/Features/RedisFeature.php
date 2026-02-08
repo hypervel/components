@@ -6,12 +6,13 @@ namespace Hypervel\Sentry\Features;
 
 use Exception;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Redis\Event\CommandExecuted;
-use Hyperf\Redis\Pool\PoolFactory;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Session\Session;
 use Hypervel\Coroutine\Coroutine;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Redis\Events\CommandExecuted;
+use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\RedisConfig;
 use Hypervel\Sentry\Traits\ResolvesEventOrigin;
-use Hypervel\Session\Contracts\Session;
 use Hypervel\Support\Str;
 use Sentry\SentrySdk;
 use Sentry\Tracing\SpanContext;
@@ -28,9 +29,12 @@ class RedisFeature extends Feature
     public function onBoot(): void
     {
         $config = $this->container->get(ConfigInterface::class);
-        if ($config->has('database.connections.redis.event')) {
-            $config->set('database.connections.redis.event', true);
+        $redisConfig = $this->container->get(RedisConfig::class);
+
+        foreach ($redisConfig->connectionNames() as $connection) {
+            $config->set("database.redis.{$connection}.event.enable", true);
         }
+
         $dispatcher = $this->container->get(Dispatcher::class);
         $dispatcher->listen(CommandExecuted::class, [$this, 'handleRedisCommands']);
     }
@@ -45,7 +49,8 @@ class RedisFeature extends Feature
         }
 
         $pool = $this->container->get(PoolFactory::class)->getPool($event->connectionName);
-        $config = $this->container->get(ConfigInterface::class)->get('redis.' . $event->connectionName, []);
+        $redisConfig = $this->container->get(RedisConfig::class);
+        $config = $redisConfig->connectionConfig($event->connectionName);
 
         $keyForDescription = '';
 

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Http;
 
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Telescope\Http\Middleware\Authorize;
 use Hypervel\Telescope\Telescope;

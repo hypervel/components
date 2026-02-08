@@ -6,7 +6,7 @@ namespace Hypervel\Cache;
 
 use Closure;
 use Hyperf\Support\Traits\InteractsWithTime;
-use Hypervel\Cache\Contracts\Factory as Cache;
+use Hypervel\Contracts\Cache\Factory as Cache;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;

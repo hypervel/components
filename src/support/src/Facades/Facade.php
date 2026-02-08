@@ -227,6 +227,7 @@ abstract class Facade
             'DB' => DB::class,
             'Environment' => Environment::class,
             'Event' => Event::class,
+            'Exceptions' => Exceptions::class,
             'File' => File::class,
             'Gate' => Gate::class,
             'Hash' => Hash::class,

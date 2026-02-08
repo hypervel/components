@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Broadcasting;
 
 use Hyperf\HttpServer\Request;
-use Hyperf\Redis\RedisFactory;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Broadcasting\Broadcasters\RedisBroadcaster;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
+use Hypervel\Redis\RedisFactory;
 use Hypervel\Support\Facades\Facade;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
@@ -39,8 +39,6 @@ class RedisBroadcasterTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-
-        m::close();
 
         Facade::clearResolvedInstances();
     }

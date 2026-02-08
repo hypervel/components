@@ -7,8 +7,6 @@ namespace Hypervel\Tests\Event\Hyperf;
 use Hyperf\Config\Config;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Event\Annotation\Listener as ListenerAnnotation;
-use Hyperf\Event\ListenerData;
-use Hyperf\Stdlib\SplPriorityQueue;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
 use Hypervel\Event\ListenerProviderFactory;
@@ -17,8 +15,8 @@ use Hypervel\Tests\Event\Hyperf\Event\Beta;
 use Hypervel\Tests\Event\Hyperf\Listener\AlphaListener;
 use Hypervel\Tests\Event\Hyperf\Listener\BetaListener;
 use Hypervel\Tests\TestCase;
-use Mockery;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
+use Mockery as m;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\ListenerProviderInterface;
 
@@ -37,7 +35,7 @@ class ListenerTest extends TestCase
         $this->assertTrue(is_array($listenerProvider->listeners));
     }
 
-    public function testInvokeListenerProviderWithListeners()
+    public function testInvokeListenerProviderWithListeners(): void
     {
         $listenerProvider = new ListenerProvider();
         $this->assertInstanceOf(ListenerProviderInterface::class, $listenerProvider);
@@ -46,7 +44,8 @@ class ListenerTest extends TestCase
         $listenerProvider->on(Beta::class, [new BetaListener(), 'process']);
         $this->assertTrue(is_array($listenerProvider->listeners));
         $this->assertSame(2, count($listenerProvider->listeners));
-        $this->assertInstanceOf(SplPriorityQueue::class, $listenerProvider->getListenersForEvent(new Alpha()));
+        // getListenersForEvent now returns an array (Laravel-style)
+        $this->assertIsArray($listenerProvider->getListenersForEvent(new Alpha()));
     }
 
     public function testListenerProcess()
@@ -62,7 +61,7 @@ class ListenerTest extends TestCase
 
     public function testListenerInvokeByFactory()
     {
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = m::mock(ContainerInterface::class);
         $container->shouldReceive('get')->once()->with(ConfigInterface::class)->andReturn(new Config([]));
         $container->shouldReceive('get')
             ->once()
@@ -74,7 +73,7 @@ class ListenerTest extends TestCase
 
     public function testListenerInvokeByFactoryWithConfig()
     {
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = m::mock(ContainerInterface::class);
         $container->shouldReceive('get')->once()->with(ConfigInterface::class)->andReturn(new Config([
             'listeners' => [
                 AlphaListener::class,
@@ -110,7 +109,7 @@ class ListenerTest extends TestCase
         $listenerAnnotation->collectClass(AlphaListener::class, ListenerAnnotation::class);
         $listenerAnnotation->collectClass(BetaListener::class, ListenerAnnotation::class);
 
-        $container = Mockery::mock(ContainerInterface::class);
+        $container = m::mock(ContainerInterface::class);
         $container->shouldReceive('get')->once()->with(ConfigInterface::class)->andReturn(new Config([]));
         $container->shouldReceive('get')
             ->with(AlphaListener::class)
@@ -136,12 +135,11 @@ class ListenerTest extends TestCase
         $this->assertSame(2, $betaListener->value);
     }
 
-    public function testListenerAnnotationWithPriority()
+    public function testListenerAnnotationExists(): void
     {
+        // Hyperf's Listener annotation still exists (for compatibility)
+        // but priority is ignored in Hypervel's Laravel-style event system
         $listenerAnnotation = new ListenerAnnotation();
-        $this->assertSame(ListenerData::DEFAULT_PRIORITY, $listenerAnnotation->priority);
-
-        $listenerAnnotation = new ListenerAnnotation(2);
-        $this->assertSame(2, $listenerAnnotation->priority);
+        $this->assertInstanceOf(ListenerAnnotation::class, $listenerAnnotation);
     }
 }

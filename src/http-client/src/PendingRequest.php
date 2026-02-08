@@ -17,15 +17,15 @@ use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\TransferStats;
 use GuzzleHttp\UriTemplate\UriTemplate;
 use Hyperf\Conditionable\Conditionable;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Macroable\Macroable;
-use Hyperf\Stringable\Str;
-use Hyperf\Stringable\Stringable;
+use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\HttpClient\Events\ConnectionFailed;
 use Hypervel\HttpClient\Events\RequestSending;
 use Hypervel\HttpClient\Events\ResponseReceived;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
+use Hypervel\Support\Stringable;
+use Hypervel\Support\Traits\Macroable;
 use JsonSerializable;
 use OutOfBoundsException;
 use Psr\Http\Message\RequestInterface;
@@ -625,7 +625,7 @@ class PendingRequest
      *
      * @throws ConnectionException
      */
-    public function get(string $url, array|JsonSerializable|string|null $query = null): PromiseInterface|Response
+    public function get(string $url, Arrayable|array|JsonSerializable|string|null $query = null): PromiseInterface|Response
     {
         return $this->send(
             'GET',
@@ -1008,6 +1008,8 @@ class PendingRequest
             $options[$key] = match (true) {
                 is_array($value) => $this->normalizeRequestOptions($value),
                 $value instanceof Stringable => $value->toString(),
+                $value instanceof JsonSerializable => $value,
+                $value instanceof Arrayable => $this->normalizeRequestOptions($value->toArray()),
                 default => $value,
             };
         }

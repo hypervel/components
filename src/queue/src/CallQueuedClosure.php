@@ -8,7 +8,7 @@ use Closure;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\Dispatchable;
 use Hypervel\Bus\Queueable;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Laravel\SerializableClosure\SerializableClosure;
 use Psr\Container\ContainerInterface;
 use ReflectionFunction;
@@ -58,7 +58,7 @@ class CallQueuedClosure implements ShouldQueue
             return;
         }
 
-        /** @var \Hypervel\Container\Contracts\Container $container */
+        /** @var \Hypervel\Contracts\Container\Container $container */
         $container->call($this->closure->getClosure(), ['job' => $this]);
     }
 

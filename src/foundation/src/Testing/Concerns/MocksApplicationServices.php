@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Testing\Concerns;
 
 use Exception;
-use Hyperf\Database\Model\Register;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Facades\Event;
 use Mockery;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -85,7 +85,7 @@ trait MocksApplicationServices
         Event::clearResolvedInstances();
 
         $this->app->set(EventDispatcherInterface::class, $mock);
-        Register::setEventDispatcher($mock);
+        Model::setEventDispatcher($mock);
 
         return $this;
     }

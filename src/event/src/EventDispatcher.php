@@ -6,21 +6,21 @@ namespace Hypervel\Event;
 
 use Closure;
 use Exception;
-use Hyperf\Collection\Arr;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Context\Context;
-use Hyperf\Stringable\Str;
-use Hypervel\Broadcasting\Contracts\Factory as BroadcastFactory;
-use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
-use Hypervel\Database\TransactionManager;
-use Hypervel\Event\Contracts\Dispatcher as EventDispatcherContract;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
+use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
+use Hypervel\Contracts\Event\Dispatcher as EventDispatcherContract;
+use Hypervel\Contracts\Event\ShouldDispatchAfterCommit;
+use Hypervel\Contracts\Event\ShouldHandleEventsAfterCommit;
+use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
+use Hypervel\Contracts\Queue\ShouldBeEncrypted;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
+use Hypervel\Database\DatabaseTransactionsManager;
 use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
-use Hypervel\Event\Contracts\ShouldDispatchAfterCommit;
-use Hypervel\Event\Contracts\ShouldHandleEventsAfterCommit;
-use Hypervel\Queue\Contracts\Factory as QueueFactoryContract;
-use Hypervel\Queue\Contracts\ShouldBeEncrypted;
-use Hypervel\Queue\Contracts\ShouldQueue;
-use Hypervel\Queue\Contracts\ShouldQueueAfterCommit;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
 use Hypervel\Support\Traits\ReflectsClosures;
 use Illuminate\Events\CallQueuedListener;
 use Psr\Container\ContainerInterface;
@@ -61,7 +61,7 @@ class EventDispatcher implements EventDispatcherContract
     /**
      * Fire an event and call the listeners.
      */
-    public function dispatch(object|string $event, mixed $payload = [], bool $halt = false): object|string
+    public function dispatch(object|string $event, mixed $payload = [], bool $halt = false): mixed
     {
         if ($this->shouldDeferEvent($event)) {
             Context::override('__event.deferred_events', function (?array $events) use ($event, $payload, $halt) {
@@ -113,16 +113,15 @@ class EventDispatcher implements EventDispatcherContract
     }
 
     /**
-     * Register an event listener with the listener provider.
+     * Register an event listener with the dispatcher.
      */
     public function listen(
         array|Closure|QueuedClosure|string $events,
-        array|Closure|int|QueuedClosure|string|null $listener = null,
-        int $priority = ListenerData::DEFAULT_PRIORITY
+        array|Closure|QueuedClosure|string|null $listener = null
     ): void {
         if ($events instanceof Closure) {
             foreach ((array) $this->firstClosureParameterTypes($events) as $event) {
-                $this->listeners->on($event, $events, is_int($listener) ? $listener : $priority);
+                $this->listeners->on($event, $events);
             }
 
             return;
@@ -130,7 +129,7 @@ class EventDispatcher implements EventDispatcherContract
 
         if ($events instanceof QueuedClosure) {
             foreach ((array) $this->firstClosureParameterTypes($events->closure) as $event) {
-                $this->listeners->on($event, $events->resolve(), is_int($listener) ? $listener : $priority);
+                $this->listeners->on($event, $events->resolve());
             }
 
             return;
@@ -141,14 +140,14 @@ class EventDispatcher implements EventDispatcherContract
         }
 
         foreach ((array) $events as $event) {
-            $this->listeners->on($event, $listener, $priority);
+            $this->listeners->on($event, $listener);
         }
     }
 
     /**
      * Fire an event until the first non-null response is returned.
      */
-    public function until(object|string $event, mixed $payload = []): object|string
+    public function until(object|string $event, mixed $payload = []): mixed
     {
         return $this->dispatch($event, $payload, true);
     }
@@ -156,18 +155,36 @@ class EventDispatcher implements EventDispatcherContract
     /**
      * Broadcast an event and call the listeners.
      */
-    protected function invokeListeners(object|string $event, mixed $payload, bool $halt = false): object|string
+    protected function invokeListeners(object|string $event, mixed $payload, bool $halt = false): mixed
     {
         if ($this->shouldBroadcast($event)) {
             $this->broadcastEvent($event);
         }
 
+        // For object events, the event object itself is the payload (Laravel behavior)
+        // The original $payload is ignored for object events
+        if (is_object($event)) {
+            $payload = [$event];
+        } else {
+            // Wrap payload in array like Laravel does
+            $payload = Arr::wrap($payload);
+        }
+
+        // Wildcard listeners need the event name (string), not the event object
+        $eventName = is_object($event) ? get_class($event) : $event;
+
         foreach ($this->getListeners($event) as $listener) {
-            $response = $listener($event, $payload);
+            $response = $listener($eventName, $payload);
 
             $this->dump($listener, $event);
 
-            if ($halt || $response === false || ($event instanceof StoppableEventInterface && $event->isPropagationStopped())) {
+            // If halting and listener returned a non-null response, return it immediately
+            if ($halt && ! is_null($response)) {
+                return $response;
+            }
+
+            // If listener returns false, stop propagation
+            if ($response === false || ($event instanceof StoppableEventInterface && $event->isPropagationStopped())) {
                 break;
             }
         }
@@ -218,8 +235,11 @@ class EventDispatcher implements EventDispatcherContract
     {
         $listeners = [];
 
-        foreach ($this->listeners->getListenersForEvent($eventName) as $listener) {
-            $listeners[] = $this->makeListener($listener);
+        foreach ($this->listeners->getListenersForEvent($eventName) as $listenerData) {
+            $listeners[] = $this->makeListener(
+                $listenerData['listener'],
+                $listenerData['isWildcard']
+            );
         }
 
         return $listeners;
@@ -228,34 +248,34 @@ class EventDispatcher implements EventDispatcherContract
     /**
      * Create a callable for a class based listener.
      */
-    protected function makeListener(array|Closure|string $listener): Closure
+    protected function makeListener(array|Closure|string $listener, bool $wildcard = false): Closure
     {
         if (is_string($listener) || (is_array($listener) && ((isset($listener[0]) && is_string($listener[0])) || is_callable($listener)))) {
-            return $this->createClassListener($listener);
+            return $this->createClassListener($listener, $wildcard);
         }
 
-        return function ($event, $payload) use ($listener) {
-            if (is_array($payload)) {
+        return function ($event, $payload) use ($listener, $wildcard) {
+            if ($wildcard) {
                 return $listener($event, ...array_values($payload));
             }
 
-            return $listener($event, $payload);
+            return $listener(...array_values($payload));
         };
     }
 
     /**
      * Create a class based listener.
      */
-    protected function createClassListener(array|string $listener): Closure
+    protected function createClassListener(array|string $listener, bool $wildcard = false): Closure
     {
-        return function (object|string $event, mixed $payload) use ($listener) {
+        return function (object|string $event, mixed $payload) use ($listener, $wildcard) {
             $callable = $this->createClassCallable($listener);
 
-            if (is_array($payload)) {
+            if ($wildcard) {
                 return $callable($event, ...array_values($payload));
             }
 
-            return $callable($event, $payload);
+            return $callable(...array_values($payload));
         };
     }
 
@@ -378,8 +398,12 @@ class EventDispatcher implements EventDispatcherContract
     /**
      * Get the database transaction manager implementation from the resolver.
      */
-    protected function resolveTransactionManager(): ?TransactionManager
+    protected function resolveTransactionManager(): ?DatabaseTransactionsManager
     {
+        if ($this->transactionManagerResolver === null) {
+            return null;
+        }
+
         return call_user_func($this->transactionManagerResolver);
     }
 
@@ -463,17 +487,17 @@ class EventDispatcher implements EventDispatcherContract
         [$listener, $job] = $this->createListenerAndJob($class, $method, $arguments);
 
         $connection = $this->resolveQueue()->connection(method_exists($listener, 'viaConnection')
-            ? (isset($arguments[1]) ? $listener->viaConnection($arguments[1]) : $listener->viaConnection())
+            ? (isset($arguments[0]) ? $listener->viaConnection($arguments[0]) : $listener->viaConnection())
             : $listener->connection ?? null);
 
         $queue = method_exists($listener, 'viaQueue')
-            ? (isset($arguments[1]) ? $listener->viaQueue($arguments[1]) : $listener->viaQueue())
+            ? (isset($arguments[0]) ? $listener->viaQueue($arguments[0]) : $listener->viaQueue())
             : $listener->queue ?? null;
 
         $queue = is_null($queue) ? null : enum_value($queue);
 
         $delay = method_exists($listener, 'withDelay')
-            ? (isset($arguments[1]) ? $listener->withDelay($arguments[1]) : $listener->withDelay())
+            ? (isset($arguments[0]) ? $listener->withDelay($arguments[0]) : $listener->withDelay())
             : $listener->delay ?? null;
 
         is_null($delay)
@@ -517,7 +541,6 @@ class EventDispatcher implements EventDispatcherContract
             $job->failOnTimeout = $listener->failOnTimeout ?? false;
             $job->tries = $listener->tries ?? null;
 
-            unset($data[0]);
             $job->through(array_merge(
                 method_exists($listener, 'middleware') ? $listener->middleware(...$data) : [],
                 $listener->middleware ?? []

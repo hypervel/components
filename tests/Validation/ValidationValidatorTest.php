@@ -10,25 +10,25 @@ use Countable;
 use DateTime;
 use DateTimeImmutable;
 use Egulias\EmailValidator\Validation\NoRFCWarningsValidation;
-use Hyperf\Database\Model\Model;
 use Hyperf\Di\Definition\DefinitionSource;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\Guard;
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
-use Hypervel\Hashing\Contracts\Hasher;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Hashing\Hasher;
+use Hypervel\Contracts\Translation\Translator as TranslatorContract;
+use Hypervel\Contracts\Validation\DataAwareRule;
+use Hypervel\Contracts\Validation\ImplicitRule;
+use Hypervel\Contracts\Validation\Rule;
+use Hypervel\Contracts\Validation\Validator as ValidatorContract;
+use Hypervel\Contracts\Validation\ValidatorAwareRule;
+use Hypervel\Database\Eloquent\Model;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Exceptions\MathException;
 use Hypervel\Support\Stringable;
 use Hypervel\Translation\ArrayLoader;
-use Hypervel\Translation\Contracts\Translator as TranslatorContract;
 use Hypervel\Translation\Translator;
-use Hypervel\Validation\Contracts\DataAwareRule;
-use Hypervel\Validation\Contracts\ImplicitRule;
-use Hypervel\Validation\Contracts\Rule;
-use Hypervel\Validation\Contracts\Validator as ValidatorContract;
-use Hypervel\Validation\Contracts\ValidatorAwareRule;
 use Hypervel\Validation\DatabasePresenceVerifierInterface;
 use Hypervel\Validation\Rule as ValidationRule;
 use Hypervel\Validation\Rules\Exists;
@@ -47,6 +47,7 @@ use Psr\Container\ContainerInterface;
 use RuntimeException;
 use SplFileInfo;
 use stdClass;
+use UnitEnum;
 
 /**
  * @internal
@@ -59,7 +60,6 @@ class ValidationValidatorTest extends TestCase
         parent::tearDown();
 
         Carbon::setTestNow(null);
-        m::close();
     }
 
     public function testNestedErrorMessagesAreRetrievedFromLocalArray()
@@ -1138,8 +1138,8 @@ class ValidationValidatorTest extends TestCase
         $hasher = m::mock(Hasher::class);
 
         $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')->with(\Hypervel\Auth\Contracts\Factory::class)->andReturn($auth);
-        $container->shouldReceive('get')->with(\Hypervel\Hashing\Contracts\Hasher::class)->andReturn($hasher);
+        $container->shouldReceive('get')->with(\Hypervel\Contracts\Auth\Factory::class)->andReturn($auth);
+        $container->shouldReceive('get')->with(\Hypervel\Contracts\Hashing\Hasher::class)->andReturn($hasher);
 
         $trans = $this->getTranslator();
         $trans->shouldReceive('get')->andReturnArg(0);
@@ -1162,8 +1162,8 @@ class ValidationValidatorTest extends TestCase
         $hasher->shouldReceive('check')->andReturn(false);
 
         $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')->with(\Hypervel\Auth\Contracts\Factory::class)->andReturn($auth);
-        $container->shouldReceive('get')->with(\Hypervel\Hashing\Contracts\Hasher::class)->andReturn($hasher);
+        $container->shouldReceive('get')->with(\Hypervel\Contracts\Auth\Factory::class)->andReturn($auth);
+        $container->shouldReceive('get')->with(\Hypervel\Contracts\Hashing\Hasher::class)->andReturn($hasher);
 
         $trans = $this->getTranslator();
         $trans->shouldReceive('get')->andReturnArg(0);
@@ -1186,8 +1186,8 @@ class ValidationValidatorTest extends TestCase
         $hasher->shouldReceive('check')->andReturn(true);
 
         $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')->with(\Hypervel\Auth\Contracts\Factory::class)->andReturn($auth);
-        $container->shouldReceive('get')->with(\Hypervel\Hashing\Contracts\Hasher::class)->andReturn($hasher);
+        $container->shouldReceive('get')->with(\Hypervel\Contracts\Auth\Factory::class)->andReturn($auth);
+        $container->shouldReceive('get')->with(\Hypervel\Contracts\Hashing\Hasher::class)->andReturn($hasher);
 
         $trans = $this->getTranslator();
         $trans->shouldReceive('get')->andReturnArg(0);
@@ -1210,8 +1210,8 @@ class ValidationValidatorTest extends TestCase
         $hasher->shouldReceive('check')->andReturn(true);
 
         $container = m::mock(ContainerInterface::class);
-        $container->shouldReceive('get')->with(\Hypervel\Auth\Contracts\Factory::class)->andReturn($auth);
-        $container->shouldReceive('get')->with(\Hypervel\Hashing\Contracts\Hasher::class)->andReturn($hasher);
+        $container->shouldReceive('get')->with(\Hypervel\Contracts\Auth\Factory::class)->andReturn($auth);
+        $container->shouldReceive('get')->with(\Hypervel\Contracts\Hashing\Hasher::class)->andReturn($hasher);
 
         $trans = $this->getTranslator();
         $trans->shouldReceive('get')->andReturnArg(0);
@@ -7860,15 +7860,15 @@ class ValidationValidatorTest extends TestCase
         $v = new Validator($trans, [], []);
 
         $implicit_no_connection = $v->parseTable(ImplicitTableModel::class);
-        $this->assertSame('default', $implicit_no_connection[0]);
+        $this->assertNull($implicit_no_connection[0]);
         $this->assertSame('implicit_table_models', $implicit_no_connection[1]);
 
         $explicit_no_connection = $v->parseTable(ExplicitTableModel::class);
-        $this->assertSame('default', $explicit_no_connection[0]);
+        $this->assertNull($explicit_no_connection[0]);
         $this->assertSame('explicits', $explicit_no_connection[1]);
 
         $explicit_model_with_prefix = $v->parseTable(ExplicitPrefixedTableModel::class);
-        $this->assertSame('default', $explicit_model_with_prefix[0]);
+        $this->assertNull($explicit_model_with_prefix[0]);
         $this->assertSame('prefix.explicits', $explicit_model_with_prefix[1]);
 
         $explicit_table_with_connection_prefix = $v->parseTable('connection.table');
@@ -9774,7 +9774,7 @@ class ExplicitTableAndConnectionModel extends Model
 {
     protected ?string $table = 'explicits';
 
-    protected ?string $connection = 'connection';
+    protected UnitEnum|string|null $connection = 'connection';
 
     protected array $guarded = [];
 

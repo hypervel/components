@@ -6,16 +6,18 @@ namespace Hypervel\Tests\Sentry\Features;
 
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Contract\PoolOptionInterface;
-use Hyperf\Redis\Event\CommandExecuted;
-use Hyperf\Redis\Pool\PoolFactory;
-use Hyperf\Redis\Pool\RedisPool;
-use Hyperf\Redis\RedisConnection;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Redis\Events\CommandExecuted;
+use Hypervel\Redis\Pool\PoolFactory;
+use Hypervel\Redis\Pool\RedisPool;
+use Hypervel\Redis\RedisConnection;
 use Hypervel\Sentry\Features\RedisFeature;
 use Hypervel\Session\SessionManager;
 use Hypervel\Tests\Sentry\SentryTestCase;
-use Mockery;
+use Mockery as m;
+use Sentry\SentrySdk;
+use Sentry\State\HubInterface;
 
 /**
  * @internal
@@ -210,30 +212,57 @@ class RedisFeatureTest extends SentryTestCase
         $this->assertEquals(10.0, $spanData['duration']);
     }
 
+    public function testRedisFeatureWorksAfterReplacingStaleGlobalHub(): void
+    {
+        $staleHub = m::mock(HubInterface::class);
+        SentrySdk::setCurrentHub($staleHub);
+
+        $this->refreshApplication();
+        $this->setupMocks();
+
+        $transaction = $this->startTransaction();
+
+        $dispatcher = $this->app->get(Dispatcher::class);
+        $connection = $this->createRedisConnection('default');
+        $event = new CommandExecuted('GET', ['test-key'], 0.005, $connection, 'default', 'value', null);
+
+        $dispatcher->dispatch($event);
+
+        $this->assertNotSame($staleHub, SentrySdk::getCurrentHub());
+        $this->assertSame($this->app->get(HubInterface::class), SentrySdk::getCurrentHub());
+
+        $spans = $transaction->getSpanRecorder()->getSpans();
+        $this->assertCount(2, $spans);
+    }
+
     private function setupMocks(string $connectionName = 'default', int $database = 0): void
     {
         // Mock PoolFactory
-        $poolOption = Mockery::mock(PoolOptionInterface::class);
+        $poolOption = m::mock(PoolOptionInterface::class);
         $poolOption->shouldReceive('getMaxConnections')->andReturn(10);
         $poolOption->shouldReceive('getMaxIdleTime')->andReturn(60.0);
 
-        $pool = Mockery::mock(RedisPool::class);
+        $pool = m::mock(RedisPool::class);
         $pool->shouldReceive('getOption')->andReturn($poolOption);
         $pool->shouldReceive('getConnectionsInChannel')->andReturn(5);
         $pool->shouldReceive('getCurrentConnections')->andReturn(2);
 
-        $poolFactory = Mockery::mock(PoolFactory::class);
+        $poolFactory = m::mock(PoolFactory::class);
         $poolFactory->shouldReceive('getPool')->with($connectionName)->andReturn($pool);
 
         $this->app->instance(PoolFactory::class, $poolFactory);
 
         // Mock Redis config
         $config = $this->app->get(ConfigInterface::class);
-        $config->set("redis.{$connectionName}", ['db' => $database]);
+        $config->set("database.redis.{$connectionName}", [
+            'host' => '127.0.0.1',
+            'port' => 6379,
+            'db' => $database,
+        ]);
     }
 
     private function createRedisConnection(string $name): RedisConnection
     {
-        return Mockery::mock(RedisConnection::class);
+        return m::mock(RedisConnection::class);
     }
 }

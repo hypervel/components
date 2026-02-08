@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting;
 
-use Hypervel\Broadcasting\Contracts\Factory;
+use Hypervel\Contracts\Broadcasting\Factory;
 
 class ConfigProvider
 {

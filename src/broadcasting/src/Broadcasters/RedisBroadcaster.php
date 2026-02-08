@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting\Broadcasters;
 
-use Hyperf\Collection\Arr;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use Hyperf\Pool\Exception\ConnectionException;
-use Hyperf\Redis\RedisFactory;
 use Hypervel\Broadcasting\BroadcastException;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
+use Hypervel\Pool\Exception\ConnectionException;
+use Hypervel\Redis\RedisFactory;
+use Hypervel\Support\Arr;
 use Psr\Container\ContainerInterface;
 use RedisException;
 
@@ -97,8 +97,9 @@ class RedisBroadcaster extends Broadcaster
         try {
             $connection->eval(
                 $this->broadcastMultipleChannelsScript(),
-                [$payload, ...$this->formatChannels($channels)],
                 0,
+                $payload,
+                ...$this->formatChannels($channels),
             );
         } catch (ConnectionException|RedisException $e) {
             throw new BroadcastException(

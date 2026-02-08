@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Console;
 
-use Hyperf\Collection\Collection;
 use Hyperf\Command\Command;
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Queue\Contracts\Factory;
+use Hypervel\Contracts\Queue\Factory;
 use Hypervel\Queue\Events\QueueBusy;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
@@ -90,7 +90,7 @@ class MonitorCommand extends Command
      */
     protected function displaySizes(Collection $queues): void
     {
-        $this->table($this->headers, $queues);
+        $this->table($this->headers, $queues->toArray());
     }
 
     /**

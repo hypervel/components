@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hypervel\Bus\Contracts\BatchRepository;
 use Hypervel\Bus\DatabaseBatchRepository;
+use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Queue\Console\PruneBatchesCommand;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -20,8 +20,6 @@ class PruneBatchesCommandTest extends TestCase
 {
     protected function tearDown(): void
     {
-        m::close();
-
         parent::tearDown();
     }
 

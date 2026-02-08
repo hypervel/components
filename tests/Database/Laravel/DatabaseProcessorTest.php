@@ -1,0 +1,45 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel\DatabaseProcessorTest;
+
+use Hypervel\Database\Connection;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Database\Query\Processors\Processor;
+use Hypervel\Tests\TestCase;
+use Mockery as m;
+use PDO;
+
+/**
+ * @internal
+ * @coversNothing
+ */
+class DatabaseProcessorTest extends TestCase
+{
+    public function testInsertGetIdProcessing()
+    {
+        $pdo = $this->createMock(PDOStub::class);
+        $pdo->expects($this->once())->method('lastInsertId')->with($this->equalTo('id'))->willReturn('1');
+        $connection = m::mock(Connection::class);
+        $connection->shouldReceive('insert')->once()->with('sql', ['foo']);
+        $connection->shouldReceive('getPdo')->once()->andReturn($pdo);
+        $builder = m::mock(Builder::class);
+        $builder->shouldReceive('getConnection')->andReturn($connection);
+        $processor = new Processor();
+        $result = $processor->processInsertGetId($builder, 'sql', ['foo'], 'id');
+        $this->assertSame(1, $result);
+    }
+}
+
+class PDOStub extends PDO
+{
+    public function __construct()
+    {
+    }
+
+    public function lastInsertId($sequence = null): string|false
+    {
+        return '';
+    }
+}

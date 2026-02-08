@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Session;
 
-use Hyperf\Context\Context;
+use Hypervel\Context\Context;
 use Hypervel\Session\Store;
 use Hypervel\Tests\TestCase;
 use Mockery as m;

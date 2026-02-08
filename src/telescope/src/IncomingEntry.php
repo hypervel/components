@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Telescope;
 
 use DateTimeInterface;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Stringable\Str;
-use Hypervel\Auth\Contracts\Authenticatable;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 
 class IncomingEntry

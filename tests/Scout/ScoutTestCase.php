@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Scout;
 
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Scout\ScoutServiceProvider;
@@ -23,8 +22,6 @@ class ScoutTestCase extends TestCase
     use RunTestsInCoroutine;
 
     protected bool $migrateRefresh = true;
-
-    protected ?ApplicationContract $app = null;
 
     protected function setUp(): void
     {

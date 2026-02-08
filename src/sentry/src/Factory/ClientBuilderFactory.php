@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Factory;
 
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Contracts\Application;
+use Hypervel\Contracts\Foundation\Application;
 use Hypervel\Sentry\Integrations\ExceptionContextIntegration;
 use Hypervel\Sentry\Integrations\Integration;
 use Hypervel\Sentry\Integrations\RequestFetcher;
@@ -18,8 +18,6 @@ use Sentry\HttpClient\HttpClientInterface;
 use Sentry\Integration as SdkIntegration;
 
 use function Hyperf\Support\make;
-use function Hyperf\Tappable\tap;
-use function Hypervel\Support\env;
 
 class ClientBuilderFactory
 {

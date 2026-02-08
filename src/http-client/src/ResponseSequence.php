@@ -6,7 +6,7 @@ namespace Hypervel\HttpClient;
 
 use Closure;
 use GuzzleHttp\Promise\PromiseInterface;
-use Hyperf\Macroable\Macroable;
+use Hypervel\Support\Traits\Macroable;
 use OutOfBoundsException;
 
 class ResponseSequence

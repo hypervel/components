@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hyperf\Context\Context;
 use Hyperf\Contract\ConfigInterface;
 use Hypervel\Auth\AuthManager;
+use Hypervel\Context\Context;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
@@ -16,7 +16,7 @@ use Hypervel\Sanctum\TransientToken;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Sanctum\Stub\TestUser;
-use Mockery;
+use Mockery as m;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
@@ -48,7 +48,6 @@ class GuardTest extends TestCase
                 ],
                 'auth.providers.users.model' => TestUser::class,
                 'auth.providers.users.driver' => 'eloquent',
-                'database.default' => 'testing',
                 'sanctum.guard' => ['web'],
             ]);
 
@@ -63,7 +62,6 @@ class GuardTest extends TestCase
         Context::destroy('__sanctum.acting_as_user');
         Context::destroy('__sanctum.acting_as_guard');
 
-        Mockery::close();
         Sanctum::$accessTokenRetrievalCallback = null;
         Sanctum::$accessTokenAuthenticationCallback = null;
     }
@@ -283,7 +281,7 @@ class GuardTest extends TestCase
         $realDispatcher = $this->app->get(EventDispatcherInterface::class);
 
         // Create a partial mock that delegates to the real dispatcher
-        $events = Mockery::mock($realDispatcher);
+        $events = m::mock($realDispatcher);
         $events->makePartial(); // This makes it a partial mock
 
         // Only spy on dispatch calls, don't change behavior

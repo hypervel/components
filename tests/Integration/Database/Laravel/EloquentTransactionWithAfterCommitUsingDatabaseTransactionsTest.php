@@ -1,0 +1,57 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Integration\Database\Laravel;
+
+use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
+use Hypervel\Foundation\Testing\DatabaseTransactions;
+use Hypervel\Testbench\TestCase;
+
+/**
+ * @internal
+ * @coversNothing
+ */
+class EloquentTransactionWithAfterCommitUsingDatabaseTransactionsTest extends TestCase
+{
+    use DatabaseTransactions;
+    use RunTestsInCoroutine;
+    use EloquentTransactionWithAfterCommitTests;
+
+    /**
+     * The current database driver.
+     */
+    protected string $driver;
+
+    protected function setUpTraits(): array
+    {
+        // Skip BEFORE DatabaseTransactions starts its wrapping transaction.
+        // In-memory SQLite has no persistent schema, so tables created in setUp
+        // would be rolled back when the test ends, breaking subsequent tests.
+        if ($this->usesSqliteInMemoryDatabaseConnection()) {
+            $this->markTestSkipped('Test cannot be used with in-memory SQLite connection.');
+        }
+
+        return parent::setUpTraits();
+    }
+
+    protected function setUp(): void
+    {
+        $this->beforeApplicationDestroyed(function () {
+            foreach (array_keys($this->app['db']->getConnections()) as $name) {
+                $this->app['db']->purge($name);
+            }
+        });
+
+        parent::setUp();
+
+        $this->createTransactionTestTables();
+    }
+
+    protected function defineEnvironment($app): void
+    {
+        $connection = $app->make('config')->get('database.default');
+
+        $this->driver = $app['config']->get("database.connections.{$connection}.driver");
+    }
+}

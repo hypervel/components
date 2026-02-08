@@ -10,7 +10,7 @@ use Hyperf\Di\Exception\NotFoundException;
 use Hypervel\Container\Container;
 use Hypervel\Container\DefinitionSource;
 use Hypervel\Tests\TestCase;
-use Mockery;
+use Mockery as m;
 use stdClass;
 
 /**
@@ -24,7 +24,7 @@ class ContainerTest extends TestCase
         parent::tearDown();
 
         Container::setInstance(
-            Mockery::mock(Container::class)
+            m::mock(Container::class)
         );
     }
 
@@ -37,7 +37,7 @@ class ContainerTest extends TestCase
         $this->assertSame($container, Container::getInstance());
 
         Container::setInstance(
-            Mockery::mock(Container::class)
+            m::mock(Container::class)
         );
 
         $container2 = Container::getInstance();

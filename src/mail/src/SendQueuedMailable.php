@@ -6,10 +6,10 @@ namespace Hypervel\Mail;
 
 use DateTime;
 use Hypervel\Bus\Queueable;
-use Hypervel\Mail\Contracts\Factory as MailFactory;
-use Hypervel\Mail\Contracts\Mailable as MailableContract;
-use Hypervel\Queue\Contracts\ShouldBeEncrypted;
-use Hypervel\Queue\Contracts\ShouldQueueAfterCommit;
+use Hypervel\Contracts\Mail\Factory as MailFactory;
+use Hypervel\Contracts\Mail\Mailable as MailableContract;
+use Hypervel\Contracts\Queue\ShouldBeEncrypted;
+use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Queue\InteractsWithQueue;
 use Throwable;
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
 
 /**
  * @method static array allFiles()
@@ -72,7 +72,7 @@ use Hypervel\Http\Contracts\RequestContract;
  * @method static bool prefetch()
  * @method static bool isRange()
  * @method static bool hasSession()
- * @method static \Hypervel\Session\Contracts\Session session()
+ * @method static \Hypervel\Contracts\Session\Session session()
  * @method static array validate(array $rules, array $messages = [], array $customAttributes = [])
  * @method static \Closure getUserResolver()
  * @method static \Hypervel\Http\Request setUserResolver(\Closure $callback)

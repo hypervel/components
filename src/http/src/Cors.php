@@ -12,8 +12,8 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use Hypervel\Context\ApplicationContext;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
 use Psr\Http\Message\ResponseInterface;
 
 /**

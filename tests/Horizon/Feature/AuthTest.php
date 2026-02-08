@@ -9,7 +9,7 @@ use Hypervel\Horizon\Horizon;
 use Hypervel\Horizon\Http\Middleware\Authenticate;
 use Hypervel\Http\Response;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
-use Mockery;
+use Mockery as m;
 use Psr\Http\Message\ServerRequestInterface;
 
 /**
@@ -24,10 +24,10 @@ class AuthTest extends IntegrationTestCase
             return $request->getAttribute('user') === 'foo';
         });
 
-        $fooRequestMock = Mockery::mock(ServerRequestInterface::class);
+        $fooRequestMock = m::mock(ServerRequestInterface::class);
         $fooRequestMock->shouldReceive('getAttribute')->with('user')->andReturn('foo');
 
-        $barRequestMock = Mockery::mock(ServerRequestInterface::class);
+        $barRequestMock = m::mock(ServerRequestInterface::class);
         $barRequestMock->shouldReceive('getAttribute')->with('user')->andReturn('bar');
 
         $this->assertTrue(Horizon::check($fooRequestMock));
@@ -41,7 +41,7 @@ class AuthTest extends IntegrationTestCase
         });
 
         $middleware = new Authenticate();
-        $requestMock = Mockery::mock(ServerRequestInterface::class);
+        $requestMock = m::mock(ServerRequestInterface::class);
         $response = new Response();
 
         $responseFromMiddleware = $middleware->handle(
@@ -61,7 +61,7 @@ class AuthTest extends IntegrationTestCase
         });
 
         $middleware = new Authenticate();
-        $requestMock = Mockery::mock(ServerRequestInterface::class);
+        $requestMock = m::mock(ServerRequestInterface::class);
         $response = new Response();
 
         $middleware->handle(

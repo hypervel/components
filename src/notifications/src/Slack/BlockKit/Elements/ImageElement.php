@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Notifications\Slack\BlockKit\Elements;
 
-use Hypervel\Notifications\Contracts\Slack\ElementContract;
+use Hypervel\Notifications\Slack\Contracts\ElementContract;
 use LogicException;
 
 class ImageElement implements ElementContract

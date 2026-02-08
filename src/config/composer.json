@@ -29,9 +29,9 @@
         ]
     },
     "require": {
-        "php": "^8.2",
+        "php": "^8.4",
         "hyperf/config": "~3.1.0",
-        "hyperf/macroable": "~3.1.0"
+        "hypervel/macroable": "~0.3.0"
     },
     "config": {
         "sort-packages": true

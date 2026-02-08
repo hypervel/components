@@ -1,0 +1,165 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Hypervel\Tests\Database\Laravel\DatabaseEloquentBelongsToManySyncReturnValueTypeTest;
+
+use Hypervel\Database\Capsule\Manager as DB;
+use Hypervel\Database\Eloquent\Model as Eloquent;
+use Hypervel\Tests\TestCase;
+
+/**
+ * @internal
+ * @coversNothing
+ */
+class DatabaseEloquentBelongsToManySyncReturnValueTypeTest extends TestCase
+{
+    protected function setUp(): void
+    {
+        $db = new DB();
+
+        $db->addConnection([
+            'driver' => 'sqlite',
+            'database' => ':memory:',
+        ]);
+
+        $db->bootEloquent();
+        $db->setAsGlobal();
+
+        $this->createSchema();
+    }
+
+    /**
+     * Setup the database schema.
+     */
+    public function createSchema()
+    {
+        $this->schema()->create('users', function ($table) {
+            $table->increments('id');
+            $table->string('email')->unique();
+        });
+
+        $this->schema()->create('articles', function ($table) {
+            $table->string('id');
+            $table->string('title');
+
+            $table->primary('id');
+        });
+
+        $this->schema()->create('article_user', function ($table) {
+            $table->string('article_id');
+            $table->foreign('article_id')->references('id')->on('articles');
+            $table->integer('user_id')->unsigned();
+            $table->foreign('user_id')->references('id')->on('users');
+            $table->boolean('visible')->default(false);
+        });
+    }
+
+    /**
+     * Tear down the database schema.
+     */
+    protected function tearDown(): void
+    {
+        $this->schema()->drop('users');
+        $this->schema()->drop('articles');
+        $this->schema()->drop('article_user');
+
+        parent::tearDown();
+    }
+
+    /**
+     * Helpers...
+     */
+    protected function seedData()
+    {
+        User::create(['id' => 1, 'email' => 'taylorotwell@gmail.com']);
+        Article::insert([
+            ['id' => '7b7306ae-5a02-46fa-a84c-9538f45c7dd4', 'title' => 'uuid title'],
+            ['id' => (string) (PHP_INT_MAX + 1), 'title' => 'Another title'],
+            ['id' => '1', 'title' => 'Another title'],
+        ]);
+    }
+
+    public function testSyncReturnValueType()
+    {
+        $this->seedData();
+
+        $user = User::query()->first();
+        $articleIDs = Article::all()->pluck('id')->toArray();
+
+        $changes = $user->articles()->sync($articleIDs);
+
+        collect($changes['attached'])->map(function ($id) {
+            $this->assertSame(gettype($id), (new Article())->getKeyType());
+        });
+
+        $user->articles->each(function (Article $article) {
+            $this->assertSame('0', (string) $article->pivot->visible);
+        });
+    }
+
+    public function testSyncWithPivotDefaultsReturnValueType()
+    {
+        $this->seedData();
+
+        $user = User::query()->first();
+        $articleIDs = Article::all()->pluck('id')->toArray();
+
+        $changes = $user->articles()->syncWithPivotValues($articleIDs, ['visible' => true]);
+
+        collect($changes['attached'])->each(function ($id) {
+            $this->assertSame(gettype($id), (new Article())->getKeyType());
+        });
+
+        $user->articles->each(function (Article $article) {
+            $this->assertSame('1', (string) $article->pivot->visible);
+        });
+    }
+
+    /**
+     * Get a database connection instance.
+     *
+     * @return \Illuminate\Database\ConnectionInterface
+     */
+    protected function connection()
+    {
+        return Eloquent::getConnectionResolver()->connection();
+    }
+
+    /**
+     * Get a schema builder instance.
+     *
+     * @return \Illuminate\Database\Schema\Builder
+     */
+    protected function schema()
+    {
+        return $this->connection()->getSchemaBuilder();
+    }
+}
+
+class User extends Eloquent
+{
+    protected ?string $table = 'users';
+
+    protected array $fillable = ['id', 'email'];
+
+    public bool $timestamps = false;
+
+    public function articles()
+    {
+        return $this->belongsToMany(Article::class, 'article_user', 'user_id', 'article_id')->withPivot('visible');
+    }
+}
+
+class Article extends Eloquent
+{
+    protected ?string $table = 'articles';
+
+    protected string $keyType = 'string';
+
+    public bool $incrementing = false;
+
+    public bool $timestamps = false;
+
+    protected array $fillable = ['id', 'title'];
+}

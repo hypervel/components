@@ -6,28 +6,25 @@ namespace Hypervel\Foundation\Console;
 
 use Closure;
 use Exception;
-use Hyperf\Collection\Arr;
 use Hyperf\Command\Annotation\Command as AnnotationCommand;
 use Hyperf\Contract\ApplicationInterface;
 use Hyperf\Contract\ConfigInterface;
 use Hyperf\Di\Annotation\AnnotationCollector;
 use Hyperf\Di\ReflectionManager;
 use Hyperf\Framework\Event\BootApplication;
-use Hyperf\Stringable\Str;
 use Hypervel\Console\Application as ConsoleApplication;
 use Hypervel\Console\ClosureCommand;
-use Hypervel\Console\Contracts\Application as ApplicationContract;
 use Hypervel\Console\HasPendingCommand;
 use Hypervel\Console\Scheduling\Schedule;
-use Hypervel\Foundation\Console\Contracts\Kernel as KernelContract;
-use Hypervel\Foundation\Contracts\Application as ContainerContract;
+use Hypervel\Contracts\Console\Application as ApplicationContract;
+use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Contracts\Foundation\Application as ContainerContract;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Str;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-
-use function Hyperf\Tappable\tap;
-use function Hypervel\Support\env;
 
 class Kernel implements KernelContract
 {

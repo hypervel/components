@@ -6,8 +6,8 @@ namespace Hypervel\Socialite\Two;
 
 use GuzzleHttp\Client;
 use GuzzleHttp\RequestOptions;
-use Hypervel\Http\Contracts\RequestContract;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Contracts\Http\Request as RequestContract;
+use Hypervel\Contracts\Http\Response as ResponseContract;
 use Hypervel\Socialite\Contracts\Provider as ProviderContract;
 use Hypervel\Socialite\HasProviderContext;
 use Hypervel\Socialite\Two\Exceptions\InvalidStateException;

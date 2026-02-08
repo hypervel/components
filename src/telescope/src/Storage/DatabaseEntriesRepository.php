@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Storage;
 
 use DateTimeInterface;
-use Hyperf\Collection\Collection;
-use Hyperf\Context\Context;
-use Hyperf\Database\ConnectionResolverInterface;
-use Hyperf\Database\Exception\UniqueConstraintViolationException;
-use Hyperf\Database\Query\Builder;
+use Hypervel\Context\Context;
+use Hypervel\Database\ConnectionResolverInterface;
+use Hypervel\Database\Query\Builder;
+use Hypervel\Database\UniqueConstraintViolationException;
+use Hypervel\Support\Collection;
 use Hypervel\Telescope\Contracts\ClearableRepository;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Contracts\PrunableRepository;

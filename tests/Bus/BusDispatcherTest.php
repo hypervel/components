@@ -6,9 +6,9 @@ namespace Hypervel\Tests\Bus;
 
 use Hypervel\Bus\Dispatcher;
 use Hypervel\Bus\Queueable;
-use Hypervel\Container\Contracts\Container;
-use Hypervel\Queue\Contracts\Queue;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
@@ -21,11 +21,6 @@ use RuntimeException;
  */
 class BusDispatcherTest extends TestCase
 {
-    protected function tearDown(): void
-    {
-        m::close();
-    }
-
     public function testCommandsThatShouldQueueIsQueued()
     {
         $container = m::mock(ContainerInterface::class);

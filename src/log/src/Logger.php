@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace Hypervel\Log;
 
 use Closure;
-use Hyperf\Context\Context;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\Jsonable;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Log\Events\MessageLogged;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
@@ -221,7 +221,7 @@ class Logger implements LoggerInterface
             return var_export($message, true);
         }
         if ($message instanceof Jsonable) {
-            return (string) $message;
+            return $message->toJson();
         }
         if ($message instanceof Arrayable) {
             return var_export($message->toArray(), true);

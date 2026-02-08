@@ -48,7 +48,7 @@ class Sanctum
     /**
      * Set the current user for the application with the given abilities.
      *
-     * @param \Hypervel\Auth\Contracts\Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $user
+     * @param \Hypervel\Contracts\Auth\Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $user
      * @param array<string> $abilities
      */
     public static function actingAs($user, array $abilities = [], string $guard = 'sanctum'): mixed

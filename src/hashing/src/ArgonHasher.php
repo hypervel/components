@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Hashing;
 
-use Hypervel\Hashing\Contracts\Hasher as HasherContract;
+use Hypervel\Contracts\Hashing\Hasher as HasherContract;
 use RuntimeException;
 
 class ArgonHasher extends AbstractHasher implements HasherContract
@@ -92,6 +92,50 @@ class ArgonHasher extends AbstractHasher implements HasherContract
             'time_cost' => $this->time($options),
             'threads' => $this->threads($options),
         ]);
+    }
+
+    /**
+     * Verifies that the configuration is less than or equal to what is configured.
+     *
+     * @internal
+     */
+    public function verifyConfiguration(string $hashedValue): bool
+    {
+        return $this->isUsingCorrectAlgorithm($hashedValue) && $this->isUsingValidOptions($hashedValue);
+    }
+
+    /**
+     * Verify the hashed value's algorithm.
+     */
+    protected function isUsingCorrectAlgorithm(string $hashedValue): bool
+    {
+        return $this->info($hashedValue)['algoName'] === 'argon2i';
+    }
+
+    /**
+     * Verify the hashed value's options.
+     */
+    protected function isUsingValidOptions(string $hashedValue): bool
+    {
+        ['options' => $options] = $this->info($hashedValue);
+
+        if (
+            ! is_int($options['memory_cost'] ?? null)
+            || ! is_int($options['time_cost'] ?? null)
+            || ! is_int($options['threads'] ?? null)
+        ) {
+            return false;
+        }
+
+        if (
+            $options['memory_cost'] > $this->memory
+            || $options['time_cost'] > $this->time
+            || $options['threads'] > $this->threads
+        ) {
+            return false;
+        }
+
+        return true;
     }
 
     /**

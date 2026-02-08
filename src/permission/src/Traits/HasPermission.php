@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Permission\Traits;
 
 use BackedEnum;
-use Hyperf\Collection\Collection as BaseCollection;
-use Hyperf\Database\Model\Relations\MorphToMany;
 use Hypervel\Database\Eloquent\Collection;
+use Hypervel\Database\Eloquent\Relations\MorphToMany;
 use Hypervel\Permission\Contracts\Permission;
 use Hypervel\Permission\Contracts\Role;
 use Hypervel\Permission\PermissionManager;
+use Hypervel\Support\Collection as BaseCollection;
 use InvalidArgumentException;
 use UnitEnum;
 

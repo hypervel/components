@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Mail;
 
 use Hyperf\Support\Traits\ForwardsCalls;
-use Hypervel\Mail\Contracts\Attachable;
+use Hypervel\Contracts\Mail\Attachable;
 
 /**
  * @mixin Message

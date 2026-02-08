@@ -5,20 +5,20 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use DateTimeImmutable;
-use Hyperf\Codec\Json;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Context\Context;
-use Hyperf\Context\RequestContext;
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\Jsonable;
 use Hyperf\HttpMessage\Server\Chunk\Chunkable;
 use Hyperf\HttpMessage\Stream\SwooleStream;
 use Hyperf\HttpServer\Response as HyperfResponse;
 use Hyperf\Support\Filesystem\Filesystem;
 use Hyperf\View\RenderInterface;
-use Hypervel\Http\Contracts\ResponseContract;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Context\Context;
+use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Http\Response as ResponseContract;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Http\Exceptions\FileNotFoundException;
 use Hypervel\Support\Collection;
+use Hypervel\Support\Json;
 use Hypervel\Support\MimeTypeExtensionGuesser;
 use Psr\Http\Message\ResponseInterface;
 use RuntimeException;
@@ -165,14 +165,18 @@ class Response extends HyperfResponse implements ResponseContract
         foreach ($headers as $name => $value) {
             $response->addHeader($name, $value);
         }
-        if (is_array($content) || $content instanceof Arrayable) {
+        if ($content instanceof Arrayable) {
+            $content = $content->toArray();
+        }
+
+        if (is_array($content)) {
             return $response->addHeader('Content-Type', 'application/json')
                 ->setBody(new SwooleStream(Json::encode($content)));
         }
 
         if ($content instanceof Jsonable) {
             return $response->addHeader('Content-Type', 'application/json')
-                ->setBody(new SwooleStream((string) $content));
+                ->setBody(new SwooleStream($content->toJson()));
         }
 
         if ($response->hasHeader('Content-Type')) {
@@ -217,14 +221,14 @@ class Response extends HyperfResponse implements ResponseContract
      *
      * @param array|Arrayable|Jsonable $data
      */
-    public function json($data, int $status = 200, array $headers = []): ResponseInterface
+    public function json($data, int $status = 200, array $headers = [], int $encodingOptions = 0): JsonResponse
     {
         $response = parent::json($data);
         foreach ($headers as $name => $value) {
             $response = $response->withHeader($name, $value);
         }
 
-        return $response->withStatus($status);
+        return new JsonResponse($response->withStatus($status), $data, $encodingOptions);
     }
 
     /**

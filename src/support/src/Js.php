@@ -4,10 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
-use Hyperf\Contract\Arrayable;
-use Hyperf\Contract\Jsonable;
-use Hyperf\Stringable\Str;
 use Hyperf\ViewEngine\Contract\Htmlable;
+use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Contracts\Support\Jsonable;
 use JsonException;
 use JsonSerializable;
 use Stringable;

@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Stringable\Str;
-use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
+use Hypervel\Contracts\Queue\ShouldQueue;
+use Hypervel\Support\Collection;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\ExtractProperties;
 use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\IncomingEntry;
@@ -57,8 +57,15 @@ class EventWatcher extends Watcher
      */
     protected function extractPayload(object|string $event, array $payload): array
     {
+        // For object events: the event object itself contains the payload properties
+        // Wildcard listeners receive (eventName, eventObject) so check payload[0]
         if (is_object($event) && empty($payload)) {
             return ExtractProperties::from($event);
+        }
+
+        // For wildcard listeners with object events, the event object is in payload[0]
+        if (is_string($event) && count($payload) === 1 && is_object($payload[0])) {
+            return ExtractProperties::from($payload[0]);
         }
 
         return Collection::make($payload)->map(function ($value) {
@@ -115,15 +122,12 @@ class EventWatcher extends Watcher
     }
 
     /**
-     * Determine if the event was fired internally by Laravel.
+     * Determine if the event was fired internally by the framework.
      */
     protected function eventIsFiredByTheFramework(string $eventName): bool
     {
-        if (in_array($eventName, ModelWatcher::MODEL_EVENTS)) {
-            return true;
-        }
-
         $prefixes = [
+            'eloquent.', // Model events (e.g., "eloquent.created: App\Models\User")
             'Hypervel',
             'Hyperf',
             'FriendsOfHyperf',

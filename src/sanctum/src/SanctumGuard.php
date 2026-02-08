@@ -4,18 +4,18 @@ declare(strict_types=1);
 
 namespace Hypervel\Sanctum;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Context\Context;
-use Hyperf\Context\RequestContext;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use Hyperf\Macroable\Macroable;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\Factory as AuthFactory;
-use Hypervel\Auth\Contracts\Guard as GuardContract;
-use Hypervel\Auth\Contracts\UserProvider;
 use Hypervel\Auth\Guards\GuardHelpers;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Context\Context;
+use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\Factory as AuthFactory;
+use Hypervel\Contracts\Auth\Guard as GuardContract;
+use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
 use Hypervel\Support\Arr;
+use Hypervel\Support\Traits\Macroable;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 class SanctumGuard implements GuardContract
@@ -72,7 +72,7 @@ class SanctumGuard implements GuardContract
                 $tokenable = $model::findTokenable($accessToken);
 
                 if ($this->supportsTokens($tokenable)) {
-                    /** @var \Hypervel\Auth\Contracts\Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $tokenable */
+                    /** @var \Hypervel\Contracts\Auth\Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $tokenable */
                     $user = $tokenable->withAccessToken($accessToken);
 
                     // Dispatch event if event dispatcher is available

@@ -6,24 +6,24 @@ namespace Hypervel\Telescope;
 
 use Closure;
 use Exception;
-use Hyperf\Collection\Arr;
-use Hyperf\Collection\Collection;
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Stringable\Str;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler;
-use Hypervel\Http\Contracts\RequestContract;
+use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Log\Events\MessageLogged;
+use Hypervel\Support\Arr;
+use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Auth;
+use Hypervel\Support\Str;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Contracts\TerminableRepository;
 use Hypervel\Telescope\Jobs\ProcessPendingUpdates;
 use Psr\Container\ContainerInterface;
 use Throwable;
 
-use function Hyperf\Coroutine\defer;
 use function Hypervel\Cache\cache;
 use function Hypervel\Config\config;
+use function Hypervel\Coroutine\defer;
 use function Hypervel\Event\event;
 
 class Telescope

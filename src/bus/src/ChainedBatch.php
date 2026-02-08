@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Bus;
 
-use Hyperf\Collection\Collection;
-use Hyperf\Context\ApplicationContext;
-use Hypervel\Bus\Contracts\Dispatcher;
-use Hypervel\Queue\Contracts\ShouldQueue;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\InteractsWithQueue;
+use Hypervel\Support\Collection;
 use Throwable;
 
 class ChainedBatch implements ShouldQueue

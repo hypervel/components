@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Bootstrap;
 
-use Hyperf\Collection\Arr;
 use Hyperf\Contract\ConfigInterface;
-use Hypervel\Foundation\Contracts\Application as ApplicationContract;
+use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Support\Arr;
 use Hypervel\Support\Composer;
 use Hypervel\Support\Facades\Facade;
 use Throwable;

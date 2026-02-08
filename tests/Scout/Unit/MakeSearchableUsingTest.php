@@ -9,7 +9,7 @@ use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Tests\Scout\Models\FilteringSearchableModel;
 use Hypervel\Tests\Scout\Models\SearchableModel;
 use Hypervel\Tests\Scout\ScoutTestCase;
-use Mockery;
+use Mockery as m;
 
 /**
  * Tests for makeSearchableUsing() behavior.
@@ -19,12 +19,6 @@ use Mockery;
  */
 class MakeSearchableUsingTest extends ScoutTestCase
 {
-    protected function tearDown(): void
-    {
-        Mockery::close();
-        parent::tearDown();
-    }
-
     public function testSyncMakeSearchablePassesFilteredCollectionToEngine(): void
     {
         // Create models - one published, one draft
@@ -37,10 +31,10 @@ class MakeSearchableUsingTest extends ScoutTestCase
         $collection = new Collection([$published, $draft]);
 
         // Mock the engine to verify what gets passed to update()
-        $engine = Mockery::mock(\Hypervel\Scout\Engine::class);
+        $engine = m::mock(\Hypervel\Scout\Engine::class);
         $engine->shouldReceive('update')
             ->once()
-            ->with(Mockery::on(function ($models) {
+            ->with(m::on(function ($models) {
                 // Should only contain the published model, not the draft
                 return $models->count() === 1
                     && $models->first()->id === 1
@@ -74,7 +68,7 @@ class MakeSearchableUsingTest extends ScoutTestCase
         $collection = new Collection([$draft1, $draft2]);
 
         // Mock the engine - update should NOT be called
-        $engine = Mockery::mock(\Hypervel\Scout\Engine::class);
+        $engine = m::mock(\Hypervel\Scout\Engine::class);
         $engine->shouldNotReceive('update');
 
         $this->app->instance(\Hypervel\Scout\EngineManager::class, new class($engine) {
@@ -107,10 +101,10 @@ class MakeSearchableUsingTest extends ScoutTestCase
         $collection = new Collection([$published, $draft]);
 
         // Mock the engine to verify what gets passed to update()
-        $engine = Mockery::mock(\Hypervel\Scout\Engine::class);
+        $engine = m::mock(\Hypervel\Scout\Engine::class);
         $engine->shouldReceive('update')
             ->once()
-            ->with(Mockery::on(function ($models) {
+            ->with(m::on(function ($models) {
                 // Should only contain the published model, not the draft
                 return $models->count() === 1
                     && $models->first()->id === 1
@@ -144,7 +138,7 @@ class MakeSearchableUsingTest extends ScoutTestCase
         $collection = new Collection([$draft1, $draft2]);
 
         // Mock the engine - update should NOT be called
-        $engine = Mockery::mock(\Hypervel\Scout\Engine::class);
+        $engine = m::mock(\Hypervel\Scout\Engine::class);
         $engine->shouldNotReceive('update');
 
         $this->app->instance(\Hypervel\Scout\EngineManager::class, new class($engine) {
@@ -179,10 +173,10 @@ class MakeSearchableUsingTest extends ScoutTestCase
         $collection = new Collection([$model1, $model2]);
 
         // Mock the engine to verify all models are passed
-        $engine = Mockery::mock(\Hypervel\Scout\Engine::class);
+        $engine = m::mock(\Hypervel\Scout\Engine::class);
         $engine->shouldReceive('update')
             ->once()
-            ->with(Mockery::on(function ($models) {
+            ->with(m::on(function ($models) {
                 return $models->count() === 2;
             }));
 

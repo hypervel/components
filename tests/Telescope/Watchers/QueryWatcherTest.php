@@ -4,15 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
+use Exception;
 use Hyperf\Contract\ConfigInterface;
-use Hyperf\Database\Connection;
-use Hyperf\Database\Events\QueryExecuted;
+use Hypervel\Database\Connection;
+use Hypervel\Database\Events\QueryExecuted;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Storage\EntryModel;
 use Hypervel\Telescope\Watchers\QueryWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
+use PDO;
+use PDOException;
+use ReflectionProperty;
 
 /**
  * @internal
@@ -121,7 +125,19 @@ Data: {
 SQL,
             ['kp_id' => '=ABC001'],
             500,
-            new Connection('filemaker'),
+            new class(fn () => null, '', '', ['name' => 'filemaker']) extends Connection {
+                public function getName(): string
+                {
+                    return $this->config['name'];
+                }
+
+                public function getPdo(): PDO
+                {
+                    $e = new PDOException('Driver does not support this function');
+                    (new ReflectionProperty(Exception::class, 'code'))->setValue($e, 'IM001');
+                    throw $e;
+                }
+            },
         );
 
         $sql = $this->app->get(QueryWatcher::class)->replaceBindings($event);

@@ -7,13 +7,13 @@ namespace Hypervel\Horizon;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Context\Context;
-use Hypervel\Event\Contracts\Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Contracts\Queue\Job;
 use Hypervel\Horizon\Events\JobDeleted;
 use Hypervel\Horizon\Events\JobPushed;
 use Hypervel\Horizon\Events\JobReleased;
 use Hypervel\Horizon\Events\JobReserved;
 use Hypervel\Horizon\Events\JobsMigrated;
-use Hypervel\Queue\Jobs\Job;
 use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\RedisQueue as BaseQueue;
 use Hypervel\Support\Str;
@@ -106,6 +106,7 @@ class RedisQueue extends BaseQueue
     public function pop(?string $queue = null, int $index = 0): ?Job
     {
         return tap(parent::pop($queue, $index), function ($result) use ($queue) {
+            /** @var null|RedisJob $result */
             if ($result) {
                 $this->event($this->getQueue($queue), new JobReserved($result->getReservedJob()));
             }
@@ -119,7 +120,7 @@ class RedisQueue extends BaseQueue
     public function migrateExpiredJobs(string $from, string $to): array
     {
         return tap(parent::migrateExpiredJobs($from, $to), function ($jobs) use ($to) {
-            $this->event($to, new JobsMigrated($jobs === false ? [] : $jobs));
+            $this->event($to, new JobsMigrated($jobs));
         });
     }
 

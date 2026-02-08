@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Auth\Guards;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Context\Context;
 use Hyperf\HttpServer\Contract\RequestInterface;
-use Hyperf\Macroable\Macroable;
-use Hypervel\Auth\Contracts\Authenticatable;
-use Hypervel\Auth\Contracts\Guard;
-use Hypervel\Auth\Contracts\UserProvider;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Context\Context;
+use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Auth\UserProvider;
+use Hypervel\Support\Traits\Macroable;
 use Throwable;
 
 class RequestGuard implements Guard

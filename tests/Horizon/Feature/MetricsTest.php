@@ -9,7 +9,7 @@ use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Stopwatch;
 use Hypervel\Support\Facades\Queue;
 use Hypervel\Tests\Horizon\IntegrationTestCase;
-use Mockery;
+use Mockery as m;
 
 /**
  * @internal
@@ -63,7 +63,7 @@ class MetricsTest extends IntegrationTestCase
 
     public function testAverageRuntimeIsStoredPerJobClassInMilliseconds()
     {
-        $stopwatch = Mockery::mock(Stopwatch::class);
+        $stopwatch = m::mock(Stopwatch::class);
         $stopwatch->shouldReceive('start');
         $stopwatch->shouldReceive('forget');
         $stopwatch->shouldReceive('check')->andReturn(1, 2);
@@ -80,7 +80,7 @@ class MetricsTest extends IntegrationTestCase
 
     public function testAverageRuntimeIsStoredPerQueueInMilliseconds()
     {
-        $stopwatch = Mockery::mock(Stopwatch::class);
+        $stopwatch = m::mock(Stopwatch::class);
         $stopwatch->shouldReceive('start');
         $stopwatch->shouldReceive('forget');
         $stopwatch->shouldReceive('check')->andReturn(1, 2);
@@ -111,7 +111,7 @@ class MetricsTest extends IntegrationTestCase
 
     public function testSnapshotOfMetricsPerformanceCanBeStored()
     {
-        $stopwatch = Mockery::mock(Stopwatch::class);
+        $stopwatch = m::mock(Stopwatch::class);
         $stopwatch->shouldReceive('start');
         $stopwatch->shouldReceive('forget');
         $stopwatch->shouldReceive('check')->andReturn(1, 2, 3);
@@ -170,7 +170,7 @@ class MetricsTest extends IntegrationTestCase
 
     public function testJobsProcessedPerMinuteSinceLastSnapshotIsCalculable()
     {
-        $stopwatch = Mockery::mock(Stopwatch::class);
+        $stopwatch = m::mock(Stopwatch::class);
         $stopwatch->shouldReceive('start');
         $stopwatch->shouldReceive('forget');
         $stopwatch->shouldReceive('check')->andReturn(1);
@@ -207,7 +207,7 @@ class MetricsTest extends IntegrationTestCase
 
     public function testOnlyPast24SnapshotsAreRetained()
     {
-        $stopwatch = Mockery::mock(Stopwatch::class);
+        $stopwatch = m::mock(Stopwatch::class);
         $stopwatch->shouldReceive('start');
         $stopwatch->shouldReceive('forget');
         $stopwatch->shouldReceive('check')->andReturn(1);

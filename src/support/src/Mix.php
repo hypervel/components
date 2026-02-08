@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Support;
 
-use Hyperf\Context\ApplicationContext;
-use Hyperf\Stringable\Str;
-use Hypervel\Foundation\Exceptions\Contracts\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use RuntimeException;
 
 use function Hyperf\Config\config;

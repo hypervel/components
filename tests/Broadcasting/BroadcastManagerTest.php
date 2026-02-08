@@ -9,20 +9,20 @@ use Hyperf\HttpServer\Router\DispatcherFactory as RouterDispatcherFactory;
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\BroadcastManager;
 use Hypervel\Broadcasting\Channel;
-use Hypervel\Broadcasting\Contracts\Factory as BroadcastingFactoryContract;
-use Hypervel\Broadcasting\Contracts\ShouldBeUnique;
-use Hypervel\Broadcasting\Contracts\ShouldBroadcast;
-use Hypervel\Broadcasting\Contracts\ShouldBroadcastNow;
 use Hypervel\Broadcasting\UniqueBroadcastEvent;
-use Hypervel\Bus\Contracts\Dispatcher as BusDispatcherContract;
-use Hypervel\Bus\Contracts\QueueingDispatcher;
-use Hypervel\Cache\Contracts\Factory as Cache;
 use Hypervel\Container\DefinitionSource;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactoryContract;
+use Hypervel\Contracts\Broadcasting\ShouldBeUnique;
+use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
+use Hypervel\Contracts\Broadcasting\ShouldBroadcastNow;
+use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Bus\QueueingDispatcher;
+use Hypervel\Contracts\Cache\Factory as Cache;
+use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Http\Kernel;
 use Hypervel\Foundation\Http\Middleware\VerifyCsrfToken;
-use Hypervel\Queue\Contracts\Factory as QueueFactoryContract;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Bus;
 use Hypervel\Support\Facades\Facade;
@@ -60,8 +60,6 @@ class BroadcastManagerTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-
-        m::close();
 
         Facade::clearResolvedInstances();
     }

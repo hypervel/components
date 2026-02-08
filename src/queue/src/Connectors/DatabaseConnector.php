@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Connectors;
 
-use Hyperf\Database\ConnectionResolverInterface;
-use Hypervel\Queue\Contracts\Queue;
+use Hypervel\Contracts\Queue\Queue;
+use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Queue\DatabaseQueue;
 
 class DatabaseConnector implements ConnectorInterface
