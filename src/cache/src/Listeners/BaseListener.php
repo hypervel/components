@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Cache\Listeners;
 
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\Event\Contract\ListenerInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Support\Collection;
 use Psr\Container\ContainerInterface;
 

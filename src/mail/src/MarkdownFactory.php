@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Mail;
 
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
+use Hypervel\Contracts\Config\Repository;
 
 class MarkdownFactory
 {

@@ -5,8 +5,8 @@ declare(strict_types=1);
 require __DIR__ . '/../../vendor/autoload.php';
 
 use Hyperf\Contract\ApplicationInterface;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Coordinator\Constants;

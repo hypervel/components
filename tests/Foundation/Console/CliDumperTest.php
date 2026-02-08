@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Console;
 
-use Hypervel\Contracts\Config\Repository as RepositoryContract;
 use Hypervel\Config\Repository;
+use Hypervel\Contracts\Config\Repository as RepositoryContract;
 use Hypervel\Foundation\Console\CliDumper;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;

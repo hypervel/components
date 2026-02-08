@@ -6,8 +6,8 @@ namespace Hypervel\Tests\Telescope;
 
 use Faker\Factory as FakerFactory;
 use Faker\Generator;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Database\Schema\Blueprint;

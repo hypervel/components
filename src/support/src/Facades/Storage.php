@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Filesystem\FilesystemManager;
 use UnitEnum;

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sentry\Features;
 
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\Contract\PoolOptionInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Redis\Events\CommandExecuted;

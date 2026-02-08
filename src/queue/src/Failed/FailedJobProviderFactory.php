@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Failed;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Database\ConnectionResolverInterface;
 use Psr\Container\ContainerInterface;
 

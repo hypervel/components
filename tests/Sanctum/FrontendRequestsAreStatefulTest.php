@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Sanctum;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Auth\Middleware\Authenticate;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Foundation\Http\Middleware\VerifyCsrfToken;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;

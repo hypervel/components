@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\JWT;
 
 use Carbon\Carbon;
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\Contract\ContainerInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\JWT\Contracts\BlacklistContract;
 use Hypervel\JWT\Exceptions\JWTException;
 use Hypervel\JWT\Exceptions\TokenBlacklistedException;
@@ -32,7 +32,7 @@ class JWTManagerTest extends TestCase
     private ContainerInterface $container;
 
     /**
-     * @var Repository|MockInterface
+     * @var MockInterface|Repository
      */
     private Repository $config;
 

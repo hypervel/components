@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\IncomingEntry;

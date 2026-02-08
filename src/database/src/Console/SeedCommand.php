@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Console;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Console\Prohibitable;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Database\Seeder;

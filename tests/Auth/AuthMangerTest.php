@@ -4,19 +4,19 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
-use Hypervel\Config\Repository as ConfigRepository;
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Auth\Guards\RequestGuard;
 use Hypervel\Auth\Providers\DatabaseUserProvider;
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\UserProvider;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Hashing\Hasher as HashContract;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\ConnectionInterface;

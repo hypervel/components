@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Listeners;
 
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Framework\Event\BeforeWorkerStart;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Support\DotenvManager;
 

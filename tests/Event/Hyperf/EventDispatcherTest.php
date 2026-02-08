@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Event\Hyperf;
 
-use Hypervel\Config\Repository as ConfigRepository;
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Framework\Logger\StdoutLogger;
+use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\EventDispatcherFactory;

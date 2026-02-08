@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Integration\Database\Sqlite;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Connectors\SQLiteConnector;
 use Hypervel\Database\DatabaseManager;

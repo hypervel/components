@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Broadcasting;
 
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\HttpServer\Router\DispatcherFactory as RouterDispatcherFactory;
 use Hypervel\Broadcasting\BroadcastEvent;
 use Hypervel\Broadcasting\BroadcastManager;
@@ -19,6 +18,7 @@ use Hypervel\Contracts\Broadcasting\ShouldBroadcastNow;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
 use Hypervel\Contracts\Bus\QueueingDispatcher;
 use Hypervel\Contracts\Cache\Factory as Cache;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
 use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Http\Kernel;

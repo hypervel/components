@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Event\Hyperf;
 
+use Hyperf\Event\Annotation\Listener as ListenerAnnotation;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Config\Repository;
-use Hyperf\Event\Annotation\Listener as ListenerAnnotation;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
 use Hypervel\Event\ListenerProviderFactory;

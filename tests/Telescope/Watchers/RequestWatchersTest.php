@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\HttpServer\Server as HttpServer;
 use Hyperf\Server\Event;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Http\UploadedFile;
 use Hypervel\Support\Facades\Response;
 use Hypervel\Support\Facades\Route;

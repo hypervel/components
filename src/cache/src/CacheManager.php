@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use Closure;
-use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Cache\Factory as FactoryContract;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Redis\RedisFactory;
 use InvalidArgumentException;
 use Psr\Container\ContainerInterface;

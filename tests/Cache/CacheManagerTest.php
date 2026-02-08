@@ -63,7 +63,7 @@ class CacheManagerTest extends TestCase
         $app = $this->getApp($userConfig);
         $cacheManager = new CacheManager($app);
 
-        /** @var MockInterface|CacheRepository */
+        /** @var CacheRepository|MockInterface */
         $repository = m::mock(CacheRepository::class);
         $repository->shouldReceive('get')->with('foo')->andReturn('bar');
 
@@ -253,7 +253,7 @@ class CacheManagerTest extends TestCase
 
         $cacheManager = new CacheManager($app);
         $cacheManager->extend('forget', function () use (&$count) {
-            /** @var MockInterface|CacheRepository */
+            /** @var CacheRepository|MockInterface */
             $repository = m::mock(CacheRepository::class);
 
             if ($count++ === 0) {

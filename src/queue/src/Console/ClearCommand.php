@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Console\ConfirmableTrait;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Queue\ClearableQueue;
 use Hypervel\Contracts\Queue\Factory as FactoryContract;
 use Hypervel\Support\Str;

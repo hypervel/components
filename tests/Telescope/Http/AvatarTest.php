@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Http;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Telescope\Http\Middleware\Authorize;
 use Hypervel\Telescope\Telescope;

@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use Closure;
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\Contract\TranslatorLoaderInterface;
 use Hyperf\ViewEngine\Compiler\BladeCompiler;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactoryContract;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Database\Migrations\Migrator;
 use Hypervel\Router\RouteFileCollector;

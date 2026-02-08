@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;

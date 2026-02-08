@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Socialite;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Socialite\Exceptions\DriverMissingConfigurationException;
 use Hypervel\Socialite\SocialiteManager;
 use Hypervel\Socialite\Two\GithubProvider;

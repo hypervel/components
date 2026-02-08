@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Scout;
 
 use Closure;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Coroutine\WaitConcurrent;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;

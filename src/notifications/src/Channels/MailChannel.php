@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Notifications\Channels;
 
 use Closure;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Mail\Factory as MailFactory;
 use Hypervel\Contracts\Mail\Mailable;
 use Hypervel\Contracts\Queue\ShouldQueue;

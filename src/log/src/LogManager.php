@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Log;
 
 use Closure;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Environment;
 use Hypervel\Support\Str;

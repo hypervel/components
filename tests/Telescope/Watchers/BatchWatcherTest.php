@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Events\BatchDispatched;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\BatchWatcher;
 use Hypervel\Telescope\Watchers\JobWatcher;

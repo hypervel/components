@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Http;
 
-use Hypervel\Contracts\Config\Repository as RepositoryContract;
 use Hypervel\Config\Repository;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Config\Repository as RepositoryContract;
 use Hypervel\Foundation\Http\HtmlDumper;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;

@@ -4,17 +4,17 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Router;
 
-use Hypervel\Config\Repository as ConfigRepository;
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\Contract\ContainerInterface;
 use Hyperf\Contract\SessionInterface;
 use Hyperf\HttpMessage\Server\Request as ServerRequest;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Request;
 use Hyperf\HttpServer\Router\DispatcherFactory as HyperfDispatcherFactory;
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Router\DispatcherFactory;
 use Hypervel\Router\RouteCollector;
 use Hypervel\Router\UrlGenerator;

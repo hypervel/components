@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Auth;
 
 use Closure;
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Auth\Guards\JwtGuard;
 use Hypervel\Auth\Guards\RequestGuard;
@@ -14,6 +13,7 @@ use Hypervel\Context\Context;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Auth\Guard;
 use Hypervel\Contracts\Auth\StatefulGuard;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\JWT\JWTManager;
 use InvalidArgumentException;

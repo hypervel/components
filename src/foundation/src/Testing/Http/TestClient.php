@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing\Http;
 
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\Dispatcher\HttpDispatcher;
 use Hyperf\ExceptionHandler\ExceptionHandlerDispatcher;
 use Hyperf\HttpMessage\Server\Request as Psr7Request;
@@ -15,6 +14,7 @@ use Hyperf\HttpServer\Event\RequestReceived;
 use Hyperf\HttpServer\ResponseEmitter;
 use Hyperf\Testing\HttpMessage\Upload\UploadedFile;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Http\Kernel as HttpKernel;
 use Hypervel\Foundation\Testing\Coroutine\Waiter;

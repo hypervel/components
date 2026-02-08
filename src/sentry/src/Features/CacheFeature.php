@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Sentry\Features;
 
 use Exception;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Cache\Events\CacheEvent;
 use Hypervel\Cache\Events\CacheHit;
 use Hypervel\Cache\Events\CacheMissed;
@@ -18,6 +17,7 @@ use Hypervel\Cache\Events\RetrievingKey;
 use Hypervel\Cache\Events\RetrievingManyKeys;
 use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Session\Session;
 use Hypervel\Sentry\Integrations\Integration;

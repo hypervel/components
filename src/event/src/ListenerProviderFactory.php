@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Event;
 
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\Di\Annotation\AnnotationCollector;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
+use Hypervel\Contracts\Config\Repository;
 use Psr\Container\ContainerInterface;
 
 /**

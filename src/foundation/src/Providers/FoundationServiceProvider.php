@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Hypervel\Foundation\Providers;
 
 use Hyperf\Command\Event\FailToHandle;
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\HttpServer\MiddlewareManager;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;

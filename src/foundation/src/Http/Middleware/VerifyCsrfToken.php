@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Http\Middleware;
 
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\HttpServer\Request;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Cookie\Cookie;

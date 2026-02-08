@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Cache\Redis\Console;
 
-use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Cache\CacheManager;
 use Hypervel\Cache\Redis\Console\DoctorCommand;
 use Hypervel\Cache\Redis\Support\StoreContext;
@@ -13,6 +12,7 @@ use Hypervel\Cache\RedisStore;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Contracts\Cache\Store;
+use Hypervel\Contracts\Config\Repository as ConfigRepository;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;

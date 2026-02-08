@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Foundation;
 
 use Exception;
-use Hypervel\Contracts\Config\Repository as RepositoryContract;
 use Hyperf\Contract\SessionInterface;
 use Hyperf\Di\MethodDefinitionCollector;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
@@ -20,6 +19,7 @@ use Hypervel\Context\ApplicationContext;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
+use Hypervel\Contracts\Config\Repository as RepositoryContract;
 use Hypervel\Contracts\Http\Response as ResponseContract;
 use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Contracts\Session\Session as SessionContract;

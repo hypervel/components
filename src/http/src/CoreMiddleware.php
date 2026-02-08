@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Http;
 
 use FastRoute\Dispatcher;
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\HttpMessage\Server\ResponsePlusProxy;
 use Hyperf\HttpMessage\Stream\SwooleStream;
 use Hyperf\HttpServer\Contract\CoreMiddlewareInterface;
@@ -17,6 +16,7 @@ use Hyperf\ViewEngine\Contract\Renderable;
 use Hyperf\ViewEngine\Contract\ViewInterface;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\HttpMessage\Exceptions\MethodNotAllowedHttpException;

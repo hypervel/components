@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Sentry;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Sentry\Aspects\CoroutineAspect;
 use Hypervel\Sentry\Aspects\GuzzleHttpClientAspect;

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Mail;
 
-use Hypervel\Contracts\Config\Repository;
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
+use Hypervel\Contracts\Config\Repository;
 use Hypervel\Mail\MailManager;
 use Hypervel\Mail\TransportPoolProxy;
 use Hypervel\Testbench\TestCase;
