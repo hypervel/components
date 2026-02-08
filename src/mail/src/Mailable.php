@@ -9,7 +9,6 @@ use Closure;
 use DateInterval;
 use DateTimeInterface;
 use Hypervel\Context\ApplicationContext;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Mail\Attachable;
 use Hypervel\Contracts\Mail\Factory;
@@ -352,7 +351,7 @@ class Mailable implements MailableContract, Renderable
     {
         return tap(make(Markdown::class), function ($markdown) {
             $markdown->theme(
-                $this->theme ?: ApplicationContext::getContainer()->get(Repository::class)->get(
+                $this->theme ?: ApplicationContext::getContainer()->get('config')->get(
                     'mail.markdown.theme',
                     'default'
                 )

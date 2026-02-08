@@ -8,7 +8,7 @@ use Aws\Ses\SesClient;
 use Aws\SesV2\SesV2Client;
 use Closure;
 use Hyperf\ViewEngine\Contract\FactoryInterface;
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Hypervel\Contracts\Mail\Factory as FactoryContract;
 use Hypervel\Contracts\Mail\Mailer as MailerContract;
 use Hypervel\Contracts\Queue\Factory as QueueFactory;
@@ -78,7 +78,7 @@ class MailManager implements FactoryContract
     public function __construct(
         protected ContainerInterface $app
     ) {
-        $this->config = $app->get(Repository::class);
+        $this->config = $app->get('config');
     }
 
     /**
@@ -408,7 +408,7 @@ class MailManager implements FactoryContract
 
         if ($logger instanceof LogManager) {
             $logger = $logger->channel(
-                $config['channel'] ?? $this->app->get(Repository::class)->get('mail.log_channel')
+                $config['channel'] ?? $this->app->get('config')->get('mail.log_channel')
             );
         }
 
