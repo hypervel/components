@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing;
 
-use Hyperf\Config\Config;
+use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Database\ConnectionInterface;
@@ -135,9 +135,9 @@ class RefreshDatabaseTest extends TestCase
         $this->refreshTestDatabase();
     }
 
-    protected function getConfig(array $config = []): Config
+    protected function getConfig(array $config = []): ConfigRepository
     {
-        return new Config(array_merge([
+        return new ConfigRepository(array_merge([
             'database' => [
                 'default' => 'default',
             ],
