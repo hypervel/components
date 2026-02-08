@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Bootstrap;
 
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
+use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Foundation\Bootstrap\RegisterProviders;
 use Hypervel\Support\Composer;
 use Hypervel\Support\ServiceProvider;
@@ -38,7 +39,7 @@ class RegisterProvidersTest extends TestCase
             ]);
 
         $app = $this->getApplication([
-            Repository::class => fn () => $config,
+            ConfigContract::class => fn () => $config,
         ]);
 
         Composer::setBasePath(dirname(__DIR__) . '/fixtures/hyperf1');

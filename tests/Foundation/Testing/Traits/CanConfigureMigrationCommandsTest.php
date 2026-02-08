@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing\Traits;
 
-use Hypervel\Config\Repository as ConfigRepository;
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
+use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use PHPUnit\Framework\TestCase;
@@ -70,9 +70,9 @@ class CanConfigureMigrationCommandsTest extends TestCase
         $this->assertEquals($expected, $migrateFreshUsingReflection->invoke($this->traitObject));
     }
 
-    protected function getConfig(array $config = []): ConfigRepository
+    protected function getConfig(array $config = []): Repository
     {
-        return new ConfigRepository(array_merge([
+        return new Repository(array_merge([
             'database' => [
                 'default' => 'default',
             ],
@@ -92,13 +92,13 @@ class CanConfigureMigrationCommandsTestMockClass
     public function __construct()
     {
         $this->app = $this->getApplication([
-            Repository::class => fn () => $this->getConfig(),
+            ConfigContract::class => fn () => $this->getConfig(),
         ]);
     }
 
-    protected function getConfig(array $config = []): ConfigRepository
+    protected function getConfig(array $config = []): Repository
     {
-        return new ConfigRepository(array_merge([
+        return new Repository(array_merge([
             'database' => [
                 'default' => 'default',
             ],

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Testing;
 
-use Hypervel\Config\Repository as ConfigRepository;
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
+use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\DatabaseManager;
@@ -64,7 +64,7 @@ class RefreshDatabaseTest extends TestCase
             ])->andReturn(0);
 
         $this->app = $this->getApplication([
-            Repository::class => fn () => $this->getConfig(),
+            ConfigContract::class => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
             DatabaseManager::class => fn () => $this->getMockedDatabase(),
         ]);
@@ -85,7 +85,7 @@ class RefreshDatabaseTest extends TestCase
                 '--seed' => false,
             ])->andReturn(0);
         $this->app = $this->getApplication([
-            Repository::class => fn () => $this->getConfig(),
+            ConfigContract::class => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
             DatabaseManager::class => fn () => $this->getMockedDatabase(),
         ]);
@@ -106,7 +106,7 @@ class RefreshDatabaseTest extends TestCase
                 '--seed' => true,
             ])->andReturn(0);
         $this->app = $this->getApplication([
-            Repository::class => fn () => $this->getConfig(),
+            ConfigContract::class => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
             DatabaseManager::class => fn () => $this->getMockedDatabase(),
         ]);
@@ -127,7 +127,7 @@ class RefreshDatabaseTest extends TestCase
                 '--seeder' => 'seeder',
             ])->andReturn(0);
         $this->app = $this->getApplication([
-            Repository::class => fn () => $this->getConfig(),
+            ConfigContract::class => fn () => $this->getConfig(),
             KernelContract::class => fn () => $kernel,
             DatabaseManager::class => fn () => $this->getMockedDatabase(),
         ]);
@@ -135,9 +135,9 @@ class RefreshDatabaseTest extends TestCase
         $this->refreshTestDatabase();
     }
 
-    protected function getConfig(array $config = []): ConfigRepository
+    protected function getConfig(array $config = []): Repository
     {
-        return new ConfigRepository(array_merge([
+        return new Repository(array_merge([
             'database' => [
                 'default' => 'default',
             ],

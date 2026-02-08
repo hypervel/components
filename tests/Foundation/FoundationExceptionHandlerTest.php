@@ -16,10 +16,10 @@ use Hyperf\ViewEngine\Contract\FactoryInterface;
 use Hyperf\ViewEngine\ViewErrorBag;
 use Hypervel\Config\Repository;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Context\Context;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
-use Hypervel\Contracts\Config\Repository as RepositoryContract;
 use Hypervel\Contracts\Http\Response as ResponseContract;
 use Hypervel\Contracts\Router\UrlGenerator as UrlGeneratorContract;
 use Hypervel\Contracts\Session\Session as SessionContract;
@@ -70,7 +70,7 @@ class FoundationExceptionHandlerTest extends TestCase
         $this->config = $this->getConfig();
         $this->request = m::mock(Request::class);
         $this->container = $this->getApplication([
-            RepositoryContract::class => fn () => $this->config,
+            ConfigContract::class => fn () => $this->config,
             FactoryInterface::class => fn () => new stdClass(),
             Request::class => fn () => $this->request,
             ServerRequestInterface::class => fn () => m::mock(ServerRequestInterface::class),

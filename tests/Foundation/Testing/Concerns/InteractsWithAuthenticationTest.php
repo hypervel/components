@@ -8,7 +8,6 @@ use Hypervel\Context\Context;
 use Hypervel\Contracts\Auth\Authenticatable as UserContract;
 use Hypervel\Contracts\Auth\Factory as AuthFactoryContract;
 use Hypervel\Contracts\Auth\Guard;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithAuthentication;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
@@ -37,7 +36,7 @@ class InteractsWithAuthenticationTest extends TestCase
 
         $this->app->get(AuthFactoryContract::class)
             ->extend('foo', fn () => $guard);
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('auth.guards.foo', [
                 'driver' => 'foo',
                 'provider' => 'users',
@@ -67,7 +66,7 @@ class InteractsWithAuthenticationTest extends TestCase
 
         $this->app->get(AuthFactoryContract::class)
             ->extend('foo', fn () => $guard);
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('auth.guards.foo', [
                 'driver' => 'foo',
                 'provider' => 'users',
