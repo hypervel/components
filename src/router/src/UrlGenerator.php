@@ -9,7 +9,7 @@ use Carbon\Carbon;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Contract\ConfigInterface;
+use Hypervel\Contracts\Config\Repository;
 use Hyperf\Contract\ContainerInterface;
 use Hyperf\Contract\SessionInterface;
 use Hyperf\HttpMessage\Uri\Uri;
@@ -480,7 +480,7 @@ class UrlGenerator implements UrlGeneratorContract
             return $this->signedKey;
         }
 
-        return $this->container->get(ConfigInterface::class)
+        return $this->container->get(Repository::class)
             ->get('app.key');
     }
 
@@ -514,6 +514,6 @@ class UrlGenerator implements UrlGeneratorContract
             return $this->container->get(RequestInterface::class)->getUri();
         }
 
-        return new Uri($this->container->get(ConfigInterface::class)->get('app.url'));
+        return new Uri($this->container->get(Repository::class)->get('app.url'));
     }
 }
