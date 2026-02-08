@@ -16,7 +16,6 @@ use Hyperf\ViewEngine\Contract\Renderable;
 use Hyperf\ViewEngine\Contract\ViewInterface;
 use Hypervel\Context\RequestContext;
 use Hypervel\Context\ResponseContext;
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\HttpMessage\Exceptions\MethodNotAllowedHttpException;
@@ -54,7 +53,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
     {
         if ($response instanceof Renderable) {
             if ($response instanceof ViewInterface) {
-                if ($this->container->get(Repository::class)->get('view.event.enable', false)) {
+                if ($this->container->get('config')->get('view.event.enable', false)) {
                     $this->container->get(EventDispatcherInterface::class)
                         ->dispatch(new ViewRendered($response));
                 }
