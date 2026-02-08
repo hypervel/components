@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\RefreshDatabase;
 use Hypervel\Scout\ScoutServiceProvider;
@@ -29,7 +28,7 @@ class ScoutTestCase extends TestCase
 
         $this->app->register(ScoutServiceProvider::class);
 
-        $this->app->get(Repository::class)
+        $this->app->get('config')
             ->set('scout', [
                 'driver' => 'collection',
                 'prefix' => '',

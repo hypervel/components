@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit;
 
-use Hypervel\Contracts\Config\Repository;
 use Hypervel\Database\Eloquent\Collection;
 use Hypervel\Scout\Jobs\MakeSearchable;
 use Hypervel\Scout\Jobs\RemoveFromSearch;
@@ -29,8 +28,8 @@ class QueueDispatchTest extends ScoutTestCase
 
     public function testQueueMakeSearchableDispatchesJobWhenQueueEnabled(): void
     {
-        $this->app->get(Repository::class)->set('scout.queue.enabled', true);
-        $this->app->get(Repository::class)->set('scout.queue.after_commit', false);
+        $this->app->get('config')->set('scout.queue.enabled', true);
+        $this->app->get('config')->set('scout.queue.after_commit', false);
 
         Bus::fake([MakeSearchable::class]);
 
@@ -47,8 +46,8 @@ class QueueDispatchTest extends ScoutTestCase
 
     public function testQueueMakeSearchableDispatchesWithAfterCommitWhenEnabled(): void
     {
-        $this->app->get(Repository::class)->set('scout.queue.enabled', true);
-        $this->app->get(Repository::class)->set('scout.queue.after_commit', true);
+        $this->app->get('config')->set('scout.queue.enabled', true);
+        $this->app->get('config')->set('scout.queue.after_commit', true);
 
         Bus::fake([MakeSearchable::class]);
 
@@ -64,8 +63,8 @@ class QueueDispatchTest extends ScoutTestCase
 
     public function testQueueRemoveFromSearchDispatchesJobWhenQueueEnabled(): void
     {
-        $this->app->get(Repository::class)->set('scout.queue.enabled', true);
-        $this->app->get(Repository::class)->set('scout.queue.after_commit', false);
+        $this->app->get('config')->set('scout.queue.enabled', true);
+        $this->app->get('config')->set('scout.queue.after_commit', false);
 
         Bus::fake([RemoveFromSearch::class]);
 
@@ -82,8 +81,8 @@ class QueueDispatchTest extends ScoutTestCase
 
     public function testQueueRemoveFromSearchDispatchesWithAfterCommitWhenEnabled(): void
     {
-        $this->app->get(Repository::class)->set('scout.queue.enabled', true);
-        $this->app->get(Repository::class)->set('scout.queue.after_commit', true);
+        $this->app->get('config')->set('scout.queue.enabled', true);
+        $this->app->get('config')->set('scout.queue.after_commit', true);
 
         Bus::fake([RemoveFromSearch::class]);
 
@@ -99,7 +98,7 @@ class QueueDispatchTest extends ScoutTestCase
 
     public function testQueueMakeSearchableDoesNotDispatchJobWhenQueueDisabled(): void
     {
-        $this->app->get(Repository::class)->set('scout.queue.enabled', false);
+        $this->app->get('config')->set('scout.queue.enabled', false);
 
         Bus::fake([MakeSearchable::class]);
 
@@ -115,7 +114,7 @@ class QueueDispatchTest extends ScoutTestCase
 
     public function testQueueRemoveFromSearchDoesNotDispatchJobWhenQueueDisabled(): void
     {
-        $this->app->get(Repository::class)->set('scout.queue.enabled', false);
+        $this->app->get('config')->set('scout.queue.enabled', false);
 
         Bus::fake([RemoveFromSearch::class]);
 
@@ -130,7 +129,7 @@ class QueueDispatchTest extends ScoutTestCase
 
     public function testEmptyCollectionDoesNotDispatchMakeSearchableJob(): void
     {
-        $this->app->get(Repository::class)->set('scout.queue.enabled', true);
+        $this->app->get('config')->set('scout.queue.enabled', true);
 
         Bus::fake([MakeSearchable::class]);
 
@@ -142,7 +141,7 @@ class QueueDispatchTest extends ScoutTestCase
 
     public function testEmptyCollectionDoesNotDispatchRemoveFromSearchJob(): void
     {
-        $this->app->get(Repository::class)->set('scout.queue.enabled', true);
+        $this->app->get('config')->set('scout.queue.enabled', true);
 
         Bus::fake([RemoveFromSearch::class]);
 
@@ -154,7 +153,7 @@ class QueueDispatchTest extends ScoutTestCase
 
     public function testQueueMakeSearchableDispatchesCustomJobClass(): void
     {
-        $this->app->get(Repository::class)->set('scout.queue.enabled', true);
+        $this->app->get('config')->set('scout.queue.enabled', true);
 
         Scout::makeSearchableUsing(TestCustomMakeSearchable::class);
 
@@ -170,7 +169,7 @@ class QueueDispatchTest extends ScoutTestCase
 
     public function testQueueRemoveFromSearchDispatchesCustomJobClass(): void
     {
-        $this->app->get(Repository::class)->set('scout.queue.enabled', true);
+        $this->app->get('config')->set('scout.queue.enabled', true);
 
         Scout::removeFromSearchUsing(TestCustomRemoveFromSearch::class);
 

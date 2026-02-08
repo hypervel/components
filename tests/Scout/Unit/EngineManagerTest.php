@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit;
 
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Hypervel\Scout\Engine;
 use Hypervel\Scout\EngineManager;
 use Hypervel\Scout\Engines\CollectionEngine;
@@ -287,7 +287,7 @@ class EngineManagerTest extends TestCase
             ->andReturn($config['soft_delete'] ?? false);
 
         $container->shouldReceive('get')
-            ->with(Repository::class)
+            ->with('config')
             ->andReturn($configService);
 
         return $container;
@@ -309,7 +309,7 @@ class EngineManagerTest extends TestCase
             ->andReturn($config['max_total_results'] ?? 1000);
 
         $container->shouldReceive('get')
-            ->with(Repository::class)
+            ->with('config')
             ->andReturn($configService);
 
         return $container;

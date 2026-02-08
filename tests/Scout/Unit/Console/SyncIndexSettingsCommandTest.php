@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Scout\Unit\Console;
 
-use Hypervel\Contracts\Config\Repository;
+use Hypervel\Config\Repository;
 use Hypervel\Scout\Console\SyncIndexSettingsCommand;
 use Hypervel\Scout\Contracts\UpdatesIndexSettings;
 use Hypervel\Scout\Engine;
