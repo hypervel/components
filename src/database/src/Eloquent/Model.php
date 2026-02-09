@@ -64,7 +64,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Context key for storing models that should ignore touch.
      */
-    protected const IGNORE_ON_TOUCH_CONTEXT_KEY = '__database.model.ignoreOnTouch';
+    protected const IGNORE_ON_TOUCH_CONTEXT_KEY = '__database.model.ignore_on_touch';
 
     /**
      * Context key for storing whether broadcasting is enabled.
@@ -74,7 +74,7 @@ abstract class Model implements Arrayable, ArrayAccess, CanBeEscapedWhenCastToSt
     /**
      * Context key for storing whether events are disabled.
      */
-    protected const EVENTS_DISABLED_CONTEXT_KEY = '__database.model.eventsDisabled';
+    protected const EVENTS_DISABLED_CONTEXT_KEY = '__database.model.events_disabled';
 
     /**
      * Context key for storing whether mass assignment is unguarded.

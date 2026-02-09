@@ -22,7 +22,7 @@ class HttpRequestHandler implements RequestHandlerInterface
 
     public function handle(ServerRequestInterface $request): ResponseInterface
     {
-        Context::set('request.middleware', $this->middlewares);
+        Context::set('__request.middleware', $this->middlewares);
 
         return $this->container
             ->get(Pipeline::class)

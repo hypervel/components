@@ -90,12 +90,12 @@ class CookieManager implements CookieContract
 
     public function getQueuedCookies(): array
     {
-        return Context::get('http.cookies.queue', []);
+        return Context::get('__cookie.queue', []);
     }
 
     protected function setQueueCookies(array $cookies): array
     {
-        return Context::set('http.cookies.queue', $cookies);
+        return Context::set('__cookie.queue', $cookies);
     }
 
     public function forever(UnitEnum|string $name, string $value, string $path = '', string $domain = '', bool $secure = false, bool $httpOnly = true, bool $raw = false, ?string $sameSite = null): Cookie

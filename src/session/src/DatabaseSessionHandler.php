@@ -253,7 +253,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     public function setExists(bool $value): static
     {
-        Context::set('_session.database.exists', $value);
+        Context::set('__session.database.exists', $value);
 
         return $this;
     }
@@ -263,6 +263,6 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
      */
     public function getExists(): bool
     {
-        return Context::get('_session.database.exists', false);
+        return Context::get('__session.database.exists', false);
     }
 }

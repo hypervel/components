@@ -194,7 +194,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     public function getDefaultDriver(): string
     {
-        return Context::get('__notifications.defaultChannel', $this->defaultChannel);
+        return Context::get('__notifications.default_channel', $this->defaultChannel);
     }
 
     /**
@@ -210,7 +210,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     public function deliverVia(string $channel): void
     {
-        Context::set('__notifications.defaultChannel', $channel);
+        Context::set('__notifications.default_channel', $channel);
     }
 
     /**
@@ -218,7 +218,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     public function locale(string $locale): static
     {
-        Context::set('__notifications.defaultLocale', $locale);
+        Context::set('__notifications.default_locale', $locale);
 
         return $this;
     }
@@ -228,6 +228,6 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
      */
     public function getLocale(): ?string
     {
-        return Context::get('__notifications.defaultLocale', $this->locale);
+        return Context::get('__notifications.default_locale', $this->locale);
     }
 }

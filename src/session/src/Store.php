@@ -47,7 +47,7 @@ class Store implements Session
             $this->regenerateToken();
         }
 
-        return Context::set('_session.store.started', true);
+        return Context::set('__session.store.started', true);
     }
 
     /**
@@ -55,7 +55,7 @@ class Store implements Session
      */
     protected function getAttributes(): array
     {
-        return Context::get('_session.store.attributes', []);
+        return Context::get('__session.store.attributes', []);
     }
 
     /**
@@ -63,7 +63,7 @@ class Store implements Session
      */
     protected function setAttributes(array $attributes): void
     {
-        Context::set('_session.store.attributes', $attributes);
+        Context::set('__session.store.attributes', $attributes);
     }
 
     /**
@@ -72,8 +72,8 @@ class Store implements Session
     protected function replaceAttributes(array $attributes): void
     {
         Context::set(
-            '_session.store.attributes',
-            array_replace(Context::get('_session.store.attributes', []), $attributes)
+            '__session.store.attributes',
+            array_replace(Context::get('__session.store.attributes', []), $attributes)
         );
     }
 
@@ -148,7 +148,7 @@ class Store implements Session
             $this->serialization === 'json' ? json_encode($this->getAttributes()) : serialize($this->getAttributes())
         ));
 
-        Context::set('_session.store.started', false);
+        Context::set('__session.store.started', false);
     }
 
     /**
@@ -511,7 +511,7 @@ class Store implements Session
      */
     public function isStarted(): bool
     {
-        return Context::get('_session.store.started', false);
+        return Context::get('__session.store.started', false);
     }
 
     /**
@@ -543,7 +543,7 @@ class Store implements Session
      */
     public function getId(): ?string
     {
-        return Context::get('_session.store.id', null);
+        return Context::get('__session.store.id', null);
     }
 
     /**
@@ -552,7 +552,7 @@ class Store implements Session
     public function setId(?string $id): void
     {
         Context::set(
-            '_session.store.id',
+            '__session.store.id',
             $this->isValidId($id) ? $id : $this->generateSessionId()
         );
     }

@@ -100,7 +100,7 @@ class RequestWatcher extends Watcher
             'uri' => str_replace($this->request->root(), '', $this->request->fullUrl()) ?: '/',
             'method' => $this->request->method(),
             'controller_action' => $dispatched->handler ? $dispatched->handler->callback : '',
-            'middleware' => Context::get('request.middleware', []),
+            'middleware' => Context::get('__request.middleware', []),
             'headers' => $this->headers($this->request->getHeaders()),
             'payload' => $this->payload($this->input()),
             'session' => $this->payload($this->sessionVariables()),

@@ -22,7 +22,7 @@ class EloquentModelWithoutEventsTest extends TestCase
     protected function tearDown(): void
     {
         // Ensure context is clean after each test
-        Context::destroy('__database.model.eventsDisabled');
+        Context::destroy('__database.model.events_disabled');
         TestModel::unsetEventDispatcher();
         parent::tearDown();
     }
@@ -111,7 +111,7 @@ class EloquentModelWithoutEventsTest extends TestCase
 
     public function testContextKeyIsCorrect(): void
     {
-        $contextKey = '__database.model.eventsDisabled';
+        $contextKey = '__database.model.events_disabled';
 
         // Initially not set
         $this->assertNull(Context::get($contextKey));

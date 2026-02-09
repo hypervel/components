@@ -40,9 +40,9 @@ class SessionStoreBackedEnumTest extends TestCase
 {
     protected function tearDown(): void
     {
-        Context::destroy('_session.store.started');
-        Context::destroy('_session.store.id');
-        Context::destroy('_session.store.attributes');
+        Context::destroy('__session.store.started');
+        Context::destroy('__session.store.id');
+        Context::destroy('__session.store.attributes');
 
         parent::tearDown();
     }

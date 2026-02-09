@@ -30,11 +30,11 @@ use function sprintf;
 
 class Hub implements HubInterface
 {
-    public const CONTEXT_STACK_KEY = 'sentry.stack';
+    public const CONTEXT_STACK_KEY = '__sentry.stack';
 
-    public const CONTEXT_LAST_EVENT_ID_KEY = 'sentry.last_event_id';
+    public const CONTEXT_LAST_EVENT_ID_KEY = '__sentry.last_event_id';
 
-    public const CONTEXT_REQUEST_COROUTINE_ID_KEY = 'sentry.coroutine_id';
+    public const CONTEXT_REQUEST_COROUTINE_ID_KEY = '__sentry.coroutine_id';
 
     public function __construct(protected ?ClientInterface $client = null, protected ?Scope $scope = null)
     {

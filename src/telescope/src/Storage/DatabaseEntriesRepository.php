@@ -246,7 +246,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
      */
     public function getMonitorTags(): ?array
     {
-        return Context::get('telescope.monitored_tags', null);
+        return Context::get('__telescope.monitored_tags', null);
     }
 
     /**
@@ -254,7 +254,7 @@ class DatabaseEntriesRepository implements EntriesRepository, ClearableRepositor
      */
     public function setMonitorTags(?array $tags): void
     {
-        Context::set('telescope.monitored_tags', $tags);
+        Context::set('__telescope.monitored_tags', $tags);
     }
 
     /**

@@ -14,7 +14,7 @@ trait PreventsCircularRecursion
     /**
      * The context key for the recursion cache.
      */
-    protected const RECURSION_CACHE_CONTEXT_KEY = '__database.model.recursionCache';
+    protected const RECURSION_CACHE_CONTEXT_KEY = '__database.model.recursion_cache';
 
     /**
      * Prevent a method from being called multiple times on the same object within the same call stack.
