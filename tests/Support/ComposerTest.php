@@ -23,6 +23,20 @@ class ComposerTest extends TestCase
         }
     }
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        Composer::setBasePath(__DIR__ . '/fixtures/composer');
+    }
+
+    protected function tearDown(): void
+    {
+        Composer::setBasePath(null);
+
+        parent::tearDown();
+    }
+
     public function testGetLoader()
     {
         $loader = Composer::getLoader();
