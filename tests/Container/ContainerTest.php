@@ -179,6 +179,10 @@ class ContainerTest extends TestCase
         // test offsetSet when it's not instanceof Closure
         $container = $this->getContainer();
         $container['something'] = 'text';
+        $this->assertTrue(isset($container['something']));
+        $this->assertNotEmpty($container['something']);
+        $this->assertSame('text', $container['something']);
+        unset($container['something']);
         $this->assertFalse(isset($container['something']));
     }
 

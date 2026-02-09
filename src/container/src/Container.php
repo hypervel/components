@@ -728,7 +728,10 @@ class Container extends HyperfContainer implements ContainerContract, ArrayAcces
 
     public function offsetSet(mixed $offset, mixed $value): void
     {
-        $this->define($offset, $value);
+        $this->bind(
+            abstract: $offset,
+            concrete: $value instanceof Closure ? $value : fn () => $value
+        );
     }
 
     public function offsetUnset(mixed $offset): void
