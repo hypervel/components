@@ -140,6 +140,11 @@ class PendingRequest
     protected bool $preventStrayRequests = false;
 
     /**
+     * The URL patterns that are allowed as stray requests.
+     */
+    protected array $allowedStrayRequestUrls = [];
+
+    /**
      * The middleware callables added by users that will handle requests.
      */
     protected Collection $middleware;
@@ -1124,7 +1129,7 @@ class PendingRequest
                     ->first();
 
                 if (is_null($response)) {
-                    if ($this->preventStrayRequests) {
+                    if (! $this->isAllowedRequestUrl((string) $request->getUri())) {
                         throw new RuntimeException(
                             'Attempted request to [' . (string) $request->getUri() . '] without a matching fake.'
                         );
@@ -1229,6 +1234,34 @@ class PendingRequest
         $this->preventStrayRequests = $prevent;
 
         return $this;
+    }
+
+    /**
+     * Allow stray, unfaked requests for specific URL patterns.
+     */
+    public function allowStrayRequests(array $only): static
+    {
+        $this->allowedStrayRequestUrls = array_values($only);
+
+        return $this;
+    }
+
+    /**
+     * Determine if the given URL is allowed as a stray request.
+     */
+    public function isAllowedRequestUrl(string $url): bool
+    {
+        if (! $this->preventStrayRequests) {
+            return true;
+        }
+
+        foreach ($this->allowedStrayRequestUrls as $pattern) {
+            if (Str::is($pattern, $url)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

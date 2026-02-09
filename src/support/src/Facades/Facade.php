@@ -48,6 +48,7 @@ abstract class Facade
 
         $accessor = static::getFacadeAccessor();
 
+        // @TODO: Remove method_exists guards once facade app is guaranteed to implement the full container contract.
         if (method_exists($container, 'resolved') && $container->resolved($accessor) === true) {
             $callback(static::getFacadeRoot(), $container);
         }
@@ -332,6 +333,7 @@ abstract class Facade
             return static::$app;
         }
 
+        // @TODO: Remove ApplicationContext fallback once facade app bootstrap is fully decoupled from Hyperf.
         if (ApplicationContext::hasContainer()) {
             return ApplicationContext::getContainer();
         }
@@ -344,7 +346,7 @@ abstract class Facade
      */
     public static function setFacadeApplication(mixed $app): void
     {
-        static::$hasFacadeApplication = true;
+        static::$hasFacadeApplication = $app !== null;
         static::$app = $app;
     }
 

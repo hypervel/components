@@ -68,6 +68,11 @@ class Factory
      */
     protected bool $preventStrayRequests = false;
 
+    /**
+     * The URL patterns that are allowed as stray requests.
+     */
+    protected array $allowedStrayRequestUrls = [];
+
     protected string $poolProxyClass = ClientPoolProxy::class;
 
     /**
@@ -237,7 +242,10 @@ class Factory
     public function stubUrl(string $url, array|callable|int|PromiseInterface|Response|string $callback): static
     {
         return $this->fake(function ($request, $options) use ($url, $callback) {
-            if (! Str::is(Str::start($url, '*'), $request->url())) {
+            $pattern = Str::start($url, '*');
+            $requestUrl = $request->url();
+
+            if (! Str::is($pattern, $requestUrl) && ! Str::is($pattern, Str::finish($requestUrl, '/'))) {
                 return;
             }
 
@@ -278,9 +286,16 @@ class Factory
     /**
      * Indicate that an exception should not be thrown if any request is not faked.
      */
-    public function allowStrayRequests(): static
+    public function allowStrayRequests(?array $only = null): static
     {
-        return $this->preventStrayRequests(false);
+        if (is_null($only)) {
+            $this->preventStrayRequests(false);
+            $this->allowedStrayRequestUrls = [];
+        } else {
+            $this->allowedStrayRequestUrls = array_values($only);
+        }
+
+        return $this;
     }
 
     /**
@@ -402,7 +417,10 @@ class Factory
     public function createPendingRequest(): PendingRequest
     {
         return tap($this->newPendingRequest(), function (PendingRequest $request) {
-            $request->stub($this->stubCallbacks)->preventStrayRequests($this->preventStrayRequests);
+            $request
+                ->stub($this->stubCallbacks)
+                ->preventStrayRequests($this->preventStrayRequests)
+                ->allowStrayRequests($this->allowedStrayRequestUrls);
         });
     }
 

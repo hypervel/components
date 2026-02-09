@@ -215,9 +215,9 @@ class Number
                 return sprintf('%s' . end($units), static::summarize($number / 1e15, $precision, $maxPrecision, $units));
         }
 
-        $numberExponent = floor(log10($number));
+        $numberExponent = (int) floor(log10($number));
         $displayExponent = $numberExponent - ($numberExponent % 3);
-        $number /= pow(10, $displayExponent);
+        $number /= 10 ** $displayExponent;
 
         return trim(sprintf('%s%s', static::format($number, $precision, $maxPrecision), $units[$displayExponent] ?? ''));
     }
