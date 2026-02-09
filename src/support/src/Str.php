@@ -58,7 +58,7 @@ class Str
     /**
      * Get a new stringable object from the given string.
      */
-    public static function of(string $string): Stringable
+    public static function of(mixed $string): Stringable
     {
         return new Stringable($string);
     }

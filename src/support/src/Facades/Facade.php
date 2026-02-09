@@ -130,9 +130,12 @@ abstract class Facade
      */
     public static function swap(mixed $instance)
     {
-        static::$resolvedInstance[static::getFacadeAccessor()] = $instance;
+        $accessor = static::getFacadeAccessor();
+        static::$resolvedInstance[$accessor] = $instance;
 
-        ApplicationContext::getContainer()->instance(static::getFacadeAccessor(), $instance);
+        if (ApplicationContext::hasContainer()) {
+            ApplicationContext::getContainer()->instance($accessor, $instance);
+        }
     }
 
     /**

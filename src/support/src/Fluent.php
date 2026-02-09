@@ -39,9 +39,9 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     /**
      * Create a new fluent instance.
      *
-     * @param iterable<TKey, TValue> $attributes
+     * @param array<TKey, TValue>|object $attributes
      */
-    public function __construct(iterable $attributes = [])
+    public function __construct(array|object $attributes = [])
     {
         $this->fill($attributes);
     }
@@ -49,9 +49,9 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     /**
      * Create a new fluent instance.
      *
-     * @param iterable<TKey, TValue> $attributes
+     * @param array<TKey, TValue>|object $attributes
      */
-    public static function make(iterable $attributes = []): static
+    public static function make(array|object $attributes = []): static
     {
         return new static($attributes);
     }
@@ -82,9 +82,9 @@ class Fluent implements Arrayable, ArrayAccess, IteratorAggregate, Jsonable, Jso
     /**
      * Fill the fluent instance with an array of attributes.
      *
-     * @param iterable<TKey, TValue> $attributes
+     * @param array<TKey, TValue>|object $attributes
      */
-    public function fill(iterable $attributes): static
+    public function fill(array|object $attributes): static
     {
         foreach ($attributes as $key => $value) {
             $this->attributes[$key] = $value;

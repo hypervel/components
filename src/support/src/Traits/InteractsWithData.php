@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Traits;
 
+use BackedEnum;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Str;
+use ReflectionEnum;
 use stdClass;
 use Stringable;
 use UnitEnum;
@@ -264,7 +266,13 @@ trait InteractsWithData
             return value($default);
         }
 
-        return $enumClass::tryFrom($this->data($key)) ?: value($default);
+        $value = $this->normalizeEnumValue($enumClass, $this->data($key));
+
+        if ($value === null) {
+            return value($default);
+        }
+
+        return $enumClass::tryFrom($value) ?: value($default);
     }
 
     /**
@@ -282,6 +290,8 @@ trait InteractsWithData
         }
 
         return $this->collect($key)
+            ->map(fn ($value) => $this->normalizeEnumValue($enumClass, $value))
+            ->filter(fn ($value) => $value !== null)
             ->map(fn ($value) => $enumClass::tryFrom($value))
             ->filter()
             ->all();
@@ -294,7 +304,49 @@ trait InteractsWithData
      */
     protected function isBackedEnum(string $enumClass): bool
     {
-        return enum_exists($enumClass) && method_exists($enumClass, 'tryFrom');
+        return enum_exists($enumClass) && is_subclass_of($enumClass, BackedEnum::class);
+    }
+
+    /**
+     * Normalize enum input to a strict backed value.
+     */
+    protected function normalizeEnumValue(string $enumClass, mixed $value): int|string|null
+    {
+        $backingType = (new ReflectionEnum($enumClass))->getBackingType()?->getName();
+
+        if ($backingType === 'int') {
+            if (is_int($value)) {
+                return $value;
+            }
+
+            if (is_float($value) || is_bool($value)) {
+                return (int) $value;
+            }
+
+            if (is_string($value)) {
+                $trimmed = trim($value);
+
+                if ($trimmed === '' || ! is_numeric($trimmed)) {
+                    return null;
+                }
+
+                return (int) $trimmed;
+            }
+
+            return null;
+        }
+
+        if ($backingType === 'string') {
+            if (is_string($value)) {
+                return $value;
+            }
+
+            if (is_int($value) || is_float($value) || is_bool($value) || $value instanceof Stringable) {
+                return (string) $value;
+            }
+        }
+
+        return null;
     }
 
     /**
