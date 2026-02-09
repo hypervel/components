@@ -14,15 +14,6 @@ use Hypervel\Tests\TestCase;
  */
 class ComposerTest extends TestCase
 {
-    public static function setUpBeforeClass(): void
-    {
-        parent::setUpBeforeClass();
-
-        if (! defined('BASE_PATH')) {
-            define('BASE_PATH', dirname(__DIR__, 2));
-        }
-    }
-
     protected function setUp(): void
     {
         parent::setUp();
