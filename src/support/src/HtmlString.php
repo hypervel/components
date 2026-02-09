@@ -17,9 +17,9 @@ class HtmlString implements Htmlable, Stringable
     /**
      * Create a new HTML string instance.
      */
-    public function __construct(string $html = '')
+    public function __construct(?string $html = '')
     {
-        $this->html = $html;
+        $this->html = $html ?? '';
     }
 
     /**
