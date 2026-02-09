@@ -251,7 +251,7 @@ class TestEloquentModelWithCustomCastsNullable extends Model
 
 class FluentWithCallback extends Fluent
 {
-    public static function make(iterable $attributes = []): static
+    public static function make(array|object $attributes = []): static
     {
         return new static($attributes);
     }
