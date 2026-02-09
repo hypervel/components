@@ -105,6 +105,37 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     }
 
     /**
+     * Create a new collection by invoking the callback a given amount of times.
+     *
+     * @template TTimesValue
+     *
+     * @param null|(callable(int): TTimesValue) $callback
+     * @return static<int, TTimesValue>
+     */
+    public static function times(int|float $number, ?callable $callback = null): static
+    {
+        if ($number < 1) {
+            return new static();
+        }
+
+        $collection = new static(function () use ($number) {
+            if (is_infinite($number)) {
+                for ($i = 1; ; ++$i) {
+                    yield $i;
+                }
+            }
+
+            for ($i = 1; $i <= $number; ++$i) {
+                yield $i;
+            }
+        });
+
+        return $collection
+            ->unless($callback == null)
+            ->map($callback);
+    }
+
+    /**
      * Get all items in the enumerable.
      *
      * @return array<TKey, TValue>
@@ -791,7 +822,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     public function combine(Arrayable|iterable|callable $values): static
     {
         return new static(function () use ($values) {
-            if ($values instanceof Arrayable) {
+            if ($values instanceof Arrayable && ! $values instanceof IteratorAggregate) {
                 $values = $values->toArray();
             }
 
