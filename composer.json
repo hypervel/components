@@ -225,6 +225,7 @@
         "hypervel/sentry": "self.version"
     },
     "suggest": {
+        "ext-intl": "Required to use number formatting and spellout features.",
         "hypervel/redis": "Required to use redis driver. (^0.4).",
         "hypervel/session": "Required to use session guard. (^3.1).",
         "friendsofhyperf/tinker": "Required to use the tinker console command (^3.1).",

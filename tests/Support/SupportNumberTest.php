@@ -94,6 +94,7 @@ class SupportNumberTest extends TestCase
         Number::useLocale('en');
     }
 
+    #[RequiresPhpExtension('intl')]
     public function testSpellout()
     {
         $this->assertSame('ten', Number::spell(10));
@@ -121,6 +122,7 @@ class SupportNumberTest extends TestCase
         $this->assertSame('100,000', Number::spell(100000, until: 50000));
     }
 
+    #[RequiresPhpExtension('intl')]
     public function testOrdinal()
     {
         $this->assertSame('1st', Number::ordinal(1));
@@ -191,6 +193,7 @@ class SupportNumberTest extends TestCase
         $this->assertSame('1 234,56 $US', Number::currency(1234.56, 'USD', 'fr'));
     }
 
+    #[RequiresPhpExtension('intl')]
     public function testBytesToHuman()
     {
         $this->assertSame('0 B', Number::fileSize(0));
@@ -219,6 +222,7 @@ class SupportNumberTest extends TestCase
         $this->assertSame(1, Number::clamp(-10, 1, 5));
     }
 
+    #[RequiresPhpExtension('intl')]
     public function testToHuman()
     {
         $this->assertSame('1', Number::forHumans(1));
@@ -275,6 +279,7 @@ class SupportNumberTest extends TestCase
         $this->assertSame('-1 thousand quadrillion', Number::forHumans(-1000000000000000000));
     }
 
+    #[RequiresPhpExtension('intl')]
     public function testSummarize()
     {
         $this->assertSame('1', Number::abbreviate(1));

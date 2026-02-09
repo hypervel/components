@@ -51,6 +51,9 @@
             "dev-main": "0.4-dev"
         }
     },
+    "suggest": {
+        "ext-intl": "Required to use number formatting and spellout features."
+    },
     "config": {
         "sort-packages": true
     },

@@ -12,6 +12,7 @@ use Hypervel\Tests\TestCase;
 use LogicException;
 use Override;
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidInterface;
 use Symfony\Component\Uid\Ulid;
@@ -1941,6 +1942,7 @@ class SupportStrTest extends TestCase
         $this->assertSame('foo baZ baz bar', $result);
     }
 
+    #[RequiresPhpExtension('intl')]
     public function testPlural(): void
     {
         $this->assertSame('Laracon', Str::plural('Laracon', 1));
