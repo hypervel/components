@@ -87,6 +87,7 @@ Run the full test suite (`./vendor/bin/phpunit`). Investigate all failures thoro
 - **Preserve existing comments** — do not remove them. Translate non-English comments to English and improve grammar when appropriate.
 - **Stop on anything unusual** — missing dependencies, logic needing special consideration, things that don't make sense for Hypervel, etc. Explain the situation and your recommended solution. Do not proceed without approval.
 - **Never skip or stub things out** — no removing code, no commenting out with "TODO once X is ported" placeholders. If such a situation arises, stop and explain with your recommendation.
+- **Mark temporary compatibility paths with `@TODO:`** — when you add a real transitional fallback/shim during porting, add an inline `@TODO:` with the removal condition. Do not use `@TODO` to avoid implementing behavior now.
 - **Stop on any source code bug** — if phpstan or tests expose a source bug (typing, logic, behavior), investigate, explain root cause, and provide a recommended fix for approval.
 - **Use unions over `mixed` when types are known** — `mixed` is only for truly unconstrained values or cases that cannot be safely narrowed after control-flow analysis.
 - **Type decisions must be evidence-based** — check corresponding Laravel/Hyperf signatures and docblocks as reference, then trace real control flow in method bodies and callers/callees.
