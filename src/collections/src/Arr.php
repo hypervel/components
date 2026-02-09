@@ -179,7 +179,7 @@ class Arr
     /**
      * Get all of the given array except for a specified array of keys.
      */
-    public static function except(array $array, array|string|int|float $keys): array
+    public static function except(array $array, array|string|int|float|null $keys): array
     {
         static::forget($array, $keys);
 
@@ -335,7 +335,7 @@ class Arr
     /**
      * Remove one or many array items from a given array using "dot" notation.
      */
-    public static function forget(array &$array, array|string|int|float $keys): void
+    public static function forget(array &$array, array|string|int|float|null $keys): void
     {
         $original = &$array;
 
@@ -353,7 +353,7 @@ class Arr
                 continue;
             }
 
-            $parts = explode('.', $key);
+            $parts = explode('.', (string) $key);
 
             // clean up before each pass
             $array = &$original;
@@ -401,7 +401,7 @@ class Arr
     /**
      * Get an item from an array using "dot" notation.
      */
-    public static function get(ArrayAccess|array|null $array, string|int|null $key, mixed $default = null): mixed
+    public static function get(mixed $array, string|int|float|null $key, mixed $default = null): mixed
     {
         if (! static::accessible($array)) {
             return value($default);
@@ -419,7 +419,7 @@ class Arr
             return value($default);
         }
 
-        foreach (explode('.', $key) as $segment) {
+        foreach (explode('.', (string) $key) as $segment) {
             if (static::accessible($array) && static::exists($array, $segment)) {
                 $array = $array[$segment];
             } else {
@@ -433,7 +433,7 @@ class Arr
     /**
      * Check if an item or items exist in an array using "dot" notation.
      */
-    public static function has(ArrayAccess|array $array, string|array $keys): bool
+    public static function has(mixed $array, array|string|int|float|null $keys): bool
     {
         $keys = (array) $keys;
 
@@ -448,7 +448,7 @@ class Arr
                 continue;
             }
 
-            foreach (explode('.', $key) as $segment) {
+            foreach (explode('.', (string) $key) as $segment) {
                 if (static::accessible($subKeyArray) && static::exists($subKeyArray, $segment)) {
                     $subKeyArray = $subKeyArray[$segment];
                 } else {
@@ -463,7 +463,7 @@ class Arr
     /**
      * Determine if all keys exist in an array using "dot" notation.
      */
-    public static function hasAll(ArrayAccess|array $array, string|array $keys): bool
+    public static function hasAll(mixed $array, array|string|int|float|null $keys): bool
     {
         $keys = (array) $keys;
 
@@ -483,7 +483,7 @@ class Arr
     /**
      * Determine if any of the keys exist in an array using "dot" notation.
      */
-    public static function hasAny(ArrayAccess|array $array, string|array|null $keys): bool
+    public static function hasAny(mixed $array, array|string|int|float|null $keys): bool
     {
         if (is_null($keys)) {
             return false;
@@ -603,7 +603,7 @@ class Arr
     /**
      * Get a subset of the items from the given array.
      */
-    public static function only(array $array, array|string $keys): array
+    public static function only(array $array, array|string|int|float|null $keys): array
     {
         return array_intersect_key($array, array_flip((array) $keys));
     }
@@ -623,7 +623,7 @@ class Arr
     /**
      * Select an array of values from an array.
      */
-    public static function select(array $array, array|string $keys): array
+    public static function select(array $array, array|string|int|float|null $keys): array
     {
         $keys = static::wrap($keys);
 
@@ -795,8 +795,16 @@ class Arr
      *
      * @throws InvalidArgumentException
      */
-    public static function random(array $array, ?int $number = null, bool $preserveKeys = false): mixed
+    public static function random(array $array, int|string|null $number = null, bool $preserveKeys = false): mixed
     {
+        if (is_string($number)) {
+            if (filter_var($number, FILTER_VALIDATE_INT) === false) {
+                throw new InvalidArgumentException("The requested number [{$number}] must be an integer.");
+            }
+
+            $number = (int) $number;
+        }
+
         $requested = is_null($number) ? 1 : $number;
 
         $count = count($array);
@@ -837,7 +845,7 @@ class Arr
      *
      * If no key is given to the method, the entire array will be replaced.
      */
-    public static function set(array &$array, string|int|null $key, mixed $value): array
+    public static function set(array &$array, string|int|float|null $key, mixed $value): array
     {
         if (is_null($key)) {
             return $array = $value;
@@ -917,7 +925,13 @@ class Arr
      */
     public static function sort(iterable $array, callable|array|string|null $callback = null): array
     {
-        return (new Collection($array))->sortBy($callback)->all();
+        $collection = new Collection($array);
+
+        if (is_null($callback)) {
+            return $collection->sort()->all();
+        }
+
+        return $collection->sortBy($callback)->all();
     }
 
     /**
@@ -925,7 +939,13 @@ class Arr
      */
     public static function sortDesc(iterable $array, callable|array|string|null $callback = null): array
     {
-        return (new Collection($array))->sortByDesc($callback)->all();
+        $collection = new Collection($array);
+
+        if (is_null($callback)) {
+            return $collection->sortDesc()->all();
+        }
+
+        return $collection->sortByDesc($callback)->all();
     }
 
     /**
