@@ -156,8 +156,8 @@ class NumberTest extends TestCase
 
     public function testPairs(): void
     {
-        $this->assertSame([[1, 10], [11, 20], [21, 25]], Number::pairs(25, 10));
-        $this->assertSame([[0, 10], [10, 20], [20, 25]], Number::pairs(25, 10, 0));
+        $this->assertSame([[0, 9], [10, 19], [20, 25]], Number::pairs(25, 10));
+        $this->assertSame([[0, 10], [10, 20], [20, 25]], Number::pairs(25, 10, 0, 0));
     }
 
     public function testTrim(): void
