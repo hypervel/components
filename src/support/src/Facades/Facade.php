@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
+use ArrayAccess;
 use Closure;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Support\Collection;
@@ -15,25 +16,47 @@ use RuntimeException;
 abstract class Facade
 {
     /**
+     * The application instance being facaded.
+     */
+    protected static mixed $app = null;
+
+    /**
+     * Indicates the facade application has been explicitly set.
+     */
+    protected static bool $hasFacadeApplication = false;
+
+    /**
      * The resolved object instances.
      */
     protected static array $resolvedInstance;
+
+    /**
+     * Indicates if the resolved instance should be cached.
+     */
+    protected static bool $cached = true;
 
     /**
      * Run a Closure when the facade has been resolved.
      */
     public static function resolved(Closure $callback): void
     {
-        $container = ApplicationContext::getContainer();
-        $accessor = static::getFacadeAccessor();
+        $container = static::getFacadeApplication();
 
-        if ($container->resolved($accessor) === true) {
-            $callback(static::getFacadeRoot());
+        if (! is_object($container)) {
+            return;
         }
 
-        $container->afterResolving($accessor, function ($service) use ($callback) {
-            $callback($service);
-        });
+        $accessor = static::getFacadeAccessor();
+
+        if (method_exists($container, 'resolved') && $container->resolved($accessor) === true) {
+            $callback(static::getFacadeRoot(), $container);
+        }
+
+        if (method_exists($container, 'afterResolving')) {
+            $container->afterResolving($accessor, function ($service, mixed $app = null) use ($callback, $container) {
+                $callback($service, $app ?? $container);
+            });
+        }
     }
 
     /**
@@ -78,6 +101,20 @@ abstract class Facade
                     : static::createFreshMockInstance();
 
         return $mock->shouldReceive(...func_get_args());
+    }
+
+    /**
+     * Initiate a mock expectation on the facade.
+     */
+    public static function expects()
+    {
+        $name = static::getFacadeAccessor();
+
+        $mock = static::isMock()
+                    ? static::$resolvedInstance[$name]
+                    : static::createFreshMockInstance();
+
+        return $mock->expects(...func_get_args());
     }
 
     /**
@@ -133,8 +170,12 @@ abstract class Facade
         $accessor = static::getFacadeAccessor();
         static::$resolvedInstance[$accessor] = $instance;
 
-        if (ApplicationContext::hasContainer()) {
-            ApplicationContext::getContainer()->instance($accessor, $instance);
+        $container = static::getFacadeApplication();
+
+        if (is_object($container) && method_exists($container, 'instance')) {
+            $container->instance($accessor, $instance);
+        } elseif ($container instanceof ArrayAccess) {
+            $container[$accessor] = $instance;
         }
     }
 
@@ -187,18 +228,44 @@ abstract class Facade
             return static::$resolvedInstance[$name];
         }
 
-        if (ApplicationContext::getContainer()->has($name)) {
-            return static::$resolvedInstance[$name] = ApplicationContext::getContainer()->get($name);
+        $container = static::getFacadeApplication();
+
+        if (! is_object($container)) {
+            return null;
         }
 
-        return null;
+        if (method_exists($container, 'has') && method_exists($container, 'get') && $container->has($name)) {
+            $instance = $container->get($name);
+        } elseif ($container instanceof ArrayAccess && isset($container[$name])) {
+            $instance = $container[$name];
+        } else {
+            return null;
+        }
+
+        if (static::$cached) {
+            static::$resolvedInstance[$name] = $instance;
+        }
+
+        return $instance;
     }
 
     /**
      * Clear a resolved facade instance.
      */
-    public static function clearResolvedInstance(string $name): void
+    public static function clearResolvedInstance(?string $name = null): void
     {
+        if ($name === null) {
+            $accessor = static::getFacadeAccessor();
+
+            if (is_string($accessor)) {
+                $name = $accessor;
+            }
+        }
+
+        if ($name === null) {
+            return;
+        }
+
         unset(static::$resolvedInstance[$name]);
     }
 
@@ -254,6 +321,31 @@ abstract class Facade
             'Validator' => Validator::class,
             'View' => View::class,
         ]);
+    }
+
+    /**
+     * Get the application instance behind the facades.
+     */
+    public static function getFacadeApplication(): mixed
+    {
+        if (static::$hasFacadeApplication) {
+            return static::$app;
+        }
+
+        if (ApplicationContext::hasContainer()) {
+            return ApplicationContext::getContainer();
+        }
+
+        return null;
+    }
+
+    /**
+     * Set the application instance behind the facades.
+     */
+    public static function setFacadeApplication(mixed $app): void
+    {
+        static::$hasFacadeApplication = true;
+        static::$app = $app;
     }
 
     /**
