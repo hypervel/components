@@ -84,15 +84,25 @@ Type selection rules:
 
 If strict typing exposes an internal inconsistency or source bug, fix the source logic/types. Do not weaken tests to bypass real source issues.
 
-#### 6. Update consumers
+#### 6. Performance review for Swoole workers (Required)
+
+After parity and type updates, review any new runtime work you introduced (for example: reflection, repeated parsing, expensive branching, repeated regex compilation, repeated filesystem reads).
+
+Performance rules:
+- Prefer the simplest correct implementation that preserves source parity.
+- If a result is stable metadata, cache it in a bounded, immutable static cache.
+- Avoid per-call reflection or repeated parsing when a cached lookup preserves behavior.
+- Never store request-scoped or mutable runtime state in static properties.
+
+#### 7. Update consumers
 
 Search **both `src/` and `tests/`** for any `use` statements or references to the old namespace (e.g., `Hyperf\Coordinator\`) and update them to the new Hypervel namespace. Verify zero remaining references before proceeding.
 
-#### 7. Run phpstan
+#### 8. Run phpstan
 
 After porting is complete, run phpstan on the newly ported package and fix errors. Investigate each error properly — don't reach for ignores without thinking it through.
 
-#### 8. Run full phpunit
+#### 9. Run full phpunit
 
 Run the full test suite (`./vendor/bin/phpunit`). Investigate all failures thoroughly — don't assume a failure is caused by the porting without confirming. For straightforward fixes (e.g., a missed namespace update), fix and continue. For anything more complex (behavioural changes, test logic issues, unclear root causes), stop and explain the cause along with your recommended fix for approval.
 
@@ -108,6 +118,7 @@ Run the full test suite (`./vendor/bin/phpunit`). Investigate all failures thoro
 - **Never skip or stub things out** — no removing code, no commenting out with "TODO once X is ported" placeholders. If such a situation arises, stop and explain with your recommendation.
 - **Stop on non-trivial phpstan errors** — if an error exposes a source code bug or isn't a straightforward fix, investigate, then stop and explain with your recommended fix.
 - **Use unions over `mixed` when types are known** — `mixed` is only for truly unconstrained values or cases that cannot be safely narrowed after control-flow analysis.
+- **Treat worker-lifetime performance as a required review** — when adding runtime introspection or repeated computation, evaluate safe metadata caching opportunities that preserve behavior.
 
 ## Porting Tests
 
