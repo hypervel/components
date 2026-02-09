@@ -1,7 +1,7 @@
 {
     "autoload": {
         "psr-4": {
-            "Hyperf\\One\\": "app/"
+            "App\\One\\": "app/"
         }
     },
     "extra": {

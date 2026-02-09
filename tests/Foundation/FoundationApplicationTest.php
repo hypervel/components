@@ -194,11 +194,11 @@ class FoundationApplicationTest extends TestCase
 
     public function testGetNamespace()
     {
-        $app1 = $this->getApplication([], realpath(__DIR__ . '/fixtures/hyperf1'));
-        $app2 = $this->getApplication([], realpath(__DIR__ . '/fixtures/hyperf2'));
+        $app1 = $this->getApplication([], realpath(__DIR__ . '/fixtures/project1'));
+        $app2 = $this->getApplication([], realpath(__DIR__ . '/fixtures/project2'));
 
-        $this->assertSame('Hyperf\One\\', $app1->getNamespace());
-        $this->assertSame('Hyperf\Two\\', $app2->getNamespace());
+        $this->assertSame('App\One\\', $app1->getNamespace());
+        $this->assertSame('App\Two\\', $app2->getNamespace());
     }
 
     public function testMacroable()

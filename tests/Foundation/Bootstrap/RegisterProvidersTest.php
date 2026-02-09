@@ -42,7 +42,7 @@ class RegisterProvidersTest extends TestCase
             ConfigContract::class => fn () => $config,
         ]);
 
-        Composer::setBasePath(dirname(__DIR__) . '/fixtures/hyperf1');
+        Composer::setBasePath(dirname(__DIR__) . '/fixtures/project1');
 
         (new RegisterProviders())->bootstrap($app);
 

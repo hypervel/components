@@ -46,7 +46,7 @@ class RegisterFacadesTest extends TestCase
                 'TestAlias' => 'TestClass',
             ]);
 
-        Composer::setBasePath(dirname(__DIR__) . '/fixtures/hyperf1');
+        Composer::setBasePath(dirname(__DIR__) . '/fixtures/project1');
 
         $bootstrapper->bootstrap($app);
     }
