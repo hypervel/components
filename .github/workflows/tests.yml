@@ -27,8 +27,8 @@ jobs:
 
       - name: Install PHP extensions
         run: |
-          apt-get update && apt-get install -y libgmp-dev
-          docker-php-ext-install gmp
+          apt-get update && apt-get install -y libgmp-dev libicu-dev
+          docker-php-ext-install gmp intl
 
       - name: Cache Composer dependencies
         uses: actions/cache@v5
