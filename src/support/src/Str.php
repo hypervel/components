@@ -21,6 +21,7 @@ use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactory;
 use Ramsey\Uuid\UuidInterface;
 use Symfony\Component\Uid\Ulid;
+use Stringable as BaseStringable;
 use Throwable;
 use Traversable;
 use voku\helper\ASCII;
@@ -66,16 +67,20 @@ class Str
     /**
      * Return the remainder of a string after the first occurrence of a given value.
      */
-    public static function after(string $subject, string $search): string
+    public static function after(string $subject, string|int|float|bool|null|BaseStringable $search): string
     {
+        $search = (string) $search;
+
         return $search === '' ? $subject : array_reverse(explode($search, $subject, 2))[0];
     }
 
     /**
      * Return the remainder of a string after the last occurrence of a given value.
      */
-    public static function afterLast(string $subject, string $search): string
+    public static function afterLast(string $subject, string|int|float|bool|null|BaseStringable $search): string
     {
+        $search = (string) $search;
+
         if ($search === '') {
             return $subject;
         }
@@ -108,8 +113,10 @@ class Str
     /**
      * Get the portion of a string before the first occurrence of a given value.
      */
-    public static function before(string $subject, string $search): string
+    public static function before(string $subject, string|int|float|bool|null|BaseStringable $search): string
     {
+        $search = (string) $search;
+
         if ($search === '') {
             return $subject;
         }
@@ -122,8 +129,10 @@ class Str
     /**
      * Get the portion of a string before the last occurrence of a given value.
      */
-    public static function beforeLast(string $subject, string $search): string
+    public static function beforeLast(string $subject, string|int|float|bool|null|BaseStringable $search): string
     {
+        $search = (string) $search;
+
         if ($search === '') {
             return $subject;
         }
@@ -172,7 +181,7 @@ class Str
     /**
      * Get the character at the specified index.
      */
-    public static function charAt(string $subject, int $index): string|false
+    public static function charAt(string $subject, mixed $index): string|false
     {
         $length = mb_strlen($subject);
 
@@ -296,14 +305,16 @@ class Str
      *
      * @param iterable<string>|string $needles
      */
-    public static function endsWith(string $haystack, string|iterable $needles): bool
+    public static function endsWith(string $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
     {
         if (! is_iterable($needles)) {
             $needles = (array) $needles;
         }
 
         foreach ($needles as $needle) {
-            if ((string) $needle !== '' && str_ends_with($haystack, $needle)) {
+            $needle = (string) $needle;
+
+            if ($needle !== '' && str_ends_with($haystack, $needle)) {
                 return true;
             }
         }
@@ -316,7 +327,7 @@ class Str
      *
      * @param iterable<string>|string $needles
      */
-    public static function doesntEndWith(string $haystack, string|iterable $needles): bool
+    public static function doesntEndWith(string $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
     {
         return ! static::endsWith($haystack, $needles);
     }
@@ -393,7 +404,7 @@ class Str
      *
      * @param iterable<string>|string $pattern
      */
-    public static function is(string|iterable $pattern, string $value, bool $ignoreCase = false): bool
+    public static function is(string|int|float|bool|null|BaseStringable|iterable $pattern, string $value, bool $ignoreCase = false): bool
     {
         if (! is_iterable($pattern)) {
             $pattern = [$pattern];
@@ -1012,8 +1023,10 @@ class Str
     /**
      * Replace the first occurrence of the given value if it appears at the start of the string.
      */
-    public static function replaceStart(string $search, string $replace, string $subject): string
+    public static function replaceStart(string|int|float|bool|null|BaseStringable $search, string $replace, string $subject): string
     {
+        $search = (string) $search;
+
         if ($search === '') {
             return $subject;
         }
@@ -1046,8 +1059,10 @@ class Str
     /**
      * Replace the last occurrence of a given value if it appears at the end of the string.
      */
-    public static function replaceEnd(string $search, string $replace, string $subject): string
+    public static function replaceEnd(string|int|float|bool|null|BaseStringable $search, string $replace, string $subject): string
     {
+        $search = (string) $search;
+
         if ($search === '') {
             return $subject;
         }
@@ -1301,14 +1316,16 @@ class Str
      *
      * @phpstan-assert-if-true =non-empty-string $haystack
      */
-    public static function startsWith(string $haystack, string|iterable $needles): bool
+    public static function startsWith(string $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
     {
         if (! is_iterable($needles)) {
             $needles = [$needles];
         }
 
         foreach ($needles as $needle) {
-            if ((string) $needle !== '' && str_starts_with($haystack, $needle)) {
+            $needle = (string) $needle;
+
+            if ($needle !== '' && str_starts_with($haystack, $needle)) {
                 return true;
             }
         }
@@ -1324,7 +1341,7 @@ class Str
      *
      * @phpstan-assert-if-false =non-empty-string $haystack
      */
-    public static function doesntStartWith(string $haystack, string|iterable $needles): bool
+    public static function doesntStartWith(string $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
     {
         return ! static::startsWith($haystack, $needles);
     }
