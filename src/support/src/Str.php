@@ -98,9 +98,9 @@ class Str
     /**
      * Transliterate a UTF-8 value to ASCII.
      */
-    public static function ascii(string $value, string $language = 'en'): string
+    public static function ascii(string|int|float|bool|null|BaseStringable $value, string $language = 'en'): string
     {
-        return ASCII::to_ascii($value, $language, replace_single_chars_only: false);
+        return ASCII::to_ascii((string) $value, $language, replace_single_chars_only: false);
     }
 
     /**
@@ -150,8 +150,11 @@ class Str
     /**
      * Get the portion of a string between two given values.
      */
-    public static function between(string $subject, string $from, string $to): string
+    public static function between(string $subject, string|int|float|bool|null|BaseStringable $from, string|int|float|bool|null|BaseStringable $to): string
     {
+        $from = (string) $from;
+        $to = (string) $to;
+
         if ($from === '' || $to === '') {
             return $subject;
         }
@@ -162,8 +165,11 @@ class Str
     /**
      * Get the smallest possible portion of a string between two given values.
      */
-    public static function betweenFirst(string $subject, string $from, string $to): string
+    public static function betweenFirst(string $subject, string|int|float|bool|null|BaseStringable $from, string|int|float|bool|null|BaseStringable $to): string
     {
+        $from = (string) $from;
+        $to = (string) $to;
+
         if ($from === '' || $to === '') {
             return $subject;
         }
@@ -306,8 +312,14 @@ class Str
      *
      * @param iterable<string>|string $needles
      */
-    public static function endsWith(string $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
+    public static function endsWith(string|int|float|bool|null|BaseStringable $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
     {
+        if ($haystack === null) {
+            return false;
+        }
+
+        $haystack = (string) $haystack;
+
         if (! is_iterable($needles)) {
             $needles = (array) $needles;
         }
@@ -328,7 +340,7 @@ class Str
      *
      * @param iterable<string>|string $needles
      */
-    public static function doesntEndWith(string $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
+    public static function doesntEndWith(string|int|float|bool|null|BaseStringable $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
     {
         return ! static::endsWith($haystack, $needles);
     }
@@ -338,8 +350,11 @@ class Str
      *
      * @param array{radius?: float|int, omission?: string} $options
      */
-    public static function excerpt(string $text, string $phrase = '', array $options = []): ?string
+    public static function excerpt(string|int|float|bool|null|BaseStringable $text, string|int|float|bool|null|BaseStringable $phrase = '', array $options = []): ?string
     {
+        $text = (string) $text;
+        $phrase = (string) $phrase;
+
         $radius = $options['radius'] ?? 100;
         $omission = $options['omission'] ?? '...';
 
@@ -405,8 +420,10 @@ class Str
      *
      * @param iterable<string>|string $pattern
      */
-    public static function is(string|int|float|bool|null|BaseStringable|iterable $pattern, string $value, bool $ignoreCase = false): bool
+    public static function is(string|int|float|bool|null|BaseStringable|iterable $pattern, string|int|float|bool|null|BaseStringable $value, bool $ignoreCase = false): bool
     {
+        $value = (string) $value;
+
         if (! is_iterable($pattern)) {
             $pattern = [$pattern];
         }
@@ -443,9 +460,9 @@ class Str
     /**
      * Determine if a given string is 7 bit ASCII.
      */
-    public static function isAscii(string $value): bool
+    public static function isAscii(string|int|float|bool|null|BaseStringable $value): bool
     {
-        return ASCII::is_ascii($value);
+        return ASCII::is_ascii((string) $value);
     }
 
     /**
@@ -657,8 +674,10 @@ class Str
     /**
      * Masks a portion of a string with a repeated character.
      */
-    public static function mask(string $string, string $character, int $index, ?int $length = null, string $encoding = 'UTF-8'): string
+    public static function mask(string $string, string|BaseStringable $character, int $index, ?int $length = null, string $encoding = 'UTF-8'): string
     {
+        $character = (string) $character;
+
         if ($character === '') {
             return $string;
         }
@@ -736,7 +755,7 @@ class Str
     /**
      * Remove all non-numeric characters from a string.
      */
-    public static function numbers(string $value): string
+    public static function numbers(string|array $value): string|array
     {
         return preg_replace('/[^0-9]/', '', $value);
     }
@@ -1006,8 +1025,10 @@ class Str
     /**
      * Replace the first occurrence of a given value in the string.
      */
-    public static function replaceFirst(string $search, string $replace, string $subject): string
+    public static function replaceFirst(string|int|float|bool|null|BaseStringable $search, string $replace, string $subject): string
     {
+        $search = (string) $search;
+
         if ($search === '') {
             return $subject;
         }
@@ -1220,8 +1241,10 @@ class Str
      *
      * @param array<string, string> $dictionary
      */
-    public static function slug(string $title, string $separator = '-', ?string $language = 'en', array $dictionary = ['@' => 'at']): string
+    public static function slug(string|int|float|bool|null|BaseStringable $title, string $separator = '-', ?string $language = 'en', array $dictionary = ['@' => 'at']): string
     {
+        $title = (string) $title;
+
         $title = $language ? static::ascii($title, $language) : $title;
 
         // Convert all dashes/underscores into separator
@@ -1317,8 +1340,14 @@ class Str
      *
      * @phpstan-assert-if-true =non-empty-string $haystack
      */
-    public static function startsWith(string $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
+    public static function startsWith(string|int|float|bool|null|BaseStringable $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
     {
+        if ($haystack === null) {
+            return false;
+        }
+
+        $haystack = (string) $haystack;
+
         if (! is_iterable($needles)) {
             $needles = [$needles];
         }
@@ -1342,7 +1371,7 @@ class Str
      *
      * @phpstan-assert-if-false =non-empty-string $haystack
      */
-    public static function doesntStartWith(string $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
+    public static function doesntStartWith(string|int|float|bool|null|BaseStringable $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
     {
         return ! static::startsWith($haystack, $needles);
     }
