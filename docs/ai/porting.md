@@ -65,44 +65,15 @@ Check the source package (Hyperf or Laravel) to see what classes exist. Create a
 **For large files that can't be read in one go:**
 Work through in chunks from top to bottom — read a chunk, update, read next chunk, update. Do NOT try to search for patterns and update scattered bits.
 
-#### 5. Type Modernization Workflow (Required)
-
-When modernizing PHP types, use this process for every method/property you touch:
-
-1. Check the corresponding Laravel/Hyperf source method signature first.
-2. Check source docblocks as a general reference.
-3. Trace actual control flow in Hypervel:
-   - Read the method body
-   - Read direct callers/callees that constrain accepted types
-   - Confirm what values are truly valid at runtime
-4. Derive the narrowest correct type from real behavior.
-
-Type selection rules:
-- Prefer explicit union types when the definitive accepted type set is known.
-- Use `mixed` only when the value can truly be any type, or when you cannot safely narrow after tracing.
-- Never choose `mixed` as a convenience default.
-
-If strict typing exposes an internal inconsistency or source bug, fix the source logic/types. Do not weaken tests to bypass real source issues.
-
-#### 6. Performance review for Swoole workers (Required)
-
-After parity and type updates, review any new runtime work you introduced (for example: reflection, repeated parsing, expensive branching, repeated regex compilation, repeated filesystem reads).
-
-Performance rules:
-- Prefer the simplest correct implementation that preserves source parity.
-- If a result is stable metadata, cache it in a bounded, immutable static cache.
-- Avoid per-call reflection or repeated parsing when a cached lookup preserves behavior.
-- Never store request-scoped or mutable runtime state in static properties.
-
-#### 7. Update consumers
+#### 5. Update consumers
 
 Search **both `src/` and `tests/`** for any `use` statements or references to the old namespace (e.g., `Hyperf\Coordinator\`) and update them to the new Hypervel namespace. Verify zero remaining references before proceeding.
 
-#### 8. Run phpstan
+#### 6. Run phpstan
 
 After porting is complete, run phpstan on the newly ported package and fix errors. Investigate each error properly — don't reach for ignores without thinking it through.
 
-#### 9. Run full phpunit
+#### 7. Run full phpunit
 
 Run the full test suite (`./vendor/bin/phpunit`). Investigate all failures thoroughly — don't assume a failure is caused by the porting without confirming. For straightforward fixes (e.g., a missed namespace update), fix and continue. For anything more complex (behavioural changes, test logic issues, unclear root causes), stop and explain the cause along with your recommended fix for approval.
 
@@ -116,9 +87,11 @@ Run the full test suite (`./vendor/bin/phpunit`). Investigate all failures thoro
 - **Preserve existing comments** — do not remove them. Translate non-English comments to English and improve grammar when appropriate.
 - **Stop on anything unusual** — missing dependencies, logic needing special consideration, things that don't make sense for Hypervel, etc. Explain the situation and your recommended solution. Do not proceed without approval.
 - **Never skip or stub things out** — no removing code, no commenting out with "TODO once X is ported" placeholders. If such a situation arises, stop and explain with your recommendation.
-- **Stop on non-trivial phpstan errors** — if an error exposes a source code bug or isn't a straightforward fix, investigate, then stop and explain with your recommended fix.
+- **Stop on any source code bug** — if phpstan or tests expose a source bug (typing, logic, behavior), investigate, explain root cause, and provide a recommended fix for approval.
 - **Use unions over `mixed` when types are known** — `mixed` is only for truly unconstrained values or cases that cannot be safely narrowed after control-flow analysis.
-- **Treat worker-lifetime performance as a required review** — when adding runtime introspection or repeated computation, evaluate safe metadata caching opportunities that preserve behavior.
+- **Type decisions must be evidence-based** — check corresponding Laravel/Hyperf signatures and docblocks as reference, then trace real control flow in method bodies and callers/callees.
+- **Modernize types only in touched code** — do not refactor unrelated files unless required by confirmed control flow or a failing test.
+- **Keep worker-lifetime runtime work lean** — avoid repeated per-call expensive work when immutable worker-lifetime metadata can be safely cached in bounded static caches. Never store request-scoped or mutable runtime state in statics.
 
 ## Porting Tests
 
@@ -366,21 +339,6 @@ If Laravel's namespace includes the test class name, keep it. Stripping it cause
 
 Hypervel uses stricter types than Laravel. This exposes incomplete test mocks that Laravel's loose typing silently accepts.
 
-#### Type Derivation Process (Do Not Trust Docblocks Alone)
-
-When changing source code types because of failing tests:
-
-1. Check the corresponding Laravel/Hyperf method signature.
-2. Check docblocks as a reference, not as truth.
-3. Trace the actual control flow in Hypervel:
-   - Method body logic
-   - Direct callers and callees
-   - Runtime branches that constrain accepted values
-4. Determine the definitive accepted type set from behavior.
-5. Use the narrowest correct type:
-   - Prefer unions when the accepted set is known.
-   - Use `mixed` only when truly unconstrained or not safely knowable after tracing.
-
 **Model properties require type declarations:**
 ```php
 // Laravel
@@ -472,15 +430,13 @@ If a Laravel test fails with a type error, the source code type may be wrong —
 - The type is a parent class of what's currently declared (e.g., `Support\Collection` vs `Eloquent\Collection`)
 
 **How to fix:**
-1. Check Laravel/Hyperf signature and docblocks for reference
-2. Trace method/caller control flow in Hypervel to determine actual accepted/returned values
-3. Identify all valid types the method can accept/return
-4. Use the common base type (or precise union) that covers all cases without being unnecessarily loose
-5. Fix the source code, not the test
+1. Identify all valid types the method can accept/return
+2. Use the common base type that covers all cases without being unnecessarily loose
+3. Fix the source code, not the test
 
 **Example:** A method returns `Eloquent\Collection` normally, but an `afterQuery` callback can return `Support\Collection`. Since `Eloquent\Collection` extends `Support\Collection`, the correct return type is `Support\Collection` — it covers both cases precisely.
 
-**Wrong approach:** Removing types, defaulting to `mixed` without proof, or modifying tests to avoid the type check. These hide the real issue.
+**Wrong approach:** Removing types, using `mixed`, or modifying tests to avoid the type check. These hide the real issue.
 
 #### Missing Dependencies
 
