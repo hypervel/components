@@ -1004,11 +1004,11 @@ class SupportStringableTest extends TestCase
 
         $this->assertTrue($this->stringable($multilineValue)->is($multilineValue));
         $this->assertTrue($this->stringable($multilineValue)->is('*'));
-        $this->assertTrue($this->stringable($multilineValue)->is('*namespace Illuminate\\Tests\\*'));
-        $this->assertFalse($this->stringable($multilineValue)->is('namespace Illuminate\\Tests\\*'));
-        $this->assertFalse($this->stringable($multilineValue)->is('*namespace Illuminate\\Tests'));
+        $this->assertTrue($this->stringable($multilineValue)->is('*namespace Illuminate\Tests\*'));
+        $this->assertFalse($this->stringable($multilineValue)->is('namespace Illuminate\Tests\*'));
+        $this->assertFalse($this->stringable($multilineValue)->is('*namespace Illuminate\Tests'));
         $this->assertTrue($this->stringable($multilineValue)->is('<?php*'));
-        $this->assertTrue($this->stringable($multilineValue)->is('<?php*namespace Illuminate\\Tests\\*'));
+        $this->assertTrue($this->stringable($multilineValue)->is('<?php*namespace Illuminate\Tests\*'));
         $this->assertFalse($this->stringable($multilineValue)->is('use Exception;'));
         $this->assertFalse($this->stringable($multilineValue)->is('use Exception;*'));
         $this->assertTrue($this->stringable($multilineValue)->is('*use Exception;'));

@@ -701,11 +701,11 @@ class SupportStrTest extends TestCase
 
         $this->assertTrue(Str::is($multilineValue, $multilineValue));
         $this->assertTrue(Str::is('*', $multilineValue));
-        $this->assertTrue(Str::is('*namespace Illuminate\\Tests\\*', $multilineValue));
-        $this->assertFalse(Str::is('namespace Illuminate\\Tests\\*', $multilineValue));
-        $this->assertFalse(Str::is('*namespace Illuminate\\Tests', $multilineValue));
+        $this->assertTrue(Str::is('*namespace Illuminate\Tests\*', $multilineValue));
+        $this->assertFalse(Str::is('namespace Illuminate\Tests\*', $multilineValue));
+        $this->assertFalse(Str::is('*namespace Illuminate\Tests', $multilineValue));
         $this->assertTrue(Str::is('<?php*', $multilineValue));
-        $this->assertTrue(Str::is('<?php*namespace Illuminate\\Tests\\*', $multilineValue));
+        $this->assertTrue(Str::is('<?php*namespace Illuminate\Tests\*', $multilineValue));
         $this->assertFalse(Str::is('use Exception;', $multilineValue));
         $this->assertFalse(Str::is('use Exception;*', $multilineValue));
         $this->assertTrue(Str::is('*use Exception;', $multilineValue));
