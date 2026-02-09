@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Pool\Event;
 
-use Hyperf\Contract\ConnectionInterface;
+use Hypervel\Contracts\Pool\ConnectionInterface;
 
 /**
  * Event dispatched when a connection is released back to the pool.

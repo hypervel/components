@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Pool;
 
-use Hyperf\Contract\PoolOptionInterface;
+use Hypervel\Contracts\Pool\PoolOptionInterface;
 
 /**
  * Configuration options for a connection pool.

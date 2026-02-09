@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Pool;
 
-use Hyperf\Contract\ConnectionInterface;
-use Hyperf\Contract\FrequencyInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Pool\ConnectionInterface;
+use Hypervel\Contracts\Pool\FrequencyInterface;
 use Hypervel\Pool\Pool;
 use Hypervel\Tests\Pool\Stub\FooPool;
 use Hypervel\Tests\TestCase;

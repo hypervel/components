@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis;
 
-use Hyperf\Contract\ConnectionInterface;
-use Hyperf\Contract\FrequencyInterface;
+use Hypervel\Contracts\Pool\ConnectionInterface;
+use Hypervel\Contracts\Pool\FrequencyInterface;
 use Hypervel\Pool\Connection;
 use Hypervel\Pool\LowFrequencyInterface;
 use Hypervel\Redis\Pool\RedisPool;

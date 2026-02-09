@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Redis\Stubs;
 
-use Hyperf\Contract\PoolInterface;
+use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Redis\RedisConnection;
 use Mockery as m;
 use Psr\Container\ContainerInterface;

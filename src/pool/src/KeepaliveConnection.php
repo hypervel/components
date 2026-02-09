@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Pool;
 
 use Closure;
-use Hyperf\Contract\ConnectionInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Coordinator\Timer;
 use Hypervel\Engine\Channel;
 use Hypervel\Pool\Exception\InvalidArgumentException;

@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Redis;
 
 use Generator;
-use Hyperf\Contract\PoolInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Pool\Connection as BaseConnection;
 use Hypervel\Pool\Exception\ConnectionException;
 use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;

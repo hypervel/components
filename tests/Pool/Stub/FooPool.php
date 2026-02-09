@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Pool\Stub;
 
-use Hyperf\Contract\ConnectionInterface;
+use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Pool\Pool;
 use Mockery as m;
 

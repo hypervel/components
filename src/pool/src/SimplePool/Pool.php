@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Pool\SimplePool;
 
-use Hyperf\Contract\ConnectionInterface;
+use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Pool\Pool as AbstractPool;
 use Psr\Container\ContainerInterface;
 

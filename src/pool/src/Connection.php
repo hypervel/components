@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Pool;
 
-use Hyperf\Contract\ConnectionInterface;
-use Hyperf\Contract\PoolInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Pool\ConnectionInterface;
+use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Pool\Event\ReleaseConnection;
 use Psr\Container\ContainerInterface;
 use Psr\EventDispatcher\EventDispatcherInterface;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Redis\Pool;
 
-use Hyperf\Contract\ConnectionInterface;
+use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Pool\Pool;
 use Hypervel\Redis\Frequency;
 use Hypervel\Redis\RedisConfig;

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Pool;
 
-use Hyperf\Contract\ConnectionInterface;
+use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Engine\Channel as CoChannel;
 use SplQueue;

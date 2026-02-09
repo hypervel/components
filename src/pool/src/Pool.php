@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Pool;
 
-use Hyperf\Contract\ConnectionInterface;
-use Hyperf\Contract\FrequencyInterface;
-use Hyperf\Contract\PoolInterface;
-use Hyperf\Contract\PoolOptionInterface;
 use Hyperf\Contract\StdoutLoggerInterface;
+use Hypervel\Contracts\Pool\ConnectionInterface;
+use Hypervel\Contracts\Pool\FrequencyInterface;
+use Hypervel\Contracts\Pool\PoolInterface;
+use Hypervel\Contracts\Pool\PoolOptionInterface;
 use Psr\Container\ContainerInterface;
 use RuntimeException;
 use Throwable;

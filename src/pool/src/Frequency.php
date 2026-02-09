@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Pool;
 
-use Hyperf\Contract\FrequencyInterface;
+use Hypervel\Contracts\Pool\FrequencyInterface;
 
 /**
  * Tracks connection frequency to enable low-frequency pool flushing.

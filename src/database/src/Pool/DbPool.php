@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Pool;
 
-use Hyperf\Contract\ConnectionInterface;
+use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Database\Connectors\ConnectionFactory;
 use Hypervel\Pool\Frequency;
 use Hypervel\Pool\Pool;
