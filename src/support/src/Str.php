@@ -36,27 +36,6 @@ class Str
     public const INVISIBLE_CHARACTERS = '\x{0009}\x{0020}\x{00A0}\x{00AD}\x{034F}\x{061C}\x{115F}\x{1160}\x{17B4}\x{17B5}\x{180E}\x{2000}\x{2001}\x{2002}\x{2003}\x{2004}\x{2005}\x{2006}\x{2007}\x{2008}\x{2009}\x{200A}\x{200B}\x{200C}\x{200D}\x{200E}\x{200F}\x{202F}\x{205F}\x{2060}\x{2061}\x{2062}\x{2063}\x{2064}\x{2065}\x{206A}\x{206B}\x{206C}\x{206D}\x{206E}\x{206F}\x{3000}\x{2800}\x{3164}\x{FEFF}\x{FFA0}\x{1D159}\x{1D173}\x{1D174}\x{1D175}\x{1D176}\x{1D177}\x{1D178}\x{1D179}\x{1D17A}\x{E0020}';
 
     /**
-     * The cache of snake-cased words.
-     *
-     * @var array<string, array<string, string>>
-     */
-    protected static array $snakeCache = [];
-
-    /**
-     * The cache of camel-cased words.
-     *
-     * @var array<string, string>
-     */
-    protected static array $camelCache = [];
-
-    /**
-     * The cache of studly-cased words.
-     *
-     * @var array<string, string>
-     */
-    protected static array $studlyCache = [];
-
-    /**
      * The callback that should be used to generate UUIDs.
      *
      * @var null|(Closure(): \Ramsey\Uuid\UuidInterface)
@@ -118,9 +97,9 @@ class Str
     /**
      * Transliterate a UTF-8 value to ASCII.
      */
-    public static function ascii(string|int|float|bool|null|BaseStringable $value, string $language = 'en'): string
+    public static function ascii(string $value, string $language = 'en'): string
     {
-        return ASCII::to_ascii((string) $value, $language, replace_single_chars_only: false);
+        return ASCII::to_ascii($value, $language, replace_single_chars_only: false);
     }
 
     /**
@@ -170,11 +149,8 @@ class Str
     /**
      * Get the portion of a string between two given values.
      */
-    public static function between(string $subject, string|int|float|bool|null|BaseStringable $from, string|int|float|bool|null|BaseStringable $to): string
+    public static function between(string $subject, string $from, string $to): string
     {
-        $from = (string) $from;
-        $to = (string) $to;
-
         if ($from === '' || $to === '') {
             return $subject;
         }
@@ -185,11 +161,8 @@ class Str
     /**
      * Get the smallest possible portion of a string between two given values.
      */
-    public static function betweenFirst(string $subject, string|int|float|bool|null|BaseStringable $from, string|int|float|bool|null|BaseStringable $to): string
+    public static function betweenFirst(string $subject, string $from, string $to): string
     {
-        $from = (string) $from;
-        $to = (string) $to;
-
         if ($from === '' || $to === '') {
             return $subject;
         }
@@ -202,11 +175,7 @@ class Str
      */
     public static function camel(string $value): string
     {
-        if (isset(static::$camelCache[$value])) {
-            return static::$camelCache[$value];
-        }
-
-        return static::$camelCache[$value] = lcfirst(static::studly($value));
+        return lcfirst(static::studly($value));
     }
 
     /**
@@ -336,14 +305,8 @@ class Str
      *
      * @param iterable<string>|string $needles
      */
-    public static function endsWith(string|int|float|bool|null|BaseStringable $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
+    public static function endsWith(string $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
     {
-        if (is_null($haystack)) {
-            return false;
-        }
-
-        $haystack = (string) $haystack;
-
         if (! is_iterable($needles)) {
             $needles = (array) $needles;
         }
@@ -364,7 +327,7 @@ class Str
      *
      * @param iterable<string>|string $needles
      */
-    public static function doesntEndWith(string|int|float|bool|null|BaseStringable $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
+    public static function doesntEndWith(string $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
     {
         return ! static::endsWith($haystack, $needles);
     }
@@ -374,11 +337,8 @@ class Str
      *
      * @param array{radius?: float|int, omission?: string} $options
      */
-    public static function excerpt(string|int|float|bool|null|BaseStringable $text, string|int|float|bool|null|BaseStringable $phrase = '', array $options = []): ?string
+    public static function excerpt(string $text, string $phrase = '', array $options = []): ?string
     {
-        $text = (string) $text;
-        $phrase = (string) $phrase;
-
         $radius = $options['radius'] ?? 100;
         $omission = $options['omission'] ?? '...';
 
@@ -444,10 +404,8 @@ class Str
      *
      * @param iterable<string>|string $pattern
      */
-    public static function is(string|int|float|bool|null|BaseStringable|iterable $pattern, string|int|float|bool|null|BaseStringable $value, bool $ignoreCase = false): bool
+    public static function is(string|int|float|bool|null|BaseStringable|iterable $pattern, string $value, bool $ignoreCase = false): bool
     {
-        $value = (string) $value;
-
         if (! is_iterable($pattern)) {
             $pattern = [$pattern];
         }
@@ -484,9 +442,9 @@ class Str
     /**
      * Determine if a given string is 7 bit ASCII.
      */
-    public static function isAscii(string|int|float|bool|null|BaseStringable $value): bool
+    public static function isAscii(string $value): bool
     {
-        return ASCII::is_ascii((string) $value);
+        return ASCII::is_ascii($value);
     }
 
     /**
@@ -698,10 +656,8 @@ class Str
     /**
      * Masks a portion of a string with a repeated character.
      */
-    public static function mask(string $string, string|int|float|bool|null|BaseStringable $character, int $index, ?int $length = null, string $encoding = 'UTF-8'): string
+    public static function mask(string $string, string $character, int $index, ?int $length = null, string $encoding = 'UTF-8'): string
     {
-        $character = (string) $character;
-
         if ($character === '') {
             return $string;
         }
@@ -779,13 +735,9 @@ class Str
     /**
      * Remove all non-numeric characters from a string.
      */
-    public static function numbers(string|int|float|bool|null|BaseStringable|array $value): string|array
+    public static function numbers(string $value): string
     {
-        if (is_array($value)) {
-            return preg_replace('/[^0-9]/', '', $value) ?? [];
-        }
-
-        return preg_replace('/[^0-9]/', '', (string) $value) ?? '';
+        return preg_replace('/[^0-9]/', '', $value);
     }
 
     /**
@@ -1053,10 +1005,8 @@ class Str
     /**
      * Replace the first occurrence of a given value in the string.
      */
-    public static function replaceFirst(string|int|float|bool|null|BaseStringable $search, string $replace, string $subject): string
+    public static function replaceFirst(string $search, string $replace, string $subject): string
     {
-        $search = (string) $search;
-
         if ($search === '') {
             return $subject;
         }
@@ -1269,10 +1219,8 @@ class Str
      *
      * @param array<string, string> $dictionary
      */
-    public static function slug(string|int|float|bool|null|BaseStringable $title, string $separator = '-', ?string $language = 'en', array $dictionary = ['@' => 'at']): string
+    public static function slug(string $title, string $separator = '-', ?string $language = 'en', array $dictionary = ['@' => 'at']): string
     {
-        $title = (string) $title;
-
         $title = $language ? static::ascii($title, $language) : $title;
 
         // Convert all dashes/underscores into separator
@@ -1301,19 +1249,13 @@ class Str
      */
     public static function snake(string $value, string $delimiter = '_'): string
     {
-        $key = $value;
-
-        if (isset(static::$snakeCache[$key][$delimiter])) {
-            return static::$snakeCache[$key][$delimiter];
-        }
-
         if (! ctype_lower($value)) {
             $value = preg_replace('/\s+/u', '', ucwords($value));
 
             $value = static::lower(preg_replace('/(.)(?=[A-Z])/u', '$1' . $delimiter, $value));
         }
 
-        return static::$snakeCache[$key][$delimiter] = $value;
+        return $value;
     }
 
     /**
@@ -1374,14 +1316,8 @@ class Str
      *
      * @phpstan-assert-if-true =non-empty-string $haystack
      */
-    public static function startsWith(string|int|float|bool|null|BaseStringable $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
+    public static function startsWith(string $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
     {
-        if (is_null($haystack)) {
-            return false;
-        }
-
-        $haystack = (string) $haystack;
-
         if (! is_iterable($needles)) {
             $needles = [$needles];
         }
@@ -1405,7 +1341,7 @@ class Str
      *
      * @phpstan-assert-if-false =non-empty-string $haystack
      */
-    public static function doesntStartWith(string|int|float|bool|null|BaseStringable $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
+    public static function doesntStartWith(string $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
     {
         return ! static::startsWith($haystack, $needles);
     }
@@ -1417,15 +1353,11 @@ class Str
      */
     public static function studly(string $value): string
     {
-        if (isset(static::$studlyCache[$value])) {
-            return static::$studlyCache[$value];
-        }
-
         $words = mb_split('\s+', static::replace(['-', '_'], ' ', $value));
 
         $studlyWords = array_map(fn ($word) => static::ucfirst($word), $words);
 
-        return static::$studlyCache[$value] = implode($studlyWords);
+        return implode($studlyWords);
     }
 
     /**
@@ -1785,25 +1717,5 @@ class Str
         }
 
         return $ulid;
-    }
-
-    /**
-     * Remove all strings from the casing caches.
-     */
-    public static function flushCache(): void
-    {
-        static::$snakeCache = [];
-        static::$camelCache = [];
-        static::$studlyCache = [];
-    }
-
-    /**
-     * Return all factory functions to their default state.
-     */
-    public static function resetFactoryState(): void
-    {
-        static::createRandomStringsNormally();
-        static::createUlidsNormally();
-        static::createUuidsNormally();
     }
 }
