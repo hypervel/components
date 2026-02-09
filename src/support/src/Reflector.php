@@ -98,10 +98,8 @@ class Reflector
 
     /**
      * Get the class name of the given parameter's type, if possible.
-     *
-     * @param ReflectionParameter $parameter
      */
-    public static function getParameterClassName($parameter): ?string
+    public static function getParameterClassName(ReflectionParameter $parameter): ?string
     {
         $type = $parameter->getType();
 
@@ -114,10 +112,8 @@ class Reflector
 
     /**
      * Get the class names of the given parameter's type, including union types.
-     *
-     * @param ReflectionParameter $parameter
      */
-    public static function getParameterClassNames($parameter): array
+    public static function getParameterClassNames(ReflectionParameter $parameter): array
     {
         $type = $parameter->getType();
 
@@ -140,11 +136,8 @@ class Reflector
 
     /**
      * Get the given type's class name.
-     *
-     * @param ReflectionParameter $parameter
-     * @param ReflectionNamedType $type
      */
-    protected static function getTypeName($parameter, $type): ?string
+    protected static function getTypeName(ReflectionParameter $parameter, ReflectionNamedType $type): ?string
     {
         $name = $type->getName();
 
@@ -163,11 +156,8 @@ class Reflector
 
     /**
      * Determine if the parameter's type is a subclass of the given type.
-     *
-     * @param ReflectionParameter $parameter
-     * @param string $className
      */
-    public static function isParameterSubclassOf($parameter, $className): bool
+    public static function isParameterSubclassOf(ReflectionParameter $parameter, string $className): bool
     {
         $paramClassName = static::getParameterClassName($parameter);
 
@@ -178,10 +168,8 @@ class Reflector
 
     /**
      * Determine if the parameter's type is a Backed Enum with a string backing type.
-     *
-     * @param ReflectionParameter $parameter
      */
-    public static function isParameterBackedEnumWithStringBackingType($parameter): bool
+    public static function isParameterBackedEnumWithStringBackingType(ReflectionParameter $parameter): bool
     {
         if (! $parameter->getType() instanceof ReflectionNamedType) {
             return false;
