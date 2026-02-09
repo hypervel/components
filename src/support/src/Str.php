@@ -21,8 +21,8 @@ use Ramsey\Uuid\Rfc4122\FieldsInterface;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactory;
 use Ramsey\Uuid\UuidInterface;
-use Symfony\Component\Uid\Ulid;
 use Stringable as BaseStringable;
+use Symfony\Component\Uid\Ulid;
 use Throwable;
 use Traversable;
 use voku\helper\ASCII;
@@ -68,7 +68,7 @@ class Str
     /**
      * Return the remainder of a string after the first occurrence of a given value.
      */
-    public static function after(string $subject, string|int|float|bool|null|BaseStringable $search): string
+    public static function after(string $subject, string|int|float|bool|BaseStringable|null $search): string
     {
         $search = (string) $search;
 
@@ -78,7 +78,7 @@ class Str
     /**
      * Return the remainder of a string after the last occurrence of a given value.
      */
-    public static function afterLast(string $subject, string|int|float|bool|null|BaseStringable $search): string
+    public static function afterLast(string $subject, string|int|float|bool|BaseStringable|null $search): string
     {
         $search = (string) $search;
 
@@ -98,7 +98,7 @@ class Str
     /**
      * Transliterate a UTF-8 value to ASCII.
      */
-    public static function ascii(string|int|float|bool|null|BaseStringable $value, string $language = 'en'): string
+    public static function ascii(string|int|float|bool|BaseStringable|null $value, string $language = 'en'): string
     {
         return ASCII::to_ascii((string) $value, $language, replace_single_chars_only: false);
     }
@@ -114,7 +114,7 @@ class Str
     /**
      * Get the portion of a string before the first occurrence of a given value.
      */
-    public static function before(string $subject, string|int|float|bool|null|BaseStringable $search): string
+    public static function before(string $subject, string|int|float|bool|BaseStringable|null $search): string
     {
         $search = (string) $search;
 
@@ -130,7 +130,7 @@ class Str
     /**
      * Get the portion of a string before the last occurrence of a given value.
      */
-    public static function beforeLast(string $subject, string|int|float|bool|null|BaseStringable $search): string
+    public static function beforeLast(string $subject, string|int|float|bool|BaseStringable|null $search): string
     {
         $search = (string) $search;
 
@@ -150,7 +150,7 @@ class Str
     /**
      * Get the portion of a string between two given values.
      */
-    public static function between(string $subject, string|int|float|bool|null|BaseStringable $from, string|int|float|bool|null|BaseStringable $to): string
+    public static function between(string $subject, string|int|float|bool|BaseStringable|null $from, string|int|float|bool|BaseStringable|null $to): string
     {
         $from = (string) $from;
         $to = (string) $to;
@@ -165,7 +165,7 @@ class Str
     /**
      * Get the smallest possible portion of a string between two given values.
      */
-    public static function betweenFirst(string $subject, string|int|float|bool|null|BaseStringable $from, string|int|float|bool|null|BaseStringable $to): string
+    public static function betweenFirst(string $subject, string|int|float|bool|BaseStringable|null $from, string|int|float|bool|BaseStringable|null $to): string
     {
         $from = (string) $from;
         $to = (string) $to;
@@ -312,7 +312,7 @@ class Str
      *
      * @param iterable<string>|string $needles
      */
-    public static function endsWith(string|int|float|bool|null|BaseStringable $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
+    public static function endsWith(string|int|float|bool|BaseStringable|null $haystack, string|int|float|bool|BaseStringable|iterable|null $needles): bool
     {
         if ($haystack === null) {
             return false;
@@ -340,7 +340,7 @@ class Str
      *
      * @param iterable<string>|string $needles
      */
-    public static function doesntEndWith(string|int|float|bool|null|BaseStringable $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
+    public static function doesntEndWith(string|int|float|bool|BaseStringable|null $haystack, string|int|float|bool|BaseStringable|iterable|null $needles): bool
     {
         return ! static::endsWith($haystack, $needles);
     }
@@ -350,7 +350,7 @@ class Str
      *
      * @param array{radius?: float|int, omission?: string} $options
      */
-    public static function excerpt(string|int|float|bool|null|BaseStringable $text, string|int|float|bool|null|BaseStringable $phrase = '', array $options = []): ?string
+    public static function excerpt(string|int|float|bool|BaseStringable|null $text, string|int|float|bool|BaseStringable|null $phrase = '', array $options = []): ?string
     {
         $text = (string) $text;
         $phrase = (string) $phrase;
@@ -420,7 +420,7 @@ class Str
      *
      * @param iterable<string>|string $pattern
      */
-    public static function is(string|int|float|bool|null|BaseStringable|iterable $pattern, string|int|float|bool|null|BaseStringable $value, bool $ignoreCase = false): bool
+    public static function is(string|int|float|bool|BaseStringable|iterable|null $pattern, string|int|float|bool|BaseStringable|null $value, bool $ignoreCase = false): bool
     {
         $value = (string) $value;
 
@@ -460,7 +460,7 @@ class Str
     /**
      * Determine if a given string is 7 bit ASCII.
      */
-    public static function isAscii(string|int|float|bool|null|BaseStringable $value): bool
+    public static function isAscii(string|int|float|bool|BaseStringable|null $value): bool
     {
         return ASCII::is_ascii((string) $value);
     }
@@ -1025,7 +1025,7 @@ class Str
     /**
      * Replace the first occurrence of a given value in the string.
      */
-    public static function replaceFirst(string|int|float|bool|null|BaseStringable $search, string $replace, string $subject): string
+    public static function replaceFirst(string|int|float|bool|BaseStringable|null $search, string $replace, string $subject): string
     {
         $search = (string) $search;
 
@@ -1045,7 +1045,7 @@ class Str
     /**
      * Replace the first occurrence of the given value if it appears at the start of the string.
      */
-    public static function replaceStart(string|int|float|bool|null|BaseStringable $search, string $replace, string $subject): string
+    public static function replaceStart(string|int|float|bool|BaseStringable|null $search, string $replace, string $subject): string
     {
         $search = (string) $search;
 
@@ -1081,7 +1081,7 @@ class Str
     /**
      * Replace the last occurrence of a given value if it appears at the end of the string.
      */
-    public static function replaceEnd(string|int|float|bool|null|BaseStringable $search, string $replace, string $subject): string
+    public static function replaceEnd(string|int|float|bool|BaseStringable|null $search, string $replace, string $subject): string
     {
         $search = (string) $search;
 
@@ -1241,7 +1241,7 @@ class Str
      *
      * @param array<string, string> $dictionary
      */
-    public static function slug(string|int|float|bool|null|BaseStringable $title, string $separator = '-', ?string $language = 'en', array $dictionary = ['@' => 'at']): string
+    public static function slug(string|int|float|bool|BaseStringable|null $title, string $separator = '-', ?string $language = 'en', array $dictionary = ['@' => 'at']): string
     {
         $title = (string) $title;
 
@@ -1340,7 +1340,7 @@ class Str
      *
      * @phpstan-assert-if-true =non-empty-string $haystack
      */
-    public static function startsWith(string|int|float|bool|null|BaseStringable $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
+    public static function startsWith(string|int|float|bool|BaseStringable|null $haystack, string|int|float|bool|BaseStringable|iterable|null $needles): bool
     {
         if ($haystack === null) {
             return false;
@@ -1371,7 +1371,7 @@ class Str
      *
      * @phpstan-assert-if-false =non-empty-string $haystack
      */
-    public static function doesntStartWith(string|int|float|bool|null|BaseStringable $haystack, string|int|float|bool|null|BaseStringable|iterable $needles): bool
+    public static function doesntStartWith(string|int|float|bool|BaseStringable|null $haystack, string|int|float|bool|BaseStringable|iterable|null $needles): bool
     {
         return ! static::startsWith($haystack, $needles);
     }

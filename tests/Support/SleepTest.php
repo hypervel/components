@@ -49,7 +49,7 @@ class SleepTest extends TestCase
 
         $result = Sleep::for(10)->milliseconds()->while(function () {
             static $results = [true, true, false];
-            $_SERVER['__sleep.while']++;
+            ++$_SERVER['__sleep.while'];
 
             return array_shift($results);
         })->then(fn () => 100);

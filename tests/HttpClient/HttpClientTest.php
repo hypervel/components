@@ -68,6 +68,8 @@ class HttpClientTest extends TestCase
 
     protected function tearDown(): void
     {
+        Sleep::fake(false);
+
         parent::tearDown();
     }
 

@@ -143,7 +143,7 @@ trait EnumeratesValues
      * @template TUnwrapKey of array-key
      * @template TUnwrapValue
      *
-     * @param TUnwrapValue|array<TUnwrapKey, TUnwrapValue>|static<TUnwrapKey, TUnwrapValue> $value
+     * @param array<TUnwrapKey, TUnwrapValue>|static<TUnwrapKey, TUnwrapValue>|TUnwrapValue $value
      * @return (array<TUnwrapKey, TUnwrapValue>|TUnwrapValue)
      */
     public static function unwrap(mixed $value): mixed

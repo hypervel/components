@@ -74,17 +74,17 @@ class SupportReflectorTest extends TestCase
         }));
         $this->assertTrue(Reflector::isCallable([B::class, 'f']));
         $this->assertFalse(Reflector::isCallable([TestClassWithCall::class, 'f']));
-        $this->assertTrue(Reflector::isCallable([new TestClassWithCall, 'f']));
+        $this->assertTrue(Reflector::isCallable([new TestClassWithCall(), 'f']));
         $this->assertTrue(Reflector::isCallable([TestClassWithCallStatic::class, 'f']));
-        $this->assertFalse(Reflector::isCallable([new TestClassWithCallStatic, 'f']));
-        $this->assertFalse(Reflector::isCallable([new TestClassWithCallStatic]));
+        $this->assertFalse(Reflector::isCallable([new TestClassWithCallStatic(), 'f']));
+        $this->assertFalse(Reflector::isCallable([new TestClassWithCallStatic()]));
         $this->assertFalse(Reflector::isCallable(['TotallyMissingClass', 'foo']));
         $this->assertTrue(Reflector::isCallable(['TotallyMissingClass', 'foo'], true));
     }
 
     public function testGetClassAttributes()
     {
-        require_once __DIR__.'/Fixtures/ClassesWithAttributes.php';
+        require_once __DIR__ . '/Fixtures/ClassesWithAttributes.php';
 
         $this->assertSame([], Reflector::getClassAttributes(Fixtures\ChildClass::class, Fixtures\UnusedAttr::class)->toArray());
 
@@ -126,7 +126,7 @@ class SupportReflectorTest extends TestCase
 
     public function testGetClassAttribute()
     {
-        require_once __DIR__.'/Fixtures/ClassesWithAttributes.php';
+        require_once __DIR__ . '/Fixtures/ClassesWithAttributes.php';
 
         $this->assertNull(Reflector::getClassAttribute(Fixtures\ChildClass::class, Fixtures\UnusedAttr::class));
         $this->assertNull(Reflector::getClassAttribute(Fixtures\ChildClass::class, Fixtures\UnusedAttr::class, true));
@@ -148,7 +148,6 @@ class B extends A
 {
     public function f(parent $x)
     {
-        //
     }
 }
 
@@ -156,7 +155,6 @@ class C
 {
     public function f(A|Model $x)
     {
-        //
     }
 }
 
@@ -164,7 +162,6 @@ class TestClassWithCall
 {
     public function __call($method, $parameters)
     {
-        //
     }
 }
 
@@ -172,7 +169,6 @@ class TestClassWithCallStatic
 {
     public static function __callStatic($method, $parameters)
     {
-        //
     }
 }
 
@@ -188,6 +184,5 @@ class TestClassWithInterfaceSubclassParameter
 {
     public function f(IB $x)
     {
-        //
     }
 }

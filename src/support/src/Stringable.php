@@ -39,7 +39,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Return the remainder of a string after the first occurrence of a given value.
      */
-    public function after(string|int|float|bool|null|BaseStringable $search): static
+    public function after(string|int|float|bool|BaseStringable|null $search): static
     {
         return new static(Str::after($this->value, $search));
     }
@@ -47,7 +47,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Return the remainder of a string after the last occurrence of a given value.
      */
-    public function afterLast(string|int|float|bool|null|BaseStringable $search): static
+    public function afterLast(string|int|float|bool|BaseStringable|null $search): static
     {
         return new static(Str::afterLast($this->value, $search));
     }
@@ -55,7 +55,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Append the given values to the string.
      */
-    public function append(string|int|float|bool|null|BaseStringable ...$values): static
+    public function append(string|int|float|bool|BaseStringable|null ...$values): static
     {
         return new static($this->value . implode('', $values));
     }
@@ -119,7 +119,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Get the portion of a string before the first occurrence of a given value.
      */
-    public function before(string|int|float|bool|null|BaseStringable $search): static
+    public function before(string|int|float|bool|BaseStringable|null $search): static
     {
         return new static(Str::before($this->value, $search));
     }
@@ -127,7 +127,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Get the portion of a string before the last occurrence of a given value.
      */
-    public function beforeLast(string|int|float|bool|null|BaseStringable $search): static
+    public function beforeLast(string|int|float|bool|BaseStringable|null $search): static
     {
         return new static(Str::beforeLast($this->value, $search));
     }
@@ -215,7 +215,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
      *
      * @param iterable<string>|string $needles
      */
-    public function endsWith(string|int|float|bool|null|BaseStringable|iterable $needles): bool
+    public function endsWith(string|int|float|bool|BaseStringable|iterable|null $needles): bool
     {
         return Str::endsWith($this->value, $needles);
     }
@@ -225,7 +225,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
      *
      * @param iterable<string>|string $needles
      */
-    public function doesntEndWith(string|int|float|bool|null|BaseStringable|iterable $needles): bool
+    public function doesntEndWith(string|int|float|bool|BaseStringable|iterable|null $needles): bool
     {
         return Str::doesntEndWith($this->value, $needles);
     }
@@ -289,7 +289,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
      *
      * @param iterable<string>|string $pattern
      */
-    public function is(string|int|float|bool|null|BaseStringable|iterable $pattern, bool $ignoreCase = false): bool
+    public function is(string|int|float|bool|BaseStringable|iterable|null $pattern, bool $ignoreCase = false): bool
     {
         return Str::is($pattern, $this->value, $ignoreCase);
     }
@@ -590,7 +590,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Replace the first occurrence of the given value if it appears at the start of the string.
      */
-    public function replaceStart(string|int|float|bool|null|BaseStringable $search, string $replace): static
+    public function replaceStart(string|int|float|bool|BaseStringable|null $search, string $replace): static
     {
         return new static(Str::replaceStart($search, $replace, $this->value));
     }
@@ -606,7 +606,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
     /**
      * Replace the last occurrence of a given value if it appears at the end of the string.
      */
-    public function replaceEnd(string|int|float|bool|null|BaseStringable $search, string $replace): static
+    public function replaceEnd(string|int|float|bool|BaseStringable|null $search, string $replace): static
     {
         return new static(Str::replaceEnd($search, $replace, $this->value));
     }
@@ -730,7 +730,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
      *
      * @param iterable<string>|string $needles
      */
-    public function startsWith(string|int|float|bool|null|BaseStringable|iterable $needles): bool
+    public function startsWith(string|int|float|bool|BaseStringable|iterable|null $needles): bool
     {
         return Str::startsWith($this->value, $needles);
     }
@@ -740,7 +740,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
      *
      * @param iterable<string>|string $needles
      */
-    public function doesntStartWith(string|int|float|bool|null|BaseStringable|iterable $needles): bool
+    public function doesntStartWith(string|int|float|bool|BaseStringable|iterable|null $needles): bool
     {
         return Str::doesntStartWith($this->value, $needles);
     }
@@ -908,7 +908,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
      *
      * @param iterable<string>|string $needles
      */
-    public function whenEndsWith(string|int|float|bool|null|BaseStringable|iterable $needles, callable $callback, ?callable $default = null): mixed
+    public function whenEndsWith(string|int|float|bool|BaseStringable|iterable|null $needles, callable $callback, ?callable $default = null): mixed
     {
         return $this->when($this->endsWith($needles), $callback, $default);
     }
@@ -918,7 +918,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
      *
      * @param iterable<string>|string $needles
      */
-    public function whenDoesntEndWith(string|int|float|bool|null|BaseStringable|iterable $needles, callable $callback, ?callable $default = null): mixed
+    public function whenDoesntEndWith(string|int|float|bool|BaseStringable|iterable|null $needles, callable $callback, ?callable $default = null): mixed
     {
         return $this->when($this->doesntEndWith($needles), $callback, $default);
     }
@@ -944,7 +944,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
      *
      * @param iterable<string>|string $pattern
      */
-    public function whenIs(string|int|float|bool|null|BaseStringable|iterable $pattern, callable $callback, ?callable $default = null): mixed
+    public function whenIs(string|int|float|bool|BaseStringable|iterable|null $pattern, callable $callback, ?callable $default = null): mixed
     {
         return $this->when($this->is($pattern), $callback, $default);
     }
@@ -978,7 +978,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
      *
      * @param iterable<string>|string $needles
      */
-    public function whenStartsWith(string|int|float|bool|null|BaseStringable|iterable $needles, callable $callback, ?callable $default = null): mixed
+    public function whenStartsWith(string|int|float|bool|BaseStringable|iterable|null $needles, callable $callback, ?callable $default = null): mixed
     {
         return $this->when($this->startsWith($needles), $callback, $default);
     }
@@ -988,7 +988,7 @@ class Stringable implements JsonSerializable, ArrayAccess, BaseStringable
      *
      * @param iterable<string>|string $needles
      */
-    public function whenDoesntStartWith(string|int|float|bool|null|BaseStringable|iterable $needles, callable $callback, ?callable $default = null): mixed
+    public function whenDoesntStartWith(string|int|float|bool|BaseStringable|iterable|null $needles, callable $callback, ?callable $default = null): mixed
     {
         return $this->when($this->doesntStartWith($needles), $callback, $default);
     }

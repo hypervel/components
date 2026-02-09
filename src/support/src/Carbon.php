@@ -48,8 +48,8 @@ class Carbon extends BaseCarbon
         int $microseconds = 0
     ): static {
         return $this->add("
-            $years years $months months $weeks weeks $days days
-            $hours hours $minutes minutes $seconds seconds $microseconds microseconds
+            {$years} years {$months} months {$weeks} weeks {$days} days
+            {$hours} hours {$minutes} minutes {$seconds} seconds {$microseconds} microseconds
         ");
     }
 
@@ -67,8 +67,8 @@ class Carbon extends BaseCarbon
         int $microseconds = 0
     ): static {
         return $this->sub("
-            $years years $months months $weeks weeks $days days
-            $hours hours $minutes minutes $seconds seconds $microseconds microseconds
+            {$years} years {$months} months {$weeks} weeks {$days} days
+            {$hours} hours {$minutes} minutes {$seconds} seconds {$microseconds} microseconds
         ");
     }
 }

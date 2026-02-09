@@ -353,11 +353,11 @@ trait InteractsWithData
      * Resolve and cache the enum backing type for repeated lookups.
      *
      * @param class-string<BackedEnum> $enumClass
-     * @return 'int'|'string'|null
+     * @return null|'int'|'string'
      */
     protected function enumBackingType(string $enumClass): ?string
     {
-        /** @var array<class-string<BackedEnum>, 'int'|'string'|null> $cache */
+        /** @var array<class-string<BackedEnum>, null|'int'|'string'> $cache */
         static $cache = [];
 
         return $cache[$enumClass] ??= (new ReflectionEnum($enumClass))->getBackingType()?->getName();

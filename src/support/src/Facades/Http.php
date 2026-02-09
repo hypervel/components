@@ -4,10 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Support\Facades;
 
-use GuzzleHttp\Promise\PromiseInterface;
 use Hypervel\HttpClient\Factory;
-use Hypervel\HttpClient\Response;
-use Hypervel\HttpClient\ResponseSequence;
 
 /**
  * @method static \Hypervel\HttpClient\Factory globalMiddleware(callable $middleware)
@@ -22,7 +19,7 @@ use Hypervel\HttpClient\ResponseSequence;
  * @method static \Hypervel\HttpClient\Factory stubUrl(string $url, \GuzzleHttp\Promise\PromiseInterface|\Hypervel\HttpClient\Response|callable|array|string|int $callback)
  * @method static \Hypervel\HttpClient\Factory preventStrayRequests(bool $prevent = true)
  * @method static bool preventingStrayRequests()
- * @method static \Hypervel\HttpClient\Factory allowStrayRequests(array|null $only = null)
+ * @method static \Hypervel\HttpClient\Factory allowStrayRequests()
  * @method static void recordRequestResponsePair(\Hypervel\HttpClient\Request $request, \Hypervel\HttpClient\Response|null $response)
  * @method static void assertSent(callable $callback)
  * @method static void assertSentInOrder(array $callbacks)
@@ -117,50 +114,6 @@ use Hypervel\HttpClient\ResponseSequence;
  */
 class Http extends Facade
 {
-    /**
-     * Register a stub callable that will intercept requests and be able to return stub responses.
-     */
-    public static function fake(array|callable|null $callback = null): Factory
-    {
-        return tap(static::getFacadeRoot(), function (Factory $fake) use ($callback) {
-            static::swap($fake->fake($callback));
-        });
-    }
-
-    /**
-     * Register a response sequence for the given URL pattern.
-     */
-    public static function fakeSequence(string $urlPattern = '*'): ResponseSequence
-    {
-        $fake = tap(static::getFacadeRoot(), function (Factory $fake) {
-            static::swap($fake);
-        });
-
-        return $fake->fakeSequence($urlPattern);
-    }
-
-    /**
-     * Indicate that an exception should be thrown if any request is not faked.
-     */
-    public static function preventStrayRequests(bool $prevent = true): Factory
-    {
-        return tap(static::getFacadeRoot(), function (Factory $fake) use ($prevent) {
-            static::swap($fake->preventStrayRequests($prevent));
-        });
-    }
-
-    /**
-     * Stub the given URL using the given callback.
-     */
-    public static function stubUrl(
-        string $url,
-        array|callable|int|PromiseInterface|Response|string $callback
-    ): Factory {
-        return tap(static::getFacadeRoot(), function (Factory $fake) use ($url, $callback) {
-            static::swap($fake->stubUrl($url, $callback));
-        });
-    }
-
     protected static function getFacadeAccessor()
     {
         return Factory::class;

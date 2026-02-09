@@ -1643,8 +1643,6 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
     /**
      * Splice a portion of the underlying collection array.
-     *
-     * @param mixed $replacement
      */
     public function splice(int $offset, ?int $length = null, mixed $replacement = []): static
     {

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use ArrayObject;
+use DateTime;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
@@ -30,35 +31,35 @@ class SupportArrTest extends TestCase
         $this->assertTrue(Arr::accessible([]));
         $this->assertTrue(Arr::accessible([1, 2]));
         $this->assertTrue(Arr::accessible(['a' => 1, 'b' => 2]));
-        $this->assertTrue(Arr::accessible(new Collection));
+        $this->assertTrue(Arr::accessible(new Collection()));
 
         $this->assertFalse(Arr::accessible(null));
         $this->assertFalse(Arr::accessible('abc'));
-        $this->assertFalse(Arr::accessible(new stdClass));
+        $this->assertFalse(Arr::accessible(new stdClass()));
         $this->assertFalse(Arr::accessible((object) ['a' => 1, 'b' => 2]));
         $this->assertFalse(Arr::accessible(123));
         $this->assertFalse(Arr::accessible(12.34));
         $this->assertFalse(Arr::accessible(true));
-        $this->assertFalse(Arr::accessible(new \DateTime));
+        $this->assertFalse(Arr::accessible(new DateTime()));
         $this->assertFalse(Arr::accessible(static fn () => null));
     }
 
     public function testArrayable(): void
     {
         $this->assertTrue(Arr::arrayable([]));
-        $this->assertTrue(Arr::arrayable(new TestArrayableObject));
-        $this->assertTrue(Arr::arrayable(new TestJsonableObject));
-        $this->assertTrue(Arr::arrayable(new TestJsonSerializeObject));
-        $this->assertTrue(Arr::arrayable(new TestTraversableAndJsonSerializableObject));
+        $this->assertTrue(Arr::arrayable(new TestArrayableObject()));
+        $this->assertTrue(Arr::arrayable(new TestJsonableObject()));
+        $this->assertTrue(Arr::arrayable(new TestJsonSerializeObject()));
+        $this->assertTrue(Arr::arrayable(new TestTraversableAndJsonSerializableObject()));
 
         $this->assertFalse(Arr::arrayable(null));
         $this->assertFalse(Arr::arrayable('abc'));
-        $this->assertFalse(Arr::arrayable(new stdClass));
+        $this->assertFalse(Arr::arrayable(new stdClass()));
         $this->assertFalse(Arr::arrayable((object) ['a' => 1, 'b' => 2]));
         $this->assertFalse(Arr::arrayable(123));
         $this->assertFalse(Arr::arrayable(12.34));
         $this->assertFalse(Arr::arrayable(true));
-        $this->assertFalse(Arr::arrayable(new \DateTime));
+        $this->assertFalse(Arr::arrayable(new DateTime()));
         $this->assertFalse(Arr::arrayable(static fn () => null));
     }
 
@@ -620,12 +621,14 @@ class SupportArrTest extends TestCase
 
         // Test string values are returned as strings
         $this->assertSame(
-            'foo bar', Arr::string($test_array, 'string')
+            'foo bar',
+            Arr::string($test_array, 'string')
         );
 
         // Test that default string values are returned for missing keys
         $this->assertSame(
-            'default', Arr::string($test_array, 'missing_key', 'default')
+            'default',
+            Arr::string($test_array, 'missing_key', 'default')
         );
 
         // Test that an exception is raised if the value is not a string
@@ -640,12 +643,14 @@ class SupportArrTest extends TestCase
 
         // Test integer values are returned as integers
         $this->assertSame(
-            1234, Arr::integer($test_array, 'integer')
+            1234,
+            Arr::integer($test_array, 'integer')
         );
 
         // Test that default integer values are returned for missing keys
         $this->assertSame(
-            999, Arr::integer($test_array, 'missing_key', 999)
+            999,
+            Arr::integer($test_array, 'missing_key', 999)
         );
 
         // Test that an exception is raised if the value is not an integer
@@ -660,12 +665,14 @@ class SupportArrTest extends TestCase
 
         // Test float values are returned as floats
         $this->assertSame(
-            12.34, Arr::float($test_array, 'float')
+            12.34,
+            Arr::float($test_array, 'float')
         );
 
         // Test that default float values are returned for missing keys
         $this->assertSame(
-            56.78, Arr::float($test_array, 'missing_key', 56.78)
+            56.78,
+            Arr::float($test_array, 'missing_key', 56.78)
         );
 
         // Test that an exception is raised if the value is not a float
@@ -676,16 +683,18 @@ class SupportArrTest extends TestCase
 
     public function testItGetsABoolean()
     {
-        $test_array = ['string' => 'foo bar',  'boolean' => true];
+        $test_array = ['string' => 'foo bar', 'boolean' => true];
 
         // Test boolean values are returned as booleans
         $this->assertSame(
-            true, Arr::boolean($test_array, 'boolean')
+            true,
+            Arr::boolean($test_array, 'boolean')
         );
 
         // Test that default boolean values are returned for missing keys
         $this->assertSame(
-            true, Arr::boolean($test_array, 'missing_key', true)
+            true,
+            Arr::boolean($test_array, 'missing_key', true)
         );
 
         // Test that an exception is raised if the value is not a boolean
@@ -700,12 +709,14 @@ class SupportArrTest extends TestCase
 
         // Test array values are returned as arrays
         $this->assertSame(
-            ['foo', 'bar'], Arr::array($test_array, 'array')
+            ['foo', 'bar'],
+            Arr::array($test_array, 'array')
         );
 
         // Test that default array values are returned for missing keys
         $this->assertSame(
-            [1, 'two'], Arr::array($test_array, 'missing_key', [1, 'two'])
+            [1, 'two'],
+            Arr::array($test_array, 'missing_key', [1, 'two'])
         );
 
         // Test that an exception is raised if the value is not an array
@@ -1049,7 +1060,7 @@ class SupportArrTest extends TestCase
     {
         $data = ['first' => 'taylor', 'last' => 'otwell'];
         $mapped = Arr::map($data, function ($value, $key) {
-            return $key.'-'.strrev($value);
+            return $key . '-' . strrev($value);
         });
         $this->assertEquals(['first' => 'first-rolyat', 'last' => 'last-llewto'], $mapped);
         $this->assertEquals(['first' => 'taylor', 'last' => 'otwell'], $data);
@@ -1058,7 +1069,7 @@ class SupportArrTest extends TestCase
     public function testMapWithEmptyArray()
     {
         $mapped = Arr::map([], static function ($value, $key) {
-            return $key.'-'.$value;
+            return $key . '-' . $value;
         });
         $this->assertEquals([], $mapped);
     }
@@ -1067,7 +1078,7 @@ class SupportArrTest extends TestCase
     {
         $data = ['first' => 'taylor', 'last' => null];
         $mapped = Arr::map($data, static function ($value, $key) {
-            return $key.'-'.$value;
+            return $key . '-' . $value;
         });
         $this->assertEquals(['first' => 'first-taylor', 'last' => 'last-'], $mapped);
     }
@@ -1259,19 +1270,19 @@ class SupportArrTest extends TestCase
         try {
             Arr::random([]);
         } catch (InvalidArgumentException) {
-            $exceptions++;
+            ++$exceptions;
         }
 
         try {
             Arr::random([], 1);
         } catch (InvalidArgumentException) {
-            $exceptions++;
+            ++$exceptions;
         }
 
         try {
             Arr::random([], 2);
         } catch (InvalidArgumentException) {
-            $exceptions++;
+            ++$exceptions;
         }
 
         $this->assertSame(3, $exceptions);
@@ -1668,20 +1679,20 @@ class SupportArrTest extends TestCase
     {
         $this->assertSame(['foo' => 'bar'], Arr::from(['foo' => 'bar']));
         $this->assertSame(['foo' => 'bar'], Arr::from((object) ['foo' => 'bar']));
-        $this->assertSame(['foo' => 'bar'], Arr::from(new TestArrayableObject));
-        $this->assertSame(['foo' => 'bar'], Arr::from(new TestJsonableObject));
-        $this->assertSame(['foo' => 'bar'], Arr::from(new TestJsonSerializeObject));
-        $this->assertSame(['foo'], Arr::from(new TestJsonSerializeWithScalarValueObject));
+        $this->assertSame(['foo' => 'bar'], Arr::from(new TestArrayableObject()));
+        $this->assertSame(['foo' => 'bar'], Arr::from(new TestJsonableObject()));
+        $this->assertSame(['foo' => 'bar'], Arr::from(new TestJsonSerializeObject()));
+        $this->assertSame(['foo'], Arr::from(new TestJsonSerializeWithScalarValueObject()));
 
         $this->assertSame(['name' => 'A'], Arr::from(TestEnum::A));
         $this->assertSame(['name' => 'A', 'value' => 1], Arr::from(TestBackedEnum::A));
         $this->assertSame(['name' => 'A', 'value' => 'A'], Arr::from(TestStringBackedEnum::A));
 
-        $subject = [new stdClass, new stdClass];
+        $subject = [new stdClass(), new stdClass()];
         $items = new TestTraversableAndJsonSerializableObject($subject);
         $this->assertSame($subject, Arr::from($items));
 
-        $items = new WeakMap;
+        $items = new WeakMap();
         $items[$temp = new class {}] = 'bar';
         $this->assertSame(['bar'], Arr::from($items));
 
@@ -1694,7 +1705,7 @@ class SupportArrTest extends TestCase
     {
         $string = 'a';
         $array = ['a'];
-        $object = new stdClass;
+        $object = new stdClass();
         $object->value = 'a';
         $this->assertEquals(['a'], Arr::wrap($string));
         $this->assertEquals($array, Arr::wrap($array));
@@ -1708,7 +1719,7 @@ class SupportArrTest extends TestCase
         $this->assertEquals([false], Arr::wrap([false]));
         $this->assertEquals([0], Arr::wrap(0));
 
-        $obj = new stdClass;
+        $obj = new stdClass();
         $obj->value = 'a';
         $obj = unserialize(serialize($obj));
         $this->assertEquals([$obj], Arr::wrap($obj));
@@ -1718,10 +1729,10 @@ class SupportArrTest extends TestCase
     public function testSortByMany()
     {
         $unsorted = [
-            ['name' => 'John', 'age' => 8,  'meta' => ['key' => 3]],
+            ['name' => 'John', 'age' => 8, 'meta' => ['key' => 3]],
             ['name' => 'John', 'age' => 10, 'meta' => ['key' => 5]],
             ['name' => 'Dave', 'age' => 10, 'meta' => ['key' => 3]],
-            ['name' => 'John', 'age' => 8,  'meta' => ['key' => 2]],
+            ['name' => 'John', 'age' => 8, 'meta' => ['key' => 2]],
         ];
 
         // sort using keys
@@ -1732,8 +1743,8 @@ class SupportArrTest extends TestCase
         ]));
         $this->assertEquals([
             ['name' => 'Dave', 'age' => 10, 'meta' => ['key' => 3]],
-            ['name' => 'John', 'age' => 8,  'meta' => ['key' => 2]],
-            ['name' => 'John', 'age' => 8,  'meta' => ['key' => 3]],
+            ['name' => 'John', 'age' => 8, 'meta' => ['key' => 2]],
+            ['name' => 'John', 'age' => 8, 'meta' => ['key' => 3]],
             ['name' => 'John', 'age' => 10, 'meta' => ['key' => 5]],
         ], $sorted);
 
@@ -1746,8 +1757,8 @@ class SupportArrTest extends TestCase
         $this->assertEquals([
             ['name' => 'Dave', 'age' => 10, 'meta' => ['key' => 3]],
             ['name' => 'John', 'age' => 10, 'meta' => ['key' => 5]],
-            ['name' => 'John', 'age' => 8,  'meta' => ['key' => 2]],
-            ['name' => 'John', 'age' => 8,  'meta' => ['key' => 3]],
+            ['name' => 'John', 'age' => 8, 'meta' => ['key' => 2]],
+            ['name' => 'John', 'age' => 8, 'meta' => ['key' => 3]],
         ], $sortedWithOrder);
 
         // sort using callable
@@ -1763,8 +1774,8 @@ class SupportArrTest extends TestCase
         $this->assertEquals([
             ['name' => 'Dave', 'age' => 10, 'meta' => ['key' => 3]],
             ['name' => 'John', 'age' => 10, 'meta' => ['key' => 5]],
-            ['name' => 'John', 'age' => 8,  'meta' => ['key' => 2]],
-            ['name' => 'John', 'age' => 8,  'meta' => ['key' => 3]],
+            ['name' => 'John', 'age' => 8, 'meta' => ['key' => 2]],
+            ['name' => 'John', 'age' => 8, 'meta' => ['key' => 3]],
         ], $sortedWithCallable);
     }
 

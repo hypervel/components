@@ -9,6 +9,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Ramsey\Uuid\Uuid;
+use ReflectionClass;
 use Symfony\Component\Uid\Ulid;
 
 /**
@@ -19,7 +20,7 @@ class SupportBinaryCodecTest extends TestCase
 {
     protected function tearDown(): void
     {
-        $reflection = new \ReflectionClass(BinaryCodec::class);
+        $reflection = new ReflectionClass(BinaryCodec::class);
         $property = $reflection->getProperty('customCodecs');
         $property->setValue(null, []);
 

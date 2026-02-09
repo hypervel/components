@@ -1145,7 +1145,6 @@ class SupportLazyCollectionIsLazyTest extends TestCase
                     return $item === 101;
                 });
             } catch (ItemNotFoundException) {
-                //
             }
         });
 
@@ -1177,7 +1176,6 @@ class SupportLazyCollectionIsLazyTest extends TestCase
             try {
                 $collection->sole();
             } catch (MultipleItemsFoundException) {
-                //
             }
         });
 
@@ -1193,7 +1191,6 @@ class SupportLazyCollectionIsLazyTest extends TestCase
                     return $item % 2 === 0;
                 });
             } catch (MultipleItemsFoundException) {
-                //
             }
         });
     }
@@ -1320,7 +1317,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
 
     public function testTakeUntilTimeoutIsLazy()
     {
-        tap(m::mock(LazyCollection::class.'[now]')->times(100), function ($mock) {
+        tap(m::mock(LazyCollection::class . '[now]')->times(100), function ($mock) {
             $this->assertDoesNotEnumerateCollection($mock, function ($mock) {
                 $timeout = Carbon::now();
 
@@ -1340,7 +1337,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
             });
         });
 
-        tap(m::mock(LazyCollection::class.'[now]')->times(100), function ($mock) {
+        tap(m::mock(LazyCollection::class . '[now]')->times(100), function ($mock) {
             $this->assertEnumeratesCollection($mock, 1, function ($mock) {
                 $timeout = Carbon::now();
 
@@ -1361,7 +1358,7 @@ class SupportLazyCollectionIsLazyTest extends TestCase
             });
         });
 
-        tap(m::mock(LazyCollection::class.'[now]')->times(100), function ($mock) {
+        tap(m::mock(LazyCollection::class . '[now]')->times(100), function ($mock) {
             $this->assertEnumeratesCollectionOnce($mock, function ($mock) {
                 $timeout = Carbon::now();
 

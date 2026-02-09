@@ -106,7 +106,7 @@ class SupportCarbonTest extends TestCase
     public function testDeserializationOccursCorrectly()
     {
         $carbon = new Carbon('2017-06-27 13:14:15.000000');
-        $serialized = 'return '.var_export($carbon, true).';';
+        $serialized = 'return ' . var_export($carbon, true) . ';';
         $deserialized = eval($serialized);
 
         $this->assertInstanceOf(Carbon::class, $deserialized);

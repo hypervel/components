@@ -17,14 +17,14 @@ class ForwardsCallsTest extends TestCase
 {
     public function testForwardsCalls()
     {
-        $results = (new ForwardsCallsOne)->forwardedTwo('foo', 'bar');
+        $results = (new ForwardsCallsOne())->forwardedTwo('foo', 'bar');
 
         $this->assertEquals(['foo', 'bar'], $results);
     }
 
     public function testNestedForwardCalls()
     {
-        $results = (new ForwardsCallsOne)->forwardedBase('foo', 'bar');
+        $results = (new ForwardsCallsOne())->forwardedBase('foo', 'bar');
 
         $this->assertEquals(['foo', 'bar'], $results);
     }
@@ -34,7 +34,7 @@ class ForwardsCallsTest extends TestCase
         $this->expectException(BadMethodCallException::class);
         $this->expectExceptionMessage('Call to undefined method Hypervel\Tests\Support\ForwardsCallsOne::missingMethod()');
 
-        (new ForwardsCallsOne)->missingMethod('foo', 'bar');
+        (new ForwardsCallsOne())->missingMethod('foo', 'bar');
     }
 
     public function testMissingAlphanumericForwardedCallThrowsCorrectError()
@@ -42,7 +42,7 @@ class ForwardsCallsTest extends TestCase
         $this->expectException(BadMethodCallException::class);
         $this->expectExceptionMessage('Call to undefined method Hypervel\Tests\Support\ForwardsCallsOne::this1_shouldWork_too()');
 
-        (new ForwardsCallsOne)->this1_shouldWork_too('foo', 'bar');
+        (new ForwardsCallsOne())->this1_shouldWork_too('foo', 'bar');
     }
 
     public function testNonForwardedErrorIsNotTamperedWith()
@@ -50,7 +50,7 @@ class ForwardsCallsTest extends TestCase
         $this->expectException(Error::class);
         $this->expectExceptionMessage('Call to undefined method Hypervel\Tests\Support\ForwardsCallsBase::missingMethod()');
 
-        (new ForwardsCallsOne)->baseError('foo', 'bar');
+        (new ForwardsCallsOne())->baseError('foo', 'bar');
     }
 
     public function testThrowBadMethodCallException()
@@ -58,7 +58,7 @@ class ForwardsCallsTest extends TestCase
         $this->expectException(BadMethodCallException::class);
         $this->expectExceptionMessage('Call to undefined method Hypervel\Tests\Support\ForwardsCallsOne::test()');
 
-        (new ForwardsCallsOne)->throwTestException('test');
+        (new ForwardsCallsOne())->throwTestException('test');
     }
 }
 
@@ -68,7 +68,7 @@ class ForwardsCallsOne
 
     public function __call($method, $parameters)
     {
-        return $this->forwardCallTo(new ForwardsCallsTwo, $method, $parameters);
+        return $this->forwardCallTo(new ForwardsCallsTwo(), $method, $parameters);
     }
 
     public function throwTestException($method)
@@ -83,7 +83,7 @@ class ForwardsCallsTwo
 
     public function __call($method, $parameters)
     {
-        return $this->forwardCallTo(new ForwardsCallsBase, $method, $parameters);
+        return $this->forwardCallTo(new ForwardsCallsBase(), $method, $parameters);
     }
 
     public function forwardedTwo(...$parameters)

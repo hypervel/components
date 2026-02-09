@@ -14,7 +14,7 @@ trait CountsEnumerations
         $recorder = new Collection();
 
         $generatorFunction = function () use ($numbers, $recorder) {
-            for ($i = 1; $i <= $numbers; $i++) {
+            for ($i = 1; $i <= $numbers; ++$i) {
                 $recorder->push($i);
 
                 yield $i;
@@ -93,7 +93,7 @@ trait CountsEnumerations
     protected function countEnumerations(LazyCollection $collection, int &$count): LazyCollection
     {
         return $collection->tapEach(function () use (&$count) {
-            $count++;
+            ++$count;
         });
     }
 }

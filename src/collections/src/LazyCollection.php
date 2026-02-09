@@ -120,7 +120,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
 
         $collection = new static(function () use ($number) {
             if (is_infinite($number)) {
-                for ($i = 1; ; ++$i) {
+                for ($i = 1;; ++$i) {
                     yield $i;
                 }
             }
@@ -714,7 +714,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     /**
      * Get the values of a given key.
      *
-     * @param null|Closure|array<array-key, string>|int|string $value
+     * @param null|array<array-key, string>|Closure|int|string $value
      * @return static<array-key, mixed>
      */
     public function pluck(Closure|string|int|array|null $value, Closure|string|int|array|null $key = null)
@@ -1786,8 +1786,6 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
 
     /**
      * Explode the "value" and "key" arguments passed to "pluck".
-     *
-     * @return array
      */
     protected function explodePluckParameters(Closure|string|int|array|null $value, Closure|string|int|array|null $key): array
     {

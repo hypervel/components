@@ -61,9 +61,9 @@ class Reflector
      *
      * @template TAttribute of object
      *
-     * @param object|class-string $objectOrClass
+     * @param class-string|object $objectOrClass
      * @param class-string<TAttribute> $attribute
-     * @return TAttribute|null
+     * @return null|TAttribute
      */
     public static function getClassAttribute(mixed $objectOrClass, string $attribute, bool $ascend = false): ?object
     {
@@ -76,9 +76,9 @@ class Reflector
      * @template TTarget of object
      * @template TAttribute of object
      *
-     * @param TTarget|class-string<TTarget> $objectOrClass
+     * @param class-string<TTarget>|TTarget $objectOrClass
      * @param class-string<TAttribute> $attribute
-     * @return Collection<int, TAttribute>|Collection<class-string<contravariant TTarget>, Collection<int, TAttribute>>
+     * @return Collection<class-string<contravariant TTarget>, Collection<int, TAttribute>>|Collection<int, TAttribute>
      */
     public static function getClassAttributes(mixed $objectOrClass, string $attribute, bool $includeParents = false): Collection
     {

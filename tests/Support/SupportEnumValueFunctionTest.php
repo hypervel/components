@@ -9,7 +9,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 
 use function Hypervel\Support\enum_value;
 
-include_once __DIR__.'/Enums.php';
+include_once __DIR__ . '/Enums.php';
 
 /**
  * @internal
@@ -18,15 +18,9 @@ include_once __DIR__.'/Enums.php';
 class SupportEnumValueFunctionTest extends TestCase
 {
     #[DataProvider('scalarDataProvider')]
-    public function test_it_can_handle_enum_value($given, $expected)
+    public function testItCanHandleEnumValue($given, $expected)
     {
         $this->assertSame($expected, enum_value($given));
-    }
-
-    public function test_it_can_fallback_to_use_default_if_value_is_null()
-    {
-        $this->assertSame('laravel', enum_value(null, 'laravel'));
-        $this->assertSame('laravel', enum_value(null, fn () => 'laravel'));
     }
 
     public static function scalarDataProvider()
@@ -50,5 +44,11 @@ class SupportEnumValueFunctionTest extends TestCase
         yield [1337, 1337];
         yield [1.0, 1.0];
         yield [$collect = collect(), $collect];
+    }
+
+    public function testItCanFallbackToUseDefaultIfValueIsNull()
+    {
+        $this->assertSame('laravel', enum_value(null, 'laravel'));
+        $this->assertSame('laravel', enum_value(null, fn () => 'laravel'));
     }
 }

@@ -15,7 +15,7 @@ class SupportNamespacedItemResolverTest extends TestCase
 {
     public function testResolution()
     {
-        $r = new NamespacedItemResolver;
+        $r = new NamespacedItemResolver();
 
         $this->assertEquals(['foo', 'bar', 'baz'], $r->parseKey('foo::bar.baz'));
         $this->assertEquals(['foo', 'bar', null], $r->parseKey('foo::bar'));

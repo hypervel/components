@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
+use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Support\Fluent;
 use Hypervel\Support\Traits\CapsuleManagerTrait;
 use Hypervel\Tests\TestCase;
-use Hyperf\Di\Definition\DefinitionSource;
 
 /**
  * @internal
