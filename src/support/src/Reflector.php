@@ -175,11 +175,7 @@ class Reflector
             return false;
         }
 
-        $backedEnumClass = $parameter->getType()?->getName();
-
-        if (is_null($backedEnumClass)) {
-            return false;
-        }
+        $backedEnumClass = $parameter->getType()->getName();
 
         if (enum_exists($backedEnumClass)) {
             $reflectionBackedEnum = new ReflectionEnum($backedEnumClass);

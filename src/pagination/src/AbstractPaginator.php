@@ -690,7 +690,11 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
      */
     public function toHtml(): string
     {
-        return (string) $this->render();
+        $rendered = $this->render();
+
+        return $rendered instanceof Stringable
+            ? (string) $rendered
+            : $rendered->toHtml();
     }
 
     /**
@@ -706,9 +710,14 @@ abstract class AbstractPaginator implements CanBeEscapedWhenCastToString, Htmlab
      */
     public function __toString(): string
     {
+        $rendered = $this->render();
+        $renderedString = $rendered instanceof Stringable
+            ? (string) $rendered
+            : $rendered->toHtml();
+
         return $this->escapeWhenCastingToString
-            ? e((string) $this->render())
-            : (string) $this->render();
+            ? e($renderedString)
+            : $renderedString;
     }
 
     /**

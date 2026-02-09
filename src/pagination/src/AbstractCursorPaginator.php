@@ -610,7 +610,11 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      */
     public function toHtml(): string
     {
-        return (string) $this->render();
+        $rendered = $this->render();
+
+        return $rendered instanceof Stringable
+            ? (string) $rendered
+            : $rendered->toHtml();
     }
 
     /**
@@ -626,6 +630,10 @@ abstract class AbstractCursorPaginator implements Htmlable, Stringable
      */
     public function __toString(): string
     {
-        return (string) $this->render();
+        $rendered = $this->render();
+
+        return $rendered instanceof Stringable
+            ? (string) $rendered
+            : $rendered->toHtml();
     }
 }

@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Support;
 
 use ArrayAccess;
-use ArrayObject;
 use Hypervel\Support\Traits\Macroable;
 
 class Optional implements ArrayAccess
@@ -48,7 +47,7 @@ class Optional implements ArrayAccess
             return isset($this->value->{$name});
         }
 
-        if ($this->value instanceof ArrayObject || is_array($this->value)) {
+        if (is_array($this->value)) {
             return isset($this->value[$name]);
         }
 
