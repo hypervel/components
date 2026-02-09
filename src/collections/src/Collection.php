@@ -704,11 +704,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      */
     public function containsOneItem(?callable $callback = null): bool
     {
-        if ($callback) {
-            return $this->filter($callback)->count() === 1;
-        }
-
-        return $this->count() === 1;
+        return $this->hasSole($callback);
     }
 
     /**
@@ -718,23 +714,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      */
     public function containsManyItems(?callable $callback = null): bool
     {
-        if (! $callback) {
-            return $this->count() > 1;
-        }
-
-        $count = 0;
-
-        foreach ($this as $key => $item) {
-            if ($callback($item, $key)) {
-                ++$count;
-            }
-
-            if ($count > 1) {
-                return true;
-            }
-        }
-
-        return false;
+        return $this->hasMany($callback);
     }
 
     /**
@@ -1411,6 +1391,23 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
         }
 
         return $items->first();
+    }
+
+    /**
+     * Determine if the collection contains a single item, optionally matching the given criteria.
+     *
+     * @param null|(callable(TValue, TKey): bool)|string $key
+     */
+    public function hasSole(callable|string|null $key = null, mixed $operator = null, mixed $value = null): bool
+    {
+        $filter = func_num_args() > 1
+            ? $this->operatorForWhere(...func_get_args())
+            : $key;
+
+        return $this
+            ->unless($filter == null)
+            ->filter($filter)
+            ->count() === 1;
     }
 
     /**

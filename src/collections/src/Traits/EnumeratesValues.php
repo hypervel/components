@@ -36,6 +36,8 @@ use function Hypervel\Support\enum_value;
  * @property-read HigherOrderCollectionProxy<TKey, TValue> $first
  * @property-read HigherOrderCollectionProxy<TKey, TValue> $flatMap
  * @property-read HigherOrderCollectionProxy<TKey, TValue> $groupBy
+ * @property-read HigherOrderCollectionProxy<TKey, TValue> $hasMany
+ * @property-read HigherOrderCollectionProxy<TKey, TValue> $hasSole
  * @property-read HigherOrderCollectionProxy<TKey, TValue> $keyBy
  * @property-read HigherOrderCollectionProxy<TKey, TValue> $last
  * @property-read HigherOrderCollectionProxy<TKey, TValue> $map
@@ -82,6 +84,8 @@ trait EnumeratesValues
         'first',
         'flatMap',
         'groupBy',
+        'hasMany',
+        'hasSole',
         'keyBy',
         'last',
         'map',
@@ -303,6 +307,24 @@ trait EnumeratesValues
     public function firstWhere(string $key, mixed $operator = null, mixed $value = null): mixed
     {
         return $this->first($this->operatorForWhere(...func_get_args()));
+    }
+
+    /**
+     * Determine if the collection contains multiple items, optionally matching the given criteria.
+     *
+     * @param null|(callable(TValue, TKey): bool)|string $key
+     */
+    public function hasMany(callable|string|null $key = null, mixed $operator = null, mixed $value = null): bool
+    {
+        $filter = func_num_args() > 1
+            ? $this->operatorForWhere(...func_get_args())
+            : $key;
+
+        return $this
+            ->unless($filter == null)
+            ->filter($filter)
+            ->take(2)
+            ->count() === 2;
     }
 
     /**

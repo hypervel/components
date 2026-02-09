@@ -519,6 +519,20 @@ interface Enumerable extends Arrayable, Countable, IteratorAggregate, Jsonable, 
     public function containsManyItems(): bool;
 
     /**
+     * Determine if the collection contains a single item, optionally matching the given criteria.
+     *
+     * @param null|(callable(TValue, TKey): bool)|string $key
+     */
+    public function hasSole(callable|string|null $key = null, mixed $operator = null, mixed $value = null): bool;
+
+    /**
+     * Determine if the collection contains multiple items, optionally matching the given criteria.
+     *
+     * @param null|(callable(TValue, TKey): bool)|string $key
+     */
+    public function hasMany(callable|string|null $key = null, mixed $operator = null, mixed $value = null): bool;
+
+    /**
      * Join all items from the collection using a string. The final items can use a separate glue string.
      */
     public function join(string $glue, string $finalGlue = ''): string;
