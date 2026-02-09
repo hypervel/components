@@ -330,13 +330,13 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     }
 
     #[Override]
-    public function diff(Arrayable|iterable $items): static
+    public function diff(mixed $items): static
     {
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 
     #[Override]
-    public function diffUsing(Arrayable|iterable $items, callable $callback): static
+    public function diffUsing(mixed $items, callable $callback): static
     {
         return $this->passthru(__FUNCTION__, func_get_args());
     }
@@ -378,7 +378,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     }
 
     #[Override]
-    public function except(Enumerable|array $keys): static
+    public function except(mixed $keys): static
     {
         return $this->passthru(__FUNCTION__, func_get_args());
     }
@@ -575,39 +575,39 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     /**
      * Concatenate values of a given key as a string.
      *
-     * @param (callable(TValue, TKey): mixed)|string $value
+     * @param null|(callable(TValue, TKey): mixed)|string $value
      */
-    public function implode(callable|string $value, ?string $glue = null): string
+    public function implode(callable|string|null $value, ?string $glue = null): string
     {
         return $this->collect()->implode(...func_get_args());
     }
 
     #[Override]
-    public function intersect(Arrayable|iterable $items): static
+    public function intersect(mixed $items): static
     {
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 
     #[Override]
-    public function intersectUsing(Arrayable|iterable $items, callable $callback): static
+    public function intersectUsing(mixed $items, callable $callback): static
     {
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 
     #[Override]
-    public function intersectAssoc(Arrayable|iterable $items): static
+    public function intersectAssoc(mixed $items): static
     {
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 
     #[Override]
-    public function intersectAssocUsing(Arrayable|iterable $items, callable $callback): static
+    public function intersectAssocUsing(mixed $items, callable $callback): static
     {
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 
     #[Override]
-    public function intersectByKeys(Arrayable|iterable $items): static
+    public function intersectByKeys(mixed $items): static
     {
         return $this->passthru(__FUNCTION__, func_get_args());
     }
@@ -683,21 +683,25 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     /**
      * Get the values of a given key.
      *
-     * @param array<array-key, string>|string $value
+     * @param null|Closure|array<array-key, string>|int|string $value
      * @return static<array-key, mixed>
      */
-    public function pluck(string|array $value, ?string $key = null)
+    public function pluck(Closure|string|int|array|null $value, Closure|string|int|array|null $key = null)
     {
         return new static(function () use ($value, $key) {
             [$value, $key] = $this->explodePluckParameters($value, $key);
 
             foreach ($this as $item) {
-                $itemValue = data_get($item, $value);
+                $itemValue = $value instanceof Closure
+                    ? $value($item)
+                    : data_get($item, $value);
 
                 if (is_null($key)) {
                     yield $itemValue;
                 } else {
-                    $itemKey = data_get($item, $key);
+                    $itemKey = $key instanceof Closure
+                        ? $key($item)
+                        : data_get($item, $key);
 
                     if (is_object($itemKey) && method_exists($itemKey, '__toString')) {
                         $itemKey = (string) $itemKey;
@@ -754,14 +758,14 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     }
 
     #[Override]
-    public function merge(Arrayable|iterable $items): static
+    public function merge(mixed $items): static
     {
         // @phpstan-ignore return.type (passthru loses generic type info)
         return $this->passthru(__FUNCTION__, func_get_args());
     }
 
     #[Override]
-    public function mergeRecursive(Arrayable|iterable $items): static
+    public function mergeRecursive(mixed $items): static
     {
         // @phpstan-ignore return.type (passthru loses generic type info)
         return $this->passthru(__FUNCTION__, func_get_args());
@@ -814,7 +818,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     }
 
     #[Override]
-    public function union(Arrayable|iterable $items): static
+    public function union(mixed $items): static
     {
         return $this->passthru(__FUNCTION__, func_get_args());
     }
@@ -846,17 +850,23 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     /**
      * Get the items with the specified keys.
      *
-     * @param array<array-key, TKey>|Enumerable<array-key, TKey>|string $keys
+     * @param null|array<array-key, TKey>|Enumerable<array-key, TKey>|string $keys
      */
-    public function only(Enumerable|array|string $keys): static
+    public function only(mixed $keys): static
     {
         if ($keys instanceof Enumerable) {
             $keys = $keys->all();
-        } elseif (! is_array($keys)) {
-            $keys = func_get_args();
+        } elseif (! is_null($keys)) {
+            $keys = is_array($keys) ? $keys : func_get_args();
         }
 
         return new static(function () use ($keys) {
+            if (is_null($keys)) {
+                yield from $this;
+
+                return;
+            }
+
             $keys = array_flip($keys);
 
             foreach ($this as $key => $value) {
@@ -876,17 +886,23 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     /**
      * Select specific values from the items within the collection.
      *
-     * @param array<array-key, TKey>|Enumerable<array-key, TKey>|string $keys
+     * @param null|array<array-key, TKey>|Enumerable<array-key, TKey>|string $keys
      */
-    public function select(Enumerable|array|string $keys): static
+    public function select(mixed $keys): static
     {
         if ($keys instanceof Enumerable) {
             $keys = $keys->all();
-        } elseif (! is_array($keys)) {
-            $keys = func_get_args();
+        } elseif (! is_null($keys)) {
+            $keys = is_array($keys) ? $keys : func_get_args();
         }
 
         return new static(function () use ($keys) {
+            if (is_null($keys)) {
+                yield from $this;
+
+                return;
+            }
+
             foreach ($this as $item) {
                 $result = [];
 
@@ -927,7 +943,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      *
      * @throws InvalidArgumentException
      */
-    public function random(?int $number = null): mixed
+    public function random(callable|int|string|null $number = null): mixed
     {
         $result = $this->collect()->random(...func_get_args());
 
@@ -939,7 +955,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
      *
      * @param Arrayable<TKey, TValue>|iterable<TKey, TValue> $items
      */
-    public function replace(Arrayable|iterable $items): static
+    public function replace(mixed $items): static
     {
         return new static(function () use ($items) {
             $items = $this->getArrayableItems($items);
@@ -961,7 +977,7 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     }
 
     #[Override]
-    public function replaceRecursive(Arrayable|iterable $items): static
+    public function replaceRecursive(mixed $items): static
     {
         return $this->passthru(__FUNCTION__, func_get_args());
     }
@@ -1740,13 +1756,13 @@ class LazyCollection implements CanBeEscapedWhenCastToString, Enumerable
     /**
      * Explode the "value" and "key" arguments passed to "pluck".
      *
-     * @return array{string[], null|string[]}
+     * @return array
      */
-    protected function explodePluckParameters(string|array $value, string|array|Closure|null $key): array
+    protected function explodePluckParameters(Closure|string|int|array|null $value, Closure|string|int|array|null $key): array
     {
         $value = is_string($value) ? explode('.', $value) : $value;
 
-        $key = is_null($key) || is_array($key) || $key instanceof Closure ? $key : explode('.', $key);
+        $key = is_null($key) || is_array($key) || is_int($key) || $key instanceof Closure ? $key : explode('.', $key);
 
         return [$value, $key];
     }

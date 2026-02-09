@@ -763,7 +763,7 @@ class Collection extends BaseCollection implements QueueableCollection
      * @return \Hypervel\Support\Collection<array-key, mixed>
      */
     #[Override]
-    public function pluck(Closure|string|int|array|null $value, Closure|string|null $key = null)
+    public function pluck(Closure|string|int|array|null $value, Closure|string|int|array|null $key = null)
     {
         return $this->toBase()->pluck($value, $key);
     }

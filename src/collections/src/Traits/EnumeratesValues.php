@@ -143,10 +143,10 @@ trait EnumeratesValues
      * @template TUnwrapKey of array-key
      * @template TUnwrapValue
      *
-     * @param array<TUnwrapKey, TUnwrapValue>|static<TUnwrapKey, TUnwrapValue> $value
-     * @return array<TUnwrapKey, TUnwrapValue>
+     * @param TUnwrapValue|array<TUnwrapKey, TUnwrapValue>|static<TUnwrapKey, TUnwrapValue> $value
+     * @return (array<TUnwrapKey, TUnwrapValue>|TUnwrapValue)
      */
-    public static function unwrap(mixed $value): array
+    public static function unwrap(mixed $value): mixed
     {
         return $value instanceof Enumerable ? $value->all() : $value;
     }
@@ -304,7 +304,7 @@ trait EnumeratesValues
      *
      * @return null|TValue
      */
-    public function firstWhere(string $key, mixed $operator = null, mixed $value = null): mixed
+    public function firstWhere(callable|string $key, mixed $operator = null, mixed $value = null): mixed
     {
         return $this->first($this->operatorForWhere(...func_get_args()));
     }
@@ -632,7 +632,7 @@ trait EnumeratesValues
     /**
      * Filter items by the given key value pair using strict comparison.
      */
-    public function whereStrict(string $key, mixed $value): static
+    public function whereStrict(callable|string|null $key, mixed $value): static
     {
         return $this->where($key, '===', $value);
     }

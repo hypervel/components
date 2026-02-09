@@ -14,7 +14,6 @@ use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\TransformsToResourceCollection;
 use InvalidArgumentException;
 use stdClass;
-use Stringable;
 use Traversable;
 use UnitEnum;
 
@@ -525,7 +524,7 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
                 $groupKey = match (true) {
                     is_bool($groupKey) => (int) $groupKey,
                     $groupKey instanceof UnitEnum => enum_value($groupKey),
-                    $groupKey instanceof Stringable => (string) $groupKey,
+                    $groupKey instanceof \Stringable => (string) $groupKey,
                     is_null($groupKey) => (string) $groupKey,
                     default => $groupKey,
                 };
@@ -771,9 +770,10 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
      * Get the values of a given key.
      *
      * @param null|array<array-key, string>|Closure|int|string $value
+     * @param null|array<array-key, string>|Closure|int|string $key
      * @return static<array-key, mixed>
      */
-    public function pluck(Closure|string|int|array|null $value, Closure|string|null $key = null)
+    public function pluck(Closure|string|int|array|null $value, Closure|string|int|array|null $key = null)
     {
         return new static(Arr::pluck($this->items, $value, $key));
     }
@@ -1092,12 +1092,12 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Get one or a specified number of items randomly from the collection.
      *
-     * @param null|(callable(self<TKey, TValue>): int)|int $number
+     * @param null|(callable(self<TKey, TValue>): int)|int|string $number
      * @return ($number is null ? TValue : static<int, TValue>)
      *
      * @throws InvalidArgumentException
      */
-    public function random(callable|int|null $number = null, bool $preserveKeys = false): mixed
+    public function random(callable|int|string|null $number = null, bool $preserveKeys = false): mixed
     {
         if (is_null($number)) {
             return Arr::random($this->items);
@@ -1561,16 +1561,16 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
 
                     if (($options & SORT_FLAG_CASE) === SORT_FLAG_CASE) {
                         if (($options & SORT_NATURAL) === SORT_NATURAL) {
-                            $result = strnatcasecmp($values[0], $values[1]);
+                            $result = strnatcasecmp((string) $values[0], (string) $values[1]);
                         } else {
-                            $result = strcasecmp($values[0], $values[1]);
+                            $result = strcasecmp((string) $values[0], (string) $values[1]);
                         }
                     } else {
                         $result = match ($options) {
                             SORT_NUMERIC => (int) $values[0] <=> (int) $values[1],
-                            SORT_STRING => strcmp($values[0], $values[1]),
+                            SORT_STRING => strcmp((string) $values[0], (string) $values[1]),
                             SORT_NATURAL => strnatcmp((string) $values[0], (string) $values[1]),
-                            SORT_LOCALE_STRING => strcoll($values[0], $values[1]),
+                            SORT_LOCALE_STRING => strcoll((string) $values[0], (string) $values[1]),
                             default => $values[0] <=> $values[1],
                         };
                     }
@@ -1644,9 +1644,9 @@ class Collection implements ArrayAccess, CanBeEscapedWhenCastToString, Enumerabl
     /**
      * Splice a portion of the underlying collection array.
      *
-     * @param array<array-key, TValue> $replacement
+     * @param mixed $replacement
      */
-    public function splice(int $offset, ?int $length = null, array $replacement = []): static
+    public function splice(int $offset, ?int $length = null, mixed $replacement = []): static
     {
         if (func_num_args() === 1) {
             return new static(array_splice($this->items, $offset));
