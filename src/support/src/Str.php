@@ -13,6 +13,7 @@ use League\CommonMark\Extension\GithubFlavoredMarkdownExtension;
 use League\CommonMark\Extension\InlinesOnly\InlinesOnlyExtension;
 use League\CommonMark\GithubFlavoredMarkdownConverter;
 use League\CommonMark\MarkdownConverter;
+use LogicException;
 use Ramsey\Uuid\Codec\TimestampFirstCombCodec;
 use Ramsey\Uuid\Exception\InvalidUuidStringException;
 use Ramsey\Uuid\Generator\CombGenerator;
@@ -1717,5 +1718,23 @@ class Str
         }
 
         return $ulid;
+    }
+
+    /**
+     * Remove all strings from the casing caches.
+     */
+    public static function flushCache(): void
+    {
+        throw new LogicException('Str::flushCache() is not implemented in Hypervel because Str casing caches are intentionally not used. Use StrCache for persistent casing caching.');
+    }
+
+    /**
+     * Return all factory functions to their default state.
+     */
+    public static function resetFactoryState(): void
+    {
+        static::createRandomStringsNormally();
+        static::createUlidsNormally();
+        static::createUuidsNormally();
     }
 }
