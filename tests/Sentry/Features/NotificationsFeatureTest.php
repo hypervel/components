@@ -35,7 +35,7 @@ class NotificationsFeatureTest extends SentryTestCase
     protected function defineEnvironment(ApplicationContract $app): void
     {
         parent::defineEnvironment($app);
-        $this->app->set(ViewFactory::class, m::mock(ViewFactory::class));
+        $this->app->set(ViewFactory::class, m::mock(ViewFactory::class)->shouldIgnoreMissing());
     }
 
     public function testSpanIsRecorded(): void
