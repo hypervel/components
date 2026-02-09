@@ -91,7 +91,8 @@ Run the full test suite (`./vendor/bin/phpunit`). Investigate all failures thoro
 - **Use unions over `mixed` when types are known** — `mixed` is only for truly unconstrained values or cases that cannot be safely narrowed after control-flow analysis.
 - **Type decisions must be evidence-based** — check corresponding Laravel/Hyperf signatures and docblocks as reference, then trace real control flow in method bodies and callers/callees.
 - **Modernize types only in touched code** — do not refactor unrelated files unless required by confirmed control flow or a failing test.
-- **Keep worker-lifetime runtime work lean** — avoid repeated per-call expensive work when immutable worker-lifetime metadata can be safely cached in bounded static caches. Never store request-scoped or mutable runtime state in statics.
+- **Review worker-lifetime state explicitly** — whenever a change introduces or modifies static properties/caches/singletons, STOP and report the Swoole persistence impact (memory growth, cross-request behavior) with a recommendation: keep as-is for performance parity, or adapt for worker safety.
+- **Flag cache opportunities with recommendation** — if a ported path repeatedly computes expensive stable metadata and worker-lifetime static caching would be a clear win, STOP and recommend it (what to cache, expected benefit, and safety constraints).
 
 ## Porting Tests
 
