@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth;
 
-use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Auth\Guards\RequestGuard;
@@ -103,8 +102,8 @@ class AuthMangerTest extends TestCase
             ->once()
             ->andReturn(m::mock(ConnectionInterface::class));
 
-        $container->define(ConnectionResolverInterface::class, fn () => $resolver);
-        $container->define(HashContract::class, fn () => m::mock(HashContract::class));
+        $container->instance(ConnectionResolverInterface::class, $resolver);
+        $container->instance(HashContract::class, m::mock(HashContract::class));
 
         $this->assertInstanceOf(
             DatabaseUserProvider::class,
@@ -145,7 +144,7 @@ class AuthMangerTest extends TestCase
     public function testViaRequest()
     {
         $manager = new AuthManager($container = $this->getContainer());
-        $container->set(RequestInterface::class, m::mock(RequestInterface::class));
+        $container->instance(RequestInterface::class, m::mock(RequestInterface::class));
 
         ApplicationContext::setContainer($container);
 
@@ -170,16 +169,13 @@ class AuthMangerTest extends TestCase
         $this->assertSame($user, $guard->user());
     }
 
-    protected function getContainer(array $authConfig = [])
+    protected function getContainer(array $authConfig = []): Container
     {
-        $config = new Repository([
+        $container = new Container();
+        $container->instance('config', new Repository([
             'auth' => $authConfig,
-        ]);
+        ]));
 
-        return new Container(
-            new DefinitionSource([
-                'config' => fn () => $config,
-            ])
-        );
+        return $container;
     }
 }

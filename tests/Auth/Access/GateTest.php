@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth\Access;
 
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
+use Hypervel\Container\Container;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\Access\Gate;
 use Hypervel\Auth\Access\Response;
@@ -1120,6 +1119,6 @@ class GateTest extends TestCase
 
     private function getContainer(): Container
     {
-        return new Container(new DefinitionSource([]));
+        return new Container();
     }
 }

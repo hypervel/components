@@ -6,8 +6,8 @@ namespace Hypervel\Auth\Access;
 
 use Closure;
 use Exception;
-use Hyperf\Contract\ContainerInterface;
-use Hyperf\Di\Exception\NotFoundException;
+use Hypervel\Contracts\Container\BindingResolutionException;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Auth\Access\Events\GateEvaluated;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Auth\Authenticatable;
@@ -41,7 +41,7 @@ class Gate implements GateContract
     /**
      * Create a new gate instance.
      *
-     * @param ContainerInterface $container the container instance
+     * @param Container $container the container instance
      * @param Closure $userResolver the user resolver callable
      * @param array $abilities all of the defined abilities
      * @param array $policies all of the defined policies
@@ -49,7 +49,7 @@ class Gate implements GateContract
      * @param array $afterCallbacks all of the registered after callbacks
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected Closure $userResolver,
         protected array $abilities = [],
         protected array $policies = [],
@@ -537,11 +537,11 @@ class Gate implements GateContract
     /**
      * Build a policy class instance of the given type.
      *
-     * @throws NotFoundException
+     * @throws BindingResolutionException
      */
     public function resolvePolicy(string $class): mixed
     {
-        return $this->container->get($class);
+        return $this->container->make($class);
     }
 
     /**

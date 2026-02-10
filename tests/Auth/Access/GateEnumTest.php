@@ -4,8 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth\Access;
 
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
+use Hypervel\Container\Container;
 use Hypervel\Auth\Access\Gate;
 use Hypervel\Tests\Auth\Stub\AccessGateTestAuthenticatable;
 use Hypervel\Tests\Auth\Stub\AccessGateTestDummy;
@@ -340,7 +339,7 @@ class GateEnumTest extends TestCase
 
     protected function getBasicGate(bool $isGuest = false): Gate
     {
-        $container = new Container(new DefinitionSource([]));
+        $container = new Container();
 
         return new Gate(
             $container,
