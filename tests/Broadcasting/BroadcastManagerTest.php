@@ -10,27 +10,19 @@ use Hypervel\Broadcasting\BroadcastManager;
 use Hypervel\Broadcasting\Channel;
 use Hypervel\Broadcasting\UniqueBroadcastEvent;
 use Hypervel\Config\Repository;
-use Hypervel\Container\DefinitionSource;
-use Hypervel\Context\ApplicationContext;
-use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactoryContract;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Broadcasting\ShouldBeUnique;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcastNow;
-use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
-use Hypervel\Contracts\Bus\QueueingDispatcher;
 use Hypervel\Contracts\Cache\Factory as Cache;
-use Hypervel\Contracts\Config\Repository as ConfigContract;
-use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
-use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Http\Kernel;
 use Hypervel\Foundation\Http\Middleware\VerifyCsrfToken;
 use Hypervel\Support\Facades\Broadcast;
 use Hypervel\Support\Facades\Bus;
-use Hypervel\Support\Facades\Facade;
 use Hypervel\Support\Facades\Queue;
+use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
-use PHPUnit\Framework\TestCase;
 use Psr\Container\ContainerInterface;
 
 /**
@@ -39,32 +31,6 @@ use Psr\Container\ContainerInterface;
  */
 class BroadcastManagerTest extends TestCase
 {
-    protected Application $container;
-
-    protected function setUp(): void
-    {
-        parent::setUp();
-
-        $this->container = new Application(
-            new DefinitionSource([
-                BusDispatcherContract::class => fn () => m::mock(QueueingDispatcher::class),
-                ConfigContract::class => fn () => m::mock(Repository::class),
-                QueueFactoryContract::class => fn () => m::mock(QueueFactoryContract::class),
-                BroadcastingFactoryContract::class => fn ($container) => new BroadcastManager($container),
-            ]),
-            'bath_path',
-        );
-
-        ApplicationContext::setContainer($this->container);
-    }
-
-    protected function tearDown(): void
-    {
-        parent::tearDown();
-
-        Facade::clearResolvedInstances();
-    }
-
     public function testEventCanBeBroadcastNow()
     {
         Bus::fake();
@@ -96,7 +62,7 @@ class BroadcastManagerTest extends TestCase
         $cache = m::mock(Cache::class);
         $cache->shouldReceive('lock')->with($lockKey, 0)->andReturnSelf();
         $cache->shouldReceive('get')->andReturn(true);
-        $this->container->bind(Cache::class, fn () => $cache);
+        $this->app->bind(Cache::class, fn () => $cache);
 
         Broadcast::queue(new TestEventUnique());
 
