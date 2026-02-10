@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Event;
 
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
@@ -345,12 +344,9 @@ class QueuedEventsTest extends TestCase
     private function getContainer(): Container
     {
         $config = new Repository([]);
-        $container = new Container(
-            new DefinitionSource([
-                'config' => fn () => $config,
-                ConfigContract::class => fn () => $config,
-            ])
-        );
+        $container = new Container();
+        $container->instance('config', $config);
+        $container->instance(ConfigContract::class, $config);
 
         ApplicationContext::setContainer($container);
 

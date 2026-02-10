@@ -36,7 +36,7 @@ class Application extends Container implements ApplicationContract, HyperfContai
     /**
      * The base path for the Hypervel installation.
      */
-    protected string $basePath;
+    protected string $basePath = '';
 
     /**
      * Indicates if the application has been bootstrapped before.
@@ -81,7 +81,9 @@ class Application extends Container implements ApplicationContract, HyperfContai
 
     public function __construct(?string $basePath = null)
     {
-        $this->setBasePath($basePath ?: BASE_PATH);
+        if ($basePath) {
+            $this->setBasePath($basePath);
+        }
 
         $this->registerBaseBindings();
         $this->registerCoreContainerAliases();
@@ -166,7 +168,7 @@ class Application extends Container implements ApplicationContract, HyperfContai
      */
     protected function registerConfigProviderDependencies(): void
     {
-        if (! class_exists(ProviderConfig::class)) {
+        if (! class_exists(ProviderConfig::class) || ! defined('BASE_PATH')) {
             return;
         }
 
