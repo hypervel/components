@@ -11,7 +11,6 @@ use Hypervel\Redis\Exceptions\InvalidRedisConnectionException;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Subscriber\Subscriber;
 use Hypervel\Redis\Traits\MultiExec;
-use Hypervel\Redis\Traits\ScanCaller;
 use Hypervel\Support\Arr;
 use Throwable;
 use UnitEnum;
@@ -23,7 +22,6 @@ use function Hypervel\Support\enum_value;
  */
 class Redis
 {
-    use ScanCaller;
     use MultiExec;
 
     protected string $poolName = 'default';
@@ -31,6 +29,38 @@ class Redis
     public function __construct(
         protected PoolFactory $factory
     ) {
+    }
+
+    /**
+     * Scan keys matching a pattern.
+     */
+    public function scan($cursor, ...$arguments)
+    {
+        return $this->__call('scan', [$cursor, ...$arguments]);
+    }
+
+    /**
+     * Scan hash fields matching a pattern.
+     */
+    public function hScan($key, $cursor, ...$arguments)
+    {
+        return $this->__call('hScan', [$key, $cursor, ...$arguments]);
+    }
+
+    /**
+     * Scan sorted set members matching a pattern.
+     */
+    public function zScan($key, $cursor, ...$arguments)
+    {
+        return $this->__call('zScan', [$key, $cursor, ...$arguments]);
+    }
+
+    /**
+     * Scan set members matching a pattern.
+     */
+    public function sScan($key, $cursor, ...$arguments)
+    {
+        return $this->__call('sScan', [$key, $cursor, ...$arguments]);
     }
 
     public function __call($name, $arguments)
