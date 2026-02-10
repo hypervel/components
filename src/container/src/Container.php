@@ -66,6 +66,18 @@ class Container implements ArrayAccess, ContainerContract
     protected $instances = [];
 
     /**
+     * Auto-singletoned instances for unbound concrete classes.
+     *
+     * Stored separately from $instances so that bound() doesn't report
+     * auto-singletoned classes as explicitly registered. This prevents
+     * resolveClass() from skipping default values for optional typed
+     * parameters when the class was only implicitly cached.
+     *
+     * @var object[]
+     */
+    protected $autoSingletons = [];
+
+    /**
      * The container's scoped instances.
      *
      * @var array
@@ -811,6 +823,11 @@ class Container implements ArrayAccess, ContainerContract
             return $this->instances[$abstract];
         }
 
+        // Check auto-singleton cache for unbound concrete classes.
+        if (isset($this->autoSingletons[$abstract]) && ! $needsContextualBuild) {
+            return $this->autoSingletons[$abstract];
+        }
+
         $this->with[] = $parameters;
 
         if (is_null($concrete)) {
@@ -834,8 +851,21 @@ class Container implements ArrayAccess, ContainerContract
         // If the requested type is registered as a singleton we'll want to cache off
         // the instances in "memory" so we can return it later without creating an
         // entirely new instance of an object on each subsequent request for it.
-        if ($this->isShared($abstract) && ! $needsContextualBuild) {
-            $this->instances[$abstract] = $object;
+        if (! $needsContextualBuild) {
+            if ($this->isShared($abstract)) {
+                $this->instances[$abstract] = $object;
+            } elseif ($raiseEvents && ! isset($this->bindings[$abstract]) && is_string($concrete) && class_exists($concrete)) {
+                // Auto-singleton: unbound concrete classes are cached for Swoole performance.
+                // In Swoole's long-running process model, services are stateless singletons
+                // by design. Re-creating them on every resolution wastes CPU and memory.
+                // Explicit bind() overrides this — bound classes follow their binding type.
+                // Skipped when raiseEvents is false (internal binding resolution via getClosure)
+                // so that concretes resolved as part of scoped/singleton bindings don't get
+                // independently cached, which would break forgetScopedInstances().
+                // Stored in $autoSingletons (not $instances) so bound() doesn't report
+                // these as explicitly registered, preserving resolveClass() default values.
+                $this->autoSingletons[$abstract] = $object;
+            }
         }
 
         if ($raiseEvents) {
@@ -1485,7 +1515,7 @@ class Container implements ArrayAccess, ContainerContract
      */
     protected function dropStaleInstances(string $abstract): void
     {
-        unset($this->instances[$abstract], $this->aliases[$abstract]);
+        unset($this->instances[$abstract], $this->aliases[$abstract], $this->autoSingletons[$abstract]);
     }
 
     /**
@@ -1493,7 +1523,7 @@ class Container implements ArrayAccess, ContainerContract
      */
     public function forgetInstance(string $abstract): void
     {
-        unset($this->instances[$abstract]);
+        unset($this->instances[$abstract], $this->autoSingletons[$abstract]);
     }
 
     /**
@@ -1502,6 +1532,7 @@ class Container implements ArrayAccess, ContainerContract
     public function forgetInstances(): void
     {
         $this->instances = [];
+        $this->autoSingletons = [];
     }
 
     /**
@@ -1551,6 +1582,7 @@ class Container implements ArrayAccess, ContainerContract
         $this->resolved = [];
         $this->bindings = [];
         $this->instances = [];
+        $this->autoSingletons = [];
         $this->abstractAliases = [];
         $this->scopedInstances = [];
         $this->checkedForAttributeBindings = [];
