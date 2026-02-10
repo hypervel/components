@@ -98,7 +98,7 @@ interface Container extends ContainerInterface
     /**
      * Add a contextual binding to the container.
      */
-    public function addContextualBinding(string $concrete, Closure|string $abstract, Closure|string $implementation): void;
+    public function addContextualBinding(string $concrete, Closure|string $abstract, mixed $implementation): void;
 
     /**
      * Define a contextual binding.

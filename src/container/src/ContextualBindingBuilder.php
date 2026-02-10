@@ -37,7 +37,7 @@ class ContextualBindingBuilder implements ContextualBindingBuilderContract
     /**
      * Define the implementation for the contextual binding.
      */
-    public function give(Closure|string|array $implementation): static
+    public function give(mixed $implementation): static
     {
         foreach (Util::arrayWrap($this->concrete) as $concrete) {
             $this->container->addContextualBinding($concrete, $this->needs, $implementation);

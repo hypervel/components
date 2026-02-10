@@ -428,7 +428,7 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Add a contextual binding to the container.
      */
-    public function addContextualBinding(string $concrete, Closure|string $abstract, Closure|string $implementation): void
+    public function addContextualBinding(string $concrete, Closure|string $abstract, mixed $implementation): void
     {
         $this->contextual[$concrete][$this->getAlias($abstract)] = $implementation;
     }
@@ -931,7 +931,7 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Get the contextual concrete binding for the given abstract.
      */
-    protected function getContextualConcrete(string $abstract): Closure|string|array|null
+    protected function getContextualConcrete(string $abstract): mixed
     {
         if (! is_null($binding = $this->findInContextualBindings($abstract))) {
             return $binding;
@@ -956,7 +956,7 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Find the concrete binding for the given abstract in the contextual binding array.
      */
-    protected function findInContextualBindings(string $abstract): Closure|string|null
+    protected function findInContextualBindings(string $abstract): mixed
     {
         return $this->contextual[end($this->buildStack)][$abstract] ?? null;
     }

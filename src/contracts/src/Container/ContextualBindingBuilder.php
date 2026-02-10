@@ -16,7 +16,7 @@ interface ContextualBindingBuilder
     /**
      * Define the implementation for the contextual binding.
      */
-    public function give(Closure|string|array $implementation): static;
+    public function give(mixed $implementation): static;
 
     /**
      * Define tagged services to be used as the implementation for the contextual binding.

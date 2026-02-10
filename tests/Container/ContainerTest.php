@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Hypervel\Tests\Container;
+namespace Hypervel\Tests\Container\ContainerTest;
 
 use Attribute;
 use Hypervel\Container\Attributes\Bind;
@@ -439,7 +439,7 @@ class ContainerTest extends TestCase
     public function testInternalClassWithDefaultParameters()
     {
         $this->expectException(BindingResolutionException::class);
-        $this->expectExceptionMessage('Unresolvable dependency resolving [Parameter #0 [ <required> $first ]] in class Hypervel\Tests\Container\ContainerMixedPrimitiveStub');
+        $this->expectExceptionMessage('Unresolvable dependency resolving [Parameter #0 [ <required> $first ]] in class Hypervel\Tests\Container\ContainerTest\ContainerMixedPrimitiveStub');
 
         $container = new Container;
         $container->make(ContainerMixedPrimitiveStub::class, []);
@@ -448,7 +448,7 @@ class ContainerTest extends TestCase
     public function testBindingResolutionExceptionMessage()
     {
         $this->expectException(BindingResolutionException::class);
-        $this->expectExceptionMessage('Target [Hypervel\Tests\Container\IContainerContractStub] is not instantiable.');
+        $this->expectExceptionMessage('Target [Hypervel\Tests\Container\ContainerTest\IContainerContractStub] is not instantiable.');
 
         $container = new Container;
         $container->make(IContainerContractStub::class, []);
@@ -457,7 +457,7 @@ class ContainerTest extends TestCase
     public function testBindingResolutionExceptionMessageIncludesBuildStack()
     {
         $this->expectException(BindingResolutionException::class);
-        $this->expectExceptionMessage('Target [Hypervel\Tests\Container\IContainerContractStub] is not instantiable while building [Hypervel\Tests\Container\ContainerDependentStub].');
+        $this->expectExceptionMessage('Target [Hypervel\Tests\Container\ContainerTest\IContainerContractStub] is not instantiable while building [Hypervel\Tests\Container\ContainerTest\ContainerDependentStub].');
 
         $container = new Container;
         $container->make(ContainerDependentStub::class, []);
@@ -931,7 +931,7 @@ class ContainerTest extends TestCase
 
     // public function testContainerCanCatchCircularDependency()
     // {
-    //     $this->expectException(\Hypervel\Contracts\Container\CircularDependencyException::class);
+    //     $this->expectException(CircularDependencyException::class);
 
     //     $container = new Container;
     //     $container->get(CircularAStub::class);
