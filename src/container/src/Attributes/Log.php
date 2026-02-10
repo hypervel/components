@@ -1,10 +1,12 @@
 <?php
 
-namespace Illuminate\Container\Attributes;
+declare(strict_types=1);
+
+namespace Hypervel\Container\Attributes;
 
 use Attribute;
-use Illuminate\Contracts\Container\Container;
-use Illuminate\Contracts\Container\ContextualAttribute;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Container\ContextualAttribute;
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
 class Log implements ContextualAttribute
@@ -20,7 +22,7 @@ class Log implements ContextualAttribute
      * Resolve the log channel.
      *
      * @param  self  $attribute
-     * @param  \Illuminate\Contracts\Container\Container  $container
+     * @param  \Hypervel\Contracts\Container\Container  $container
      * @return \Psr\Log\LoggerInterface
      */
     public static function resolve(self $attribute, Container $container)

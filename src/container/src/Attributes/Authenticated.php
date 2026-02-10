@@ -1,10 +1,12 @@
 <?php
 
-namespace Illuminate\Container\Attributes;
+declare(strict_types=1);
+
+namespace Hypervel\Container\Attributes;
 
 use Attribute;
-use Illuminate\Contracts\Container\Container;
-use Illuminate\Contracts\Container\ContextualAttribute;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Container\ContextualAttribute;
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
 class Authenticated implements ContextualAttribute
@@ -20,8 +22,8 @@ class Authenticated implements ContextualAttribute
      * Resolve the currently authenticated user.
      *
      * @param  self  $attribute
-     * @param  \Illuminate\Contracts\Container\Container  $container
-     * @return \Illuminate\Contracts\Auth\Authenticatable|null
+     * @param  \Hypervel\Contracts\Container\Container  $container
+     * @return \Hypervel\Contracts\Auth\Authenticatable|null
      */
     public static function resolve(self $attribute, Container $container)
     {

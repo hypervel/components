@@ -1,10 +1,12 @@
 <?php
 
-namespace Illuminate\Container\Attributes;
+declare(strict_types=1);
+
+namespace Hypervel\Container\Attributes;
 
 use Attribute;
-use Illuminate\Contracts\Container\Container;
-use Illuminate\Contracts\Container\ContextualAttribute;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Container\ContextualAttribute;
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
 class Auth implements ContextualAttribute
@@ -20,8 +22,8 @@ class Auth implements ContextualAttribute
      * Resolve the authentication guard.
      *
      * @param  self  $attribute
-     * @param  \Illuminate\Contracts\Container\Container  $container
-     * @return \Illuminate\Contracts\Auth\Guard|\Illuminate\Contracts\Auth\StatefulGuard
+     * @param  \Hypervel\Contracts\Container\Container  $container
+     * @return \Hypervel\Contracts\Auth\Guard|\Hypervel\Contracts\Auth\StatefulGuard
      */
     public static function resolve(self $attribute, Container $container)
     {

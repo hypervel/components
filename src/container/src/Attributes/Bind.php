@@ -1,6 +1,8 @@
 <?php
 
-namespace Illuminate\Container\Attributes;
+declare(strict_types=1);
+
+namespace Hypervel\Container\Attributes;
 
 use Attribute;
 use BackedEnum;
