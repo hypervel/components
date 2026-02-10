@@ -1,8 +1,6 @@
 <?php
 
-declare(strict_types=1);
-
-namespace Hypervel\Container;
+namespace Illuminate\Container;
 
 use Countable;
 use IteratorAggregate;
@@ -11,16 +9,35 @@ use Traversable;
 class RewindableGenerator implements Countable, IteratorAggregate
 {
     /**
-     * Create a new generator instance.
+     * The generator callback.
+     *
+     * @var callable
      */
-    public function __construct(
-        protected readonly callable $generator,
-        protected callable|int $count,
-    ) {
+    protected $generator;
+
+    /**
+     * The number of tagged services.
+     *
+     * @var callable|int
+     */
+    protected $count;
+
+    /**
+     * Create a new generator instance.
+     *
+     * @param  callable  $generator
+     * @param  callable|int  $count
+     */
+    public function __construct(callable $generator, $count)
+    {
+        $this->count = $count;
+        $this->generator = $generator;
     }
 
     /**
      * Get an iterator from the generator.
+     *
+     * @return \Traversable
      */
     public function getIterator(): Traversable
     {
@@ -29,6 +46,8 @@ class RewindableGenerator implements Countable, IteratorAggregate
 
     /**
      * Get the total number of tagged services.
+     *
+     * @return int
      */
     public function count(): int
     {

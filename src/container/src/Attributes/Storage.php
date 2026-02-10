@@ -1,12 +1,10 @@
 <?php
 
-declare(strict_types=1);
-
-namespace Hypervel\Container\Attributes;
+namespace Illuminate\Container\Attributes;
 
 use Attribute;
-use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Container\ContextualAttribute;
+use Illuminate\Contracts\Container\Container;
+use Illuminate\Contracts\Container\ContextualAttribute;
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
 class Storage implements ContextualAttribute
@@ -22,8 +20,8 @@ class Storage implements ContextualAttribute
      * Resolve the storage disk.
      *
      * @param  self  $attribute
-     * @param  \Hypervel\Contracts\Container\Container  $container
-     * @return \Hypervel\Contracts\Filesystem\Filesystem
+     * @param  \Illuminate\Contracts\Container\Container  $container
+     * @return \Illuminate\Contracts\Filesystem\Filesystem
      */
     public static function resolve(self $attribute, Container $container)
     {

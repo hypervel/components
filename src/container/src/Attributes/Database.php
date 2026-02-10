@@ -1,12 +1,10 @@
 <?php
 
-declare(strict_types=1);
-
-namespace Hypervel\Container\Attributes;
+namespace Illuminate\Container\Attributes;
 
 use Attribute;
-use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Container\ContextualAttribute;
+use Illuminate\Contracts\Container\Container;
+use Illuminate\Contracts\Container\ContextualAttribute;
 use UnitEnum;
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
@@ -23,8 +21,8 @@ class Database implements ContextualAttribute
      * Resolve the database connection.
      *
      * @param  self  $attribute
-     * @param  \Hypervel\Contracts\Container\Container  $container
-     * @return \Hypervel\Database\Connection
+     * @param  \Illuminate\Contracts\Container\Container  $container
+     * @return \Illuminate\Database\Connection
      */
     public static function resolve(self $attribute, Container $container)
     {

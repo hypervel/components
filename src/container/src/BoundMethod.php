@@ -1,28 +1,28 @@
 <?php
 
-declare(strict_types=1);
-
-namespace Hypervel\Container;
+namespace Illuminate\Container;
 
 use Closure;
-use Hypervel\Contracts\Container\BindingResolutionException;
+use Illuminate\Contracts\Container\BindingResolutionException;
 use InvalidArgumentException;
 use ReflectionFunction;
-use ReflectionFunctionAbstract;
 use ReflectionMethod;
-use ReflectionParameter;
 
 class BoundMethod
 {
     /**
      * Call the given Closure / class@method and inject its dependencies.
      *
+     * @param  \Illuminate\Container\Container  $container
      * @param  callable|string  $callback
+     * @param  array  $parameters
+     * @param  string|null  $defaultMethod
+     * @return mixed
      *
      * @throws \ReflectionException
      * @throws \InvalidArgumentException
      */
-    public static function call(Container $container, $callback, array $parameters = [], ?string $defaultMethod = null): mixed
+    public static function call($container, $callback, array $parameters = [], $defaultMethod = null)
     {
         if (is_string($callback) && ! $defaultMethod && method_exists($callback, '__invoke')) {
             $defaultMethod = '__invoke';
@@ -40,9 +40,15 @@ class BoundMethod
     /**
      * Call a string reference to a class using Class@method syntax.
      *
+     * @param  \Illuminate\Container\Container  $container
+     * @param  string  $target
+     * @param  array  $parameters
+     * @param  string|null  $defaultMethod
+     * @return mixed
+     *
      * @throws \InvalidArgumentException
      */
-    protected static function callClass(Container $container, string $target, array $parameters = [], ?string $defaultMethod = null): mixed
+    protected static function callClass($container, $target, array $parameters = [], $defaultMethod = null)
     {
         $segments = explode('@', $target);
 
@@ -66,8 +72,13 @@ class BoundMethod
 
     /**
      * Call a method that has been bound to the container.
+     *
+     * @param  \Illuminate\Container\Container  $container
+     * @param  callable  $callback
+     * @param  mixed  $default
+     * @return mixed
      */
-    protected static function callBoundMethod(Container $container, callable $callback, mixed $default): mixed
+    protected static function callBoundMethod($container, $callback, $default)
     {
         if (! is_array($callback)) {
             return Util::unwrapIfClosure($default);
@@ -87,8 +98,11 @@ class BoundMethod
 
     /**
      * Normalize the given callback into a Class@method string.
+     *
+     * @param  callable  $callback
+     * @return string
      */
-    protected static function normalizeMethod(callable $callback): string
+    protected static function normalizeMethod($callback)
     {
         $class = is_string($callback[0]) ? $callback[0] : get_class($callback[0]);
 
@@ -98,11 +112,14 @@ class BoundMethod
     /**
      * Get all dependencies for a given method.
      *
+     * @param  \Illuminate\Container\Container  $container
      * @param  callable|string  $callback
+     * @param  array  $parameters
+     * @return array
      *
      * @throws \ReflectionException
      */
-    protected static function getMethodDependencies(Container $container, $callback, array $parameters = []): array
+    protected static function getMethodDependencies($container, $callback, array $parameters = [])
     {
         $dependencies = [];
 
@@ -117,10 +134,11 @@ class BoundMethod
      * Get the proper reflection instance for the given callback.
      *
      * @param  callable|string  $callback
+     * @return \ReflectionFunctionAbstract
      *
      * @throws \ReflectionException
      */
-    protected static function getCallReflector($callback): ReflectionFunctionAbstract
+    protected static function getCallReflector($callback)
     {
         if (is_string($callback) && str_contains($callback, '::')) {
             $callback = explode('::', $callback);
@@ -136,14 +154,20 @@ class BoundMethod
     /**
      * Get the dependency for the given call parameter.
      *
-     * @throws \Hypervel\Contracts\Container\BindingResolutionException
+     * @param  \Illuminate\Container\Container  $container
+     * @param  \ReflectionParameter  $parameter
+     * @param  array  $parameters
+     * @param  array  $dependencies
+     * @return void
+     *
+     * @throws \Illuminate\Contracts\Container\BindingResolutionException
      */
     protected static function addDependencyForCallParameter(
-        Container $container,
-        ReflectionParameter $parameter,
+        $container,
+        $parameter,
         array &$parameters,
-        array &$dependencies,
-    ): void {
+        &$dependencies,
+    ) {
         $pendingDependencies = [];
 
         if (array_key_exists($paramName = $parameter->getName(), $parameters)) {
@@ -185,8 +209,11 @@ class BoundMethod
 
     /**
      * Determine if the given string is in Class@method syntax.
+     *
+     * @param  mixed  $callback
+     * @return bool
      */
-    protected static function isCallableWithAtSign(mixed $callback): bool
+    protected static function isCallableWithAtSign($callback)
     {
         return is_string($callback) && str_contains($callback, '@');
     }
