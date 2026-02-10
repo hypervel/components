@@ -20,6 +20,8 @@ use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Throwable;
 
+use function Hypervel\Coroutine\go;
+
 class MasterSupervisor implements Pausable, Restartable, Terminable
 {
     use ListensForSignals;
@@ -223,7 +225,15 @@ class MasterSupervisor implements Pausable, Restartable, Terminable
                 $this->monitorSupervisors();
             }
 
-            go(fn () => $this->persist());
+            go(function (): void {
+                // Exceptions thrown inside a spawned coroutine are not caught by
+                // the parent loop() try/catch, so report them in this coroutine.
+                try {
+                    $this->persist();
+                } catch (Throwable $e) {
+                    app(ExceptionHandler::class)->report($e);
+                }
+            });
 
             event(new MasterSupervisorLooped($this));
         } catch (Throwable $e) {
