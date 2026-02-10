@@ -1,6 +1,8 @@
 <?php
 
-namespace Illuminate\Contracts\Container;
+declare(strict_types=1);
+
+namespace Hypervel\Contracts\Container;
 
 use Exception;
 use Psr\Container\ContainerExceptionInterface;

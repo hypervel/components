@@ -1,6 +1,8 @@
 <?php
 
-namespace Illuminate\Contracts\Container;
+declare(strict_types=1);
+
+namespace Hypervel\Contracts\Container;
 
 use Closure;
 use Psr\Container\ContainerInterface;
@@ -154,7 +156,7 @@ interface Container extends ContainerInterface
      * Define a contextual binding.
      *
      * @param  string|array  $concrete
-     * @return \Illuminate\Contracts\Container\ContextualBindingBuilder
+     * @return \Hypervel\Contracts\Container\ContextualBindingBuilder
      */
     public function when($concrete);
 
@@ -184,7 +186,7 @@ interface Container extends ContainerInterface
      * @param  array  $parameters
      * @return ($abstract is class-string<TClass> ? TClass : mixed)
      *
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     * @throws \Hypervel\Contracts\Container\BindingResolutionException
      */
     public function make($abstract, array $parameters = []);
 
