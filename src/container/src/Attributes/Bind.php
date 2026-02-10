@@ -22,7 +22,7 @@ class Bind
     /**
      * The environments the binding should apply for.
      *
-     * @var non-empty-array<int, string>
+     * @var array<int, string>
      */
     public array $environments = [];
 
