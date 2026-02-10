@@ -1,6 +1,8 @@
 <?php
 
-namespace Illuminate\Container;
+declare(strict_types=1);
+
+namespace Hypervel\Container;
 
 use Exception;
 use Psr\Container\NotFoundExceptionInterface;
