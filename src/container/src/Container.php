@@ -882,8 +882,8 @@ class Container implements ArrayAccess, ContainerContract
         $this->checkedForAttributeBindings[$abstract] = true;
 
         try {
-            $reflected = new ReflectionClass($abstract); // @phpstan-ignore catch.neverThrown
-        } catch (ReflectionException) {
+            $reflected = new ReflectionClass($abstract);
+        } catch (ReflectionException) { // @phpstan-ignore catch.neverThrown
             return $abstract;
         }
 
@@ -997,7 +997,7 @@ class Container implements ArrayAccess, ContainerContract
 
         try {
             $reflector = new ReflectionClass($concrete);
-        } catch (ReflectionException $e) {
+        } catch (ReflectionException $e) { // @phpstan-ignore catch.neverThrown
             throw new BindingResolutionException("Target class [$concrete] does not exist.", 0, $e);
         }
 
@@ -1063,7 +1063,7 @@ class Container implements ArrayAccess, ContainerContract
 
         $this->buildStack[] = $concrete;
 
-        $instance = $this->call([$concrete, 'newInstance']);
+        $instance = $this->call([$concrete, 'newInstance']); // @phpstan-ignore argument.type
 
         array_pop($this->buildStack);
 
@@ -1570,7 +1570,7 @@ class Container implements ArrayAccess, ContainerContract
      */
     public static function setInstance(?ContainerContract $container = null): ?ContainerContract
     {
-        return static::$instance = $container;
+        return static::$instance = $container; // @phpstan-ignore assign.propertyType
     }
 
     /**
