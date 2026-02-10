@@ -9,6 +9,7 @@ use Hypervel\Horizon\Contracts\MetricsRepository;
 use Hypervel\Horizon\Lock;
 use Hypervel\Horizon\LuaScripts;
 use Hypervel\Horizon\WaitTimeCalculator;
+use Hypervel\Redis\PhpRedis;
 use Hypervel\Redis\RedisFactory;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Support\Str;
@@ -325,11 +326,11 @@ class RedisMetricsRepository implements MetricsRepository
         $this->forget('metrics:snapshot');
 
         foreach (['queue:*', 'job:*', 'snapshot:*'] as $pattern) {
-            $cursor = null;
+            $cursor = PhpRedis::initialScanCursor();
 
             do {
                 [$cursor, $keys] = $this->connection()->scan(
-                    $cursor ?? 0, ['match' => config('horizon.prefix') . $pattern]
+                    $cursor, ['match' => config('horizon.prefix') . $pattern]
                 );
 
                 foreach ($keys ?? [] as $key) {

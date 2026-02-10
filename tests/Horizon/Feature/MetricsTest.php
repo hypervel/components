@@ -235,4 +235,89 @@ class MetricsTest extends IntegrationTestCase
 
         CarbonImmutable::setTestNow();
     }
+
+    public function testClearRemovesAllMetricsData()
+    {
+        $stopwatch = m::mock(Stopwatch::class);
+        $stopwatch->shouldReceive('start');
+        $stopwatch->shouldReceive('forget');
+        $stopwatch->shouldReceive('check')->andReturn(1);
+        $this->app->instance(Stopwatch::class, $stopwatch);
+
+        Queue::push(new Jobs\BasicJob());
+        Queue::push(new Jobs\ConditionallyFailingJob());
+
+        $this->work();
+        $this->work();
+
+        // Take a snapshot so we have snapshot:* keys too
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
+        $metrics = resolve(MetricsRepository::class);
+        $metrics->snapshot();
+
+        // Verify data exists before clearing
+        $this->assertNotEmpty($metrics->measuredJobs());
+        $this->assertNotEmpty($metrics->measuredQueues());
+        $this->assertNotEmpty($metrics->snapshotsForJob(Jobs\BasicJob::class));
+        $this->assertNotEmpty($metrics->snapshotsForQueue('default'));
+
+        // Clear all metrics
+        $metrics->clear();
+
+        // Verify everything is gone
+        $this->assertEmpty($metrics->measuredJobs());
+        $this->assertEmpty($metrics->measuredQueues());
+        $this->assertSame(0, $metrics->throughput());
+        $this->assertEmpty($metrics->snapshotsForJob(Jobs\BasicJob::class));
+        $this->assertEmpty($metrics->snapshotsForJob(Jobs\ConditionallyFailingJob::class));
+        $this->assertEmpty($metrics->snapshotsForQueue('default'));
+
+        CarbonImmutable::setTestNow();
+    }
+
+    public function testClearIsIdempotent()
+    {
+        $metrics = resolve(MetricsRepository::class);
+
+        // Clear when no data exists should not error
+        $metrics->clear();
+
+        $this->assertEmpty($metrics->measuredJobs());
+        $this->assertEmpty($metrics->measuredQueues());
+        $this->assertSame(0, $metrics->throughput());
+    }
+
+    public function testQueueWithMaximumRuntime()
+    {
+        $metrics = resolve(MetricsRepository::class);
+
+        // Set up metrics for two queues with different runtimes
+        $metrics->incrementQueue('fast-queue', 100.0);
+        $metrics->incrementQueue('slow-queue', 500.0);
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
+        $metrics->snapshot();
+
+        $this->assertSame('slow-queue', $metrics->queueWithMaximumRuntime());
+
+        CarbonImmutable::setTestNow();
+    }
+
+    public function testQueueWithMaximumThroughput()
+    {
+        $metrics = resolve(MetricsRepository::class);
+
+        // Set up metrics — busy queue gets 3 jobs, quiet queue gets 1
+        $metrics->incrementQueue('busy-queue', 100.0);
+        $metrics->incrementQueue('busy-queue', 100.0);
+        $metrics->incrementQueue('busy-queue', 100.0);
+        $metrics->incrementQueue('quiet-queue', 100.0);
+
+        CarbonImmutable::setTestNow(CarbonImmutable::now());
+        $metrics->snapshot();
+
+        $this->assertSame('busy-queue', $metrics->queueWithMaximumThroughput());
+
+        CarbonImmutable::setTestNow();
+    }
 }
