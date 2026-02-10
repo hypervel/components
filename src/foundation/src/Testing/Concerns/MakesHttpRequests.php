@@ -337,14 +337,13 @@ trait MakesHttpRequests
     public function withMiddleware($middleware = null): static
     {
         if (is_null($middleware)) {
-            $this->app->remove('middleware.disable');
+            unset($this->app['middleware.disable']);
 
             return $this;
         }
 
-        // restore bindings since bound middleware can't be removed from container's definition map
         foreach ((array) $middleware as $abstract) {
-            $this->app->remove($abstract, $abstract);
+            unset($this->app[$abstract]);
         }
 
         return $this;

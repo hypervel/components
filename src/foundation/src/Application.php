@@ -113,17 +113,6 @@ class Application extends Container implements ApplicationContract, HyperfContai
         $this->instance(HyperfContainerInterface::class, $this);
     }
 
-    /**
-     * Determine if the given abstract type has been bound.
-     *
-     * Extends the parent to also return true for existing concrete classes,
-     * since the auto-singleton behavior means any concrete class can be
-     * resolved via get()/make() without an explicit binding.
-     */
-    public function has(string $id): bool
-    {
-        return parent::has($id) || class_exists($id);
-    }
 
     /**
      * Bind an arbitrary resolved entry to an identifier.
