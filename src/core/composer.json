@@ -23,7 +23,11 @@
     "autoload": {
         "psr-4": {
             "Hypervel\\": "src/"
-        }
+        },
+        "classmap": [
+            "class_map/Hyperf/Coroutine/Coroutine.php",
+            "class_map/Command/Concerns/Confirmable.php"
+        ]
     },
     "require": {
         "php": "^8.4",

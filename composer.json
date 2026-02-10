@@ -103,7 +103,8 @@
         ],
         "classmap": [
             "src/core/class_map/Hyperf/Coroutine/Coroutine.php",
-            "src/core/class_map/Command/Concerns/Confirmable.php"
+            "src/core/class_map/Command/Concerns/Confirmable.php",
+            "src/dispatcher/class_map/HttpRequestHandler.php"
         ]
     },
     "autoload-dev": {

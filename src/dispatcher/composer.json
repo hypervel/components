@@ -29,7 +29,10 @@
     "autoload": {
         "psr-4": {
             "Hypervel\\Dispatcher\\": "src/"
-        }
+        },
+        "classmap": [
+            "class_map/HttpRequestHandler.php"
+        ]
     },
     "extra": {
         "hyperf": {
