@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Filesystem;
 
-use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
@@ -16,7 +15,7 @@ use Hypervel\ObjectPool\PoolManager;
 use InvalidArgumentException;
 use PHPUnit\Framework\Attributes\RequiresOperatingSystem;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use TypeError;
 
 enum FilesystemTestStringBackedDisk: string
@@ -275,15 +274,15 @@ class FilesystemManagerTest extends TestCase
         $this->assertInstanceOf(Filesystem::class, $disk);
     }
 
-    protected function getContainer(array $config = []): ContainerInterface
+    protected function getContainer(array $config = []): Container
     {
         $config = new Repository(['filesystems' => $config]);
 
-        return new Container(
-            new DefinitionSource([
-                'config' => fn () => $config,
-                PoolFactory::class => PoolManager::class,
-            ])
-        );
+        $container = new Container();
+        $container->instance('config', $config);
+        $container->instance(ContainerContract::class, $container);
+        $container->singleton(PoolFactory::class, PoolManager::class);
+
+        return $container;
     }
 }
