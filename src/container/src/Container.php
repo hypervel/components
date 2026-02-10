@@ -1,19 +1,21 @@
 <?php
 
-namespace Illuminate\Container;
+declare(strict_types=1);
+
+namespace Hypervel\Container;
 
 use ArrayAccess;
 use Closure;
 use Exception;
-use Illuminate\Container\Attributes\Bind;
-use Illuminate\Container\Attributes\Scoped;
-use Illuminate\Container\Attributes\Singleton;
-use Illuminate\Contracts\Container\BindingResolutionException;
-use Illuminate\Contracts\Container\CircularDependencyException;
-use Illuminate\Contracts\Container\Container as ContainerContract;
-use Illuminate\Contracts\Container\ContextualAttribute;
-use Illuminate\Contracts\Container\SelfBuilding;
-use Illuminate\Support\Traits\ReflectsClosures;
+use Hypervel\Container\Attributes\Bind;
+use Hypervel\Container\Attributes\Scoped;
+use Hypervel\Container\Attributes\Singleton;
+use Hypervel\Contracts\Container\BindingResolutionException;
+use Hypervel\Contracts\Container\CircularDependencyException;
+use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Container\ContextualAttribute;
+use Hypervel\Contracts\Container\SelfBuilding;
+use Hypervel\Reflection\Traits\ReflectsClosures;
 use LogicException;
 use ReflectionAttribute;
 use ReflectionClass;
@@ -205,7 +207,7 @@ class Container implements ArrayAccess, ContainerContract
      * Define a contextual binding.
      *
      * @param  array|string  $concrete
-     * @return \Illuminate\Contracts\Container\ContextualBindingBuilder
+     * @return \Hypervel\Contracts\Container\ContextualBindingBuilder
      */
     public function when($concrete)
     {
@@ -842,7 +844,7 @@ class Container implements ArrayAccess, ContainerContract
      * @param  string|class-string<TClass>|callable  $abstract
      * @return ($abstract is class-string<TClass> ? TClass : mixed)
      *
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     * @throws \Hypervel\Contracts\Container\BindingResolutionException
      */
     public function makeWith($abstract, array $parameters = [])
     {
@@ -857,7 +859,7 @@ class Container implements ArrayAccess, ContainerContract
      * @param  string|class-string<TClass>  $abstract
      * @return ($abstract is class-string<TClass> ? TClass : mixed)
      *
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     * @throws \Hypervel\Contracts\Container\BindingResolutionException
      */
     public function make($abstract, array $parameters = [])
     {
@@ -895,8 +897,8 @@ class Container implements ArrayAccess, ContainerContract
      * @param  bool  $raiseEvents
      * @return ($abstract is class-string<TClass> ? TClass : mixed)
      *
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
-     * @throws \Illuminate\Contracts\Container\CircularDependencyException
+     * @throws \Hypervel\Contracts\Container\BindingResolutionException
+     * @throws \Hypervel\Contracts\Container\CircularDependencyException
      */
     protected function resolve($abstract, $parameters = [], $raiseEvents = true)
     {
@@ -1100,8 +1102,8 @@ class Container implements ArrayAccess, ContainerContract
      * @param  \Closure(static, array): TClass|class-string<TClass>  $concrete
      * @return TClass
      *
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
-     * @throws \Illuminate\Contracts\Container\CircularDependencyException
+     * @throws \Hypervel\Contracts\Container\BindingResolutionException
+     * @throws \Hypervel\Contracts\Container\CircularDependencyException
      */
     public function build($concrete)
     {
@@ -1180,7 +1182,7 @@ class Container implements ArrayAccess, ContainerContract
      * @param  \ReflectionClass  $reflector
      * @return TClass
      *
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     * @throws \Hypervel\Contracts\Container\BindingResolutionException
      */
     protected function buildSelfBuildingInstance($concrete, $reflector)
     {
@@ -1207,7 +1209,7 @@ class Container implements ArrayAccess, ContainerContract
      * @param  \ReflectionParameter[]  $dependencies
      * @return array
      *
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     * @throws \Hypervel\Contracts\Container\BindingResolutionException
      */
     protected function resolveDependencies(array $dependencies)
     {
@@ -1287,7 +1289,7 @@ class Container implements ArrayAccess, ContainerContract
      *
      * @return mixed
      *
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     * @throws \Hypervel\Contracts\Container\BindingResolutionException
      */
     protected function resolvePrimitive(ReflectionParameter $parameter)
     {
@@ -1315,7 +1317,7 @@ class Container implements ArrayAccess, ContainerContract
      *
      * @return mixed
      *
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     * @throws \Hypervel\Contracts\Container\BindingResolutionException
      */
     protected function resolveClass(ReflectionParameter $parameter)
     {
@@ -1396,7 +1398,7 @@ class Container implements ArrayAccess, ContainerContract
      * @param  string  $concrete
      * @return void
      *
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     * @throws \Hypervel\Contracts\Container\BindingResolutionException
      */
     protected function notInstantiable($concrete)
     {
@@ -1416,7 +1418,7 @@ class Container implements ArrayAccess, ContainerContract
      *
      * @return void
      *
-     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     * @throws \Hypervel\Contracts\Container\BindingResolutionException
      */
     protected function unresolvablePrimitive(ReflectionParameter $parameter)
     {
@@ -1778,7 +1780,7 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Set the shared instance of the container.
      *
-     * @return \Illuminate\Contracts\Container\Container|static
+     * @return \Hypervel\Contracts\Container\Container|static
      */
     public static function setInstance(?ContainerContract $container = null)
     {
