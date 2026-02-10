@@ -10,7 +10,6 @@ use Hypervel\Broadcasting\BroadcastManager;
 use Hypervel\Broadcasting\Channel;
 use Hypervel\Broadcasting\UniqueBroadcastEvent;
 use Hypervel\Config\Repository;
-use Hypervel\Container\Container;
 use Hypervel\Contracts\Broadcasting\ShouldBeUnique;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcastNow;

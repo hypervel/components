@@ -12,11 +12,9 @@ use Psr\Container\ContainerInterface;
 interface Container extends ContainerInterface
 {
     /**
-     * {@inheritdoc}
-     *
      * @template TClass of object
      *
-     * @param  string|class-string<TClass>  $id
+     * @param class-string<TClass>|string $id
      * @return ($id is class-string<TClass> ? TClass : mixed)
      */
     public function get(string $id);
@@ -90,7 +88,7 @@ interface Container extends ContainerInterface
      *
      * @template TInstance of mixed
      *
-     * @param  TInstance  $instance
+     * @param TInstance $instance
      * @return TInstance
      */
     public function instance(string $abstract, mixed $instance): mixed;
@@ -110,7 +108,7 @@ interface Container extends ContainerInterface
      *
      * @template TClass of object
      *
-     * @param  string|class-string<TClass>  $abstract
+     * @param class-string<TClass>|string $abstract
      * @return ($abstract is class-string<TClass> ? Closure(): TClass : Closure(): mixed)
      */
     public function factory(string $abstract): Closure;
@@ -125,7 +123,7 @@ interface Container extends ContainerInterface
      *
      * @template TClass of object
      *
-     * @param  string|class-string<TClass>  $abstract
+     * @param class-string<TClass>|string $abstract
      * @return ($abstract is class-string<TClass> ? TClass : mixed)
      *
      * @throws BindingResolutionException

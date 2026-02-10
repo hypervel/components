@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth\Access;
 
-use Hypervel\Container\Container;
 use Hypervel\Auth\Access\AuthorizationException;
 use Hypervel\Auth\Access\Gate;
 use Hypervel\Auth\Access\Response;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Tests\Auth\Stub\AccessGateTestAuthenticatable;
 use Hypervel\Tests\Auth\Stub\AccessGateTestBeforeCallback;

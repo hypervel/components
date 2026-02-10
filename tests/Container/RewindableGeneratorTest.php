@@ -29,7 +29,7 @@ class RewindableGeneratorTest extends TestCase
         $generator = new RewindableGenerator(function () {
             yield 'foo';
         }, function () use (&$called) {
-            $called++;
+            ++$called;
 
             return 500;
         });

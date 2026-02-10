@@ -15,7 +15,7 @@ class ContainerResolveNonInstantiableTest extends TestCase
 {
     public function testResolvingNonInstantiableWithDefaultRemovesWiths()
     {
-        $container = new Container;
+        $container = new Container();
         $object = $container->make(ParentClass::class, ['i' => 42]);
 
         $this->assertSame(42, $object->i);
@@ -23,7 +23,7 @@ class ContainerResolveNonInstantiableTest extends TestCase
 
     public function testResolvingNonInstantiableWithVariadicRemovesWiths()
     {
-        $container = new Container;
+        $container = new Container();
         $parent = $container->make(VariadicParentClass::class, ['i' => 42]);
 
         $this->assertCount(0, $parent->child->objects);
@@ -32,7 +32,7 @@ class ContainerResolveNonInstantiableTest extends TestCase
 
     public function testResolveVariadicPrimitive()
     {
-        $container = new Container;
+        $container = new Container();
         $parent = $container->make(VariadicPrimitive::class);
 
         $this->assertSame($parent->params, []);

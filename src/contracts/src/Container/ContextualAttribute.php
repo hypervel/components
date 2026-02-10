@@ -6,5 +6,4 @@ namespace Hypervel\Contracts\Container;
 
 interface ContextualAttribute
 {
-    //
 }

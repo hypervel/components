@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Foundation\Concerns;
 
-use Closure;
 use Hypervel\Foundation\Application;
 
 trait HasMockedApplication

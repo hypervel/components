@@ -16,7 +16,7 @@ use Hypervel\Validation\ValidationException;
  */
 class BuildableIntegrationTest extends TestCase
 {
-    public function test_build_method_can_resolve_itself_via_container()
+    public function testBuildMethodCanResolveItselfViaContainer()
     {
         config([
             'aim' => [

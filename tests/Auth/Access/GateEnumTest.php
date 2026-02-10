@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Auth\Access;
 
-use Hypervel\Container\Container;
 use Hypervel\Auth\Access\Gate;
+use Hypervel\Container\Container;
 use Hypervel\Tests\Auth\Stub\AccessGateTestAuthenticatable;
 use Hypervel\Tests\Auth\Stub\AccessGateTestDummy;
 use Hypervel\Tests\Auth\Stub\AccessGateTestPolicyWithAllPermissions;

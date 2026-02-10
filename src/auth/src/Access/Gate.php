@@ -6,11 +6,11 @@ namespace Hypervel\Auth\Access;
 
 use Closure;
 use Exception;
-use Hypervel\Contracts\Container\BindingResolutionException;
-use Hypervel\Contracts\Container\Container;
 use Hypervel\Auth\Access\Events\GateEvaluated;
 use Hypervel\Contracts\Auth\Access\Gate as GateContract;
 use Hypervel\Contracts\Auth\Authenticatable;
+use Hypervel\Contracts\Container\BindingResolutionException;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Database\Eloquent\Attributes\UsePolicy;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;

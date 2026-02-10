@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Container;
 
-use Closure;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Container\ContextualBindingBuilder as ContextualBindingBuilderContract;
 

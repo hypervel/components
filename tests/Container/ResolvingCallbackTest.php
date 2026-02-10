@@ -16,12 +16,12 @@ class ResolvingCallbackTest extends TestCase
 {
     public function testResolvingCallbacksAreCalledForSpecificAbstracts()
     {
-        $container = new Container;
+        $container = new Container();
         $container->resolving('foo', function ($object) {
             return $object->name = 'taylor';
         });
         $container->bind('foo', function () {
-            return new stdClass;
+            return new stdClass();
         });
         $instance = $container->make('foo');
 
@@ -30,12 +30,12 @@ class ResolvingCallbackTest extends TestCase
 
     public function testResolvingCallbacksAreCalled()
     {
-        $container = new Container;
+        $container = new Container();
         $container->resolving(function ($object) {
             return $object->name = 'taylor';
         });
         $container->bind('foo', function () {
-            return new stdClass;
+            return new stdClass();
         });
         $instance = $container->make('foo');
 
@@ -44,12 +44,12 @@ class ResolvingCallbackTest extends TestCase
 
     public function testResolvingCallbacksAreCalledForType()
     {
-        $container = new Container;
+        $container = new Container();
         $container->resolving(stdClass::class, function ($object) {
             return $object->name = 'taylor';
         });
         $container->bind('foo', function () {
-            return new stdClass;
+            return new stdClass();
         });
         $instance = $container->make('foo');
 
@@ -58,13 +58,13 @@ class ResolvingCallbackTest extends TestCase
 
     public function testResolvingCallbacksShouldBeFiredWhenCalledWithAliases()
     {
-        $container = new Container;
+        $container = new Container();
         $container->alias(stdClass::class, 'std');
         $container->resolving('std', function ($object) {
             return $object->name = 'taylor';
         });
         $container->bind('foo', function () {
-            return new stdClass;
+            return new stdClass();
         });
         $instance = $container->make('foo');
 
@@ -73,11 +73,11 @@ class ResolvingCallbackTest extends TestCase
 
     public function testResolvingCallbacksAreCalledOnceForImplementation()
     {
-        $container = new Container;
+        $container = new Container();
 
         $callCounter = 0;
         $container->resolving(ResolvingContractStub::class, function () use (&$callCounter) {
-            $callCounter++;
+            ++$callCounter;
         });
 
         $container->bind(ResolvingContractStub::class, ResolvingImplementationStub::class);
@@ -94,11 +94,11 @@ class ResolvingCallbackTest extends TestCase
 
     public function testGlobalResolvingCallbacksAreCalledOnceForImplementation()
     {
-        $container = new Container;
+        $container = new Container();
 
         $callCounter = 0;
         $container->resolving(function () use (&$callCounter) {
-            $callCounter++;
+            ++$callCounter;
         });
 
         $container->bind(ResolvingContractStub::class, ResolvingImplementationStub::class);
@@ -112,11 +112,11 @@ class ResolvingCallbackTest extends TestCase
 
     public function testResolvingCallbacksAreCalledOnceForSingletonConcretes()
     {
-        $container = new Container;
+        $container = new Container();
 
         $callCounter = 0;
         $container->resolving(ResolvingContractStub::class, function () use (&$callCounter) {
-            $callCounter++;
+            ++$callCounter;
         });
 
         $container->bind(ResolvingContractStub::class, ResolvingImplementationStub::class);
@@ -134,7 +134,7 @@ class ResolvingCallbackTest extends TestCase
 
     public function testResolvingCallbacksCanStillBeAddedAfterTheFirstResolution()
     {
-        $container = new Container;
+        $container = new Container();
 
         $container->bind(ResolvingContractStub::class, ResolvingImplementationStub::class);
         // Bind concrete explicitly to prevent auto-singleton, ensuring callbacks
@@ -145,7 +145,7 @@ class ResolvingCallbackTest extends TestCase
 
         $callCounter = 0;
         $container->resolving(ResolvingContractStub::class, function () use (&$callCounter) {
-            $callCounter++;
+            ++$callCounter;
         });
 
         $container->make(ResolvingImplementationStub::class);
@@ -154,13 +154,13 @@ class ResolvingCallbackTest extends TestCase
 
     public function testResolvingCallbacksAreCanceledWhenInterfaceGetsBoundToSomeOtherConcrete()
     {
-        $container = new Container;
+        $container = new Container();
 
         $container->bind(ResolvingContractStub::class, ResolvingImplementationStub::class);
 
         $callCounter = 0;
         $container->resolving(ResolvingImplementationStub::class, function () use (&$callCounter) {
-            $callCounter++;
+            ++$callCounter;
         });
 
         $container->make(ResolvingContractStub::class);
@@ -173,11 +173,11 @@ class ResolvingCallbackTest extends TestCase
 
     public function testResolvingCallbacksAreCalledOnceForStringAbstractions()
     {
-        $container = new Container;
+        $container = new Container();
 
         $callCounter = 0;
         $container->resolving('foo', function () use (&$callCounter) {
-            $callCounter++;
+            ++$callCounter;
         });
 
         $container->bind('foo', ResolvingImplementationStub::class);
@@ -191,11 +191,11 @@ class ResolvingCallbackTest extends TestCase
 
     public function testResolvingCallbacksForConcretesAreCalledOnceForStringAbstractions()
     {
-        $container = new Container;
+        $container = new Container();
 
         $callCounter = 0;
         $container->resolving(ResolvingImplementationStub::class, function () use (&$callCounter) {
-            $callCounter++;
+            ++$callCounter;
         });
 
         $container->bind('foo', ResolvingImplementationStub::class);
@@ -217,15 +217,15 @@ class ResolvingCallbackTest extends TestCase
 
     public function testResolvingCallbacksAreCalledOnceForImplementation2()
     {
-        $container = new Container;
+        $container = new Container();
 
         $callCounter = 0;
         $container->resolving(ResolvingContractStub::class, function () use (&$callCounter) {
-            $callCounter++;
+            ++$callCounter;
         });
 
         $container->bind(ResolvingContractStub::class, function () {
-            return new ResolvingImplementationStub;
+            return new ResolvingImplementationStub();
         });
         // Bind concrete explicitly to prevent auto-singleton, ensuring callbacks
         // fire on every make() — auto-singletoned classes return from cache.
@@ -246,16 +246,16 @@ class ResolvingCallbackTest extends TestCase
 
     public function testRebindingDoesNotAffectResolvingCallbacks()
     {
-        $container = new Container;
+        $container = new Container();
 
         $callCounter = 0;
         $container->resolving(ResolvingContractStub::class, function () use (&$callCounter) {
-            $callCounter++;
+            ++$callCounter;
         });
 
         $container->bind(ResolvingContractStub::class, ResolvingImplementationStub::class);
         $container->bind(ResolvingContractStub::class, function () {
-            return new ResolvingImplementationStub;
+            return new ResolvingImplementationStub();
         });
         // Bind concrete explicitly to prevent auto-singleton, ensuring callbacks
         // fire on every make() — auto-singletoned classes return from cache.
@@ -276,7 +276,7 @@ class ResolvingCallbackTest extends TestCase
 
     public function testParametersPassedIntoResolvingCallbacks()
     {
-        $container = new Container;
+        $container = new Container();
 
         $container->resolving(ResolvingContractStub::class, function ($obj, $app) use ($container) {
             $this->assertInstanceOf(ResolvingContractStub::class, $obj);
@@ -302,16 +302,16 @@ class ResolvingCallbackTest extends TestCase
 
     public function testResolvingCallbacksAreCallWhenRebindHappens()
     {
-        $container = new Container;
+        $container = new Container();
 
         $resolvingCallCounter = 0;
         $container->resolving(ResolvingContractStub::class, function () use (&$resolvingCallCounter) {
-            $resolvingCallCounter++;
+            ++$resolvingCallCounter;
         });
 
         $rebindCallCounter = 0;
         $container->rebinding(ResolvingContractStub::class, function () use (&$rebindCallCounter) {
-            $rebindCallCounter++;
+            ++$rebindCallCounter;
         });
 
         $container->bind(ResolvingContractStub::class, ResolvingImplementationStub::class);
@@ -328,7 +328,7 @@ class ResolvingCallbackTest extends TestCase
         $this->assertEquals(3, $resolvingCallCounter);
         $this->assertEquals(1, $rebindCallCounter);
 
-        $container->bind(ResolvingContractStub::class, fn () => new ResolvingImplementationStubTwo);
+        $container->bind(ResolvingContractStub::class, fn () => new ResolvingImplementationStubTwo());
         $this->assertEquals(4, $resolvingCallCounter);
         $this->assertEquals(2, $rebindCallCounter);
 
@@ -339,11 +339,11 @@ class ResolvingCallbackTest extends TestCase
 
     public function testResolvingCallbacksArentCalledWhenNoRebindingsAreRegistered()
     {
-        $container = new Container;
+        $container = new Container();
 
         $callCounter = 0;
         $container->resolving(ResolvingContractStub::class, function () use (&$callCounter) {
-            $callCounter++;
+            ++$callCounter;
         });
 
         $container->bind(ResolvingContractStub::class, ResolvingImplementationStub::class);
@@ -357,7 +357,7 @@ class ResolvingCallbackTest extends TestCase
         $container->make(ResolvingImplementationStubTwo::class);
         $this->assertEquals(2, $callCounter);
 
-        $container->bind(ResolvingContractStub::class, fn () => new ResolvingImplementationStubTwo);
+        $container->bind(ResolvingContractStub::class, fn () => new ResolvingImplementationStubTwo());
         $this->assertEquals(2, $callCounter);
 
         $container->make(ResolvingContractStub::class);
@@ -366,16 +366,16 @@ class ResolvingCallbackTest extends TestCase
 
     public function testRebindingDoesNotAffectMultipleResolvingCallbacks()
     {
-        $container = new Container;
+        $container = new Container();
 
         $callCounter = 0;
 
         $container->resolving(ResolvingContractStub::class, function () use (&$callCounter) {
-            $callCounter++;
+            ++$callCounter;
         });
 
         $container->resolving(ResolvingImplementationStubTwo::class, function () use (&$callCounter) {
-            $callCounter++;
+            ++$callCounter;
         });
 
         $container->bind(ResolvingContractStub::class, ResolvingImplementationStub::class);
@@ -396,11 +396,11 @@ class ResolvingCallbackTest extends TestCase
 
     public function testResolvingCallbacksAreCalledForInterfaces()
     {
-        $container = new Container;
+        $container = new Container();
 
         $callCounter = 0;
         $container->resolving(ResolvingContractStub::class, function () use (&$callCounter) {
-            $callCounter++;
+            ++$callCounter;
         });
 
         $container->bind(ResolvingContractStub::class, ResolvingImplementationStub::class);
@@ -412,11 +412,11 @@ class ResolvingCallbackTest extends TestCase
 
     public function testResolvingCallbacksAreCalledForConcretesWhenAttachedOnInterface()
     {
-        $container = new Container;
+        $container = new Container();
 
         $callCounter = 0;
         $container->resolving(ResolvingImplementationStub::class, function () use (&$callCounter) {
-            $callCounter++;
+            ++$callCounter;
         });
 
         $container->bind(ResolvingContractStub::class, ResolvingImplementationStub::class);
@@ -430,11 +430,11 @@ class ResolvingCallbackTest extends TestCase
 
     public function testResolvingCallbacksAreCalledForConcretesWhenAttachedOnConcretes()
     {
-        $container = new Container;
+        $container = new Container();
 
         $callCounter = 0;
         $container->resolving(ResolvingImplementationStub::class, function () use (&$callCounter) {
-            $callCounter++;
+            ++$callCounter;
         });
 
         $container->bind(ResolvingContractStub::class, ResolvingImplementationStub::class);
@@ -448,11 +448,11 @@ class ResolvingCallbackTest extends TestCase
 
     public function testResolvingCallbacksAreCalledForConcretesWithNoBinding()
     {
-        $container = new Container;
+        $container = new Container();
 
         $callCounter = 0;
         $container->resolving(ResolvingImplementationStub::class, function () use (&$callCounter) {
-            $callCounter++;
+            ++$callCounter;
         });
 
         // Bind concrete explicitly to prevent auto-singleton, ensuring callbacks
@@ -467,11 +467,11 @@ class ResolvingCallbackTest extends TestCase
 
     public function testResolvingCallbacksAreCalledForInterFacesWithNoBinding()
     {
-        $container = new Container;
+        $container = new Container();
 
         $callCounter = 0;
         $container->resolving(ResolvingContractStub::class, function () use (&$callCounter) {
-            $callCounter++;
+            ++$callCounter;
         });
 
         // Bind concrete explicitly to prevent auto-singleton, ensuring callbacks
@@ -487,11 +487,11 @@ class ResolvingCallbackTest extends TestCase
 
     public function testAfterResolvingCallbacksAreCalledOnceForImplementation()
     {
-        $container = new Container;
+        $container = new Container();
 
         $callCounter = 0;
         $container->afterResolving(ResolvingContractStub::class, function () use (&$callCounter) {
-            $callCounter++;
+            ++$callCounter;
         });
 
         $container->bind(ResolvingContractStub::class, ResolvingImplementationStub::class);
@@ -506,7 +506,7 @@ class ResolvingCallbackTest extends TestCase
     public function testBeforeResolvingCallbacksAreCalled()
     {
         // Given a call counter initialized to zero.
-        $container = new Container;
+        $container = new Container();
         $callCounter = 0;
 
         // And a contract/implementation stub binding.
@@ -514,7 +514,7 @@ class ResolvingCallbackTest extends TestCase
 
         // When we add a before resolving callback that increment the counter by one.
         $container->beforeResolving(ResolvingContractStub::class, function () use (&$callCounter) {
-            $callCounter++;
+            ++$callCounter;
         });
 
         // Then resolving the implementation stub increases the counter by one.
@@ -529,12 +529,12 @@ class ResolvingCallbackTest extends TestCase
     public function testGlobalBeforeResolvingCallbacksAreCalled()
     {
         // Given a call counter initialized to zero.
-        $container = new Container;
+        $container = new Container();
         $callCounter = 0;
 
         // When we add a global before resolving callback that increment that counter by one.
         $container->beforeResolving(function () use (&$callCounter) {
-            $callCounter++;
+            ++$callCounter;
         });
 
         // Then resolving anything increases the counter by one.
@@ -545,15 +545,12 @@ class ResolvingCallbackTest extends TestCase
 
 interface ResolvingContractStub
 {
-    //
 }
 
 class ResolvingImplementationStub implements ResolvingContractStub
 {
-    //
 }
 
 class ResolvingImplementationStubTwo implements ResolvingContractStub
 {
-    //
 }

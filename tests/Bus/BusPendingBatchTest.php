@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Bus;
 
-use Hypervel\Container\Container;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
 use Hypervel\Bus\PendingBatch;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Support\Collection;
 use Mockery as m;

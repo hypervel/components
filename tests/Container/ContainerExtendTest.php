@@ -16,15 +16,15 @@ class ContainerExtendTest extends TestCase
 {
     public function testExtendedBindings()
     {
-        $container = new Container;
+        $container = new Container();
         $container['foo'] = 'foo';
         $container->extend('foo', function ($old, $container) {
-            return $old.'bar';
+            return $old . 'bar';
         });
 
         $this->assertSame('foobar', $container->make('foo'));
 
-        $container = new Container;
+        $container = new Container();
 
         $container->singleton('foo', function () {
             return (object) ['name' => 'taylor'];
@@ -44,15 +44,15 @@ class ContainerExtendTest extends TestCase
 
     public function testExtendInstancesArePreserved()
     {
-        $container = new Container;
+        $container = new Container();
         $container->bind('foo', function () {
-            $obj = new stdClass;
+            $obj = new stdClass();
             $obj->foo = 'bar';
 
             return $obj;
         });
 
-        $obj = new stdClass;
+        $obj = new stdClass();
         $obj->foo = 'foo';
         $container->instance('foo', $obj);
         $container->extend('foo', function ($obj, $container) {
@@ -75,7 +75,7 @@ class ContainerExtendTest extends TestCase
     {
         ContainerLazyExtendStub::$initialized = false;
 
-        $container = new Container;
+        $container = new Container();
         $container->bind(ContainerLazyExtendStub::class);
         $container->extend(ContainerLazyExtendStub::class, function ($obj, $container) {
             $obj->init();
@@ -89,9 +89,9 @@ class ContainerExtendTest extends TestCase
 
     public function testExtendCanBeCalledBeforeBind()
     {
-        $container = new Container;
+        $container = new Container();
         $container->extend('foo', function ($old, $container) {
-            return $old.'bar';
+            return $old . 'bar';
         });
         $container['foo'] = 'foo';
 
@@ -102,12 +102,12 @@ class ContainerExtendTest extends TestCase
     {
         $_SERVER['_test_rebind'] = false;
 
-        $container = new Container;
+        $container = new Container();
         $container->rebinding('foo', function () {
             $_SERVER['_test_rebind'] = true;
         });
 
-        $obj = new stdClass;
+        $obj = new stdClass();
         $container->instance('foo', $obj);
 
         $container->extend('foo', function ($obj, $container) {
@@ -121,12 +121,12 @@ class ContainerExtendTest extends TestCase
     {
         $_SERVER['_test_rebind'] = false;
 
-        $container = new Container;
+        $container = new Container();
         $container->rebinding('foo', function () {
             $_SERVER['_test_rebind'] = true;
         });
         $container->bind('foo', function () {
-            return new stdClass;
+            return new stdClass();
         });
 
         $this->assertFalse($_SERVER['_test_rebind']);
@@ -142,13 +142,13 @@ class ContainerExtendTest extends TestCase
 
     public function testExtensionWorksOnAliasedBindings()
     {
-        $container = new Container;
+        $container = new Container();
         $container->singleton('something', function () {
             return 'some value';
         });
         $container->alias('something', 'something-alias');
         $container->extend('something-alias', function ($value) {
-            return $value.' extended';
+            return $value . ' extended';
         });
 
         $this->assertSame('some value extended', $container->make('something'));
@@ -156,13 +156,13 @@ class ContainerExtendTest extends TestCase
 
     public function testMultipleExtends()
     {
-        $container = new Container;
+        $container = new Container();
         $container['foo'] = 'foo';
         $container->extend('foo', function ($old, $container) {
-            return $old.'bar';
+            return $old . 'bar';
         });
         $container->extend('foo', function ($old, $container) {
-            return $old.'baz';
+            return $old . 'baz';
         });
 
         $this->assertSame('foobarbaz', $container->make('foo'));
@@ -170,9 +170,9 @@ class ContainerExtendTest extends TestCase
 
     public function testUnsetExtend()
     {
-        $container = new Container;
+        $container = new Container();
         $container->bind('foo', function () {
-            $obj = new stdClass;
+            $obj = new stdClass();
             $obj->foo = 'bar';
 
             return $obj;
