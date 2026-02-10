@@ -66,7 +66,6 @@ class Kernel implements KernelContract
      */
     protected array $bootstrappers = [
         \Hypervel\Foundation\Bootstrap\RegisterFacades::class,
-        \Hypervel\Foundation\Bootstrap\RegisterDependencies::class,
         \Hypervel\Foundation\Bootstrap\RegisterProviders::class,
         \Hypervel\Foundation\Bootstrap\BootProviders::class,
     ];
