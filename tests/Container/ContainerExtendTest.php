@@ -215,6 +215,11 @@ class ContainerExtendTest extends TestCase
     public function testExtendContextualBindingAfterResolution()
     {
         $container = new Container();
+
+        // Bind explicitly to prevent auto-singleton caching, since we need
+        // the consumer to be rebuilt after extending its dependency.
+        $container->bind(ContainerExtendConsumesInterfaceStub::class);
+
         $container->when(ContainerExtendConsumesInterfaceStub::class)
             ->needs(ContainerExtendInterfaceStub::class)
             ->give(fn () => new ContainerExtendInterfaceImplementationStub('foo'));

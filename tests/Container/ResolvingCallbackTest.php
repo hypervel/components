@@ -81,6 +81,9 @@ class ResolvingCallbackTest extends TestCase
         });
 
         $container->bind(ResolvingContractStub::class, ResolvingImplementationStub::class);
+        // Bind concrete explicitly to prevent auto-singleton, ensuring callbacks
+        // fire on every make() — auto-singletoned classes return from cache.
+        $container->bind(ResolvingImplementationStub::class);
 
         $container->make(ResolvingImplementationStub::class);
         $this->assertEquals(1, $callCounter);
@@ -134,6 +137,9 @@ class ResolvingCallbackTest extends TestCase
         $container = new Container;
 
         $container->bind(ResolvingContractStub::class, ResolvingImplementationStub::class);
+        // Bind concrete explicitly to prevent auto-singleton, ensuring callbacks
+        // fire on every make() — auto-singletoned classes return from cache.
+        $container->bind(ResolvingImplementationStub::class);
 
         $container->make(ResolvingImplementationStub::class);
 
@@ -221,6 +227,9 @@ class ResolvingCallbackTest extends TestCase
         $container->bind(ResolvingContractStub::class, function () {
             return new ResolvingImplementationStub;
         });
+        // Bind concrete explicitly to prevent auto-singleton, ensuring callbacks
+        // fire on every make() — auto-singletoned classes return from cache.
+        $container->bind(ResolvingImplementationStub::class);
 
         $container->make(ResolvingContractStub::class);
         $this->assertEquals(1, $callCounter);
@@ -248,6 +257,9 @@ class ResolvingCallbackTest extends TestCase
         $container->bind(ResolvingContractStub::class, function () {
             return new ResolvingImplementationStub;
         });
+        // Bind concrete explicitly to prevent auto-singleton, ensuring callbacks
+        // fire on every make() — auto-singletoned classes return from cache.
+        $container->bind(ResolvingImplementationStub::class);
 
         $container->make(ResolvingContractStub::class);
         $this->assertEquals(1, $callCounter);
@@ -443,6 +455,10 @@ class ResolvingCallbackTest extends TestCase
             $callCounter++;
         });
 
+        // Bind concrete explicitly to prevent auto-singleton, ensuring callbacks
+        // fire on every make() — auto-singletoned classes return from cache.
+        $container->bind(ResolvingImplementationStub::class);
+
         $container->make(ResolvingImplementationStub::class);
         $this->assertEquals(1, $callCounter);
         $container->make(ResolvingImplementationStub::class);
@@ -457,6 +473,10 @@ class ResolvingCallbackTest extends TestCase
         $container->resolving(ResolvingContractStub::class, function () use (&$callCounter) {
             $callCounter++;
         });
+
+        // Bind concrete explicitly to prevent auto-singleton, ensuring callbacks
+        // fire on every make() — auto-singletoned classes return from cache.
+        $container->bind(ResolvingImplementationStub::class);
 
         $container->make(ResolvingImplementationStub::class);
         $this->assertEquals(1, $callCounter);

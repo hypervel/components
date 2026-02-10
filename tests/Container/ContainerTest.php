@@ -331,6 +331,11 @@ class ContainerTest extends TestCase
     public function testResolutionOfClassWithDefaultParameters()
     {
         $container = new Container;
+
+        // Bind explicitly to prevent auto-singleton caching, since we need
+        // a fresh instance after rebinding the dependency below.
+        $container->bind(ContainerClassWithDefaultValueStub::class);
+
         $instance = $container->make(ContainerClassWithDefaultValueStub::class);
         $this->assertInstanceOf(ContainerConcreteStub::class, $instance->noDefault);
         $this->assertSame(null, $instance->default);
