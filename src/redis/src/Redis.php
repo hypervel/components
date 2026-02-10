@@ -33,6 +33,7 @@ class Redis
 
     /**
      * Scan keys matching a pattern.
+     * @param mixed $cursor
      */
     public function scan($cursor, ...$arguments)
     {
@@ -41,6 +42,8 @@ class Redis
 
     /**
      * Scan hash fields matching a pattern.
+     * @param mixed $key
+     * @param mixed $cursor
      */
     public function hScan($key, $cursor, ...$arguments)
     {
@@ -49,6 +52,8 @@ class Redis
 
     /**
      * Scan sorted set members matching a pattern.
+     * @param mixed $key
+     * @param mixed $cursor
      */
     public function zScan($key, $cursor, ...$arguments)
     {
@@ -57,6 +62,8 @@ class Redis
 
     /**
      * Scan set members matching a pattern.
+     * @param mixed $key
+     * @param mixed $cursor
      */
     public function sScan($key, $cursor, ...$arguments)
     {

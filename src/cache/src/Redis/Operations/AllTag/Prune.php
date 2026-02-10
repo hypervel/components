@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Redis\Operations\AllTag;
 
 use Hypervel\Cache\Redis\Support\StoreContext;
-use Hypervel\Redis\PhpRedis;
 use Hypervel\Redis\Operations\SafeScan;
+use Hypervel\Redis\PhpRedis;
 use Hypervel\Redis\RedisConnection;
 use Redis;
 

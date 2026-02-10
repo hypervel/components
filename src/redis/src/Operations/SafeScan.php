@@ -174,5 +174,4 @@ final class SafeScan
             } while ($iterator > 0);
         }
     }
-
 }
