@@ -34,7 +34,7 @@ class ConnectionResolver implements ConnectionResolverInterface
     /**
      * The default connection name.
      */
-    protected string $default = 'default';
+    protected string $default;
 
     protected PoolFactory $factory;
 
@@ -42,6 +42,7 @@ class ConnectionResolver implements ConnectionResolverInterface
         protected ContainerInterface $container
     ) {
         $this->factory = $container->get(PoolFactory::class);
+        $this->default = $container->get('config')->get('database.default', 'default');
     }
 
     /**

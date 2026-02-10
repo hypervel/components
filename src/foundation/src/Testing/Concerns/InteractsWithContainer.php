@@ -38,7 +38,7 @@ trait InteractsWithContainer
     protected function instance(string $abstract, mixed $instance): mixed
     {
         /* @phpstan-ignore-next-line */
-        $this->app->set($abstract, $instance);
+        $this->app->instance($abstract, $instance);
 
         return $instance;
     }
@@ -88,8 +88,8 @@ trait InteractsWithContainer
     {
         $this->app = $this->createApplication();
         /* @phpstan-ignore-next-line */
-        $this->app->bind(HttpDispatcher::class, TestingHttpDispatcher::class);
-        $this->app->bind(ConnectionResolverInterface::class, DatabaseConnectionResolver::class);
+        $this->app->singleton(HttpDispatcher::class, TestingHttpDispatcher::class);
+        $this->app->singleton(ConnectionResolverInterface::class, DatabaseConnectionResolver::class);
 
         $this->defineEnvironment($this->app);
 
