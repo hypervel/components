@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Contracts\Container;
 
 use Closure;
+use InvalidArgumentException;
+use LogicException;
 use Psr\Container\ContainerInterface;
 
 interface Container extends ContainerInterface
@@ -21,144 +23,87 @@ interface Container extends ContainerInterface
 
     /**
      * Determine if the given abstract type has been bound.
-     *
-     * @param  string  $abstract
-     * @return bool
      */
-    public function bound($abstract);
+    public function bound(string $abstract): bool;
 
     /**
      * Alias a type to a different name.
      *
-     * @param  string  $abstract
-     * @param  string  $alias
-     * @return void
-     *
-     * @throws \LogicException
+     * @throws LogicException
      */
-    public function alias($abstract, $alias);
+    public function alias(string $abstract, string $alias): void;
 
     /**
      * Assign a set of tags to a given binding.
-     *
-     * @param  array|string  $abstracts
-     * @param  mixed  ...$tags
-     * @return void
      */
-    public function tag($abstracts, $tags);
+    public function tag(array|string $abstracts, array|string $tags): void;
 
     /**
      * Resolve all of the bindings for a given tag.
-     *
-     * @param  string  $tag
-     * @return iterable
      */
-    public function tagged($tag);
+    public function tagged(string $tag): iterable;
 
     /**
      * Register a binding with the container.
-     *
-     * @param  \Closure|string  $abstract
-     * @param  \Closure|string|null  $concrete
-     * @param  bool  $shared
-     * @return void
      */
-    public function bind($abstract, $concrete = null, $shared = false);
+    public function bind(Closure|string $abstract, Closure|string|null $concrete = null, bool $shared = false): void;
 
     /**
      * Bind a callback to resolve with Container::call.
-     *
-     * @param  array|string  $method
-     * @param  \Closure  $callback
-     * @return void
      */
-    public function bindMethod($method, $callback);
+    public function bindMethod(array|string $method, Closure $callback): void;
 
     /**
      * Register a binding if it hasn't already been registered.
-     *
-     * @param  \Closure|string  $abstract
-     * @param  \Closure|string|null  $concrete
-     * @param  bool  $shared
-     * @return void
      */
-    public function bindIf($abstract, $concrete = null, $shared = false);
+    public function bindIf(Closure|string $abstract, Closure|string|null $concrete = null, bool $shared = false): void;
 
     /**
      * Register a shared binding in the container.
-     *
-     * @param  \Closure|string  $abstract
-     * @param  \Closure|string|null  $concrete
-     * @return void
      */
-    public function singleton($abstract, $concrete = null);
+    public function singleton(Closure|string $abstract, Closure|string|null $concrete = null): void;
 
     /**
      * Register a shared binding if it hasn't already been registered.
-     *
-     * @param  \Closure|string  $abstract
-     * @param  \Closure|string|null  $concrete
-     * @return void
      */
-    public function singletonIf($abstract, $concrete = null);
+    public function singletonIf(Closure|string $abstract, Closure|string|null $concrete = null): void;
 
     /**
      * Register a scoped binding in the container.
-     *
-     * @param  \Closure|string  $abstract
-     * @param  \Closure|string|null  $concrete
-     * @return void
      */
-    public function scoped($abstract, $concrete = null);
+    public function scoped(Closure|string $abstract, Closure|string|null $concrete = null): void;
 
     /**
      * Register a scoped binding if it hasn't already been registered.
-     *
-     * @param  \Closure|string  $abstract
-     * @param  \Closure|string|null  $concrete
-     * @return void
      */
-    public function scopedIf($abstract, $concrete = null);
+    public function scopedIf(Closure|string $abstract, Closure|string|null $concrete = null): void;
 
     /**
      * "Extend" an abstract type in the container.
      *
-     * @param  \Closure|string  $abstract
-     * @param  \Closure  $closure
-     * @return void
-     *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
-    public function extend($abstract, Closure $closure);
+    public function extend(string $abstract, Closure $closure): void;
 
     /**
      * Register an existing instance as shared in the container.
      *
      * @template TInstance of mixed
      *
-     * @param  \Closure|string  $abstract
      * @param  TInstance  $instance
      * @return TInstance
      */
-    public function instance($abstract, $instance);
+    public function instance(string $abstract, mixed $instance): mixed;
 
     /**
      * Add a contextual binding to the container.
-     *
-     * @param  string  $concrete
-     * @param  \Closure|string  $abstract
-     * @param  \Closure|string  $implementation
-     * @return void
      */
-    public function addContextualBinding($concrete, $abstract, $implementation);
+    public function addContextualBinding(string $concrete, Closure|string $abstract, Closure|string $implementation): void;
 
     /**
      * Define a contextual binding.
-     *
-     * @param  string|array  $concrete
-     * @return \Hypervel\Contracts\Container\ContextualBindingBuilder
      */
-    public function when($concrete);
+    public function when(string|array $concrete): ContextualBindingBuilder;
 
     /**
      * Get a closure to resolve the given type from the container.
@@ -166,16 +111,14 @@ interface Container extends ContainerInterface
      * @template TClass of object
      *
      * @param  string|class-string<TClass>  $abstract
-     * @return ($abstract is class-string<TClass> ? \Closure(): TClass : \Closure(): mixed)
+     * @return ($abstract is class-string<TClass> ? Closure(): TClass : Closure(): mixed)
      */
-    public function factory($abstract);
+    public function factory(string $abstract): Closure;
 
     /**
      * Flush the container of all bindings and resolved instances.
-     *
-     * @return void
      */
-    public function flush();
+    public function flush(): void;
 
     /**
      * Resolve the given type from the container.
@@ -183,55 +126,34 @@ interface Container extends ContainerInterface
      * @template TClass of object
      *
      * @param  string|class-string<TClass>  $abstract
-     * @param  array  $parameters
      * @return ($abstract is class-string<TClass> ? TClass : mixed)
      *
-     * @throws \Hypervel\Contracts\Container\BindingResolutionException
+     * @throws BindingResolutionException
      */
-    public function make($abstract, array $parameters = []);
+    public function make(string $abstract, array $parameters = []): mixed;
 
     /**
      * Call the given Closure / class@method and inject its dependencies.
-     *
-     * @param  callable|string  $callback
-     * @param  array  $parameters
-     * @param  string|null  $defaultMethod
-     * @return mixed
      */
-    public function call($callback, array $parameters = [], $defaultMethod = null);
+    public function call(callable|string $callback, array $parameters = [], ?string $defaultMethod = null): mixed;
 
     /**
      * Determine if the given abstract type has been resolved.
-     *
-     * @param  string  $abstract
-     * @return bool
      */
-    public function resolved($abstract);
+    public function resolved(string $abstract): bool;
 
     /**
      * Register a new before resolving callback.
-     *
-     * @param  \Closure|string  $abstract
-     * @param  \Closure|null  $callback
-     * @return void
      */
-    public function beforeResolving($abstract, ?Closure $callback = null);
+    public function beforeResolving(Closure|string $abstract, ?Closure $callback = null): void;
 
     /**
      * Register a new resolving callback.
-     *
-     * @param  \Closure|string  $abstract
-     * @param  \Closure|null  $callback
-     * @return void
      */
-    public function resolving($abstract, ?Closure $callback = null);
+    public function resolving(Closure|string $abstract, ?Closure $callback = null): void;
 
     /**
      * Register a new after resolving callback.
-     *
-     * @param  \Closure|string  $abstract
-     * @param  \Closure|null  $callback
-     * @return void
      */
-    public function afterResolving($abstract, ?Closure $callback = null);
+    public function afterResolving(Closure|string $abstract, ?Closure $callback = null): void;
 }

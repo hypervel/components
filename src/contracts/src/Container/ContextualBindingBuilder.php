@@ -4,38 +4,27 @@ declare(strict_types=1);
 
 namespace Hypervel\Contracts\Container;
 
+use Closure;
+
 interface ContextualBindingBuilder
 {
     /**
      * Define the abstract target that depends on the context.
-     *
-     * @param  string  $abstract
-     * @return $this
      */
-    public function needs($abstract);
+    public function needs(string $abstract): static;
 
     /**
      * Define the implementation for the contextual binding.
-     *
-     * @param  \Closure|string|array  $implementation
-     * @return $this
      */
-    public function give($implementation);
+    public function give(Closure|string|array $implementation): static;
 
     /**
      * Define tagged services to be used as the implementation for the contextual binding.
-     *
-     * @param  string  $tag
-     * @return $this
      */
-    public function giveTagged($tag);
+    public function giveTagged(string $tag): static;
 
     /**
      * Specify the configuration item to bind as a primitive.
-     *
-     * @param  string  $key
-     * @param  mixed  $default
-     * @return $this
      */
-    public function giveConfig($key, $default = null);
+    public function giveConfig(string $key, mixed $default = null): static;
 }
