@@ -84,8 +84,8 @@ class Application extends Container implements ApplicationContract, HyperfContai
         $this->setBasePath($basePath ?: BASE_PATH);
 
         $this->registerBaseBindings();
-        $this->registerConfigProviderDependencies();
         $this->registerCoreContainerAliases();
+        $this->registerConfigProviderDependencies();
     }
 
     /**
@@ -109,6 +109,18 @@ class Application extends Container implements ApplicationContract, HyperfContai
         $this->instance(ApplicationContract::class, $this);
         $this->instance(ContainerInterface::class, $this);
         $this->instance(HyperfContainerInterface::class, $this);
+    }
+
+    /**
+     * Determine if the given abstract type has been bound.
+     *
+     * Extends the parent to also return true for existing concrete classes,
+     * since the auto-singleton behavior means any concrete class can be
+     * resolved via get()/make() without an explicit binding.
+     */
+    public function has(string $id): bool
+    {
+        return parent::has($id) || class_exists($id);
     }
 
     /**
@@ -173,8 +185,23 @@ class Application extends Container implements ApplicationContract, HyperfContai
         }
 
         foreach ($dependencies as $abstract => $concrete) {
-            if ($concrete instanceof Closure || is_string($concrete)) {
+            // Resolve alias chain so bindings are stored under the canonical
+            // abstract, not under an alias key that getAlias() would skip.
+            $abstract = $this->getAlias($abstract);
+
+            if ($concrete instanceof Closure) {
                 $this->singleton($abstract, $concrete);
+            } elseif (is_string($concrete) && class_exists($concrete) && method_exists($concrete, '__invoke')) {
+                // Hyperf factory pattern: classes with __invoke() are factories
+                // that produce the actual service when called.
+                $this->singleton($abstract, function ($app) use ($concrete) {
+                    return $app->make($concrete)($app);
+                });
+            } elseif (is_string($concrete)) {
+                // Use a closure to build the concrete class directly, bypassing
+                // the alias chain. Without this, string concretes that are also
+                // aliased back to the abstract create infinite resolution cycles.
+                $this->singleton($abstract, fn ($app) => $app->build($concrete));
             }
         }
     }
