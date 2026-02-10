@@ -66,7 +66,7 @@ class BoundMethod
     /**
      * Call a method that has been bound to the container.
      */
-    protected static function callBoundMethod(Container $container, callable $callback, mixed $default): mixed
+    protected static function callBoundMethod(Container $container, callable|string $callback, mixed $default): mixed
     {
         if (! is_array($callback)) {
             return Util::unwrapIfClosure($default);

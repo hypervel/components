@@ -1413,7 +1413,7 @@ class Container implements ArrayAccess, ContainerContract
      *
      * @param  array<string, array> $callbacksPerType
      */
-    protected function getCallbacksForType(string $abstract, object $object, array $callbacksPerType): array
+    protected function getCallbacksForType(string $abstract, mixed $object, array $callbacksPerType): array
     {
         $results = [];
 
