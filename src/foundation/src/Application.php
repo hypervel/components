@@ -81,9 +81,7 @@ class Application extends Container implements ApplicationContract, HyperfContai
 
     public function __construct(?string $basePath = null)
     {
-        if ($basePath) {
-            $this->setBasePath($basePath);
-        }
+        $this->setBasePath($basePath ?: (defined('BASE_PATH') ? BASE_PATH : ''));
 
         $this->registerBaseBindings();
         $this->registerCoreContainerAliases();
