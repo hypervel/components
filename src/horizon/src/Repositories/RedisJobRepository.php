@@ -509,7 +509,9 @@ class RedisJobRepository implements JobRepository
             $this->keys
         );
 
-        $job = $attributes[$this->keys[0]] ? (object) $attributes : null;
+        $job = is_array($attributes) && $attributes[0] !== null
+            ? (object) array_combine($this->keys, $attributes)
+            : null;
 
         if ($job && $job->status !== 'failed') {
             return null;
