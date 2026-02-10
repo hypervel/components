@@ -1,6 +1,8 @@
 <?php
 
-namespace Illuminate\Container\Attributes;
+declare(strict_types=1);
+
+namespace Hypervel\Container\Attributes;
 
 use Attribute;
 use BackedEnum;
@@ -28,9 +30,9 @@ class Bind
      * Create a new attribute instance.
      *
      * @param  class-string  $concrete
-     * @param  non-empty-array<int, \BackedEnum|\UnitEnum|non-empty-string>|non-empty-string|\UnitEnum  $environments
+     * @param  non-empty-array<int, BackedEnum|UnitEnum|non-empty-string>|non-empty-string|UnitEnum  $environments
      *
-     * @throws \InvalidArgumentException
+     * @throws InvalidArgumentException
      */
     public function __construct(
         string $concrete,

@@ -1,10 +1,13 @@
 <?php
 
-namespace Illuminate\Container\Attributes;
+declare(strict_types=1);
+
+namespace Hypervel\Container\Attributes;
 
 use Attribute;
-use Illuminate\Contracts\Container\Container;
-use Illuminate\Contracts\Container\ContextualAttribute;
+use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Container\ContextualAttribute;
 
 #[Attribute(Attribute::TARGET_PARAMETER)]
 class Cache implements ContextualAttribute
@@ -18,12 +21,8 @@ class Cache implements ContextualAttribute
 
     /**
      * Resolve the cache store.
-     *
-     * @param  self  $attribute
-     * @param  \Illuminate\Contracts\Container\Container  $container
-     * @return \Illuminate\Contracts\Cache\Repository
      */
-    public static function resolve(self $attribute, Container $container)
+    public static function resolve(self $attribute, Container $container): Repository
     {
         return $container->make('cache')->store($attribute->store);
     }
