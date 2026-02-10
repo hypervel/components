@@ -10,6 +10,7 @@ use Hyperf\HttpMessage\Upload\UploadedFile as HyperfUploadedFile;
 use Hyperf\HttpServer\Event\RequestHandled;
 use Hyperf\HttpServer\Event\RequestReceived;
 use Hyperf\HttpServer\Event\RequestTerminated;
+use Hyperf\HttpServer\Contract\CoreMiddlewareInterface;
 use Hyperf\HttpServer\Server as HyperfServer;
 use Hypervel\Context\RequestContext;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
@@ -36,6 +37,20 @@ class Kernel extends HyperfServer implements MiddlewareContract
 
         $this->initExceptionHandlers();
         $this->initOption();
+    }
+
+    /**
+     * Create the core middleware instance.
+     *
+     * Overrides parent to use named parameters, since the Laravel container
+     * does not support positional parameter arrays.
+     */
+    protected function createCoreMiddleware(): CoreMiddlewareInterface
+    {
+        return $this->container->make(\Hypervel\Http\CoreMiddleware::class, [
+            'container' => $this->container,
+            'serverName' => $this->serverName,
+        ]);
     }
 
     protected function initExceptionHandlers(): void

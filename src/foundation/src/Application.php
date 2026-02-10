@@ -113,6 +113,17 @@ class Application extends Container implements ApplicationContract, HyperfContai
         $this->instance(HyperfContainerInterface::class, $this);
     }
 
+    /**
+     * Determine if the given abstract type has been bound.
+     *
+     * The facade system calls has() before get() to check if a service is
+     * resolvable. With auto-singleton semantics, any concrete class can be
+     * resolved, so has() must return true for existing classes.
+     */
+    public function has(string $id): bool
+    {
+        return parent::has($id) || class_exists($id);
+    }
 
     /**
      * Bind an arbitrary resolved entry to an identifier.
