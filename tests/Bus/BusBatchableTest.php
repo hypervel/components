@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Bus;
 
-use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Batchable;
 use Hypervel\Container\Container;
@@ -32,11 +31,8 @@ class BusBatchableTest extends TestCase
         $repository = m::mock(BatchRepository::class);
         $repository->shouldReceive('find')->once()->with('test-batch-id')->andReturn($batch);
 
-        $container = new Container(
-            new DefinitionSource([
-                BatchRepository::class => fn () => $repository,
-            ])
-        );
+        $container = new Container();
+        $container->instance(BatchRepository::class, $repository);
         ApplicationContext::setContainer($container);
 
         $this->assertSame($batch, $class->batch());
