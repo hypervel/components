@@ -432,7 +432,7 @@ if (! function_exists('fake') && class_exists(\Faker\Factory::class)) {
         $abstract = \Faker\Generator::class . ':' . $locale;
 
         if (! app()->bound($abstract)) {
-            app()->bind($abstract, fn () => \Faker\Factory::create($locale));
+            app()->singleton($abstract, fn () => \Faker\Factory::create($locale));
         }
 
         return app()->get($abstract);

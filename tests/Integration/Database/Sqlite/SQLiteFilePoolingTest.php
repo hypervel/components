@@ -64,7 +64,7 @@ class SQLiteFilePoolingTest extends TestCase
     {
         $config = $this->app->get('config');
 
-        $this->app->set('db.connector.sqlite', new SQLiteConnector());
+        $this->app->instance('db.connector.sqlite', new SQLiteConnector());
 
         $connectionConfig = [
             'driver' => 'sqlite',

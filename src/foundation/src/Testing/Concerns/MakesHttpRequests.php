@@ -318,12 +318,12 @@ trait MakesHttpRequests
     protected function withoutMiddleware($middleware = null): static
     {
         if (is_null($middleware)) {
-            $this->app->set('middleware.disable', true);
+            $this->app->instance('middleware.disable', true);
             return $this;
         }
 
         foreach ((array) $middleware as $abstract) {
-            $this->app->bind($abstract, FakeMiddleware::class);
+            $this->app->singleton($abstract, FakeMiddleware::class);
         }
 
         return $this;

@@ -162,17 +162,17 @@ class TelescopeServiceProvider extends ServiceProvider
      */
     protected function registerDatabaseDriver(): void
     {
-        $this->app->bind(
+        $this->app->singleton(
             EntriesRepository::class,
             fn ($container) => $container->get(DatabaseEntriesRepository::class)
         );
 
-        $this->app->bind(
+        $this->app->singleton(
             ClearableRepository::class,
             fn ($container) => $container->get(DatabaseEntriesRepository::class)
         );
 
-        $this->app->bind(
+        $this->app->singleton(
             PrunableRepository::class,
             fn ($container) => $container->get(DatabaseEntriesRepository::class)
         );

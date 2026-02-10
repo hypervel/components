@@ -61,7 +61,7 @@ class PruneStaleTagsCommandTest extends TestCase
             ->once()
             ->andReturn($repository);
 
-        $this->app->set(CacheContract::class, $cacheManager);
+        $this->app->instance(CacheContract::class, $cacheManager);
 
         $command = new PruneStaleTagsCommand();
         $command->run(new ArrayInput([]), new NullOutput());
@@ -106,7 +106,7 @@ class PruneStaleTagsCommandTest extends TestCase
             ->once()
             ->andReturn($repository);
 
-        $this->app->set(CacheContract::class, $cacheManager);
+        $this->app->instance(CacheContract::class, $cacheManager);
 
         $command = new PruneStaleTagsCommand();
         $command->run(new ArrayInput([]), new NullOutput());
@@ -150,7 +150,7 @@ class PruneStaleTagsCommandTest extends TestCase
             ->once()
             ->andReturn($repository);
 
-        $this->app->set(CacheContract::class, $cacheManager);
+        $this->app->instance(CacheContract::class, $cacheManager);
 
         $command = new PruneStaleTagsCommand();
         $command->run(new ArrayInput(['store' => 'custom-redis']), new NullOutput());
@@ -173,7 +173,7 @@ class PruneStaleTagsCommandTest extends TestCase
             ->once()
             ->andReturn($repository);
 
-        $this->app->set(CacheContract::class, $cacheManager);
+        $this->app->instance(CacheContract::class, $cacheManager);
 
         $command = new PruneStaleTagsCommand();
         $result = $command->run(new ArrayInput(['store' => 'file']), new NullOutput());

@@ -220,7 +220,7 @@ class GateWatcherTest extends FeatureTestCase
             return false;
         });
 
-        $this->app->set(GateContract::class, $gate);
+        $this->app->instance(GateContract::class, $gate);
     }
 }
 

@@ -84,7 +84,7 @@ trait MocksApplicationServices
 
         Event::clearResolvedInstances();
 
-        $this->app->set(EventDispatcherInterface::class, $mock);
+        $this->app->instance(EventDispatcherInterface::class, $mock);
         Model::setEventDispatcher($mock);
 
         return $this;

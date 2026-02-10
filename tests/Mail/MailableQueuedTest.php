@@ -27,7 +27,7 @@ class MailableQueuedTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->app->set(MailableContract::class, m::mock(MailableContract::class));
+        $this->app->instance(MailableContract::class, m::mock(MailableContract::class));
     }
 
     public function testQueuedMailableSent()
@@ -86,7 +86,7 @@ class MailableQueuedTest extends TestCase
         $filesystemFactory = $this->getMockBuilder(FilesystemManager::class)
             ->setConstructorArgs([$this->app])
             ->getMock();
-        $this->app->set('filesystem', $filesystemFactory);
+        $this->app->instance('filesystem', $filesystemFactory);
         $queueFake = new QueueFake($this->app);
         $mailer = $this->getMockBuilder(Mailer::class)
             ->setConstructorArgs($this->getMocks())

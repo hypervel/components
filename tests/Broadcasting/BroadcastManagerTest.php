@@ -62,7 +62,7 @@ class BroadcastManagerTest extends TestCase
         $cache = m::mock(Cache::class);
         $cache->shouldReceive('lock')->with($lockKey, 0)->andReturnSelf();
         $cache->shouldReceive('get')->andReturn(true);
-        $this->app->bind(Cache::class, fn () => $cache);
+        $this->app->singleton(Cache::class, fn () => $cache);
 
         Broadcast::queue(new TestEventUnique());
 

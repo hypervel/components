@@ -50,7 +50,7 @@ class JobWatcherTest extends FeatureTestCase
             ->once()
             ->andReturn($batch);
 
-        $this->app->set(BatchRepository::class, $batchRepository);
+        $this->app->instance(BatchRepository::class, $batchRepository);
 
         MockedBatchableJob::dispatch('batch-id');
 

@@ -134,7 +134,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
     protected function setUpFaker(): void
     {
         if (! $this->app->bound(FakerGenerator::class)) {
-            $this->app->bind(
+            $this->app->singleton(
                 FakerGenerator::class,
                 fn ($app) => \Faker\Factory::create($app->make('config')->get('app.faker_locale', 'en_US'))
             );

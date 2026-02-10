@@ -45,7 +45,7 @@ class DoctorCommandTest extends TestCase
             ->with('file')
             ->andReturn($repository);
 
-        $this->app->set(CacheContract::class, $cacheManager);
+        $this->app->instance(CacheContract::class, $cacheManager);
 
         $command = new DoctorCommand();
         $result = $command->run(new ArrayInput(['--store' => 'file']), new NullOutput());
@@ -70,7 +70,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.redis.connection', 'default')
             ->andReturn('default');
 
-        $this->app->set(ConfigContract::class, $config);
+        $this->app->instance(ConfigContract::class, $config);
 
         // Mock Redis store
         $context = m::mock(StoreContext::class);
@@ -94,7 +94,7 @@ class DoctorCommandTest extends TestCase
             ->with('redis')
             ->andReturn($repository);
 
-        $this->app->set(CacheContract::class, $cacheManager);
+        $this->app->instance(CacheContract::class, $cacheManager);
 
         // The command will fail at environment checks (Redis version check for 'any' mode)
         // but this tests that store detection works
@@ -126,7 +126,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.custom-redis.connection', 'default')
             ->andReturn('custom');
 
-        $this->app->set(ConfigContract::class, $config);
+        $this->app->instance(ConfigContract::class, $config);
 
         // Mock Redis store
         $context = m::mock(StoreContext::class);
@@ -151,7 +151,7 @@ class DoctorCommandTest extends TestCase
             ->with('custom-redis')
             ->andReturn($repository);
 
-        $this->app->set(CacheContract::class, $cacheManager);
+        $this->app->instance(CacheContract::class, $cacheManager);
 
         $command = new DoctorCommand();
         $output = new BufferedOutput();
@@ -172,7 +172,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.redis.connection', 'default')
             ->andReturn('default');
 
-        $this->app->set(ConfigContract::class, $config);
+        $this->app->instance(ConfigContract::class, $config);
 
         // Mock Redis store with 'all' mode
         $context = m::mock(StoreContext::class);
@@ -196,7 +196,7 @@ class DoctorCommandTest extends TestCase
             ->with('redis')
             ->andReturn($repository);
 
-        $this->app->set(CacheContract::class, $cacheManager);
+        $this->app->instance(CacheContract::class, $cacheManager);
 
         $command = new DoctorCommand();
         $output = new BufferedOutput();
@@ -221,7 +221,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.default', 'file')
             ->andReturn('file');
 
-        $this->app->set(ConfigContract::class, $config);
+        $this->app->instance(ConfigContract::class, $config);
 
         $command = new DoctorCommand();
         $output = new BufferedOutput();
@@ -247,7 +247,7 @@ class DoctorCommandTest extends TestCase
             ->with('cache.stores.redis.connection', 'default')
             ->andReturn('default');
 
-        $this->app->set(ConfigContract::class, $config);
+        $this->app->instance(ConfigContract::class, $config);
 
         $context = m::mock(StoreContext::class);
         $context->shouldReceive('withConnection')
@@ -270,7 +270,7 @@ class DoctorCommandTest extends TestCase
             ->with('redis')
             ->andReturn($repository);
 
-        $this->app->set(CacheContract::class, $cacheManager);
+        $this->app->instance(CacheContract::class, $cacheManager);
 
         $command = new DoctorCommand();
         $output = new BufferedOutput();

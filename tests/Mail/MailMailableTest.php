@@ -1147,9 +1147,9 @@ class MailMailableTest extends TestCase
         $mailer->shouldReceive('render')
             ->andReturn('');
 
-        $this->app->bind(FactoryContract::class, MailManager::class);
-        $this->app->set(ViewFactory::class, m::mock(ViewFactory::class));
-        $this->app->set(MailerContract::class, $mailer);
+        $this->app->singleton(FactoryContract::class, MailManager::class);
+        $this->app->instance(ViewFactory::class, m::mock(ViewFactory::class));
+        $this->app->instance(MailerContract::class, $mailer);
     }
 
     protected function mockView()

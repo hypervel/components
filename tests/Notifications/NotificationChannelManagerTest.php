@@ -34,7 +34,7 @@ class NotificationChannelManagerTest extends TestCase
     public function testGetDefaultChannel()
     {
         $container = $this->getContainer();
-        $container->set(MailChannel::class, m::mock(MailChannel::class));
+        $container->instance(MailChannel::class, m::mock(MailChannel::class));
 
         $manager = new ChannelManager($container);
 
@@ -44,7 +44,7 @@ class NotificationChannelManagerTest extends TestCase
     public function testGetCustomChannelWithPool()
     {
         $container = $this->getContainer();
-        $container->set(MailChannel::class, m::mock(MailChannel::class));
+        $container->instance(MailChannel::class, m::mock(MailChannel::class));
 
         $manager = new ChannelManager($container);
         $manager->extend('test', function () {

@@ -44,7 +44,7 @@ class FeatureTestCase extends TestCase
     {
         parent::setUp();
 
-        $this->app->bind(
+        $this->app->singleton(
             EntriesRepository::class,
             fn ($container) => $container->get(DatabaseEntriesRepository::class)
         );

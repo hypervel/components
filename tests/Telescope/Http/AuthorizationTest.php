@@ -122,7 +122,7 @@ class AuthorizationTest extends FeatureTestCase
             return new Authenticated('email@foo.bar');
         });
 
-        $this->app->set(GateContract::class, $gate);
+        $this->app->instance(GateContract::class, $gate);
     }
 }
 

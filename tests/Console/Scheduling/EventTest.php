@@ -72,7 +72,7 @@ class EventTest extends TestCase
             ->with($output)
             ->andReturn(false);
 
-        $this->container->set(Filesystem::class, $filesystem);
+        $this->container->instance(Filesystem::class, $filesystem);
         $event->writeOutput($this->container);
     }
 
@@ -96,8 +96,8 @@ class EventTest extends TestCase
             ->once()
             ->with($output, $result);
 
-        $this->container->set(KernelContract::class, $kernel);
-        $this->container->set(Filesystem::class, $filesystem);
+        $this->container->instance(KernelContract::class, $kernel);
+        $this->container->instance(Filesystem::class, $filesystem);
 
         $event->writeOutput($this->container);
     }
@@ -120,7 +120,7 @@ class EventTest extends TestCase
             ->once()
             ->with($output, $result);
 
-        $this->container->set(Filesystem::class, $filesystem);
+        $this->container->instance(Filesystem::class, $filesystem);
 
         $event->writeOutput($this->container);
 
@@ -147,8 +147,8 @@ class EventTest extends TestCase
             ->once()
             ->with($output, $result);
 
-        $this->container->set(KernelContract::class, $kernel);
-        $this->container->set(Filesystem::class, $filesystem);
+        $this->container->instance(KernelContract::class, $kernel);
+        $this->container->instance(Filesystem::class, $filesystem);
 
         $event->writeOutput($this->container);
     }

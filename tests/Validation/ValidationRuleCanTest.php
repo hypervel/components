@@ -31,13 +31,13 @@ class ValidationRuleCanTest extends TestCase
 
         $this->user = m::mock(Authenticatable::class);
 
-        $this->app->bind(GateContract::class, function () {
+        $this->app->singleton(GateContract::class, function () {
             return new Gate($this->app, function () {
                 return $this->user;
             });
         });
 
-        $this->app->bind(
+        $this->app->singleton(
             TranslatorContract::class,
             fn () => new Translator(
                 new ArrayLoader(),

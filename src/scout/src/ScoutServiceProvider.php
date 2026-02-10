@@ -26,9 +26,9 @@ class ScoutServiceProvider extends ServiceProvider
             'scout'
         );
 
-        $this->app->bind(EngineManager::class, EngineManager::class);
+        $this->app->singleton(EngineManager::class, EngineManager::class);
 
-        $this->app->bind(MeilisearchClient::class, function () {
+        $this->app->singleton(MeilisearchClient::class, function () {
             $config = $this->app->get('config');
 
             return new MeilisearchClient(
@@ -37,7 +37,7 @@ class ScoutServiceProvider extends ServiceProvider
             );
         });
 
-        $this->app->bind(TypesenseClient::class, function () {
+        $this->app->singleton(TypesenseClient::class, function () {
             $config = $this->app->get('config');
 
             return new TypesenseClient(

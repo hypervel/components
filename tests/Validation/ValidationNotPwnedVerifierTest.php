@@ -109,7 +109,7 @@ class ValidationNotPwnedVerifierTest extends TestCase
 
         $exceptionHandler = m::mock(ExceptionHandler::class);
         $exceptionHandler->shouldReceive('report')->once()->with($exception);
-        $this->app->bind(ExceptionHandler::class, function () use ($exceptionHandler) {
+        $this->app->singleton(ExceptionHandler::class, function () use ($exceptionHandler) {
             return $exceptionHandler;
         });
 

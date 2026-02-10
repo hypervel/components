@@ -178,7 +178,7 @@ class Kernel implements KernelContract
         // Load commands from registered closures
         foreach ($this->closureCommands as $command) {
             $closureId = spl_object_hash($command);
-            $this->app->set($commandId = "commands.{$closureId}", $command);
+            $this->app->instance($commandId = "commands.{$closureId}", $command);
             $commands[] = $commandId;
         }
 
@@ -269,7 +269,7 @@ class Kernel implements KernelContract
      */
     protected function defineConsoleSchedule(): void
     {
-        $this->app->bind(Schedule::class, function ($app) {
+        $this->app->singleton(Schedule::class, function ($app) {
             return tap(new Schedule($this->scheduleTimezone()), function ($schedule) {
                 $this->schedule($schedule->useCache($this->scheduleCache()));
             });
@@ -313,7 +313,7 @@ class Kernel implements KernelContract
         // to this registration by storing the commands closures.
         if ($this->commandsLoaded) {
             $closureId = spl_object_hash($command);
-            $this->app->set($commandId = "commands.{$closureId}", $command);
+            $this->app->instance($commandId = "commands.{$closureId}", $command);
             $this->registerCommand($commandId);
         } else {
             $this->closureCommands[] = $command;

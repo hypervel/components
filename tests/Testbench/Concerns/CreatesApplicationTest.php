@@ -70,7 +70,7 @@ class TestServiceProvider extends \Hypervel\Support\ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind('test.service', fn () => 'test_value');
+        $this->app->singleton('test.service', fn () => 'test_value');
     }
 }
 

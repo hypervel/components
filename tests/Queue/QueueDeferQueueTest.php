@@ -55,7 +55,7 @@ class QueueDeferQueueTest extends TestCase
         $container = $this->getContainer();
         $events = m::mock(EventDispatcherInterface::class);
         $events->shouldReceive('dispatch')->times(3);
-        $container->set(EventDispatcherInterface::class, $events);
+        $container->instance(EventDispatcherInterface::class, $events);
         $defer->setContainer($container);
 
         run(function () use ($defer) {
@@ -73,7 +73,7 @@ class QueueDeferQueueTest extends TestCase
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set('db.transactions', $transactionManager);
+        $container->instance('db.transactions', $transactionManager);
 
         $defer->setContainer($container);
         run(fn () => $defer->push(new DeferQueueAfterCommitJob()));
@@ -86,7 +86,7 @@ class QueueDeferQueueTest extends TestCase
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set('db.transactions', $transactionManager);
+        $container->instance('db.transactions', $transactionManager);
 
         $defer->setContainer($container);
         run(fn () => $defer->push(new DeferQueueAfterCommitInterfaceJob()));

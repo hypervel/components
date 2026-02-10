@@ -55,7 +55,7 @@ class QueueCoroutineQueueTest extends TestCase
         $container = $this->getContainer();
         $events = m::mock(EventDispatcherInterface::class);
         $events->shouldReceive('dispatch')->times(3);
-        $container->set(EventDispatcherInterface::class, $events);
+        $container->instance(EventDispatcherInterface::class, $events);
         $coroutine->setContainer($container);
 
         run(function () use ($coroutine) {
@@ -73,7 +73,7 @@ class QueueCoroutineQueueTest extends TestCase
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set('db.transactions', $transactionManager);
+        $container->instance('db.transactions', $transactionManager);
 
         $coroutine->setContainer($container);
         run(fn () => $coroutine->push(new CoroutineQueueAfterCommitJob()));
@@ -86,7 +86,7 @@ class QueueCoroutineQueueTest extends TestCase
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set('db.transactions', $transactionManager);
+        $container->instance('db.transactions', $transactionManager);
 
         $coroutine->setContainer($container);
         run(fn () => $coroutine->push(new CoroutineQueueAfterCommitInterfaceJob()));

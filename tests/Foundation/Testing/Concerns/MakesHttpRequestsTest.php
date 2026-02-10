@@ -196,7 +196,7 @@ class MakesHttpRequestsTest extends TestCase
 
     public function testAssertSessionHasErrors()
     {
-        $this->app->set('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
+        $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
         $store->put('errors', $errorBag = new ViewErrorBag());
 
@@ -213,7 +213,7 @@ class MakesHttpRequestsTest extends TestCase
 
     public function testAssertJsonSerializedSessionHasErrors()
     {
-        $this->app->set('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
+        $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
         $store->put('errors', $errorBag = new ViewErrorBag());
 
@@ -234,7 +234,7 @@ class MakesHttpRequestsTest extends TestCase
     {
         $this->expectException(AssertionFailedError::class);
 
-        $this->app->set('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
+        $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
         $store->put('errors', $errorBag = new ViewErrorBag());
 
@@ -251,7 +251,7 @@ class MakesHttpRequestsTest extends TestCase
 
     public function testAssertSessionHasNoErrors()
     {
-        $this->app->set('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
+        $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
         $store->put('errors', $errorBag = new ViewErrorBag());
 
@@ -279,7 +279,7 @@ class MakesHttpRequestsTest extends TestCase
 
     public function testAssertSessionHas()
     {
-        $this->app->set('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
+        $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
         $store->put('foo', 'value');
         $store->put('bar', 'value');
@@ -295,7 +295,7 @@ class MakesHttpRequestsTest extends TestCase
     {
         $this->expectException(AssertionFailedError::class);
 
-        $this->app->set('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
+        $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
         $store->put('foo', 'value');
 
@@ -305,7 +305,7 @@ class MakesHttpRequestsTest extends TestCase
 
     public function testAssertSessionHasInput()
     {
-        $this->app->set('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
+        $this->app->instance('session.store', $store = new Store('test-session', new ArraySessionHandler(1)));
 
         $store->put('_old_input', [
             'foo' => 'value',

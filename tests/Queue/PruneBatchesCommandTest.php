@@ -29,7 +29,7 @@ class PruneBatchesCommandTest extends TestCase
         $repo->shouldReceive('prune')->once();
         $repo->shouldReceive('pruneUnfinished')->once();
 
-        $this->app->set(BatchRepository::class, $repo);
+        $this->app->instance(BatchRepository::class, $repo);
 
         $command = new PruneBatchesCommand();
 
@@ -42,7 +42,7 @@ class PruneBatchesCommandTest extends TestCase
         $repo->shouldReceive('prune')->once();
         $repo->shouldReceive('pruneCancelled')->once();
 
-        $this->app->set(BatchRepository::class, $repo);
+        $this->app->instance(BatchRepository::class, $repo);
 
         $command = new PruneBatchesCommand();
 

@@ -86,8 +86,8 @@ abstract class DatabaseIntegrationTestCase extends TestCase
     protected function registerConnectors(string $driver): void
     {
         match ($driver) {
-            'pgsql' => $this->app->set('db.connector.pgsql', new PostgresConnector()),
-            'sqlite' => $this->app->set('db.connector.sqlite', new SQLiteConnector()),
+            'pgsql' => $this->app->instance('db.connector.pgsql', new PostgresConnector()),
+            'sqlite' => $this->app->instance('db.connector.sqlite', new SQLiteConnector()),
             default => null,
         };
     }

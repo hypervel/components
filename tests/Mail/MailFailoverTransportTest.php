@@ -19,7 +19,7 @@ class MailFailoverTransportTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->app->set(ViewFactory::class, m::mock(ViewFactory::class));
+        $this->app->instance(ViewFactory::class, m::mock(ViewFactory::class));
     }
 
     public function testGetFailoverTransportWithConfiguredTransports()

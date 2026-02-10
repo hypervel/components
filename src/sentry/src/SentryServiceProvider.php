@@ -77,15 +77,15 @@ class SentryServiceProvider extends ServiceProvider
             return $builder->setTransport($transport);
         });
 
-        $this->app->bind(ClientInterface::class, function () {
+        $this->app->singleton(ClientInterface::class, function () {
             return $this->app
                 ->get(ClientBuilder::class)
                 ->getClient();
         });
 
-        $this->app->bind(ClientBuilder::class, ClientBuilderFactory::class);
-        $this->app->bind(HubInterface::class, HubFactory::class);
-        $this->app->bind(HttpClientInterface::class, HttpClientFactory::class);
+        $this->app->singleton(ClientBuilder::class, ClientBuilderFactory::class);
+        $this->app->singleton(HubInterface::class, HubFactory::class);
+        $this->app->singleton(HttpClientInterface::class, HttpClientFactory::class);
         $this->registerFeatures();
     }
 
@@ -114,7 +114,7 @@ class SentryServiceProvider extends ServiceProvider
     {
         $features = $this->app->get('config')->get('sentry.features', []);
         foreach ($features as $feature) {
-            $this->app->bind($feature, $feature);
+            $this->app->singleton($feature, $feature);
         }
 
         foreach ($features as $feature) {

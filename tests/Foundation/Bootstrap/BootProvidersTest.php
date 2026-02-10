@@ -36,6 +36,6 @@ class ApplicationBasicServiceProviderStub extends ServiceProvider
 {
     public function boot()
     {
-        $this->app->bind('foo', fn () => 'bar');
+        $this->app->singleton('foo', fn () => 'bar');
     }
 }

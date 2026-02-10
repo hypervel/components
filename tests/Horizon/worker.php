@@ -24,8 +24,8 @@ use function Hypervel\Coroutine\run;
 Bootstrapper::bootstrap();
 
 $app = new Application();
-$app->bind(KernelContract::class, ConsoleKernel::class);
-$app->bind(ExceptionHandlerContract::class, ExceptionHandler::class);
+$app->singleton(KernelContract::class, ConsoleKernel::class);
+$app->singleton(ExceptionHandlerContract::class, ExceptionHandler::class);
 
 ApplicationContext::setContainer($app);
 $app->get(ApplicationInterface::class);

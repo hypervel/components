@@ -50,7 +50,7 @@ class QueueSyncQueueTest extends TestCase
         $container = $this->getContainer();
         $events = m::mock(EventDispatcherInterface::class);
         $events->shouldReceive('dispatch')->times(3);
-        $container->set(EventDispatcherInterface::class, $events);
+        $container->instance(EventDispatcherInterface::class, $events);
         $sync->setContainer($container);
 
         try {
@@ -67,11 +67,11 @@ class QueueSyncQueueTest extends TestCase
         $container = $this->getContainer();
         $events = m::mock(EventDispatcherInterface::class);
         $events->shouldReceive('dispatch');
-        $container->set(EventDispatcherInterface::class, $events);
+        $container->instance(EventDispatcherInterface::class, $events);
         $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('getCommandHandler')->once()->andReturn(false);
         $dispatcher->shouldReceive('dispatchNow')->once();
-        $container->set(Dispatcher::class, $dispatcher);
+        $container->instance(Dispatcher::class, $dispatcher);
         $sync->setContainer($container);
 
         SyncQueue::createPayloadUsing(function ($connection, $queue, $payload) {
@@ -94,7 +94,7 @@ class QueueSyncQueueTest extends TestCase
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set('db.transactions', $transactionManager);
+        $container->instance('db.transactions', $transactionManager);
 
         $sync->setContainer($container);
         $sync->push(new SyncQueueAfterCommitJob());
@@ -107,7 +107,7 @@ class QueueSyncQueueTest extends TestCase
         $container = $this->getContainer();
         $transactionManager = m::mock(DatabaseTransactionsManager::class);
         $transactionManager->shouldReceive('addCallback')->once()->andReturn(null);
-        $container->set('db.transactions', $transactionManager);
+        $container->instance('db.transactions', $transactionManager);
 
         $sync->setContainer($container);
         $sync->push(new SyncQueueAfterCommitInterfaceJob());

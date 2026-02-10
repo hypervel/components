@@ -25,7 +25,7 @@ class NotificationRoutesNotificationsTest extends TestCase
     {
         $container = $this->getContainer();
         $factory = m::mock(Dispatcher::class);
-        $container->set(Dispatcher::class, $factory);
+        $container->instance(Dispatcher::class, $factory);
         $notifiable = new RoutesNotificationsTestInstance();
         $instance = new stdClass();
         $factory->shouldReceive('send')->with($notifiable, $instance);
@@ -37,7 +37,7 @@ class NotificationRoutesNotificationsTest extends TestCase
     {
         $container = $this->getContainer();
         $factory = m::mock(Dispatcher::class);
-        $container->set(Dispatcher::class, $factory);
+        $container->instance(Dispatcher::class, $factory);
         $notifiable = new RoutesNotificationsTestInstance();
         $instance = new stdClass();
         $factory->shouldReceive('sendNow')->with($notifiable, $instance, null);

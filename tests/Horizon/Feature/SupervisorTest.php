@@ -424,7 +424,7 @@ class SupervisorTest extends IntegrationTestCase
         // Mock the scaler...
         $autoScaler = m::mock(AutoScaler::class);
         $autoScaler->shouldReceive('scale')->once()->with($supervisor);
-        $this->app->bind(AutoScaler::class, fn () => $autoScaler);
+        $this->app->singleton(AutoScaler::class, fn () => $autoScaler);
 
         // Start the supervisor...
         $supervisor->scale(1);

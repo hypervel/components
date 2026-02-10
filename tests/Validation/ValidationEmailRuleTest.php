@@ -29,7 +29,7 @@ class ValidationEmailRuleTest extends TestCase
     {
         parent::setUp();
 
-        $this->app->bind(TranslatorContract::class, function () {
+        $this->app->singleton(TranslatorContract::class, function () {
             $translator = new Translator(
                 new ArrayLoader(),
                 'en'

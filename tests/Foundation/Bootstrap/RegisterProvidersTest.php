@@ -59,7 +59,7 @@ class TestOneServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind('foo', function () {
+        $this->app->singleton('foo', function () {
             return 'foo';
         });
     }
@@ -69,7 +69,7 @@ class TestTwoServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind('bar', function () {
+        $this->app->singleton('bar', function () {
             return 'bar';
         });
     }
@@ -79,7 +79,7 @@ class TestThreeServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind('baz', function () {
+        $this->app->singleton('baz', function () {
             return 'baz';
         });
     }
@@ -89,7 +89,7 @@ class TestFourServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->bind('qux', function () {
+        $this->app->singleton('qux', function () {
             return 'qux';
         });
     }

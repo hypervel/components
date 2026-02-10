@@ -25,7 +25,7 @@ class MailLogTransportTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->app->set(ViewFactory::class, m::mock(ViewFactory::class));
+        $this->app->instance(ViewFactory::class, m::mock(ViewFactory::class));
     }
 
     public function testGetLogTransportWithConfiguredChannel()
@@ -108,7 +108,7 @@ class MailLogTransportTest extends TestCase
             'driver' => 'log',
         ]);
 
-        $this->app->set(LoggerInterface::class, new NullLogger());
+        $this->app->instance(LoggerInterface::class, new NullLogger());
 
         $transportLogger = $this->app->get(FactoryContract::class)->getSymfonyTransport()->logger();
 

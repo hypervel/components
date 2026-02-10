@@ -218,7 +218,7 @@ class QueuedEventsTest extends TestCase
         $dispatcher->shouldReceive('dispatch');
 
         $this->container = $this->getContainer();
-        $this->container->set(Dispatcher::class, $dispatcher);
+        $this->container->instance(Dispatcher::class, $dispatcher);
 
         $d = $this->getEventDispatcher();
 
