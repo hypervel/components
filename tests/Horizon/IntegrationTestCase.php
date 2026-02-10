@@ -173,14 +173,6 @@ abstract class IntegrationTestCase extends TestCase
     }
 
     /**
-     * Get the service providers for the package.
-     */
-    protected function getPackageProviders(ApplicationContract $app): array
-    {
-        return ['Hypervel\Horizon\HorizonServiceProvider'];
-    }
-
-    /**
      * Configure the environment.
      */
     protected function getEnvironmentSetUp(ApplicationContract $app): void
