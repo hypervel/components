@@ -70,7 +70,7 @@ class DispatcherFactoryTest extends TestCase
         ]);
 
         $dispatcherFactory = new DispatcherFactory($container);
-        $container->define(Router::class, fn () => new Router($dispatcherFactory));
+        $container->singleton(Router::class, fn () => new Router($dispatcherFactory));
 
         $dispatcherFactory->initRoutes('http');
     }
@@ -110,7 +110,7 @@ class DispatcherFactoryTest extends TestCase
 
         // Create DispatcherFactory - this captures route files in constructor
         $dispatcherFactory = new DispatcherFactory($container);
-        $container->define(Router::class, fn () => new Router($dispatcherFactory));
+        $container->singleton(Router::class, fn () => new Router($dispatcherFactory));
 
         // Simulate service provider adding routes AFTER DispatcherFactory construction
         // This is what loadRoutesFrom() does
