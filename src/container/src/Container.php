@@ -33,7 +33,7 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * The current globally available container (if any).
      *
-     * @var static
+     * @var static|null
      */
     protected static $instance;
 
@@ -103,7 +103,7 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * The stack of concretions currently being built.
      *
-     * @var array[]
+     * @var string[]
      */
     protected $buildStack = [];
 
@@ -291,7 +291,7 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Determine if a ReflectionClass has scoping attributes applied.
      *
-     * @param  ReflectionClass<object>|class-string  $reflection
+     * @param  ReflectionClass<object>|string  $reflection
      * @return "singleton"|"scoped"|null
      */
     protected function getScopedTyped(ReflectionClass|string $reflection): ?string
@@ -360,10 +360,6 @@ class Container implements ArrayAccess, ContainerContract
         // bound into this container to the abstract type and we will just wrap it
         // up inside its own Closure to give us more convenience when extending.
         if (! $concrete instanceof Closure) {
-            if (! is_string($concrete)) {
-                throw new TypeError(self::class.'::bind(): Argument #2 ($concrete) must be of type Closure|string|null');
-            }
-
             $concrete = $this->getClosure($abstract, $concrete);
         }
 
@@ -629,6 +625,8 @@ class Container implements ArrayAccess, ContainerContract
         if ($this->bound($abstract)) {
             return $this->make($abstract);
         }
+
+        return null;
     }
 
     /**
@@ -734,7 +732,7 @@ class Container implements ArrayAccess, ContainerContract
      *
      * @template TClass of object
      *
-     * @param  string|class-string<TClass>|callable  $abstract
+     * @param  string|class-string<TClass>  $abstract
      * @return ($abstract is class-string<TClass> ? TClass : mixed)
      *
      * @throws BindingResolutionException
@@ -785,7 +783,7 @@ class Container implements ArrayAccess, ContainerContract
      *
      * @template TClass of object
      *
-     * @param  string|class-string<TClass>|callable  $abstract
+     * @param  string|class-string<TClass>  $abstract
      * @return ($abstract is class-string<TClass> ? TClass : mixed)
      *
      * @throws BindingResolutionException
@@ -869,7 +867,7 @@ class Container implements ArrayAccess, ContainerContract
         }
 
         if ($this->environmentResolver === null ||
-            ($this->checkedForAttributeBindings[$abstract] ?? false) || ! is_string($abstract)) {
+            ($this->checkedForAttributeBindings[$abstract] ?? false)) {
             return $abstract;
         }
 
@@ -884,7 +882,7 @@ class Container implements ArrayAccess, ContainerContract
         $this->checkedForAttributeBindings[$abstract] = true;
 
         try {
-            $reflected = new ReflectionClass($abstract);
+            $reflected = new ReflectionClass($abstract); // @phpstan-ignore catch.neverThrown
         } catch (ReflectionException) {
             return $abstract;
         }
@@ -943,7 +941,7 @@ class Container implements ArrayAccess, ContainerContract
         // given abstract type. So, we will need to check if any aliases exist with this
         // type and then spin through them and check for contextual bindings on these.
         if (empty($this->abstractAliases[$abstract])) {
-            return;
+            return null;
         }
 
         foreach ($this->abstractAliases[$abstract] as $alias) {
@@ -951,6 +949,8 @@ class Container implements ArrayAccess, ContainerContract
                 return $binding;
             }
         }
+
+        return null;
     }
 
     /**
@@ -1051,10 +1051,7 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Instantiate a concrete instance of the given self building type.
      *
-     * @template TClass of object
-     *
-     * @param  object{'newInstance': Closure(static, array): TClass|class-string<TClass>}  $concrete
-     * @return TClass
+     * @param  class-string  $concrete
      *
      * @throws BindingResolutionException
      */
@@ -1203,7 +1200,7 @@ class Container implements ArrayAccess, ContainerContract
         // is variadic. If it is, we will return an empty array as the value of the
         // dependency similarly to how we handle scalar values in this situation.
         catch (BindingResolutionException $e) {
-            if ($parameter->isVariadic()) {
+            if ($parameter->isVariadic()) { // @phpstan-ignore if.alwaysFalse
                 array_pop($this->with);
 
                 return [];
@@ -1413,8 +1410,10 @@ class Container implements ArrayAccess, ContainerContract
 
     /**
      * Get all callbacks for a given type.
+     *
+     * @param  array<string, array> $callbacksPerType
      */
-    protected function getCallbacksForType(string $abstract, mixed $object, array $callbacksPerType): array
+    protected function getCallbacksForType(string $abstract, object $object, array $callbacksPerType): array
     {
         $results = [];
 
@@ -1524,7 +1523,7 @@ class Container implements ArrayAccess, ContainerContract
     /**
      * Set the callback which determines the current container environment.
      *
-     * @param  (callable(array<int, string>|string): bool|string)|null  $callback
+     * @param  (callable(array<int, string>|string): (bool|string))|null  $callback
      */
     public function resolveEnvironmentUsing(?callable $callback): void
     {
