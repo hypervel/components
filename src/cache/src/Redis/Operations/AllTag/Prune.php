@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache\Redis\Operations\AllTag;
 
 use Hypervel\Cache\Redis\Support\StoreContext;
+use Hypervel\Redis\PhpRedis;
 use Hypervel\Redis\Operations\SafeScan;
 use Hypervel\Redis\RedisConnection;
 use Redis;
@@ -108,11 +109,7 @@ class Prune
         $removed = 0;
         $isCluster = $connection->isCluster();
 
-        // phpredis 6.1.0+ uses null as initial cursor, older versions use 0
-        $iterator = match (true) {
-            version_compare(phpversion('redis') ?: '0', '6.1.0', '>=') => null,
-            default => 0,
-        };
+        $iterator = PhpRedis::initialScanCursor();
 
         do {
             // ZSCAN returns [member => score, ...] array
