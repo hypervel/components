@@ -1,189 +1,235 @@
 <?php
 
-declare(strict_types=1);
-
-namespace Hypervel\Contracts\Container;
+namespace Illuminate\Contracts\Container;
 
 use Closure;
-use Hyperf\Contract\ContainerInterface as HyperfContainerInterface;
-use InvalidArgumentException;
-use LogicException;
-use TypeError;
+use Psr\Container\ContainerInterface;
 
-interface Container extends HyperfContainerInterface
+interface Container extends ContainerInterface
 {
     /**
-     * Unbind an arbitrary resolved entry.
+     * {@inheritdoc}
+     *
+     * @template TClass of object
+     *
+     * @param  string|class-string<TClass>  $id
+     * @return ($id is class-string<TClass> ? TClass : mixed)
      */
-    public function unbind(string $name): void;
+    public function get(string $id);
 
     /**
      * Determine if the given abstract type has been bound.
-     */
-    public function bound(string $abstract): bool;
-
-    /**
-     * Returns true if the container can return an entry for the given identifier.
-     * Returns false otherwise.
-     * `has($name)` returning true does not mean that `get($name)` will not throw an exception.
-     * It does however mean that `get($name)` will not throw a `NotFoundExceptionInterface`.
      *
-     * @param mixed|string $id identifier of the entry to look for
+     * @param  string  $abstract
+     * @return bool
      */
-    public function has($id): bool;
-
-    /**
-     * Determine if the given abstract type has been resolved.
-     */
-    public function resolved(string $abstract): bool;
-
-    /**
-     * Determine if a given string is an alias.
-     */
-    public function isAlias(string $name): bool;
-
-    /**
-     * Register a binding with the container.
-     *
-     * @param null|Closure|string $concrete
-     *
-     * @throws TypeError
-     */
-    public function bind(string $abstract, mixed $concrete = null): void;
-
-    /**
-     * Determine if the container has a method binding.
-     */
-    public function hasMethodBinding(string $method): bool;
-
-    /**
-     * Bind a callback to resolve with Container::call.
-     */
-    public function bindMethod(array|string $method, Closure $callback): void;
-
-    /**
-     * Get the method binding for the given method.
-     */
-    public function callMethodBinding(string $method, mixed $instance): mixed;
-
-    /**
-     * Register a binding if it hasn't already been registered.
-     *
-     * @param null|Closure|string $concrete
-     */
-    public function bindIf(string $abstract, mixed $concrete = null): void;
-
-    /**
-     * "Extend" an abstract type in the container.
-     *
-     * @throws InvalidArgumentException
-     */
-    public function extend(string $abstract, Closure $closure): void;
-
-    /**
-     * Register an existing instance as shared in the container.
-     */
-    public function instance(string $abstract, mixed $instance): mixed;
+    public function bound($abstract);
 
     /**
      * Alias a type to a different name.
      *
-     * @throws LogicException
+     * @param  string  $abstract
+     * @param  string  $alias
+     * @return void
+     *
+     * @throws \LogicException
      */
-    public function alias(string $abstract, string $alias): void;
+    public function alias($abstract, $alias);
 
     /**
-     * Bind a new callback to an abstract's rebind event.
+     * Assign a set of tags to a given binding.
+     *
+     * @param  array|string  $abstracts
+     * @param  mixed  ...$tags
+     * @return void
      */
-    public function rebinding(string $abstract, Closure $callback): mixed;
+    public function tag($abstracts, $tags);
 
     /**
-     * Refresh an instance on the given target and method.
+     * Resolve all of the bindings for a given tag.
+     *
+     * @param  string  $tag
+     * @return iterable
      */
-    public function refresh(string $abstract, mixed $target, string $method): mixed;
+    public function tagged($tag);
+
+    /**
+     * Register a binding with the container.
+     *
+     * @param  \Closure|string  $abstract
+     * @param  \Closure|string|null  $concrete
+     * @param  bool  $shared
+     * @return void
+     */
+    public function bind($abstract, $concrete = null, $shared = false);
+
+    /**
+     * Bind a callback to resolve with Container::call.
+     *
+     * @param  array|string  $method
+     * @param  \Closure  $callback
+     * @return void
+     */
+    public function bindMethod($method, $callback);
+
+    /**
+     * Register a binding if it hasn't already been registered.
+     *
+     * @param  \Closure|string  $abstract
+     * @param  \Closure|string|null  $concrete
+     * @param  bool  $shared
+     * @return void
+     */
+    public function bindIf($abstract, $concrete = null, $shared = false);
+
+    /**
+     * Register a shared binding in the container.
+     *
+     * @param  \Closure|string  $abstract
+     * @param  \Closure|string|null  $concrete
+     * @return void
+     */
+    public function singleton($abstract, $concrete = null);
+
+    /**
+     * Register a shared binding if it hasn't already been registered.
+     *
+     * @param  \Closure|string  $abstract
+     * @param  \Closure|string|null  $concrete
+     * @return void
+     */
+    public function singletonIf($abstract, $concrete = null);
+
+    /**
+     * Register a scoped binding in the container.
+     *
+     * @param  \Closure|string  $abstract
+     * @param  \Closure|string|null  $concrete
+     * @return void
+     */
+    public function scoped($abstract, $concrete = null);
+
+    /**
+     * Register a scoped binding if it hasn't already been registered.
+     *
+     * @param  \Closure|string  $abstract
+     * @param  \Closure|string|null  $concrete
+     * @return void
+     */
+    public function scopedIf($abstract, $concrete = null);
+
+    /**
+     * "Extend" an abstract type in the container.
+     *
+     * @param  \Closure|string  $abstract
+     * @param  \Closure  $closure
+     * @return void
+     *
+     * @throws \InvalidArgumentException
+     */
+    public function extend($abstract, Closure $closure);
+
+    /**
+     * Register an existing instance as shared in the container.
+     *
+     * @template TInstance of mixed
+     *
+     * @param  \Closure|string  $abstract
+     * @param  TInstance  $instance
+     * @return TInstance
+     */
+    public function instance($abstract, $instance);
+
+    /**
+     * Add a contextual binding to the container.
+     *
+     * @param  string  $concrete
+     * @param  \Closure|string  $abstract
+     * @param  \Closure|string  $implementation
+     * @return void
+     */
+    public function addContextualBinding($concrete, $abstract, $implementation);
+
+    /**
+     * Define a contextual binding.
+     *
+     * @param  string|array  $concrete
+     * @return \Illuminate\Contracts\Container\ContextualBindingBuilder
+     */
+    public function when($concrete);
+
+    /**
+     * Get a closure to resolve the given type from the container.
+     *
+     * @template TClass of object
+     *
+     * @param  string|class-string<TClass>  $abstract
+     * @return ($abstract is class-string<TClass> ? \Closure(): TClass : \Closure(): mixed)
+     */
+    public function factory($abstract);
+
+    /**
+     * Flush the container of all bindings and resolved instances.
+     *
+     * @return void
+     */
+    public function flush();
+
+    /**
+     * Resolve the given type from the container.
+     *
+     * @template TClass of object
+     *
+     * @param  string|class-string<TClass>  $abstract
+     * @param  array  $parameters
+     * @return ($abstract is class-string<TClass> ? TClass : mixed)
+     *
+     * @throws \Illuminate\Contracts\Container\BindingResolutionException
+     */
+    public function make($abstract, array $parameters = []);
 
     /**
      * Call the given Closure / class@method and inject its dependencies.
      *
-     * @param callable|string $callback
-     * @param array<string, mixed> $parameters
-     *
-     * @throws InvalidArgumentException
+     * @param  callable|string  $callback
+     * @param  array  $parameters
+     * @param  string|null  $defaultMethod
+     * @return mixed
      */
-    public function call($callback, array $parameters = [], ?string $defaultMethod = null): mixed;
+    public function call($callback, array $parameters = [], $defaultMethod = null);
 
     /**
-     * Get a closure to resolve the given type from the container.
+     * Determine if the given abstract type has been resolved.
+     *
+     * @param  string  $abstract
+     * @return bool
      */
-    public function factory(string $abstract): Closure;
+    public function resolved($abstract);
 
     /**
-     * An alias function name for make().
+     * Register a new before resolving callback.
      *
-     * @param callable|string $abstract
-     *
-     * @throws \Hyperf\Di\Exception\NotFoundException
+     * @param  \Closure|string  $abstract
+     * @param  \Closure|null  $callback
+     * @return void
      */
-    public function makeWith($abstract, array $parameters = []): mixed;
-
-    /**
-     * Register a new before resolving callback for all types.
-     *
-     * @param Closure|string $abstract
-     */
-    public function beforeResolving($abstract, ?Closure $callback = null): void;
+    public function beforeResolving($abstract, ?Closure $callback = null);
 
     /**
      * Register a new resolving callback.
      *
-     * @param Closure|string $abstract
+     * @param  \Closure|string  $abstract
+     * @param  \Closure|null  $callback
+     * @return void
      */
-    public function resolving($abstract, ?Closure $callback = null): void;
+    public function resolving($abstract, ?Closure $callback = null);
 
     /**
-     * Register a new after resolving callback for all types.
+     * Register a new after resolving callback.
      *
-     * @param Closure|string $abstract
+     * @param  \Closure|string  $abstract
+     * @param  \Closure|null  $callback
+     * @return void
      */
-    public function afterResolving($abstract, ?Closure $callback = null): void;
-
-    /**
-     * Get the container's bindings.
-     */
-    public function getBindings(): array;
-
-    /**
-     * Get the alias for an abstract if available.
-     */
-    public function getAlias(string $abstract): string;
-
-    /**
-     * Remove all of the extender callbacks for a given type.
-     */
-    public function forgetExtenders(string $abstract): void;
-
-    /**
-     * Remove a resolved instance from the instance cache.
-     */
-    public function forgetInstance(string $abstract): void;
-
-    /**
-     * Clear all of the instances from the container.
-     */
-    public function forgetInstances(): void;
-
-    /**
-     * Flush the container of all bindings and resolved instances.
-     */
-    public function flush(): void;
-
-    /**
-     * Get the globally available instance of the container.
-     */
-    public static function getInstance(): Container;
-
-    /**
-     * Set the shared instance of the container.
-     */
-    public static function setInstance(Container $container): Container;
+    public function afterResolving($abstract, ?Closure $callback = null);
 }
