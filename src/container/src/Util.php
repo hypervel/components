@@ -18,7 +18,7 @@ class Util
     /**
      * If the given value is not an array and not null, wrap it in one.
      *
-     * From Arr::wrap() in Illuminate\Support.
+     * From Arr::wrap() in Hypervel\Support.
      */
     public static function arrayWrap(mixed $value): array
     {
@@ -32,7 +32,7 @@ class Util
     /**
      * Return the default value of the given value.
      *
-     * From global value() helper in Illuminate\Support.
+     * From global value() helper in Hypervel\Support.
      */
     public static function unwrapIfClosure(mixed $value, mixed ...$args): mixed
     {
@@ -42,7 +42,7 @@ class Util
     /**
      * Get the class name of the given parameter's type, if possible.
      *
-     * From Reflector::getParameterClassName() in Illuminate\Support.
+     * From Reflector::getParameterClassName() in Hypervel\Support.
      */
     public static function getParameterClassName(ReflectionParameter $parameter): ?string
     {
