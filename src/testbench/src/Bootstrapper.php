@@ -6,7 +6,6 @@ namespace Hypervel\Testbench;
 
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\ClassLoader;
-use Hypervel\Foundation\Testing\TestScanHandler;
 use Hypervel\Support\LazyCollection;
 use Symfony\Component\Yaml\Yaml;
 
@@ -36,7 +35,7 @@ class Bootstrapper
         static::generateComposerLock();
         static::registerPurgeFiles();
 
-        ClassLoader::init(null, null, new TestScanHandler());
+        ClassLoader::init();
     }
 
     public static function getConfig(): array

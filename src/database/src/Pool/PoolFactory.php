@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Database\Pool;
 
-use Hyperf\Di\Container;
+use Hypervel\Contracts\Container\Container;
 use Psr\Container\ContainerInterface;
 
 /**
