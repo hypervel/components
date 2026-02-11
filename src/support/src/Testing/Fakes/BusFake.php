@@ -570,14 +570,15 @@ class BusFake implements Fake, QueueingDispatcher
     }
 
     /**
-     * Dispatch a command to its appropriate handler.
+     * Dispatch a command to its appropriate handler after the current process.
      */
-    public function dispatchAfterResponse(mixed $command): mixed
+    public function dispatchAfterResponse(mixed $command, mixed $handler = null): void
     {
         if ($this->shouldFakeJob($command)) {
-            return $this->commandsAfterResponse[get_class($command)][] = $this->getCommandRepresentation($command);
+            $this->commandsAfterResponse[get_class($command)][] = $this->getCommandRepresentation($command);
+            return;
         }
-        return $this->dispatcher->dispatch($command);
+        $this->dispatcher->dispatchAfterResponse($command, $handler);
     }
 
     /**

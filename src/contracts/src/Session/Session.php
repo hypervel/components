@@ -70,6 +70,11 @@ interface Session
     public function put(array|UnitEnum|string $key, mixed $value = null): void;
 
     /**
+     * Flash a key / value pair to the session.
+     */
+    public function flash(UnitEnum|string $key, mixed $value = true): void;
+
+    /**
      * Get the CSRF token value.
      */
     public function token(): ?string;

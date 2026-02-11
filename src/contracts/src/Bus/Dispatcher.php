@@ -24,6 +24,11 @@ interface Dispatcher
     public function dispatchNow(mixed $command, mixed $handler = null): mixed;
 
     /**
+     * Dispatch a command to its appropriate handler after the current process.
+     */
+    public function dispatchAfterResponse(mixed $command, mixed $handler = null): void;
+
+    /**
      * Determine if the given command has a handler.
      */
     public function hasCommandHandler(mixed $command): bool;
