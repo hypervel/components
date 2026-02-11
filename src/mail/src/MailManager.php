@@ -22,7 +22,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\ConfigurationUrlParser;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpClient\HttpClient;
@@ -76,7 +76,7 @@ class MailManager implements FactoryContract
      * Create a new Mail manager instance.
      */
     public function __construct(
-        protected ContainerInterface $app
+        protected Container $app
     ) {
         $this->config = $app->get('config');
     }
@@ -527,7 +527,7 @@ class MailManager implements FactoryContract
     /**
      * Get the application instance used by the manager.
      */
-    public function getApplication(): ContainerInterface
+    public function getApplication(): Container
     {
         return $this->app;
     }
@@ -535,7 +535,7 @@ class MailManager implements FactoryContract
     /**
      * Set the application instance used by the manager.
      */
-    public function setApplication(ContainerInterface $app): static
+    public function setApplication(Container $app): static
     {
         $this->app = $app;
 
