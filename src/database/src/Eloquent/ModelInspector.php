@@ -51,7 +51,7 @@ class ModelInspector
      * @param class-string<Model>|string $model
      * @return array{class: class-string<Model>, database: null|string, table: string, policy: null|class-string, attributes: BaseCollection<int, array<string, mixed>>, relations: BaseCollection<int, array<string, mixed>>, events: BaseCollection<int, array<string, mixed>>, observers: BaseCollection<int, array<string, mixed>>, collection: class-string<Collection<array-key, Model>>, builder: class-string<Builder<Model>>, resource: null|class-string}
      *
-     * @throws \Hypervel\Container\BindingResolutionException
+     * @throws \Hypervel\Contracts\Container\BindingResolutionException
      */
     public function inspect(string $model, ?string $connection = null): array
     {
@@ -231,7 +231,7 @@ class ModelInspector
      *
      * @return BaseCollection<int, array{event: string, observer: array<int, string>}>
      *
-     * @throws \Hypervel\Container\BindingResolutionException
+     * @throws \Hypervel\Contracts\Container\BindingResolutionException
      */
     protected function getObservers(Model $model): BaseCollection
     {

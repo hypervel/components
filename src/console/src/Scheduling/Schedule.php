@@ -12,7 +12,7 @@ use Hypervel\Bus\UniqueLock;
 use Hypervel\Console\Contracts\CacheAware;
 use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Console\Contracts\SchedulingMutex;
-use Hypervel\Container\BindingResolutionException;
+use Hypervel\Contracts\Container\BindingResolutionException;
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Bus\Dispatcher;

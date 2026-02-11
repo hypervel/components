@@ -684,8 +684,8 @@ class RedisConnection extends BaseConnection
      */
     protected function log(string $message, string $level = LogLevel::WARNING): void
     {
-        if ($this->container->has(StdoutLoggerInterface::class) && $logger = $this->container->get(StdoutLoggerInterface::class)) {
-            $logger->log($level, $message);
+        if ($this->container->has(StdoutLoggerInterface::class)) {
+            $this->container->get(StdoutLoggerInterface::class)->log($level, $message);
         }
     }
 

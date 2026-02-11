@@ -129,7 +129,7 @@ class BroadcastManager implements BroadcastingFactoryContract
     {
         $request ??= $this->app->get(RequestInterface::class);
 
-        return $request?->header('X-Socket-ID');
+        return $request->header('X-Socket-ID');
     }
 
     /**

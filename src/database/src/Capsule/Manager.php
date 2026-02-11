@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Database\Capsule;
 
 use Closure;
-use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Event\Dispatcher;
@@ -47,7 +46,7 @@ class Manager
      */
     public function __construct(?ContainerContract $container = null)
     {
-        $this->setupContainer($container ?: new Container(new DefinitionSource([])));
+        $this->setupContainer($container ?: new Container());
 
         // Once we have the container setup, we will setup the default configuration
         // options in the container "config" binding. This will make the database

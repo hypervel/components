@@ -94,13 +94,10 @@ class Dispatcher implements QueueingDispatcher
 
                 return $handler->{$method}($command);
             };
-        } elseif (! method_exists($this->container, 'call')) {
-            throw new RuntimeException('The container must implement the `call` method.');
         } else {
             $callback = function ($command) {
                 $method = method_exists($command, 'handle') ? 'handle' : '__invoke';
 
-                /* @phpstan-ignore-next-line */
                 return $this->container->call([$command, $method]);
             };
         }

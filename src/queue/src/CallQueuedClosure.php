@@ -53,12 +53,6 @@ class CallQueuedClosure implements ShouldQueue
      */
     public function handle(Container $container): void
     {
-        if (! method_exists($container, 'call')) {
-            ($this->closure->getClosure())($this);
-            return;
-        }
-
-        /** @var \Hypervel\Contracts\Container\Container $container */
         $container->call($this->closure->getClosure(), ['job' => $this]);
     }
 

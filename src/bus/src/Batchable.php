@@ -34,7 +34,7 @@ trait Batchable
         if ($this->batchId) {
             return ApplicationContext::getContainer()
                 ->get(BatchRepository::class)
-                ?->find($this->batchId);
+                ->find($this->batchId);
         }
 
         return null;
