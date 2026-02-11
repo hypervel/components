@@ -16,7 +16,7 @@ use Hypervel\Tests\Event\Hyperf\Listener\BetaListener;
 use Hypervel\Tests\TestCase;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use Mockery as m;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\ListenerProviderInterface;
 
 /**
@@ -60,7 +60,7 @@ class ListenerTest extends TestCase
 
     public function testListenerInvokeByFactory()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('get')->once()->with('config')->andReturn(new Repository([]));
         $container->shouldReceive('get')
             ->once()
@@ -72,7 +72,7 @@ class ListenerTest extends TestCase
 
     public function testListenerInvokeByFactoryWithConfig()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('get')->once()->with('config')->andReturn(new Repository([
             'listeners' => [
                 AlphaListener::class,
@@ -108,7 +108,7 @@ class ListenerTest extends TestCase
         $listenerAnnotation->collectClass(AlphaListener::class, ListenerAnnotation::class);
         $listenerAnnotation->collectClass(BetaListener::class, ListenerAnnotation::class);
 
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('get')->once()->with('config')->andReturn(new Repository([]));
         $container->shouldReceive('get')
             ->with(AlphaListener::class)

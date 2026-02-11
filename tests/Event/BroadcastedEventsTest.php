@@ -10,7 +10,7 @@ use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 /**
  * @internal
@@ -38,7 +38,7 @@ class BroadcastedEventsTest extends TestCase
         unset($_SERVER['__event.test']);
         $broadcast = m::mock(BroadcastFactory::class);
         $broadcast->shouldReceive('queue')->once();
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('get')->once()->with(BroadcastFactory::class)->andReturn($broadcast);
         $d = new EventDispatcher(new ListenerProvider(), null, $container);
 

@@ -19,7 +19,7 @@ use Hypervel\Tests\Event\Hyperf\Listener\PriorityListener;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\EventDispatcher\ListenerProviderInterface as PsrListenerProviderInterface;
 use ReflectionClass;
@@ -50,7 +50,7 @@ class EventDispatcherTest extends TestCase
 
     public function testInvokeDispatcherByFactory()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('get')->with('config')->andReturn(new Repository([]));
         $config = $container->get('config');
         $container->shouldReceive('get')->with(PsrListenerProviderInterface::class)->andReturn(new ListenerProvider());

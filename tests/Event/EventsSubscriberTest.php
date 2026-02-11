@@ -9,7 +9,7 @@ use Hypervel\Event\ListenerProvider;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
 use Mockery\MockInterface;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 /**
  * @internal
@@ -18,15 +18,15 @@ use Psr\Container\ContainerInterface;
 class EventsSubscriberTest extends TestCase
 {
     /**
-     * @var ContainerInterface|MockInterface
+     * @var Container|MockInterface
      */
-    private ContainerInterface $container;
+    private Container $container;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->container = m::mock(ContainerInterface::class);
+        $this->container = m::mock(Container::class);
     }
 
     public function testEventSubscribers()

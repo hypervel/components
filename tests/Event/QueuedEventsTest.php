@@ -20,7 +20,7 @@ use Hypervel\Tests\TestCase;
 use Illuminate\Events\CallQueuedListener;
 use Mockery as m;
 use Mockery\MockInterface;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use TypeError;
 
 use function Hypervel\Event\queueable;
@@ -50,15 +50,15 @@ enum QueuedEventsTestQueueUnitEnum
 class QueuedEventsTest extends TestCase
 {
     /**
-     * @var ContainerInterface|MockInterface
+     * @var ContainerContract|MockInterface
      */
-    private ContainerInterface $container;
+    private ContainerContract $container;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->container = m::mock(ContainerInterface::class);
+        $this->container = m::mock(ContainerContract::class);
     }
 
     public function testQueuedEventHandlersAreQueued()

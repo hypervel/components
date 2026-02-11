@@ -7,7 +7,7 @@ namespace Hypervel\Event;
 use Hyperf\Di\Annotation\AnnotationCollector;
 use Hyperf\Event\Annotation\Listener;
 use Hyperf\Event\Contract\ListenerInterface;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 /**
  * Factory for creating and configuring the ListenerProvider.
@@ -21,7 +21,7 @@ use Psr\Container\ContainerInterface;
  */
 class ListenerProviderFactory
 {
-    public function __invoke(ContainerInterface $container): ListenerProvider
+    public function __invoke(Container $container): ListenerProvider
     {
         $listenerProvider = new ListenerProvider();
 
@@ -34,7 +34,7 @@ class ListenerProviderFactory
     /**
      * Register listeners from the 'listeners' config array.
      */
-    protected function registerConfig(ListenerProvider $provider, ContainerInterface $container): void
+    protected function registerConfig(ListenerProvider $provider, Container $container): void
     {
         $config = $container->get('config');
 
@@ -51,7 +51,7 @@ class ListenerProviderFactory
     /**
      * Register listeners with #[Listener] annotation.
      */
-    protected function registerAnnotations(ListenerProvider $provider, ContainerInterface $container): void
+    protected function registerAnnotations(ListenerProvider $provider, Container $container): void
     {
         foreach (AnnotationCollector::list() as $className => $values) {
             if (isset($values['_c'][Listener::class])) {
@@ -63,7 +63,7 @@ class ListenerProviderFactory
     /**
      * Register a listener class implementing ListenerInterface.
      */
-    protected function register(ListenerProvider $provider, ContainerInterface $container, string $listener): void
+    protected function register(ListenerProvider $provider, Container $container, string $listener): void
     {
         $instance = $container->get($listener);
 

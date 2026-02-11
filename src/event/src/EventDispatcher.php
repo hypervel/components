@@ -23,7 +23,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\ReflectsClosures;
 use Illuminate\Events\CallQueuedListener;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\StoppableEventInterface;
 use Psr\Log\LoggerInterface;
 use ReflectionClass;
@@ -51,7 +51,7 @@ class EventDispatcher implements EventDispatcherContract
     public function __construct(
         protected ListenerProviderContract $listeners,
         protected ?LoggerInterface $logger = null,
-        protected ?ContainerInterface $container = null
+        protected ?Container $container = null
     ) {
         if (! $container && ApplicationContext::hasContainer()) {
             $this->container = ApplicationContext::getContainer();

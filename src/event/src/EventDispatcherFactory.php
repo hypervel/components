@@ -6,12 +6,12 @@ namespace Hypervel\Event;
 
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\ListenerProviderInterface;
 
 class EventDispatcherFactory
 {
-    public function __invoke(ContainerInterface $container)
+    public function __invoke(Container $container)
     {
         $listeners = $container->get(ListenerProviderInterface::class);
         $stdoutLogger = $container->get(StdoutLoggerInterface::class);
