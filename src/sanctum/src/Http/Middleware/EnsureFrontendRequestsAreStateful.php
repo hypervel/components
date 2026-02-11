@@ -9,7 +9,7 @@ use Hyperf\HttpServer\Contract\ResponseInterface as HttpResponse;
 use Hypervel\Dispatcher\Pipeline;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -18,7 +18,7 @@ use Psr\Http\Server\RequestHandlerInterface;
 class EnsureFrontendRequestsAreStateful implements MiddlewareInterface
 {
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected RequestInterface $request,
         protected HttpResponse $response,
         protected Pipeline $pipeline
