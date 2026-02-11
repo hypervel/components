@@ -33,12 +33,22 @@ trait CreatesApplication
 
     /**
      * Register package providers.
+     *
+     * Merges the test's package providers into config('app.providers') so they
+     * are registered by RegisterProviders during bootstrap, matching the
+     * Orchestral Testbench pattern.
      */
     protected function registerPackageProviders(ApplicationContract $app): void
     {
-        foreach ($this->getPackageProviders($app) as $provider) {
-            $app->register($provider);
+        $packageProviders = $this->getPackageProviders($app);
+
+        if (empty($packageProviders)) {
+            return;
         }
+
+        $config = $app->make('config');
+        $existing = $config->get('app.providers', []);
+        $config->set('app.providers', array_merge($existing, $packageProviders));
     }
 
     /**

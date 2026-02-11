@@ -119,6 +119,11 @@ interface Application extends Container
     public function hasDebugModeEnabled(): bool;
 
     /**
+     * Register all of the configured providers.
+     */
+    public function registerConfiguredProviders(): void;
+
+    /**
      * Register a service provider with the application.
      */
     public function register(ServiceProvider|string $provider, bool $force = false): ServiceProvider;

@@ -62,6 +62,13 @@ class Application extends Container implements ApplicationContract, HyperfContai
     protected array $bootedCallbacks = [];
 
     /**
+     * The array of registered callbacks.
+     *
+     * @var callable[]
+     */
+    protected array $registeredCallbacks = [];
+
+    /**
      * All of the registered service providers.
      *
      * @var array<string, ServiceProvider>
@@ -398,6 +405,28 @@ class Application extends Container implements ApplicationContract, HyperfContai
     public function hasDebugModeEnabled(): bool
     {
         return $this->get(Environment::class)->isDebug();
+    }
+
+    /**
+     * Register a new registered listener.
+     */
+    public function registered(callable $callback): void
+    {
+        $this->registeredCallbacks[] = $callback;
+    }
+
+    /**
+     * Register all of the configured providers.
+     */
+    public function registerConfiguredProviders(): void
+    {
+        $providers = $this->make('config')->get('app.providers', []);
+
+        foreach ($providers as $provider) {
+            $this->register($provider);
+        }
+
+        $this->fireAppCallbacks($this->registeredCallbacks);
     }
 
     /**
