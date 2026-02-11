@@ -19,7 +19,7 @@ use Hypervel\Telescope\ExtractProperties;
 use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
 
@@ -37,7 +37,7 @@ class JobWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Container $app): void
     {
         Queue::createPayloadUsing(function ($connection, $queue, $payload) {
             return ['telescope_uuid' => optional($this->recordJob($connection, $queue, $payload))->uuid];

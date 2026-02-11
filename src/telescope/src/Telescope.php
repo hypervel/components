@@ -18,7 +18,7 @@ use Hypervel\Support\Str;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\Contracts\TerminableRepository;
 use Hypervel\Telescope\Jobs\ProcessPendingUpdates;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Throwable;
 
 use function Hypervel\Cache\cache;
@@ -120,7 +120,7 @@ class Telescope
     /**
      * Register the Telescope watchers and start recording if necessary.
      */
-    public static function start(ContainerInterface $app): void
+    public static function start(Container $app): void
     {
         if (! config('telescope.enabled')) {
             return;
@@ -163,7 +163,7 @@ class Telescope
     /**
      * Determine if the application is handling an approved request.
      */
-    public static function handlingApprovedRequest(ContainerInterface $app): bool
+    public static function handlingApprovedRequest(Container $app): bool
     {
         return static::requestIsToApprovedDomain($request = $app->get(RequestContract::class))
             && static::requestIsToApprovedUri($request);

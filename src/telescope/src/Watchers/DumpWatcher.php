@@ -8,7 +8,7 @@ use Exception;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Telescope\IncomingDumpEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Symfony\Component\VarDumper\Cloner\VarCloner;
 use Symfony\Component\VarDumper\Dumper\HtmlDumper;
 use Symfony\Component\VarDumper\VarDumper;
@@ -28,7 +28,7 @@ class DumpWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Container $app): void
     {
         $dumpWatcherCache = false;
 

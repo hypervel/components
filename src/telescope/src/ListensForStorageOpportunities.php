@@ -15,7 +15,7 @@ use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Telescope\Contracts\EntriesRepository;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 trait ListensForStorageOpportunities
@@ -30,7 +30,7 @@ trait ListensForStorageOpportunities
     /**
      * Register listeners that store the recorded Telescope entries.
      */
-    public static function listenForStorageOpportunities(ContainerInterface $app): void
+    public static function listenForStorageOpportunities(Container $app): void
     {
         static::recordEntriesForRequests($app);
         static::manageRecordingStateForCommands($app);
@@ -60,7 +60,7 @@ trait ListensForStorageOpportunities
     /**
      * Record the entries in queue before the request termination.
      */
-    public static function recordEntriesForRequests(ContainerInterface $app): void
+    public static function recordEntriesForRequests(Container $app): void
     {
         $app->get(EventDispatcherInterface::class)
             ->listen(RequestReceived::class, function ($event) use ($app) {
@@ -75,7 +75,7 @@ trait ListensForStorageOpportunities
     /**
      * Manage starting and stopping the recording state for commands.
      */
-    public static function manageRecordingStateForCommands(ContainerInterface $app): void
+    public static function manageRecordingStateForCommands(Container $app): void
     {
         $app->get(EventDispatcherInterface::class)
             ->listen(BeforeHandleCommand::class, function () {
@@ -130,7 +130,7 @@ trait ListensForStorageOpportunities
     /**
      * Store entries after the queue worker loops.
      */
-    protected static function storeEntriesAfterWorkerLoop(ContainerInterface $app): void
+    protected static function storeEntriesAfterWorkerLoop(Container $app): void
     {
         $event = $app->get(EventDispatcherInterface::class);
         $event->listen(JobProcessing::class, function ($event) {
@@ -165,7 +165,7 @@ trait ListensForStorageOpportunities
     /**
      * Store the recorded entries if totally done processing the current job.
      */
-    protected static function storeIfDoneProcessingJob(JobFailed|JobProcessed $event, ContainerInterface $app): void
+    protected static function storeIfDoneProcessingJob(JobFailed|JobProcessed $event, Container $app): void
     {
         static::popProcessingJob();
 

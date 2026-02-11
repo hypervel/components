@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Telescope\Watchers;
 
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 abstract class Watcher
 {
@@ -21,7 +21,7 @@ abstract class Watcher
     /**
      * Register the watcher.
      */
-    abstract public function register(ContainerInterface $app): void;
+    abstract public function register(Container $app): void;
 
     /**
      * Set the watcher options.

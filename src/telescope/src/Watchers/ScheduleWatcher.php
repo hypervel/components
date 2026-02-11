@@ -9,7 +9,7 @@ use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 class ScheduleWatcher extends Watcher
@@ -22,12 +22,12 @@ class ScheduleWatcher extends Watcher
     /**
      * The application instance.
      */
-    protected ?ContainerInterface $app = null;
+    protected ?Container $app = null;
 
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Container $app): void
     {
         if (! in_array($_SERVER['argv'][1] ?? null, ['crontab:run', 'schedule:run'])) {
             return;

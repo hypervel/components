@@ -8,7 +8,7 @@ use Hyperf\Command\Command;
 use Hyperf\Command\Event\AfterExecute as AfterExecuteCommand;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 class CommandWatcher extends Watcher
@@ -16,7 +16,7 @@ class CommandWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Container $app): void
     {
         $app->get(EventDispatcherInterface::class)
             ->listen(AfterExecuteCommand::class, [$this, 'recordCommand']);

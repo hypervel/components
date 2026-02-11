@@ -11,7 +11,7 @@ use Hypervel\Cache\Events\KeyWritten;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 class CacheWatcher extends Watcher
@@ -24,7 +24,7 @@ class CacheWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Container $app): void
     {
         if (! static::$eventsEnabled) {
             return;
@@ -42,7 +42,7 @@ class CacheWatcher extends Watcher
      * Enable Cache events.
      * This function needs to be called before the Cache is initialized.
      */
-    public static function enableCacheEvents(ContainerInterface $app): void
+    public static function enableCacheEvents(Container $app): void
     {
         $config = $app->get('config');
         foreach (array_keys($config->get('cache.stores', [])) as $store) {

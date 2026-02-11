@@ -16,7 +16,7 @@ use Hypervel\Support\Str;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -47,7 +47,7 @@ class RequestWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Container $app): void
     {
         $this->request = $app->get(RequestContract::class);
         $this->entriesRepository = $app->get(EntriesRepository::class);
@@ -58,7 +58,7 @@ class RequestWatcher extends Watcher
             ->listen(RequestHandled::class, [$this, 'recordRequest']);
     }
 
-    protected function enableRequestEvents(ContainerInterface $app): void
+    protected function enableRequestEvents(Container $app): void
     {
         $config = $app->get('config');
         $servers = $config->get('server.servers', []);

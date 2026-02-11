@@ -8,7 +8,7 @@ use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Support\Collection;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Mime\Address;
 use Symfony\Component\Mime\Part\AbstractPart;
@@ -18,7 +18,7 @@ class MailWatcher extends Watcher
     /**
      * Register the watcher.
      */
-    public function register(ContainerInterface $app): void
+    public function register(Container $app): void
     {
         $app->get(EventDispatcherInterface::class)
             ->listen(MessageSent::class, [$this, 'recordMail']);
