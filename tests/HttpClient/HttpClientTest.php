@@ -11,7 +11,7 @@ use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\Psr7\Utils;
 use GuzzleHttp\TransferStats;
-use Hyperf\Contract\ContainerInterface;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Support\Arrayable;
@@ -3235,16 +3235,14 @@ class HttpClientTest extends TestCase
         $this->assertEquals([], $factory->getConnectionConfig('connection2'));
     }
 
-    protected function getContainer(array $config = []): ContainerInterface
+    protected function getContainer(array $config = []): ContainerContract
     {
-        $config = new ConfigRepository(['http_client' => $config]);
+        $container = new \Hypervel\Container\Container();
+        $container->instance(ContainerContract::class, $container);
+        $container->instance('config', new ConfigRepository(['http_client' => $config]));
+        $container->singleton(PoolFactory::class, PoolManager::class);
 
-        return new \Hypervel\Container\Container(
-            new \Hyperf\Di\Definition\DefinitionSource([
-                'config' => fn () => $config,
-                PoolFactory::class => PoolManager::class,
-            ])
-        );
+        return $container;
     }
 }
 
