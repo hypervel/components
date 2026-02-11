@@ -9,6 +9,7 @@ use Hypervel\Console\Contracts\EventMutex;
 use Hypervel\Console\Contracts\SchedulingMutex;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Container\Container;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
@@ -67,6 +68,7 @@ class ScheduleTest extends TestCase
 
         $this->container = $this->getApplication();
         Container::setInstance($this->container);
+        ApplicationContext::setContainer($this->container);
         $this->eventMutex = m::mock(EventMutex::class);
         $this->container->instance(EventMutex::class, $this->eventMutex);
         $this->schedulingMutex = m::mock(SchedulingMutex::class);
