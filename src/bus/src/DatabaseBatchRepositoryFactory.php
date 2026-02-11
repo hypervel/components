@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Hypervel\Database\ConnectionResolverInterface;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class DatabaseBatchRepositoryFactory
 {
-    public function __invoke(ContainerInterface $container): DatabaseBatchRepository
+    public function __invoke(Container $container): DatabaseBatchRepository
     {
         $config = $container->get('config');
 

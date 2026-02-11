@@ -6,7 +6,7 @@ namespace Hypervel\Bus;
 
 use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Bus\Dispatcher as DispatcherContract;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class ConfigProvider
 {
@@ -15,7 +15,7 @@ class ConfigProvider
         return [
             'dependencies' => [
                 DispatcherContract::class => DispatcherFactory::class,
-                BatchRepository::class => fn (ContainerInterface $container) => $container->get(DatabaseBatchRepository::class),
+                BatchRepository::class => fn (Container $container) => $container->get(DatabaseBatchRepository::class),
                 DatabaseBatchRepository::class => DatabaseBatchRepositoryFactory::class,
             ],
         ];

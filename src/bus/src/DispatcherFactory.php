@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Bus;
 
 use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class DispatcherFactory
 {
-    public function __invoke(ContainerInterface $container): Dispatcher
+    public function __invoke(Container $container): Dispatcher
     {
         return new Dispatcher(
             $container,

@@ -12,7 +12,6 @@ use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
 use RuntimeException;
 
 /**
@@ -23,7 +22,7 @@ class BusDispatcherTest extends TestCase
 {
     public function testCommandsThatShouldQueueIsQueued()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $dispatcher = new Dispatcher($container, function () {
             $mock = m::mock(Queue::class);
             $mock->shouldReceive('push')->once();
@@ -36,7 +35,7 @@ class BusDispatcherTest extends TestCase
 
     public function testCommandsThatShouldQueueIsQueuedUsingCustomHandler()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $dispatcher = new Dispatcher($container, function () {
             $mock = m::mock(Queue::class);
             $mock->shouldReceive('push')->once();
@@ -49,7 +48,7 @@ class BusDispatcherTest extends TestCase
 
     public function testCommandsThatShouldQueueIsQueuedUsingCustomQueueAndDelay()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $dispatcher = new Dispatcher($container, function () {
             $mock = m::mock(Queue::class);
             $mock->shouldReceive('laterOn')->once()->with('foo', 10, m::type(BusDispatcherTestSpecificQueueAndDelayCommand::class));
@@ -94,7 +93,7 @@ class BusDispatcherTest extends TestCase
 
     public function testOnConnectionOnJobWhenDispatching()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $dispatcher = new Dispatcher($container, function () {
             $mock = m::mock(Queue::class);
             $mock->shouldReceive('push')->once();

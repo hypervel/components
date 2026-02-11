@@ -14,7 +14,7 @@ use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Pipeline;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use RuntimeException;
 
 class Dispatcher implements QueueingDispatcher
@@ -37,11 +37,11 @@ class Dispatcher implements QueueingDispatcher
     /**
      * Create a new command dispatcher instance.
      *
-     * @param ContainerInterface $container the container implementation
+     * @param Container $container the container implementation
      * @param null|Closure $queueResolver the queue resolver callback
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected ?Closure $queueResolver = null
     ) {
         $this->pipeline = new Pipeline($container);

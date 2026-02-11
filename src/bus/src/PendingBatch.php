@@ -13,7 +13,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\Conditionable;
 use Laravel\SerializableClosure\SerializableClosure;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 use UnitEnum;
@@ -38,11 +38,11 @@ class PendingBatch
     /**
      * Create a new pending batch instance.
      *
-     * @param ContainerInterface $container the IoC container instance
+     * @param Container $container the IoC container instance
      * @param Collection $jobs the jobs that belong to the batch
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         public Collection $jobs
     ) {
     }
