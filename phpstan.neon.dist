@@ -22,6 +22,7 @@ parameters:
     - %currentWorkingDirectory%/src/foundation/src/Testing/Concerns/*
     - %currentWorkingDirectory%/src/foundation/src/Http/WebsocketKernel.php
     - %currentWorkingDirectory%/src/log/src/Adapter/*
+    - %currentWorkingDirectory%/src/container/src/Attributes/Context.php
     - %currentWorkingDirectory%/src/support/src/Js.php
     - %currentWorkingDirectory%/src/notifications/src/DatabaseNotification.php
   ignoreErrors:
