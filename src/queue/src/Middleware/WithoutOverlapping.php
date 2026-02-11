@@ -49,11 +49,14 @@ class WithoutOverlapping
      */
     public function handle(mixed $job, callable $next): mixed
     {
-        $lock = ApplicationContext::getContainer()
-            ->get(CacheFactory::class)->lock(
-                $this->getLockKey($job),
-                $this->expiresAfter
-            );
+        /** @var \Hypervel\Cache\CacheManager $cache */
+        $cache = ApplicationContext::getContainer()
+            ->get(CacheFactory::class);
+
+        $lock = $cache->lock(
+            $this->getLockKey($job),
+            $this->expiresAfter
+        );
 
         if ($lock->get()) {
             try {

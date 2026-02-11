@@ -17,7 +17,7 @@ class BlacklistFactory
 
         $storageClass = $config->get('jwt.providers.storage');
         $storage = match ($storageClass) {
-            TaggedCache::class => new TaggedCache($container->get(CacheManager::class)->driver()),
+            TaggedCache::class => new TaggedCache($container->get(CacheManager::class)->store()),
             default => $container->get($storageClass),
         };
 

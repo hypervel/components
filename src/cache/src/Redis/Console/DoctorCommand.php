@@ -92,6 +92,7 @@ class DoctorCommand extends Command
         }
 
         // Validate that the store is using redis driver
+        /** @var \Hypervel\Cache\Repository $repository */
         $repository = $this->app->get(CacheContract::class)->store($storeName);
         $store = $repository->getStore();
 

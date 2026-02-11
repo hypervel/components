@@ -58,6 +58,7 @@ class ClearCommand extends Command
         $cache = $this->app->get(CacheContract::class)
             ->store($this->argument('store'));
 
+        /** @var \Hypervel\Cache\Repository $cache */
         return empty($this->tags()) ? $cache : $cache->tags($this->tags());
     }
 
