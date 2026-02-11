@@ -6,6 +6,7 @@ namespace Hypervel\Bus;
 
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Bus\Dispatcher;
+use Hypervel\Contracts\Bus\QueueingDispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Support\Collection;
@@ -72,9 +73,11 @@ class ChainedBatch implements ShouldQueue
      */
     public function toPendingBatch(): PendingBatch
     {
-        $batch = ApplicationContext::getContainer()
-            ->get(Dispatcher::class)
-            ->batch($this->jobs);
+        /** @var QueueingDispatcher $dispatcher */
+        $dispatcher = ApplicationContext::getContainer()
+            ->get(Dispatcher::class);
+
+        $batch = $dispatcher->batch($this->jobs);
 
         $batch->name = $this->name;
         $batch->options = $this->options;
