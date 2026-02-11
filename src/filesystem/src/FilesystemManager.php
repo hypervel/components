@@ -29,7 +29,7 @@ use League\Flysystem\PhpseclibV3\SftpConnectionProvider;
 use League\Flysystem\ReadOnly\ReadOnlyFilesystemAdapter;
 use League\Flysystem\UnixVisibility\PortableVisibilityConverter;
 use League\Flysystem\Visibility;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -66,7 +66,7 @@ class FilesystemManager implements FactoryContract
      * Create a new filesystem manager instance.
      */
     public function __construct(
-        protected ContainerInterface $app
+        protected Container $app
     ) {
     }
 
@@ -483,7 +483,7 @@ class FilesystemManager implements FactoryContract
     /**
      * Set the application instance used by the manager.
      */
-    public function setApplication(ContainerInterface $app): static
+    public function setApplication(Container $app): static
     {
         $this->app = $app;
 

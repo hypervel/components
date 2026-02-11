@@ -26,7 +26,6 @@ use League\Flysystem\UnableToWriteFile;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Swoole\Runtime;
 
@@ -452,7 +451,7 @@ class FilesystemAdapterTest extends TestCase
             $this->markTestSkipped('league/flysystem-ftp is not installed.');
         }
 
-        $filesystem = new FilesystemManager(m::mock(ContainerInterface::class));
+        $filesystem = new FilesystemManager(m::mock(Container::class));
 
         $driver = $filesystem->createFtpDriver([
             'host' => 'ftp.example.com',
@@ -610,7 +609,7 @@ class FilesystemAdapterTest extends TestCase
 
     public function testProvidesTemporaryUrlsForS3Adapter()
     {
-        $filesystem = new FilesystemManager(m::mock(ContainerInterface::class));
+        $filesystem = new FilesystemManager(m::mock(Container::class));
         $filesystemAdapter = $filesystem->createS3Driver([
             'region' => 'us-west-1',
             'bucket' => 'laravel',

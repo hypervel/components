@@ -6,11 +6,11 @@ namespace Hypervel\Filesystem;
 
 use Hypervel\Contracts\Filesystem\Cloud as CloudContract;
 use Hypervel\Contracts\Filesystem\Factory as FactoryContract;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class CloudStorageFactory
 {
-    public function __invoke(ContainerInterface $container): CloudContract
+    public function __invoke(Container $container): CloudContract
     {
         return $container->get(FactoryContract::class)
             ->cloud(CloudContract::class);

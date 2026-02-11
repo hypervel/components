@@ -6,11 +6,11 @@ namespace Hypervel\Filesystem;
 
 use Hypervel\Contracts\Filesystem\Factory as FactoryContract;
 use Hypervel\Contracts\Filesystem\Filesystem as FilesystemContract;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class FilesystemFactory
 {
-    public function __invoke(ContainerInterface $container): FilesystemContract
+    public function __invoke(Container $container): FilesystemContract
     {
         return $container->get(FactoryContract::class)
             ->disk();
