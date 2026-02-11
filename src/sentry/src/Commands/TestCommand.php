@@ -6,7 +6,7 @@ namespace Hypervel\Sentry\Commands;
 
 use Exception;
 use Hypervel\Console\Command;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Sentry\ClientBuilder;
 use Sentry\State\Hub;
 use Sentry\State\HubInterface;
@@ -20,7 +20,7 @@ class TestCommand extends Command
 
     protected string $description = 'Generate a test event and send it to Sentry.';
 
-    public function __construct(protected ContainerInterface $container)
+    public function __construct(protected Container $container)
     {
         parent::__construct();
     }

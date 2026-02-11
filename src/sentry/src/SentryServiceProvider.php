@@ -11,9 +11,8 @@ use Hypervel\Sentry\Aspects\GuzzleHttpClientAspect;
 use Hypervel\Sentry\Commands\AboutCommand;
 use Hypervel\Sentry\Commands\TestCommand;
 use Hypervel\Sentry\Factory\ClientBuilderFactory;
-use Hypervel\Sentry\Factory\HubFactory;
 use Hypervel\Sentry\Features\Feature;
-use Hypervel\Sentry\HttpClient\HttpClientFactory;
+use Hypervel\Sentry\HttpClient\HttpClient;
 use Hypervel\Sentry\Transport\HttpPoolTransport;
 use Hypervel\Sentry\Transport\Pool;
 use Hypervel\Support\ServiceProvider;
@@ -83,9 +82,12 @@ class SentryServiceProvider extends ServiceProvider
                 ->getClient();
         });
 
-        $this->app->singleton(ClientBuilder::class, ClientBuilderFactory::class);
-        $this->app->singleton(HubInterface::class, HubFactory::class);
-        $this->app->singleton(HttpClientInterface::class, HttpClientFactory::class);
+        $this->app->singleton(ClientBuilder::class, fn () => (new ClientBuilderFactory())($this->app));
+        $this->app->singleton(HubInterface::class, fn () => new Hub());
+        $this->app->singleton(HttpClientInterface::class, fn () => new HttpClient(
+            Version::getSdkIdentifier(),
+            Version::getSdkVersion(),
+        ));
         $this->registerFeatures();
     }
 

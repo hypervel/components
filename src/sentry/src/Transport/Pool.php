@@ -6,7 +6,7 @@ namespace Hypervel\Sentry\Transport;
 
 use Hypervel\ObjectPool\ObjectPool;
 use Hypervel\Sentry\HttpClient\HttpClient;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Sentry\Client as SentryClient;
 use Sentry\HttpClient\HttpClientInterface;
 use Sentry\Options;
@@ -23,7 +23,7 @@ class Pool extends ObjectPool
      */
     public function __construct(
         protected Options $options,
-        ContainerInterface $container,
+        Container $container,
         array $config = [],
     ) {
         parent::__construct($container, $config);
