@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Console;
 
 use Hypervel\Contracts\Console\Kernel as KernelContract;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Throwable;
 
 class ApplicationFactory
 {
-    public function __invoke(ContainerInterface $container)
+    public function __invoke(Container $container)
     {
         try {
             return $container->get(KernelContract::class)
