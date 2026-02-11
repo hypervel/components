@@ -215,7 +215,9 @@ class EventDispatcher implements DispatcherContract
      */
     protected function broadcastEvent(ShouldBroadcast $event): void
     {
-        $this->container->get(BroadcastFactory::class)->queue($event);
+        /** @var \Hypervel\Broadcasting\BroadcastManager $broadcaster */
+        $broadcaster = $this->container->get(BroadcastFactory::class);
+        $broadcaster->queue($event);
     }
 
     /**

@@ -78,9 +78,9 @@ class FoundationServiceProvider extends ServiceProvider
         $this->app->get(Dispatcher::class)
             ->listen(FailToHandle::class, function ($event) {
                 if ($this->isConsoleKernelCall($throwable = $event->getThrowable())) {
-                    $this->app->get(ConsoleKernel::class)
-                        ->getArtisan()
-                        ->renderThrowable($throwable, $this->output);
+                    /** @var \Hypervel\Console\Application $artisan */
+                    $artisan = $this->app->get(ConsoleKernel::class)->getArtisan();
+                    $artisan->renderThrowable($throwable, $this->output);
                 }
             });
     }

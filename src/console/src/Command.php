@@ -152,9 +152,8 @@ abstract class Command extends HyperfCommand
 
     protected function replaceOutput(): void
     {
-        /* @phpstan-ignore-next-line */
         if ($this->app->bound(OutputInterface::class)) {
-            $this->output = $this->app->get(OutputInterface::class);
+            $this->output = $this->app->get(OutputInterface::class); // @phpstan-ignore assign.propertyType (PendingCommand binds a SymfonyStyle mock)
         }
     }
 

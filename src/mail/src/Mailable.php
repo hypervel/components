@@ -426,6 +426,7 @@ class Mailable implements MailableContract, Renderable
     protected function buildDiskAttachments(Message $message): void
     {
         foreach ($this->diskAttachments as $attachment) {
+            /** @var \Hypervel\Filesystem\FilesystemAdapter $storage */
             $storage = ApplicationContext::getContainer()->get(
                 FilesystemFactory::class
             )->disk($attachment['disk']);

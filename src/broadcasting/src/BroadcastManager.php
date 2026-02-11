@@ -103,7 +103,7 @@ class BroadcastManager implements BroadcastingFactoryContract
             'without_middleware' => [VerifyCsrfToken::class],
         ];
 
-        $this->app->get(RouterDispatcherFactory::class)->getRouter()
+        $this->app->get(RouterDispatcherFactory::class)->getRouter('http')
             ->addRoute(
                 ['GET', 'POST'],
                 '/broadcasting/user-auth',

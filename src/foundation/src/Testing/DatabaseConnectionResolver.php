@@ -95,6 +95,7 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
         // not an alias. rebinding() resolves aliases when storing callbacks, but instance()
         // doesn't when firing them. Using the canonical key avoids the mismatch.
         // @TODO Change to 'events' once we migrate to Laravel-style ServiceProviders.
+        /** @var \Hypervel\Container\Container $container */
         $container->rebinding(EventDispatcherInterface::class, function ($app, $dispatcher) {
             foreach (static::$connections as $connection) {
                 if ($connection instanceof Connection && $dispatcher instanceof Dispatcher) {

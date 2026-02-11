@@ -886,9 +886,11 @@ class Request extends HyperfRequest implements RequestContract
      */
     public function validate(array $rules, array $messages = [], array $customAttributes = []): array
     {
-        return ApplicationContext::getContainer()
-            ->get(ValidatorFactoryContract::class)
-            ->validate($this->all(), $rules, $messages, $customAttributes);
+        /** @var \Hypervel\Validation\Factory $factory */
+        $factory = ApplicationContext::getContainer()
+            ->get(ValidatorFactoryContract::class);
+
+        return $factory->validate($this->all(), $rules, $messages, $customAttributes);
     }
 
     /**

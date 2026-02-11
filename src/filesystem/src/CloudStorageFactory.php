@@ -12,7 +12,9 @@ class CloudStorageFactory
 {
     public function __invoke(Container $container): CloudContract
     {
-        return $container->get(FactoryContract::class)
-            ->cloud(CloudContract::class);
+        /** @var \Hypervel\Filesystem\FilesystemManager $manager */
+        $manager = $container->get(FactoryContract::class);
+
+        return $manager->cloud();
     }
 }
