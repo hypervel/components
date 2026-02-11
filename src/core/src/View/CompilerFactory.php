@@ -7,11 +7,11 @@ namespace Hypervel\View;
 use Hyperf\ViewEngine\Blade;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\View\Compilers\BladeCompiler;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class CompilerFactory
 {
-    public function __invoke(ContainerInterface $container)
+    public function __invoke(Container $container)
     {
         $blade = new BladeCompiler(
             $container->get(Filesystem::class),

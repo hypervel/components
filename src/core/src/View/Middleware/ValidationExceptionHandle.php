@@ -11,7 +11,7 @@ use Hyperf\ViewEngine\ViewErrorBag;
 use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\Support\MessageBag;
 use Hypervel\Validation\ValidationException;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -21,7 +21,7 @@ use Throwable;
 class ValidationExceptionHandle implements MiddlewareInterface
 {
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected SessionContract $session,
         protected FactoryInterface $view,
         protected ResponseInterface $response
