@@ -16,8 +16,6 @@ use Sentry\ClientBuilder;
 use Sentry\HttpClient\HttpClientInterface;
 use Sentry\Integration as SdkIntegration;
 
-use function Hyperf\Support\make;
-
 class ClientBuilderFactory
 {
     public const SPECIFIC_OPTIONS = [
@@ -90,6 +88,7 @@ class ClientBuilderFactory
         $userIntegrationOption = $userConfig['integrations'] ?? [];
 
         $userIntegrations = $this->resolveIntegrationsFromUserConfig(
+            $container,
             \is_array($userIntegrationOption) ? $userIntegrationOption : []
         );
 
@@ -156,7 +155,7 @@ class ClientBuilderFactory
     /**
      * @return SdkIntegration\IntegrationInterface[]
      */
-    protected function resolveIntegrationsFromUserConfig(array $userIntegrations): array
+    protected function resolveIntegrationsFromUserConfig(Application $container, array $userIntegrations): array
     {
         $integrations = [];
 
@@ -164,7 +163,7 @@ class ClientBuilderFactory
             if ($userIntegration instanceof SdkIntegration\IntegrationInterface) {
                 $integrations[] = $userIntegration;
             } elseif (\is_string($userIntegration)) {
-                $resolvedIntegration = make($userIntegration);
+                $resolvedIntegration = $container->make($userIntegration);
 
                 if (! $resolvedIntegration instanceof SdkIntegration\IntegrationInterface) {
                     throw new RuntimeException(
