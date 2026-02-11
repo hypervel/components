@@ -10,7 +10,7 @@ use Hypervel\Redis\Frequency;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Support\Arr;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class RedisPool extends Pool
 {
@@ -20,7 +20,7 @@ class RedisPool extends Pool
      * Create a new Redis pool instance.
      */
     public function __construct(
-        ContainerInterface $container,
+        Container $container,
         protected string $name
     ) {
         $configService = $container->get(RedisConfig::class);

@@ -16,7 +16,7 @@ use Hypervel\Redis\Operations\FlushByPattern;
 use Hypervel\Redis\Operations\SafeScan;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LogLevel;
 use Redis;
@@ -370,7 +370,7 @@ class RedisConnection extends BaseConnection
      *
      * @param array<string, mixed> $config
      */
-    public function __construct(ContainerInterface $container, PoolInterface $pool, array $config)
+    public function __construct(Container $container, PoolInterface $pool, array $config)
     {
         parent::__construct($container, $pool);
         $this->config = array_replace_recursive($this->config, $config);

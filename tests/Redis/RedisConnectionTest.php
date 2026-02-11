@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Redis;
 
 use Hyperf\Contract\StdoutLoggerInterface;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
+use Hypervel\Container\Container;
 use Hyperf\Pool\PoolOption;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Pool\Exception\ConnectionException;
@@ -15,7 +14,7 @@ use Hypervel\Redis\RedisConnection;
 use Hypervel\Tests\Redis\Stubs\RedisConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Psr\Log\LogLevel;
 use Redis;
 use RedisCluster;
@@ -64,7 +63,7 @@ class RedisConnectionTest extends TestCase
 
         $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'db' => 1], $redis) extends RedisConnection {
             public function __construct(
-                ContainerInterface $container,
+                ContainerContract $container,
                 PoolInterface $pool,
                 array $config,
                 private Redis $fakeRedis
@@ -92,7 +91,7 @@ class RedisConnectionTest extends TestCase
 
         $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends RedisConnection {
             public function __construct(
-                ContainerInterface $container,
+                ContainerContract $container,
                 PoolInterface $pool,
                 array $config,
                 private Redis $fakeRedis
@@ -118,7 +117,7 @@ class RedisConnectionTest extends TestCase
 
         $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'db' => 0], $redis) extends RedisConnection {
             public function __construct(
-                ContainerInterface $container,
+                ContainerContract $container,
                 PoolInterface $pool,
                 array $config,
                 private Redis $fakeRedis
@@ -308,7 +307,7 @@ class RedisConnectionTest extends TestCase
 
         $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends RedisConnection {
             public function __construct(
-                ContainerInterface $container,
+                ContainerContract $container,
                 PoolInterface $pool,
                 array $config,
                 private Redis $fakeRedis
@@ -338,14 +337,14 @@ class RedisConnectionTest extends TestCase
             ->once()
             ->with(LogLevel::ERROR, 'unit');
 
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(ContainerContract::class);
         $container->shouldReceive('has')->with(\Psr\EventDispatcher\EventDispatcherInterface::class)->andReturn(false);
         $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturn(true);
         $container->shouldReceive('get')->with(StdoutLoggerInterface::class)->andReturn($logger);
 
         $connection = new class($container, $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends RedisConnection {
             public function __construct(
-                ContainerInterface $container,
+                ContainerContract $container,
                 PoolInterface $pool,
                 array $config,
                 private Redis $fakeRedis
@@ -1218,7 +1217,7 @@ class RedisConnectionTest extends TestCase
 
         $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends RedisConnection {
             public function __construct(
-                ContainerInterface $container,
+                ContainerContract $container,
                 PoolInterface $pool,
                 array $config,
                 private Redis $fakeRedis
@@ -1262,7 +1261,7 @@ class RedisConnectionTest extends TestCase
 
         $connection = new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379], $redis) extends RedisConnection {
             public function __construct(
-                ContainerInterface $container,
+                ContainerContract $container,
                 PoolInterface $pool,
                 array $config,
                 private Redis $fakeRedis
@@ -1339,7 +1338,7 @@ class RedisConnectionTest extends TestCase
         $captured = [];
         $connection = new class($this->getContainer(), $this->getMockedPool(), [], $captured) extends RedisConnection {
             public function __construct(
-                ContainerInterface $container,
+                ContainerContract $container,
                 PoolInterface $pool,
                 array $config,
                 private array &$captured,
@@ -1380,7 +1379,7 @@ class RedisConnectionTest extends TestCase
         $captured = [];
         $connection = new class($this->getContainer(), $this->getMockedPool(), [], $captured) extends RedisConnection {
             public function __construct(
-                ContainerInterface $container,
+                ContainerContract $container,
                 PoolInterface $pool,
                 array $config,
                 private array &$captured,
@@ -1421,7 +1420,7 @@ class RedisConnectionTest extends TestCase
         $captured = [];
         $connection = new class($this->getContainer(), $this->getMockedPool(), [], $captured) extends RedisConnection {
             public function __construct(
-                ContainerInterface $container,
+                ContainerContract $container,
                 PoolInterface $pool,
                 array $config,
                 private array &$captured,
@@ -1603,7 +1602,7 @@ class RedisConnectionTest extends TestCase
 
         new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'options' => ['serializer' => Redis::SERIALIZER_PHP]], $redis) extends RedisConnection {
             public function __construct(
-                ContainerInterface $container,
+                ContainerContract $container,
                 PoolInterface $pool,
                 array $config,
                 private Redis $fakeRedis,
@@ -1628,7 +1627,7 @@ class RedisConnectionTest extends TestCase
 
         new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'options' => ['prefix' => 'myapp:']], $redis) extends RedisConnection {
             public function __construct(
-                ContainerInterface $container,
+                ContainerContract $container,
                 PoolInterface $pool,
                 array $config,
                 private Redis $fakeRedis,
@@ -1653,7 +1652,7 @@ class RedisConnectionTest extends TestCase
 
         new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'options' => ['bogus' => 'value']], $redis) extends RedisConnection {
             public function __construct(
-                ContainerInterface $container,
+                ContainerContract $container,
                 PoolInterface $pool,
                 array $config,
                 private Redis $fakeRedis,
@@ -1680,7 +1679,7 @@ class RedisConnectionTest extends TestCase
 
         new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'options' => [Redis::OPT_SERIALIZER => Redis::SERIALIZER_JSON]], $redis) extends RedisConnection {
             public function __construct(
-                ContainerInterface $container,
+                ContainerContract $container,
                 PoolInterface $pool,
                 array $config,
                 private Redis $fakeRedis,
@@ -1705,7 +1704,7 @@ class RedisConnectionTest extends TestCase
 
         new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'auth' => 'secret'], $redis) extends RedisConnection {
             public function __construct(
-                ContainerInterface $container,
+                ContainerContract $container,
                 PoolInterface $pool,
                 array $config,
                 private Redis $fakeRedis,
@@ -1728,7 +1727,7 @@ class RedisConnectionTest extends TestCase
 
         new class($this->getContainer(), $pool, ['host' => '127.0.0.1', 'port' => 6379, 'auth' => ''], $redis) extends RedisConnection {
             public function __construct(
-                ContainerInterface $container,
+                ContainerContract $container,
                 PoolInterface $pool,
                 array $config,
                 private Redis $fakeRedis,
@@ -1792,7 +1791,7 @@ class RedisConnectionTest extends TestCase
             private bool $constructed = false;
 
             public function __construct(
-                ContainerInterface $container,
+                ContainerContract $container,
                 PoolInterface $pool,
                 array $config,
                 private Redis $fakeRedis,
@@ -1847,7 +1846,7 @@ class RedisConnectionTest extends TestCase
         $this->assertEquals([0, ['key1', 'key2']], $result);
     }
 
-    protected function mockRedisConnection(?ContainerInterface $container = null, ?PoolInterface $pool = null, array $options = [], bool $transform = false): RedisConnection
+    protected function mockRedisConnection(?ContainerContract $container = null, ?PoolInterface $pool = null, array $options = [], bool $transform = false): RedisConnection
     {
         $connection = new RedisConnectionStub(
             $container ?? $this->getContainer(),
@@ -1873,8 +1872,12 @@ class RedisConnectionTest extends TestCase
 
     protected function getContainer(array $definitions = []): Container
     {
-        return new Container(
-            new DefinitionSource($definitions)
-        );
+        $container = new Container();
+
+        foreach ($definitions as $abstract => $concrete) {
+            $container->singleton($abstract, $concrete);
+        }
+
+        return $container;
     }
 }

@@ -12,7 +12,7 @@ use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 /**
  * @internal
@@ -92,12 +92,12 @@ class RedisPoolTest extends TestCase
     /**
      * @param array<string, mixed> $connectionConfig
      */
-    private function mockContainerWithRedisConfig(array $connectionConfig): m\MockInterface|ContainerInterface
+    private function mockContainerWithRedisConfig(array $connectionConfig): m\MockInterface|Container
     {
         $redisConfig = m::mock(RedisConfig::class);
         $redisConfig->shouldReceive('connectionConfig')->once()->with('default')->andReturn($connectionConfig);
 
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('get')->with(RedisConfig::class)->once()->andReturn($redisConfig);
 
         return $container;

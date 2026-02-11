@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Redis\Stubs;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Redis\RedisConnection;
 use Mockery as m;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Redis;
 use RedisCluster;
 use RedisException;
@@ -22,7 +22,7 @@ class RedisConnectionStub extends RedisConnection
      * Can be called with no arguments (for simple tests that inject via setActiveConnection()),
      * or with container/pool/config for tests that need full RedisConnection behavior.
      */
-    public function __construct(?ContainerInterface $container = null, ?PoolInterface $pool = null, array $config = [])
+    public function __construct(?Container $container = null, ?PoolInterface $pool = null, array $config = [])
     {
         if ($container !== null && $pool !== null) {
             // Full initialization for tests that need it (e.g., RedisConnectionTest)
