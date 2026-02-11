@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Support;
 
 use Hypervel\Container\Container;
+use Hypervel\Context\ApplicationContext;
 use Hypervel\Encryption\Encrypter;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
@@ -1593,7 +1594,9 @@ class SupportStringableTest extends TestCase
 
     public function testEncryptAndDecrypt()
     {
-        Container::setInstance($this->container = new Container());
+        $this->container = new Container();
+        Container::setInstance($this->container);
+        ApplicationContext::setContainer($this->container);
 
         $this->container->singleton('encrypter', fn () => new Encrypter(str_repeat('b', 16)));
 
