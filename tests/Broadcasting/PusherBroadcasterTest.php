@@ -10,7 +10,7 @@ use Hypervel\Broadcasting\Broadcasters\PusherBroadcaster;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Pusher\Pusher;
 
 /**
@@ -19,7 +19,7 @@ use Pusher\Pusher;
  */
 class PusherBroadcasterTest extends TestCase
 {
-    protected ContainerInterface $container;
+    protected Container $container;
 
     protected PusherBroadcaster $broadcaster;
 
@@ -29,7 +29,7 @@ class PusherBroadcasterTest extends TestCase
     {
         parent::setUp();
 
-        $this->container = m::mock(ContainerInterface::class);
+        $this->container = m::mock(Container::class);
         $this->pusher = m::mock(Pusher::class);
         $this->broadcaster = m::mock(PusherBroadcaster::class, [$this->container, $this->pusher])->makePartial();
     }

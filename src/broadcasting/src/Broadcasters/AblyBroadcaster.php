@@ -11,7 +11,7 @@ use Hyperf\HttpServer\Contract\RequestInterface;
 use Hypervel\Broadcasting\BroadcastException;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Hypervel\Support\Str;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class AblyBroadcaster extends Broadcaster
 {
@@ -19,7 +19,7 @@ class AblyBroadcaster extends Broadcaster
      * Create a new broadcaster instance.
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected AblyRest $ably,
     ) {
     }

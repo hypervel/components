@@ -9,7 +9,7 @@ use Hypervel\Broadcasting\BroadcastException;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Pusher\ApiErrorException;
 use Pusher\Pusher;
 
@@ -21,7 +21,7 @@ class PusherBroadcaster extends Broadcaster
      * Create a new broadcaster instance.
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected Pusher $pusher
     ) {
     }

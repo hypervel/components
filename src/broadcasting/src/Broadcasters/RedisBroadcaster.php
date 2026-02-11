@@ -10,7 +10,7 @@ use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Hypervel\Pool\Exception\ConnectionException;
 use Hypervel\Redis\RedisFactory;
 use Hypervel\Support\Arr;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use RedisException;
 
 class RedisBroadcaster extends Broadcaster
@@ -21,7 +21,7 @@ class RedisBroadcaster extends Broadcaster
      * Create a new broadcaster instance.
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected RedisFactory $factory,
         protected string $connection = 'default',
         protected string $prefix = ''

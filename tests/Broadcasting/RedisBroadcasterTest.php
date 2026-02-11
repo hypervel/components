@@ -13,7 +13,7 @@ use Hypervel\Support\Facades\Facade;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 /**
  * @internal
@@ -25,13 +25,13 @@ class RedisBroadcasterTest extends TestCase
 
     protected RedisBroadcaster $broadcaster;
 
-    protected ContainerInterface $container;
+    protected Container $container;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->container = m::mock(ContainerInterface::class);
+        $this->container = m::mock(Container::class);
         $factory = m::mock(RedisFactory::class);
         $this->broadcaster = m::mock(RedisBroadcaster::class, [$this->container, $factory])->makePartial();
     }

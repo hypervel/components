@@ -18,7 +18,7 @@ use Hypervel\HttpMessage\Exceptions\HttpException;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 /**
  * @internal
@@ -26,7 +26,7 @@ use Psr\Container\ContainerInterface;
  */
 class BroadcasterTest extends TestCase
 {
-    protected ContainerInterface $container;
+    protected Container $container;
 
     protected FakeBroadcaster $broadcaster;
 
@@ -34,7 +34,7 @@ class BroadcasterTest extends TestCase
     {
         parent::setUp();
 
-        $this->container = m::mock(ContainerInterface::class);
+        $this->container = m::mock(Container::class);
 
         $this->broadcaster = new FakeBroadcaster($this->container);
     }
@@ -389,13 +389,13 @@ class BroadcasterTest extends TestCase
     public function testChannelsAreSharedAcrossBroadcasterInstances()
     {
         // Simulate boot time: register channel on first broadcaster instance
-        $broadcasterA = new FakeBroadcaster(m::mock(ContainerInterface::class));
+        $broadcasterA = new FakeBroadcaster(m::mock(Container::class));
         $broadcasterA->channel('App.Models.User.{id}', function ($user, $id) {
             return (int) $user->id === (int) $id;
         });
 
         // Simulate auth request time: create a second broadcaster instance
-        $broadcasterB = new FakeBroadcaster(m::mock(ContainerInterface::class));
+        $broadcasterB = new FakeBroadcaster(m::mock(Container::class));
 
         // The second instance should see the channel registered on the first
         $channels = $broadcasterB->getChannels();
@@ -408,7 +408,7 @@ class BroadcasterTest extends TestCase
 class FakeBroadcaster extends Broadcaster
 {
     public function __construct(
-        protected ContainerInterface $container
+        protected Container $container
     ) {
     }
 

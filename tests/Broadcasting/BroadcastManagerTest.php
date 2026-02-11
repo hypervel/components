@@ -22,7 +22,7 @@ use Hypervel\Support\Facades\Queue;
 use Hypervel\Testbench\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 /**
  * @internal
@@ -74,10 +74,10 @@ class BroadcastManagerTest extends TestCase
         $this->expectException(InvalidArgumentException::class);
         $this->expectExceptionMessage('Broadcast connection [alien_connection] is not defined.');
 
-        $config = m::mock(ContainerInterface::class);
+        $config = m::mock(Container::class);
         $config->shouldReceive('get')->with('broadcasting.connections.alien_connection')->andReturn(null);
 
-        $app = m::mock(ContainerInterface::class);
+        $app = m::mock(Container::class);
         $app->shouldReceive('get')->with('config')->andReturn($config);
 
         $broadcastManager = new BroadcastManager($app);
@@ -107,7 +107,7 @@ class BroadcastManagerTest extends TestCase
             ->with('server.kernels', [])
             ->andReturn(['http' => []]);
 
-        $app = m::mock(ContainerInterface::class);
+        $app = m::mock(Container::class);
         $app->shouldReceive('has')->with(Kernel::class)->andReturn(true);
         $app->shouldReceive('get')->with('config')->andReturn($config);
         $app->shouldReceive('get')->with(RouterDispatcherFactory::class)->andReturn($routerFactory);
@@ -135,7 +135,7 @@ class BroadcastManagerTest extends TestCase
         $routerFactory->shouldReceive('getRouter')
             ->andReturn($router);
 
-        $app = m::mock(ContainerInterface::class);
+        $app = m::mock(Container::class);
         $app->shouldReceive('get')->with(RouterDispatcherFactory::class)->andReturn($routerFactory);
 
         $broadcastManager = new BroadcastManager($app);

@@ -15,7 +15,7 @@ use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Reflector;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use ReflectionClass;
 use ReflectionFunction;
 use ReflectionParameter;
@@ -25,7 +25,7 @@ abstract class Broadcaster implements BroadcasterContract
     /**
      * The container instance.
      */
-    protected ContainerInterface $container;
+    protected Container $container;
 
     /**
      * The callback to resolve the authenticated user information.

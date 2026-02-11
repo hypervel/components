@@ -27,7 +27,7 @@ use Hypervel\Foundation\Http\Middleware\VerifyCsrfToken;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Redis\RedisFactory;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Pusher\Pusher;
@@ -63,7 +63,7 @@ class BroadcastManager implements BroadcastingFactoryContract
      * Create a new manager instance.
      */
     public function __construct(
-        protected ContainerInterface $app,
+        protected Container $app,
     ) {
     }
 
@@ -428,7 +428,7 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * Get the application instance used by the manager.
      */
-    public function getApplication(): ContainerInterface
+    public function getApplication(): Container
     {
         return $this->app;
     }
@@ -436,7 +436,7 @@ class BroadcastManager implements BroadcastingFactoryContract
     /**
      * Set the application instance used by the manager.
      */
-    public function setApplication(ContainerInterface $app): static
+    public function setApplication(Container $app): static
     {
         $this->app = $app;
 

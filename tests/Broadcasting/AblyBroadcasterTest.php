@@ -11,7 +11,7 @@ use Hypervel\Broadcasting\Broadcasters\AblyBroadcaster;
 use Hypervel\HttpMessage\Exceptions\AccessDeniedHttpException;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 /**
  * @internal
@@ -23,13 +23,13 @@ class AblyBroadcasterTest extends TestCase
 
     protected AblyRest $ably;
 
-    protected ContainerInterface $container;
+    protected Container $container;
 
     protected function setUp(): void
     {
         parent::setUp();
 
-        $this->container = m::mock(ContainerInterface::class);
+        $this->container = m::mock(Container::class);
         $this->ably = m::mock(AblyRest::class, ['abcd:efg']);
         $this->broadcaster = m::mock(AblyBroadcaster::class, [$this->container, $this->ably])->makePartial();
     }
