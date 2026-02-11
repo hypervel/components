@@ -16,7 +16,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Meilisearch\Client as MeilisearchClient;
 use Mockery as m;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Typesense\Client as TypesenseClient;
 
 /**
@@ -30,7 +30,7 @@ class EngineManagerTest extends TestCase
         parent::tearDown();
 
         // Reset static engines cache between tests
-        (new EngineManager(m::mock(ContainerInterface::class)))->forgetEngines();
+        (new EngineManager(m::mock(Container::class)))->forgetEngines();
     }
 
     public function testResolveNullEngine()
@@ -274,9 +274,9 @@ class EngineManagerTest extends TestCase
         $this->assertSame($engine1, $engine2);
     }
 
-    protected function createMockContainer(array $config): m\MockInterface&ContainerInterface
+    protected function createMockContainer(array $config): m\MockInterface&Container
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
 
         $configService = m::mock(Repository::class);
         $configService->shouldReceive('get')
@@ -293,9 +293,9 @@ class EngineManagerTest extends TestCase
         return $container;
     }
 
-    protected function createMockContainerWithTypesense(array $config): m\MockInterface&ContainerInterface
+    protected function createMockContainerWithTypesense(array $config): m\MockInterface&Container
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
 
         $configService = m::mock(Repository::class);
         $configService->shouldReceive('get')

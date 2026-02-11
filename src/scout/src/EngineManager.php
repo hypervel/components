@@ -13,7 +13,7 @@ use Hypervel\Scout\Engines\TypesenseEngine;
 use InvalidArgumentException;
 use Meilisearch\Client as MeilisearchClient;
 use Meilisearch\Meilisearch;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use RuntimeException;
 use Typesense\Client as TypesenseClient;
 
@@ -43,7 +43,7 @@ class EngineManager
      * Create a new engine manager instance.
      */
     public function __construct(
-        protected ContainerInterface $container
+        protected Container $container
     ) {
     }
 
