@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Event;
 
-use Psr\EventDispatcher\EventDispatcherInterface;
-use Psr\EventDispatcher\ListenerProviderInterface;
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Event\Contracts\ListenerProvider;
 
 class ConfigProvider
 {
@@ -13,8 +13,8 @@ class ConfigProvider
     {
         return [
             'dependencies' => [
-                EventDispatcherInterface::class => EventDispatcherFactory::class,
-                ListenerProviderInterface::class => ListenerProviderFactory::class,
+                Dispatcher::class => EventDispatcherFactory::class,
+                ListenerProvider::class => ListenerProviderFactory::class,
             ],
         ];
     }

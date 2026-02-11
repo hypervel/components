@@ -20,7 +20,7 @@ use Hypervel\Telescope\ExtractProperties;
 use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use RuntimeException;
 
 class JobWatcher extends Watcher
@@ -43,9 +43,9 @@ class JobWatcher extends Watcher
             return ['telescope_uuid' => optional($this->recordJob($connection, $queue, $payload))->uuid];
         });
 
-        $app->get(EventDispatcherInterface::class)
+        $app->get(Dispatcher::class)
             ->listen(JobProcessed::class, [$this, 'recordProcessedJob']);
-        $app->get(EventDispatcherInterface::class)
+        $app->get(Dispatcher::class)
             ->listen(JobFailed::class, [$this, 'recordFailedJob']);
     }
 

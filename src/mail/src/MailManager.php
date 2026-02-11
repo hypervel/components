@@ -23,7 +23,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\ConfigurationUrlParser;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Psr\Log\LoggerInterface;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Component\Mailer\Bridge\Mailgun\Transport\MailgunTransportFactory;
@@ -130,7 +130,7 @@ class MailManager implements FactoryContract
             $name,
             $this->app->get(FactoryInterface::class),
             $this->createSymfonyTransport($config, $hasPool ? $name : null),
-            $this->app->get(EventDispatcherInterface::class)
+            $this->app->get(Dispatcher::class)
         );
 
         if ($this->app->has(QueueFactory::class)) {

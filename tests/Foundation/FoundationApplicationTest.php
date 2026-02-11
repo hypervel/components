@@ -16,7 +16,6 @@ use Hypervel\Support\ServiceProvider;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use stdClass;
 
 /**
@@ -40,7 +39,7 @@ class FoundationApplicationTest extends TestCase
 
         $app = $this->getApplication([
             TranslatorContract::class => fn () => $trans,
-            EventDispatcherInterface::class => fn () => $events,
+            'events' => fn () => $events,
         ]);
 
         $app->setLocale('foo');
@@ -165,10 +164,7 @@ class FoundationApplicationTest extends TestCase
             null,
             $app = $this->getApplication()
         );
-        $app->instance(
-            EventDispatcherInterface::class,
-            $eventDispatcher
-        );
+        $app->instance('events', $eventDispatcher);
 
         $closure = function () {};
         $app->beforeBootstrapping(RegisterFacades::class, $closure);
@@ -182,10 +178,7 @@ class FoundationApplicationTest extends TestCase
             null,
             $app = $this->getApplication()
         );
-        $app->instance(
-            EventDispatcherInterface::class,
-            $eventDispatcher
-        );
+        $app->instance('events', $eventDispatcher);
 
         $closure = function () {};
         $app->afterBootstrapping(RegisterFacades::class, $closure);

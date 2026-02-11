@@ -14,7 +14,7 @@ use Hypervel\Support\Str;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactory;
 use Ramsey\Uuid\UuidFactoryInterface;
@@ -60,7 +60,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
         $queue->push($job, ['data']);
 
-        $container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->twice();
+        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
     }
 
     public static function pushJobsDataProvider()
@@ -104,7 +104,7 @@ class QueueDatabaseQueueUnitTest extends TestCase
 
         $queue->later(10, 'foo', ['data']);
 
-        $container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->twice();
+        $container->shouldHaveReceived('has')->with(Dispatcher::class)->twice();
     }
 
     public function testFailureToCreatePayloadFromObject()

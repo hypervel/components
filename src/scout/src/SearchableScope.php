@@ -13,7 +13,7 @@ use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Events\ModelsFlushed;
 use Hypervel\Scout\Events\ModelsImported;
 use Hypervel\Support\Collection;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * Global scope that adds batch search macros to the query builder.
@@ -80,7 +80,7 @@ class SearchableScope implements Scope
     protected static function dispatchEvent(object $event): void
     {
         ApplicationContext::getContainer()
-            ->get(EventDispatcherInterface::class)
+            ->get(Dispatcher::class)
             ->dispatch($event);
     }
 }

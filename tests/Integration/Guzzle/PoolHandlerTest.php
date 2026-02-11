@@ -16,7 +16,7 @@ use Hypervel\Pool\SimplePool\PoolFactory;
 use Hypervel\Tests\Integration\Guzzle\Stub\PoolHandlerStub;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\CoversNothing;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * Integration tests for PoolHandler.
@@ -97,7 +97,7 @@ class PoolHandlerTest extends GuzzleIntegrationTestCase
             return new Connection($container, $args['pool'], $args['callback']);
         });
         $container->shouldReceive('has')->with(StdoutLoggerInterface::class)->andReturnFalse();
-        $container->shouldReceive('has')->with(EventDispatcherInterface::class)->andReturnFalse();
+        $container->shouldReceive('has')->with(Dispatcher::class)->andReturnFalse();
 
         ApplicationContext::setContainer($container);
 

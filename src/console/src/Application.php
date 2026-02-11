@@ -11,7 +11,7 @@ use Hypervel\Contracts\Console\Application as ApplicationContract;
 use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Support\ProcessUtils;
 use Override;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Symfony\Component\Console\Application as SymfonyApplication;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Exception\CommandNotFoundException;
@@ -48,7 +48,7 @@ class Application extends SymfonyApplication implements ApplicationContract
 
     public function __construct(
         protected ContainerContract $container,
-        protected EventDispatcherInterface $dispatcher,
+        protected Dispatcher $dispatcher,
         string $version
     ) {
         parent::__construct('Hypervel Framework', $version);

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Support\Providers;
 
+use Hypervel\Contracts\Event\Dispatcher;
+use Hypervel\Event\Contracts\ListenerProvider;
 use Hypervel\Support\ServiceProvider;
-use Psr\EventDispatcher\EventDispatcherInterface;
-use Psr\EventDispatcher\ListenerProviderInterface;
 
 class EventServiceProvider extends ServiceProvider
 {
@@ -22,7 +22,7 @@ class EventServiceProvider extends ServiceProvider
 
     public function register(): void
     {
-        $provider = $this->app->get(ListenerProviderInterface::class);
+        $provider = $this->app->get(ListenerProvider::class);
         foreach ($this->listen as $event => $listeners) {
             foreach ($listeners as $listener) {
                 $instance = $this->app->get($listener);
@@ -30,7 +30,7 @@ class EventServiceProvider extends ServiceProvider
             }
         }
 
-        $dispatcher = $this->app->get(EventDispatcherInterface::class);
+        $dispatcher = $this->app->get(Dispatcher::class);
         foreach ($this->subscribe as $subscriber) {
             $dispatcher->subscribe($subscriber);
         }

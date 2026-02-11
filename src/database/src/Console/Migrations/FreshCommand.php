@@ -9,7 +9,7 @@ use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Console\Prohibitable;
 use Hypervel\Database\Events\DatabaseRefreshed;
 use Hypervel\Database\Migrations\Migrator;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 class FreshCommand extends Command
 {
@@ -32,7 +32,7 @@ class FreshCommand extends Command
 
     public function __construct(
         protected Migrator $migrator,
-        protected EventDispatcherInterface $dispatcher
+        protected Dispatcher $dispatcher
     ) {
         parent::__construct();
     }

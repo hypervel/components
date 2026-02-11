@@ -10,7 +10,7 @@ use Hypervel\Telescope\Watchers\ViewWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Hypervel\View\Events\ViewRendered;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal
@@ -43,7 +43,7 @@ class ViewWatcherTest extends FeatureTestCase
             ->once()
             ->andReturn(['foo' => 'bar']);
 
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->get(Dispatcher::class)
             ->dispatch(new ViewRendered($view));
 
         $entry = $this->loadTelescopeEntries()->first();

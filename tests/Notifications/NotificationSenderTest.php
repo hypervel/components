@@ -14,7 +14,7 @@ use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\NotificationSender;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface as EventDispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal
@@ -33,7 +33,7 @@ class NotificationSenderTest extends TestCase
             ->once();
         $bus = m::mock(BusDispatcherContract::class);
         $bus->shouldNotReceive('dispatch');
-        $events = m::mock(EventDispatcher::class);
+        $events = m::mock(Dispatcher::class);
         $events->shouldReceive('dispatch');
 
         $sender = new NotificationSender($manager, $bus, $events);
@@ -47,7 +47,7 @@ class NotificationSenderTest extends TestCase
         $manager = m::mock(ChannelManager::class);
         $bus = m::mock(BusDispatcherContract::class);
         $bus->shouldNotReceive('dispatch');
-        $events = m::mock(EventDispatcher::class);
+        $events = m::mock(Dispatcher::class);
         $events->shouldNotReceive('dispatch');
 
         $sender = new NotificationSender($manager, $bus, $events);
@@ -61,7 +61,7 @@ class NotificationSenderTest extends TestCase
         $manager = m::mock(ChannelManager::class);
         $bus = m::mock(BusDispatcherContract::class);
         $bus->shouldNotReceive('dispatch');
-        $events = m::mock(EventDispatcher::class);
+        $events = m::mock(Dispatcher::class);
         $events->shouldNotReceive('dispatch');
 
         $sender = new NotificationSender($manager, $bus, $events);
@@ -78,7 +78,7 @@ class NotificationSenderTest extends TestCase
             ->withArgs(function ($job) {
                 return $job->middleware[0] instanceof TestNotificationMiddleware;
             });
-        $events = m::mock(EventDispatcher::class);
+        $events = m::mock(Dispatcher::class);
 
         $sender = new NotificationSender($manager, $bus, $events);
 
@@ -105,7 +105,7 @@ class NotificationSenderTest extends TestCase
             ->withArgs(function ($job) {
                 return empty($job->middleware);
             });
-        $events = m::mock(EventDispatcher::class);
+        $events = m::mock(Dispatcher::class);
 
         $sender = new NotificationSender($manager, $bus, $events);
 
@@ -128,7 +128,7 @@ class NotificationSenderTest extends TestCase
                 return $job->connection === null && $job->channels === ['mail'];
             });
 
-        $events = m::mock(EventDispatcher::class);
+        $events = m::mock(Dispatcher::class);
 
         $sender = new NotificationSender($manager, $bus, $events);
 

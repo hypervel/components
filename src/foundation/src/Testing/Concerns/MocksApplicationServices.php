@@ -8,7 +8,7 @@ use Exception;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Facades\Event;
 use Mockery;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 trait MocksApplicationServices
 {
@@ -76,7 +76,7 @@ trait MocksApplicationServices
      */
     protected function withoutEvents()
     {
-        $mock = Mockery::mock(EventDispatcherInterface::class)->shouldIgnoreMissing();
+        $mock = Mockery::mock(Dispatcher::class)->shouldIgnoreMissing();
 
         $mock->shouldReceive('dispatch')->andReturnUsing(function ($called) {
             $this->firedEvents[] = $called;
@@ -84,7 +84,7 @@ trait MocksApplicationServices
 
         Event::clearResolvedInstances();
 
-        $this->app->instance(EventDispatcherInterface::class, $mock);
+        $this->app->instance(Dispatcher::class, $mock);
         Model::setEventDispatcher($mock);
 
         return $this;

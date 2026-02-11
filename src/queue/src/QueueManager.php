@@ -24,7 +24,7 @@ use Hypervel\Queue\Connectors\SqsConnector;
 use Hypervel\Queue\Connectors\SyncConnector;
 use Hypervel\Redis\RedisFactory;
 use InvalidArgumentException;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @mixin \Hypervel\Contracts\Queue\Queue
@@ -74,7 +74,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function before(mixed $callback): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->get(Dispatcher::class)
             ->listen(Events\JobProcessing::class, $callback);
     }
 
@@ -83,7 +83,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function after(mixed $callback): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->get(Dispatcher::class)
             ->listen(Events\JobProcessed::class, $callback);
     }
 
@@ -92,7 +92,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function exceptionOccurred(mixed $callback): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->get(Dispatcher::class)
             ->listen(Events\JobExceptionOccurred::class, $callback);
     }
 
@@ -101,7 +101,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function looping(mixed $callback): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->get(Dispatcher::class)
             ->listen(Events\Looping::class, $callback);
     }
 
@@ -110,7 +110,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function failing(mixed $callback): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->get(Dispatcher::class)
             ->listen(Events\JobFailed::class, $callback);
     }
 
@@ -119,7 +119,7 @@ class QueueManager implements FactoryContract, MonitorContract
      */
     public function stopping(mixed $callback): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->get(Dispatcher::class)
             ->listen(Events\WorkerStopping::class, $callback);
     }
 
@@ -383,7 +383,7 @@ class QueueManager implements FactoryContract, MonitorContract
         $this->addConnector('failover', function () {
             return new FailoverConnector(
                 $this,
-                $this->app->get(EventDispatcherInterface::class)
+                $this->app->get(Dispatcher::class)
             );
         });
     }

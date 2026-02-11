@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Broadcasting;
 
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use UnitEnum;
 
 class PendingBroadcast
@@ -13,7 +13,7 @@ class PendingBroadcast
      * Create a new pending broadcast instance.
      */
     public function __construct(
-        protected EventDispatcherInterface $eventDispatcher,
+        protected Dispatcher $eventDispatcher,
         protected mixed $event
     ) {
     }

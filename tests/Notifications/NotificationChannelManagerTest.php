@@ -22,7 +22,7 @@ use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\PoolManager;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal
@@ -57,7 +57,7 @@ class NotificationChannelManagerTest extends TestCase
     {
         $container = $this->getContainer();
 
-        $events = $container->get(EventDispatcherInterface::class);
+        $events = $container->get(Dispatcher::class);
 
         $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
         $manager->shouldReceive('driver')->andReturn($driver = m::mock());
@@ -72,7 +72,7 @@ class NotificationChannelManagerTest extends TestCase
     {
         $container = $this->getContainer();
 
-        $events = $container->get(EventDispatcherInterface::class);
+        $events = $container->get(Dispatcher::class);
         $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
         $events->shouldReceive('dispatch')->once()->with(m::type(NotificationSending::class));
         $manager->shouldReceive('driver')->once()->andReturn($driver = m::mock());
@@ -86,7 +86,7 @@ class NotificationChannelManagerTest extends TestCase
     {
         $container = $this->getContainer();
 
-        $events = $container->get(EventDispatcherInterface::class);
+        $events = $container->get(Dispatcher::class);
         $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
         $events->shouldReceive('dispatch')->with(m::type(NotificationSending::class));
         $manager->shouldNotReceive('driver');
@@ -99,7 +99,7 @@ class NotificationChannelManagerTest extends TestCase
     {
         $container = $this->getContainer();
 
-        $events = $container->get(EventDispatcherInterface::class);
+        $events = $container->get(Dispatcher::class);
         $manager = m::mock(ChannelManager::class . '[driver]', [$container]);
         $events->shouldReceive('dispatch')->with(m::type(NotificationSending::class));
         $manager->shouldReceive('driver')->once()->andReturn($driver = m::mock());
@@ -127,7 +127,7 @@ class NotificationChannelManagerTest extends TestCase
         $container->instance(\Hypervel\Contracts\Container\Container::class, $container);
         $container->instance('config', new ConfigRepository([]));
         $container->instance(BusDispatcherContract::class, m::mock(BusDispatcherContract::class));
-        $container->instance(EventDispatcherInterface::class, m::mock(EventDispatcherInterface::class));
+        $container->instance(Dispatcher::class, m::mock(Dispatcher::class));
         $container->singleton(PoolFactory::class, PoolManager::class);
 
         ApplicationContext::setContainer($container);

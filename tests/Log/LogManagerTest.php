@@ -25,7 +25,7 @@ use Monolog\Logger as Monolog;
 use Monolog\Processor\MemoryUsageProcessor;
 use Monolog\Processor\PsrLogMessageProcessor;
 use Monolog\Processor\UidProcessor;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Psr\Log\LoggerInterface;
 use ReflectionProperty;
 use RuntimeException;
@@ -752,7 +752,7 @@ class LogManagerTest extends TestCase
         ]);
         $container = new Container();
         $container->instance('config', $config);
-        $container->instance(EventDispatcherInterface::class, new DispatcherStub());
+        $container->instance(Dispatcher::class, new DispatcherStub());
         return $container;
     }
 }

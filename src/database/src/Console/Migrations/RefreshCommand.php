@@ -8,7 +8,7 @@ use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Console\Prohibitable;
 use Hypervel\Database\Events\DatabaseRefreshed;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 class RefreshCommand extends Command
 {
@@ -27,7 +27,7 @@ class RefreshCommand extends Command
     protected string $description = 'Reset and re-run all migrations';
 
     public function __construct(
-        protected EventDispatcherInterface $dispatcher
+        protected Dispatcher $dispatcher
     ) {
         parent::__construct();
     }

@@ -11,7 +11,7 @@ use Hypervel\Context\Context;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastFactory;
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher as EventDispatcherContract;
+use Hypervel\Contracts\Event\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Event\ShouldDispatchAfterCommit;
 use Hypervel\Contracts\Event\ShouldHandleEventsAfterCommit;
 use Hypervel\Contracts\Queue\Factory as QueueFactoryContract;
@@ -30,7 +30,7 @@ use ReflectionClass;
 
 use function Hypervel\Support\enum_value;
 
-class EventDispatcher implements EventDispatcherContract
+class EventDispatcher implements DispatcherContract
 {
     use ReflectsClosures;
 

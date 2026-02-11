@@ -11,7 +11,7 @@ use Hypervel\Queue\RedisQueue;
 use Hypervel\Queue\SyncQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface as Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal

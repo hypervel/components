@@ -12,7 +12,7 @@ use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Exceptions\ManuallyFailedException;
 use Hypervel\Queue\Exceptions\TimeoutExceededException;
 use Hypervel\Support\InteractsWithTime;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Throwable;
 
 abstract class Job implements JobContract
@@ -177,7 +177,7 @@ abstract class Job implements JobContract
 
             $this->failed($e);
         } finally {
-            $this->resolve(EventDispatcherInterface::class)
+            $this->resolve(Dispatcher::class)
                 ->dispatch(new JobFailed(
                     $this->connectionName,
                     $this,

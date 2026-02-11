@@ -16,7 +16,7 @@ use Hypervel\Contracts\Auth\UserProvider;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Macroable;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 class SanctumGuard implements GuardContract
 {
@@ -35,7 +35,7 @@ class SanctumGuard implements GuardContract
         protected string $name,
         protected UserProvider $provider,
         protected RequestInterface $request,
-        protected ?EventDispatcherInterface $events = null,
+        protected ?Dispatcher $events = null,
         protected ?int $expiration = null
     ) {
     }

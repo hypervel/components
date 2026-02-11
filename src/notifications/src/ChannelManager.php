@@ -17,7 +17,7 @@ use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Support\Manager;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
 
 class ChannelManager extends Manager implements DispatcherContract, FactoryContract
 {
@@ -56,7 +56,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
         (new NotificationSender(
             $this,
             $this->container->get(BusDispatcherContract::class),
-            $this->container->get(EventDispatcherInterface::class),
+            $this->container->get(EventDispatcher::class),
             $this->getLocale()
         ))->send($notifiables, $notification);
     }
@@ -69,7 +69,7 @@ class ChannelManager extends Manager implements DispatcherContract, FactoryContr
         (new NotificationSender(
             $this,
             $this->container->get(BusDispatcherContract::class),
-            $this->container->get(EventDispatcherInterface::class),
+            $this->container->get(EventDispatcher::class),
             $this->getLocale()
         ))->sendNow($notifiables, $notification, $channels);
     }

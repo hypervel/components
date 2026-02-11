@@ -9,7 +9,7 @@ use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 
@@ -32,7 +32,7 @@ class ClearCommand extends Command
      */
     public function handle(): ?int
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->get(Dispatcher::class)
             ->dispatch('cache:clearing', [$this->argument('store'), $this->tags()]);
 
         if (! $this->cache()->getStore()->flush()) {
@@ -42,7 +42,7 @@ class ClearCommand extends Command
 
         $this->flushRuntime();
 
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->get(Dispatcher::class)
             ->dispatch('cache:cleared', [$this->argument('store'), $this->tags()]);
 
         $this->info('Application cache cleared successfully.');

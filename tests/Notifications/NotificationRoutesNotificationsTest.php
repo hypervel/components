@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Notifications;
 
-use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Notifications\Dispatcher;
@@ -63,9 +62,7 @@ class NotificationRoutesNotificationsTest extends TestCase
 
     protected function getContainer(): Container
     {
-        $container = new Container(
-            new DefinitionSource([])
-        );
+        $container = new Container();
 
         ApplicationContext::setContainer($container);
 

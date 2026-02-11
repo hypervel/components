@@ -14,7 +14,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\Conditionable;
 use Laravel\SerializableClosure\SerializableClosure;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Throwable;
 use UnitEnum;
 
@@ -258,7 +258,7 @@ class PendingBatch
             throw $e;
         }
 
-        $this->container->get(EventDispatcherInterface::class)
+        $this->container->get(Dispatcher::class)
             ->dispatch(
                 new BatchDispatched($batch)
             );
@@ -295,7 +295,7 @@ class PendingBatch
             throw $e;
         }
 
-        $this->container->get(EventDispatcherInterface::class)
+        $this->container->get(Dispatcher::class)
             ->dispatch(
                 new BatchDispatched($batch)
             );

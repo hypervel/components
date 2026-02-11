@@ -24,7 +24,7 @@ use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
 use Hypervel\HttpMessage\Exceptions\ServerErrorHttpException;
 use Hypervel\Support\Json;
 use Hypervel\View\Events\ViewRendered;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -54,7 +54,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
         if ($response instanceof Renderable) {
             if ($response instanceof ViewInterface) {
                 if ($this->container->get('config')->get('view.event.enable', false)) {
-                    $this->container->get(EventDispatcherInterface::class)
+                    $this->container->get(EventDispatcher::class)
                         ->dispatch(new ViewRendered($response));
                 }
             }

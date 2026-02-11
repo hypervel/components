@@ -20,7 +20,7 @@ use Hypervel\Contracts\Cache\Store;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface as Dispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal

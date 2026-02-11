@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Http;
 
-use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Http\Exceptions\CannotWriteFileException;
@@ -27,9 +26,7 @@ class UploadedFileTest extends TestCase
 {
     public function setUp(): void
     {
-        $container = new Container(
-            new DefinitionSource([])
-        );
+        $container = new Container();
 
         ApplicationContext::setContainer($container);
     }

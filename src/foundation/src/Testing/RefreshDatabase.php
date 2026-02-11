@@ -9,7 +9,7 @@ use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 trait RefreshDatabase
 {
@@ -62,7 +62,7 @@ trait RefreshDatabase
             if (isset(RefreshDatabaseState::$inMemoryConnections[$name])) {
                 $database->connection($name)
                     ->setPdo(RefreshDatabaseState::$inMemoryConnections[$name])
-                    ->setEventDispatcher($this->app->get(EventDispatcherInterface::class));
+                    ->setEventDispatcher($this->app->get(Dispatcher::class));
             }
         }
     }

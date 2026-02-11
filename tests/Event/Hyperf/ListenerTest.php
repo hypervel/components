@@ -17,7 +17,7 @@ use Hypervel\Tests\Event\Hyperf\Listener\BetaListener;
 use Hypervel\Tests\TestCase;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use Mockery as m;
-use Psr\EventDispatcher\ListenerProviderInterface;
+use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
 
 /**
  * @internal
@@ -30,14 +30,14 @@ class ListenerTest extends TestCase
     public function testInvokeListenerProvider()
     {
         $listenerProvider = new ListenerProvider();
-        $this->assertInstanceOf(ListenerProviderInterface::class, $listenerProvider);
+        $this->assertInstanceOf(ListenerProviderContract::class, $listenerProvider);
         $this->assertTrue(is_array($listenerProvider->listeners));
     }
 
     public function testInvokeListenerProviderWithListeners(): void
     {
         $listenerProvider = new ListenerProvider();
-        $this->assertInstanceOf(ListenerProviderInterface::class, $listenerProvider);
+        $this->assertInstanceOf(ListenerProviderContract::class, $listenerProvider);
 
         $listenerProvider->on(Alpha::class, [new AlphaListener(), 'process']);
         $listenerProvider->on(Beta::class, [new BetaListener(), 'process']);
@@ -64,10 +64,10 @@ class ListenerTest extends TestCase
         $container->shouldReceive('get')->once()->with('config')->andReturn(new Repository([]));
         $container->shouldReceive('get')
             ->once()
-            ->with(ListenerProviderInterface::class)
+            ->with(ListenerProviderContract::class)
             ->andReturn((new ListenerProviderFactory())($container));
-        $listenerProvider = $container->get(ListenerProviderInterface::class);
-        $this->assertInstanceOf(ListenerProviderInterface::class, $listenerProvider);
+        $listenerProvider = $container->get(ListenerProviderContract::class);
+        $this->assertInstanceOf(ListenerProviderContract::class, $listenerProvider);
     }
 
     public function testListenerInvokeByFactoryWithConfig()
@@ -87,10 +87,10 @@ class ListenerTest extends TestCase
             ->andReturn($betaListener = new BetaListener());
         $container->shouldReceive('get')
             ->once()
-            ->with(ListenerProviderInterface::class)
+            ->with(ListenerProviderContract::class)
             ->andReturn((new ListenerProviderFactory())($container));
-        $listenerProvider = $container->get(ListenerProviderInterface::class);
-        $this->assertInstanceOf(ListenerProviderInterface::class, $listenerProvider);
+        $listenerProvider = $container->get(ListenerProviderContract::class);
+        $this->assertInstanceOf(ListenerProviderContract::class, $listenerProvider);
         $this->assertSame(2, count($listenerProvider->listeners));
 
         $dispatcher = new EventDispatcher($listenerProvider);
@@ -118,11 +118,11 @@ class ListenerTest extends TestCase
             ->andReturn($betaListener = new BetaListener());
         $container->shouldReceive('get')
             ->once()
-            ->with(ListenerProviderInterface::class)
+            ->with(ListenerProviderContract::class)
             ->andReturn((new ListenerProviderFactory())($container));
 
-        $listenerProvider = $container->get(ListenerProviderInterface::class);
-        $this->assertInstanceOf(ListenerProviderInterface::class, $listenerProvider);
+        $listenerProvider = $container->get(ListenerProviderContract::class);
+        $this->assertInstanceOf(ListenerProviderContract::class, $listenerProvider);
         $this->assertSame(2, count($listenerProvider->listeners));
 
         $dispatcher = new EventDispatcher($listenerProvider);

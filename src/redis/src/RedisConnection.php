@@ -17,7 +17,7 @@ use Hypervel\Redis\Operations\FlushByPattern;
 use Hypervel\Redis\Operations\SafeScan;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Psr\Log\LogLevel;
 use Redis;
 use RedisCluster;
@@ -326,7 +326,7 @@ class RedisConnection extends BaseConnection
 {
     protected Redis|RedisCluster|null $connection = null;
 
-    protected ?EventDispatcherInterface $eventDispatcher = null;
+    protected ?Dispatcher $eventDispatcher = null;
 
     protected array $config = [
         'timeout' => 0.0,
@@ -427,7 +427,7 @@ class RedisConnection extends BaseConnection
     /**
      * Get the event dispatcher instance.
      */
-    public function getEventDispatcher(): ?EventDispatcherInterface
+    public function getEventDispatcher(): ?Dispatcher
     {
         return $this->eventDispatcher;
     }
@@ -484,8 +484,8 @@ class RedisConnection extends BaseConnection
         $this->connection = $redis;
         $this->lastUseTime = microtime(true);
 
-        if (($this->config['event']['enable'] ?? false) && $this->container->has(EventDispatcherInterface::class)) {
-            $this->eventDispatcher = $this->container->get(EventDispatcherInterface::class);
+        if (($this->config['event']['enable'] ?? false) && $this->container->has(Dispatcher::class)) {
+            $this->eventDispatcher = $this->container->get(Dispatcher::class);
         }
 
         return true;

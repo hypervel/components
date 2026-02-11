@@ -11,7 +11,7 @@ use Hypervel\Notifications\Messages\BroadcastMessage;
 use Hypervel\Notifications\Notification;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal
@@ -25,7 +25,7 @@ class NotificationBroadcastChannelTest extends TestCase
         $notification->id = '1';
         $notifiable = m::mock();
 
-        $events = m::mock(EventDispatcherInterface::class);
+        $events = m::mock(Dispatcher::class);
         $events->shouldReceive('dispatch')->once()->with(m::type(BroadcastNotificationCreated::class));
         $channel = new BroadcastChannel($events);
         $channel->send($notifiable, $notification);
@@ -88,7 +88,7 @@ class NotificationBroadcastChannelTest extends TestCase
         $notification->id = '1';
         $notifiable = m::mock();
 
-        $events = m::mock(EventDispatcherInterface::class);
+        $events = m::mock(Dispatcher::class);
         $events->shouldReceive('dispatch')->once()->with(m::on(function ($event) {
             return $event->connection === 'sync';
         }));

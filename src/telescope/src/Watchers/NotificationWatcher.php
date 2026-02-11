@@ -13,7 +13,7 @@ use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\FormatModel;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 class NotificationWatcher extends Watcher
 {
@@ -22,7 +22,7 @@ class NotificationWatcher extends Watcher
      */
     public function register(Container $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->get(Dispatcher::class)
             ->listen(NotificationSent::class, [$this, 'recordNotification']);
     }
 

@@ -11,7 +11,7 @@ use Hypervel\Broadcasting\PendingBroadcast;
 use Hypervel\Contracts\Broadcasting\Factory as BroadcastingFactory;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use TypeError;
 
 enum PendingBroadcastTestConnectionStringEnum: string
@@ -40,7 +40,7 @@ class PendingBroadcastTest extends TestCase
 {
     public function testViaAcceptsStringBackedEnum(): void
     {
-        $dispatcher = m::mock(EventDispatcherInterface::class);
+        $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('dispatch')->once();
 
         $event = new TestPendingBroadcastEvent();
@@ -54,7 +54,7 @@ class PendingBroadcastTest extends TestCase
 
     public function testViaAcceptsUnitEnum(): void
     {
-        $dispatcher = m::mock(EventDispatcherInterface::class);
+        $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('dispatch')->once();
 
         $event = new TestPendingBroadcastEvent();
@@ -80,7 +80,7 @@ class PendingBroadcastTest extends TestCase
 
     public function testViaAcceptsNull(): void
     {
-        $dispatcher = m::mock(EventDispatcherInterface::class);
+        $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('dispatch')->once();
 
         $event = new TestPendingBroadcastEvent();
@@ -93,7 +93,7 @@ class PendingBroadcastTest extends TestCase
 
     public function testViaAcceptsString(): void
     {
-        $dispatcher = m::mock(EventDispatcherInterface::class);
+        $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('dispatch')->once();
 
         $event = new TestPendingBroadcastEvent();

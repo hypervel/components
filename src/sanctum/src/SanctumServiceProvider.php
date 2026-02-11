@@ -9,7 +9,7 @@ use Hypervel\Auth\AuthManager;
 use Hypervel\Sanctum\Console\Commands\PruneExpired;
 use Hypervel\Support\Facades\Route;
 use Hypervel\Support\ServiceProvider;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 use function Hypervel\Config\config;
 
@@ -51,8 +51,8 @@ class SanctumServiceProvider extends ServiceProvider
 
                 // Get event dispatcher if available
                 $events = null;
-                if ($this->app->has(EventDispatcherInterface::class)) {
-                    $events = $this->app->get(EventDispatcherInterface::class);
+                if ($this->app->has(Dispatcher::class)) {
+                    $events = $this->app->get(Dispatcher::class);
                 }
 
                 // Get expiration from sanctum config

@@ -17,7 +17,7 @@ use Hypervel\Support\Str;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Throwable;
@@ -54,7 +54,7 @@ class RequestWatcher extends Watcher
 
         $this->enableRequestEvents($app);
 
-        $app->get(EventDispatcherInterface::class)
+        $app->get(Dispatcher::class)
             ->listen(RequestHandled::class, [$this, 'recordRequest']);
     }
 

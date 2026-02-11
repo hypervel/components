@@ -6,7 +6,7 @@ namespace Hypervel\Queue;
 
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
-use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Queue\Factory as QueueManager;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
@@ -112,14 +112,14 @@ class Worker
      * Create a new queue worker.
      *
      * @param QueueManager $manager the queue manager instance
-     * @param EventDispatcher $events the event dispatcher instance
+     * @param Dispatcher $events the event dispatcher instance
      * @param ExceptionHandlerContract $exceptions the exception handler instance
      * @param callable $isDownForMaintenance the callback used to determine if the application is in maintenance mode
      * @param int $monitorInterval the monitor interval
      */
     public function __construct(
         protected QueueManager $manager,
-        protected EventDispatcher $events,
+        protected Dispatcher $events,
         protected ExceptionHandlerContract $exceptions,
         callable $isDownForMaintenance,
         ?callable $monitorTimeoutJobs = null,

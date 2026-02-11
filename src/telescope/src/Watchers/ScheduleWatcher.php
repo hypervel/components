@@ -10,7 +10,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 class ScheduleWatcher extends Watcher
 {
@@ -39,7 +39,7 @@ class ScheduleWatcher extends Watcher
 
         Telescope::startRecording();
 
-        $app->get(EventDispatcherInterface::class)
+        $app->get(Dispatcher::class)
             ->listen([
                 Events\ScheduledTaskStarting::class,
                 Events\ScheduledTaskFinished::class,

@@ -10,7 +10,7 @@ use Hypervel\Notifications\Notification;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\NotificationWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal
@@ -41,7 +41,7 @@ class NotificationWatcherTest extends FeatureTestCase
             'response'
         );
 
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->get(Dispatcher::class)
             ->dispatch($event);
 
         $entry = $this->loadTelescopeEntries()->first();

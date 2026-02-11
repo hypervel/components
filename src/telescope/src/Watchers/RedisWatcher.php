@@ -11,7 +11,7 @@ use Hypervel\Redis\RedisConfig;
 use Hypervel\Support\Collection;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 class RedisWatcher extends Watcher
 {
@@ -29,7 +29,7 @@ class RedisWatcher extends Watcher
             return;
         }
 
-        $app->get(EventDispatcherInterface::class)
+        $app->get(Dispatcher::class)
             ->listen(CommandExecuted::class, [$this, 'recordCommand']);
     }
 

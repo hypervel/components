@@ -14,7 +14,7 @@ use Hypervel\Telescope\FormatModel;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\Traits\FetchesStackTrace;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 class GateWatcher extends Watcher
 {
@@ -25,7 +25,7 @@ class GateWatcher extends Watcher
      */
     public function register(Container $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->get(Dispatcher::class)
             ->listen(GateEvaluated::class, [$this, 'recordGateCheck']);
     }
 

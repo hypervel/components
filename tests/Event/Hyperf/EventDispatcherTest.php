@@ -20,8 +20,7 @@ use Hypervel\Tests\Event\Hyperf\Listener\PriorityListener;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
-use Psr\EventDispatcher\ListenerProviderInterface as PsrListenerProviderInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use ReflectionClass;
 
 /**
@@ -35,14 +34,14 @@ class EventDispatcherTest extends TestCase
     public function testInvokeDispatcher()
     {
         $listeners = m::mock(ListenerProviderContract::class);
-        $this->assertInstanceOf(EventDispatcherInterface::class, new EventDispatcher($listeners));
+        $this->assertInstanceOf(Dispatcher::class, new EventDispatcher($listeners));
     }
 
     public function testInvokeDispatcherWithStdoutLogger()
     {
         $listeners = m::mock(ListenerProviderContract::class);
         $logger = m::mock(StdoutLoggerInterface::class);
-        $this->assertInstanceOf(EventDispatcherInterface::class, $instance = new EventDispatcher($listeners, $logger));
+        $this->assertInstanceOf(Dispatcher::class, $instance = new EventDispatcher($listeners, $logger));
         $reflectionClass = new ReflectionClass($instance);
         $loggerProperty = $reflectionClass->getProperty('logger');
         $this->assertInstanceOf(StdoutLoggerInterface::class, $loggerProperty->getValue($instance));
@@ -53,9 +52,9 @@ class EventDispatcherTest extends TestCase
         $container = m::mock(Container::class);
         $container->shouldReceive('get')->with('config')->andReturn(new Repository([]));
         $config = $container->get('config');
-        $container->shouldReceive('get')->with(PsrListenerProviderInterface::class)->andReturn(new ListenerProvider());
+        $container->shouldReceive('get')->with(ListenerProviderContract::class)->andReturn(new ListenerProvider());
         $container->shouldReceive('get')->with(StdoutLoggerInterface::class)->andReturn(new StdoutLogger($config));
-        $this->assertInstanceOf(EventDispatcherInterface::class, $instance = (new EventDispatcherFactory())($container));
+        $this->assertInstanceOf(Dispatcher::class, $instance = (new EventDispatcherFactory())($container));
         $reflectionClass = new ReflectionClass($instance);
         $loggerProperty = $reflectionClass->getProperty('logger');
         $this->assertInstanceOf(StdoutLoggerInterface::class, $loggerProperty->getValue($instance));

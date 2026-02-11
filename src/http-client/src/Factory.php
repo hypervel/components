@@ -20,7 +20,7 @@ use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use PHPUnit\Framework\Assert as PHPUnit;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Throwable;
 
 /**
@@ -93,7 +93,7 @@ class Factory
     /**
      * Create a new factory instance.
      */
-    public function __construct(protected ?EventDispatcherInterface $dispatcher = null)
+    public function __construct(protected ?Dispatcher $dispatcher = null)
     {
         $this->stubCallbacks = new Collection();
     }
@@ -435,7 +435,7 @@ class Factory
     /**
      * Get the current event dispatcher implementation.
      */
-    public function getDispatcher(): ?EventDispatcherInterface
+    public function getDispatcher(): ?Dispatcher
     {
         return $this->dispatcher;
     }

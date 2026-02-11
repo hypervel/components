@@ -15,7 +15,7 @@ use Hypervel\Event\ListenerProvider;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
-use Psr\EventDispatcher\ListenerProviderInterface;
+use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
 
 use function Hypervel\Coroutine\run;
 
@@ -427,7 +427,7 @@ class PoolConnectionManagementTest extends TestCase
 
         // Get listener provider and register a listener
         /** @var ListenerProvider $listenerProvider */
-        $listenerProvider = $this->app->get(ListenerProviderInterface::class);
+        $listenerProvider = $this->app->get(ListenerProviderContract::class);
 
         $listenerProvider->on(
             ConnectionEstablished::class,
@@ -460,7 +460,7 @@ class PoolConnectionManagementTest extends TestCase
         $capturedConnectionName = null;
 
         /** @var ListenerProvider $listenerProvider */
-        $listenerProvider = $this->app->get(ListenerProviderInterface::class);
+        $listenerProvider = $this->app->get(ListenerProviderContract::class);
 
         $listenerProvider->on(
             ConnectionEstablished::class,

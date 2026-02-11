@@ -13,7 +13,7 @@ use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Queue\Jobs\SyncJob;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Throwable;
 
 class SyncQueue extends Queue implements QueueContract
@@ -120,8 +120,8 @@ class SyncQueue extends Queue implements QueueContract
      */
     protected function raiseBeforeJobEvent(JobContract $job): void
     {
-        if ($this->container->has(EventDispatcherInterface::class)) {
-            $this->container->get(EventDispatcherInterface::class)
+        if ($this->container->has(Dispatcher::class)) {
+            $this->container->get(Dispatcher::class)
                 ->dispatch(new JobProcessing($this->connectionName, $job));
         }
     }
@@ -131,8 +131,8 @@ class SyncQueue extends Queue implements QueueContract
      */
     protected function raiseAfterJobEvent(JobContract $job): void
     {
-        if ($this->container->has(EventDispatcherInterface::class)) {
-            $this->container->get(EventDispatcherInterface::class)
+        if ($this->container->has(Dispatcher::class)) {
+            $this->container->get(Dispatcher::class)
                 ->dispatch(new JobProcessed($this->connectionName, $job));
         }
     }
@@ -142,8 +142,8 @@ class SyncQueue extends Queue implements QueueContract
      */
     protected function raiseExceptionOccurredJobEvent(JobContract $job, Throwable $e): void
     {
-        if ($this->container->has(EventDispatcherInterface::class)) {
-            $this->container->get(EventDispatcherInterface::class)
+        if ($this->container->has(Dispatcher::class)) {
+            $this->container->get(Dispatcher::class)
                 ->dispatch(new JobExceptionOccurred($this->connectionName, $job, $e));
         }
     }

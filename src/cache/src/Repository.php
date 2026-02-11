@@ -28,7 +28,7 @@ use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;
@@ -51,7 +51,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * The event dispatcher implementation.
      */
-    protected ?EventDispatcherInterface $events = null;
+    protected ?Dispatcher $events = null;
 
     /**
      * The default number of seconds to store items.
@@ -541,7 +541,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Get the event dispatcher instance.
      */
-    public function getEventDispatcher(): ?EventDispatcherInterface
+    public function getEventDispatcher(): ?Dispatcher
     {
         return $this->events;
     }
@@ -549,7 +549,7 @@ class Repository implements ArrayAccess, CacheContract
     /**
      * Set the event dispatcher instance.
      */
-    public function setEventDispatcher(EventDispatcherInterface $events): void
+    public function setEventDispatcher(Dispatcher $events): void
     {
         $this->events = $events;
     }

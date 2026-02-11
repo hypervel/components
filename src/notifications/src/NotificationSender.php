@@ -14,7 +14,7 @@ use Hypervel\Notifications\Events\NotificationSent;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Localizable;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 use function Hyperf\Support\value;
 
@@ -28,7 +28,7 @@ class NotificationSender
     public function __construct(
         protected ChannelManager $manager,
         protected BusDispatcherContract $bus,
-        protected EventDispatcherInterface $events,
+        protected Dispatcher $events,
         protected ?string $locale = null
     ) {
     }

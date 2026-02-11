@@ -16,7 +16,7 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 use PDO;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal
@@ -149,7 +149,7 @@ class RefreshDatabaseTest extends TestCase
         $connection = m::mock(ConnectionInterface::class);
         $connection->shouldReceive('getEventDispatcher')
             ->twice()
-            ->andReturn($eventDispatcher = m::mock(EventDispatcherInterface::class));
+            ->andReturn($eventDispatcher = m::mock(Dispatcher::class));
         $connection->shouldReceive('unsetEventDispatcher')
             ->twice();
         $connection->shouldReceive('beginTransaction')

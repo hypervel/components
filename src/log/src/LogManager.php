@@ -25,7 +25,7 @@ use Monolog\Handler\WhatFailureGroupHandler;
 use Monolog\Logger as Monolog;
 use Monolog\Processor\ProcessorInterface;
 use Monolog\Processor\PsrLogMessageProcessor;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Psr\Log\LoggerInterface;
 use Stringable;
 use Throwable;
@@ -83,7 +83,7 @@ class LogManager implements LoggerInterface
     {
         return new Logger(
             $this->createStackDriver(compact('channels', 'channel')),
-            $this->app->get(EventDispatcherInterface::class)
+            $this->app->get(Dispatcher::class)
         );
     }
 
@@ -110,7 +110,7 @@ class LogManager implements LoggerInterface
     {
         try {
             return $this->channels[$name] ?? with($this->resolve($name, $config), function ($logger) use ($name) {
-                return $this->channels[$name] = $this->tap($name, new Logger($logger, $this->app->get(EventDispatcherInterface::class)));
+                return $this->channels[$name] = $this->tap($name, new Logger($logger, $this->app->get(Dispatcher::class)));
             });
         } catch (Throwable $e) {
             return tap($this->createEmergencyLogger(), function ($logger) use ($e) {
@@ -157,7 +157,7 @@ class LogManager implements LoggerInterface
 
         return new Logger(
             new Monolog('hypervel', $this->prepareHandlers([$handler])),
-            $this->app->get(EventDispatcherInterface::class)
+            $this->app->get(Dispatcher::class)
         );
     }
 

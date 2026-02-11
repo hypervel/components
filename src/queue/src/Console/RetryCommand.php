@@ -14,7 +14,7 @@ use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use RuntimeException;
 use stdClass;
 
@@ -61,7 +61,7 @@ class RetryCommand extends Command
             if (is_null($job)) {
                 $this->error("Unable to find failed job with ID [{$id}].");
             } else {
-                $this->app->get(EventDispatcherInterface::class)->dispatch(new JobRetryRequested($job));
+                $this->app->get(Dispatcher::class)->dispatch(new JobRetryRequested($job));
 
                 $this->retryJob($job);
 

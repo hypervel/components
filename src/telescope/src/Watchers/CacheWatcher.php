@@ -12,7 +12,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Support\Str;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 class CacheWatcher extends Watcher
 {
@@ -30,7 +30,7 @@ class CacheWatcher extends Watcher
             return;
         }
 
-        $event = $app->get(EventDispatcherInterface::class);
+        $event = $app->get(Dispatcher::class);
 
         $event->listen(CacheHit::class, [$this, 'recordCacheHit']);
         $event->listen(CacheMissed::class, [$this, 'recordCacheMissed']);

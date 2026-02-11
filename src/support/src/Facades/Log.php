@@ -34,8 +34,8 @@ use Psr\Log\LoggerInterface;
  * @method static array getContext()
  * @method static void listen(\Closure $callback)
  * @method static \Psr\Log\LoggerInterface getLogger()
- * @method static \Psr\EventDispatcher\EventDispatcherInterface getEventDispatcher()
- * @method static \Hypervel\Log\Logger setEventDispatcher(\Psr\EventDispatcher\EventDispatcherInterface $dispatcher)
+ * @method static \Hypervel\Contracts\Event\Dispatcher getEventDispatcher()
+ * @method static \Hypervel\Log\Logger setEventDispatcher(\Hypervel\Contracts\Event\Dispatcher $dispatcher)
  *
  * @see \Hypervel\Log\LogManager
  */

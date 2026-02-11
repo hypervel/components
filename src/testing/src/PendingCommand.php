@@ -19,7 +19,7 @@ use Hypervel\Support\Traits\Macroable;
 use Hypervel\Support\Traits\Tappable;
 use Mockery;
 use Mockery\Exception\NoMatchingExpectationException;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Input\ArrayInput;
@@ -351,7 +351,7 @@ class PendingCommand
         $mock = $this->mockConsoleOutput();
 
         $exception = null;
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->get(Dispatcher::class)
             ->listen(FailToHandle::class, function ($event) use (&$exception) {
                 $exception = $event->getThrowable();
             });

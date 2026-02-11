@@ -14,7 +14,7 @@ use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 use function Hypervel\Coroutine\run;
 
@@ -52,9 +52,9 @@ class QueueCoroutineQueueTest extends TestCase
         });
         $coroutine->setConnectionName('coroutine');
         $container = $this->getContainer();
-        $events = m::mock(EventDispatcherInterface::class);
+        $events = m::mock(Dispatcher::class);
         $events->shouldReceive('dispatch')->times(3);
-        $container->instance(EventDispatcherInterface::class, $events);
+        $container->instance(Dispatcher::class, $events);
         $coroutine->setContainer($container);
 
         run(function () use ($coroutine) {

@@ -6,7 +6,7 @@ namespace Hypervel\Support\Facades;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Testing\Fakes\EventFake;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @method static object|string dispatch(object|string $event, mixed $payload = [], bool $halt = false)
@@ -100,6 +100,6 @@ class Event extends Facade
 
     protected static function getFacadeAccessor()
     {
-        return EventDispatcherInterface::class;
+        return Dispatcher::class;
     }
 }

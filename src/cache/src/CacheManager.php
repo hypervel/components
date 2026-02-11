@@ -12,7 +12,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Redis\RedisFactory;
 use InvalidArgumentException;
-use Psr\EventDispatcher\EventDispatcherInterface as DispatcherContract;
+use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @mixin \Hypervel\Contracts\Cache\Repository
@@ -303,12 +303,12 @@ class CacheManager implements FactoryContract
      */
     protected function setEventDispatcher(Repository $repository): void
     {
-        if (! $this->app->has(DispatcherContract::class)) {
+        if (! $this->app->has(Dispatcher::class)) {
             return;
         }
 
         $repository->setEventDispatcher(
-            $this->app->get(DispatcherContract::class)
+            $this->app->get(Dispatcher::class)
         );
     }
 

@@ -14,7 +14,7 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactory;
 use Ramsey\Uuid\UuidFactoryInterface;
@@ -221,10 +221,10 @@ class QueueDatabaseQueueIntegrationTest extends TestCase
         $uuidFactory->shouldReceive('uuid4')->andReturn($uuid);
         Uuid::setFactory($uuidFactory);
 
-        $this->app->get(EventDispatcherInterface::class)->listen(function (JobQueueing $e) use (&$jobQueueingEvent) {
+        $this->app->get(Dispatcher::class)->listen(function (JobQueueing $e) use (&$jobQueueingEvent) {
             $jobQueueingEvent = $e;
         });
-        $this->app->get(EventDispatcherInterface::class)->listen(function (JobQueued $e) use (&$jobQueuedEvent) {
+        $this->app->get(Dispatcher::class)->listen(function (JobQueued $e) use (&$jobQueuedEvent) {
             $jobQueuedEvent = $e;
         });
 

@@ -9,7 +9,7 @@ use Hypervel\Log\Events\MessageLogged;
 use Hypervel\Support\Arr;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Psr\Log\LogLevel;
 use Throwable;
 
@@ -34,7 +34,7 @@ class LogWatcher extends Watcher
      */
     public function register(Container $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->get(Dispatcher::class)
             ->listen(MessageLogged::class, [$this, 'recordLog']);
     }
 

@@ -725,6 +725,9 @@ class Application extends Container implements ApplicationContract, HyperfContai
                 'events',
                 \Hypervel\Contracts\Event\Dispatcher::class,
             ],
+            \Psr\EventDispatcher\ListenerProviderInterface::class => [
+                \Hypervel\Event\Contracts\ListenerProvider::class,
+            ],
             \Hypervel\Filesystem\Filesystem::class => ['files'],
             \Hypervel\Contracts\Filesystem\Factory::class => [
                 'filesystem',

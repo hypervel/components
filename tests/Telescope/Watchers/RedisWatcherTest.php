@@ -10,7 +10,7 @@ use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\RedisWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal
@@ -48,7 +48,7 @@ class RedisWatcherTest extends FeatureTestCase
 
     public function testRedisWatcherRegistersEntries()
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->get(Dispatcher::class)
             ->dispatch(new CommandExecuted(
                 'command',
                 ['foo', 'bar'],

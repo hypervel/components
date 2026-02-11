@@ -12,7 +12,7 @@ use Hypervel\Telescope\ExceptionContext;
 use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\IncomingExceptionEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Throwable;
 
 class ExceptionWatcher extends Watcher
@@ -22,7 +22,7 @@ class ExceptionWatcher extends Watcher
      */
     public function register(Container $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->get(Dispatcher::class)
             ->listen(MessageLogged::class, [$this, 'recordException']);
     }
 

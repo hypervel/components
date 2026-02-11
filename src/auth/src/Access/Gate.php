@@ -15,7 +15,7 @@ use Hypervel\Database\Eloquent\Attributes\UsePolicy;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use ReflectionClass;
 use ReflectionException;
 use ReflectionFunction;
@@ -450,11 +450,11 @@ class Gate implements GateContract
      */
     protected function dispatchGateEvaluatedEvent(?Authenticatable $user, string $ability, array $arguments, bool|Response|null $result): void
     {
-        if (! $this->container->has(EventDispatcherInterface::class)) {
+        if (! $this->container->has(Dispatcher::class)) {
             return;
         }
 
-        $this->container->get(EventDispatcherInterface::class)->dispatch(
+        $this->container->get(Dispatcher::class)->dispatch(
             new GateEvaluated($user, $ability, $result, $arguments)
         );
     }

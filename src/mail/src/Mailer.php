@@ -21,7 +21,7 @@ use Hypervel\Mail\Mailables\Address;
 use Hypervel\Support\HtmlString;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Symfony\Component\Mailer\Envelope;
 use Symfony\Component\Mailer\SentMessage as SymfonySentMessage;
 use Symfony\Component\Mailer\Transport\TransportInterface;
@@ -64,13 +64,13 @@ class Mailer implements MailerContract, MailQueueContract
      * @param string $name the name that is configured for the mailer
      * @param FactoryInterface $views the view factory instance
      * @param TransportInterface $transport the Symfony Transport instance
-     * @param null|EventDispatcherInterface $events the event dispatcher instance
+     * @param null|Dispatcher $events the event dispatcher instance
      */
     public function __construct(
         protected string $name,
         protected FactoryInterface $views,
         protected TransportInterface $transport,
-        protected ?EventDispatcherInterface $events = null
+        protected ?Dispatcher $events = null
     ) {
     }
 

@@ -18,7 +18,7 @@ use Pheanstalk\Values\Job;
 use Pheanstalk\Values\TubeList;
 use Pheanstalk\Values\TubeName;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactory;
 use Ramsey\Uuid\UuidFactoryInterface;
@@ -61,7 +61,7 @@ class QueueBeanstalkdQueueTest extends TestCase
         $this->queue->push('foo', ['data'], 'stack');
         $this->queue->push('foo', ['data']);
 
-        $this->container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->times(4);
+        $this->container->shouldHaveReceived('has')->with(Dispatcher::class)->times(4);
     }
 
     public function testDelayedPushProperlyPushesJobOntoBeanstalkd()
@@ -81,7 +81,7 @@ class QueueBeanstalkdQueueTest extends TestCase
         $this->queue->later(5, 'foo', ['data'], 'stack');
         $this->queue->later(5, 'foo', ['data']);
 
-        $this->container->shouldHaveReceived('has')->with(EventDispatcherInterface::class)->times(4);
+        $this->container->shouldHaveReceived('has')->with(Dispatcher::class)->times(4);
     }
 
     public function testPopProperlyPopsJobOffOfBeanstalkd()

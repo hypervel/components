@@ -20,7 +20,7 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Sleep;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Throwable;
 
 class ScheduleRunCommand extends Command
@@ -63,7 +63,7 @@ class ScheduleRunCommand extends Command
      */
     public function __construct(
         protected Schedule $schedule,
-        protected EventDispatcherInterface $dispatcher,
+        protected Dispatcher $dispatcher,
         protected CacheFactory $cache,
         protected ExceptionHandler $handler,
     ) {

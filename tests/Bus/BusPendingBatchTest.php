@@ -12,7 +12,7 @@ use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Support\Collection;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use RuntimeException;
 use TypeError;
 
@@ -43,10 +43,10 @@ class BusPendingBatchTest extends TestCase
     {
         $container = $this->getContainer();
 
-        $eventDispatcher = m::mock(EventDispatcherInterface::class);
+        $eventDispatcher = m::mock(Dispatcher::class);
         $eventDispatcher->shouldReceive('dispatch')->once();
 
-        $container->instance(EventDispatcherInterface::class, $eventDispatcher);
+        $container->instance(Dispatcher::class, $eventDispatcher);
 
         $job = new class {
             use Batchable;
@@ -109,9 +109,9 @@ class BusPendingBatchTest extends TestCase
     {
         $container = $this->getContainer();
 
-        $eventDispatcher = m::mock(EventDispatcherInterface::class);
+        $eventDispatcher = m::mock(Dispatcher::class);
         $eventDispatcher->shouldReceive('dispatch')->once();
-        $container->instance(EventDispatcherInterface::class, $eventDispatcher);
+        $container->instance(Dispatcher::class, $eventDispatcher);
 
         $job = new class {
             use Batchable;
@@ -134,9 +134,9 @@ class BusPendingBatchTest extends TestCase
     {
         $container = $this->getContainer();
 
-        $eventDispatcher = m::mock(EventDispatcherInterface::class);
+        $eventDispatcher = m::mock(Dispatcher::class);
         $eventDispatcher->shouldNotReceive('dispatch');
-        $container->instance(EventDispatcherInterface::class, $eventDispatcher);
+        $container->instance(Dispatcher::class, $eventDispatcher);
 
         $job = new class {
             use Batchable;
@@ -156,9 +156,9 @@ class BusPendingBatchTest extends TestCase
     {
         $container = $this->getContainer();
 
-        $eventDispatcher = m::mock(EventDispatcherInterface::class);
+        $eventDispatcher = m::mock(Dispatcher::class);
         $eventDispatcher->shouldReceive('dispatch')->once();
-        $container->instance(EventDispatcherInterface::class, $eventDispatcher);
+        $container->instance(Dispatcher::class, $eventDispatcher);
 
         $job = new class {
             use Batchable;
@@ -181,9 +181,9 @@ class BusPendingBatchTest extends TestCase
     {
         $container = $this->getContainer();
 
-        $eventDispatcher = m::mock(EventDispatcherInterface::class);
+        $eventDispatcher = m::mock(Dispatcher::class);
         $eventDispatcher->shouldNotReceive('dispatch');
-        $container->instance(EventDispatcherInterface::class, $eventDispatcher);
+        $container->instance(Dispatcher::class, $eventDispatcher);
 
         $job = new class {
             use Batchable;
@@ -203,10 +203,10 @@ class BusPendingBatchTest extends TestCase
     {
         $container = $this->getContainer();
 
-        $eventDispatcher = m::mock(EventDispatcherInterface::class);
+        $eventDispatcher = m::mock(Dispatcher::class);
         $eventDispatcher->shouldReceive('dispatch')->once();
 
-        $container->instance(EventDispatcherInterface::class, $eventDispatcher);
+        $container->instance(Dispatcher::class, $eventDispatcher);
 
         $job = new class {
             use Batchable;

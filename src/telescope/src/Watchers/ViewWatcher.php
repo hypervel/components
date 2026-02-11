@@ -12,7 +12,7 @@ use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\Traits\FormatsClosure;
 use Hypervel\View\Events\ViewRendered;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 class ViewWatcher extends Watcher
 {
@@ -26,7 +26,7 @@ class ViewWatcher extends Watcher
         $app->get('config')
             ->set('view.event.enable', true);
 
-        $app->get(EventDispatcherInterface::class)
+        $app->get(Dispatcher::class)
             ->listen(ViewRendered::class, [$this, 'recordAction']);
     }
 

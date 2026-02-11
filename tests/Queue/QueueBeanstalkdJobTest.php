@@ -15,7 +15,7 @@ use Pheanstalk\Contract\PheanstalkPublisherInterface;
 use Pheanstalk\Contract\PheanstalkSubscriberInterface;
 use Pheanstalk\Pheanstalk;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use stdClass;
 
 /**
@@ -41,7 +41,7 @@ class QueueBeanstalkdJobTest extends TestCase
         $job->getContainer()->shouldReceive('get')->once()->with('foo')->andReturn($handler = m::mock(BeanstalkdJobTestFailedTest::class));
         $job->getPheanstalk()->shouldReceive('delete')->once()->with($job->getPheanstalkJob())->andReturnSelf();
         $handler->shouldReceive('failed')->once()->with(['data'], m::type(Exception::class), 'test-uuid');
-        $job->getContainer()->shouldReceive('get')->once()->with(EventDispatcherInterface::class)->andReturn($events = m::mock(EventDispatcherInterface::class));
+        $job->getContainer()->shouldReceive('get')->once()->with(Dispatcher::class)->andReturn($events = m::mock(Dispatcher::class));
         $events->shouldReceive('dispatch')->once()->with(m::type(JobFailed::class))->andReturnNull();
 
         $job->fail(new Exception());

@@ -18,7 +18,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 use const JSON_UNESCAPED_UNICODE;
 
@@ -322,10 +322,10 @@ abstract class Queue
      */
     protected function raiseJobQueueingEvent(?string $queue, object|string $job, string $payload, DateInterval|DateTimeInterface|int|null $delay): void
     {
-        if ($this->container->has(EventDispatcherInterface::class)) {
+        if ($this->container->has(Dispatcher::class)) {
             $delay = ! is_null($delay) ? $this->secondsUntil($delay) : $delay;
 
-            $this->container->get(EventDispatcherInterface::class)
+            $this->container->get(Dispatcher::class)
                 ->dispatch(new JobQueueing($this->connectionName, $queue, $job, $payload, $delay));
         }
     }
@@ -337,10 +337,10 @@ abstract class Queue
      */
     protected function raiseJobQueuedEvent(?string $queue, mixed $jobId, object|string $job, string $payload, DateInterval|DateTimeInterface|int|null $delay): void
     {
-        if ($this->container->has(EventDispatcherInterface::class)) {
+        if ($this->container->has(Dispatcher::class)) {
             $delay = ! is_null($delay) ? $this->secondsUntil($delay) : $delay;
 
-            $this->container->get(EventDispatcherInterface::class)
+            $this->container->get(Dispatcher::class)
                 ->dispatch(new JobQueued($this->connectionName, $queue, $jobId, $job, $payload, $delay));
         }
     }

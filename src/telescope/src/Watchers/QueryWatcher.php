@@ -11,7 +11,7 @@ use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\Traits\FetchesStackTrace;
 use PDO;
 use PDOException;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 class QueryWatcher extends Watcher
 {
@@ -22,7 +22,7 @@ class QueryWatcher extends Watcher
      */
     public function register(Container $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->get(Dispatcher::class)
             ->listen(QueryExecuted::class, [$this, 'recordQuery']);
     }
 

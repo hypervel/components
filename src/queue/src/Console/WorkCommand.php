@@ -20,7 +20,7 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Symfony\Component\Console\Terminal;
 use Throwable;
 
@@ -164,7 +164,7 @@ class WorkCommand extends Command
             return;
         }
 
-        $event = $this->container->get(EventDispatcherInterface::class);
+        $event = $this->container->get(Dispatcher::class);
         $event->listen(JobProcessing::class, function ($event) {
             $this->writeOutput($event->job, 'starting');
         });

@@ -19,7 +19,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use Mockery\MockInterface;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Redis;
 
 /**
@@ -87,9 +87,9 @@ class CacheManagerTest extends TestCase
         ];
 
         $app = $this->getApp($userConfig);
-        $app->shouldReceive('has')->with(EventDispatcherInterface::class)->once()->andReturnFalse();
-        $app->shouldReceive('has')->with(EventDispatcherInterface::class)->once()->andReturnTrue();
-        $app->shouldReceive('get')->with(EventDispatcherInterface::class)->once()->andReturn($eventDispatcher = m::mock(EventDispatcherInterface::class));
+        $app->shouldReceive('has')->with(Dispatcher::class)->once()->andReturnFalse();
+        $app->shouldReceive('has')->with(Dispatcher::class)->once()->andReturnTrue();
+        $app->shouldReceive('get')->with(Dispatcher::class)->once()->andReturn($eventDispatcher = m::mock(Dispatcher::class));
 
         $cacheManager = new CacheManager($app);
         $repo = $cacheManager->repository($theStore = new NullStore(), ['events' => true]);
@@ -125,9 +125,9 @@ class CacheManagerTest extends TestCase
         ];
 
         $app = $this->getApp($userConfig);
-        $app->shouldReceive('has')->with(EventDispatcherInterface::class)->twice()->andReturnFalse();
-        $app->shouldReceive('has')->with(EventDispatcherInterface::class)->twice()->andReturnTrue();
-        $app->shouldReceive('get')->with(EventDispatcherInterface::class)->twice()->andReturn($eventDispatcher = m::mock(EventDispatcherInterface::class));
+        $app->shouldReceive('has')->with(Dispatcher::class)->twice()->andReturnFalse();
+        $app->shouldReceive('has')->with(Dispatcher::class)->twice()->andReturnTrue();
+        $app->shouldReceive('get')->with(Dispatcher::class)->twice()->andReturn($eventDispatcher = m::mock(Dispatcher::class));
 
         $cacheManager = new CacheManager($app);
         $repo1 = $cacheManager->store('store_1');
@@ -183,7 +183,7 @@ class CacheManagerTest extends TestCase
         ];
 
         $app = $this->getApp($userConfig);
-        $app->shouldReceive('has')->with(EventDispatcherInterface::class)->andReturnFalse();
+        $app->shouldReceive('has')->with(Dispatcher::class)->andReturnFalse();
 
         $cacheManager = new CacheManager($app);
 
@@ -431,7 +431,7 @@ class CacheManagerTest extends TestCase
         $redisFactory = m::mock(RedisFactory::class);
 
         $app->shouldReceive('get')->with(RedisFactory::class)->andReturn($redisFactory);
-        $app->shouldReceive('has')->with(EventDispatcherInterface::class)->andReturnFalse();
+        $app->shouldReceive('has')->with(Dispatcher::class)->andReturnFalse();
 
         // Override make() to return our mocked PoolFactory
         // Since make() uses container internally, we need to handle this

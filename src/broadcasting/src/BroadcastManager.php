@@ -28,7 +28,7 @@ use Hypervel\Foundation\Http\Middleware\VerifyCsrfToken;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Redis\RedisFactory;
 use InvalidArgumentException;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
 use Psr\Log\LoggerInterface;
 use Pusher\Pusher;
 
@@ -162,7 +162,7 @@ class BroadcastManager implements BroadcastingFactoryContract
     public function event(mixed $event = null): PendingBroadcast
     {
         return new PendingBroadcast(
-            $this->app->get(EventDispatcherInterface::class),
+            $this->app->get(EventDispatcher::class),
             $event,
         );
     }

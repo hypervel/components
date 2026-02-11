@@ -9,7 +9,7 @@ use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Pool\Event\ReleaseConnection;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Throwable;
 
 /**
@@ -24,7 +24,7 @@ abstract class Connection implements ConnectionInterface
 
     protected float $lastReleaseTime = 0.0;
 
-    private ?EventDispatcherInterface $dispatcher = null;
+    private ?Dispatcher $dispatcher = null;
 
     private ?StdoutLoggerInterface $logger = null;
 
@@ -32,8 +32,8 @@ abstract class Connection implements ConnectionInterface
         protected Container $container,
         protected PoolInterface $pool
     ) {
-        if ($this->container->has(EventDispatcherInterface::class)) {
-            $this->dispatcher = $this->container->get(EventDispatcherInterface::class);
+        if ($this->container->has(Dispatcher::class)) {
+            $this->dispatcher = $this->container->get(Dispatcher::class);
         }
 
         if ($this->container->has(StdoutLoggerInterface::class)) {

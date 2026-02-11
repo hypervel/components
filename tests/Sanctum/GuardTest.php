@@ -16,7 +16,7 @@ use Hypervel\Support\Facades\Route;
 use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Sanctum\Stub\TestUser;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal
@@ -277,7 +277,7 @@ class GuardTest extends TestCase
         $tokenAuthenticatedFired = false;
 
         // Get the real event dispatcher
-        $realDispatcher = $this->app->get(EventDispatcherInterface::class);
+        $realDispatcher = $this->app->get(Dispatcher::class);
 
         // Create a partial mock that delegates to the real dispatcher
         $events = m::mock($realDispatcher);
@@ -293,7 +293,7 @@ class GuardTest extends TestCase
                 return $realDispatcher->dispatch($event);
             });
 
-        $this->app->instance(EventDispatcherInterface::class, $events);
+        $this->app->instance(Dispatcher::class, $events);
 
         [$user, $token, $plainToken] = $this->createUserWithToken();
 

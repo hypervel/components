@@ -8,7 +8,7 @@ use Hypervel\Bus\Events\BatchDispatched;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 class BatchWatcher extends Watcher
 {
@@ -17,7 +17,7 @@ class BatchWatcher extends Watcher
      */
     public function register(Container $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->get(Dispatcher::class)
             ->listen(BatchDispatched::class, [$this, 'recordBatch']);
     }
 

@@ -23,7 +23,6 @@ use Hypervel\Foundation\Http\Contracts\MiddlewareContract;
 use Hypervel\Foundation\Http\HtmlDumper;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Uri;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Output\ConsoleOutputInterface;
 use Symfony\Component\VarDumper\Caster\StubCaster;
@@ -76,7 +75,7 @@ class FoundationServiceProvider extends ServiceProvider
 
     protected function listenCommandException(): void
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->get(Dispatcher::class)
             ->listen(FailToHandle::class, function ($event) {
                 if ($this->isConsoleKernelCall($throwable = $event->getThrowable())) {
                     $this->app->get(ConsoleKernel::class)

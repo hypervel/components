@@ -7,7 +7,7 @@ namespace Hypervel\Tests\Telescope\Watchers;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\EventWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use ReflectionMethod;
 use Telescope\Dummies\DummyEvent;
 use Telescope\Dummies\DummyEventListener;
@@ -41,7 +41,7 @@ class EventWatcherTest extends FeatureTestCase
 
     public function testEventWatcherRegistersAnyEvents()
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->get(Dispatcher::class)
             ->dispatch(new DummyEvent());
 
         $entry = $this->loadTelescopeEntries()->first();
@@ -52,7 +52,7 @@ class EventWatcherTest extends FeatureTestCase
 
     public function testEventWatcherStoresPayloads()
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->get(Dispatcher::class)
             ->dispatch(new DummyEvent('Telescope', 'Laravel', 'PHP'));
 
         $entry = $this->loadTelescopeEntries()->first();
@@ -67,7 +67,7 @@ class EventWatcherTest extends FeatureTestCase
 
     public function testEventWatcherWithObjectPropertyCallsFormatForTelescopeMethodIfItExists()
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->get(Dispatcher::class)
             ->dispatch(new DummyEventWithObject());
 
         $entry = $this->loadTelescopeEntries()->first();
@@ -83,7 +83,7 @@ class EventWatcherTest extends FeatureTestCase
 
     public function testEventWatcherIgnoreEvent()
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->get(Dispatcher::class)
             ->dispatch(new IgnoredEvent());
 
         $entry = $this->loadTelescopeEntries()->first();
@@ -98,7 +98,7 @@ class EventWatcherTest extends FeatureTestCase
      */
     public function testFormatListeners($listener, $formatted)
     {
-        $this->app->get(EventDispatcherInterface::class)
+        $this->app->get(Dispatcher::class)
             ->listen(DummyEvent::class, $listener);
 
         $method = new ReflectionMethod(EventWatcher::class, 'formatListeners');

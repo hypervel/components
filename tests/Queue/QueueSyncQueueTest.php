@@ -18,7 +18,7 @@ use Hypervel\Queue\SyncQueue;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
 
 /**
  * @internal
@@ -48,9 +48,9 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue();
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $events = m::mock(EventDispatcherInterface::class);
+        $events = m::mock(EventDispatcher::class);
         $events->shouldReceive('dispatch')->times(3);
-        $container->instance(EventDispatcherInterface::class, $events);
+        $container->instance(EventDispatcher::class, $events);
         $sync->setContainer($container);
 
         try {
@@ -65,9 +65,9 @@ class QueueSyncQueueTest extends TestCase
         $sync = new SyncQueue();
         $sync->setConnectionName('sync');
         $container = $this->getContainer();
-        $events = m::mock(EventDispatcherInterface::class);
+        $events = m::mock(EventDispatcher::class);
         $events->shouldReceive('dispatch');
-        $container->instance(EventDispatcherInterface::class, $events);
+        $container->instance(EventDispatcher::class, $events);
         $dispatcher = m::mock(Dispatcher::class);
         $dispatcher->shouldReceive('getCommandHandler')->once()->andReturn(false);
         $dispatcher->shouldReceive('dispatchNow')->once();

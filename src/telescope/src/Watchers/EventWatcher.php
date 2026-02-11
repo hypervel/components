@@ -14,7 +14,7 @@ use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\Traits\FormatsClosure;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use ReflectionFunction;
 
 class EventWatcher extends Watcher
@@ -26,7 +26,7 @@ class EventWatcher extends Watcher
      */
     public function register(Container $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->get(Dispatcher::class)
             ->listen('*', [$this, 'recordEvent']);
     }
 
@@ -82,7 +82,7 @@ class EventWatcher extends Watcher
     protected function formatListeners(string $eventName): array
     {
         /* @phpstan-ignore-next-line */
-        return Collection::make(app(EventDispatcherInterface::class)->getListeners($eventName))
+        return Collection::make(app(Dispatcher::class)->getListeners($eventName))
             ->map(function ($listener) {
                 $listener = (new ReflectionFunction($listener))
                     ->getStaticVariables()['listener'];

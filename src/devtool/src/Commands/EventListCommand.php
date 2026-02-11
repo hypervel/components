@@ -7,8 +7,7 @@ namespace Hypervel\Devtool\Commands;
 use Closure;
 use Hyperf\Command\Command as HyperfCommand;
 use Hypervel\Contracts\Container\Container;
-use Hypervel\Contracts\Event\Dispatcher as EventDispatcherContract;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Symfony\Component\Console\Helper\Table;
 use Symfony\Component\Console\Helper\TableSeparator;
 use Symfony\Component\Console\Input\InputOption;
@@ -29,8 +28,7 @@ class EventListCommand extends HyperfCommand
         $eventFilter = $this->input->getOption('event');
         $listenerFilter = $this->input->getOption('listener');
 
-        /** @var EventDispatcherContract $dispatcher */
-        $dispatcher = $this->container->get(EventDispatcherInterface::class);
+        $dispatcher = $this->container->get(Dispatcher::class);
 
         $this->show($this->handleData($dispatcher, $eventFilter, $listenerFilter), $this->output);
     }
@@ -45,13 +43,9 @@ class EventListCommand extends HyperfCommand
     /**
      * Process raw listeners into display format.
      */
-    protected function handleData(EventDispatcherInterface $dispatcher, ?string $eventFilter, ?string $listenerFilter): array
+    protected function handleData(Dispatcher $dispatcher, ?string $eventFilter, ?string $listenerFilter): array
     {
         $data = [];
-
-        if (! $dispatcher instanceof EventDispatcherContract) {
-            return $data;
-        }
 
         foreach ($dispatcher->getRawListeners() as $event => $rawListeners) {
             if (! is_array($rawListeners)) {

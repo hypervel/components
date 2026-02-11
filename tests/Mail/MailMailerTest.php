@@ -15,7 +15,7 @@ use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Support\HtmlString;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal
@@ -291,7 +291,7 @@ class MailMailerTest extends TestCase
     {
         $view = $this->mockView();
 
-        $events = m::mock(EventDispatcherInterface::class);
+        $events = m::mock(Dispatcher::class);
         $events->shouldReceive('dispatch')->once()->with(m::type(MessageSending::class));
         $events->shouldReceive('dispatch')->once()->with(m::type(MessageSent::class));
 

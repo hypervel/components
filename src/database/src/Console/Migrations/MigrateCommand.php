@@ -9,7 +9,7 @@ use Hypervel\Contracts\Console\Isolatable;
 use Hypervel\Database\Connection;
 use Hypervel\Database\Events\SchemaLoaded;
 use Hypervel\Database\Migrations\Migrator;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Throwable;
 
 class MigrateCommand extends BaseCommand implements Isolatable
@@ -32,7 +32,7 @@ class MigrateCommand extends BaseCommand implements Isolatable
 
     public function __construct(
         protected Migrator $migrator,
-        protected EventDispatcherInterface $dispatcher
+        protected Dispatcher $dispatcher
     ) {
         parent::__construct();
     }

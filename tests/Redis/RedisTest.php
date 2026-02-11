@@ -19,7 +19,7 @@ use Hypervel\Redis\RedisFactory;
 use Hypervel\Redis\RedisProxy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Redis as PhpRedis;
 use RedisCluster;
 use RedisSentinel;
@@ -311,7 +311,7 @@ class RedisTest extends TestCase
 
     public function testEventDispatchedOnSuccess(): void
     {
-        $mockEventDispatcher = m::mock(EventDispatcherInterface::class);
+        $mockEventDispatcher = m::mock(Dispatcher::class);
         $mockEventDispatcher->shouldReceive('dispatch')
             ->once()
             ->with(m::on(function (CommandExecuted $event) {
@@ -333,7 +333,7 @@ class RedisTest extends TestCase
     {
         $expectedException = new Exception('Redis error');
 
-        $mockEventDispatcher = m::mock(EventDispatcherInterface::class);
+        $mockEventDispatcher = m::mock(Dispatcher::class);
         $mockEventDispatcher->shouldReceive('dispatch')
             ->once()
             ->with(m::on(function (CommandExecuted $event) use ($expectedException) {
@@ -675,7 +675,7 @@ class RedisTest extends TestCase
         string $command = 'get',
         mixed $returnValue = 'value',
         ?Throwable $exception = null,
-        ?EventDispatcherInterface $eventDispatcher = null
+        ?Dispatcher $eventDispatcher = null
     ): RedisConnection&m\MockInterface {
         $mockPhpRedis = m::mock(PhpRedis::class);
 

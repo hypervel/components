@@ -16,7 +16,7 @@ use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Telescope\Contracts\EntriesRepository;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 trait ListensForStorageOpportunities
 {
@@ -62,7 +62,7 @@ trait ListensForStorageOpportunities
      */
     public static function recordEntriesForRequests(Container $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->get(Dispatcher::class)
             ->listen(RequestReceived::class, function ($event) use ($app) {
                 if (static::shouldListen()
                     && static::requestIsToApprovedUri($app->get(RequestContract::class))
@@ -77,7 +77,7 @@ trait ListensForStorageOpportunities
      */
     public static function manageRecordingStateForCommands(Container $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->get(Dispatcher::class)
             ->listen(BeforeHandleCommand::class, function () {
                 if (static::shouldListen()
                     && static::runningApprovedArtisanCommand()
@@ -85,7 +85,7 @@ trait ListensForStorageOpportunities
                     static::startRecording();
                 }
             });
-        $app->get(EventDispatcherInterface::class)
+        $app->get(Dispatcher::class)
             ->listen(AfterExecuteCommand::class, function () use ($app) {
                 static::store(
                     $app->get(EntriesRepository::class)
@@ -132,7 +132,7 @@ trait ListensForStorageOpportunities
      */
     protected static function storeEntriesAfterWorkerLoop(Container $app): void
     {
-        $event = $app->get(EventDispatcherInterface::class);
+        $event = $app->get(Dispatcher::class);
         $event->listen(JobProcessing::class, function ($event) {
             if (static::shouldListen() && $event->connectionName !== 'sync') {
                 static::startRecording();

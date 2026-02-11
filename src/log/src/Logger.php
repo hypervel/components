@@ -9,7 +9,7 @@ use Hypervel\Context\Context;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Log\Events\MessageLogged;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Stringable;
@@ -21,7 +21,7 @@ class Logger implements LoggerInterface
      */
     public function __construct(
         protected LoggerInterface $logger,
-        protected ?EventDispatcherInterface $dispatcher = null
+        protected ?Dispatcher $dispatcher = null
     ) {
     }
 
@@ -241,7 +241,7 @@ class Logger implements LoggerInterface
     /**
      * Get the event dispatcher instance.
      */
-    public function getEventDispatcher(): EventDispatcherInterface
+    public function getEventDispatcher(): Dispatcher
     {
         return $this->dispatcher;
     }
@@ -251,7 +251,7 @@ class Logger implements LoggerInterface
      *
      * @return $this
      */
-    public function setEventDispatcher(EventDispatcherInterface $dispatcher): self
+    public function setEventDispatcher(Dispatcher $dispatcher): self
     {
         $this->dispatcher = $dispatcher;
 

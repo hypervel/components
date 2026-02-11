@@ -12,7 +12,7 @@ use Hypervel\Telescope\FormatModel;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Storage\EntryModel;
 use Hypervel\Telescope\Telescope;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 class ModelWatcher extends Watcher
 {
@@ -42,7 +42,7 @@ class ModelWatcher extends Watcher
      */
     public function register(Container $app): void
     {
-        $app->get(EventDispatcherInterface::class)
+        $app->get(Dispatcher::class)
             ->listen('eloquent.*', [$this, 'recordAction']);
 
         Telescope::afterStoring(function () {

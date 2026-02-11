@@ -10,7 +10,7 @@ use Hypervel\Contracts\Queue\Factory;
 use Hypervel\Queue\Events\QueueBusy;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 
 class MonitorCommand extends Command
 {
@@ -38,7 +38,7 @@ class MonitorCommand extends Command
      */
     public function __construct(
         protected Factory $manager,
-        protected EventDispatcherInterface $events,
+        protected Dispatcher $events,
         protected Repository $config,
     ) {
         parent::__construct();

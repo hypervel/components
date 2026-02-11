@@ -20,7 +20,7 @@ use Hypervel\Contracts\Console\Kernel as KernelContract;
 use Hypervel\Contracts\Foundation\Application as ContainerContract;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Str;
-use Psr\EventDispatcher\EventDispatcherInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Symfony\Component\Console\Command\Command as SymfonyCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -72,7 +72,7 @@ class Kernel implements KernelContract
 
     public function __construct(
         protected ContainerContract $app,
-        protected EventDispatcherInterface $events
+        protected Dispatcher $events
     ) {
         if (! defined('ARTISAN_BINARY')) {
             define('ARTISAN_BINARY', 'artisan');
