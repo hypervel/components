@@ -8,7 +8,7 @@ use Hyperf\Command\Command as HyperfCommand;
 use Hyperf\Command\Concerns\NullDisableEventDispatcher;
 use Hyperf\Watcher\Option;
 use Hyperf\Watcher\Watcher;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Symfony\Component\Console\Input\InputOption;
 
 use function Hyperf\Support\make;
@@ -17,7 +17,7 @@ class WatchCommand extends HyperfCommand
 {
     use NullDisableEventDispatcher;
 
-    public function __construct(protected ContainerInterface $container)
+    public function __construct(protected Container $container)
     {
         parent::__construct('watch');
         $this->setDescription('A hot-reload watcher command for restarting server when files changed.');
