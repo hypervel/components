@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Hashing;
 
-use Hyperf\Contract\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Hashing\Argon2IdHasher;
 use Hypervel\Hashing\ArgonHasher;
@@ -128,7 +128,7 @@ class HasherTest extends TestCase
 
     protected function getContainer()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('get')
             ->with('config')
             ->andReturn($config = new ConfigRepository([
