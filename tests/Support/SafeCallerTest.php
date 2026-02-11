@@ -8,7 +8,7 @@ use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Support\SafeCaller;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use RuntimeException;
 
 /**
@@ -19,7 +19,7 @@ class SafeCallerTest extends TestCase
 {
     public function testCallReturnsClosureResult()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $caller = new SafeCaller($container);
 
         $result = $caller->call(fn () => 'hello');
@@ -34,7 +34,7 @@ class SafeCallerTest extends TestCase
         $handler = m::mock(ExceptionHandlerContract::class);
         $handler->shouldReceive('report')->once()->with($exception);
 
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturnTrue();
         $container->shouldReceive('get')->with(ExceptionHandlerContract::class)->andReturn($handler);
 
@@ -49,7 +49,7 @@ class SafeCallerTest extends TestCase
         $handler = m::mock(ExceptionHandlerContract::class);
         $handler->shouldReceive('report')->once();
 
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturnTrue();
         $container->shouldReceive('get')->with(ExceptionHandlerContract::class)->andReturn($handler);
 
@@ -64,7 +64,7 @@ class SafeCallerTest extends TestCase
 
     public function testCallWithoutExceptionHandlerInContainer()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturnFalse();
 
         $caller = new SafeCaller($container);
@@ -78,7 +78,7 @@ class SafeCallerTest extends TestCase
         $handler = m::mock(ExceptionHandlerContract::class);
         $handler->shouldReceive('report')->once();
 
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('has')->with(ExceptionHandlerContract::class)->andReturnTrue();
         $container->shouldReceive('get')->with(ExceptionHandlerContract::class)->andReturn($handler);
 

@@ -6,12 +6,12 @@ namespace Hypervel\Support;
 
 use Closure;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Throwable;
 
 class SafeCaller
 {
-    public function __construct(private ContainerInterface $container)
+    public function __construct(private Container $container)
     {
     }
 

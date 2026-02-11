@@ -16,7 +16,7 @@ use Hypervel\Queue\QueueManager;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\ReflectsClosures;
 use PHPUnit\Framework\Assert as PHPUnit;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class QueueFake extends QueueManager implements Fake, Queue
 {
@@ -50,7 +50,7 @@ class QueueFake extends QueueManager implements Fake, Queue
     /**
      * Create a new fake queue instance.
      */
-    public function __construct(ContainerInterface $app, array $jobsToFake = [], ?FactoryContract $queue = null)
+    public function __construct(Container $app, array $jobsToFake = [], ?FactoryContract $queue = null)
     {
         parent::__construct($app);
 

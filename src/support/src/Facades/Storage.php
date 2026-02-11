@@ -28,7 +28,7 @@ use function Hypervel\Support\enum_value;
  * @method static \Hypervel\Filesystem\FilesystemManager forgetDisk(array|string $disk)
  * @method static void purge(string|null $name = null)
  * @method static \Hypervel\Filesystem\FilesystemManager extend(string $driver, \Closure $callback, bool $poolable = false)
- * @method static \Hypervel\Filesystem\FilesystemManager setApplication(\Psr\Container\ContainerInterface $app)
+ * @method static \Hypervel\Filesystem\FilesystemManager setApplication(\Hypervel\Contracts\Container\Container $app)
  * @method static \Hypervel\Filesystem\FilesystemManager setReleaseCallback(string $driver, \Closure $callback)
  * @method static \Closure|null getReleaseCallback(string $driver)
  * @method static \Hypervel\Filesystem\FilesystemManager addPoolable(string $driver)

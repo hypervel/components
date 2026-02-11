@@ -6,11 +6,11 @@ namespace Hypervel\Support\Traits;
 
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 trait HasLaravelStyleCommand
 {
-    protected ContainerInterface $app;
+    protected Container $app;
 
     public function __construct(?string $name = null)
     {

@@ -20,7 +20,7 @@ use Hypervel\Contracts\Auth\Guard;
  * @method static \Closure userResolver()
  * @method static \Hypervel\Auth\AuthManager resolveUsersUsing(\Closure $userResolver)
  * @method static array getGuards()
- * @method static \Hypervel\Auth\AuthManager setApplication(\Psr\Container\ContainerInterface $app)
+ * @method static \Hypervel\Auth\AuthManager setApplication(\Hypervel\Contracts\Container\Container $app)
  * @method static \Hypervel\Contracts\Auth\UserProvider|null createUserProvider(string|null $provider = null)
  * @method static string getDefaultUserProvider()
  * @method static bool check()

@@ -16,7 +16,7 @@ use Hypervel\Contracts\Cache\Factory;
  * @method static \Hypervel\Cache\CacheManager forgetDriver(array|string|null $name = null)
  * @method static void purge(string|null $name = null)
  * @method static \Hypervel\Cache\CacheManager extend(string $driver, \Closure $callback)
- * @method static \Hypervel\Cache\CacheManager setApplication(\Psr\Container\ContainerInterface $app)
+ * @method static \Hypervel\Cache\CacheManager setApplication(\Hypervel\Contracts\Container\Container $app)
  * @method static mixed pull(string $key, \Closure|mixed $default = null)
  * @method static bool put(array|string $key, mixed $value, \DateInterval|\DateTimeInterface|int|null $ttl = null)
  * @method static bool add(string $key, mixed $value, \DateInterval|\DateTimeInterface|int|null $ttl = null)

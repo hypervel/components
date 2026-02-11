@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Support;
 
-use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Config\Repository;
 use Hypervel\Container\Container;
 use Hypervel\Support\Fluent;
@@ -21,7 +20,7 @@ class SupportCapsuleManagerTraitTest extends TestCase
 
     public function testSetupContainerForCapsule()
     {
-        $app = new Container(new DefinitionSource([]));
+        $app = new Container();
 
         $this->setupContainer($app);
         $this->assertEquals($app, $this->getContainer());
@@ -30,7 +29,7 @@ class SupportCapsuleManagerTraitTest extends TestCase
 
     public function testSetupContainerForCapsuleWhenConfigIsBound()
     {
-        $app = new Container(new DefinitionSource([]));
+        $app = new Container();
         $app['config'] = new Repository([]);
 
         $this->setupContainer($app);
