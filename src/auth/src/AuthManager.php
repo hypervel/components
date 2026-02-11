@@ -19,6 +19,9 @@ use Hypervel\Contracts\Session\Session as SessionContract;
 use Hypervel\JWT\JWTManager;
 use InvalidArgumentException;
 
+/**
+ * @method null|\Hypervel\Contracts\Auth\Authenticatable user()
+ */
 class AuthManager implements AuthFactoryContract
 {
     use CreatesUserProviders;
