@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Sentry;
 
+use Hypervel\Context\ApplicationContext;
 use Sentry\State\HubInterface;
-
-use function Hyperf\Support\make;
 
 /**
  * @see SentrySdk
@@ -28,7 +27,7 @@ class SentrySdk
     public static function init(): HubInterface
     {
         if (is_null(static::$hub)) {
-            static::$hub = make(HubInterface::class);
+            static::$hub = ApplicationContext::getContainer()->make(HubInterface::class);
         }
 
         return static::$hub;
