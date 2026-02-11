@@ -6,12 +6,12 @@ namespace Hypervel\Queue;
 
 use Hypervel\Contracts\Debug\ExceptionHandler;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Throwable;
 
 class QueueManagerFactory
 {
-    public function __invoke(ContainerInterface $container): QueueManager
+    public function __invoke(Container $container): QueueManager
     {
         $manager = new QueueManager($container);
         if (! $container->has(ExceptionHandler::class)) {

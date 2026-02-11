@@ -9,7 +9,7 @@ use Hypervel\Queue\Jobs\SqsJob;
 use Hypervel\Queue\SqsQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use stdClass;
 
 /**
@@ -70,7 +70,7 @@ class QueueSqsJobTest extends TestCase
         $this->mockedSqsClient = m::mock(SqsClient::class)->makePartial();
 
         // Use Mockery to mock the IoC Container
-        $this->mockedContainer = m::mock(ContainerInterface::class);
+        $this->mockedContainer = m::mock(Container::class);
 
         $this->mockedJob = 'foo';
         $this->mockedData = ['data'];

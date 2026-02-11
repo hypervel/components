@@ -17,7 +17,7 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 use const JSON_UNESCAPED_UNICODE;
@@ -29,7 +29,7 @@ abstract class Queue
     /**
      * The IoC container instance.
      */
-    protected ContainerInterface $container;
+    protected Container $container;
 
     /**
      * The connection name for the queue.
@@ -384,7 +384,7 @@ abstract class Queue
     /**
      * Get the container instance being used by the connection.
      */
-    public function getContainer(): ContainerInterface
+    public function getContainer(): Container
     {
         return $this->container;
     }
@@ -392,7 +392,7 @@ abstract class Queue
     /**
      * Set the IoC container instance.
      */
-    public function setContainer(ContainerInterface $container): static
+    public function setContainer(Container $container): static
     {
         $this->container = $container;
 

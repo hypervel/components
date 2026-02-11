@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Queue\Jobs;
 
 use Hypervel\Queue\RedisQueue;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class RedisJob extends Job
 {
@@ -18,7 +18,7 @@ class RedisJob extends Job
      * Create a new job instance.
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected RedisQueue $redis,
         protected string $job,
         protected string $reserved,

@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Exception;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
+use Hypervel\Container\Container;
 use Hypervel\Contracts\Queue\QueueableEntity;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\DatabaseTransactionsManager;
@@ -94,9 +93,7 @@ class QueueDeferQueueTest extends TestCase
 
     protected function getContainer(): Container
     {
-        return new Container(
-            new DefinitionSource([])
-        );
+        return new Container();
     }
 }
 

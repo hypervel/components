@@ -19,7 +19,7 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Symfony\Component\Console\Terminal;
 use Throwable;
@@ -74,7 +74,7 @@ class WorkCommand extends Command
      * Create a new queue work command.
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected Repository $config,
         protected Worker $worker,
         protected CacheFactory $cache

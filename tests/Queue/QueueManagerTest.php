@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Encryption\Encrypter;
 use Hypervel\Contracts\Queue\Queue;
@@ -105,13 +105,11 @@ class QueueManagerTest extends TestCase
 
     protected function getContainer(): Container
     {
-        $container = new Container(
-            new DefinitionSource([
-                'config' => fn () => new ConfigRepository([]),
-                Encrypter::class => fn () => m::mock(Encrypter::class),
-                PoolFactory::class => PoolManager::class,
-            ])
-        );
+        $container = new Container();
+        $container->instance(ContainerContract::class, $container);
+        $container->instance('config', new ConfigRepository([]));
+        $container->instance(Encrypter::class, m::mock(Encrypter::class));
+        $container->singleton(PoolFactory::class, PoolManager::class);
 
         ApplicationContext::setContainer($container);
 

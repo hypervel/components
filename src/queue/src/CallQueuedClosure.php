@@ -10,7 +10,7 @@ use Hypervel\Bus\Dispatchable;
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Laravel\SerializableClosure\SerializableClosure;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use ReflectionFunction;
 use Throwable;
 
@@ -51,7 +51,7 @@ class CallQueuedClosure implements ShouldQueue
     /**
      * Execute the job.
      */
-    public function handle(ContainerInterface $container): void
+    public function handle(Container $container): void
     {
         if (! method_exists($container, 'call')) {
             ($this->closure->getClosure())($this);

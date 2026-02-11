@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Cache\RateLimiter;
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
@@ -92,11 +91,8 @@ class RateLimitedTest extends TestCase
     {
         $limiter = m::mock(RateLimiter::class);
 
-        $container = new Container(
-            new DefinitionSource([
-                RateLimiter::class => fn () => $limiter,
-            ])
-        );
+        $container = new Container();
+        $container->instance(RateLimiter::class, $limiter);
 
         ApplicationContext::setContainer($container);
 

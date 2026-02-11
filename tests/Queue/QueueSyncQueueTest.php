@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Exception;
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
+use Hypervel\Container\Container;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Queue\QueueableEntity;
 use Hypervel\Contracts\Queue\ShouldQueue;
@@ -115,9 +115,10 @@ class QueueSyncQueueTest extends TestCase
 
     protected function getContainer(): Container
     {
-        return new Container(
-            new DefinitionSource([])
-        );
+        $container = new Container();
+        $container->instance(ContainerContract::class, $container);
+
+        return $container;
     }
 }
 

@@ -17,7 +17,7 @@ use Pheanstalk\Values\Job;
 use Pheanstalk\Values\TubeList;
 use Pheanstalk\Values\TubeName;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactory;
@@ -35,7 +35,7 @@ class QueueBeanstalkdQueueTest extends TestCase
     private $queue;
 
     /**
-     * @var ContainerInterface
+     * @var Container
      */
     private $container;
 
@@ -142,7 +142,7 @@ class QueueBeanstalkdQueueTest extends TestCase
             $blockFor
         );
         $this->queue->setConnectionName('beanstalkd');
-        $this->container = m::spy(ContainerInterface::class);
+        $this->container = m::spy(Container::class);
         $this->queue->setContainer($this->container);
     }
 }

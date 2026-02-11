@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
-use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Bus\PendingDispatch;
 use Hypervel\Bus\Queueable;
 use Hypervel\Container\Container;
@@ -55,11 +54,8 @@ class QueueDelayTest extends TestCase
     {
         $event = m::mock(Dispatcher::class);
         $event->shouldReceive('dispatch');
-        $container = new Container(
-            new DefinitionSource([
-                Dispatcher::class => fn () => $event,
-            ])
-        );
+        $container = new Container();
+        $container->instance(Dispatcher::class, $event);
 
         ApplicationContext::setContainer($container);
     }

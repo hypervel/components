@@ -8,7 +8,7 @@ use Hypervel\Queue\Jobs\RedisJob;
 use Hypervel\Queue\RedisQueue;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use stdClass;
 
 /**
@@ -47,7 +47,7 @@ class QueueRedisJobTest extends TestCase
     protected function getJob()
     {
         return new RedisJob(
-            m::mock(ContainerInterface::class),
+            m::mock(Container::class),
             m::mock(RedisQueue::class),
             json_encode(['job' => 'foo', 'data' => ['data'], 'attempts' => 1]),
             json_encode(['job' => 'foo', 'data' => ['data'], 'attempts' => 2]),

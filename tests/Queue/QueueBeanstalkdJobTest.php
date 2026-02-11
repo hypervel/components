@@ -14,7 +14,7 @@ use Pheanstalk\Contract\PheanstalkPublisherInterface;
 use Pheanstalk\Contract\PheanstalkSubscriberInterface;
 use Pheanstalk\Pheanstalk;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use stdClass;
 
@@ -74,7 +74,7 @@ class QueueBeanstalkdJobTest extends TestCase
     protected function getJob()
     {
         return new BeanstalkdJob(
-            m::mock(ContainerInterface::class),
+            m::mock(Container::class),
             m::mock(implode(',', [PheanstalkManagerInterface::class, PheanstalkPublisherInterface::class, PheanstalkSubscriberInterface::class])),
             m::mock(JobIdInterface::class),
             'connection-name',

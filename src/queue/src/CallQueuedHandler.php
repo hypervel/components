@@ -17,7 +17,7 @@ use Hypervel\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Queue\Attributes\DeleteWhenMissingModels;
 use Hypervel\Support\Pipeline;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use ReflectionClass;
 use RuntimeException;
 use Throwable;
@@ -29,7 +29,7 @@ class CallQueuedHandler
      */
     public function __construct(
         protected Dispatcher $dispatcher,
-        protected ContainerInterface $container
+        protected Container $container
     ) {
     }
 

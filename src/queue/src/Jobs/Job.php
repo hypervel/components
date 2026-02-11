@@ -11,7 +11,7 @@ use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Exceptions\ManuallyFailedException;
 use Hypervel\Queue\Exceptions\TimeoutExceededException;
 use Hypervel\Support\InteractsWithTime;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 
@@ -27,7 +27,7 @@ abstract class Job implements JobContract
     /**
      * The IoC container instance.
      */
-    protected ContainerInterface $container;
+    protected Container $container;
 
     /**
      * Indicates if the job has been deleted.
@@ -311,7 +311,7 @@ abstract class Job implements JobContract
     /**
      * Get the service container instance.
      */
-    public function getContainer(): ContainerInterface
+    public function getContainer(): Container
     {
         return $this->container;
     }

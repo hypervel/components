@@ -6,11 +6,11 @@ namespace Hypervel\Queue\Failed;
 
 use Hypervel\Contracts\Cache\Factory as CacheFactoryContract;
 use Hypervel\Database\ConnectionResolverInterface;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class FailedJobProviderFactory
 {
-    public function __invoke(ContainerInterface $container)
+    public function __invoke(Container $container)
     {
         $config = $container->get('config')
             ->get('queue.failed', []);
@@ -41,7 +41,7 @@ class FailedJobProviderFactory
     /**
      * Create a new database failed job provider.
      */
-    protected function databaseFailedJobProvider(ContainerInterface $container, array $config): DatabaseFailedJobProvider
+    protected function databaseFailedJobProvider(Container $container, array $config): DatabaseFailedJobProvider
     {
         return new DatabaseFailedJobProvider(
             $container->get(ConnectionResolverInterface::class),
@@ -53,7 +53,7 @@ class FailedJobProviderFactory
     /**
      * Create a new database failed job provider that uses UUIDs as IDs.
      */
-    protected function databaseUuidFailedJobProvider(ContainerInterface $container, array $config): DatabaseUuidFailedJobProvider
+    protected function databaseUuidFailedJobProvider(Container $container, array $config): DatabaseUuidFailedJobProvider
     {
         return new DatabaseUuidFailedJobProvider(
             $container->get(ConnectionResolverInterface::class),
@@ -62,7 +62,7 @@ class FailedJobProviderFactory
         );
     }
 
-    protected function getBasePath(ContainerInterface $container): string
+    protected function getBasePath(Container $container): string
     {
         return method_exists($container, 'basePath')
             ? $container->basePath()

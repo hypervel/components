@@ -6,12 +6,12 @@ namespace Hypervel\Queue;
 
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Queue\Factory as QueueManager;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 
 class WorkerFactory
 {
-    public function __invoke(ContainerInterface $container): Worker
+    public function __invoke(Container $container): Worker
     {
         return new Worker(
             $container->get(QueueManager::class),

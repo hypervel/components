@@ -7,7 +7,6 @@ namespace Hypervel\Tests\Queue;
 use DateInterval;
 use DateTimeInterface;
 use Exception;
-use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Container\Container as ContainerContract;
@@ -50,12 +49,9 @@ class QueueWorkerTest extends TestCase
     {
         $this->events = m::spy(EventDispatcher::class);
         $this->exceptionHandler = m::spy(ExceptionHandlerContract::class);
-        $this->container = new Container(
-            new DefinitionSource([
-                EventDispatcher::class => fn () => $this->events,
-                ExceptionHandlerContract::class => fn () => $this->exceptionHandler,
-            ])
-        );
+        $this->container = new Container();
+        $this->container->instance(EventDispatcher::class, $this->events);
+        $this->container->instance(ExceptionHandlerContract::class, $this->exceptionHandler);
 
         ApplicationContext::setContainer($this->container);
     }

@@ -21,7 +21,7 @@ use Hypervel\Queue\Console\WorkCommand;
 use Hypervel\Queue\Failed\FailedJobProviderFactory;
 use Hypervel\Queue\Failed\FailedJobProviderInterface;
 use Laravel\SerializableClosure\SerializableClosure;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class ConfigProvider
 {
@@ -32,9 +32,9 @@ class ConfigProvider
         return [
             'dependencies' => [
                 FactoryContract::class => QueueManagerFactory::class,
-                Queue::class => fn (ContainerInterface $container) => $container->get(FactoryContract::class)->connection(),
+                Queue::class => fn (Container $container) => $container->get(FactoryContract::class)->connection(),
                 FailedJobProviderInterface::class => FailedJobProviderFactory::class,
-                Listener::class => fn (ContainerInterface $container) => new Listener($this->getBasePath($container)),
+                Listener::class => fn (Container $container) => new Listener($this->getBasePath($container)),
                 Worker::class => WorkerFactory::class,
             ],
             'commands' => [
@@ -86,7 +86,7 @@ class ConfigProvider
         });
     }
 
-    protected function getBasePath(ContainerInterface $container): string
+    protected function getBasePath(Container $container): string
     {
         return method_exists($container, 'basePath')
             ? $container->basePath()

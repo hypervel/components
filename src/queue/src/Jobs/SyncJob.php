@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Queue\Jobs;
 
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class SyncJob extends Job
 {
@@ -17,7 +17,7 @@ class SyncJob extends Job
      * Create a new job instance.
      */
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected string $payload,
         protected string $connectionName,
         protected ?string $queue
