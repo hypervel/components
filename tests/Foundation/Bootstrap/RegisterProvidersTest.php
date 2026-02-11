@@ -30,13 +30,24 @@ class RegisterProvidersTest extends TestCase
 
     public function testRegisterProviders()
     {
+        $mergedProviders = null;
         $config = m::mock(Repository::class);
         $config->shouldReceive('get')
-            ->with('app.providers', [])
-            ->once()
+            ->with('app.providers')
             ->andReturn([
                 TestTwoServiceProvider::class,
             ]);
+        $config->shouldReceive('set')
+            ->with('app.providers', m::type('array'))
+            ->once()
+            ->andReturnUsing(function (string $key, array $value) use (&$mergedProviders) {
+                $mergedProviders = $value;
+            });
+        $config->shouldReceive('get')
+            ->with('app.providers', [])
+            ->andReturnUsing(function () use (&$mergedProviders) {
+                return $mergedProviders ?? [];
+            });
 
         $app = $this->getApplication([
             ConfigContract::class => fn () => $config,
