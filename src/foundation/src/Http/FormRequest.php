@@ -15,7 +15,7 @@ use Hypervel\Http\Request;
 use Hypervel\Support\Arr;
 use Hypervel\Validation\ValidatesWhenResolvedTrait;
 use Hypervel\Validation\ValidationException;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\Http\Message\ResponseInterface;
 
 class FormRequest extends Request implements ValidatesWhenResolved
@@ -39,7 +39,7 @@ class FormRequest extends Request implements ValidatesWhenResolved
     protected array $dontFlash = ['password', 'password_confirmation'];
 
     public function __construct(
-        protected ContainerInterface $container
+        protected Container $container
     ) {
     }
 
@@ -90,7 +90,7 @@ class FormRequest extends Request implements ValidatesWhenResolved
     /**
      * Set the container implementation.
      */
-    public function setContainer(ContainerInterface $container): static
+    public function setContainer(Container $container): static
     {
         $this->container = $container;
 

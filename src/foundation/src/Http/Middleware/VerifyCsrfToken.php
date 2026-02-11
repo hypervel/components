@@ -13,7 +13,7 @@ use Hypervel\Foundation\Http\Middleware\Concerns\ExcludesPaths;
 use Hypervel\Session\TokenMismatchException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\InteractsWithTime;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -45,7 +45,7 @@ class VerifyCsrfToken implements MiddlewareInterface
      * Create a new middleware instance.
      */
     public function __construct(
-        protected ContainerInterface $app,
+        protected Container $app,
         protected Repository $config,
         protected Request $request
     ) {

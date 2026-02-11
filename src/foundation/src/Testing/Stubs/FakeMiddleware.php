@@ -6,7 +6,7 @@ namespace Hypervel\Foundation\Testing\Stubs;
 
 use Hyperf\HttpServer\Contract\RequestInterface;
 use Hyperf\HttpServer\Contract\ResponseInterface as HttpResponse;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -14,13 +14,13 @@ use Psr\Http\Server\RequestHandlerInterface;
 
 class FakeMiddleware implements MiddlewareInterface
 {
-    protected ContainerInterface $container;
+    protected Container $container;
 
     protected RequestInterface $request;
 
     protected HttpResponse $response;
 
-    public function __construct(ContainerInterface $container, HttpResponse $response, RequestInterface $request)
+    public function __construct(Container $container, HttpResponse $response, RequestInterface $request)
     {
         $this->container = $container;
         $this->response = $response;

@@ -18,7 +18,7 @@ use Hypervel\Filesystem\Filesystem;
 use Hypervel\Foundation\Http\Kernel as HttpKernel;
 use Hypervel\Foundation\Testing\Coroutine\Waiter;
 use Hypervel\Support\Arr;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -37,7 +37,7 @@ class TestClient extends HttpKernel
 
     protected static ?Waiter $waiter = null;
 
-    public function __construct(ContainerInterface $container, $server = 'http')
+    public function __construct(Container $container, $server = 'http')
     {
         $this->enableEvents = $container->get('config')
             ->get("server.servers.{$server}.options.enable_request_lifecycle", false);

@@ -8,7 +8,7 @@ use Hypervel\Config\Repository;
 use Hypervel\Console\Command;
 use Hypervel\Contracts\Filesystem\FileNotFoundException;
 use Hypervel\Filesystem\Filesystem;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Throwable;
 
 class ServerReloadCommand extends Command
@@ -18,7 +18,7 @@ class ServerReloadCommand extends Command
     protected string $description = 'Reload all workers gracefully.';
 
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected Repository $config,
         protected Filesystem $filesystem
     ) {

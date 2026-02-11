@@ -17,7 +17,6 @@ use Hypervel\Support\Arr;
 use Hypervel\Support\Environment;
 use Hypervel\Support\ServiceProvider;
 use Hypervel\Support\Traits\Macroable;
-use Psr\Container\ContainerInterface;
 use RuntimeException;
 
 use function Hypervel\Filesystem\join_paths;
@@ -107,7 +106,7 @@ class Application extends Container implements ApplicationContract, HyperfContai
         $this->instance(Container::class, $this);
         $this->instance(ContainerContract::class, $this);
         $this->instance(ApplicationContract::class, $this);
-        $this->instance(ContainerInterface::class, $this);
+        $this->instance(\Psr\Container\ContainerInterface::class, $this);
         $this->instance(HyperfContainerInterface::class, $this);
     }
 

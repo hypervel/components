@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Console\Commands;
 
-use Hyperf\Contract\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Console\Command;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Arr;
@@ -24,7 +24,7 @@ class VendorPublishCommand extends Command
     protected string $description = 'Publish any publishable assets from vendor packages';
 
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected Filesystem $filesystem
     ) {
         parent::__construct();
