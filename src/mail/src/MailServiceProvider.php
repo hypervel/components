@@ -16,7 +16,7 @@ class MailServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->singleton(FactoryContract::class, MailManager::class);
+        $this->app->singleton(FactoryContract::class, fn ($app) => $app->build(MailManager::class));
 
         $this->app->singleton(MailerContract::class, fn ($app) => $app->make(FactoryContract::class)->mailer());
 

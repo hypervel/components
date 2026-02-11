@@ -19,6 +19,7 @@ class DefaultProviders
         $this->providers = $providers ?: [
             \Hypervel\Foundation\Providers\FoundationServiceProvider::class,
             \Hypervel\Foundation\Providers\FormRequestServiceProvider::class,
+            \Hypervel\Mail\MailServiceProvider::class,
         ];
     }
 
