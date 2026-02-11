@@ -9,7 +9,7 @@ use Hypervel\Contracts\Cache\Repository;
 use Hypervel\Permission\Models\Permission;
 use Hypervel\Permission\Models\Role;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class PermissionManager implements Contracts\Factory
 {
@@ -28,7 +28,7 @@ class PermissionManager implements Contracts\Factory
     protected ?string $ownerPermissionsCacheKeyPrefix = null;
 
     public function __construct(
-        protected ContainerInterface $app,
+        protected Container $app,
         protected CacheManager $cacheManager
     ) {
         $this->roleClass = $this->getConfig('models.role') ?: Role::class;

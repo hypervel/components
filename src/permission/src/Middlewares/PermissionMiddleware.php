@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Permission\Middlewares;
 
 use BackedEnum;
-use Hyperf\Contract\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Auth\AuthManager;
 use Hypervel\Permission\Exceptions\PermissionException;
 use Hypervel\Permission\Exceptions\UnauthorizedException;
@@ -21,7 +21,7 @@ class PermissionMiddleware implements MiddlewareInterface
     /**
      * Create a new middleware instance.
      */
-    public function __construct(protected ContainerInterface $container)
+    public function __construct(protected Container $container)
     {
     }
 
