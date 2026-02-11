@@ -8,6 +8,7 @@ use BadMethodCallException;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Filesystem\Factory as FilesystemFactory;
 use Hypervel\Contracts\Mail\Attachable;
@@ -34,8 +35,6 @@ use ReflectionProperty;
 use Symfony\Component\Mailer\Header\MetadataHeader;
 use Symfony\Component\Mailer\Header\TagHeader;
 use Symfony\Component\Mime\Address;
-
-use function Hyperf\Support\make;
 
 class Mailable implements MailableContract, Renderable
 {
@@ -219,7 +218,7 @@ class Mailable implements MailableContract, Renderable
      */
     protected function newQueuedJob(): mixed
     {
-        return make(SendQueuedMailable::class, ['mailable' => $this])
+        return Container::getInstance()->make(SendQueuedMailable::class, ['mailable' => $this])
             ->through(array_merge(
                 method_exists($this, 'middleware') ? $this->middleware() : [],
                 $this->middleware ?? []
@@ -349,9 +348,9 @@ class Mailable implements MailableContract, Renderable
      */
     protected function markdownRenderer(): Markdown
     {
-        return tap(make(Markdown::class), function ($markdown) {
+        return tap(Container::getInstance()->make(Markdown::class), function ($markdown) {
             $markdown->theme(
-                $this->theme ?: ApplicationContext::getContainer()->get('config')->get(
+                $this->theme ?: Container::getInstance()->make('config')->get(
                     'mail.markdown.theme',
                     'default'
                 )

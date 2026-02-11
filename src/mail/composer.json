@@ -46,6 +46,11 @@
         "hyperf": {
             "config": "Hypervel\\Mail\\ConfigProvider"
         },
+        "hypervel": {
+            "providers": [
+                "Hypervel\\Mail\\MailServiceProvider"
+            ]
+        },
         "branch-alias": {
             "dev-main": "0.4-dev"
         }

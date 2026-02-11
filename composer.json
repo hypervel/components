@@ -312,6 +312,7 @@
         },
         "hypervel": {
             "providers": [
+                "Hypervel\\Mail\\MailServiceProvider",
                 "Hypervel\\Notifications\\NotificationServiceProvider",
                 "Hypervel\\Scout\\ScoutServiceProvider",
                 "Hypervel\\Telescope\\TelescopeServiceProvider",
