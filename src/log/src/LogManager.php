@@ -24,7 +24,7 @@ use Monolog\Handler\WhatFailureGroupHandler;
 use Monolog\Logger as Monolog;
 use Monolog\Processor\ProcessorInterface;
 use Monolog\Processor\PsrLogMessageProcessor;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Log\LoggerInterface;
 use Stringable;
@@ -61,7 +61,7 @@ class LogManager implements LoggerInterface
      * Create a new Log manager instance.
      */
     public function __construct(
-        protected ContainerInterface $app
+        protected Container $app
     ) {
         $this->config = $this->app->get('config');
     }

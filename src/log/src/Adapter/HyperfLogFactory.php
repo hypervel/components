@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace Hypervel\Log\Adapter;
 
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class HyperfLogFactory
 {
-    public function __invoke(ContainerInterface $container): LogFactoryAdapter
+    public function __invoke(Container $container): LogFactoryAdapter
     {
         return new LogFactoryAdapter(
             $container,

@@ -4,9 +4,8 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Log;
 
-use Hyperf\Di\Container;
-use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Config\Repository as ConfigRepository;
+use Hypervel\Container\Container;
 use Hypervel\Context\Context;
 use Hypervel\Log\Logger;
 use Hypervel\Log\LogManager;
@@ -751,12 +750,10 @@ class LogManagerTest extends TestCase
                 ],
             ], $logConfig),
         ]);
-        return new Container(
-            new DefinitionSource([
-                'config' => fn () => $config,
-                EventDispatcherInterface::class => fn () => new DispatcherStub(),
-            ])
-        );
+        $container = new Container();
+        $container->singleton('config', fn () => $config);
+        $container->singleton(EventDispatcherInterface::class, fn () => new DispatcherStub());
+        return $container;
     }
 }
 
