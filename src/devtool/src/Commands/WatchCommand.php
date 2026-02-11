@@ -11,8 +11,6 @@ use Hyperf\Watcher\Watcher;
 use Hypervel\Contracts\Container\Container;
 use Symfony\Component\Console\Input\InputOption;
 
-use function Hyperf\Support\make;
-
 class WatchCommand extends HyperfCommand
 {
     use NullDisableEventDispatcher;
@@ -48,14 +46,14 @@ class WatchCommand extends HyperfCommand
             $options['command'] = 'artisan serve';
         }
 
-        $option = make(Option::class, [
+        $option = $this->container->make(Option::class, [
             'options' => $options,
             'dir' => $this->input->getOption('dir'),
             'file' => $this->input->getOption('file'),
             'restart' => ! $this->input->getOption('no-restart'),
         ]);
 
-        $watcher = make(Watcher::class, [
+        $watcher = $this->container->make(Watcher::class, [
             'option' => $option,
             'output' => $this->output,
         ]);
