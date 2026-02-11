@@ -9,10 +9,10 @@ use Hypervel\Contracts\Cache\Factory as FactoryContract;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Redis\RedisFactory;
 use InvalidArgumentException;
-use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @mixin \Hypervel\Contracts\Cache\Repository

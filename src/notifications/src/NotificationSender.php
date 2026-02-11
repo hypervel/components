@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Notifications;
 
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Translation\HasLocalePreference;
 use Hypervel\Database\Eloquent\Collection as ModelCollection;
@@ -14,7 +15,6 @@ use Hypervel\Notifications\Events\NotificationSent;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Localizable;
-use Hypervel\Contracts\Event\Dispatcher;
 
 use function Hyperf\Support\value;
 

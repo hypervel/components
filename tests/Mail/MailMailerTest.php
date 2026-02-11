@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Mail;
 
 use Hyperf\ViewEngine\Contract\FactoryInterface as ViewFactory;
 use Hyperf\ViewEngine\Contract\ViewInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Mail\Events\MessageSending;
 use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Mail\Mailable;
@@ -15,7 +16,6 @@ use Hypervel\Mail\Transport\ArrayTransport;
 use Hypervel\Support\HtmlString;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
-use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal

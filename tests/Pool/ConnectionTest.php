@@ -6,13 +6,13 @@ namespace Hypervel\Tests\Pool;
 
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Pool\Event\ReleaseConnection;
 use Hypervel\Pool\Pool;
 use Hypervel\Pool\PoolOption;
 use Hypervel\Tests\Pool\Stub\ActiveConnectionStub;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal

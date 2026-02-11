@@ -6,10 +6,10 @@ namespace Hypervel\Pool;
 
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Pool\Event\ReleaseConnection;
-use Hypervel\Contracts\Event\Dispatcher;
 use Throwable;
 
 /**

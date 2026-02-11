@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\EventWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use Hypervel\Contracts\Event\Dispatcher;
 use ReflectionMethod;
 use Telescope\Dummies\DummyEvent;
 use Telescope\Dummies\DummyEventListener;

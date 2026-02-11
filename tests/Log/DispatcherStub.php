@@ -43,13 +43,21 @@ class DispatcherStub implements Dispatcher
         return [];
     }
 
-    public function push(string $event, mixed $payload = []): void {}
+    public function push(string $event, mixed $payload = []): void
+    {
+    }
 
-    public function flush(string $event): void {}
+    public function flush(string $event): void
+    {
+    }
 
-    public function forgetPushed(): void {}
+    public function forgetPushed(): void
+    {
+    }
 
-    public function forget(string $event): void {}
+    public function forget(string $event): void
+    {
+    }
 
     public function hasListeners(string $eventName): bool
     {
@@ -61,7 +69,9 @@ class DispatcherStub implements Dispatcher
         return false;
     }
 
-    public function subscribe(object|string $subscriber): void {}
+    public function subscribe(object|string $subscriber): void
+    {
+    }
 
     public function getRawListeners(): array
     {

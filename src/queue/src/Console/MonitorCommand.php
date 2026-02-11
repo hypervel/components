@@ -6,11 +6,11 @@ namespace Hypervel\Queue\Console;
 
 use Hyperf\Command\Command;
 use Hypervel\Config\Repository;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Queue\Factory;
 use Hypervel\Queue\Events\QueueBusy;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
-use Hypervel\Contracts\Event\Dispatcher;
 
 class MonitorCommand extends Command
 {

@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Notifications;
 
 use Hypervel\Bus\Queueable;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\ChannelManager;
@@ -14,7 +15,6 @@ use Hypervel\Notifications\Notification;
 use Hypervel\Notifications\NotificationSender;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal

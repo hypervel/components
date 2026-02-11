@@ -9,6 +9,7 @@ use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Notifications\ChannelManager;
 use Hypervel\Notifications\Channels\MailChannel;
@@ -22,7 +23,6 @@ use Hypervel\ObjectPool\Contracts\Factory as PoolFactory;
 use Hypervel\ObjectPool\PoolManager;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal

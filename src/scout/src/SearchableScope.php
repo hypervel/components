@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Scout;
 
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Eloquent\Builder as EloquentBuilder;
 use Hypervel\Database\Eloquent\Collection as EloquentCollection;
 use Hypervel\Database\Eloquent\Model;
@@ -13,7 +14,6 @@ use Hypervel\Scout\Contracts\SearchableInterface;
 use Hypervel\Scout\Events\ModelsFlushed;
 use Hypervel\Scout\Events\ModelsImported;
 use Hypervel\Support\Collection;
-use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * Global scope that adds batch search macros to the query builder.

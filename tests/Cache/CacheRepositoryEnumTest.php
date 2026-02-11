@@ -8,9 +8,9 @@ use Hypervel\Cache\ArrayStore;
 use Hypervel\Cache\Repository;
 use Hypervel\Cache\TaggedCache;
 use Hypervel\Contracts\Cache\Store;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Hypervel\Contracts\Event\Dispatcher;
 use TypeError;
 
 enum CacheRepositoryEnumTestKeyBackedEnum: string

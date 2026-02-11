@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Mail\Events\MessageSent;
 use Hypervel\Mail\SentMessage;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\MailWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
-use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal

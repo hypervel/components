@@ -26,9 +26,9 @@ use Hypervel\Cache\Events\WritingKey;
 use Hypervel\Cache\Events\WritingManyKeys;
 use Hypervel\Contracts\Cache\Repository as CacheContract;
 use Hypervel\Contracts\Cache\Store;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Traits\Macroable;
-use Hypervel\Contracts\Event\Dispatcher;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;

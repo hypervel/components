@@ -6,6 +6,7 @@ namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Contracts\Broadcasting\ShouldBroadcast;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -14,7 +15,6 @@ use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\Traits\FormatsClosure;
-use Hypervel\Contracts\Event\Dispatcher;
 use ReflectionFunction;
 
 class EventWatcher extends Watcher

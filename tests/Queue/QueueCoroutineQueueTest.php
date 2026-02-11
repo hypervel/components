@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Queue;
 
 use Exception;
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Queue\QueueableEntity;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
 use Hypervel\Database\DatabaseTransactionsManager;
@@ -14,7 +15,6 @@ use Hypervel\Queue\InteractsWithQueue;
 use Hypervel\Queue\Jobs\SyncJob;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Hypervel\Contracts\Event\Dispatcher;
 
 use function Hypervel\Coroutine\run;
 

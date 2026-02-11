@@ -8,6 +8,7 @@ use Exception;
 use Hypervel\Container\Container;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Container\Container as ContainerContract;
+use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\QueueableEntity;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Contracts\Queue\ShouldQueueAfterCommit;
@@ -18,7 +19,6 @@ use Hypervel\Queue\SyncQueue;
 use LogicException;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
 
 /**
  * @internal

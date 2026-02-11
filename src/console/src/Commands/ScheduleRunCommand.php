@@ -14,13 +14,13 @@ use Hypervel\Console\Scheduling\Event;
 use Hypervel\Console\Scheduling\Schedule;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Debug\ExceptionHandler;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Coroutine\Concurrent;
 use Hypervel\Coroutine\Waiter;
 use Hypervel\Support\Carbon;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Facades\Date;
 use Hypervel\Support\Sleep;
-use Hypervel\Contracts\Event\Dispatcher;
 use Throwable;
 
 class ScheduleRunCommand extends Command

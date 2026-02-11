@@ -14,13 +14,13 @@ use GuzzleHttp\Promise\Create;
 use GuzzleHttp\Promise\PromiseInterface;
 use GuzzleHttp\Psr7\Response as Psr7Response;
 use GuzzleHttp\TransferStats;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\Macroable;
 use InvalidArgumentException;
 use PHPUnit\Framework\Assert as PHPUnit;
-use Hypervel\Contracts\Event\Dispatcher;
 use Throwable;
 
 /**

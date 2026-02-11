@@ -8,6 +8,7 @@ use Hyperf\Command\Command;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Cache\Factory as CacheFactory;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Queue\Job;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
@@ -20,7 +21,6 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\InteractsWithTime;
 use Hypervel\Support\Str;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
-use Hypervel\Contracts\Event\Dispatcher;
 use Symfony\Component\Console\Terminal;
 use Throwable;
 

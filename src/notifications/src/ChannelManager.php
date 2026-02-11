@@ -7,6 +7,7 @@ namespace Hypervel\Notifications;
 use Closure;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Bus\Dispatcher as BusDispatcherContract;
+use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Notifications\Dispatcher as DispatcherContract;
 use Hypervel\Contracts\Notifications\Factory as FactoryContract;
 use Hypervel\Notifications\Channels\BroadcastChannel;
@@ -17,7 +18,6 @@ use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Support\Manager;
 use Hypervel\Support\Str;
 use InvalidArgumentException;
-use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
 
 class ChannelManager extends Manager implements DispatcherContract, FactoryContract
 {

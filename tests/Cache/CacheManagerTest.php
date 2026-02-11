@@ -11,6 +11,7 @@ use Hypervel\Cache\RedisStore;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Redis\Pool\PoolFactory;
 use Hypervel\Redis\Pool\RedisPool;
 use Hypervel\Redis\RedisConnection;
@@ -19,7 +20,6 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use Mockery\MockInterface;
-use Hypervel\Contracts\Event\Dispatcher;
 use Redis;
 
 /**

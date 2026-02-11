@@ -7,12 +7,12 @@ namespace Hypervel\Queue\Jobs;
 use Hypervel\Bus\Batchable;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Exceptions\ManuallyFailedException;
 use Hypervel\Queue\Exceptions\TimeoutExceededException;
 use Hypervel\Support\InteractsWithTime;
-use Hypervel\Contracts\Event\Dispatcher;
 use Throwable;
 
 abstract class Job implements JobContract

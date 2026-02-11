@@ -6,10 +6,10 @@ namespace Hypervel\Queue;
 
 use DateInterval;
 use DateTimeInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Queue\Job as JobContract;
 use Hypervel\Contracts\Queue\Queue as QueueContract;
 use Hypervel\Queue\Events\QueueFailedOver;
-use Hypervel\Contracts\Event\Dispatcher;
 use RuntimeException;
 use Throwable;
 

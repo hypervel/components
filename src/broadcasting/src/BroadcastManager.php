@@ -22,13 +22,13 @@ use Hypervel\Contracts\Broadcasting\ShouldBroadcastNow;
 use Hypervel\Contracts\Bus\Dispatcher;
 use Hypervel\Contracts\Cache\Factory as Cache;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
 use Hypervel\Contracts\Queue\Factory as Queue;
 use Hypervel\Foundation\Http\Kernel;
 use Hypervel\Foundation\Http\Middleware\VerifyCsrfToken;
 use Hypervel\ObjectPool\Traits\HasPoolProxy;
 use Hypervel\Redis\RedisFactory;
 use InvalidArgumentException;
-use Hypervel\Contracts\Event\Dispatcher as EventDispatcher;
 use Psr\Log\LoggerInterface;
 use Pusher\Pusher;
 

@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Foundation\Testing;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Config\Repository as ConfigContract;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Foundation\Testing\Concerns\InteractsWithConsole;
@@ -16,7 +17,6 @@ use Hypervel\Testbench\TestCase;
 use Hypervel\Tests\Foundation\Concerns\HasMockedApplication;
 use Mockery as m;
 use PDO;
-use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal

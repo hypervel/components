@@ -10,13 +10,13 @@ use Hyperf\Command\Event\BeforeHandle as BeforeHandleCommand;
 use Hyperf\HttpServer\Event\RequestReceived;
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Queue\Events\JobExceptionOccurred;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
 use Hypervel\Queue\Events\JobProcessing;
 use Hypervel\Telescope\Contracts\EntriesRepository;
-use Hypervel\Contracts\Event\Dispatcher;
 
 trait ListensForStorageOpportunities
 {

@@ -17,10 +17,10 @@ use Hypervel\Cache\Repository;
 use Hypervel\Cache\TaggableStore;
 use Hypervel\Cache\TaggedCache;
 use Hypervel\Contracts\Cache\Store;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal

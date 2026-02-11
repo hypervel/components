@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\Redis;
 use Hypervel\Redis\RedisConfig;
 use Hypervel\Support\Collection;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Hypervel\Contracts\Event\Dispatcher;
 
 class RedisWatcher extends Watcher
 {

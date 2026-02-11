@@ -7,12 +7,12 @@ namespace Hypervel\Tests\Queue;
 use Aws\Result;
 use Aws\Sqs\SqsClient;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Queue\Jobs\SqsJob;
 use Hypervel\Queue\SqsQueue;
 use Hypervel\Support\Carbon;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal

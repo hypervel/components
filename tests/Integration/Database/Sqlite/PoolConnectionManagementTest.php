@@ -11,11 +11,11 @@ use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Events\ConnectionEstablished;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolFactory;
+use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
 use Hypervel\Event\ListenerProvider;
 use Hypervel\Support\Facades\DB;
 use Hypervel\Support\Facades\Schema;
 use Hypervel\Testbench\TestCase;
-use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
 
 use function Hypervel\Coroutine\run;
 

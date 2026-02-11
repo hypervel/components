@@ -6,6 +6,7 @@ namespace Hypervel\Tests\Queue;
 
 use Exception;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Jobs\BeanstalkdJob;
 use Mockery as m;
@@ -15,7 +16,6 @@ use Pheanstalk\Contract\PheanstalkPublisherInterface;
 use Pheanstalk\Contract\PheanstalkSubscriberInterface;
 use Pheanstalk\Pheanstalk;
 use PHPUnit\Framework\TestCase;
-use Hypervel\Contracts\Event\Dispatcher;
 use stdClass;
 
 /**

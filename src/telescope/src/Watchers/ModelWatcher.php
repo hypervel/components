@@ -6,13 +6,13 @@ namespace Hypervel\Telescope\Watchers;
 
 use Hypervel\Context\Context;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
 use Hypervel\Telescope\FormatModel;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Storage\EntryModel;
 use Hypervel\Telescope\Telescope;
-use Hypervel\Contracts\Event\Dispatcher;
 
 class ModelWatcher extends Watcher
 {

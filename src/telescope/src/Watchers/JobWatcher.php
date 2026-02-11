@@ -7,6 +7,7 @@ namespace Hypervel\Telescope\Watchers;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Encryption\Encrypter;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Eloquent\ModelNotFoundException;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
@@ -20,7 +21,6 @@ use Hypervel\Telescope\ExtractProperties;
 use Hypervel\Telescope\ExtractTags;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Hypervel\Contracts\Event\Dispatcher;
 use RuntimeException;
 
 class JobWatcher extends Watcher

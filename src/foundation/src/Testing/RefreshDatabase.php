@@ -4,12 +4,12 @@ declare(strict_types=1);
 
 namespace Hypervel\Foundation\Testing;
 
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Connection as DatabaseConnection;
 use Hypervel\Database\DatabaseManager;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Foundation\Testing\Traits\CanConfigureMigrationCommands;
-use Hypervel\Contracts\Event\Dispatcher;
 
 trait RefreshDatabase
 {

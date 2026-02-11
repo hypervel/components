@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Queue;
 
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Foundation\Testing\RefreshDatabase;
@@ -14,7 +15,6 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\Str;
 use Hypervel\Testbench\TestCase;
 use Mockery as m;
-use Hypervel\Contracts\Event\Dispatcher;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactory;
 use Ramsey\Uuid\UuidFactoryInterface;

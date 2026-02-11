@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Queue;
 
 use Hypervel\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Queue\LuaScripts;
 use Hypervel\Queue\Queue;
 use Hypervel\Queue\RedisQueue;
@@ -14,7 +15,6 @@ use Hypervel\Support\Carbon;
 use Hypervel\Support\Str;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Hypervel\Contracts\Event\Dispatcher;
 use Ramsey\Uuid\Uuid;
 use Ramsey\Uuid\UuidFactory;
 use Ramsey\Uuid\UuidFactoryInterface;

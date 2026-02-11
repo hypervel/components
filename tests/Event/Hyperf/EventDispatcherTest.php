@@ -8,6 +8,7 @@ use Hyperf\Contract\StdoutLoggerInterface;
 use Hyperf\Framework\Logger\StdoutLogger;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\EventDispatcherFactory;
@@ -20,7 +21,6 @@ use Hypervel\Tests\Event\Hyperf\Listener\PriorityListener;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use Mockery as m;
 use PHPUnit\Framework\TestCase;
-use Hypervel\Contracts\Event\Dispatcher;
 use ReflectionClass;
 
 /**

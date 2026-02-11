@@ -7,9 +7,9 @@ namespace Hypervel\Database\Console\Migrations;
 use Hypervel\Console\Command;
 use Hypervel\Console\ConfirmableTrait;
 use Hypervel\Console\Prohibitable;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Events\DatabaseRefreshed;
 use Hypervel\Database\Migrations\Migrator;
-use Hypervel\Contracts\Event\Dispatcher;
 
 class FreshCommand extends Command
 {

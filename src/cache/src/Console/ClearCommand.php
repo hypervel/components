@@ -7,9 +7,9 @@ namespace Hypervel\Cache\Console;
 use Hyperf\Command\Command;
 use Hypervel\Contracts\Cache\Factory as CacheContract;
 use Hypervel\Contracts\Cache\Repository;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Filesystem\Filesystem;
 use Hypervel\Support\Traits\HasLaravelStyleCommand;
-use Hypervel\Contracts\Event\Dispatcher;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputOption;
 

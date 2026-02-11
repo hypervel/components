@@ -13,10 +13,10 @@ use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Factory as AuthFactory;
 use Hypervel\Contracts\Auth\Guard as GuardContract;
 use Hypervel\Contracts\Auth\UserProvider;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Sanctum\Events\TokenAuthenticated;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Traits\Macroable;
-use Hypervel\Contracts\Event\Dispatcher;
 
 class SanctumGuard implements GuardContract
 {

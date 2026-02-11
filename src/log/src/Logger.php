@@ -6,10 +6,10 @@ namespace Hypervel\Log;
 
 use Closure;
 use Hypervel\Context\Context;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
 use Hypervel\Contracts\Support\Jsonable;
 use Hypervel\Log\Events\MessageLogged;
-use Hypervel\Contracts\Event\Dispatcher;
 use Psr\Log\LoggerInterface;
 use RuntimeException;
 use Stringable;

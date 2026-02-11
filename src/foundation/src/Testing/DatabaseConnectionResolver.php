@@ -7,11 +7,11 @@ namespace Hypervel\Foundation\Testing;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
-use Psr\EventDispatcher\EventDispatcherInterface;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolver;
 use Hypervel\Database\FlushableConnectionResolver;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use UnitEnum;
 
 use function Hypervel\Support\enum_value;

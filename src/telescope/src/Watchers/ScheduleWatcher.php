@@ -7,10 +7,10 @@ namespace Hypervel\Telescope\Watchers;
 use Hypervel\Console\Events;
 use Hypervel\Console\Scheduling\CallbackEvent;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Telescope\Contracts\EntriesRepository;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
-use Hypervel\Contracts\Event\Dispatcher;
 
 class ScheduleWatcher extends Watcher
 {

@@ -9,12 +9,12 @@ use Hypervel\Bus\Events\BatchDispatched;
 use Hypervel\Contracts\Bus\BatchRepository;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Support\Arr;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Traits\Conditionable;
 use Laravel\SerializableClosure\SerializableClosure;
-use Hypervel\Contracts\Event\Dispatcher;
 use Throwable;
 use UnitEnum;
 

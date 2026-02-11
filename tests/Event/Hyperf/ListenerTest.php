@@ -7,6 +7,7 @@ namespace Hypervel\Tests\Event\Hyperf;
 use Hyperf\Event\Annotation\Listener as ListenerAnnotation;
 use Hypervel\Config\Repository;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
 use Hypervel\Event\EventDispatcher;
 use Hypervel\Event\ListenerProvider;
 use Hypervel\Event\ListenerProviderFactory;
@@ -17,7 +18,6 @@ use Hypervel\Tests\Event\Hyperf\Listener\BetaListener;
 use Hypervel\Tests\TestCase;
 use Mockery\Adapter\Phpunit\MockeryPHPUnitIntegration;
 use Mockery as m;
-use Hypervel\Event\Contracts\ListenerProvider as ListenerProviderContract;
 
 /**
  * @internal

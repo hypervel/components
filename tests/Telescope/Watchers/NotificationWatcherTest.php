@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Notifications\AnonymousNotifiable;
 use Hypervel\Notifications\Events\NotificationSent;
 use Hypervel\Notifications\Notification;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\NotificationWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
-use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal

@@ -8,6 +8,7 @@ use Exception;
 use Hypervel\Bus\Batch;
 use Hypervel\Bus\Dispatchable;
 use Hypervel\Contracts\Bus\BatchRepository;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Queue\ShouldQueue;
 use Hypervel\Queue\Events\JobFailed;
 use Hypervel\Queue\Events\JobProcessed;
@@ -18,7 +19,6 @@ use Hypervel\Telescope\Jobs\ProcessPendingUpdates;
 use Hypervel\Telescope\Watchers\JobWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
-use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal

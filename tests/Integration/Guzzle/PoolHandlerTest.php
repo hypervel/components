@@ -8,6 +8,7 @@ use GuzzleHttp\Client;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Pool\Channel;
 use Hypervel\Pool\PoolOption;
 use Hypervel\Pool\SimplePool\Connection;
@@ -16,7 +17,6 @@ use Hypervel\Pool\SimplePool\PoolFactory;
 use Hypervel\Tests\Integration\Guzzle\Stub\PoolHandlerStub;
 use Mockery as m;
 use PHPUnit\Framework\Attributes\CoversNothing;
-use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * Integration tests for PoolHandler.

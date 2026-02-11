@@ -7,6 +7,7 @@ namespace Hypervel\Telescope\Watchers;
 use Hypervel\Auth\Access\Events\GateEvaluated;
 use Hypervel\Auth\Access\Response;
 use Hypervel\Contracts\Container\Container;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Str;
@@ -14,7 +15,6 @@ use Hypervel\Telescope\FormatModel;
 use Hypervel\Telescope\IncomingEntry;
 use Hypervel\Telescope\Telescope;
 use Hypervel\Telescope\Watchers\Traits\FetchesStackTrace;
-use Hypervel\Contracts\Event\Dispatcher;
 
 class GateWatcher extends Watcher
 {

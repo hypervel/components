@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Telescope\Watchers;
 
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Redis\Events\CommandExecuted;
 use Hypervel\Redis\RedisConnection;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\RedisWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Mockery as m;
-use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal

@@ -5,12 +5,12 @@ declare(strict_types=1);
 namespace Hypervel\Tests\Telescope\Watchers;
 
 use Hyperf\ViewEngine\Contract\ViewInterface;
+use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Telescope\EntryType;
 use Hypervel\Telescope\Watchers\ViewWatcher;
 use Hypervel\Tests\Telescope\FeatureTestCase;
 use Hypervel\View\Events\ViewRendered;
 use Mockery as m;
-use Hypervel\Contracts\Event\Dispatcher;
 
 /**
  * @internal
