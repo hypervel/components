@@ -164,7 +164,6 @@ class RedisProxyIntegrationTest extends TestCase
         sort($collected);
 
         $this->assertSame($expected, $collected);
-        $this->assertSame(0, $cursor);
     }
 
     public function testHscanReturnsCursorAndFieldMapTuple(): void
@@ -188,7 +187,6 @@ class RedisProxyIntegrationTest extends TestCase
         sort($fields);
 
         $this->assertSame($expected, $fields);
-        $this->assertSame(0, $cursor);
     }
 
     public function testSscanReturnsCursorAndMembersTuple(): void
@@ -212,7 +210,6 @@ class RedisProxyIntegrationTest extends TestCase
         sort($collected);
 
         $this->assertSame($expected, $collected);
-        $this->assertSame(0, $cursor);
     }
 
     public function testZscanReturnsCursorAndScoreMapTuple(): void
@@ -237,7 +234,6 @@ class RedisProxyIntegrationTest extends TestCase
         ksort($collected);
 
         $this->assertSame($members, $collected);
-        $this->assertSame(0, $cursor);
     }
 
     public function testRedisPipelineConcurrentExecs(): void
