@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Pagination;
 
 use Hypervel\Context\Context;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\Http\Message\ServerRequestInterface;
 
 class PaginationState
@@ -13,7 +13,7 @@ class PaginationState
     /**
      * Bind the pagination state resolvers using the given application container as a base.
      */
-    public static function resolveUsing(ContainerInterface $app): void
+    public static function resolveUsing(Container $app): void
     {
         Paginator::viewFactoryResolver(fn () => $app->get('view'));
 
