@@ -6,11 +6,11 @@ namespace Hypervel\Translation;
 
 use Hypervel\Contracts\Translation\Loader as LoaderContract;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class TranslatorFactory
 {
-    public function __invoke(ContainerInterface $container): TranslatorContract
+    public function __invoke(Container $container): TranslatorContract
     {
         $config = $container->get('config');
 

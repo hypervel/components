@@ -7,11 +7,11 @@ namespace Hypervel\Translation;
 use Hypervel\Contracts\Foundation\Application as ApplicationContract;
 use Hypervel\Contracts\Translation\Loader as LoaderContract;
 use Hypervel\Filesystem\Filesystem;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class LoaderFactory
 {
-    public function __invoke(ContainerInterface $container): LoaderContract
+    public function __invoke(Container $container): LoaderContract
     {
         $langPath = $container instanceof ApplicationContract
             ? $container->langPath()
