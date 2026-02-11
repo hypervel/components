@@ -6,7 +6,7 @@ namespace Hyperf\Dispatcher;
 
 use Hypervel\Context\Context;
 use Hypervel\Dispatcher\Pipeline;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\RequestHandlerInterface;
@@ -16,7 +16,7 @@ class HttpRequestHandler implements RequestHandlerInterface
     public function __construct(
         protected array $middlewares,
         protected $coreMiddleware,
-        protected ContainerInterface $container
+        protected Container $container
     ) {
     }
 
