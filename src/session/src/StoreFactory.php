@@ -6,11 +6,11 @@ namespace Hypervel\Session;
 
 use Hypervel\Contracts\Session\Factory;
 use Hypervel\Contracts\Session\Session as SessionContract;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class StoreFactory
 {
-    public function __invoke(ContainerInterface $container): SessionContract
+    public function __invoke(Container $container): SessionContract
     {
         return $container->get(Factory::class)
             ->driver();

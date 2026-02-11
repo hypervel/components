@@ -15,7 +15,7 @@ use Hypervel\Database\Query\Builder;
 use Hypervel\Database\QueryException;
 use Hypervel\Support\Arr;
 use Hypervel\Support\InteractsWithTime;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use SessionHandlerInterface;
 
 class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerInterface
@@ -35,7 +35,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
         protected ?string $connection,
         protected string $table,
         protected int $minutes,
-        protected ?ContainerInterface $container = null
+        protected ?Container $container = null
     ) {
     }
 
@@ -241,7 +241,7 @@ class DatabaseSessionHandler implements ExistenceAwareInterface, SessionHandlerI
     /**
      * Set the application instance used by the handler.
      */
-    public function setContainer(ContainerInterface $container): static
+    public function setContainer(Container $container): static
     {
         $this->container = $container;
 

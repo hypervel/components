@@ -6,12 +6,12 @@ namespace Hypervel\Session;
 
 use Hyperf\Contract\SessionInterface;
 use Hypervel\Contracts\Session\Session as SessionContract;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use RuntimeException;
 
 class SessionAdapter implements SessionInterface
 {
-    public function __invoke(ContainerInterface $container): SessionInterface
+    public function __invoke(Container $container): SessionInterface
     {
         return new static(
             $container->get(SessionContract::class)
