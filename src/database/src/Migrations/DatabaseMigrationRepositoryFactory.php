@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Hypervel\Database\Migrations;
 
 use Hypervel\Database\ConnectionResolverInterface;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class DatabaseMigrationRepositoryFactory
 {
-    public function __invoke(ContainerInterface $container): DatabaseMigrationRepository
+    public function __invoke(Container $container): DatabaseMigrationRepository
     {
         $config = $container->get('config');
 

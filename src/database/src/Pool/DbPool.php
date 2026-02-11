@@ -11,7 +11,7 @@ use Hypervel\Pool\Pool;
 use Hypervel\Support\Arr;
 use InvalidArgumentException;
 use PDO;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 /**
  * Database connection pool.
@@ -34,7 +34,7 @@ class DbPool extends Pool
     protected ?PDO $sharedInMemorySqlitePdo = null;
 
     public function __construct(
-        ContainerInterface $container,
+        Container $container,
         protected string $name
     ) {
         $configService = $container->get('config');

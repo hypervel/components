@@ -9,7 +9,7 @@ use Hyperf\Framework\Event\BootApplication;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Database\ConnectionResolverInterface;
 use Hypervel\Database\Eloquent\Model;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 /**
  * Registers the database connection resolver and event dispatcher on Eloquent Model.
@@ -20,7 +20,7 @@ use Psr\Container\ContainerInterface;
 class RegisterConnectionResolverListener implements ListenerInterface
 {
     public function __construct(
-        protected ContainerInterface $container
+        protected Container $container
     ) {
     }
 

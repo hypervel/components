@@ -8,7 +8,7 @@ use Hypervel\Context\Context;
 use Hypervel\Coroutine\Coroutine;
 use Hypervel\Database\Pool\PooledConnection;
 use Hypervel\Database\Pool\PoolFactory;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use UnitEnum;
 
 use function Hypervel\Coroutine\defer;
@@ -39,7 +39,7 @@ class ConnectionResolver implements ConnectionResolverInterface
     protected PoolFactory $factory;
 
     public function __construct(
-        protected ContainerInterface $container
+        protected Container $container
     ) {
         $this->factory = $container->get(PoolFactory::class);
         $this->default = $container->get('config')->get('database.default', 'default');

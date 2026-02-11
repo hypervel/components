@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Hypervel\Database\Pool;
 
 use Hypervel\Contracts\Container\Container;
-use Psr\Container\ContainerInterface;
 
 /**
  * Factory for creating and caching database connection pools.
@@ -20,7 +19,7 @@ class PoolFactory
     protected array $pools = [];
 
     public function __construct(
-        protected ContainerInterface $container
+        protected Container $container
     ) {
     }
 
@@ -33,11 +32,7 @@ class PoolFactory
             return $this->pools[$name];
         }
 
-        if ($this->container instanceof Container) {
-            $pool = $this->container->make(DbPool::class, ['name' => $name]);
-        } else {
-            $pool = new DbPool($this->container, $name);
-        }
+        $pool = $this->container->make(DbPool::class, ['name' => $name]);
 
         return $this->pools[$name] = $pool;
     }

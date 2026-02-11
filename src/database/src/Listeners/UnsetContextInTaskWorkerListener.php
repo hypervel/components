@@ -9,7 +9,7 @@ use Hyperf\Framework\Event\BeforeWorkerStart;
 use Hypervel\Config\Repository;
 use Hypervel\Context\Context;
 use Hypervel\Database\ConnectionResolverInterface;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 /**
  * Clears database connection context when task workers start.
@@ -21,7 +21,7 @@ use Psr\Container\ContainerInterface;
 class UnsetContextInTaskWorkerListener implements ListenerInterface
 {
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected Repository $config
     ) {
     }
