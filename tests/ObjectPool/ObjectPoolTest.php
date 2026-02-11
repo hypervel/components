@@ -10,7 +10,7 @@ use Hypervel\Foundation\Testing\Concerns\RunTestsInCoroutine;
 use Hypervel\Tests\ObjectPool\Stub\FooPool;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use RuntimeException;
 use stdClass;
 
@@ -129,7 +129,7 @@ class ObjectPoolTest extends TestCase
 
     protected function getContainer()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         ApplicationContext::setContainer($container);
 
         return $container;

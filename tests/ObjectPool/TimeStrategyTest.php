@@ -10,7 +10,7 @@ use Hypervel\ObjectPool\Contracts\Recycler;
 use Hypervel\ObjectPool\Strategies\TimeStrategy;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 /**
  * @internal
@@ -85,14 +85,14 @@ class TimeStrategyTest extends TestCase
         $strategy->recycle($pool);
     }
 
-    protected function mockContainerWithInterval(float $interval): ContainerInterface
+    protected function mockContainerWithInterval(float $interval): Container
     {
         $recycler = m::mock(Recycler::class);
         $recycler->shouldReceive('getInterval')
             ->once()
             ->andReturn($interval);
 
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('get')
             ->with(Recycler::class)
             ->andReturn($recycler);

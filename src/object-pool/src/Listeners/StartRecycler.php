@@ -7,12 +7,12 @@ namespace Hypervel\ObjectPool\Listeners;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Framework\Event\AfterWorkerStart;
 use Hypervel\ObjectPool\Contracts\Recycler;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class StartRecycler implements ListenerInterface
 {
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
     ) {
     }
 

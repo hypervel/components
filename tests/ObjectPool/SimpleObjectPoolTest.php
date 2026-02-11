@@ -8,7 +8,7 @@ use Hypervel\Context\ApplicationContext;
 use Hypervel\ObjectPool\SimpleObjectPool;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use stdClass;
 
 /**
@@ -28,7 +28,7 @@ class SimpleObjectPoolTest extends TestCase
 
     protected function getContainer()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         ApplicationContext::setContainer($container);
 
         return $container;
