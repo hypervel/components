@@ -10,11 +10,11 @@ use Countable;
 use DateTime;
 use DateTimeImmutable;
 use Egulias\EmailValidator\Validation\NoRFCWarningsValidation;
-use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Auth\Authenticatable;
 use Hypervel\Contracts\Auth\Guard;
+use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Hashing\Hasher;
 use Hypervel\Contracts\Translation\Translator as TranslatorContract;
 use Hypervel\Contracts\Validation\DataAwareRule;
@@ -43,7 +43,6 @@ use Mockery\MockInterface;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\TestCase;
-use Psr\Container\ContainerInterface;
 use RuntimeException;
 use SplFileInfo;
 use stdClass;
@@ -134,7 +133,7 @@ class ValidationValidatorTest extends TestCase
     {
         $trans = $this->getArrayTranslator();
         $v = new Validator($trans, ['foo' => 'bar', 'baz' => 'boom'], ['foo' => 'Same:baz']);
-        $v->setContainer(m::mock(ContainerInterface::class));
+        $v->setContainer(m::mock(ContainerContract::class));
         $v->after(function ($validator) {
             $_SERVER['__validator.after.test'] = true;
 
@@ -437,7 +436,7 @@ class ValidationValidatorTest extends TestCase
         $trans = $this->getArrayTranslator();
         $trans->addLines(['validation.foo' => 'foo!'], 'en');
         $v = new Validator($trans, [], ['name' => 'required']);
-        $v->setContainer($container = m::mock(ContainerInterface::class));
+        $v->setContainer($container = m::mock(ContainerContract::class));
         $v->addReplacer('required', 'Foo@bar');
         $container->shouldReceive('make')->once()->with('Foo')->andReturn($foo = m::mock(stdClass::class));
         $foo->shouldReceive('bar')->once()->andReturn('replaced!');
@@ -1137,7 +1136,7 @@ class ValidationValidatorTest extends TestCase
 
         $hasher = m::mock(Hasher::class);
 
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(ContainerContract::class);
         $container->shouldReceive('get')->with(\Hypervel\Contracts\Auth\Factory::class)->andReturn($auth);
         $container->shouldReceive('get')->with(\Hypervel\Contracts\Hashing\Hasher::class)->andReturn($hasher);
 
@@ -1161,7 +1160,7 @@ class ValidationValidatorTest extends TestCase
         $hasher = m::mock(Hasher::class);
         $hasher->shouldReceive('check')->andReturn(false);
 
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(ContainerContract::class);
         $container->shouldReceive('get')->with(\Hypervel\Contracts\Auth\Factory::class)->andReturn($auth);
         $container->shouldReceive('get')->with(\Hypervel\Contracts\Hashing\Hasher::class)->andReturn($hasher);
 
@@ -1185,7 +1184,7 @@ class ValidationValidatorTest extends TestCase
         $hasher = m::mock(Hasher::class);
         $hasher->shouldReceive('check')->andReturn(true);
 
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(ContainerContract::class);
         $container->shouldReceive('get')->with(\Hypervel\Contracts\Auth\Factory::class)->andReturn($auth);
         $container->shouldReceive('get')->with(\Hypervel\Contracts\Hashing\Hasher::class)->andReturn($hasher);
 
@@ -1209,7 +1208,7 @@ class ValidationValidatorTest extends TestCase
         $hasher = m::mock(Hasher::class);
         $hasher->shouldReceive('check')->andReturn(true);
 
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(ContainerContract::class);
         $container->shouldReceive('get')->with(\Hypervel\Contracts\Auth\Factory::class)->andReturn($auth);
         $container->shouldReceive('get')->with(\Hypervel\Contracts\Hashing\Hasher::class)->andReturn($hasher);
 
@@ -4566,7 +4565,7 @@ class ValidationValidatorTest extends TestCase
 
     public function testValidateEmailWithCustomClassCheck()
     {
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(ContainerContract::class);
         $container->shouldReceive('make')->with(NoRFCWarningsValidation::class)->andReturn(new NoRFCWarningsValidation());
 
         $v = new Validator($this->getArrayTranslator(), ['x' => 'foo@bar '], ['x' => 'email:' . NoRFCWarningsValidation::class]);
@@ -6871,7 +6870,7 @@ class ValidationValidatorTest extends TestCase
         $trans = $this->getArrayTranslator();
         $trans->addLines(['validation.foo' => 'foo!'], 'en');
         $v = new Validator($trans, ['name' => 'taylor'], ['name' => 'foo']);
-        $v->setContainer($container = m::mock(ContainerInterface::class));
+        $v->setContainer($container = m::mock(ContainerContract::class));
         $v->addExtension('foo', 'Foo@bar');
         $container->shouldReceive('make')->once()->with('Foo')->andReturn($foo = m::mock(stdClass::class));
         $foo->shouldReceive('bar')->once()->andReturn(false);
@@ -6885,7 +6884,7 @@ class ValidationValidatorTest extends TestCase
         $trans = $this->getArrayTranslator();
         $trans->addLines(['validation.foo' => 'foo!'], 'en');
         $v = new Validator($trans, ['name' => 'taylor'], ['name' => 'foo']);
-        $v->setContainer($container = m::mock(ContainerInterface::class));
+        $v->setContainer($container = m::mock(ContainerContract::class));
         $v->addExtension('foo', 'Foo');
         $container->shouldReceive('make')->once()->with('Foo')->andReturn($foo = m::mock(stdClass::class));
         $foo->shouldReceive('validate')->once()->andReturn(false);
@@ -9733,11 +9732,9 @@ class ValidationValidatorTest extends TestCase
         );
     }
 
-    protected function mockContainer(array $definitions = [])
+    protected function mockContainer()
     {
-        $container = new Container(
-            new DefinitionSource($definitions)
-        );
+        $container = new Container();
 
         ApplicationContext::setContainer($container);
 

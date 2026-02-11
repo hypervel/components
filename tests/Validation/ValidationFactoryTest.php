@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Validation;
 
-use Faker\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Translation\Translator as TranslatorInterface;
 use Hypervel\Validation\Factory;
 use Hypervel\Validation\PresenceVerifierInterface;
@@ -142,7 +142,7 @@ class ValidationFactoryTest extends TestCase
     public function testSetContainer()
     {
         $translator = m::mock(TranslatorInterface::class);
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $factory = new Factory($translator);
 
         $this->assertNull($factory->getContainer());

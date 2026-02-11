@@ -8,7 +8,7 @@ use Closure;
 use Hypervel\Contracts\Translation\Translator;
 use Hypervel\Contracts\Validation\Factory as FactoryContract;
 use Hypervel\Support\Str;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class Factory implements FactoryContract
 {
@@ -66,11 +66,11 @@ class Factory implements FactoryContract
      * Create a new Validator factory instance.
      *
      * @param Translator $translator the Translator implementation
-     * @param null|ContainerInterface $container the IoC container instance
+     * @param null|Container $container the IoC container instance
      */
     public function __construct(
         protected Translator $translator,
-        protected ?ContainerInterface $container = null
+        protected ?Container $container = null
     ) {
     }
 
@@ -243,7 +243,7 @@ class Factory implements FactoryContract
     /**
      * Get the container instance used by the validation factory.
      */
-    public function getContainer(): ?ContainerInterface
+    public function getContainer(): ?Container
     {
         return $this->container;
     }
@@ -251,7 +251,7 @@ class Factory implements FactoryContract
     /**
      * Set the container instance used by the validation factory.
      */
-    public function setContainer(ContainerInterface $container): static
+    public function setContainer(Container $container): static
     {
         $this->container = $container;
 

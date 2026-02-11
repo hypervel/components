@@ -6,11 +6,11 @@ namespace Hypervel\Validation;
 
 use Hypervel\Contracts\Translation\Translator;
 use Hypervel\Database\ConnectionResolverInterface;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class ValidatorFactory
 {
-    public function __invoke(ContainerInterface $container): Factory
+    public function __invoke(Container $container): Factory
     {
         $validator = new Factory(
             $container->get(Translator::class),

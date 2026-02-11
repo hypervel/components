@@ -22,7 +22,7 @@ use Hypervel\Support\Str;
 use Hypervel\Support\StrCache;
 use Hypervel\Support\ValidatedInput;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use RuntimeException;
 use stdClass;
 use Throwable;
@@ -35,7 +35,7 @@ class Validator implements ValidatorContract
     /**
      * The container instance.
      */
-    protected ?ContainerInterface $container = null;
+    protected ?Container $container = null;
 
     /**
      * The Presence Verifier implementation.
@@ -1374,7 +1374,7 @@ class Validator implements ValidatorContract
     /**
      * Set the IoC container instance.
      */
-    public function setContainer(ContainerInterface $container): void
+    public function setContainer(Container $container): void
     {
         $this->container = $container;
     }
