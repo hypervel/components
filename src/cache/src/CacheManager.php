@@ -9,11 +9,10 @@ use Hypervel\Contracts\Cache\Factory as FactoryContract;
 use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Redis\RedisFactory;
+use Hypervel\Filesystem\Filesystem;
 use InvalidArgumentException;
 use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface as DispatcherContract;
-
-use function Hyperf\Support\make;
 
 /**
  * @mixin \Hypervel\Contracts\Cache\Repository
@@ -209,10 +208,11 @@ class CacheManager implements FactoryContract
      */
     protected function createFileDriver(array $config): Repository
     {
-        $store = make(FileStore::class, [
-            'directory' => $config['path'],
-            'filePermission' => $config['permission'] ?? null,
-        ])->setLockDirectory($config['lock_path'] ?? null);
+        $store = (new FileStore(
+            $this->app->make(Filesystem::class),
+            $config['path'],
+            $config['permission'] ?? null,
+        ))->setLockDirectory($config['lock_path'] ?? null);
 
         return $this->repository($store, $config);
     }
