@@ -6,11 +6,11 @@ namespace Hypervel\Cache\Listeners;
 
 use Hyperf\Event\Contract\ListenerInterface;
 use Hypervel\Support\Collection;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 abstract class BaseListener implements ListenerInterface
 {
-    public function __construct(protected ContainerInterface $container)
+    public function __construct(protected Container $container)
     {
     }
 

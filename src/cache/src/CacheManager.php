@@ -10,7 +10,7 @@ use Hypervel\Contracts\Cache\Repository as CacheRepository;
 use Hypervel\Contracts\Cache\Store;
 use Hypervel\Redis\RedisFactory;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface as DispatcherContract;
 
 use function Hyperf\Support\make;
@@ -36,7 +36,7 @@ class CacheManager implements FactoryContract
      * Create a new Cache manager instance.
      */
     public function __construct(
-        protected ContainerInterface $app
+        protected Container $app
     ) {
     }
 
@@ -147,7 +147,7 @@ class CacheManager implements FactoryContract
     /**
      * Set the application instance used by the manager.
      */
-    public function setApplication(ContainerInterface $app): static
+    public function setApplication(Container $app): static
     {
         $this->app = $app;
 

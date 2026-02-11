@@ -10,7 +10,7 @@ use Hypervel\Cache\SwooleTableManager;
 use Hypervel\Support\Str;
 use Hypervel\Tests\TestCase;
 use Mockery as m;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Swoole\Table;
 
 /**
@@ -258,7 +258,7 @@ class CacheSwooleStoreTest extends TestCase
 
     private function createSwooleTable()
     {
-        return (new SwooleTableManager(m::mock(ContainerInterface::class)))->createTable(128, 10240, 0.2);
+        return (new SwooleTableManager(m::mock(Container::class)))->createTable(128, 10240, 0.2);
     }
 
     private function getCurrentTimestamp()

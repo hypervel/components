@@ -18,7 +18,7 @@ use Hypervel\Tests\TestCase;
 use InvalidArgumentException;
 use Mockery as m;
 use Mockery\MockInterface;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Redis;
 
@@ -393,8 +393,8 @@ class CacheManagerTest extends TestCase
 
     protected function getApp(array $userConfig)
     {
-        /** @var ContainerInterface|MockInterface */
-        $app = m::mock(ContainerInterface::class);
+        /** @var Container|MockInterface */
+        $app = m::mock(Container::class);
         $app->shouldReceive('get')->with('config')->andReturn(new ConfigRepository($userConfig));
 
         return $app;

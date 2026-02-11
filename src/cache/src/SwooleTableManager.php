@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Cache;
 
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Swoole\Table;
 
 class SwooleTableManager
@@ -13,7 +13,7 @@ class SwooleTableManager
     protected array $tables = [];
 
     public function __construct(
-        protected ContainerInterface $app
+        protected Container $app
     ) {
     }
 
