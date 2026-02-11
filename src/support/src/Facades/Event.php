@@ -6,7 +6,7 @@ namespace Hypervel\Support\Facades;
 
 use Hypervel\Database\Eloquent\Model;
 use Hypervel\Support\Testing\Fakes\EventFake;
-use Hypervel\Contracts\Event\Dispatcher;
+use Psr\EventDispatcher\EventDispatcherInterface;
 
 /**
  * @method static object|string dispatch(object|string $event, mixed $payload = [], bool $halt = false)
@@ -100,6 +100,10 @@ class Event extends Facade
 
     protected static function getFacadeAccessor()
     {
-        return Dispatcher::class;
+        // Must use the canonical binding key (registered by ConfigProvider), not an alias.
+        // Facade::swap() calls instance() with this key, and rebinding callbacks are
+        // stored under the alias-resolved key. Using an alias here causes a mismatch.
+        // @TODO Change to 'events' once we migrate to Laravel-style ServiceProviders.
+        return EventDispatcherInterface::class;
     }
 }

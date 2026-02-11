@@ -7,6 +7,7 @@ namespace Hypervel\Foundation\Testing;
 use Hypervel\Context\ApplicationContext;
 use Hypervel\Contracts\Container\Container;
 use Hypervel\Contracts\Event\Dispatcher;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use Hypervel\Database\Connection;
 use Hypervel\Database\ConnectionInterface;
 use Hypervel\Database\ConnectionResolver;
@@ -90,8 +91,11 @@ class DatabaseConnectionResolver extends ConnectionResolver implements Flushable
             return;
         }
 
-        // Register for the PSR interface that Event facade uses
-        $container->rebinding(Dispatcher::class, function ($app, $dispatcher) {
+        // Must use the canonical binding key (PSR interface registered by ConfigProvider),
+        // not an alias. rebinding() resolves aliases when storing callbacks, but instance()
+        // doesn't when firing them. Using the canonical key avoids the mismatch.
+        // @TODO Change to 'events' once we migrate to Laravel-style ServiceProviders.
+        $container->rebinding(EventDispatcherInterface::class, function ($app, $dispatcher) {
             foreach (static::$connections as $connection) {
                 if ($connection instanceof Connection && $dispatcher instanceof Dispatcher) {
                     $connection->setEventDispatcher($dispatcher);
