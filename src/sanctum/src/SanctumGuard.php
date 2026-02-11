@@ -56,7 +56,9 @@ class SanctumGuard implements GuardContract
             if ($guard !== $this->name && $authFactory->guard($guard)->check()) {
                 $user = $authFactory->guard($guard)->user();
                 if ($this->supportsTokens($user)) {
-                    $user = $user->withAccessToken(new TransientToken());
+                    /** @var \Hypervel\Contracts\Auth\Authenticatable&\Hypervel\Sanctum\Contracts\HasApiTokens $tokenUser */
+                    $tokenUser = $user;
+                    $user = $tokenUser->withAccessToken(new TransientToken());
                 }
                 Context::set($contextKey, $user);
                 return $user;

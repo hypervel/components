@@ -235,12 +235,14 @@ class Mailable implements MailableContract, Renderable
         return $this->withLocale($this->locale, function () {
             $this->prepareMailableForDelivery();
 
-            return ApplicationContext::getContainer()
-                ->get(Mailer::class)
-                ->render(
-                    $this->buildView(),
-                    $this->buildViewData()
-                );
+            /** @var \Hypervel\Mail\Mailer $mailer */
+            $mailer = ApplicationContext::getContainer()
+                ->get(Mailer::class);
+
+            return $mailer->render(
+                $this->buildView(),
+                $this->buildViewData()
+            );
         });
     }
 
@@ -1307,12 +1309,14 @@ class Mailable implements MailableContract, Renderable
         return $this->assertionableRenderStrings = $this->withLocale($this->locale, function () {
             $this->prepareMailableForDelivery();
 
-            $html = ApplicationContext::getContainer()
-                ->get(Mailer::class)
-                ->render(
-                    $view = $this->buildView(),
-                    $this->buildViewData()
-                );
+            /** @var \Hypervel\Mail\Mailer $mailer */
+            $mailer = ApplicationContext::getContainer()
+                ->get(Mailer::class);
+
+            $html = $mailer->render(
+                $view = $this->buildView(),
+                $this->buildViewData()
+            );
 
             if (is_array($view) && isset($view[1])) {
                 $text = $view[1];
@@ -1321,11 +1325,10 @@ class Mailable implements MailableContract, Renderable
             $text ??= $view['text'] ?? '';
 
             if (! empty($text) && ! $text instanceof Htmlable) {
-                $text = ApplicationContext::getContainer()
-                    ->get(Mailer::class)->render(
-                        $text,
-                        $this->buildViewData()
-                    );
+                $text = $mailer->render(
+                    $text,
+                    $this->buildViewData()
+                );
             }
 
             return [(string) $html, (string) $text];

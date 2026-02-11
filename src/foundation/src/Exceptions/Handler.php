@@ -586,6 +586,7 @@ class Handler extends ExceptionHandler implements ExceptionHandlerContract
         }
 
         $value = $this->getMessageBag($provider);
+        /** @var \Hypervel\Session\Store $session */
         $session = $this->container->get(SessionContract::class);
         $errors = $session->get('errors', new ViewErrorBag());
 

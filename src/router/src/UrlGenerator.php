@@ -66,7 +66,9 @@ class UrlGenerator implements UrlGeneratorContract
      */
     public function route(string $name, array $parameters = [], bool $absolute = true, string $server = 'http'): string
     {
-        $namedRoutes = $this->container->get(DispatcherFactory::class)->getRouter($server)->getNamedRoutes();
+        /** @var \Hypervel\Router\RouteCollector $router */
+        $router = $this->container->get(DispatcherFactory::class)->getRouter($server);
+        $namedRoutes = $router->getNamedRoutes();
 
         if (! array_key_exists($name, $namedRoutes)) {
             throw new InvalidArgumentException("Route [{$name}] not defined.");
@@ -510,7 +512,7 @@ class UrlGenerator implements UrlGeneratorContract
     protected function getRequestUri(): Uri
     {
         if (RequestContext::has()) {
-            return $this->container->get(RequestInterface::class)->getUri();
+            return $this->container->get(RequestInterface::class)->getUri(); // @phpstan-ignore return.type (getUri() returns UriInterface but is always Uri in practice)
         }
 
         return new Uri($this->container->get('config')->get('app.url'));

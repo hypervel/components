@@ -190,11 +190,6 @@ class Logger implements LoggerInterface
             throw new RuntimeException('Events dispatcher has not been set.');
         }
 
-        if (! method_exists($this->dispatcher, 'listen')) {
-            throw new RuntimeException('Events dispatcher does not implement the listen method.');
-        }
-
-        /* @phpstan-ignore-next-line */
         $this->dispatcher->listen(MessageLogged::class, $callback);
     }
 

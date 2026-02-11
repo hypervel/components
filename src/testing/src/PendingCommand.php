@@ -6,9 +6,9 @@ namespace Hypervel\Testing;
 
 use Hyperf\Command\Event\FailToHandle;
 use Hypervel\Contracts\Console\Kernel as KernelContract;
-use Hypervel\Contracts\Container\Container as ContainerContract;
 use Hypervel\Contracts\Event\Dispatcher;
 use Hypervel\Contracts\Support\Arrayable;
+use Hypervel\Foundation\Application;
 use Hypervel\Foundation\Testing\TestCase;
 use Hypervel\Prompts\Note as PromptsNote;
 use Hypervel\Prompts\Prompt as BasePrompt;
@@ -53,13 +53,13 @@ class PendingCommand
      * Create a new pending console command run.
      *
      * @param TestCase $test the test being run
-     * @param ContainerContract $app the application instance
+     * @param Application $app the application instance
      * @param string $command the command to run
      * @param array $parameters the parameters to pass to the command
      */
     public function __construct(
         public TestCase $test,
-        protected ContainerContract $app,
+        protected Application $app,
         protected string $command,
         protected array $parameters
     ) {

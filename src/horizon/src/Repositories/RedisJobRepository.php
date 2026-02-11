@@ -509,7 +509,7 @@ class RedisJobRepository implements JobRepository
             $this->keys
         );
 
-        $job = is_array($attributes) && $attributes[0] !== null
+        $job = is_array($attributes) && $attributes[0] !== null // @phpstan-ignore function.alreadyNarrowedType (Redis hmget can return false at runtime despite PHPDoc)
             ? (object) array_combine($this->keys, $attributes)
             : null;
 

@@ -39,7 +39,7 @@ class PooledConnection implements PoolConnectionInterface
 
     protected float $lastReleaseTime = 0.0;
 
-    protected ?EventDispatcherInterface $dispatcher = null;
+    protected ?Dispatcher $dispatcher = null;
 
     public function __construct(
         protected Container $container,
@@ -49,8 +49,8 @@ class PooledConnection implements PoolConnectionInterface
         $this->factory = $container->get(ConnectionFactory::class);
         $this->logger = $container->get(StdoutLoggerInterface::class);
 
-        if ($container->has(EventDispatcherInterface::class)) {
-            $this->dispatcher = $container->get(EventDispatcherInterface::class);
+        if ($container->has(Dispatcher::class)) {
+            $this->dispatcher = $container->get(Dispatcher::class);
         }
 
         $this->reconnect();

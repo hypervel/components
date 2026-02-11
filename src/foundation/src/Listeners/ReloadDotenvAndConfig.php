@@ -7,7 +7,7 @@ namespace Hypervel\Foundation\Listeners;
 use Hyperf\Event\Contract\ListenerInterface;
 use Hyperf\Framework\Event\BeforeWorkerStart;
 use Hypervel\Config\Repository;
-use Hypervel\Contracts\Foundation\Application as ApplicationContract;
+use Hypervel\Foundation\Application;
 use Hypervel\Support\DotenvManager;
 
 class ReloadDotenvAndConfig implements ListenerInterface
@@ -16,7 +16,7 @@ class ReloadDotenvAndConfig implements ListenerInterface
 
     protected static bool $stopCallback = false;
 
-    public function __construct(protected ApplicationContract $container)
+    public function __construct(protected Application $container)
     {
         $this->setConfigCallback();
 

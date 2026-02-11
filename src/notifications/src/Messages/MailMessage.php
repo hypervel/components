@@ -317,7 +317,7 @@ class MailMessage extends SimpleMessage implements Renderable
         $markdown = ApplicationContext::getContainer()
             ->get(Markdown::class);
 
-        return $markdown->theme($this->theme ?: $markdown->getTheme())
+        return (string) $markdown->theme($this->theme ?: $markdown->getTheme())
             ->render($this->markdown, $this->data());
     }
 

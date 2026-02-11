@@ -112,7 +112,7 @@ class RegisterProviders
     /**
      * Merge the given providers into the provider configuration before registration.
      *
-     * @param array<int, class-string> $providers
+     * @param array<int, class-string|string> $providers
      */
     public static function merge(array $providers, ?string $bootstrapProviderPath = null): void
     {

@@ -143,9 +143,11 @@ class Router
      */
     public function current(): ?DispatchedRoute
     {
-        return ApplicationContext::getContainer()
-            ->get(Request::class)
-            ->route();
+        /** @var \Hypervel\Http\Request $request */
+        $request = ApplicationContext::getContainer()
+            ->get(Request::class);
+
+        return $request->route();
     }
 
     /**
