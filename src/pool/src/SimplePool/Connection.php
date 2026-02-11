@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Pool\SimplePool;
 
 use Hypervel\Pool\Connection as AbstractConnection;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 /**
  * A simple pooled connection that uses a callback to create connections.
@@ -20,7 +20,7 @@ class Connection extends AbstractConnection
     protected mixed $connection = null;
 
     public function __construct(
-        ContainerInterface $container,
+        Container $container,
         Pool $pool,
         callable $callback
     ) {

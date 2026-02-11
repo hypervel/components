@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Pool\SimplePool;
 
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 /**
  * Factory for creating and managing simple pools.
@@ -22,7 +22,7 @@ class PoolFactory
     protected array $configs = [];
 
     public function __construct(
-        protected ContainerInterface $container
+        protected Container $container
     ) {
     }
 

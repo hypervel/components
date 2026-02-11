@@ -11,7 +11,7 @@ use Hypervel\Coordinator\Timer;
 use Hypervel\Engine\Channel;
 use Hypervel\Pool\Exception\InvalidArgumentException;
 use Hypervel\Pool\Exception\SocketPopException;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\Log\LoggerInterface;
 use Throwable;
 
@@ -36,7 +36,7 @@ abstract class KeepaliveConnection implements ConnectionInterface
     protected string $name = 'keepalive.connection';
 
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected Pool $pool
     ) {
         $this->timer = new Timer();

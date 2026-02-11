@@ -7,7 +7,7 @@ namespace Hypervel\Pool;
 use Hyperf\Contract\StdoutLoggerInterface;
 use Hypervel\Context\Context as CoroutineContext;
 use Hypervel\Contracts\Pool\ConnectionInterface;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\Log\LoggerInterface;
 
 /**
@@ -18,7 +18,7 @@ class Context
     protected LoggerInterface $logger;
 
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected string $name
     ) {
         $this->logger = $container->get(StdoutLoggerInterface::class);

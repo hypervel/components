@@ -9,7 +9,7 @@ use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Contracts\Pool\FrequencyInterface;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Contracts\Pool\PoolOptionInterface;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use RuntimeException;
 use Throwable;
 
@@ -30,7 +30,7 @@ abstract class Pool implements PoolInterface
     protected FrequencyInterface|LowFrequencyInterface|null $frequency = null;
 
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         array $config = []
     ) {
         $this->initOption($config);

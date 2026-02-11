@@ -8,7 +8,7 @@ use Hyperf\Contract\StdoutLoggerInterface;
 use Hypervel\Contracts\Pool\ConnectionInterface;
 use Hypervel\Contracts\Pool\PoolInterface;
 use Hypervel\Pool\Event\ReleaseConnection;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Throwable;
 
@@ -29,7 +29,7 @@ abstract class Connection implements ConnectionInterface
     private ?StdoutLoggerInterface $logger = null;
 
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected PoolInterface $pool
     ) {
         if ($this->container->has(EventDispatcherInterface::class)) {
