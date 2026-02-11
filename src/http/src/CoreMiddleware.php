@@ -23,7 +23,7 @@ use Hypervel\HttpMessage\Exceptions\NotFoundHttpException;
 use Hypervel\HttpMessage\Exceptions\ServerErrorHttpException;
 use Hypervel\Support\Json;
 use Hypervel\View\Events\ViewRendered;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\EventDispatcher\EventDispatcherInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
@@ -37,7 +37,7 @@ class CoreMiddleware implements CoreMiddlewareInterface
     protected RouteDependency $routeDependency;
 
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected string $serverName
     ) {
         $this->dispatcher = $this->createDispatcher($serverName);

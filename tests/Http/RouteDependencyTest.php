@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Http;
 
-use Faker\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Hyperf\Contract\NormalizerInterface;
 use Hyperf\Di\ClosureDefinitionCollectorInterface;
 use Hyperf\Di\MethodDefinitionCollectorInterface;
@@ -81,7 +81,7 @@ class RouteDependencyTest extends TestCase
             ->once()
             ->andReturn('bar');
 
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('has')
             ->with('service')
             ->once()
@@ -127,7 +127,7 @@ class RouteDependencyTest extends TestCase
             ->once()
             ->andReturn('bar');
 
-        $container = m::mock(ContainerInterface::class);
+        $container = m::mock(Container::class);
         $container->shouldReceive('has')
             ->with('service')
             ->once()
@@ -158,7 +158,7 @@ class RouteDependencyTest extends TestCase
     protected function getRouteDependency(): RouteDependency
     {
         return new RouteDependency(
-            m::mock(ContainerInterface::class),
+            m::mock(Container::class),
             m::mock(NormalizerInterface::class),
             m::mock(MethodDefinitionCollectorInterface::class),
             m::mock(ClosureDefinitionCollectorInterface::class)

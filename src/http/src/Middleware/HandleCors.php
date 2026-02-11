@@ -8,7 +8,7 @@ use Hypervel\Contracts\Debug\ExceptionHandler as ExceptionHandlerContract;
 use Hypervel\Contracts\Http\Request as RequestContract;
 use Hypervel\Http\Cors;
 use Hypervel\Support\Str;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
@@ -20,7 +20,7 @@ class HandleCors implements MiddlewareInterface
     protected array $config = [];
 
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected ExceptionHandlerContract $exceptionHandler,
         protected RequestContract $request,
         protected Cors $cors,

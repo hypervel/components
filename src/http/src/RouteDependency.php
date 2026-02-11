@@ -11,7 +11,7 @@ use Hyperf\Di\MethodDefinitionCollectorInterface;
 use Hyperf\Di\ReflectionType;
 use Hyperf\HttpServer\Router\Dispatched;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 class RouteDependency
 {
@@ -38,7 +38,7 @@ class RouteDependency
     protected bool $resolvingCallbacksRegistered = false;
 
     public function __construct(
-        protected ContainerInterface $container,
+        protected Container $container,
         protected NormalizerInterface $normalizer,
         protected MethodDefinitionCollectorInterface $methodDefinitionCollector,
         protected ClosureDefinitionCollectorInterface $closureDefinitionCollector
