@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Router;
 
-use Hyperf\Di\Definition\DefinitionSource;
 use Hyperf\HttpServer\Router\RouteCollector as HyperfRouteCollector;
 use Hypervel\Container\Container;
 use Hypervel\Context\ApplicationContext;
@@ -122,9 +121,11 @@ class DispatcherFactoryTest extends TestCase
 
     private function getContainer(array $bindings = []): Container
     {
-        $container = new Container(
-            new DefinitionSource($bindings)
-        );
+        $container = new Container();
+
+        foreach ($bindings as $abstract => $concrete) {
+            $container->singleton($abstract, $concrete);
+        }
 
         ApplicationContext::setContainer($container);
 

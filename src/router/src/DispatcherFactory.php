@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Router;
 
-use Hyperf\Contract\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Hyperf\Di\Annotation\AnnotationCollector;
 use Hyperf\HttpServer\MiddlewareManager;
 use Hyperf\HttpServer\Router\DispatcherFactory as BaseDispatcherFactory;
@@ -14,7 +14,7 @@ class DispatcherFactory extends BaseDispatcherFactory
 {
     protected bool $initialized = false;
 
-    public function __construct(protected ContainerInterface $container)
+    public function __construct(protected Container $container)
     {
         $this->initAnnotationRoute(AnnotationCollector::list());
     }

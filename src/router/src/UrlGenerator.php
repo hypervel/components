@@ -9,7 +9,7 @@ use Carbon\Carbon;
 use Closure;
 use DateInterval;
 use DateTimeInterface;
-use Hyperf\Contract\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Hyperf\Contract\SessionInterface;
 use Hyperf\HttpMessage\Uri\Uri;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -55,7 +55,7 @@ class UrlGenerator implements UrlGeneratorContract
      */
     protected ?string $forceScheme = null;
 
-    public function __construct(protected ContainerInterface $container)
+    public function __construct(protected Container $container)
     {
     }
 

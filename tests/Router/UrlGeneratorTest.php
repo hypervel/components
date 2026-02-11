@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Router;
 
-use Hyperf\Contract\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Hyperf\Contract\SessionInterface;
 use Hyperf\HttpMessage\Server\Request as ServerRequest;
 use Hyperf\HttpServer\Contract\RequestInterface;
@@ -32,9 +32,9 @@ use ReflectionMethod;
 class UrlGeneratorTest extends TestCase
 {
     /**
-     * @var ContainerInterface|MockInterface
+     * @var Container|MockInterface
      */
-    private ContainerInterface $container;
+    private Container $container;
 
     /**
      * @var MockInterface|RouteCollector
@@ -639,8 +639,8 @@ class UrlGeneratorTest extends TestCase
 
     private function mockContainer()
     {
-        /** @var ContainerInterface|MockInterface */
-        $container = m::mock(ContainerInterface::class);
+        /** @var Container|MockInterface */
+        $container = m::mock(Container::class);
 
         $container->shouldReceive('get')
             ->with(RequestInterface::class)
