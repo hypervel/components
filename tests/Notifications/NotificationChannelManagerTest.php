@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Hypervel\Tests\Notifications;
 
-use Hyperf\Di\Definition\DefinitionSource;
 use Hypervel\Bus\Queueable;
 use Hypervel\Config\Repository as ConfigRepository;
 use Hypervel\Container\Container;
@@ -124,14 +123,12 @@ class NotificationChannelManagerTest extends TestCase
 
     protected function getContainer(): Container
     {
-        $container = new Container(
-            new DefinitionSource([
-                'config' => fn () => new ConfigRepository([]),
-                BusDispatcherContract::class => fn () => m::mock(BusDispatcherContract::class),
-                EventDispatcherInterface::class => fn () => m::mock(EventDispatcherInterface::class),
-                PoolFactory::class => PoolManager::class,
-            ])
-        );
+        $container = new Container();
+        $container->instance(\Hypervel\Contracts\Container\Container::class, $container);
+        $container->instance('config', new ConfigRepository([]));
+        $container->instance(BusDispatcherContract::class, m::mock(BusDispatcherContract::class));
+        $container->instance(EventDispatcherInterface::class, m::mock(EventDispatcherInterface::class));
+        $container->singleton(PoolFactory::class, PoolManager::class);
 
         ApplicationContext::setContainer($container);
 

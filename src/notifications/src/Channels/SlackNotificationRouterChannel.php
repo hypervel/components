@@ -6,7 +6,7 @@ namespace Hypervel\Notifications\Channels;
 
 use Hypervel\Notifications\Notification;
 use Hypervel\Support\Str;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\UriInterface;
 
@@ -16,7 +16,7 @@ class SlackNotificationRouterChannel
      * Create a new Slack notification router channel.
      */
     public function __construct(
-        protected ContainerInterface $container
+        protected Container $container
     ) {
     }
 
