@@ -7,7 +7,7 @@ namespace Hypervel\Support;
 use Closure;
 use Hypervel\Config\Repository;
 use InvalidArgumentException;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 
 abstract class Manager
 {
@@ -30,7 +30,7 @@ abstract class Manager
      * Create a new manager instance.
      */
     public function __construct(
-        protected ContainerInterface $container
+        protected Container $container
     ) {
         $this->config = $container->get('config');
     }
@@ -113,7 +113,7 @@ abstract class Manager
     /**
      * Get the container instance used by the manager.
      */
-    public function getContainer(): ContainerInterface
+    public function getContainer(): Container
     {
         return $this->container;
     }
@@ -123,7 +123,7 @@ abstract class Manager
      *
      * @return $this
      */
-    public function setContainer(ContainerInterface $container): static
+    public function setContainer(Container $container): static
     {
         $this->container = $container;
 

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Hypervel\Tests\JWT;
 
 use Carbon\Carbon;
-use Hyperf\Contract\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use Hypervel\Config\Repository;
 use Hypervel\JWT\Contracts\BlacklistContract;
 use Hypervel\JWT\Exceptions\JWTException;
@@ -27,9 +27,9 @@ use Ramsey\Uuid\UuidInterface;
 class JWTManagerTest extends TestCase
 {
     /**
-     * @var ContainerInterface|MockInterface
+     * @var Container|MockInterface
      */
-    private ContainerInterface $container;
+    private Container $container;
 
     /**
      * @var MockInterface|Repository
@@ -229,7 +229,7 @@ class JWTManagerTest extends TestCase
 
     private function mockContainer()
     {
-        $this->container = m::mock(ContainerInterface::class);
+        $this->container = m::mock(Container::class);
     }
 
     private function mockConfig()

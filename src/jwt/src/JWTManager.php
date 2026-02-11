@@ -13,7 +13,7 @@ use Hypervel\JWT\Providers\Lcobucci;
 use Hypervel\Support\Collection;
 use Hypervel\Support\Manager;
 use Hypervel\Support\Str;
-use Psr\Container\ContainerInterface;
+use Hypervel\Contracts\Container\Container;
 use RuntimeException;
 
 class JWTManager extends Manager implements ManagerContract
@@ -28,7 +28,7 @@ class JWTManager extends Manager implements ManagerContract
      * Create a new manager instance.
      */
     public function __construct(
-        protected ContainerInterface $container
+        protected Container $container
     ) {
         parent::__construct($container);
         $this->blacklist = $container->get(BlacklistContract::class);
