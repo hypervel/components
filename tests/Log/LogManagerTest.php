@@ -751,8 +751,8 @@ class LogManagerTest extends TestCase
             ], $logConfig),
         ]);
         $container = new Container();
-        $container->singleton('config', fn () => $config);
-        $container->singleton(EventDispatcherInterface::class, fn () => new DispatcherStub());
+        $container->instance('config', $config);
+        $container->instance(EventDispatcherInterface::class, new DispatcherStub());
         return $container;
     }
 }
